@@ -1,0 +1,8 @@
+# The Director reviews every change. Enforce with branch protection
+# (require review from Code Owners) on `main`.
+
+*               @JulTob
+
+# The Specification changes only by the steward, through an Accepted STEP.
+/spec/          @JulTob
+/steps/         @JulTob

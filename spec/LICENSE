@@ -1,0 +1,23 @@
+Tag-Oriented Programming — Specification and STEPs
+
+Copyright 2026 Julio Toboso
+
+This work (the TOP Specification in this directory, and the Standard TOP
+Enhancement Proposals in /steps) is licensed under the
+Creative Commons Attribution 4.0 International License (CC BY 4.0).
+
+You are free to:
+  - Share — copy and redistribute the material in any medium or format.
+  - Adapt — remix, transform, and build upon the material for any purpose,
+    even commercially.
+
+Under the following term:
+  - Attribution — You must give appropriate credit to Julio Toboso / the
+    Tag-Oriented Programming project, provide a link to the license, and
+    indicate if changes were made.
+
+Full legal code: https://creativecommons.org/licenses/by/4.0/legalcode
+Human-readable summary: https://creativecommons.org/licenses/by/4.0/
+
+This license covers the specification text. It grants no rights in the
+trademarks "Tag-Oriented Programming", "TOP", or "TagKit" (see ../TRADEMARK.md).
