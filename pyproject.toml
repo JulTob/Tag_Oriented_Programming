@@ -1,0 +1,43 @@
+[build-system]
+requires = [
+        "setuptools>=68",
+        "wheel",
+        ]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tagkit"
+version = "0.1.0"
+description = "TagKit: the Python reference implementation of Tag-Oriented Programming."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+authors = [
+        { name = "Julio Toboso" },
+        ]
+keywords = [
+        "tag-oriented-programming",
+        "top",
+        "tagkit",
+        "tags",
+        ]
+classifiers = [
+        "Development Status :: 3 - Alpha",
+        "Intended Audience :: Developers",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
+        "Programming Language :: Python :: 3.14",
+        ]
+
+[project.urls]
+Homepage = "https://github.com/JulTob/Tag_Oriented_Programming"
+Specification = "https://github.com/JulTob/Tag_Oriented_Programming/blob/main/spec/SPECIFICATION.md"
+Issues = "https://github.com/JulTob/Tag_Oriented_Programming/issues"
+
+[tool.setuptools]
+packages = [
+        "TagKit",
+        ]
