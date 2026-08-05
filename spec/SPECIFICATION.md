@@ -1,4 +1,7 @@
-# 🏷️ Guide to Tag-Oriented Programming 🔖
+# 🏷️ TOP Technical Specification 🔖
+
+[Manifesto](MANIFESTO.md) → **Technical Specification** →
+[TagKit Guide](../TagKit/GUIDE.md)
 
 ## 🏷️ Introduction
 
@@ -13,6 +16,8 @@ Traditional programming often asks, "what is this object?" TOP asks, "what is th
 You don't need object-oriented programming to use TOP. But if you know OOP, you will discover a complementary model that empowers your code with easy-to-use features and modular refactoring. Implementing TOP can make your codebases more structured, bringing forth Functional Programming and Contract Programming features without the headaches of refactoring your existing code. If you don't have a programming style yet, TOP provides an easy-to-follow model that has proven to be powerful and intuitive.
 
 TOP governs the substrate over OOP with membership and contracts.
+
+> **OOP owns inherent structure; TOP owns semantic context.**
 
 > **TOP is a programming paradigm for composing semantic layers on one stable object identity.**
 
@@ -114,7 +119,7 @@ Ordinary Object Oriented Programming mainly answers:
 
 TOP answers a different question:
 
-> What's the use for this object?
+> What does this object mean here?
 
 TOP is external as a way of thinking: Tags are applied to an existing Target and compose visible semantic layers around it. OOP remains available for the Target's inherent structure, ordinary methods, and ordinary attributes.
 
@@ -122,12 +127,12 @@ TOP complements OOP. The same project may use both.
 
 | OOP | TOP |
 | --- | --- |
-| Internal | External |
-| Parts | Layers |
-| Structures | Semantics |
-| What it is | What it does |
-| Definition | Use |
-| Inheritance | Overlay |
+| Inherent structure | Semantic context |
+| Internal parts | External layers |
+| Identity and invariants | Meaning and use |
+| Ordinary attributes | Records contributed by context |
+| Ordinary methods | Actions contributed by context |
+| Class inheritance | Tag Geometry and Overlays |
 
 TOP does not eliminate OOP, but complements it. The same structure may exist with or without TOP, in the same way it may or may not exist with OOP.
 
@@ -154,7 +159,7 @@ TOP should be:
 - readable before dense
 - explicit before magical
 - semantically strong before syntactically fancy
-- orthogonal before tangled
+- composable before tangled
 - contract-aware where obligations are real
 - practical
 
@@ -180,19 +185,43 @@ TOP should not become:
 | **Target** |  A variable (value, dictionary, record, object...) before or during tagging. |
 | **Tagging** | Applying a Tag to a Target, such as `Human(charlie)`, so the Target becomes an Agent of that Tag. |
 | **Agent** | A variable (value, dictionary, record, object...) when it belongs to a Tag. |
-| **Field** | The population of Agents belonging to a Tag. |
+| **Field** | The current committed population of Agents carrying a Tag. |
 
 
 | Term | Meaning |
 | --- | --- |
+| **Geometry** | The overall relationship structure established by Tags, Bases, and Shapes. |
 | **Base** | A broader Tag that a Shape specializes. |
 | **Shape** | A more specific Tag built over one or more Bases. |
+| **Form** | The deterministic, duplicate-free, Base-first closure of one Tag, ending with the Tag itself. |
 | **Layer** | One Tag's semantic position in an Agent's composition. |
 | **Overlay** | The currently visible result of all active Layers. |
-| **Underlay** | The visible contribution captured immediately before a new contribution is applied. |
+| **Underlay** | Explicit composition with the prior visible contribution sharing the same name. |
 
-TOP uses **Base**/**Supertag** and **Shape**/**Subtag** for specialization vocabulary. It does not use OOP parent/child
-terminology to avoid conflicts with OOP.
+TOP uses **Base** and **Shape** for specialization vocabulary. It does not
+use OOP parent/child terminology, because those words describe a different
+model.
+
+A Tag may hold both roles: `Person` can be a Shape of `Being` and a Base of
+`Wizard`.
+
+The Geometry is the structure. A Form is one Tag's ordered route through
+that Geometry.
+
+```python
+assert Wizard.Form() == (
+        Being,
+        Person,
+        Wizard,
+        )
+```
+
+A Tag has one Form at a time. An Agent may carry several active Forms; taken
+together, they describe that Agent's current Geometry.
+
+**Forming** follows that order downward, from general Bases toward the
+specific Shape. **Deforming** moves upward in reverse dependency order,
+removing specific Shapes before the Bases that support them.
 
 
 ---
@@ -229,6 +258,15 @@ Imprint shapes the Agent when active Field membership begins. Rip cleans up when
 
 - **Report**: shared semantic data, stored on the Tag, across the Field.
 - **Operation**: shared behavior on the Tag
+
+Every public data value declared on a Tag is a Report. An implementation must
+not invent application Reports: a Report name exists only when it is
+declared, inherited through the Tag's Form, or contributed by Tagging the
+Tag. Language runtime machinery is not a Report.
+
+No Report name is reserved for display identity or documentation. A language
+profile should use its language's native naming and documentation facilities
+for those purposes.
 
 In short:
 
@@ -757,21 +795,23 @@ TagKit is TagKit work, not a change to TOP.
 
 ---
 
-## 🧧 Purpose of This Guide
+## 🧧 Purpose of This Specification
 
-This guide has two jobs:
+This specification has two jobs:
 
 - explain the programming model
 - specify the observable behavior a TOP implementation should provide
 
-This guide explains the model first and the current TagKit surface second.
+This specification explains the model first and the required semantics
+second.
 
 Examples show intended meaning.
 They do not freeze one permanent spelling.
 ---
 ## 🧯 TOP Commitments
 
-A conforming TOP implementation must preserve the observable semantics defined by this guide.
+A conforming TOP implementation must preserve the observable semantics
+defined by this specification.
 
 Surface spellings may evolve.
 Internal implementation strategies may evolve.
@@ -1001,4 +1041,3 @@ A condition that does not hold stops the Tagging at its boundary, with nothing c
 | **Postcondition Failure** | A visible Postcondition did not hold after Imprints. The Tag does not apply. |
 
 Because Tagging is atomic, a failed condition leaves the Agent exactly as it was before the call. Conditions are how TOP keeps its word at every boundary: the contract layer that lets you refactor by Tag without fear.
-

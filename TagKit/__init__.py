@@ -1,37 +1,44 @@
-from .TagKit import Action
-from .TagKit import At_Exit
-from .TagKit import Contract
-from .TagKit import Delete
-from .TagKit import Imprint
-from .TagKit import Operation
-from .TagKit import Post
-from .TagKit import Postcondition
-from .TagKit import Pre
-from .TagKit import Precondition
-from .TagKit import Record
-from .TagKit import Report
-from .TagKit import Rip
-from .TagKit import Scope
-from .TagKit import Tag
-from .TagKit import TagCompositionError
-from .TagKit import TagContractError
-from .TagKit import TagContractWarning
-from .TagKit import TagDeletionError
-from .TagKit import TagError
-from .TagKit import TagImprintError
-from .TagKit import TagOverwriteWarning
-from .TagKit import TagPostconditionError
-from .TagKit import TagPreconditionError
-from .TagKit import TagResolutionError
-from .TagKit import Tagged
-from .TagKit import Underlay
+from __future__ import annotations
+
+from .api import Action
+from .api import Apply
+from .api import At_Exit
+from .api import Contract
+from .api import Delete
+from .api import Has
+from .api import Imprint
+from .api import Operation
+from .api import Post
+from .api import Postcondition
+from .api import Pre
+from .api import Precondition
+from .api import Record
+from .api import Report
+from .api import Rip
+from .api import Scope
+from .api import Tag
+from .api import TagCompositionError
+from .api import TagContractError
+from .api import TagContractWarning
+from .api import TagDeletionError
+from .api import TagError
+from .api import TagImprintError
+from .api import TagOverwriteWarning
+from .api import TagPostconditionError
+from .api import TagPreconditionError
+from .api import TagResolutionError
+from .api import Tagged
+from .api import Tags
+from .api import Underlay
 
 
 __all__ = [
         "Action",
+        "Apply",
         "At_Exit",
         "Contract",
         "Delete",
+        "Has",
         "Imprint",
         "Operation",
         "Post",
@@ -54,5 +61,6 @@ __all__ = [
         "TagPreconditionError",
         "TagResolutionError",
         "Tagged",
+        "Tags",
         "Underlay",
         ]
