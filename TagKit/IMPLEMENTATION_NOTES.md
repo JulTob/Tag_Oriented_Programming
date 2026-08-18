@@ -7,7 +7,7 @@
 Optimization + semantics + multi-paradigm pass over the `TagKit` package
 and its regression suites. These notes are non-normative.
 
-**Test result: 173 tests, all passing on Python 3.12 and 3.14**
+**Test result: 180 tests, all passing on Python 3.12 and 3.14**
 (`PYTHONPATH=. python3 -X dev -m unittest discover -s tests`).
 
 The separate state-machine and capacity profiles are documented in
@@ -27,7 +27,7 @@ The public API remains available from `TagKit` and, for compatibility, from
 - `overlays.py` binds and layers contributions;
 - `records.py` materializes and restores Agent Records;
 - `contracts.py` evaluates Preconditions and Postconditions;
-- `transactions.py` owns atomic Tagging, rollback, Rip, and Scope;
+- `transactions.py` owns atomic Tagging, Checkpoints, rollback, Rip, and Scope;
 - `pins.py` applies Tags to Tags;
 - `runtime_types.py` owns Agent state, views, and runtime actualization;
 - `lifecycle.py` integrates finalization and `At_Exit`;
@@ -194,6 +194,16 @@ Target, is rejected while a protocol is running. This applies to ordinary
 Agents and Tag Targets. Such relationships must be expressed through Bases
 or a Shape, or performed after the current tagging boundary, so one outer
 transaction retains one coherent candidate state and Field membership.
+
+`Tag.Checkpoint(target)` reuses the same rollback journal across several
+ordinary, ordered Tag calls without storing a control method on the Target.
+Each inner call remains independently atomic. New Field registrations and
+`ever_tags` history are deferred until `Commit()`; an outer committed-query
+boundary keeps `Has`, `Tags`, Tag views, and membership observations on the
+entry state. `Restore()` recovers the captured Agent or Tag-target namespace
+and state. Checkpoints may also be used as context managers: clean exit
+commits and exceptional exit restores. Nesting on the same Target and Rip
+while provisional are rejected explicitly.
 
 The Target Tag may have any normal Tag contributions of its own and remains
 callable as a Tag for ordinary Agents. Arbitrary non-Tag Python classes retain

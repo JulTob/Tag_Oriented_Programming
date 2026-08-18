@@ -3024,6 +3024,481 @@ class TagKitClaimTests(unittest.TestCase):
                 "raised",
                 )
 
+    def test_checkpoint_commit_publishes_an_ordered_tag_sequence(
+            self,
+            ) -> None:
+        class Species(Tag):
+            @Imprint
+            def Establish(
+                    target,
+                    ) -> None:
+                target.events.append(
+                        "species"
+                        )
+                target.species = "fox"
+
+        class Background(Tag):
+            @Imprint
+            def Establish(
+                    target,
+                    ) -> None:
+                target.events.append(
+                        "background"
+                        )
+                target.background = "scholar"
+
+        ari = Agent()
+        checkpoint = Tag.Checkpoint( ari )
+
+        Species( ari )
+        Background( ari )
+
+        self.assertEqual(
+                ari.events,
+                [
+                    "species",
+                    "background",
+                    ],
+                )
+        self.assertEqual(
+                ari.species,
+                "fox",
+                )
+        self.assertFalse(
+                hasattr(
+                        ari,
+                        "Checkpoint",
+                        )
+                )
+        self.assertNotIn(
+                ari,
+                Species,
+                )
+        self.assertNotIn(
+                ari,
+                Background.Field,
+                )
+        self.assertFalse(
+                isinstance(
+                        ari,
+                        Species,
+                        )
+                )
+        self.assertFalse(
+                Has(
+                        ari,
+                        Species,
+                        Background,
+                        )
+                )
+        self.assertEqual(
+                Tags( ari ),
+                (),
+                )
+
+        result = checkpoint.Commit()
+
+        self.assertIs(
+                result,
+                ari,
+                )
+        self.assertIn(
+                ari,
+                Species,
+                )
+        self.assertIn(
+                ari,
+                Background.Field,
+                )
+        self.assertTrue(
+                isinstance(
+                        ari,
+                        Species,
+                        )
+                )
+        self.assertTrue(
+                Has(
+                        ari,
+                        Species,
+                        Background,
+                        )
+                )
+        self.assertEqual(
+                set(
+                        Tags( ari )
+                        ),
+                {
+                    Species,
+                    Background,
+                    },
+                )
+
+    def test_checkpoint_restore_recovers_identity_state_and_history(
+            self,
+            ) -> None:
+        class Existing(Tag):
+            pass
+
+        class Provisional(Tag):
+            @Imprint
+            def Change(
+                    target,
+                    ) -> None:
+                target.items[0].append(
+                        "provisional"
+                        )
+                target.items.append(
+                        [
+                            "new",
+                            ]
+                        )
+                target.transient = True
+
+        ari = Agent()
+        ari.items = [
+                [
+                    "kept",
+                    ],
+                ]
+        Existing( ari )
+
+        original_identity = id( ari )
+        original_type = type( ari )
+        original_items = ari.items
+        original_nested = ari.items[0]
+        checkpoint = Tag.Checkpoint( ari )
+
+        Provisional( ari )
+
+        result = checkpoint.Restore()
+
+        self.assertIs(
+                result,
+                ari,
+                )
+        self.assertEqual(
+                id( ari ),
+                original_identity,
+                )
+        self.assertIs(
+                type( ari ),
+                original_type,
+                )
+        self.assertIs(
+                ari.items,
+                original_items,
+                )
+        self.assertIs(
+                ari.items[0],
+                original_nested,
+                )
+        self.assertEqual(
+                ari.items,
+                [
+                    [
+                        "kept",
+                        ],
+                    ],
+                )
+        self.assertFalse(
+                hasattr(
+                        ari,
+                        "transient",
+                        )
+                )
+        self.assertIn(
+                ari,
+                Existing,
+                )
+        self.assertNotIn(
+                ari,
+                Provisional,
+                )
+        self.assertFalse(
+                isinstance(
+                        ari,
+                        Provisional,
+                        )
+                )
+
+    def test_checkpoint_context_restores_on_error_and_commits_on_exit(
+            self,
+            ) -> None:
+        class Draft(Tag):
+            @Imprint
+            def Establish(
+                    target,
+                    ) -> None:
+                target.draft = "ready"
+
+        ari = Agent()
+
+        with self.assertRaises(ValueError):
+            with Tag.Checkpoint( ari ) as candidate:
+                self.assertIs(
+                        candidate,
+                        ari,
+                        )
+
+                Draft( candidate )
+
+                raise ValueError(
+                        "approval rejected"
+                        )
+
+        self.assertNotIn(
+                ari,
+                Draft,
+                )
+        self.assertFalse(
+                hasattr(
+                        ari,
+                        "draft",
+                        )
+                )
+
+        with Tag.Checkpoint( ari ) as candidate:
+            Draft( candidate )
+
+            self.assertEqual(
+                    candidate.draft,
+                    "ready",
+                    )
+
+        self.assertIn(
+                ari,
+                Draft,
+                )
+
+    def test_checkpoint_preserves_each_inner_tag_transaction(
+            self,
+            ) -> None:
+        class Accepted(Tag):
+            @Imprint
+            def Establish(
+                    target,
+                    ) -> None:
+                target.accepted = True
+
+        class Rejected(Tag):
+            @Imprint
+            def Fail(
+                    target,
+                    ) -> None:
+                target.rejected = True
+
+                raise RuntimeError(
+                        "reject this step"
+                        )
+
+        ari = Agent()
+        checkpoint = Tag.Checkpoint( ari )
+
+        Accepted( ari )
+
+        with self.assertRaises(TagImprintError):
+            Rejected( ari )
+
+        self.assertTrue( ari.accepted )
+        self.assertFalse(
+                hasattr(
+                        ari,
+                        "rejected",
+                        )
+                )
+
+        checkpoint.Commit()
+
+        self.assertIn(
+                ari,
+                Accepted,
+                )
+        self.assertNotIn(
+                ari,
+                Rejected,
+                )
+
+    def test_checkpoint_supports_tag_targets_without_changing_their_api(
+            self,
+            ) -> None:
+        class Catalog(Tag):
+            choices = [
+                    "kept",
+                    ]
+
+        class Draft_Pin(Tag):
+            @Imprint
+            def Change(
+                    target,
+                    ) -> None:
+                target.choices.append(
+                        "provisional"
+                        )
+
+        original_choices = Catalog.choices
+        checkpoint = Tag.Checkpoint( Catalog )
+
+        Draft_Pin( Catalog )
+
+        self.assertEqual(
+                Catalog.choices,
+                [
+                    "kept",
+                    "provisional",
+                    ],
+                )
+        self.assertNotIn(
+                Catalog,
+                Draft_Pin,
+                )
+
+        checkpoint.Restore()
+
+        self.assertIs(
+                Catalog.choices,
+                original_choices,
+                )
+        self.assertEqual(
+                Catalog.choices,
+                [
+                    "kept",
+                    ],
+                )
+        self.assertNotIn(
+                Catalog,
+                Draft_Pin,
+                )
+        self.assertNotIsInstance(
+                Catalog,
+                Draft_Pin,
+                )
+
+        committed = Tag.Checkpoint( Catalog )
+
+        Draft_Pin( Catalog )
+        committed.Commit()
+
+        self.assertIn(
+                Catalog,
+                Draft_Pin,
+                )
+        self.assertIsInstance(
+                Catalog,
+                Draft_Pin,
+                )
+        self.assertEqual(
+                Catalog.choices,
+                [
+                    "kept",
+                    "provisional",
+                    ],
+                )
+
+    def test_checkpoint_rejects_nested_control_and_provisional_rip(
+            self,
+            ) -> None:
+        class Existing(Tag):
+            pass
+
+        ari = Agent()
+        Existing( ari )
+        checkpoint = Tag.Checkpoint( ari )
+
+        with self.assertRaisesRegex(
+                TagCompositionError,
+                "active Checkpoint",
+                ):
+            Tag.Checkpoint( ari )
+
+        with self.assertRaisesRegex(
+                TagCompositionError,
+                "provisional",
+                ):
+            Existing.Rip( ari )
+
+        checkpoint.Restore()
+
+        with self.assertRaisesRegex(
+                TagCompositionError,
+                "already closed",
+                ):
+            checkpoint.Commit()
+
+    def test_checkpoint_commit_failure_restores_partial_field_publication(
+            self,
+            ) -> None:
+        class First(Tag):
+            @Imprint
+            def Establish(
+                    target,
+                    ) -> None:
+                target.first = True
+
+        class Second(Tag):
+            @Imprint
+            def Establish(
+                    target,
+                    ) -> None:
+                target.second = True
+
+        ari = Agent()
+        original_type = type( ari )
+        checkpoint = Tag.Checkpoint( ari )
+
+        First( ari )
+        Second( ari )
+
+        original_add = Second._tagkit_field._add
+
+        def Reject_Publication(
+                target,
+                ) -> None:
+            raise TagCompositionError(
+                    "Field publication rejected"
+                    )
+
+        Second._tagkit_field._add = Reject_Publication
+
+        try:
+            with self.assertRaisesRegex(
+                    TagCompositionError,
+                    "Field publication rejected",
+                    ):
+                checkpoint.Commit()
+        finally:
+            Second._tagkit_field._add = original_add
+
+        self.assertIs(
+                type( ari ),
+                original_type,
+                )
+        self.assertNotIn(
+                ari,
+                First,
+                )
+        self.assertNotIn(
+                ari,
+                Second,
+                )
+        self.assertFalse(
+                isinstance(
+                        ari,
+                        First,
+                        )
+                )
+        self.assertFalse(
+                hasattr(
+                        ari,
+                        "first",
+                        )
+                )
+        self.assertFalse(
+                hasattr(
+                        ari,
+                        "second",
+                        )
+                )
+
     def test_active_preconditions_and_postconditions_run_on_later_tagging(self) -> None:
         ari = Agent()
 

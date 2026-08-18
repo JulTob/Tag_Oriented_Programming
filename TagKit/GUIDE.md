@@ -1724,6 +1724,102 @@ actors = list(
 
 ---
 
+## Checkpoint a design phase
+
+A generated build is often a design before it becomes durable meaning. Select
+the Tags with ordinary Python data, then apply them in their intended order:
+
+```python
+selected_tags = (
+        randomizer.choice( SPECIES_TAGS ),
+        randomizer.choice( BACKGROUND_TAGS ),
+        randomizer.choice( CLASS_TAGS ),
+        )
+```
+
+When partial success is useful, apply the Tags normally. Each successful call
+commits independently:
+
+```python
+for selected_tag in selected_tags:
+    selected_tag( creature )
+```
+
+When the whole design must be recoverable, create a Checkpoint from `Tag`.
+The control object stays outside the Target, so it does not claim a useful
+Target member name:
+
+```python
+checkpoint = Tag.Checkpoint( creature )
+
+try:
+    for selected_tag in selected_tags:
+        selected_tag( creature )
+
+    if not archetype_is_approved( creature ):
+        raise Invalid_Archetype(
+                "The selected Tags do not form an approved archetype."
+                )
+
+except Exception:
+    checkpoint.Restore()
+
+    raise
+
+else:
+    checkpoint.Commit()
+```
+
+The Tags still run one at a time and in written order. Each call retains its
+own atomic failure boundary. The Checkpoint adds one outer publication and
+recovery boundary:
+
+- Imprints and later Tags can use the provisional Records and Actions;
+- `Commit()` publishes every newly applied membership together;
+- `Restore()` recovers the entry type, Tag state, attributes, slots, and
+  supported mutable containers;
+- previously committed Tags remain committed; and
+- the Target keeps the same identity throughout.
+
+Field membership, `Tags`, `Has`, Tag-bound views, and historical `isinstance`
+continue to report the committed entry state until `Commit()`. This prevents a
+half-designed Agent from appearing in registries.
+
+A context manager provides the same control flow when normal exit means
+approval and an exception means rejection:
+
+```python
+with Tag.Checkpoint( creature ) as candidate:
+    for selected_tag in selected_tags:
+        selected_tag( candidate )
+
+    if not archetype_is_approved( candidate ):
+        raise Invalid_Archetype(
+                "The design was rejected."
+                )
+```
+
+Use an explicit test and exception for production approval. Python may remove
+`assert` statements under optimization, so assertions are best reserved for
+development diagnostics.
+
+A Checkpoint is not Rip and does not erase committed history. Rip is forbidden
+while a Checkpoint is provisional. The rollback journal also cannot undo
+external I/O, mutations hidden inside opaque custom objects, or changes to
+another object graph. Keep those effects after `Commit()`, or compensate for
+them explicitly.
+
+The same mechanism works when the Target is a Tag during Pin design.
+Every explicitly created Checkpoint must finish with `Commit()` or `Restore()`;
+prefer the context-manager form when no later decision needs the control
+object.
+
+`Commit()` publishes the decision; it does not invent an approval rule.
+Evaluate the domain condition, or call the relevant `Contract` checks, before
+committing.
+
+---
+
 ## OOP coexistence
 
 ```python
@@ -2006,6 +2102,9 @@ decisions that deserve attention.
 | Define a Tag | `class Fire( Tag ): ...` |
 | Apply one Tag | `Fire( creature, ... )` |
 | Apply several Tags | `Apply( creature, Fire, Flying, ... )` |
+| Open recoverable Tagging | `checkpoint = Tag.Checkpoint( creature )` |
+| Publish a Checkpoint | `checkpoint.Commit()` |
+| Recover a Checkpoint | `checkpoint.Restore()` |
 | Check current membership | `creature in Fire` |
 | Check committed history | `isinstance( creature, Fire )` |
 | Iterate the Field | `for creature in Fire: ...` |

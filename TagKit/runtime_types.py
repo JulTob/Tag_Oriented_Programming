@@ -34,6 +34,7 @@ from .geometry import _leaf_tags_for
 _PIN_STATE = "__tagkit_pin_state__"
 _PIN_PROTECTED_MEMBERS = frozenset(
         {
+            "Checkpoint",
             "Field",
             "Form",
             "Rip",
@@ -110,6 +111,18 @@ def _check_conditions(
     from .contracts import _check_conditions as check_conditions
 
     return check_conditions(
+            *args,
+            **kwargs,
+            )
+
+
+def _checkpoint(
+        *args: Any,
+        **kwargs: Any,
+        ) -> Any:
+    from .transactions import _checkpoint as checkpoint
+
+    return checkpoint(
             *args,
             **kwargs,
             )
@@ -1408,6 +1421,18 @@ class _Tag_Type(type):
                 agent,
                 tag,
                 )
+
+    def Checkpoint(
+            tag,
+            target: object,
+            ) -> Any:
+        """Open recoverable, provisional Tagging for one Target.
+
+        The returned control object lives outside the Target. Finish it with
+        ``Commit()`` or ``Restore()``, or use it as a context manager.
+        """
+
+        return _checkpoint( target )
 
     def __call__(
             tag,

@@ -15,6 +15,7 @@ profile of TOP.
 - Geometry, Forms, Overlays, and explicit Underlays.
 - Pins for applying Tags to Tags.
 - Atomic Tagging with rollback of TOP state and supported host mutations.
+- Recoverable multi-Tag design phases through `Tag.Checkpoint(target)`.
 - `Scope` and `At_Exit` lifecycle helpers.
 - Typed contribution decorators and a `py.typed` marker.
 - Deterministic state-machine and capacity stress suites.

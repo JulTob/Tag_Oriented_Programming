@@ -21,7 +21,9 @@ from .errors import TagPreconditionError
 from .errors import TagResolutionError
 from .geometry import _direct_bases_for
 from .overlays import _install_declarations
+from .pins import _capture_pinned_tag_namespace
 from .pins import _declarations_with_pins
+from .pins import _restore_pinned_tag_namespace
 from .queries import _validate_tags
 from .records import _apply_record_values
 from .records import _capture_attribute
@@ -35,11 +37,13 @@ from .runtime_types import _Committed_Query
 from .runtime_types import _Instance_Snapshot
 from .runtime_types import _Mutable_Snapshot
 from .runtime_types import _Slot_Snapshot
+from .runtime_types import _Tag_Namespace_Snapshot
 from .runtime_types import _Tagging_Transaction
 from .runtime_types import _actualize_runtime_type
 from .runtime_types import _committed_queries
 from .runtime_types import _delete_state
 from .runtime_types import _existing_state_for
+from .runtime_types import _is_tag
 from .runtime_types import _restore_runtime_type
 from .runtime_types import _record_names_for
 from .runtime_types import _runtime_type_for
@@ -54,6 +58,37 @@ _tagging_transactions = ContextVar(
         "tagkit_tagging_transactions",
         default=(),
         )
+_checkpoint_controls = ContextVar(
+        "tagkit_checkpoint_controls",
+        default=(),
+        )
+
+
+def _active_checkpoint_for(
+        target: object,
+        ) -> "_Checkpoint_Control | None":
+    for checkpoint in reversed(
+            _checkpoint_controls.get()
+            ):
+        if (
+                checkpoint._active
+                and checkpoint._target is target
+                ):
+            return checkpoint
+
+    return None
+
+
+def _tagging_boundary_is_active(
+        target: object,
+        ) -> bool:
+    identity = id(target)
+
+    return any(
+            transaction.active
+            and transaction.identity == identity
+            for transaction in _tagging_transactions.get()
+            )
 
 
 @contextmanager
@@ -61,6 +96,11 @@ def _committed_query_boundary(
         target: object,
         state: _Agent_State | None,
         ) -> Iterator[None]:
+    if _active_checkpoint_for(target) is not None:
+        yield
+
+        return
+
     query = _Committed_Query(
             target=target,
             state=state,
@@ -137,12 +177,9 @@ def _tagging_boundary(
 def _target_is_tagging(
         target: object,
         ) -> bool:
-    identity = id(target)
-
-    return any(
-            transaction.active
-            and transaction.identity == identity
-            for transaction in _tagging_transactions.get()
+    return (
+            _tagging_boundary_is_active( target )
+            or _active_checkpoint_for(target) is not None
             )
 
 
@@ -316,6 +353,9 @@ def _commit_new_memberships(
         target: object,
         entry_tags: frozenset[type["Tag"]],
         ) -> None:
+    if _active_checkpoint_for(target) is not None:
+        return
+
     state = _existing_state_for(target)
     added = _tags_added_since(
             state,
@@ -681,6 +721,235 @@ def _restore_instance_state(
                     )
         except AttributeError:
             pass
+
+
+class _Checkpoint_Control:
+    """Recover one Target while keeping provisional state off its API."""
+
+    __slots__ = (
+            "_active",
+            "_entry_class",
+            "_entry_snapshot",
+            "_entry_state",
+            "_entry_tags",
+            "_query",
+            "_target",
+            "_target_is_tag",
+            )
+
+    def __init__(
+            checkpoint,
+            target: object,
+            ) -> None:
+        if _tagging_boundary_is_active(target):
+            raise TagCompositionError(
+                    "A Checkpoint cannot begin during Tag application"
+                    )
+
+        if _active_checkpoint_for(target) is not None:
+            raise TagCompositionError(
+                    "This Target already has an active Checkpoint"
+                    )
+
+        _validate_agent_state_slot(target)
+
+        entry_state = _existing_state_for(target)
+        target_is_tag = _is_tag(target)
+        entry_snapshot: (
+                _Instance_Snapshot
+                | _Tag_Namespace_Snapshot
+                )
+
+        if target_is_tag:
+            entry_snapshot = _capture_pinned_tag_namespace(target)
+        else:
+            entry_snapshot = _capture_instance_state(target)
+
+        checkpoint._active = True
+        checkpoint._entry_class = type(target)
+        checkpoint._entry_snapshot = entry_snapshot
+        checkpoint._entry_state = entry_state
+        checkpoint._entry_tags = frozenset(
+                entry_state.active_tags
+                if entry_state is not None
+                else ()
+                )
+        checkpoint._query = _Committed_Query(
+                target=target,
+                state=entry_state,
+                record_names=_record_names_for(
+                        target,
+                        entry_state,
+                        ),
+                )
+        checkpoint._target = target
+        checkpoint._target_is_tag = target_is_tag
+
+        _checkpoint_controls.set(
+                (
+                    *_checkpoint_controls.get(),
+                    checkpoint,
+                    )
+                )
+        _committed_queries.set(
+                (
+                    *_committed_queries.get(),
+                    checkpoint._query,
+                    )
+                )
+
+    def _require_active(
+            checkpoint,
+            ) -> None:
+        if not checkpoint._active:
+            raise TagCompositionError(
+                    "This Checkpoint is already closed"
+                    )
+
+        if _tagging_boundary_is_active(checkpoint._target):
+            raise TagCompositionError(
+                    "A Checkpoint cannot close during Tag application"
+                    )
+
+    def _close_boundary(
+            checkpoint,
+            ) -> None:
+        checkpoint._active = False
+        checkpoint._query.active = False
+
+        _checkpoint_controls.set(
+                tuple(
+                        candidate
+                        for candidate in _checkpoint_controls.get()
+                        if candidate is not checkpoint
+                        )
+                )
+        _committed_queries.set(
+                tuple(
+                        query
+                        for query in _committed_queries.get()
+                        if query is not checkpoint._query
+                        )
+                )
+
+    def _restore_captured_state(
+            checkpoint,
+            ) -> None:
+        target = checkpoint._target
+
+        _remove_new_memberships(
+                target,
+                checkpoint._entry_tags,
+                )
+
+        if checkpoint._target_is_tag:
+            _restore_pinned_tag_namespace(
+                    target,
+                    checkpoint._entry_snapshot,
+                    )
+        else:
+            if type(target) is not checkpoint._entry_class:
+                _restore_runtime_type(
+                        target,
+                        checkpoint._entry_class,
+                        )
+
+            _restore_instance_state(
+                    target,
+                    checkpoint._entry_snapshot,
+                    )
+
+        if checkpoint._entry_state is not None:
+            _set_state(
+                    target,
+                    checkpoint._entry_state,
+                    )
+        else:
+            _delete_state(target)
+
+    def _release_captured_state(
+            checkpoint,
+            ) -> None:
+        checkpoint._entry_class = object
+        checkpoint._entry_snapshot = None
+        checkpoint._entry_state = None
+        checkpoint._entry_tags = frozenset()
+        checkpoint._query = None
+        checkpoint._target = None
+        checkpoint._target_is_tag = False
+
+    def Commit(
+            checkpoint,
+            ) -> object:
+        """Publish every Tag added since this Checkpoint began."""
+
+        checkpoint._require_active()
+        target = checkpoint._target
+        checkpoint._close_boundary()
+
+        try:
+            _commit_new_memberships(
+                    target,
+                    checkpoint._entry_tags,
+                    )
+        except BaseException:
+            try:
+                checkpoint._restore_captured_state()
+            finally:
+                checkpoint._release_captured_state()
+
+            raise
+
+        checkpoint._release_captured_state()
+
+        return target
+
+    def Restore(
+            checkpoint,
+            ) -> object:
+        """Restore the Target to this Checkpoint's entry state."""
+
+        checkpoint._require_active()
+        target = checkpoint._target
+        checkpoint._close_boundary()
+
+        try:
+            checkpoint._restore_captured_state()
+        finally:
+            checkpoint._release_captured_state()
+
+        return target
+
+    def __enter__(
+            checkpoint,
+            ) -> object:
+        checkpoint._require_active()
+
+        return checkpoint._target
+
+    def __exit__(
+            checkpoint,
+            error_type: type[BaseException] | None,
+            error: BaseException | None,
+            traceback: object,
+            ) -> bool:
+        if not checkpoint._active:
+            return False
+
+        if error_type is None:
+            checkpoint.Commit()
+        else:
+            checkpoint.Restore()
+
+        return False
+
+
+def _checkpoint(
+        target: object,
+        ) -> _Checkpoint_Control:
+    """Open a recoverable provisional boundary for one Target."""
+
+    return _Checkpoint_Control( target )
 
 
 def _run_transaction(
