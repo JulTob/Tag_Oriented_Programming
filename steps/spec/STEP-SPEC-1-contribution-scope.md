@@ -79,14 +79,23 @@ projection onto every Agent.
 
 ### 2. One public slot per scope and name
 
-Within one scope, a name identifies one public member slot.
+Within one scope, a name identifies one public member slot. The visible
+Overlay occupies that slot with one kind at a time.
 
 - Same-kind Layers at the same coordinate follow the existing Overlay and
   Underlay rules.
-- An Action and a Record cannot occupy the same Agent coordinate.
-- An Operation and a Report cannot occupy the same Tag coordinate.
-- A same-scope, cross-kind collision must fail atomically before membership,
-  Imprints, Records, or other visible state commit.
+- Independent Tags cannot place an Action and a Record at the same Agent
+  coordinate, or an Operation and a Report at the same Tag coordinate.
+  Those collisions fail atomically before membership, Imprints, Records,
+  or other visible state commit.
+- Within one Form, a later Layer may Overlay the slot with the other
+  Agent kind. A Shape Record may fix a Base Action as data. A Shape
+  Action may compute from a Base Record. The prior kind remains in the
+  captured Base view; current access shows one kind.
+- `@Underlay` remains same-kind. Changing kind is Overlay replacement,
+  not mixed-kind extension.
+- Delete frees the name. The next contribution may occupy the slot with
+  either Agent kind.
 
 Across scopes, equal names do not collide. They do not replace one another,
 form an Underlay together, or change one another's history.
@@ -94,6 +103,8 @@ form an Underlay together, or change one another's history.
 Kind alone is not the coordinate. Defining separate `(kind, name)` slots
 would permit both callable and data meanings to claim the same
 `receiver.name` spelling without saying which one the program receives.
+Form Overlay may change which kind currently occupies the slot; access
+never consults two live kinds for one spelling.
 
 ### 3. Contract phases are separate
 
@@ -227,8 +238,10 @@ A conforming Specification and language profile must demonstrate that:
   protocol changes them;
 - same-name contributions in Agent and Tag scopes do not replace or Underlay
   one another;
-- Action/Record and Operation/Report collisions within one scope fail
-  atomically;
+- independent Action/Record and Operation/Report collisions within one
+  scope fail atomically;
+- a Shape may Overlay a Base Action with a Record, or a Base Record with
+  an Action, while the captured Base view retains the prior kind;
 - an Agent-bound Tag view uses the defined Agent-first access rule without
   merging the two scope histories;
 - Preconditions and Postconditions compose only within their own phases; and
@@ -253,7 +266,9 @@ Action; it simply has a different receiver.
 
 Using one public slot per `(scope, name)` keeps access predictable. It avoids
 fixed cross-kind precedence tables while allowing Agent and Tag vocabularies
-to evolve independently.
+to evolve independently. Form Overlay may still specialize a slot from
+computed Action to stored Record, which is replacement of the visible
+kind, not two simultaneous meanings.
 
 ## Backwards compatibility
 
@@ -265,17 +280,21 @@ The current Python TagKit already:
 - keeps flat Agent access separate from Reports and Operations;
 - stores central Action bodies once and binds the current Agent;
 - keeps Agent and Tag contribution stores separate;
-- applies Agent-first lookup in an Agent-bound Tag view; and
-- rejects Report/Operation collisions while Pinning.
+- applies Agent-first lookup in an Agent-bound Tag view;
+- rejects Report/Operation collisions while Pinning;
+- rejects independent Action/Record collisions in Agent scope before
+  mutation; and
+- lets a Shape Overlay a Base Agent slot with the other kind, while the
+  captured Base view keeps the prior kind.
 
-To conform fully after this STEP is Deployed, TagKit must also reject an
-Action/Record collision in Agent scope before mutation and cover the complete
-scope law with tests.
+To conform fully after this STEP is Deployed, other language profiles must
+implement the same Agent-scope collision and Form Overlay laws, and cover
+them with tests.
 
 Implementations that currently merge every contribution by bare name must
 separate Agent members, Tag members, and the two contract phases. Code that
-depends on a silent same-scope cross-kind precedence must rename one member
-or introduce an explicit adapter.
+depends on a silent same-scope cross-kind precedence between independent
+Tags must rename one member or introduce an explicit adapter.
 
 ## Alternatives considered
 

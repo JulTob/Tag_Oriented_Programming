@@ -7,6 +7,7 @@ from .api import Contract
 from .api import Delete
 from .api import Has
 from .api import Imprint
+from .api import ImprintingError
 from .api import Operation
 from .api import Post
 from .api import Postcondition
@@ -40,6 +41,7 @@ __all__ = [
         "Delete",
         "Has",
         "Imprint",
+        "ImprintingError",
         "Operation",
         "Post",
         "Postcondition",

@@ -7,7 +7,7 @@
 Optimization + semantics + multi-paradigm pass over the `TagKit` package
 and its regression suites. These notes are non-normative.
 
-**Test result: 180 tests, all passing on Python 3.12 and 3.14**
+**Test result: 197 tests, all passing on Python 3.12 and 3.14**
 (`PYTHONPATH=. python3 -X dev -m unittest discover -s tests`).
 
 The separate state-machine and capacity profiles are documented in
@@ -22,11 +22,15 @@ The public API remains available from `TagKit` and, for compatibility, from
 
 - `api.py` assembles the stable public surface;
 - `declarations.py` defines contribution decorators and declarations;
+- `access.py` binds Agent Actions, Records, and Conditions so `name` and
+  `name()` read the same contribution;
 - `fields.py` owns weak, ordered Tag Fields;
 - `geometry.py` traverses Bases, Shapes, and Forms;
 - `overlays.py` binds and layers contributions;
 - `records.py` materializes and restores Agent Records;
-- `contracts.py` evaluates Preconditions and Postconditions;
+- `contracts.py` evaluates Preconditions and Postconditions; layer Preconditions
+  gate only the Tag being applied, while visible Postconditions re-check at
+  every Tagging boundary;
 - `transactions.py` owns atomic Tagging, Checkpoints, rollback, Rip, and Scope;
 - `pins.py` applies Tags to Tags;
 - `runtime_types.py` owns Agent state, views, and runtime actualization;
@@ -94,6 +98,11 @@ class Paladin(Person):
   `signature()` is inspected at most once per declaration rather than per
   application. Unhashable callable strategy objects remain valid and are
   inspected without caching.
+- `@Underlay` still requires the prior visible contribution to have the
+  same kind. Independent Tags still cannot share one Agent name as both
+  an Action and a Record. A Shape may Overlay a Base slot with the other
+  Agent kind: the current Overlay shows one kind, and the captured Base
+  view keeps the prior kind.
 
 ## 2. Active reapply is a strict no-op
 
@@ -179,20 +188,28 @@ Because the state is owned by the class instead of a weak-map value, a
 Pin-provided Report may safely refer to its own Target without keeping that
 Target alive.
 
-Conditions and Imprints may perform side effects. Direct class-member
-assignments, replacements, deletions, metadata changes, and reachable
-built-in container mutations are provisional and roll back if the complete
-tagging fails; they commit if it succeeds. The container journal is shallow
+Conditions may perform side effects. Direct class-member assignments,
+replacements, deletions, metadata changes, and reachable built-in container
+mutations are provisional and roll back if Preconditions or Records fail.
+Imprints and Postconditions run after that Tagging has applied. An Imprint
+failure is a machine error; a Postcondition failure is a defective result.
+Neither un-applies the Tag. The container journal is shallow
 and structural over exact `list`, `dict`, `set`, and `bytearray` objects,
 including those nested through tuples. It preserves their identities,
 aliases, and cycles without calling user copy hooks. Side-effecting
 Conditions are permitted but discouraged because every later tagging
 rechecks visible Conditions.
 
-Nested application of a different Tag, or Ripping any membership on the same
-Target, is rejected while a protocol is running. This applies to ordinary
-Agents and Tag Targets. Such relationships must be expressed through Bases
-or a Shape, or performed after the current tagging boundary, so one outer
+An Imprint may apply further independent Tags. Those Taggings are ordinary
+later calls after the current Tag has applied. A nested Precondition rolls
+back only the nested Tag; the outer Tag stays. Required, more general
+meaning still belongs in Bases. Optional, conditional, or later layers
+belong in the Imprint, so the written order stays PreTag, then MyTag, then
+AdditionalTag1.
+
+Preconditions, Record materializers, and Postconditions still cannot apply
+Tags. Nested application of a different Tag, or Ripping any membership on
+the same Target, remains rejected from those protocols so one outer
 transaction retains one coherent candidate state and Field membership.
 
 `Tag.Checkpoint(target)` reuses the same rollback journal across several
@@ -341,8 +358,10 @@ rather than the previous bare `classmethod` result.
   a second strong population list, and rechecks each registration before
   yielding so an Agent Ripped during iteration is not returned afterward.
 - **Tag subscription.** `Tag[target]` returns the Target's active Tag-bound
-  view, including `Pin[Pinned_Tag]`. `Tag[:]` returns the Tag's existing weak
-  Field view; partial slices reject rather than implying positional access.
+  view, including `Pin[Pinned_Tag]`. `Tag[:]` returns a sound Field view
+  whose visible Postconditions hold; `~Tag[:]` is the defective complement;
+  `Tag[:] | ~Tag[:]` is the U-set (whole Field). Partial slices reject rather
+  than implying positional access.
 - **Relationship queries.** `Tag.Form()` returns one Tag's deterministic,
   Base-first closure. `agent.Forms()` returns the active leaf Forms, optionally
   cropped through the host's `FORM_ROOTS`. `agent.Geometry()` combines those
@@ -351,13 +370,14 @@ rather than the previous bare `classmethod` result.
   chains.
 - **Commit-only observation.** `agent in Tag`, `agent in Tag[:]`,
   `Tag[agent]`, `Has(...)`, and historical `isinstance` cannot observe a
-  provisional candidate while Preconditions, Imprints, Records, or
-  Postconditions run. `Has(...)` and contribution probes through
-  `probe in agent` continue to see the entry Overlay during a transaction,
-  even while direct Action access intentionally sees the candidate Overlay
-  for contract evaluation. Missing Bases pulled in by a Shape publish
-  together at the outer transaction boundary, for ordinary Agents and Pins
-  alike.
+  provisional candidate while Preconditions, Records, or Postconditions
+  run. Imprints and Postconditions run after that commit, so membership is
+  already visible unless a Checkpoint is still holding publication. `Has(...)` and
+  contribution probes through `probe in agent` continue to see the entry
+  Overlay during a transaction, even while direct Action access
+  intentionally sees the candidate Overlay for contract evaluation. Missing
+  Bases pulled in by a Shape publish together at the outer transaction
+  boundary, for ordinary Agents and Pins alike.
 - **Smaller transaction state.** Internal state records use slots, immutable
   nested contribution maps are shared across candidate copies, active
   reapplication returns before snapshots, and rollback restores the original
@@ -377,10 +397,11 @@ rather than the previous bare `classmethod` result.
 - **Explicit async boundary.** Async Actions and Operations remain valid and
   preserve coroutine, generator, and async-generator introspection after
   binding. Tag application itself is synchronous: awaitables and async
-  generators returned by Preconditions, Imprints, Postconditions, or Records
-  reject the Tagging atomically. Lazy generator Preconditions, Imprints, and
-  Postconditions also reject because their bodies have not run; a synchronous
-  generator remains valid Record data. Lazy or awaitable Rip results are
+  generators returned by Preconditions or Records reject the Tagging
+  atomically. The same protocols used as Imprints or Postconditions reject
+  after the Tag has applied. Lazy generator Preconditions also
+  reject because their bodies have not run; a synchronous generator remains
+  valid Record data. Lazy or awaitable Rip results are
   reported as failed teardown after membership has ended. Best-effort
   finalizer and at-exit paths discard them without leaking unawaited work.
 - **Complete Rip teardown.** Every teardown Action for one Tag runs before an

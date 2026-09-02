@@ -22,6 +22,7 @@ from TagKit import (
         Delete,
         Has,
         Imprint,
+        ImprintingError,
         Operation,
         Post,
         Pre,
@@ -29,7 +30,6 @@ from TagKit import (
         Report,
         Scope,
         Tag,
-        TagImprintError,
         TagPostconditionError,
         TagPreconditionError,
         TagResolutionError,
@@ -290,7 +290,8 @@ def Assert_Target(
                 tag.__name__,
                 tag in model.ever,
                 )
-        assert tag[:] is tag.Field
+        assert tag[()] is tag.Field
+        assert tag[...] is tag.Field
 
 
 def Assert_Fields(
@@ -482,14 +483,6 @@ def Exercise_Transactions(
                     reject_pre,
                     TagPreconditionError,
                     ),
-            (
-                    reject_post,
-                    TagPostconditionError,
-                    ),
-            (
-                    reject_imprint,
-                    TagImprintError,
-                    ),
             ):
         before = Snapshot_Mutables(target)
         cache = target.cache
@@ -521,6 +514,48 @@ def Exercise_Transactions(
                 target,
                 tag,
                 )
+
+    try:
+        reject_post(target)
+    except TagPostconditionError:
+        pass
+    else:
+        raise AssertionError(
+                (
+                        f"seed={seed} step={step}",
+                        "postcondition unexpectedly succeeded",
+                        reject_post.__name__,
+                        )
+                )
+
+    assert target in reject_post
+    assert Has(
+            target,
+            reject_post,
+            )
+    assert "post" in target.ledger["events"]
+    reject_post.Rip(target)
+
+    try:
+        reject_imprint(target)
+    except ImprintingError:
+        pass
+    else:
+        raise AssertionError(
+                (
+                        f"seed={seed} step={step}",
+                        "imprint unexpectedly succeeded",
+                        reject_imprint.__name__,
+                        )
+                )
+
+    assert target in reject_imprint
+    assert Has(
+            target,
+            reject_imprint,
+            )
+    assert "imprint" in target.ledger["events"]
+    reject_imprint.Rip(target)
 
     base.Rip(target)
 

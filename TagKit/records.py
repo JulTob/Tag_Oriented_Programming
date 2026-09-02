@@ -13,6 +13,7 @@ from .declarations import _takes_underlay
 from .errors import TagCompositionError
 from .errors import TagError
 from .errors import TagResolutionError
+from .access import _assigned
 from .runtime_types import _Agent_State
 from .runtime_types import _Tag_Snapshot
 from .runtime_types import _bind_host_declaration
@@ -156,6 +157,7 @@ def _set_record_value(
         name: str,
         value: Any,
         ) -> None:
+    value = _assigned(value)
     descriptor = _record_descriptor_for(
             agent,
             name,
@@ -416,5 +418,7 @@ def _snapshot_for(
             records=records,
             reports=field_reports,
             operations=field_operations,
+            preconditions=dict(state.preconditions),
+            postconditions=dict(state.postconditions),
             deleted=frozenset(deleted),
             )

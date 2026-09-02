@@ -10,6 +10,7 @@ from inspect import isgenerator
 from typing import Any
 from typing import Callable
 
+from .access import _assigned
 from .declarations import Predicate
 from .declarations import _discard_awaitable
 from .declarations import _protocol_inputs
@@ -19,6 +20,7 @@ from .errors import TagError
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
 from .errors import TagResolutionError
+from .errors import _named_condition_error
 from .runtime_types import _existing_state_for
 
 
@@ -43,6 +45,8 @@ def _condition_verdict(
     saying nothing permits (innocent until written into law). An assert-style
     body returns None when its asserts pass and raises when one fails.
     """
+
+    result = _assigned(result)
 
     if (
             isawaitable(result)
@@ -148,6 +152,18 @@ def _bind_condition(
     return Check
 
 
+def _layer_conditions(
+        conditions: dict[str, Callable[[object, dict[str, Any]], Any]],
+        layer: tuple[tuple[str, Callable[[object, dict[str, Any]], Any]], ...],
+        ) -> dict[str, Callable[[object, dict[str, Any]], Any]]:
+    """Return the bound checks contributed by one Tag layer."""
+
+    return {
+            name: conditions[name]
+            for name, _ in layer
+            }
+
+
 def _evaluate_conditions(
         conditions: dict[str, Callable[[object, dict[str, Any]], Any]],
         agent: object,
@@ -156,16 +172,23 @@ def _evaluate_conditions(
         inputs: dict[str, Any],
         ) -> None:
     for name, check in conditions.items():
+        named_failure = _named_condition_error(
+                failure_type,
+                name,
+                )
+
         try:
             result = check(agent, inputs)
         except Exception as error:
-            raise failure_type(
-                    f"{phase} {name!r} raised {type(error).__name__}"
+            raise named_failure(
+                    f"{phase} {name!r} raised {type(error).__name__}",
+                    condition=name,
                     ) from error
 
         if not _condition_verdict(result, f"{phase} {name!r}"):
-            raise failure_type(
-                    f"{phase} {name!r} failed"
+            raise named_failure(
+                    f"{phase} {name!r} failed",
+                    condition=name,
                     )
 
 
@@ -210,17 +233,25 @@ def _check_conditions(
                 result = check(agent, {})
             except Exception as error:
                 if detailed:
-                    raise failure_type(
+                    raise _named_condition_error(
+                            failure_type,
+                            name,
+                            )(
                             f"{phase} {name!r} raised"
-                            f" {type(error).__name__}"
+                            f" {type(error).__name__}",
+                            condition=name,
                             ) from error
 
                 return False
 
             if not _condition_verdict(result, f"{phase} {name!r}"):
                 if detailed:
-                    raise failure_type(
-                            f"{phase} {name!r} failed"
+                    raise _named_condition_error(
+                            failure_type,
+                            name,
+                            )(
+                            f"{phase} {name!r} failed",
+                            condition=name,
                             )
 
                 return False
@@ -277,19 +308,18 @@ def _scope_status(
 
 
 class Contract:
-    """The named, on-demand contract checks for an Agent.
+    """Diagnostic contract checks for an Agent.
 
-    When visible Postconditions exist, ``bool(agent)`` / ``if agent`` /
-    ``assert agent`` give their boolean form. Without one, native host
-    truthiness remains intact. ``Contract`` gives the form that *names the
-    culprit*: each method runs the relevant visible conditions and raises --
-    naming the first that does not hold -- or returns True. It is a namespace
-    of language-level operations *on* the Agent, not a feature of the Agent
-    and not a Tag method.
+    Visible Preconditions and Postconditions are Agent contributions. Prefer
+    ``agent.Has_Spellbook`` / ``agent.Has_Spellbook()`` for ordinary checks.
+    ``Contract`` remains the editor and debug form that *names the culprit*
+    across every visible condition, or returns True:
 
-        Contract.Postconditions(agent)   # the promises hold, or raise naming one
-        Contract.Preconditions(agent)    # the entry gates still hold, or raise
+        Contract.Postconditions(agent)   # all Posts hold, or raise
+        Contract.Preconditions(agent)    # all Pres hold, or raise
         Contract.Conditions(agent)       # both, Pre then Post
+        Contract.Status(agent)           # {name: holds?}
+        Contract.Display(agent)          # readable diagnostic
     """
 
     @staticmethod
@@ -349,8 +379,8 @@ class Contract:
             ) -> str:
         """A human-readable rendering of ``Status``, with Preconditions and
         Postconditions in separate sections, one marked line each.
-        ``print(Contract.Display(agent))`` to eyeball a contract while
-        debugging.
+        Prefer ``f"{agent:Display}"`` or ``f"{agent:Contract}"`` in ordinary
+        code; ``print(Contract.Display(agent))`` remains for explicit tools.
         """
 
         # The full composed runtime-type name -- e.g. "Hero__Wizard" -- is the
@@ -380,3 +410,34 @@ class Contract:
                         )
 
         return "\n".join(lines)
+
+    @staticmethod
+    def Format(
+            agent: object,
+            specification: str,
+            ) -> str:
+        """Render an Agent contract for ``format`` / f-strings."""
+
+        key = specification.strip().casefold()
+
+        if key in {
+                "contract",
+                "display",
+                }:
+            return Contract.Display(agent)
+
+        if key == "status":
+            status = Contract.Status(agent)
+
+            if not status:
+                return f"{type(agent).__name__}: no conditions"
+
+            return "\n".join(
+                    f"{'OK ' if holds else 'XX '} {name}"
+                    for name, holds in status.items()
+                    )
+
+        raise ValueError(
+                "TagKit contract format expects 'Contract', 'Display',"
+                f" or 'Status'; got {specification!r}"
+                )

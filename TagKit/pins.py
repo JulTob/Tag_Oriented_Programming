@@ -6,6 +6,7 @@ from functools import wraps
 from typing import Any
 
 from .contracts import _evaluate_conditions
+from .contracts import _layer_conditions
 from .declarations import Operation_Body
 from .declarations import _MISSING
 from .declarations import _Tag_Declarations
@@ -14,10 +15,7 @@ from .declarations import _declarations_for
 from .declarations import _dunder
 from .declarations import _kind_of
 from .declarations import _report_value
-from .declarations import _run_protocol
 from .errors import TagCompositionError
-from .errors import TagImprintError
-from .errors import TagPostconditionError
 from .errors import TagPreconditionError
 from .geometry import _form_for
 from .overlays import _install_declarations
@@ -569,24 +567,15 @@ def _apply_pin_layer(
 
     try:
         _evaluate_conditions(
-                candidate.preconditions,
+                _layer_conditions(
+                        candidate.preconditions,
+                        declarations.preconditions,
+                        ),
                 target,
                 TagPreconditionError,
                 "Precondition",
                 inputs,
                 )
-
-        for imprint in declarations.imprints:
-            try:
-                _run_protocol(
-                        imprint,
-                        target,
-                        inputs,
-                        )
-            except Exception as error:
-                raise TagImprintError(
-                        f"Imprint {imprint.__qualname__} failed"
-                        ) from error
 
         values = _materialize_pin_reports(
                 target,
@@ -596,14 +585,6 @@ def _apply_pin_layer(
                 inputs,
                 )
         candidate.record_values.update(values)
-
-        _evaluate_conditions(
-                candidate.postconditions,
-                target,
-                TagPostconditionError,
-                "Postcondition",
-                inputs,
-                )
 
         candidate.snapshots[tag] = _snapshot_for(
                 target,
@@ -654,6 +635,7 @@ def _run_pin_transaction(
             else frozenset()
             )
     entry_namespace = _capture_pinned_tag_namespace(target)
+    application_inputs = inputs or {}
 
     with _committed_query_boundary(
             target,
@@ -663,14 +645,12 @@ def _run_pin_transaction(
             result = _apply_pin_one(
                     target,
                     tag,
-                    inputs or {},
+                    application_inputs,
                     )
             _commit_new_memberships(
                     target,
                     entry_tags,
                     )
-
-            return result
         except BaseException:
             _remove_new_memberships(
                     target,
@@ -692,6 +672,8 @@ def _run_pin_transaction(
 
             raise
 
+    return result
+
 
 def _apply_pin_transaction(
         target: type["Tag"],
@@ -703,6 +685,13 @@ def _apply_pin_transaction(
     if state is not None and tag in state.active_tags:
         return target
 
+    entry_tags = (
+            frozenset(state.active_tags)
+            if state is not None
+            else frozenset()
+            )
+    application_inputs = inputs or {}
+
     with _tagging_boundary(
             target,
             tag,
@@ -710,11 +699,23 @@ def _apply_pin_transaction(
         if not should_apply:
             return target
 
-        return _run_pin_transaction(
+        result = _run_pin_transaction(
                 target,
                 tag,
-                inputs,
+                application_inputs,
                 )
+
+    _transaction_helper( "_run_committed_imprints" )(
+            target,
+            entry_tags,
+            application_inputs,
+            )
+    _transaction_helper( "_run_committed_postconditions" )(
+            target,
+            application_inputs,
+            )
+
+    return result
 
 
 def _declarations_with_pins(

@@ -18,12 +18,12 @@ from TagKit import (
         Action,
         At_Exit,
         Imprint,
-        Post,
+        Pre,
         Record,
         Rip,
         Scope,
         Tag,
-        TagPostconditionError,
+        TagPreconditionError,
         Tags,
         Underlay,
         )
@@ -296,10 +296,10 @@ def Mutable_Rollback(
         count: int,
         ) -> None:
     class Rejected(Tag):
-        @Imprint
-        def Mutate(
+        @Pre
+        def Mutate_Then_Reject(
                 target,
-                ) -> None:
+                ) -> bool:
             target.values.reverse()
             target.values.append(
                     -1
@@ -312,10 +312,6 @@ def Mutable_Rollback(
                     b"!"
                     )
 
-        @Post
-        def Reject(
-                target,
-                ) -> bool:
             return False
 
     target = Agent()
@@ -344,7 +340,7 @@ def Mutable_Rollback(
 
     try:
         Rejected(target)
-    except TagPostconditionError:
+    except TagPreconditionError:
         pass
     else:
         raise AssertionError(

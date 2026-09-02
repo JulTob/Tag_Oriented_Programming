@@ -10,12 +10,13 @@ from typing import Any
 from typing import Iterator
 
 from .contracts import _evaluate_conditions
+from .contracts import _layer_conditions
 from .declarations import _MISSING
 from .declarations import _require_synchronous_result
 from .declarations import _run_protocol
+from .errors import ImprintingError
 from .errors import TagCompositionError
 from .errors import TagError
-from .errors import TagImprintError
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
 from .errors import TagResolutionError
@@ -62,6 +63,10 @@ _checkpoint_controls = ContextVar(
         "tagkit_checkpoint_controls",
         default=(),
         )
+_imprint_tagging = ContextVar(
+        "tagkit_imprint_tagging",
+        default=False,
+        )
 
 
 def _active_checkpoint_for(
@@ -88,6 +93,98 @@ def _tagging_boundary_is_active(
             transaction.active
             and transaction.identity == identity
             for transaction in _tagging_transactions.get()
+            )
+
+
+def _imprint_tagging_is_active() -> bool:
+    return _imprint_tagging.get()
+
+
+@contextmanager
+def _imprint_protocol() -> Iterator[None]:
+    token = _imprint_tagging.set(True)
+
+    try:
+        yield
+    finally:
+        _imprint_tagging.reset(token)
+
+
+def _run_imprints(
+        target: object,
+        imprints: tuple,
+        inputs: dict[str, Any],
+        ) -> None:
+    """Run Imprints after the Tag has already applied.
+
+    Nested Tagging is an ordinary later call. Its Precondition,
+    Postcondition, Resolution, or Imprinting failures keep their type.
+    Other failures become ImprintingError. Neither rolls back this Tag.
+    """
+
+    with _imprint_protocol():
+        for imprint in imprints:
+            try:
+                _run_protocol(
+                        imprint,
+                        target,
+                        inputs,
+                        )
+            except (
+                    TagPreconditionError,
+                    TagPostconditionError,
+                    ImprintingError,
+                    TagResolutionError,
+                    ):
+                raise
+            except Exception as error:
+                raise ImprintingError(
+                        f"Imprint {imprint.__qualname__} failed"
+                        ) from error
+
+
+def _run_committed_imprints(
+        target: object,
+        entry_tags: frozenset[type["Tag"]],
+        inputs: dict[str, Any],
+        ) -> None:
+    """Write into Tags that this call has already committed."""
+
+    state = _existing_state_for(target)
+    added = _tags_added_since(
+            state,
+            entry_tags,
+            )
+
+    for tag in added:
+        declarations = _declarations_with_pins(tag)
+        _run_imprints(
+                target,
+                declarations.imprints,
+                inputs,
+                )
+
+
+def _run_committed_postconditions(
+        target: object,
+        inputs: dict[str, Any],
+        ) -> None:
+    """Inspect an already applied Tag. Failure does not un-apply it."""
+
+    state = _existing_state_for(target)
+
+    if (
+            state is None
+            or not state.postconditions
+            ):
+        return
+
+    _evaluate_conditions(
+            state.postconditions,
+            target,
+            TagPostconditionError,
+            "Postcondition",
+            inputs,
             )
 
 
@@ -147,9 +244,9 @@ def _tagging_boundary(
             return
 
         raise TagCompositionError(
-                "Re-entrant Tag application on the same Target is not"
-                " supported; declare the relationship through Bases"
-                " or a Shape"
+                "Re-entrant Tag application on the same Target is only"
+                " allowed from an Imprint; declare a required"
+                " relationship through Bases or a Shape"
                 )
 
     transaction = _Tagging_Transaction(
@@ -282,9 +379,9 @@ def _apply_form_layers(
         ) -> object:
     """Apply live Bases before each layer without consuming call-stack depth.
 
-    The Form is discovered while it is traversed. A successful earlier
-    Imprint may therefore rebase a later sibling while retaining support for
-    very deep Forms.
+    The Form is discovered while it is traversed. Nested Tags applied from
+    a later Imprint cannot change this call's Base walk; they are ordinary
+    later Taggings after this Form has applied.
     """
 
     pending: list[
@@ -430,20 +527,15 @@ def _apply_agent_layer(
                 )
 
         _evaluate_conditions(
-                candidate.preconditions,
+                _layer_conditions(
+                        candidate.preconditions,
+                        declarations.preconditions,
+                        ),
                 agent,
                 TagPreconditionError,
                 "Precondition",
                 inputs,
                 )
-
-        for imprint in declarations.imprints:
-            try:
-                _run_protocol(imprint, agent, inputs)
-            except Exception as error:
-                raise TagImprintError(
-                        f"Imprint {imprint.__qualname__} failed"
-                        ) from error
 
         values = _materialize_records(
                 agent,
@@ -456,14 +548,6 @@ def _apply_agent_layer(
         _apply_record_values(
                 agent,
                 values,
-                )
-
-        _evaluate_conditions(
-                candidate.postconditions,
-                agent,
-                TagPostconditionError,
-                "Postcondition",
-                inputs,
                 )
 
         candidate.snapshots[tag] = _snapshot_for(
@@ -957,12 +1041,13 @@ def _run_transaction(
         tag: type["Tag"],
         inputs: dict[str, Any] | None = None,
         ) -> object:
-    """Apply one Tag as an atomic transaction.
+    """Apply one Tag as an atomic Overlay, Records, and Preconditions.
 
-    A single ``Tag(target, **inputs)`` call commits everything or nothing.
-    If any Base pulled in by this call, or the requested Tag itself, fails,
-    the Agent is restored to exactly its state at call entry. Tags committed
-    by earlier calls survive untouched.
+    Preconditions and Records still commit everything or nothing.
+    Imprints and Postconditions run after this transaction and its
+    tagging boundary have closed. An Imprint failure is a machine error.
+    A Postcondition failure is a defective result. Neither un-applies
+    the Tag.
     """
 
     _validate_agent_state_slot(agent)
@@ -975,6 +1060,7 @@ def _run_transaction(
             )
     entry_instance = _capture_instance_state(agent)
     entry_class = type(agent)
+    application_inputs = inputs or {}
 
     with _committed_query_boundary(
             agent,
@@ -984,14 +1070,12 @@ def _run_transaction(
             result = _apply_one(
                     agent,
                     tag,
-                    inputs,
+                    application_inputs,
                     )
             _commit_new_memberships(
                     agent,
                     entry_tags,
                     )
-
-            return result
         except BaseException:
             _remove_new_memberships(
                     agent,
@@ -1019,6 +1103,8 @@ def _run_transaction(
 
             raise
 
+    return result
+
 
 def _apply_transaction(
         agent: object,
@@ -1030,6 +1116,13 @@ def _apply_transaction(
     if state is not None and tag in state.active_tags:
         return agent
 
+    entry_tags = (
+            frozenset(state.active_tags)
+            if state is not None
+            else frozenset()
+            )
+    application_inputs = inputs or {}
+
     with _tagging_boundary(
             agent,
             tag,
@@ -1037,11 +1130,23 @@ def _apply_transaction(
         if not should_apply:
             return agent
 
-        return _run_transaction(
+        result = _run_transaction(
                 agent,
                 tag,
-                inputs,
+                application_inputs,
                 )
+
+    _run_committed_imprints(
+            agent,
+            entry_tags,
+            application_inputs,
+            )
+    _run_committed_postconditions(
+            agent,
+            application_inputs,
+            )
+
+    return result
 
 
 def _dependent_shapes(
@@ -1119,6 +1224,11 @@ def _rip_one(
     a Base first Rips its dependent Shapes in reverse application order,
     preserving upward closure. Ripping a Shape never auto-clears its Bases.
     """
+
+    if _imprint_tagging_is_active():
+        raise TagCompositionError(
+                "A Target cannot be Ripped while an Imprint is running"
+                )
 
     if _target_is_tagging(agent):
         raise TagCompositionError(

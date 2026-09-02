@@ -229,7 +229,7 @@ If the Target is itself a Tag:
 | Record | Report |
 | Precondition | Guard before Pinning |
 | Imprint | Work during Pinning |
-| Postcondition | Promise checked before commit |
+| Postcondition | Promise checked after Pinning; a failure keeps the Pin |
 | Operation | Shared behavior of the Pin Field |
 | Report | Shared information of the Pin Field |
 
@@ -475,9 +475,9 @@ An Imprint may perform application-time work on the Pinned Tag. Use it
 sparingly. Most classification needs only membership and Reports.
 
 Keep external I/O outside provisional Pinning whenever possible. If a
-Precondition, Imprint, Record, or Postcondition fails, the Pin must not enter
-the Field, but Python cannot reverse a message already sent or a file already
-written.
+Precondition or Record fails, the Pin must not enter the Field. If an
+Imprint or Postcondition fails, the Pin has already entered; Python still
+cannot reverse a message already sent or a file already written.
 
 ---
 

@@ -114,9 +114,9 @@ def _leaf_tags_for(
                 for base in bases
                 }
     else:
-        # A successful Imprint may deliberately rebase a Tag after earlier
-        # memberships were committed. Recover semantic leaves from the live
-        # Form without pretending those new Bases were applied.
+        # A successful later Pin may rebase a Tag after earlier memberships
+        # were committed. Recover semantic leaves from the live Form without
+        # pretending those new Bases were applied.
         non_leaves = {
                 ancestor
                 for tag in active_tags

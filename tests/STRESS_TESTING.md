@@ -145,7 +145,8 @@ The stress pass added regressions for:
 - silently discarded coroutine, generator, and async-generator application
   protocols;
 - lazy automatic Rip results leaking unawaited work;
-- static Form snapshots missing a successful mid-Tagging Geometry rebase;
+- a Form Imprint running after the call commits, so it cannot change that
+  call's Base walk;
 - leaf queries after a committed Pin rebase;
 - hosts silently ignoring actualization or vetoing rollback restoration;
 - misleading instance namespaces; and
@@ -154,17 +155,19 @@ The stress pass added regressions for:
 
 Tag application remains synchronous. Async Actions and Operations are valid
 and retain their Python callable kind. Coroutine and async-generator
-Preconditions, Imprints, Postconditions, and Records reject their Tagging
-atomically rather than creating deferred work. Generator conditions and
-Imprints reject for the same reason, while a synchronous generator remains
-valid Record data. Lazy Rip protocols are rejected explicitly after
-membership has ended, like any other failing teardown.
+Preconditions and Records reject their Tagging atomically rather than
+creating deferred work. The same protocols used as Imprints or
+Postconditions reject after the Tag has applied. Generator Preconditions
+reject for the same reason, while a synchronous generator remains valid
+Record data. Lazy Rip
+protocols are rejected explicitly after membership has ended, like any other
+failing teardown.
 
-A Form's Bases are discovered lazily between applied layers. A successful
-earlier Imprint can therefore change a later sibling's Geometry without
-leaving the transaction on a stale route. Normal upward-closed active sets
-keep the direct-Base leaf fast path; a committed later rebase automatically
-uses a live-Form fallback.
+A Form's Bases are discovered while the Form is traversed. Imprints run
+after that call has applied, so they cannot change this call's Base walk.
+They may apply further Tags as ordinary later Taggings. Normal upward-closed
+active sets keep the direct-Base leaf fast path; a committed later Pin
+rebase automatically uses a live-Form fallback.
 
 ## Deliberate boundaries and open decisions
 

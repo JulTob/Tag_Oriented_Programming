@@ -166,7 +166,7 @@ That is the smallest complete TagKit loop:
 | Tag | `Fire` |
 | Tagging | `Fire( ember, ... )` |
 | Agent | `ember` as a Fire creature |
-| Field | `Fire[:]` |
+| Field | `Fire[:]` sound · `~Fire[:]` defective · `Fire[:] \| ~Fire[:]` U-set |
 | Record | `ember.hp`, `ember.resistances` |
 | Action | `ember.fire_attack()` |
 
@@ -614,6 +614,50 @@ The same is true for:
 
 ---
 
+## Imprints may apply later Tags
+
+A Base is required and more general. It always applies *before* the Shape.
+
+That is the wrong tool for an optional or later layer. `class MyTag(PreTag,
+AdditionalTag1)` makes `AdditionalTag1` required and puts it *under* `MyTag`.
+
+Apply the later Tag from the Imprint instead. The written construction stays
+PreTag, then MyTag, then AdditionalTag1. MyTag has already applied before
+that Imprint runs. If AdditionalTag1's Precondition fails, only
+AdditionalTag1 rolls back:
+
+```python
+class MyTag(
+        PreTag,
+        ):
+
+    @Imprint
+    def maybe_extra(
+            target,
+            extra=None,
+            ) -> None:
+        if extra:
+            AdditionalTag1(
+                    target
+                    )
+```
+
+```python
+MyTag(
+        ember,
+        extra=True,
+        )
+
+assert ember in PreTag
+assert ember in MyTag
+assert ember in AdditionalTag1
+```
+
+Preconditions, Record materializers, and Postconditions still cannot apply
+Tags. Rip is forbidden while an Imprint is running.
+
+---
+
 ## Named Record materializers
 
 An Imprint is convenient when one coherent setup step establishes several
@@ -714,8 +758,7 @@ This gives you two clean authoring styles:
 
 They can coexist in one Tag, as `Battle_Ready` demonstrates. Avoid assigning
 the same attribute through both routes unless replacement is intentional:
-Record materializers run after Imprints, so the materialized value becomes
-the visible value.
+Imprints run after Records, so an Imprint write becomes the visible value.
 
 ---
 
@@ -835,6 +878,45 @@ form and is particularly useful when decorators are stacked.
 
 ---
 
+## One name, two spellings
+
+An Action and a Record are still two kinds. What they share is the Agent
+address: one visible name, one meaning, readable with or without `()`.
+
+```python
+assert ember.hp == 30
+assert ember.hp() == 30
+
+assert ember.motto == "onward"
+assert ember.motto() == "onward"
+
+send = ember.strike
+send( training_dummy )
+```
+
+`ember.hp()` does not rematerialize the Record. It returns the stored value.
+`ember.motto` without `()` evaluates that nullary Action. `ember.strike`
+without `()` is still the handle, so a later `send( dummy )` works after Rip
+the same way a bound method would.
+
+This is Uniform Access, not a third contribution. Independent Tags still
+cannot share one Agent name as both an Action and a Record. A Shape may
+still Overlay a Base Action with a Record, or the reverse. That is
+**polymorphic behaviour** in TOP: one name, one meaning per view, readable
+with or without `()`:
+
+```python
+assert ember.strike == 4
+assert ember.strike() == 4
+assert Combatant[ ember ].strike == 1
+assert Combatant[ ember ].strike() == 1
+```
+
+Use `ember.hp()` when Python needs the raw object (`isinstance`, `is None`,
+JSON). Equality, arithmetic, and `ember.hp -= 8` use the stored value.
+
+---
+
 ## Underlays extend the visible Action
 
 `Combatant.attack` introduced physical damage.
@@ -898,6 +980,47 @@ fails rather than silently inventing behavior.
 
 ---
 
+## Polymorphic behaviour: a Shape may fix an Action as a Record
+
+Specialization may turn a computed Action into stored data. That is Overlay
+inside a Form, not a name collision between independent Tags. The client asks
+what `strike` is **for**, not whether it is stored or calculated — the same
+Ada-style uniform access, adapted to TOP's Overlay model:
+
+```python
+class Combatant(Tag):
+
+    def strike(
+            target,
+            ) -> int:
+        return 1
+
+
+class Fire(Combatant):
+
+    @Record
+    def strike(
+            target,
+            ) -> int:
+        return 4
+
+
+Fire(ember)
+
+assert ember.strike == 4
+assert ember.strike() == 4
+assert Combatant[ember].strike() == 1
+assert Combatant[ember].strike == 1
+```
+
+The current Overlay is the Record. The Base view still holds the Action.
+Both spellings work on each view. The reverse Overlay is the same law: a
+Shape Action may compute from a Base Record. `@Underlay` still requires the
+prior visible contribution to have the same kind. Independent Tags still
+cannot share one Agent name as both an Action and a Record.
+
+---
+
 ## Current access and Tag-bound access
 
 ```python
@@ -929,11 +1052,14 @@ That distinction is valuable for:
 Tag subscription has two related forms:
 
 ```python
-Fire[:]         # every current Fire creature
-Fire[ ember ]   # Embercub through its Fire card
+Fire[:]             # every sound Fire creature
+~Fire[:]            # defective Fire members (Posts fail)
+Fire[:] | ~Fire[:]  # U-set: the whole Field
+Fire[ ember ]       # Embercub through its Fire card
 ```
 
-If your game has knights, `Knight[:]` naturally means “all current Knights.”
+If your game has knights, `Knight[:]` naturally means “all sound Knights.”
+`~Knight[:]` is the repair queue.
 The syntax works even when nobody at the table gets the joke.
 
 ---
@@ -1135,8 +1261,28 @@ This is useful for:
 ## Fields are live registries
 
 ```python
+for wizard in Wizard[:]:
+    play( wizard )
+
+for broken in ~Wizard[:]:
+    review( broken )
+```
+
+`Tag[:]` iterates **sound** Field members — Agents whose visible
+Postconditions currently hold. `~Tag[:]` is the defective complement —
+still in the Field, Posts fail. Together they are the U-set for that Tag:
+
+```python
+assert creature in Fire[:] or creature in ~Fire[:]
+assert ( Fire[:] | ~Fire[:] ) is Fire.Field
+```
+
+```python
 for creature in Fire[:]:
     render_fire_aura( creature )
+
+for broken in ~Fire[:]:
+    repair( broken )
 ```
 
 Fields:
@@ -1148,6 +1294,9 @@ Fields:
 - do not keep otherwise unused objects alive.
 
 There is no parallel `all_fire_creatures` list to synchronize.
+
+Use `Tag[:]` for gameplay rosters. Use `~Tag[:]` for repair and review
+queues. Use `Tag[:] | ~Tag[:]` when you need every member.
 
 ---
 
@@ -1286,6 +1435,16 @@ Actions are performed by one Agent. Operations belong to the Tag.
 
 # Part VI — Contracts protect generated builds
 
+Tagging is a factory line. Preconditions inspect the **incoming materials**:
+may this Target receive this Tag? Postconditions inspect the **finished
+product**: did the Tagging produce something sound? `@Pre` runs at the door
+for the layers applied in this call only. If it fails, that layer never
+applies. `@Post` runs after Imprints and re-checks every visible promise. If
+it fails, the Tag stays as a defective result — inspectable, repairable, or
+discardable by the caller.
+
+---
+
 ## A Boss Tag with real requirements
 
 ```python
@@ -1376,11 +1535,11 @@ them an explicit compensation path.
 
 ## Conditions are strict
 
-A condition returns:
+**True always means the clause holds.** A condition returns:
 
-- `True`;
-- `False`; or
-- `None` after successful assertions.
+- `True` — holds;
+- `False` — fails; or
+- `None` after successful assertions — also holds.
 
 Return the comparison:
 
@@ -1406,6 +1565,50 @@ Zero HP is meaningful data. Conditions should say exactly what it means.
 
 ## Inspect contracts
 
+Visible Preconditions and Postconditions are Agent contributions. The basic
+obvious checks are Uniform Access — bare or call; **True always means holds:**
+
+```python
+if ember.has_valid_enrage_threshold:
+    ...
+
+if not ember.has_valid_enrage_threshold():
+    ember.enrage_at = ember.max_hp // 2
+
+assert ember.meets_level_requirement
+assert ember.has_valid_enrage_threshold()
+```
+
+Print the contract as a mini menu — no `Contract` import required:
+
+```python
+print(f"{ember:Contract}")
+print(f"{ember:Display}")
+```
+
+`:Contract` and `:Display` show Pre and Post with OK / XX marks. `:Status`
+is the flat list. Prefer these over `Contract.Display` in ordinary code.
+
+When a Tagging fails a Post, catch the named clause. Python's `except` needs
+an exception *type*, so use the named error — not `except ember.Has_…`:
+
+```python
+from TagKit import TagPostconditionError
+
+try:
+    Boss(
+            newt,
+            minimum_level=10,
+            enrage_at=5,
+            )
+except TagPostconditionError.has_valid_enrage_threshold:
+    repair(newt)
+except TagPostconditionError as error:
+    assert error.condition == "has_valid_enrage_threshold"
+```
+
+`Contract` remains available for explicit sweeps and editors:
+
 ```python
 from TagKit import Contract
 
@@ -1420,13 +1623,14 @@ display = Contract.Display( ember )
 
 `Status` returns one verdict per visible condition.
 
-`Display` gives a readable diagnostic for editors and debug screens.
+`Display` gives the same mini menu as `f"{ember:Display}"`.
 
 When visible Postconditions exist, `bool( ember )` reports whether those
 promises currently hold. Without visible Postconditions, TagKit preserves the
 host object's native truth behavior.
 
-Visible conditions are checked again at later Tagging boundaries. A generated
+Preconditions gate only the layers applied in the current call. Visible
+Postconditions are re-checked at every later Tagging boundary, so a generated
 build cannot quietly accept another Tag while breaking an existing promise.
 
 ---
@@ -1770,9 +1974,11 @@ else:
     checkpoint.Commit()
 ```
 
-The Tags still run one at a time and in written order. Each call retains its
-own atomic failure boundary. The Checkpoint adds one outer publication and
-recovery boundary:
+The Tags still run one at a time and in written order. Preconditions
+and Records still commit that call or roll it back. An Imprint failure
+is a machine error and leaves the Tag applied. A Postcondition failure
+is a defective result and leaves the Tag applied too. The Checkpoint
+adds one outer publication and recovery boundary:
 
 - Imprints and later Tags can use the provisional Records and Actions;
 - `Commit()` publishes every newly applied membership together;
@@ -1996,6 +2202,8 @@ Examples:
 
 ## Common mistakes
 
+- **Declaring an optional later layer as a Base.** A Base is required and
+  applies before the Shape. Apply a later or conditional Tag from the Imprint.
 - **Making every status a Tag.** Mutable and temporary conditions normally
   belong in Records.
 - **Creating combined subclasses.** Compose independent Tags at runtime.
@@ -2008,6 +2216,9 @@ Examples:
 - **Doing irreversible I/O inside provisional Tagging.** It cannot be
   generically rolled back.
 - **Demanding exact runtime classes.** Prefer `isinstance`.
+- **Using `is` on a Record or Action.** TagKit hands out a bound member so
+  both `name` and `name()` work. Compare with `==`, or call `()` for the raw
+  Python object.
 
 ---
 
@@ -2052,8 +2263,10 @@ Rip before starting another on that Target.
 ## Record materializers are not dynamic properties
 
 `@Record` calls the decorated function once during Tagging and writes the
-returned value into the Target. The resulting attribute remains ordinary,
-mutable Agent state:
+returned value into the Target. Later reads, including `agent.stamina()`,
+return that stored value. They do not run the materializer again.
+
+The resulting attribute remains mutable Agent state:
 
 ```python
 @Record
@@ -2080,8 +2293,8 @@ one named materializer communicates the Record more clearly.
 | --- | --- |
 | `TagResolutionError` | a Tag view or required Underlay cannot resolve |
 | `TagPreconditionError` | a Precondition refused Tagging |
-| `TagImprintError` | an Imprint failed |
-| `TagPostconditionError` | a Postcondition refused the result |
+| `ImprintingError` | an Imprint failed after the Tag applied (`TagImprintError` is the same error) |
+| `TagPostconditionError` | a Postcondition found a defective applied Tag |
 | `TagCompositionError` | contributions cannot form a valid Overlay |
 | `TagContractError` | a Condition returned an invalid verdict |
 | `TagDeletionError` | a requested deletion cannot apply |
@@ -2107,8 +2320,9 @@ decisions that deserve attention.
 | Recover a Checkpoint | `checkpoint.Restore()` |
 | Check current membership | `creature in Fire` |
 | Check committed history | `isinstance( creature, Fire )` |
-| Iterate the Field | `for creature in Fire: ...` |
-| Open the Field | `Fire[:]` |
+| Iterate sound Field members | `for wizard in Wizard[:]: play( wizard )` |
+| Iterate defective Field members | `for broken in ~Wizard[:]: review( broken )` |
+| Whole Field (U-set) | `Wizard[:] \| ~Wizard[:]` |
 | Open one Tag-bound view | `Fire[ creature ]` |
 | List active leaf Tags | `Tags( creature )` |
 | Query Tags or Tag names | `Has( creature, Fire, "flying" )` |
@@ -2120,6 +2334,10 @@ decisions that deserve attention.
 | Own bounded membership | `with Scope( creature, Arena ): ...` |
 | Register best-effort exit cleanup | `At_Exit( creature )` |
 | Verify contracts | `Contract.Conditions( creature )` |
+| Print the contract mini menu | `f"{creature:Contract}"` / `f"{creature:Display}"` |
+| Read a Record as data or as a call | `creature.hp` / `creature.hp()` |
+| Read a nullary Action as data or as a call | `creature.motto` / `creature.motto()` |
+| Read a Condition | `creature.Has_Spellbook` / `creature.Has_Spellbook()` |
 
 ---
 
@@ -2131,8 +2349,8 @@ decisions that deserve attention.
 | Action | Agent | behavior |
 | Record | Agent | mutable state established during Tagging |
 | Imprint | Tagging | establish Records and application-time context |
-| Precondition | Tagging | entry requirement |
-| Postcondition | Tagging | promised result |
+| Precondition | Tagging / Agent | incoming-material gate; binary Agent check |
+| Postcondition | Tagging / Agent | finished-product promise; binary Agent check |
 | Underlay | Layer | extend the compatible contribution beneath |
 | Delete | Overlay | mask a named contribution |
 | Rip | Exit | explicit teardown |

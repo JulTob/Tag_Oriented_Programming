@@ -10,6 +10,7 @@ from TagKit import Action
 from TagKit import At_Exit
 from TagKit import Delete
 from TagKit import Imprint
+from TagKit import ImprintingError
 from TagKit import Post
 from TagKit import Pre
 from TagKit import Record
@@ -17,8 +18,8 @@ from TagKit import Rip
 from TagKit import Tag
 from TagKit import TagCompositionError
 from TagKit import TagContractError
-from TagKit import TagImprintError
 from TagKit import TagPostconditionError
+from TagKit import TagPreconditionError
 from TagKit import Tags
 from TagKit import Underlay
 from TagKit.TagKit import _run_exit_protocols
@@ -265,10 +266,10 @@ class TagKitExtremeRegressionTests(
             self,
             ) -> None:
         class Rejected(Tag):
-            @Imprint
-            def Mutate(
+            @Pre
+            def Reject(
                     target,
-                    ) -> None:
+                    ) -> bool:
                 target.leaf.append(
                         "changed"
                         )
@@ -276,10 +277,6 @@ class TagKitExtremeRegressionTests(
                         "outer change"
                         )
 
-            @Post
-            def Reject(
-                    target,
-                    ) -> bool:
                 return False
 
         depth = 5_000
@@ -297,7 +294,7 @@ class TagKitExtremeRegressionTests(
         target.leaf = cursor
 
         with self.assertRaises(
-                TagPostconditionError
+                TagPreconditionError
                 ):
             Rejected(target)
 
@@ -506,19 +503,23 @@ class TagKitExtremeRegressionTests(
         cases = (
                 (
                     Async_Imprint,
-                    TagImprintError,
+                    ImprintingError,
+                    True,
                     ),
                 (
                     Async_Pre,
                     TagContractError,
+                    False,
                     ),
                 (
                     Async_Post,
                     TagContractError,
+                    True,
                     ),
                 (
                     Async_Record,
                     TagCompositionError,
+                    False,
                     ),
                 )
 
@@ -529,7 +530,7 @@ class TagKitExtremeRegressionTests(
                     "always"
                     )
 
-            for tag, failure in cases:
+            for tag, failure, keeps_tag in cases:
                 targets = (
                         (
                             "Agent",
@@ -555,18 +556,30 @@ class TagKitExtremeRegressionTests(
                         with self.assertRaises(failure):
                             tag(target)
 
-                        self.assertNotIn(
-                                target,
-                                tag,
-                                )
-                        self.assertIs(
-                                type(target),
-                                original_type,
-                                )
-                        self.assertEqual(
-                                Tags(target),
-                                (),
-                                )
+                        if keeps_tag:
+                            self.assertIn(
+                                    target,
+                                    tag,
+                                    )
+                            self.assertFalse(
+                                    hasattr(
+                                            target,
+                                            "established",
+                                            )
+                                    )
+                        else:
+                            self.assertNotIn(
+                                    target,
+                                    tag,
+                                    )
+                            self.assertIs(
+                                    type(target),
+                                    original_type,
+                                    )
+                            self.assertEqual(
+                                    Tags(target),
+                                    (),
+                                    )
 
             gc.collect()
 
@@ -676,10 +689,8 @@ class TagKitExtremeRegressionTests(
                         tag=tag.__name__,
                         target=type(target).__name__,
                         ):
-                    original_type = type(target)
-
                     with self.assertRaises(
-                            TagImprintError
+                            ImprintingError
                             ):
                         tag(target)
 
@@ -689,15 +700,7 @@ class TagKitExtremeRegressionTests(
                                     marker,
                                     )
                             )
-                    self.assertIs(
-                            type(target),
-                            original_type,
-                            )
-                    self.assertEqual(
-                            Tags(target),
-                            (),
-                            )
-                    self.assertNotIn(
+                    self.assertIn(
                             target,
                             tag,
                             )
@@ -911,7 +914,7 @@ class TagKitExtremeRegressionTests(
                         )
                 )
 
-    def test_atlas_discovers_a_later_base_after_successful_rebase(
+    def test_form_imprints_run_after_the_call_commits(
             self,
             ) -> None:
         events: list[str] = []
@@ -970,15 +973,15 @@ class TagKitExtremeRegressionTests(
                     events,
                     [
                         "first",
-                        "new",
+                        "old",
                         "later",
                         ],
                     )
-            self.assertNotIn(
+            self.assertIn(
                     target,
                     Old_Root,
                     )
-            self.assertIn(
+            self.assertNotIn(
                     target,
                     New_Root,
                     )
@@ -1166,7 +1169,7 @@ class TagKitExtremeRegressionTests(
                     ) -> str:
                 return "visible only while provisional"
 
-            @Post
+            @Pre
             def Reject(
                     target,
                     ) -> bool:
@@ -1175,7 +1178,7 @@ class TagKitExtremeRegressionTests(
         target = One_Way_Host()
 
         with self.assertRaises(
-                TagPostconditionError
+                TagPreconditionError
                 ):
             Rejected(target)
 
@@ -1253,19 +1256,15 @@ class TagKitExtremeRegressionTests(
                 return "visible property"
 
         class Rejected(Tag):
-            @Imprint
-            def Mutate_Hidden_Slot(
+            @Pre
+            def Mutate_Then_Reject(
                     target,
-                    ) -> None:
+                    ) -> bool:
                 value_slot.__set__(
                         target,
                         "changed",
                         )
 
-            @Post
-            def Reject(
-                    target,
-                    ) -> bool:
                 return False
 
         target = Shadowed_Host()
@@ -1275,7 +1274,7 @@ class TagKitExtremeRegressionTests(
                 )
 
         with self.assertRaises(
-                TagPostconditionError
+                TagPreconditionError
                 ):
             Rejected(target)
 

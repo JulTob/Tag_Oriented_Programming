@@ -30,8 +30,31 @@ profile of TOP.
 - Python naming and documentation use `__name__`, `__doc__`, `str`, and
   `repr`.
 - Structural runtime protocols are reserved for TagKit and the host object.
-- Nested Tagging or Ripping of the same Target during one protocol is rejected
-  so the outer transaction remains atomic.
+- Nested Tagging of the same Target is allowed from an Imprint. Those Tags
+  are ordinary later calls after the outer Tag has applied. A nested
+  Precondition rolls back only the nested Tag. An Imprint failure raises
+  `ImprintingError` and leaves the outer Tag in place. A Postcondition
+  failure raises `TagPostconditionError` and leaves the Tag as a defective
+  result. Rip remains forbidden while an Imprint is running. Preconditions
+  and Records still cannot Tag or Rip the Target while Tagging is
+  provisional.
+- A Shape may Overlay a Base Action with a Record, or a Base Record with
+  an Action. Independent Tags still cannot share one Agent name as both
+  kinds.
+- Agent Actions and Records share both access spellings. `agent.hp` and
+  `agent.hp()` read the same Record. A nullary Action may be read without
+  `()`. An Action that needs inputs remains a handle until it is called.
+- `Tag[:]` iterates sound Field members whose visible Postconditions hold.
+  `~Tag[:]` is the defective complement. `Tag[:] | ~Tag[:]` is the U-set for
+  that Tag.
+- Preconditions gate only the layers applied in the current call. Visible
+  Postconditions re-check at every Tagging boundary.
+- Visible Preconditions and Postconditions are binary Agent members
+  (``agent.Has_Spellbook`` / ``agent.Has_Spellbook()``). ``TagPreconditionError``
+  and ``TagPostconditionError`` expose ``.condition`` and named subtypes such as
+  ``TagPostconditionError.Has_Spellbook``. Conditions cannot share an Agent name
+  with an Action or Record. ``f"{agent:Contract}"`` / ``f"{agent:Display}"``
+  render the contract mini menu.
 
 ### Removed
 
@@ -47,9 +70,10 @@ profile of TOP.
   `Has( agent, ... )`.
 - Replace application reads of TagKit private state with `Tags`, `Has`,
   Fields, or Agent-bound Tag views.
-- Move nested Tag applications out of Preconditions, Imprints, Records, and
-  Postconditions. Express inherent relationships through Bases and Shapes;
-  perform independent application after the current Tagging commits.
+- Apply optional or later layers from an Imprint. Express required, more
+  general meaning through Bases and Shapes. Preconditions, Records, and
+  Postconditions still must not apply Tags; perform those after the current
+  Tagging commits, or from an Imprint.
 - Define cloning and serialization in the application domain. Do not copy
   `_TAGKIT_STATE`.
 

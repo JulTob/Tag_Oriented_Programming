@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from functools import partial
 from functools import wraps
 from inspect import cleandoc
-from types import MethodType
 from typing import Any
 from typing import ClassVar
 from typing import Iterator
@@ -25,7 +24,12 @@ from .declarations import _require_synchronous_result
 from .errors import TagCompositionError
 from .errors import TagPostconditionError
 from .errors import TagResolutionError
+from .access import _assigned
+from .access import _bound_action
+from .access import _bound_condition
+from .access import _bound_record
 from .fields import _Field
+from .fields import _Valid_Field
 from .geometry import _direct_bases_for
 from .geometry import _form_for
 from .geometry import _leaf_tags_for
@@ -232,6 +236,8 @@ class _Tag_Snapshot:
     records: dict[str, Any]
     reports: dict[str, tuple[type["Tag"], Any]]
     operations: dict[str, tuple[type["Tag"], Operation_Body]]
+    preconditions: dict[str, Predicate]
+    postconditions: dict[str, Predicate]
     deleted: frozenset[str]
 
 
@@ -1034,13 +1040,32 @@ class _Tag_View:
                     )
 
         if name in view._snapshot.actions:
-            return MethodType(
-                    view._snapshot.actions[name],
+            return _bound_action(
                     view._agent,
+                    name,
+                    view._snapshot.actions[name],
                     )
 
         if name in view._snapshot.records:
-            return view._snapshot.records[name]
+            return _bound_record(
+                    view._agent,
+                    name,
+                    frozen=view._snapshot.records[name],
+                    )
+
+        if name in view._snapshot.postconditions:
+            return _bound_condition(
+                    view._agent,
+                    name,
+                    view._snapshot.postconditions[name],
+                    )
+
+        if name in view._snapshot.preconditions:
+            return _bound_condition(
+                    view._agent,
+                    name,
+                    view._snapshot.preconditions[name],
+                    )
 
         if name in view._snapshot.reports:
             origin, value = view._snapshot.reports[name]
@@ -1160,17 +1185,36 @@ class _Tag_Type(type):
                         )
 
             if name in state.actions:
-                return MethodType(
-                        state.actions[name],
+                return _bound_action(
                         tag,
+                        name,
+                        state.actions[name],
                         )
 
             if name in state.record_builders:
                 if name in state.record_values:
-                    return state.record_values[name]
+                    return _bound_record(
+                            tag,
+                            name,
+                            frozen=state.record_values[name],
+                            )
 
                 raise AttributeError(
                         f"{tag.__name__} has no visible Tag member {name!r}"
+                        )
+
+            if name in state.postconditions:
+                return _bound_condition(
+                        tag,
+                        name,
+                        state.postconditions[name],
+                        )
+
+            if name in state.preconditions:
+                return _bound_condition(
+                        tag,
+                        name,
+                        state.preconditions[name],
                         )
 
         value = super().__getattribute__(name)
@@ -1212,7 +1256,19 @@ class _Tag_Type(type):
     def __getitem__(
             tag,
             target: object,
-            ) -> _Field | _Tag_View:
+            ) -> _Field | _Valid_Field | _Tag_View:
+        if target is ...:
+            return tag.Field
+
+        if (
+                isinstance(
+                        target,
+                        tuple,
+                        )
+                and not target
+                ):
+            return tag.Field
+
         if isinstance(
                 target,
                 slice,
@@ -1222,11 +1278,13 @@ class _Tag_Type(type):
                     and target.stop is None
                     and target.step is None
                     ):
-                return tag.Field
+                return _Valid_Field(
+                        tag._tagkit_field,
+                        )
 
             raise TypeError(
                     f"{tag.__name__} accepts only [:]"
-                    " when accessing its whole Field"
+                    " for sound Field members"
                     )
 
         state = _existing_state_for(target)
@@ -1283,7 +1341,7 @@ class _Tag_Type(type):
                         )
 
             if name in state.record_builders:
-                state.record_values[name] = value
+                state.record_values[name] = _assigned(value)
 
                 return
 
@@ -1384,7 +1442,11 @@ class _Tag_Type(type):
     def __iter__(
             tag,
             ) -> Iterator[object]:
-        return iter(tag._tagkit_field)
+        return iter(
+                _Valid_Field(
+                        tag._tagkit_field,
+                        )
+                )
 
     def __instancecheck__(
             tag,
@@ -1518,9 +1580,10 @@ class Tagged:
                         )
 
             if name in state.actions:
-                return MethodType(
-                        state.actions[name],
+                return _bound_action(
                         agent,
+                        name,
+                        state.actions[name],
                         )
 
             if name in state.record_builders:
@@ -1532,10 +1595,28 @@ class Tagged:
                         )
 
                 if value is not _MISSING:
-                    return value
+                    return _bound_record(
+                            agent,
+                            name,
+                            frozen=value,
+                            )
 
                 raise AttributeError(
                         f"{type(agent).__name__} has no visible member {name!r}"
+                        )
+
+            if name in state.postconditions:
+                return _bound_condition(
+                        agent,
+                        name,
+                        state.postconditions[name],
+                        )
+
+            if name in state.preconditions:
+                return _bound_condition(
+                        agent,
+                        name,
+                        state.preconditions[name],
                         )
 
             if name in _TAGGED_COMPATIBILITY_MEMBERS:
@@ -1589,6 +1670,53 @@ class Tagged:
         return object.__getattribute__(
                 agent,
                 name,
+                )
+
+    def __setattr__(
+            agent,
+            name: str,
+            value: Any,
+            ) -> None:
+        if name == "_TAGKIT_STATE":
+            object.__setattr__(
+                    agent,
+                    name,
+                    value,
+                    )
+            return
+
+        value = _assigned(value)
+
+        try:
+            state = object.__getattribute__(
+                    agent,
+                    "_TAGKIT_STATE",
+                    )
+        except AttributeError:
+            object.__setattr__(
+                    agent,
+                    name,
+                    value,
+                    )
+            return
+
+        host_setattr = _host_member_for(
+                agent,
+                state.host_type,
+                "__setattr__",
+                )
+
+        if host_setattr is not _MISSING:
+            host_setattr(
+                    name,
+                    value,
+                    )
+            return
+
+        object.__setattr__(
+                agent,
+                name,
+                value,
                 )
 
     def __getattr__(
@@ -1670,6 +1798,44 @@ class Tagged:
                 return len(agent) != 0
 
         return True
+
+    def __format__(
+            agent,
+            specification: str,
+            ) -> str:
+        key = specification.strip().casefold()
+
+        if key in {
+                "contract",
+                "display",
+                "status",
+                }:
+            from .contracts import Contract
+
+            return Contract.Format(
+                    agent,
+                    specification,
+                    )
+
+        state = _existing_state_for(agent)
+
+        if state is not None:
+            host_format = _host_member_for(
+                    agent,
+                    state.host_type,
+                    "__format__",
+                    )
+
+            if host_format is not _MISSING:
+                return host_format(specification)
+
+        if not specification:
+            return str(agent)
+
+        return format(
+                str(agent),
+                specification,
+                )
 
     def __del__(
             agent,

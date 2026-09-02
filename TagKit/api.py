@@ -16,6 +16,7 @@ from .declarations import Report
 from .declarations import Rip
 from .declarations import Target
 from .declarations import Underlay
+from .errors import ImprintingError
 from .errors import TagCompositionError
 from .errors import TagContractError
 from .errors import TagContractWarning
