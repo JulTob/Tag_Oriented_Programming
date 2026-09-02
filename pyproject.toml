@@ -47,6 +47,7 @@ packages = [
 TagKit = [
         "GUIDE.md",
         "IMPLEMENTATION_NOTES.md",
+        "PYTHON_PROFILE.md",
         "PIN_GUIDE.md",
         "py.typed",
         ]

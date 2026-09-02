@@ -448,13 +448,11 @@ TOP distinguishes Agent-level and Tag-level contributions.
 | **Postcondition** | Predicate | Tag application | A guard evaluated after Imprints. |
 
 
-An Agent acts through Actions, remembers through Records, coordinates through Operations, and gains context by Reports.
+An Agent acts through Actions and carries state through Records. It may
+consult Reports and invoke Operations only through explicit Tag context.
 
 Actions and Records actualize the Agent. They may replace ordinary OOP methods
 and attributes as well as earlier TOP contributions.
-
-Reports and Operations remain Tag-scoped, but they participate in the
-Agent's Tag-contextual Overlay.
 
 Temporary state lives in Records:
 
@@ -465,15 +463,177 @@ agent.asleep = False
 
 The `asleep` Record may remain part of the Agent's state while its value changes. Tag membership remains unchanged through that transition.
 
+### Member coordinates
+
+Every public member contribution has an overlay coordinate:
+
+```text
+(scope, name)
+```
+
+TOP defines two public member scopes:
+
+| Scope | Contributions | Semantic receiver |
+| --- | --- | --- |
+| **Agent** | Action, Record | one Agent |
+| **Tag** | Operation, Report | one Tag, possibly acting over its Field |
+
+The semantic receiver determines the scope. The place where a contribution is
+declared does not override these rules.
+
+- An Action is Agent-scoped even when its single implementation is declared
+  centrally inside a Tag.
+- A Record is Agent-scoped because each Agent carries its own value.
+- An Operation is Tag-scoped because the Tag is its receiver.
+- A Report is Tag-scoped because the Tag owns the shared value.
+
+Pinning is an explicit receiver change. When a Tag is applied to another Tag,
+an Action may be adapted into an Operation and a Record may be materialized
+as a Report. The resulting contributions occupy Tag scope because the Pinned
+Tag is their receiver. This is an explicit Pin rule, not an implicit
+projection onto every Agent.
+
+### One slot per scope and name
+
+Within one scope, a name identifies one public member slot. The visible
+Overlay occupies that slot with one kind at a time.
+
+- Same-kind Layers at the same coordinate follow the existing Overlay and
+  Underlay rules.
+- Independent Tags cannot place an Action and a Record at the same Agent
+  coordinate, or an Operation and a Report at the same Tag coordinate.
+  Those collisions fail atomically before membership, Imprints, Records,
+  or other visible state commit.
+- Within one Form, a later Layer may Overlay the slot with the other
+  Agent kind. A Shape Record may fix a Base Action as data. A Shape
+  Action may compute from a Base Record. The prior kind remains in the
+  captured Base view; current access shows one kind.
+- `@Underlay` remains same-kind. Changing kind is Overlay replacement,
+  not mixed-kind extension.
+
+Across scopes, equal names do not collide. They do not replace one another,
+form an Underlay together, or change one another's history.
+
+Kind alone is not the coordinate. Form Overlay may change which kind
+currently occupies a slot; access never consults two live kinds for one
+spelling in the same scope.
+
+### Contract phases
+
+Preconditions and Postconditions do not occupy Agent or Tag member slots.
+They belong to distinct Tagging phases:
+
+```text
+(precondition, name)
+(postcondition, name)
+```
+
+A Precondition and a Postcondition may share a name without colliding. Each
+composes only with conditions in its own phase.
+
+Preconditions are **incoming-material gates** for the layers applied in the
+current call. Postconditions are **finished-product promises** on the Agent
+— re-checked at each Tagging boundary and exposed for inspection on the
+Agent in conforming profiles.
+
+Imprints and Rip protocols remain ordered lifecycle protocols. They are not
+ordinary public members and are not folded into the member coordinates above.
+
+### Access follows scope
+
+| Access | Scope consulted |
+| --- | --- |
+| `agent.name` | Agent |
+| `Tag.name` | Tag |
+| Agent-bound Tag view | captured Agent context, then captured Tag context |
+
+Flat Agent access must not expose a Report or Operation. Direct Tag access
+must not silently bind an Action to an unspecified Agent.
+
+An Agent-bound Tag view is an explicit contextual view over both scopes. If
+both captured scopes contain the same name, Agent scope is selected first.
+The Tag-scoped contribution remains available through direct Tag access.
+This access precedence is only a spelling rule: the two contributions do not
+replace or Underlay one another.
+
+### Central Actions and live authority
+
+Declaring an Action on a Tag provides one central implementation bound to
+each relevant Agent:
+
+```python
+class Agency( Tag ):
+
+    @Operation
+    def dispatch(
+            agency,
+            sender,
+            message,
+            ):
+        if sender not in agency:
+            raise PermissionError(
+                    "Agency membership is inactive"
+                    )
+
+        return network.broadcast(
+                sender,
+                message,
+                )
+
+    @Action
+    def broadcast(
+            agent,
+            message,
+            ):
+        return Agency.dispatch(
+                agent,
+                message,
+                )
+```
+
+The public capability remains an Agent Action:
+
+```python
+Agency( agent )
+
+send = agent.broadcast
+
+send( message )
+```
+
+Ripping remains sticky. It does not erase the Action:
+
+```python
+Agency.Rip( agent )
+
+send( message )  # PermissionError
+```
+
+The call fails because the guarded Operation checks active Field membership
+at invocation time. Checking only when `send` is captured would allow a stale
+handle to bypass revocation.
+
+This rule does not make TOP a concurrency or transaction-security system.
+Long-running or asynchronous work may need to check authority again before
+an irreversible commit.
+
+### No implicit Operation projection
+
+An Operation is not automatically exposed as `agent.operation()`. Code that
+wants an Agent-facing capability declares an Action explicitly. Such
+projection would invent an Agent receiver for Tag behavior, permit
+unannounced shadowing of inherent methods, complicate same-name resolution,
+and make revocation dependent on hidden fallback rules.
+
 ---
 
 
 
 # 💠 Layers and Overlays
 
-The latest successfully applied Layer is the visible Overlay for a
-contribution name. This applies to Actions, Records, Reports, Operations,
-Preconditions, and Postconditions.
+Within each scope, the latest successfully applied Layer is the visible Overlay
+for a contribution name at coordinate `(scope, name)`. This applies to Actions,
+Records, Reports, Operations, Preconditions, and Postconditions.
 
 An ordinary Tag Action declaration has two semantic forms.
 
@@ -800,9 +960,13 @@ agent.Paladin.HONOR_CODE
 ```
 
 This accesses the Overlay snapshot immediately after `Paladin` applied to
-that Agent. It includes all visible contributions that existed at that point,
-including prior independent Tags. It does not change merely because a later
-Tag actualizes the same name.
+that Agent. It includes captured Agent-scoped contributions from that point,
+then captured Tag-scoped contributions from the same moment. If both scopes
+contain the same name, Agent scope is selected first. The Tag-scoped
+contribution remains available through direct Tag access.
+
+It does not change merely because a later Tag actualizes the same name on the
+Agent.
 
 Agent-bound Tag access requires active Field membership in the requested Tag.
 Otherwise it fails with a Tag-resolution error. A Rogue Agent may keep sticky
@@ -816,12 +980,15 @@ Paladin.Report
 Paladin.Operation()
 ```
 
-This accesses Tag-level meaning, not an Agent-bound Action. A target-scoped
-Action needs an Agent context, which Agent-bound Tag access provides.
+This accesses Tag-scoped meaning on the Tag itself — not flat Agent access.
+Operations and Reports are never projected onto `agent.name` without an
+explicit Action adapter. A target-scoped Operation needs a Tag receiver;
+an Agent-scoped Action needs an Agent receiver, which Agent-bound Tag access
+provides when both scopes must be read together.
 
 An implementation may choose a different syntactic form where direct dot
-access collides with ordinary Agent attributes. It must preserve the three
-semantic distinctions.
+access collides with ordinary Agent attributes. It must preserve the scope
+distinctions above.
 
 ---
 
@@ -1212,8 +1379,7 @@ An Agent is **truthy if and only if its Postconditions hold**. `if` is the
 conditional and Post*conditions* **are** *conditions*. So `if agent` reads as
 "if the agent's conditions hold.", or "is the agent ok? in good condition?".
 
-> Python implementation notes: Truthiness on a plain object is vacuously True
-> anyway, so this fills an empty seat rather than overriding a meaningful one.
+> Python implementation notes: Truthiness on a plain object is vacuously True anyway, so this fills an empty seat rather than overriding a meaningful one.
 
 If an agent's conditions assert to a failure, it controls the assertion so the
 Agent returns a False boolean value.
@@ -1229,12 +1395,7 @@ try:
 except TagPostconditionError.Has_Spellbook:
     repair(agent)
 
-# same failure, branch form:
-except TagPostconditionError as error:
-    if error.condition == "Has_Spellbook":
-        repair(agent)
-
-# after a defective Tagging, or any time later:
+# Same checks after a defective Tagging, or any time later:
 if not agent.Has_Spellbook:
     repair(agent)
 ```

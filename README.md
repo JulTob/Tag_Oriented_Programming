@@ -99,9 +99,12 @@ TagKit's internal modules or on a mutable development branch.
 2. [The Technical Specification](spec/SPECIFICATION.md) defines normative,
    observable semantics.
 3. [The TagKit Guide](TagKit/GUIDE.md) teaches the Python profile.
-4. Focused guides such as the [Pin Guide](TagKit/PIN_GUIDE.md) explain one
+4. [The Python Profile](TagKit/PYTHON_PROFILE.md) lists TagKit utilities that
+   sit beside the Specification — queries, Fields, Checkpoints, Scope, and
+   similar conveniences.
+5. Focused guides such as the [Pin Guide](TagKit/PIN_GUIDE.md) explain one
    facility in depth.
-5. [Implementation Notes](TagKit/IMPLEMENTATION_NOTES.md) document internal
+6. [Implementation Notes](TagKit/IMPLEMENTATION_NOTES.md) document internal
    engineering decisions.
 
 ## This repository
@@ -112,6 +115,7 @@ TagKit's internal modules or on a mutable development branch.
 | [`spec/SPECIFICATION.md`](spec/SPECIFICATION.md) | **Technical Specification** — normative observable semantics. | CC-BY-4.0 |
 | [`TagKit/`](TagKit/) | **TagKit** — the Python reference implementation. | Apache-2.0 |
 | [`TagKit/GUIDE.md`](TagKit/GUIDE.md) | **TagKit Guide** — the user-facing Python API. | Apache-2.0 |
+| [`TagKit/PYTHON_PROFILE.md`](TagKit/PYTHON_PROFILE.md) | **Python Profile** — TagKit utilities beside the Specification. | Apache-2.0 |
 | [`TagKit/PIN_GUIDE.md`](TagKit/PIN_GUIDE.md) | **Pin Guide** — organize Tags by Tagging Tags. | Apache-2.0 |
 | [`TagKit/IMPLEMENTATION_NOTES.md`](TagKit/IMPLEMENTATION_NOTES.md) | **Implementation Notes** — non-normative TagKit internals. | Apache-2.0 |
 | [`CHANGELOG.md`](CHANGELOG.md) | **Changelog** — versioned behavior and migration notes. | Apache-2.0 |

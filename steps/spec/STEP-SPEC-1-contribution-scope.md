@@ -4,8 +4,9 @@
 - **Desk:** spec
 - **Title:** Contribution Scope Follows the Receiver
 - **Author:** Julio Toboso (@JulTob)
-- **Status:** Brief
+- **Status:** Deployed
 - **Created:** 2026-08-05
+- **Deployed:** 2026-09-02
 
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
@@ -333,4 +334,7 @@ profile feature and is unnecessary to define the semantic boundary.
 
 ### Decision *(filled by the Director)*
 
-> Status set to **____** on YYYY-MM-DD, because ____.
+> Status set to **Deployed** on 2026-09-02, because contribution scope by
+> receiver clarifies the access model, matches TagKit 0.2 alpha behavior,
+> and is now merged into `spec/SPECIFICATION.md` with Agency acceptance
+> coverage.

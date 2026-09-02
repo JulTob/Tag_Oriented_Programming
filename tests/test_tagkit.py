@@ -345,6 +345,31 @@ class Community(Tag):
         return f"{tag.__name__}:{name}"
 
 
+class Agency(Tag):
+    @Operation
+    def dispatch(
+            agency,
+            sender,
+            message: str,
+            ) -> str:
+        if sender not in agency:
+            raise PermissionError(
+                    "Agency membership is inactive"
+                    )
+
+        return f"sent:{message}"
+
+    @Action
+    def broadcast(
+            agent,
+            message: str,
+            ) -> str:
+        return Agency.dispatch(
+                agent,
+                message,
+                )
+
+
 class Silent_Community(Community):
     @Delete
     def colour(
@@ -1105,6 +1130,32 @@ class TagKitClaimTests(unittest.TestCase):
         self.assertEqual(
                 ari.status,
                 "Agent Record",
+                )
+
+    def test_agency_action_fails_closed_after_rip(self) -> None:
+        agent = Agent()
+
+        Agency(agent)
+
+        send = agent.broadcast
+
+        self.assertEqual(
+                send( "hello" ),
+                "sent:hello",
+                )
+
+        Agency.Rip( agent )
+
+        self.assertNotIn(
+                agent,
+                Agency,
+                )
+
+        with self.assertRaises( PermissionError ):
+            send( "after rip" )
+
+        self.assertTrue(
+                callable( agent.broadcast ),
                 )
 
     def test_pinned_tag_scope_enters_only_new_agent_snapshots(self) -> None:

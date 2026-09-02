@@ -2,7 +2,8 @@
 
 [Manifesto](../spec/MANIFESTO.md) →
 [Technical Specification](../spec/SPECIFICATION.md) →
-[TagKit Guide](GUIDE.md) → **Implementation Notes**
+[TagKit Guide](GUIDE.md) →
+[Python Profile](PYTHON_PROFILE.md) → **Implementation Notes**
 
 Optimization + semantics + multi-paradigm pass over the `TagKit` package
 and its regression suites. These notes are non-normative.
