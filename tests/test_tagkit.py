@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 import gc
+import inspect
+import operator
 import unittest
 import warnings
 import weakref
 
 from TagKit import Action
+from TagKit import Apply
 from TagKit import At_Exit
 from TagKit import Delete
+from TagKit import Has
+from TagKit import ImprintingError
 from TagKit import Imprint
 from TagKit import Operation
 from TagKit import Post
@@ -22,11 +27,11 @@ from TagKit import Tag
 from TagKit import TagCompositionError
 from TagKit import TagContractError
 from TagKit import TagContractWarning
-from TagKit import TagImprintError
 from TagKit import TagOverwriteWarning
 from TagKit import TagPostconditionError
 from TagKit import TagPreconditionError
 from TagKit import TagResolutionError
+from TagKit import Tags
 from TagKit import Contract
 from TagKit import Underlay
 
@@ -547,9 +552,9 @@ class Scholar(Tag):
     def Level_Over_Zero(agent):
         assert agent.level > 0          # assert-style precondition
 
-    @Imprint
-    def Grant_Book(agent):
-        agent.spellbook = "Tome"
+    @Record
+    def spellbook(agent):
+        return "Tome"
 
     @Post
     def Has_Book(agent):
@@ -595,6 +600,2445 @@ class Reserved(Tag):
 
 
 class TagKitClaimTests(unittest.TestCase):
+    def test_empty_tag_does_not_invent_application_reports(
+            self,
+            ) -> None:
+        class Empty(Tag):
+            pass
+
+        for name in (
+                "ABSTRACT",
+                "DESCRIPTION",
+                "NAME",
+                ):
+            with self.subTest(
+                    name=name,
+                    ):
+                self.assertFalse(
+                        hasattr(
+                                Empty,
+                                name,
+                                )
+                        )
+
+                with self.assertRaises(
+                        AttributeError
+                        ):
+                    getattr(
+                            Empty,
+                            name,
+                            )
+
+        self.assertFalse(
+                hasattr(
+                        Empty,
+                        "Describe",
+                        )
+                )
+        self.assertFalse(
+                hasattr(
+                        Empty,
+                        "Label",
+                        )
+                )
+        self.assertEqual(
+                str( Empty ),
+                "Empty",
+                )
+        self.assertEqual(
+                repr( Empty ),
+                "Empty",
+                )
+
+    def test_tag_text_uses_python_name_and_doc(
+            self,
+            ) -> None:
+        class Fire(Tag):
+            """A fire elemental creature."""
+
+        self.assertEqual(
+                Fire.__name__,
+                "Fire",
+                )
+        self.assertEqual(
+                str( Fire ),
+                "Fire",
+                )
+        self.assertEqual(
+                Fire.__doc__,
+                "A fire elemental creature.",
+                )
+        self.assertEqual(
+                repr( Fire ),
+                "Fire\nA fire elemental creature.",
+                )
+
+    def test_name_and_description_are_ordinary_report_names(
+            self,
+            ) -> None:
+        class Fire(Tag):
+            """Python documentation."""
+
+            NAME = "Flame"
+            DESCRIPTION = "Application description."
+
+        ari = Agent()
+
+        Fire( ari )
+
+        self.assertEqual(
+                Fire[ ari ].NAME,
+                "Flame",
+                )
+        self.assertEqual(
+                Fire[ ari ].DESCRIPTION,
+                "Application description.",
+                )
+        self.assertEqual(
+                str( Fire ),
+                "Fire",
+                )
+        self.assertEqual(
+                repr( Fire ),
+                "Fire\nPython documentation.",
+                )
+        self.assertTrue(
+                Has(
+                        ari,
+                        "Fire",
+                        )
+                )
+        self.assertFalse(
+                Has(
+                        ari,
+                        "Flame",
+                        )
+                )
+
+    def test_tag_repr_dunder_remains_an_agent_action(
+            self,
+            ) -> None:
+        class Mask(Tag):
+            def __repr__(
+                    target,
+                    ) -> str:
+                return "Masked Agent"
+
+        ari = Agent()
+
+        Mask( ari )
+
+        self.assertEqual(
+                repr( Mask ),
+                "Mask",
+                )
+        self.assertEqual(
+                repr( ari ),
+                "Masked Agent",
+                )
+
+    def test_public_tag_data_is_report_data(
+            self,
+            ) -> None:
+        class Fire(Tag):
+            COLOR = "#ef5b35"
+            SOURCE = "Core rules"
+
+        ari = Agent()
+
+        Fire( ari )
+
+        report_names = (
+                "COLOR",
+                "SOURCE",
+                )
+
+        for name in report_names:
+            with self.subTest(
+                    name=name,
+                    ):
+                expected = Fire.__dict__[ name ]
+
+                self.assertEqual(
+                        getattr(
+                                Fire,
+                                name,
+                                ),
+                        expected,
+                        )
+                self.assertEqual(
+                        getattr(
+                                Fire[ ari ],
+                                name,
+                                ),
+                        expected,
+                        )
+                self.assertFalse(
+                        hasattr(
+                                ari,
+                                name,
+                                )
+                        )
+
+        self.assertTrue(
+                Has(
+                        ari,
+                        "Fire",
+                        )
+                )
+
+    def test_undeclared_tag_reports_remain_absent_from_bound_views(
+            self,
+            ) -> None:
+        class Fire(Tag):
+            COLOR = "#ef5b35"
+
+        ari = Agent()
+
+        Fire( ari )
+
+        self.assertEqual(
+                Fire[ ari ].COLOR,
+                Fire.COLOR,
+                )
+
+        for name in (
+                "SOURCE",
+                "VERSION",
+                ):
+            with self.subTest(
+                    name=name,
+                    ):
+                with self.assertRaises(
+                        AttributeError
+                        ):
+                    getattr(
+                            Fire[ ari ],
+                            name,
+                            )
+
+    def test_pin_can_contribute_a_report(
+            self,
+            ) -> None:
+        class Documented(Tag):
+            @Record
+            def LORE(
+                    target,
+                    text,
+                    ) -> str:
+                return text
+
+        class Entry(Tag):
+            pass
+
+        Documented(
+                Entry,
+                text="Pinned lore.",
+                )
+
+        self.assertEqual(
+                Entry.LORE,
+                "Pinned lore.",
+                )
+        self.assertEqual(
+                Documented[ Entry ].LORE,
+                "Pinned lore.",
+                )
+
+    def test_a_tag_can_be_pinned_and_remain_a_tag(self) -> None:
+        class Availability(Tag):
+            pass
+
+        class Available(Availability):
+            pass
+
+        class Acolyte(Tag):
+            abilities = Report(
+                    (
+                        "INT",
+                        "WIS",
+                        "CHA",
+                        )
+                    )
+
+            @Imprint
+            def Establish_Background(
+                    agent,
+                    ) -> None:
+                agent.events.append("Acolyte")
+
+        identity = id(Acolyte)
+        original_metaclass = type(Acolyte)
+
+        returned = Available(
+                Acolyte
+                )
+
+        self.assertIs(
+                returned,
+                Acolyte,
+                )
+        self.assertEqual(
+                id(Acolyte),
+                identity,
+                )
+        self.assertIs(
+                type(Acolyte),
+                original_metaclass,
+                )
+        self.assertIn(
+                Acolyte,
+                Available,
+                )
+        self.assertIn(
+                Acolyte,
+                Availability,
+                )
+        self.assertEqual(
+                list(
+                    Available.Field
+                    ),
+                [
+                    Acolyte,
+                    ],
+                )
+        self.assertEqual(
+                Acolyte.abilities,
+                (
+                    "INT",
+                    "WIS",
+                    "CHA",
+                    ),
+                )
+
+        ari = Agent()
+        Acolyte(
+                ari
+                )
+
+        self.assertIn(
+                ari,
+                Acolyte,
+                )
+        self.assertIsInstance(
+                ari,
+                Acolyte,
+                )
+        self.assertEqual(
+                ari.events,
+                [
+                    "Acolyte",
+                    ],
+                )
+        self.assertNotIn(
+                ari,
+                Available,
+                )
+        self.assertEqual(
+                list(
+                    Acolyte.Field
+                    ),
+                [
+                    ari,
+                    ],
+                )
+
+        Acolyte.Rip(
+                ari
+                )
+
+        self.assertNotIn(
+                ari,
+                Acolyte,
+                )
+        self.assertIn(
+                Acolyte,
+                Available,
+                )
+
+    def test_pin_uses_actions_and_records_at_tag_scope(self) -> None:
+        class Catalogue(Tag):
+            policy = Report(
+                    "Pin policy"
+                    )
+
+            @Operation
+            def Owner(
+                    pin,
+                    ):
+                return pin
+
+            @Action
+            def Explain(
+                    target,
+                    ) -> str:
+                if isinstance(
+                        target,
+                        type,
+                        ):
+                    return target.__name__
+
+                return "Agent"
+
+            @Record
+            def aliases(
+                    target,
+                    ) -> list[str]:
+                return []
+
+        class Entry(Tag):
+            pass
+
+        Catalogue(
+                Entry
+                )
+
+        self.assertEqual(
+                Entry.Explain(),
+                "Entry",
+                )
+        self.assertEqual(
+                Entry.aliases,
+                [],
+                )
+        self.assertEqual(
+                Catalogue.policy,
+                "Pin policy",
+                )
+        self.assertIs(
+                Catalogue.Owner(),
+                Catalogue,
+                )
+        self.assertFalse(
+                hasattr(
+                    Entry,
+                    "policy",
+                    )
+                )
+
+        view = Entry.Tag(
+                Catalogue
+                )
+
+        self.assertEqual(
+                view.Explain(),
+                "Entry",
+                )
+        self.assertEqual(
+                view.aliases,
+                [],
+                )
+        self.assertEqual(
+                view.policy,
+                "Pin policy",
+                )
+        self.assertIs(
+                view.Owner(),
+                Catalogue,
+                )
+
+        ari = Agent()
+        Catalogue(
+                ari
+                )
+
+        self.assertEqual(
+                ari.Explain(),
+                "Agent",
+                )
+        self.assertEqual(
+                ari.aliases,
+                [],
+                )
+        self.assertIsNot(
+                ari.aliases,
+                Entry.aliases,
+                )
+
+    def test_native_agent_scope_coexists_with_pinned_tag_scope(self) -> None:
+        class Entry(Tag):
+            def Describe_Value(
+                    agent,
+                    ) -> str:
+                return "Agent Action"
+
+            @Record
+            def status(
+                    agent,
+                    ) -> str:
+                return "Agent Record"
+
+        class Catalogue(Tag):
+            def Describe_Value(
+                    target,
+                    ) -> str:
+                return "Tag Operation"
+
+            @Record
+            def status(
+                    target,
+                    ) -> str:
+                return "Tag Report"
+
+        Catalogue(
+                Entry
+                )
+
+        self.assertEqual(
+                Entry.Describe_Value(),
+                "Tag Operation",
+                )
+        self.assertEqual(
+                Entry.status,
+                "Tag Report",
+                )
+
+        ari = Agent()
+        Entry(
+                ari
+                )
+
+        self.assertEqual(
+                ari.Describe_Value(),
+                "Agent Action",
+                )
+        self.assertEqual(
+                ari.status,
+                "Agent Record",
+                )
+
+    def test_pinned_tag_scope_enters_only_new_agent_snapshots(self) -> None:
+        class Entry(Tag):
+            pass
+
+        early = Agent()
+        Entry(
+                early
+                )
+
+        class Catalogue(Tag):
+            def Explain(
+                    target,
+                    ) -> str:
+                return "Pin-provided"
+
+            @Record
+            def status(
+                    target,
+                    ) -> str:
+                return "catalogued"
+
+        Catalogue(
+                Entry
+                )
+
+        late = Agent()
+        Entry(
+                late
+                )
+
+        with self.assertRaises(
+                AttributeError
+                ):
+            early.Entry.Explain()
+
+        with self.assertRaises(
+                AttributeError
+                ):
+            _value = early.Entry.status
+
+        self.assertEqual(
+                late.Entry.Explain(),
+                "Pin-provided",
+                )
+        self.assertEqual(
+                late.Entry.status,
+                "catalogued",
+                )
+
+    def test_successful_meta_imprint_invalidates_target_declarations(self) -> None:
+        class Entry(Tag):
+            pass
+
+        early = Agent()
+        Entry(
+                early
+                )
+
+        class Enriched(Tag):
+            @Imprint
+            def Add_Report(
+                    target,
+                    ) -> None:
+                target.imprinted = Report(
+                        "committed"
+                        )
+
+        Enriched(
+                Entry
+                )
+
+        late = Agent()
+        Entry(
+                late
+                )
+
+        self.assertEqual(
+                Entry.imprinted,
+                "committed",
+                )
+
+        with self.assertRaises(
+                AttributeError
+                ):
+            _value = early.Entry.imprinted
+
+        self.assertEqual(
+                late.Entry.imprinted,
+                "committed",
+                )
+
+    def test_pin_reapplication_is_a_strict_noop(self) -> None:
+        class Catalogue(Tag):
+            @Imprint
+            def Count(
+                    target,
+                    ) -> None:
+                target.pin_count = (
+                        getattr(
+                            target,
+                            "pin_count",
+                            0,
+                            )
+                        + 1
+                        )
+
+            @Record
+            def token(
+                    target,
+                    ) -> object:
+                return object()
+
+        class Entry(Tag):
+            pass
+
+        first = Catalogue(
+                Entry
+                )
+        second = Catalogue(
+                Entry
+                )
+        token = Entry.token()
+
+        Catalogue(
+                Entry
+                )
+
+        self.assertIs(
+                first,
+                Entry,
+                )
+        self.assertIs(
+                second,
+                Entry,
+                )
+        self.assertEqual(
+                Entry.pin_count,
+                1,
+                )
+        self.assertIs(
+                Entry.token(),
+                token,
+                )
+        self.assertEqual(
+                list(
+                    Catalogue.Field
+                    ).count(
+                        Entry
+                        ),
+                1,
+                )
+
+    def test_pin_conditions_receive_application_inputs(self) -> None:
+        class Named_Catalogue(Tag):
+            def Accepts(
+                    target,
+                    prefix: str,
+                    ) -> bool:
+                return target.__name__.startswith(prefix)
+
+            @Pre
+            def Has_Prefix(
+                    target,
+                    prefix: str,
+                    ) -> bool:
+                target.trace = (
+                        *target.trace,
+                        "Pre",
+                        )
+
+                return target.Accepts(prefix)
+
+            @Imprint
+            def Mark(
+                    target,
+                    prefix: str,
+                    ) -> None:
+                target.trace = (
+                        *target.trace,
+                        "Imprint",
+                        )
+
+            @Record
+            def catalogue_name(
+                    target,
+                    prefix: str,
+                    ) -> str:
+                target.trace = (
+                        *target.trace,
+                        "Record",
+                        )
+
+                return prefix
+
+            @Post
+            def Has_Report(
+                    target,
+                    ) -> bool:
+                target.trace = (
+                        *target.trace,
+                        "Post",
+                        )
+
+                return target.catalogue_name == "Ent"
+
+        class Entry(Tag):
+            trace = ()
+
+        returned = Named_Catalogue(
+                Entry,
+                prefix="Ent",
+                )
+
+        self.assertIs(
+                returned,
+                Entry,
+                )
+        self.assertIn(
+                Entry,
+                Named_Catalogue,
+                )
+        self.assertEqual(
+                Entry.catalogue_name,
+                "Ent",
+                )
+        self.assertEqual(
+                Entry.trace,
+                (
+                    "Pre",
+                    "Record",
+                    "Imprint",
+                    "Post",
+                    ),
+                )
+
+    def test_failed_pin_postcondition_keeps_the_pin(
+            self,
+            ) -> None:
+        class Catalogue_Base(Tag):
+            def Temporary_Operation(
+                    target,
+                    ) -> str:
+                return "temporary"
+
+            @Record
+            def temporary_report(
+                    target,
+                    ) -> str:
+                return "temporary"
+
+            @Pre
+            def Mutate_Namespace(
+                    target,
+                    ) -> bool:
+                target.added_by_pre = True
+                target.changed = "changed"
+
+                if hasattr(
+                        target,
+                        "removed",
+                        ):
+                    del target.removed
+
+                return True
+
+        class Rejected(Catalogue_Base):
+            @Imprint
+            def Mutate_Metadata(
+                    target,
+                    ) -> None:
+                target.__name__ = "Mutated_Entry"
+                target.__qualname__ = "Mutated_Entry"
+
+            @Post
+            def Never_Accept(
+                    target,
+                    ) -> bool:
+                return False
+
+        class Entry(Tag):
+            changed = "original"
+            removed = "restore me"
+
+        with self.assertRaises(
+                TagPostconditionError
+                ):
+            Rejected(
+                    Entry
+                    )
+
+        self.assertIn(
+                Entry,
+                Catalogue_Base,
+                )
+        self.assertIn(
+                Entry,
+                Rejected,
+                )
+        self.assertIn(
+                Entry,
+                Catalogue_Base.Field,
+                )
+        self.assertIsInstance(
+                Entry,
+                Catalogue_Base,
+                )
+        self.assertIsInstance(
+                Entry,
+                Rejected,
+                )
+        self.assertTrue(
+                hasattr(
+                    Entry,
+                    "added_by_pre",
+                    )
+                )
+        self.assertEqual(
+                Entry.changed,
+                "changed",
+                )
+        self.assertEqual(
+                Entry.__name__,
+                "Mutated_Entry",
+                )
+        self.assertEqual(
+                Entry.__qualname__,
+                "Mutated_Entry",
+                )
+
+    def test_imprint_can_pin_an_independent_tag(self) -> None:
+        class Nested(Tag):
+            pass
+
+        class Outer(Tag):
+            @Imprint
+            def Apply_Nested(
+                    target,
+                    ) -> None:
+                target.transient = True
+
+                Nested(
+                        target
+                        )
+
+        class Entry(Tag):
+            pass
+
+        Outer(
+                Entry
+                )
+
+        self.assertIn(
+                Entry,
+                Outer,
+                )
+        self.assertIn(
+                Entry,
+                Nested,
+                )
+        self.assertTrue(
+                Entry.transient
+                )
+
+    def test_imprint_nested_pin_failure_keeps_the_outer_pin(
+            self,
+            ) -> None:
+        class Nested(Tag):
+            @Pre
+            def Refuse(
+                    target,
+                    ) -> bool:
+                return False
+
+        class Outer(Tag):
+            @Imprint
+            def Apply_Nested(
+                    target,
+                    ) -> None:
+                target.transient = True
+
+                Nested(
+                        target
+                        )
+
+        class Entry(Tag):
+            pass
+
+        with self.assertRaises(
+                TagPreconditionError
+                ):
+            Outer(
+                    Entry
+                    )
+
+        self.assertIn(
+                Entry,
+                Outer,
+                )
+        self.assertNotIn(
+                Entry,
+                Nested,
+                )
+        self.assertTrue(
+                Entry.transient
+                )
+        self.assertEqual(
+                list(
+                    Outer.Field
+                    ),
+                [
+                    Entry,
+                    ],
+                )
+        self.assertEqual(
+                list(
+                    Nested.Field
+                    ),
+                [],
+                )
+        self.assertIsInstance(
+                Entry,
+                Outer,
+                )
+        self.assertNotIsInstance(
+                Entry,
+                Nested,
+                )
+
+    def test_pin_cannot_rip_itself_during_application(self) -> None:
+        class Self_Ripping(Tag):
+            @Imprint
+            def Leave(
+                    target,
+                    ) -> None:
+                Self_Ripping.Rip(
+                        target
+                        )
+
+        class Entry(Tag):
+            pass
+
+        with self.assertRaises(
+                ImprintingError
+                ):
+            Self_Ripping(
+                    Entry
+                    )
+
+        self.assertIn(
+                Entry,
+                Self_Ripping,
+                )
+        self.assertEqual(
+                list(
+                    Self_Ripping.Field
+                    ),
+                [
+                    Entry,
+                    ],
+                )
+
+    def test_failed_pinning_cannot_rip_prior_membership(self) -> None:
+        class Existing(Tag):
+            pass
+
+        class Rejected(Tag):
+            @Imprint
+            def Remove_Existing(
+                    target,
+                    ) -> None:
+                Existing.Rip(
+                        target
+                        )
+
+        class Entry(Tag):
+            pass
+
+        Existing(
+                Entry
+                )
+
+        with self.assertRaises(
+                ImprintingError
+                ):
+            Rejected(
+                    Entry
+                    )
+
+        self.assertIn(
+                Entry,
+                Existing,
+                )
+        self.assertIn(
+                Entry,
+                Existing.Field,
+                )
+        self.assertIn(
+                Entry,
+                Rejected,
+                )
+
+    def test_failed_pin_precondition_discards_its_mutation(
+            self,
+            ) -> None:
+        class Rejected(Tag):
+            @Pre
+            def Mark_Then_Reject(
+                    target,
+                    ) -> bool:
+                target.mandatory_security = "provisional"
+
+                return False
+
+        class Entry(Tag):
+            pass
+
+        with self.assertRaises(
+                TagPreconditionError
+                ):
+            Rejected(
+                    Entry
+                    )
+
+        self.assertNotIn(
+                Entry,
+                Rejected,
+                )
+        self.assertFalse(
+                hasattr(
+                    Entry,
+                    "mandatory_security",
+                    )
+                )
+
+    def test_failed_tag_scope_report_names_its_materialization_error(
+            self,
+            ) -> None:
+        class Broken_Pin(Tag):
+            @Record
+            def policy(
+                    target,
+                    ) -> str:
+                raise TypeError(
+                        "invalid policy source"
+                        )
+
+        class Entry(Tag):
+            pass
+
+        with self.assertRaisesRegex(
+                TagCompositionError,
+                "Tag-scope Report .*Broken_Pin.policy"
+                " failed to materialize",
+                ) as caught:
+            Broken_Pin(
+                    Entry
+                    )
+
+        self.assertIsInstance(
+                caught.exception.__cause__,
+                TypeError,
+                )
+        self.assertNotIn(
+                Entry,
+                Broken_Pin,
+                )
+        self.assertFalse(
+                hasattr(
+                    Entry,
+                    "policy",
+                    )
+                )
+
+    def test_aliased_tag_scope_report_names_its_declaration(
+            self,
+            ) -> None:
+        @Record
+        def Shared_Policy(
+                target,
+                ) -> str:
+            raise TypeError(
+                    "invalid shared policy"
+                    )
+
+        class Broken_Pin(Tag):
+            policy = Shared_Policy
+
+        class Entry(Tag):
+            pass
+
+        with self.assertRaisesRegex(
+                TagCompositionError,
+                "Tag-scope Report .*Broken_Pin.policy"
+                " failed to materialize",
+                ):
+            Broken_Pin(
+                    Entry
+                    )
+
+    def test_failed_pinning_keeps_earlier_pin(self) -> None:
+        class Published(Tag):
+            pass
+
+        class Rejected(Tag):
+            @Post
+            def Never_Accept(
+                    target,
+                    ) -> bool:
+                return False
+
+        class Entry(Tag):
+            pass
+
+        Published(
+                Entry
+                )
+
+        with self.assertRaises(
+                TagPostconditionError
+                ):
+            Rejected(
+                    Entry
+                    )
+
+        self.assertIn(
+                Entry,
+                Published,
+                )
+        self.assertIn(
+                Entry,
+                Rejected,
+                )
+        self.assertEqual(
+                list(
+                    Published.Field
+                    ),
+                [
+                    Entry,
+                    ],
+                )
+        self.assertEqual(
+                list(
+                    Rejected.Field
+                    ),
+                [
+                    Entry,
+                    ],
+                )
+
+    def test_pinned_tag_truth_rechecks_living_postconditions(self) -> None:
+        class Validated_Catalogue(Tag):
+            @Post
+            def Is_Enabled(
+                    target,
+                    ) -> bool:
+                return target.enabled
+
+        class Entry(Tag):
+            enabled = True
+
+        Validated_Catalogue(
+                Entry
+                )
+
+        self.assertTrue(
+                bool(Entry)
+                )
+        self.assertTrue(
+                Contract.Postconditions(
+                    Entry
+                    )
+                )
+
+        Entry.enabled = False
+
+        self.assertFalse(
+                bool(Entry)
+                )
+
+        with self.assertRaises(
+                TagPostconditionError
+                ):
+            Contract.Postconditions(
+                    Entry
+                    )
+
+    def test_ripped_pin_keeps_pinning_history(self) -> None:
+        class Catalogue(Tag):
+            secret = Report(
+                    "field only"
+                    )
+
+            @Action
+            @Rip
+            def Mark_Rip(
+                    target,
+                    ) -> None:
+                target.rip_count += 1
+
+            @Record
+            def status(
+                    target,
+                    ) -> str:
+                return "catalogued"
+
+        class Entry(Tag):
+            rip_count = 0
+
+        class Other(Tag):
+            pass
+
+        Catalogue(
+                Entry
+                )
+        view = Entry.Tag(
+                Catalogue
+                )
+        self.assertEqual(
+                view.status,
+                "catalogued",
+                )
+        self.assertEqual(
+                view.secret,
+                "field only",
+                )
+
+        Catalogue.Rip(
+                Entry
+                )
+
+        self.assertNotIn(
+                Entry,
+                Catalogue,
+                )
+        self.assertEqual(
+                Entry.rip_count,
+                1,
+                )
+        self.assertEqual(
+                Entry.status,
+                "catalogued",
+                )
+        self.assertTrue(
+                callable(
+                    Entry.Mark_Rip
+                    )
+                )
+
+        with self.assertRaises(
+                TagResolutionError
+                ):
+            Entry.Tag(
+                    Catalogue
+                    )
+
+        with self.assertRaises(
+                TagResolutionError
+                ):
+            _value = view.secret
+
+        with self.assertRaises(
+                TagResolutionError
+                ):
+            _value = view.status
+
+        with self.assertRaises(
+                TagResolutionError
+                ):
+            view.Mark_Rip()
+
+        Other(
+                Entry
+                )
+
+        with self.assertRaises(
+                AttributeError
+                ):
+            _value = Entry.Tag(
+                    Other
+                    ).secret
+        self.assertNotIn(
+                Entry,
+                Catalogue.Field,
+                )
+        self.assertIsInstance(
+                Entry,
+                Catalogue,
+                )
+
+    def test_rip_revokes_field_resources_and_restores_active_provider(
+            self,
+            ) -> None:
+        class First(Tag):
+            label = Report(
+                    "first"
+                    )
+
+            @Operation
+            def Describe(
+                    pin,
+                    ) -> str:
+                return pin.__name__
+
+        class Second(Tag):
+            label = Report(
+                    "second"
+                    )
+
+            @Operation
+            def Describe(
+                    pin,
+                    ) -> str:
+                return pin.__name__
+
+        class Before_Rip(Tag):
+            pass
+
+        class After_Rip(Tag):
+            pass
+
+        class Entry(Tag):
+            pass
+
+        First(
+                Entry
+                )
+        Second(
+                Entry
+                )
+        Before_Rip(
+                Entry
+                )
+
+        captured = Entry.Tag(
+                Before_Rip
+                )
+
+        Second.Rip(
+                Entry
+                )
+
+        with self.assertRaises(
+                TagResolutionError
+                ):
+            _value = captured.label
+
+        with self.assertRaises(
+                TagResolutionError
+                ):
+            captured.Describe()
+
+        After_Rip(
+                Entry
+                )
+        current = Entry.Tag(
+                After_Rip
+                )
+
+        self.assertEqual(
+                current.label,
+                "first",
+                )
+        self.assertEqual(
+                current.Describe(),
+                "First",
+                )
+
+    def test_condition_name_does_not_resurrect_deleted_field_resource(
+            self,
+            ) -> None:
+        class Has_Resources(Tag):
+            value = Report(
+                    "available"
+                    )
+
+            @Operation
+            def Describe(
+                    pin,
+                    ) -> str:
+                return pin.__name__
+
+        class Mask(Tag):
+            @Delete
+            def value(
+                    target,
+                    ) -> None:
+                pass
+
+            @Delete
+            def Describe(
+                    target,
+                    ) -> None:
+                pass
+
+        class Reuses_Names(Tag):
+            @Pre
+            def value(
+                    target,
+                    ) -> bool:
+                return True
+
+            @Post
+            def Describe(
+                    target,
+                    ) -> bool:
+                return True
+
+        ari = Agent()
+
+        Has_Resources(
+                ari
+                )
+        Mask(
+                ari
+                )
+        Reuses_Names(
+                ari
+                )
+
+        view = ari.Tag(
+                Reuses_Names
+                )
+
+        # The Field Report / Operation stay deleted. A Condition may reuse
+        # the name as an Agent contribution without resurrecting them.
+        self.assertTrue(view.value)
+        self.assertTrue(view.value())
+        self.assertNotEqual(
+                view.value(),
+                "available",
+                )
+        self.assertTrue(view.Describe())
+        self.assertTrue(
+                ari.value,
+                )
+        self.assertTrue(
+                ari.Describe(),
+                )
+
+    def test_rip_does_not_fall_back_past_active_field_delete(
+            self,
+            ) -> None:
+        class First(Tag):
+            value = Report(
+                    "first"
+                    )
+
+            @Operation
+            def Describe(
+                    pin,
+                    ) -> str:
+                return pin.__name__
+
+        class Mask(Tag):
+            @Delete
+            def value(
+                    target,
+                    ) -> None:
+                pass
+
+            @Delete
+            def Describe(
+                    target,
+                    ) -> None:
+                pass
+
+        class Second(Tag):
+            value = Report(
+                    "second"
+                    )
+
+            @Operation
+            def Describe(
+                    pin,
+                    ) -> str:
+                return pin.__name__
+
+        class Before_Rip(Tag):
+            pass
+
+        class After_Rip(Tag):
+            pass
+
+        ari = Agent()
+
+        First(
+                ari
+                )
+        Mask(
+                ari
+                )
+        Second(
+                ari
+                )
+        Before_Rip(
+                ari
+                )
+
+        before = ari.Tag(
+                Before_Rip
+                )
+
+        self.assertEqual(
+                before.value,
+                "second",
+                )
+        self.assertEqual(
+                before.Describe(),
+                "Second",
+                )
+
+        Second.Rip(
+                ari
+                )
+        After_Rip(
+                ari
+                )
+
+        after = ari.Tag(
+                After_Rip
+                )
+
+        with self.assertRaises(
+                AttributeError
+                ):
+            _value = after.value
+
+        with self.assertRaises(
+                AttributeError
+                ):
+            after.Describe()
+
+    def test_field_delete_does_not_mask_later_sticky_agent_contribution(
+            self,
+            ) -> None:
+        class Field_Source(Tag):
+            Act = Report(
+                    "field action"
+                    )
+            status = Report(
+                    "field record"
+                    )
+
+        class Mask(Tag):
+            @Delete
+            def Act(
+                    target,
+                    ) -> None:
+                pass
+
+            @Delete
+            def status(
+                    target,
+                    ) -> None:
+                pass
+
+        class Restores_Agent_Scope(Tag):
+            def Act(
+                    target,
+                    ) -> str:
+                return "agent action"
+
+            @Record
+            def status(
+                    target,
+                    ) -> str:
+                return "agent record"
+
+        class Observer(Tag):
+            pass
+
+        ari = Agent()
+
+        Field_Source(
+                ari
+                )
+        Mask(
+                ari
+                )
+        Restores_Agent_Scope(
+                ari
+                )
+        Restores_Agent_Scope.Rip(
+                ari
+                )
+        Observer(
+                ari
+                )
+
+        view = ari.Tag(
+                Observer
+                )
+
+        self.assertEqual(
+                view.Act(),
+                "agent action",
+                )
+        self.assertEqual(
+                view.status,
+                "agent record",
+                )
+
+    def test_pin_base_rip_cascades_dependent_shapes(
+            self,
+            ) -> None:
+        class Catalogue(Tag):
+            pass
+
+        class Featured(Catalogue):
+            pass
+
+        class Entry(Tag):
+            pass
+
+        Featured(
+                Entry
+                )
+
+        Catalogue.Rip(
+                Entry
+                )
+
+        self.assertNotIn(
+                Entry,
+                Catalogue,
+                )
+        self.assertNotIn(
+                Entry,
+                Featured,
+                )
+        self.assertNotIn(
+                Entry,
+                Catalogue.Field,
+                )
+        self.assertNotIn(
+                Entry,
+                Featured.Field,
+                )
+        self.assertIsInstance(
+                Entry,
+                Catalogue,
+                )
+        self.assertIsInstance(
+                Entry,
+                Featured,
+                )
+
+    def test_pin_field_is_non_owning(self) -> None:
+        class Catalogue(Tag):
+            @Record
+            def owner(
+                    target,
+                    ):
+                return target
+
+        class Entry(Tag):
+            pass
+
+        Catalogue(
+                Entry
+                )
+        reference = weakref.ref(
+                Entry
+                )
+
+        del Entry
+        gc.collect()
+
+        self.assertIsNone(
+                reference()
+                )
+        self.assertEqual(
+                list(
+                    Catalogue.Field
+                    ),
+                [],
+                )
+
+        def Self_Classified_Reference():
+            class Loop(Tag):
+                pass
+
+            Loop(
+                    Loop
+                    )
+
+            return weakref.ref(
+                    Loop
+                    )
+
+        loop_reference = Self_Classified_Reference()
+        gc.collect()
+
+        self.assertIsNone(
+                loop_reference()
+                )
+
+    def test_pin_state_is_not_inherited_by_target_shapes(self) -> None:
+        class Catalogue(Tag):
+            pass
+
+        class Entry(Tag):
+            pass
+
+        Catalogue(
+                Entry
+                )
+
+        class Specialized_Entry(Entry):
+            pass
+
+        self.assertIn(
+                Entry,
+                Catalogue,
+                )
+        self.assertNotIn(
+                Specialized_Entry,
+                Catalogue,
+                )
+        self.assertNotIsInstance(
+                Specialized_Entry,
+                Catalogue,
+                )
+
+        with self.assertRaises(
+                TagCompositionError
+                ):
+            setattr(
+                    Entry,
+                    "__tagkit_pin_state__",
+                    None,
+                    )
+
+        with self.assertRaises(
+                TagCompositionError
+                ):
+            delattr(
+                    Entry,
+                    "__tagkit_pin_state__",
+                    )
+
+        self.assertIn(
+                Entry,
+                Catalogue,
+                )
+
+    def test_pin_contributions_extend_native_tag_scope(self) -> None:
+        class Entry(Tag):
+            labels = (
+                    "native",
+                    )
+
+            @Operation
+            def Explain(
+                    target,
+                    subject: str,
+                    ) -> str:
+                return f"{target.__name__}:{subject}"
+
+        class Refined(Tag):
+            @Action
+            @Underlay
+            def Explain(
+                    target,
+                    prior,
+                    subject: str,
+                    ) -> str:
+                return (
+                        prior(subject)
+                        + ":refined"
+                        )
+
+            @Record
+            @Underlay
+            def labels(
+                    target,
+                    prior,
+                    ) -> tuple[str, ...]:
+                return (
+                        *prior(),
+                        "refined",
+                        )
+
+        Refined(
+                Entry
+                )
+
+        self.assertEqual(
+                Entry.Explain(
+                    "subject"
+                    ),
+                "Entry:subject:refined",
+                )
+        self.assertEqual(
+                Entry.labels,
+                (
+                    "native",
+                    "refined",
+                    ),
+                )
+
+    def test_pin_overlays_keep_pin_snapshots(self) -> None:
+        class First(Tag):
+            def Explain(
+                    target,
+                    ) -> str:
+                return "first"
+
+            @Record
+            def labels(
+                    target,
+                    ) -> list[str]:
+                return [
+                        "first",
+                        ]
+
+        class Second(Tag):
+            @Underlay
+            def Explain(
+                    target,
+                    prior,
+                    ) -> str:
+                return (
+                        prior()
+                        + ":second"
+                        )
+
+            @Record
+            @Underlay
+            def labels(
+                    target,
+                    prior,
+                    ) -> list[str]:
+                return (
+                        prior()
+                        + ["second"]
+                        )
+
+        class Entry(Tag):
+            pass
+
+        First(
+                Entry
+                )
+        first_view = Entry.Tag(
+                First
+                )
+
+        Second(
+                Entry
+                )
+
+        self.assertEqual(
+                Entry.Explain(),
+                "first:second",
+                )
+        self.assertEqual(
+                Entry.labels,
+                [
+                    "first",
+                    "second",
+                    ],
+                )
+        self.assertEqual(
+                first_view.Explain(),
+                "first",
+                )
+        self.assertEqual(
+                first_view.labels,
+                [
+                    "first",
+                    ],
+                )
+        self.assertEqual(
+                Entry.Tag(
+                    Second
+                    ).Explain(),
+                "first:second",
+                )
+
+    def test_pin_delete_targets_tag_scope_only(self) -> None:
+        class Entry(Tag):
+            visible = "native report"
+
+        class Context(Tag):
+            visible = "Pin report"
+
+        class Hidden(Tag):
+            @Delete
+            def visible(
+                    target,
+                    ) -> None:
+                pass
+
+        class Later_Context(Tag):
+            visible = "later Pin report"
+
+        Context(
+                Entry
+                )
+        Hidden(
+                Entry
+                )
+        Later_Context(
+                Entry
+                )
+
+        self.assertEqual(
+                Context.visible,
+                "Pin report",
+                )
+        self.assertFalse(
+                hasattr(
+                    Entry,
+                    "visible",
+                    )
+                )
+        self.assertEqual(
+                Entry.Tag(
+                    Context
+                    ).visible,
+                "Pin report",
+                )
+        self.assertEqual(
+                Entry.Tag(
+                    Later_Context
+                    ).visible,
+                "later Pin report",
+                )
+
+        ari = Agent()
+        Entry(
+                ari
+                )
+
+        with self.assertRaises(
+                AttributeError
+                ):
+            _value = ari.Entry.visible
+
+    def test_pin_report_supports_assignment_and_deletion(self) -> None:
+        class Ranked(Tag):
+            @Record
+            def rank(
+                    target,
+                    ) -> int:
+                return 1
+
+        class Entry(Tag):
+            pass
+
+        Ranked(
+                Entry
+                )
+
+        Entry.rank = 2
+
+        self.assertEqual(
+                Entry.rank,
+                2,
+                )
+        self.assertEqual(
+                Entry.Tag(
+                    Ranked
+                    ).rank,
+                1,
+                )
+
+        del Entry.rank
+
+        self.assertFalse(
+                hasattr(
+                    Entry,
+                    "rank",
+                    )
+                )
+
+        Entry.rank = 3
+
+        self.assertEqual(
+                Entry.rank,
+                3,
+                )
+
+    def test_cross_kind_tag_scope_collision_fails_atomically(self) -> None:
+        class Report_Target(Tag):
+            value = Report(
+                    "report"
+                    )
+
+        class Operation_Source(Tag):
+            def value(
+                    target,
+                    ) -> str:
+                return "operation"
+
+        class Operation_Target(Tag):
+            @Operation
+            def value(
+                    target,
+                    ) -> str:
+                return "operation"
+
+        class Report_Source(Tag):
+            @Record
+            def value(
+                    target,
+                    ) -> str:
+                return "report"
+
+        cases = (
+                (
+                    Operation_Source,
+                    Report_Target,
+                    ),
+                (
+                    Report_Source,
+                    Operation_Target,
+                    ),
+                )
+
+        for source, target in cases:
+            with self.subTest(
+                    source=source.__name__,
+                    target=target.__name__,
+                    ):
+                with self.assertRaises(
+                        TagCompositionError
+                        ):
+                    source(
+                            target
+                            )
+
+                self.assertNotIn(
+                        target,
+                        source,
+                        )
+                self.assertNotIsInstance(
+                        target,
+                        source,
+                        )
+
+    def test_cross_kind_agent_scope_collision_fails_atomically(self) -> None:
+        class Skill(Tag):
+            def power(
+                    target,
+                    ) -> int:
+                return 4
+
+        class Stats(Tag):
+            @Imprint
+            def mark(
+                    target,
+                    ) -> None:
+                target.marked = True
+
+            @Record
+            def power(
+                    target,
+                    ) -> int:
+                return 9
+
+        class Later_Skill(Tag):
+            def power(
+                    target,
+                    ) -> int:
+                return 6
+
+        ari = Agent()
+        Skill(ari)
+
+        with self.assertRaisesRegex(
+                TagCompositionError,
+                "Agent Record 'power' conflicts with an Action",
+                ):
+            Stats(ari)
+
+        self.assertIn(
+                ari,
+                Skill,
+                )
+        self.assertNotIn(
+                ari,
+                Stats,
+                )
+        self.assertFalse(
+                hasattr(
+                        ari,
+                        "marked",
+                        )
+                )
+        self.assertEqual(
+                ari.power(),
+                4,
+                )
+        self.assertFalse(
+                isinstance(
+                        ari,
+                        Stats,
+                        )
+                )
+
+        bea = Agent()
+        Stats(bea)
+
+        with self.assertRaisesRegex(
+                TagCompositionError,
+                "Agent Action 'power' conflicts with a Record",
+                ):
+            Later_Skill(bea)
+
+        self.assertIn(
+                bea,
+                Stats,
+                )
+        self.assertNotIn(
+                bea,
+                Later_Skill,
+                )
+        self.assertEqual(
+                bea.power,
+                9,
+                )
+
+    def test_deleted_agent_slot_can_be_reoccupied_by_the_other_kind(
+            self,
+            ) -> None:
+        class Skill(Tag):
+            def power(
+                    target,
+                    ) -> int:
+                return 4
+
+        class Hide_Power(Tag):
+            @Delete
+            def power(
+                    target,
+                    ) -> None:
+                pass
+
+        class Stats(Tag):
+            @Record
+            def power(
+                    target,
+                    ) -> int:
+                return 9
+
+        ari = Agent()
+        Skill(ari)
+        Hide_Power(ari)
+        Stats(ari)
+
+        self.assertEqual(
+                ari.power,
+                9,
+                )
+        self.assertIn(
+                ari,
+                Stats,
+                )
+
+    def test_shape_record_can_fix_a_base_action(self) -> None:
+        class Combatant(Tag):
+            def strike(
+                    target,
+                    ) -> int:
+                return 1
+
+        class Fire(Combatant):
+            @Record
+            def strike(
+                    target,
+                    ) -> int:
+                return 4
+
+        ari = Agent()
+        Fire(ari)
+
+        self.assertIn(
+                ari,
+                Combatant,
+                )
+        self.assertIn(
+                ari,
+                Fire,
+                )
+        self.assertEqual(
+                ari.strike,
+                4,
+                )
+        self.assertEqual(
+                ari.strike(),
+                4,
+                )
+        self.assertEqual(
+                Combatant[ari].strike(),
+                1,
+                )
+        self.assertEqual(
+                Combatant[ari].strike,
+                1,
+                )
+
+    def test_shape_action_can_compute_a_base_record(self) -> None:
+        class Combatant(Tag):
+            @Record
+            def strike(
+                    target,
+                    ) -> int:
+                return 1
+
+        class Fire(Combatant):
+            def strike(
+                    target,
+                    ) -> int:
+                return (
+                        Combatant[target].strike
+                        + 3
+                        )
+
+        ari = Agent()
+        Fire(ari)
+
+        self.assertEqual(
+                ari.strike(),
+                4,
+                )
+        self.assertEqual(
+                ari.strike,
+                4,
+                )
+        self.assertEqual(
+                Combatant[ari].strike,
+                1,
+                )
+        self.assertEqual(
+                Combatant[ari].strike(),
+                1,
+                )
+
+    def test_actions_and_records_share_call_and_value_spellings(self) -> None:
+        class Combatant(Tag):
+            @Record
+            def hp(
+                    target,
+                    ) -> int:
+                return 30
+
+            @Record
+            def resistances(
+                    target,
+                    ) -> dict[str, float]:
+                return {
+                        "fire": 0.5,
+                        }
+
+            @Record
+            def asleep(
+                    target,
+                    ) -> bool:
+                return False
+
+            def motto(
+                    target,
+                    ) -> str:
+                return "onward"
+
+            def strike(
+                    target,
+                    enemy: str,
+                    ) -> str:
+                return (
+                        enemy
+                        + " hit"
+                        )
+
+        ari = Agent()
+        Combatant(ari)
+
+        self.assertEqual(
+                ari.hp,
+                30,
+                )
+        self.assertEqual(
+                ari.hp(),
+                30,
+                )
+
+        ari.hp -= 8
+
+        self.assertEqual(
+                ari.hp,
+                22,
+                )
+        self.assertEqual(
+                ari.hp(),
+                22,
+                )
+        self.assertLess(
+                ari.hp,
+                30,
+                )
+
+        ari.resistances["fire"] = 0.75
+
+        self.assertEqual(
+                ari.resistances["fire"],
+                0.75,
+                )
+        self.assertEqual(
+                ari.resistances()["fire"],
+                0.75,
+                )
+
+        self.assertFalse(ari.asleep)
+        self.assertFalse(ari.asleep())
+
+        self.assertEqual(
+                ari.motto,
+                "onward",
+                )
+        self.assertEqual(
+                ari.motto(),
+                "onward",
+                )
+        self.assertEqual(
+                ari.motto.upper(),
+                "ONWARD",
+                )
+
+        self.assertEqual(
+                ari.strike("dummy"),
+                "dummy hit",
+                )
+
+        send = ari.strike
+
+        self.assertEqual(
+                send("dummy"),
+                "dummy hit",
+                )
+        self.assertTrue(
+                Has(
+                        ari,
+                        ari.strike,
+                        )
+                )
+
+        held = ari.hp
+        ari.hp = 10
+
+        self.assertEqual(
+                held,
+                22,
+                )
+        self.assertEqual(
+                ari.hp,
+                10,
+                )
+
+        builds: list[int] = []
+
+        class Counted(Tag):
+            @Record
+            def token(
+                    target,
+                    ) -> str:
+                builds.append(1)
+                return "ok"
+
+        counted = Agent()
+        Counted(counted)
+
+        self.assertEqual(
+                builds,
+                [1],
+                )
+        self.assertEqual(
+                counted.token(),
+                "ok",
+                )
+        self.assertEqual(
+                counted.token,
+                "ok",
+                )
+        self.assertEqual(
+                builds,
+                [1],
+                )
+
+    def test_structural_dunder_badging_fails_before_mutation(self) -> None:
+        class Ranked(Tag):
+            @Record
+            def rank(
+                    target,
+                    ) -> int:
+                return 4
+
+            def __add__(
+                    target,
+                    amount: int,
+                    ) -> int:
+                return target.rank + amount
+
+        class Entry(Tag):
+            pass
+
+        with self.assertRaisesRegex(
+                TagCompositionError,
+                "structural member '__add__'",
+                ):
+            Ranked(
+                    Entry
+                    )
+
+        self.assertNotIn(
+                Entry,
+                Ranked,
+                )
+        self.assertEqual(
+                list(
+                    Ranked.Field
+                    ),
+                [],
+                )
+        self.assertFalse(
+                hasattr(
+                    Entry,
+                    "rank",
+                    )
+                )
+
     def test_tagging_preserves_identity_and_builds_base_membership(self) -> None:
         ari = Agent()
         returned = Elf(ari)
@@ -772,6 +3216,38 @@ class TagKitClaimTests(unittest.TestCase):
                         )
                 )
 
+    def test_independent_record_replacement_emits_a_diagnostic(self) -> None:
+        class Pack(Tag):
+            @Record
+            def items(
+                    target,
+                    ) -> list[str]:
+                return [
+                        "lamp",
+                        ]
+
+        class Loot(Tag):
+            @Record
+            def items(
+                    target,
+                    ) -> list[str]:
+                return [
+                        "gold",
+                        ]
+
+        ari = Agent()
+        Pack(ari)
+
+        with self.assertWarns(TagOverwriteWarning):
+            Loot(ari)
+
+        self.assertEqual(
+                ari.items,
+                [
+                        "gold",
+                        ],
+                )
+
     def test_records_are_fresh_per_agent_and_can_extend_an_underlay(self) -> None:
         ari = Agent()
         bea = Agent()
@@ -832,6 +3308,34 @@ class TagKitClaimTests(unittest.TestCase):
         self.assertEqual(
                 ari.weapon,
                 "shield",
+                )
+
+    def test_delete_semantically_masks_a_read_only_host_descriptor(
+            self,
+            ) -> None:
+        class Host:
+            @property
+            def value(
+                    host,
+                    ) -> int:
+                return 7
+
+        class Hidden(Tag):
+            @Delete
+            def value(
+                    host,
+                    ) -> None:
+                pass
+
+        host = Host()
+        Hidden(host)
+
+        with self.assertRaises(AttributeError):
+            _ = host.value
+
+        self.assertIn(
+                host,
+                Hidden,
                 )
 
     def test_deleted_record_has_no_underlay_and_a_later_shape_can_rebuild_it(self) -> None:
@@ -933,20 +3437,509 @@ class TagKitClaimTests(unittest.TestCase):
                 "raised",
                 )
 
-    def test_active_preconditions_and_postconditions_run_on_later_tagging(self) -> None:
+    def test_checkpoint_commit_publishes_an_ordered_tag_sequence(
+            self,
+            ) -> None:
+        class Species(Tag):
+            @Imprint
+            def Establish(
+                    target,
+                    ) -> None:
+                target.events.append(
+                        "species"
+                        )
+                target.species = "fox"
+
+        class Background(Tag):
+            @Imprint
+            def Establish(
+                    target,
+                    ) -> None:
+                target.events.append(
+                        "background"
+                        )
+                target.background = "scholar"
+
+        ari = Agent()
+        checkpoint = Tag.Checkpoint( ari )
+
+        Species( ari )
+        Background( ari )
+
+        self.assertEqual(
+                ari.events,
+                [
+                    "species",
+                    "background",
+                    ],
+                )
+        self.assertEqual(
+                ari.species,
+                "fox",
+                )
+        self.assertFalse(
+                hasattr(
+                        ari,
+                        "Checkpoint",
+                        )
+                )
+        self.assertNotIn(
+                ari,
+                Species,
+                )
+        self.assertNotIn(
+                ari,
+                Background.Field,
+                )
+        self.assertFalse(
+                isinstance(
+                        ari,
+                        Species,
+                        )
+                )
+        self.assertFalse(
+                Has(
+                        ari,
+                        Species,
+                        Background,
+                        )
+                )
+        self.assertEqual(
+                Tags( ari ),
+                (),
+                )
+
+        result = checkpoint.Commit()
+
+        self.assertIs(
+                result,
+                ari,
+                )
+        self.assertIn(
+                ari,
+                Species,
+                )
+        self.assertIn(
+                ari,
+                Background.Field,
+                )
+        self.assertTrue(
+                isinstance(
+                        ari,
+                        Species,
+                        )
+                )
+        self.assertTrue(
+                Has(
+                        ari,
+                        Species,
+                        Background,
+                        )
+                )
+        self.assertEqual(
+                set(
+                        Tags( ari )
+                        ),
+                {
+                    Species,
+                    Background,
+                    },
+                )
+
+    def test_checkpoint_restore_recovers_identity_state_and_history(
+            self,
+            ) -> None:
+        class Existing(Tag):
+            pass
+
+        class Provisional(Tag):
+            @Imprint
+            def Change(
+                    target,
+                    ) -> None:
+                target.items[0].append(
+                        "provisional"
+                        )
+                target.items.append(
+                        [
+                            "new",
+                            ]
+                        )
+                target.transient = True
+
+        ari = Agent()
+        ari.items = [
+                [
+                    "kept",
+                    ],
+                ]
+        Existing( ari )
+
+        original_identity = id( ari )
+        original_type = type( ari )
+        original_items = ari.items
+        original_nested = ari.items[0]
+        checkpoint = Tag.Checkpoint( ari )
+
+        Provisional( ari )
+
+        result = checkpoint.Restore()
+
+        self.assertIs(
+                result,
+                ari,
+                )
+        self.assertEqual(
+                id( ari ),
+                original_identity,
+                )
+        self.assertIs(
+                type( ari ),
+                original_type,
+                )
+        self.assertIs(
+                ari.items,
+                original_items,
+                )
+        self.assertIs(
+                ari.items[0],
+                original_nested,
+                )
+        self.assertEqual(
+                ari.items,
+                [
+                    [
+                        "kept",
+                        ],
+                    ],
+                )
+        self.assertFalse(
+                hasattr(
+                        ari,
+                        "transient",
+                        )
+                )
+        self.assertIn(
+                ari,
+                Existing,
+                )
+        self.assertNotIn(
+                ari,
+                Provisional,
+                )
+        self.assertFalse(
+                isinstance(
+                        ari,
+                        Provisional,
+                        )
+                )
+
+    def test_checkpoint_context_restores_on_error_and_commits_on_exit(
+            self,
+            ) -> None:
+        class Draft(Tag):
+            @Imprint
+            def Establish(
+                    target,
+                    ) -> None:
+                target.draft = "ready"
+
+        ari = Agent()
+
+        with self.assertRaises(ValueError):
+            with Tag.Checkpoint( ari ) as candidate:
+                self.assertIs(
+                        candidate,
+                        ari,
+                        )
+
+                Draft( candidate )
+
+                raise ValueError(
+                        "approval rejected"
+                        )
+
+        self.assertNotIn(
+                ari,
+                Draft,
+                )
+        self.assertFalse(
+                hasattr(
+                        ari,
+                        "draft",
+                        )
+                )
+
+        with Tag.Checkpoint( ari ) as candidate:
+            Draft( candidate )
+
+            self.assertEqual(
+                    candidate.draft,
+                    "ready",
+                    )
+
+        self.assertIn(
+                ari,
+                Draft,
+                )
+
+    def test_checkpoint_preserves_each_inner_tag_transaction(
+            self,
+            ) -> None:
+        class Accepted(Tag):
+            @Imprint
+            def Establish(
+                    target,
+                    ) -> None:
+                target.accepted = True
+
+        class Rejected(Tag):
+            @Imprint
+            def Fail(
+                    target,
+                    ) -> None:
+                target.rejected = True
+
+                raise RuntimeError(
+                        "reject this step"
+                        )
+
+        ari = Agent()
+        checkpoint = Tag.Checkpoint( ari )
+
+        Accepted( ari )
+
+        with self.assertRaises(ImprintingError):
+            Rejected( ari )
+
+        self.assertTrue( ari.accepted )
+        self.assertTrue( ari.rejected )
+
+        checkpoint.Commit()
+
+        self.assertIn(
+                ari,
+                Accepted,
+                )
+        self.assertIn(
+                ari,
+                Rejected,
+                )
+
+    def test_checkpoint_supports_tag_targets_without_changing_their_api(
+            self,
+            ) -> None:
+        class Catalog(Tag):
+            choices = [
+                    "kept",
+                    ]
+
+        class Draft_Pin(Tag):
+            @Imprint
+            def Change(
+                    target,
+                    ) -> None:
+                target.choices.append(
+                        "provisional"
+                        )
+
+        original_choices = Catalog.choices
+        checkpoint = Tag.Checkpoint( Catalog )
+
+        Draft_Pin( Catalog )
+
+        self.assertEqual(
+                Catalog.choices,
+                [
+                    "kept",
+                    "provisional",
+                    ],
+                )
+        self.assertNotIn(
+                Catalog,
+                Draft_Pin,
+                )
+
+        checkpoint.Restore()
+
+        self.assertIs(
+                Catalog.choices,
+                original_choices,
+                )
+        self.assertEqual(
+                Catalog.choices,
+                [
+                    "kept",
+                    ],
+                )
+        self.assertNotIn(
+                Catalog,
+                Draft_Pin,
+                )
+        self.assertNotIsInstance(
+                Catalog,
+                Draft_Pin,
+                )
+
+        committed = Tag.Checkpoint( Catalog )
+
+        Draft_Pin( Catalog )
+        committed.Commit()
+
+        self.assertIn(
+                Catalog,
+                Draft_Pin,
+                )
+        self.assertIsInstance(
+                Catalog,
+                Draft_Pin,
+                )
+        self.assertEqual(
+                Catalog.choices,
+                [
+                    "kept",
+                    "provisional",
+                    ],
+                )
+
+    def test_checkpoint_rejects_nested_control_and_provisional_rip(
+            self,
+            ) -> None:
+        class Existing(Tag):
+            pass
+
+        ari = Agent()
+        Existing( ari )
+        checkpoint = Tag.Checkpoint( ari )
+
+        with self.assertRaisesRegex(
+                TagCompositionError,
+                "active Checkpoint",
+                ):
+            Tag.Checkpoint( ari )
+
+        with self.assertRaisesRegex(
+                TagCompositionError,
+                "provisional",
+                ):
+            Existing.Rip( ari )
+
+        checkpoint.Restore()
+
+        with self.assertRaisesRegex(
+                TagCompositionError,
+                "already closed",
+                ):
+            checkpoint.Commit()
+
+    def test_checkpoint_commit_failure_restores_partial_field_publication(
+            self,
+            ) -> None:
+        class First(Tag):
+            @Imprint
+            def Establish(
+                    target,
+                    ) -> None:
+                target.first = True
+
+        class Second(Tag):
+            @Imprint
+            def Establish(
+                    target,
+                    ) -> None:
+                target.second = True
+
+        ari = Agent()
+        original_type = type( ari )
+        checkpoint = Tag.Checkpoint( ari )
+
+        First( ari )
+        Second( ari )
+
+        original_add = Second._tagkit_field._add
+
+        def Reject_Publication(
+                target,
+                ) -> None:
+            raise TagCompositionError(
+                    "Field publication rejected"
+                    )
+
+        Second._tagkit_field._add = Reject_Publication
+
+        try:
+            with self.assertRaisesRegex(
+                    TagCompositionError,
+                    "Field publication rejected",
+                    ):
+                checkpoint.Commit()
+        finally:
+            Second._tagkit_field._add = original_add
+
+        self.assertIs(
+                type( ari ),
+                original_type,
+                )
+        self.assertNotIn(
+                ari,
+                First,
+                )
+        self.assertNotIn(
+                ari,
+                Second,
+                )
+        self.assertFalse(
+                isinstance(
+                        ari,
+                        First,
+                        )
+                )
+        self.assertFalse(
+                hasattr(
+                        ari,
+                        "first",
+                        )
+                )
+        self.assertFalse(
+                hasattr(
+                        ari,
+                        "second",
+                        )
+                )
+
+    def test_preconditions_gate_only_layers_applied_in_this_call(self) -> None:
         ari = Agent()
 
         Validated(ari)
         ari.allowed = False
 
-        with self.assertRaises(TagPreconditionError):
-            Advanced(ari)
+        Advanced(ari)
 
-        ari.allowed = True
+        self.assertIn(
+                ari,
+                Advanced,
+                )
+        self.assertIn(
+                ari,
+                Validated,
+                )
+
+    def test_postconditions_recheck_on_later_tagging(self) -> None:
+        ari = Agent()
+
+        Validated(ari)
         ari.ready = False
 
+        class Extension(Tag):
+            pass
+
         with self.assertRaises(TagPostconditionError):
-            Advanced(ari)
+            Extension(ari)
+
+        self.assertIn(
+                ari,
+                Extension,
+                )
 
         Exempt(ari)
 
@@ -955,25 +3948,93 @@ class TagKitClaimTests(unittest.TestCase):
                 Exempt,
                 )
 
-    def test_postcondition_rejects_and_restores_top_managed_records(self) -> None:
+    def test_postcondition_keeps_the_tag_as_a_defective_result(self) -> None:
         ari = Agent()
         ari.ready = False
 
         with self.assertRaises(TagPostconditionError):
             Candidate_Record(ari)
 
-        self.assertNotIn(
+        self.assertIn(
                 ari,
                 Candidate_Record,
                 )
-        self.assertFalse(
-                hasattr(
-                        ari,
-                        "token",
-                        )
+        self.assertEqual(
+                ari.token,
+                "prepared",
                 )
 
-    def test_imprints_run_in_declaration_order_and_failure_keeps_raw_effects(self) -> None:
+    def test_valid_field_skips_defective_post_agents(self) -> None:
+        ari = Agent()
+        ari.ready = False
+
+        with self.assertRaises(TagPostconditionError):
+            Candidate_Record(ari)
+
+        self.assertIn(
+                ari,
+                Candidate_Record,
+                )
+        self.assertNotIn(
+                ari,
+                Candidate_Record[:],
+                )
+        self.assertIn(
+                ari,
+                ~Candidate_Record[:],
+                )
+        self.assertEqual(
+                len(
+                        Candidate_Record[:]
+                        ),
+                0,
+                )
+        self.assertEqual(
+                len(
+                        ~Candidate_Record[:]
+                        ),
+                1,
+                )
+        self.assertEqual(
+                list(
+                        Candidate_Record,
+                        ),
+                [],
+                )
+        self.assertEqual(
+                list(
+                        ~Candidate_Record[:]
+                        ),
+                [ari],
+                )
+        self.assertIs(
+                Candidate_Record[:] | ~Candidate_Record[:],
+                Candidate_Record.Field,
+                )
+        # U-set: membership in sound or defective covers every member.
+        self.assertTrue(
+                ari in Candidate_Record[:]
+                or ari in ~Candidate_Record[:]
+                )
+
+        ari.ready = True
+
+        self.assertIn(
+                ari,
+                Candidate_Record[:],
+                )
+        self.assertNotIn(
+                ari,
+                ~Candidate_Record[:],
+                )
+        self.assertEqual(
+                list(
+                        ~~Candidate_Record[:]
+                        ),
+                [ari],
+                )
+
+    def test_imprints_run_in_order_and_failed_imprint_keeps_the_tag(self) -> None:
         ari = Agent()
 
         Ordered_Imprints(ari)
@@ -986,10 +4047,10 @@ class TagKitClaimTests(unittest.TestCase):
                     ],
                 )
 
-        with self.assertRaises(TagImprintError):
+        with self.assertRaises(ImprintingError):
             Broken_Imprint(ari)
 
-        self.assertNotIn(
+        self.assertIn(
                 ari,
                 Broken_Imprint,
                 )
@@ -1043,6 +4104,82 @@ class TagKitClaimTests(unittest.TestCase):
         with self.assertRaises(TagResolutionError):
             ari.Tag(Paladin)
 
+    def test_tag_subscription_returns_the_active_agent_view(self) -> None:
+        class Wizard(Tag):
+            @Record
+            def spellcasting_ability(
+                    agent,
+                    ) -> str:
+                return "INT"
+
+            def Cast(
+                    agent,
+                    ) -> str:
+                return "Magic!"
+
+        ari = Agent()
+
+        Wizard(
+                ari
+                )
+
+        wizard_view = Wizard[
+                ari
+                ]
+
+        self.assertEqual(
+                wizard_view.spellcasting_ability,
+                "INT",
+                )
+        self.assertEqual(
+                wizard_view.Cast(),
+                "Magic!",
+                )
+
+        Wizard.Rip(
+                ari
+                )
+
+        with self.assertRaisesRegex(
+                TagResolutionError,
+                "Wizard is not active on Agent",
+                ):
+            _view = Wizard[
+                    ari
+                    ]
+
+    def test_tag_subscription_returns_the_active_pin_view(self) -> None:
+        class Mage(Tag):
+            purpose = Report(
+                    "Magic-using character classes"
+                    )
+
+        class Wizard(Tag):
+            pass
+
+        Mage(
+                Wizard
+                )
+
+        self.assertEqual(
+                Mage[
+                        Wizard
+                        ].purpose,
+                "Magic-using character classes",
+                )
+
+        Mage.Rip(
+                Wizard
+                )
+
+        with self.assertRaisesRegex(
+                TagResolutionError,
+                "Mage is not active on Wizard",
+                ):
+            _view = Mage[
+                    Wizard
+                    ]
+
     def test_fields_are_non_owning_and_iterable_from_the_tag(self) -> None:
         ari = Agent()
         Field_Member(ari)
@@ -1056,6 +4193,41 @@ class TagKitClaimTests(unittest.TestCase):
                 list(Field_Member),
                 [ari],
                 )
+        self.assertIs(
+                Field_Member[()],
+                Field_Member.Field,
+                )
+        self.assertIs(
+                Field_Member[...],
+                Field_Member.Field,
+                )
+        self.assertIsNot(
+                Field_Member[:],
+                Field_Member.Field,
+                )
+        self.assertEqual(
+                list(
+                    Field_Member[:]
+                    ),
+                [
+                    ari,
+                    ],
+                )
+        self.assertEqual(
+                list(
+                    Field_Member[()]
+                    ),
+                [
+                    ari,
+                    ],
+                )
+
+        with self.assertRaises(
+                TypeError
+                ):
+            _partial_field = Field_Member[
+                    1:
+                    ]
 
         del ari
         gc.collect()
@@ -1066,6 +4238,63 @@ class TagKitClaimTests(unittest.TestCase):
         self.assertEqual(
                 list(Field_Member.Field),
                 [],
+                )
+
+    def test_fields_index_equal_agents_by_identity(self) -> None:
+        class Equal_Agent:
+            def __eq__(
+                    left,
+                    right,
+                    ) -> bool:
+                return isinstance(
+                        right,
+                        Equal_Agent,
+                        )
+
+        class Member(Tag):
+            pass
+
+        first = Equal_Agent()
+        second = Equal_Agent()
+
+        Member(
+                first
+                )
+
+        self.assertIn(
+                first,
+                Member.Field,
+                )
+        self.assertNotIn(
+                second,
+                Member.Field,
+                )
+
+        Member(
+                second
+                )
+
+        self.assertEqual(
+                list(
+                    Member.Field
+                    ),
+                [
+                    first,
+                    second,
+                    ],
+                )
+
+        Member.Rip(
+                first
+                )
+
+        self.assertNotIn(
+                first,
+                Member.Field,
+                )
+        self.assertIn(
+                second,
+                Member.Field,
                 )
 
     def test_special_method_actions_actualize_the_agent(self) -> None:
@@ -1084,6 +4313,32 @@ class TagKitClaimTests(unittest.TestCase):
         with self.assertRaises(TagCompositionError):
             Person(target)
 
+    def test_reserved_state_collision_fails_without_mutating_host_state(
+            self,
+            ) -> None:
+        class Host:
+            def __init__(
+                    host,
+                    ) -> None:
+                host._TAGKIT_STATE = "domain state"
+
+        host = Host()
+
+        with self.assertRaisesRegex(
+                TagCompositionError,
+                "conflicts with TagKit's private runtime state",
+                ):
+            Person(host)
+
+        self.assertEqual(
+                host._TAGKIT_STATE,
+                "domain state",
+                )
+        self.assertNotIn(
+                host,
+                Person,
+                )
+
     def test_membership_queries_do_not_actualize_an_untagged_target(self) -> None:
         ari = Agent()
 
@@ -1100,24 +4355,662 @@ class TagKitClaimTests(unittest.TestCase):
 
     # -- Atomic application: pre-existing attribute restore (rule 1) -----
 
-    def test_failed_postcondition_restores_a_preexisting_instance_attribute(self) -> None:
+    def test_failed_postcondition_keeps_the_applied_record(self) -> None:
         ari = Agent()
         ari.weapon = "iron sword"
         ari.ready = False
 
-        # Cursed_Blade's Record overwrites the pre-existing `weapon`
-        # instance attribute, then its Postcondition fails. Atomic
-        # rollback must restore the ORIGINAL value (the line-861 path).
         with self.assertRaises(TagPostconditionError):
             Cursed_Blade(ari)
 
-        self.assertNotIn(
+        self.assertIn(
                 ari,
                 Cursed_Blade,
                 )
         self.assertEqual(
                 ari.weapon,
-                "iron sword",
+                "cursed dagger",
+                )
+
+    def test_failed_imprint_keeps_nested_mutable_instance_values(
+            self,
+            ) -> None:
+        class Mutating(Tag):
+            @Imprint
+            def Change(
+                    target,
+                    ) -> None:
+                target.items[0].append(
+                        "provisional"
+                        )
+                target.items[0] = [
+                        "replacement",
+                        ]
+                target.items.append(
+                        [
+                            "new",
+                            ]
+                        )
+
+                raise RuntimeError(
+                        "reject"
+                        )
+
+        ari = Agent()
+        ari.items = [
+                [
+                    "kept",
+                    ],
+                ]
+
+        with self.assertRaises(ImprintingError):
+            Mutating(ari)
+
+        self.assertIn(
+                ari,
+                Mutating,
+                )
+        self.assertEqual(
+                ari.items,
+                [
+                    [
+                        "replacement",
+                        ],
+                    [
+                        "new",
+                        ],
+                    ],
+                )
+
+    def test_failed_pinning_restores_mutable_tag_values(self) -> None:
+        class Profession(Tag):
+            choices = [
+                    "kept",
+                    ]
+
+        class Mutating(Tag):
+            @Imprint
+            def Change(
+                    target,
+                    ) -> None:
+                target.choices.append(
+                        "provisional"
+                        )
+
+                raise RuntimeError(
+                        "reject"
+                        )
+
+        original = Profession.choices
+
+        with self.assertRaises(ImprintingError):
+            Mutating(Profession)
+
+        self.assertIn(
+                Profession,
+                Mutating,
+                )
+        self.assertIs(
+                Profession.choices,
+                original,
+                )
+        self.assertEqual(
+                Profession.choices,
+                [
+                    "kept",
+                    "provisional",
+                    ],
+                )
+
+    def test_failed_tagging_restores_preexisting_slot_values(self) -> None:
+        class Slotted:
+            __slots__ = (
+                    "_TAGKIT_STATE",
+                    "__weakref__",
+                    "value",
+                    )
+
+            def __init__(
+                    target,
+                    ) -> None:
+                target.value = "original"
+
+        class Mutating(Tag):
+            @Imprint
+            def Change(
+                    target,
+                    ) -> None:
+                target.value = "provisional"
+
+        target = Slotted()
+
+        with self.assertRaises(TagCompositionError):
+            Mutating(target)
+
+        self.assertEqual(
+                target.value,
+                "original",
+                )
+        self.assertNotIn(
+                target,
+                Mutating,
+                )
+
+    def test_records_use_host_slots_for_lookup_underlay_and_views(
+            self,
+            ) -> None:
+        class Slotted:
+            __slots__ = (
+                    "__dict__",
+                    "__weakref__",
+                    "value",
+                    )
+
+            def __init__(
+                    target,
+                    ) -> None:
+                target.value = 4
+
+        class Raised(Tag):
+            @Record
+            @Underlay
+            def value(
+                    target,
+                    prior,
+                    ) -> int:
+                return (
+                        prior()
+                        + 3
+                        )
+
+        target = Slotted()
+        Raised(target)
+
+        self.assertEqual(
+                target.value,
+                7,
+                )
+        self.assertEqual(
+                Raised[target].value,
+                7,
+                )
+        self.assertTrue(
+                Has(
+                        target,
+                        Raised.value,
+                        )
+                )
+
+    def test_imprint_can_apply_an_independent_tag(self) -> None:
+        class Nested(Tag):
+            @Record
+            def nested_value(
+                    target,
+                    ) -> str:
+                return "nested"
+
+        class Outer(Tag):
+            @Imprint
+            def Apply_Nested(
+                    target,
+                    ) -> None:
+                if target not in Outer:
+                    raise AssertionError(
+                            "Imprint must run after the Tag has applied"
+                            )
+
+                target.transient = True
+
+                Nested(
+                        target
+                        )
+
+        ari = Agent()
+        Outer(
+                ari
+                )
+
+        self.assertIn(
+                ari,
+                Outer,
+                )
+        self.assertIn(
+                ari,
+                Nested,
+                )
+        self.assertTrue(
+                ari.transient
+                )
+        self.assertEqual(
+                ari.nested_value,
+                "nested",
+                )
+
+    def test_imprint_nested_tag_failure_keeps_the_outer_tag(
+            self,
+            ) -> None:
+        class Nested(Tag):
+            @Pre
+            def Refuse(
+                    target,
+                    ) -> bool:
+                return False
+
+            @Record
+            def nested_value(
+                    target,
+                    ) -> str:
+                return "nested"
+
+        class Outer(Tag):
+            @Imprint
+            def Apply_Nested(
+                    target,
+                    ) -> None:
+                target.transient = True
+
+                Nested(
+                        target
+                        )
+
+        ari = Agent()
+
+        with self.assertRaises(
+                TagPreconditionError
+                ):
+            Outer(
+                    ari
+                    )
+
+        self.assertIn(
+                ari,
+                Outer,
+                )
+        self.assertNotIn(
+                ari,
+                Nested,
+                )
+        self.assertTrue(
+                ari.transient
+                )
+        self.assertFalse(
+                hasattr(
+                    ari,
+                    "nested_value",
+                    )
+                )
+
+    def test_imprint_applies_an_optional_later_layer(self) -> None:
+        class PreTag(Tag):
+            def speak(
+                    target,
+                    ) -> str:
+                return "pre"
+
+        class AdditionalTag1(Tag):
+            @Action
+            @Underlay
+            def speak(
+                    target,
+                    prior,
+                    ) -> str:
+                return (
+                        prior()
+                        + "+extra"
+                        )
+
+        class MyTag(PreTag):
+            @Action
+            @Underlay
+            def speak(
+                    target,
+                    prior,
+                    ) -> str:
+                return (
+                        prior()
+                        + "+my"
+                        )
+
+            @Imprint
+            def Maybe_Extra(
+                    target,
+                    extra=None,
+                    ) -> None:
+                if extra:
+                    AdditionalTag1(
+                            target
+                            )
+
+        layered = Agent()
+        MyTag(
+                layered,
+                extra=True,
+                )
+
+        self.assertEqual(
+                layered.speak(),
+                "pre+my+extra",
+                )
+        self.assertIn(
+                layered,
+                PreTag,
+                )
+        self.assertIn(
+                layered,
+                MyTag,
+                )
+        self.assertIn(
+                layered,
+                AdditionalTag1,
+                )
+        self.assertEqual(
+                Tags(layered),
+                (
+                        AdditionalTag1,
+                        MyTag,
+                        ),
+                )
+
+        plain = Agent()
+        MyTag(
+                plain
+                )
+
+        self.assertEqual(
+                plain.speak(),
+                "pre+my",
+                )
+        self.assertNotIn(
+                plain,
+                AdditionalTag1,
+                )
+
+    def test_precondition_cannot_apply_a_tag(self) -> None:
+        class Nested(Tag):
+            pass
+
+        class Guarded(Tag):
+            @Pre
+            def Apply_Nested(
+                    target,
+                    ) -> bool:
+                Nested(
+                        target
+                        )
+
+                return True
+
+        ari = Agent()
+
+        with self.assertRaises(
+                TagPreconditionError
+                ):
+            Guarded(
+                    ari
+                    )
+
+        self.assertNotIn(
+                ari,
+                Guarded,
+                )
+        self.assertNotIn(
+                ari,
+                Nested,
+                )
+
+    def test_record_cannot_apply_a_tag(self) -> None:
+        class Nested(Tag):
+            pass
+
+        class Holder(Tag):
+            @Record
+            def value(
+                    target,
+                    ) -> str:
+                Nested(
+                        target
+                        )
+
+                return "held"
+
+        ari = Agent()
+
+        with self.assertRaises(
+                TagCompositionError
+                ):
+            Holder(
+                    ari
+                    )
+
+        self.assertNotIn(
+                ari,
+                Holder,
+                )
+        self.assertNotIn(
+                ari,
+                Nested,
+                )
+
+    def test_reentrant_active_agent_tag_is_a_strict_noop(self) -> None:
+        class Stable(Tag):
+            @Imprint
+            def Apply_Again(
+                    target,
+                    ) -> None:
+                Stable(
+                        target
+                        )
+                target.applications = (
+                        getattr(
+                            target,
+                            "applications",
+                            0,
+                            )
+                        + 1
+                        )
+
+        ari = Agent()
+
+        Stable(
+                ari
+                )
+
+        self.assertIn(
+                ari,
+                Stable,
+                )
+        self.assertEqual(
+                ari.applications,
+                1,
+                )
+        self.assertEqual(
+                list(
+                    Stable.Field
+                    ).count(
+                        ari
+                        ),
+                1,
+                )
+
+    def test_agent_cannot_rip_itself_during_application(self) -> None:
+        class Self_Ripping(Tag):
+            @Imprint
+            def Leave(
+                    target,
+                    ) -> None:
+                Self_Ripping.Rip(
+                        target
+                        )
+
+        ari = Agent()
+
+        with self.assertRaises(
+                ImprintingError
+                ):
+            Self_Ripping(
+                    ari
+                    )
+
+        self.assertIn(
+                ari,
+                Self_Ripping,
+                )
+        self.assertIn(
+                ari,
+                Self_Ripping.Field,
+                )
+
+    def test_failed_agent_tagging_cannot_rip_prior_membership(self) -> None:
+        class Existing(Tag):
+            pass
+
+        class Rejected(Tag):
+            @Imprint
+            def Remove_Existing(
+                    target,
+                    ) -> None:
+                Existing.Rip(
+                        target
+                        )
+
+        ari = Agent()
+
+        Existing(
+                ari
+                )
+
+        with self.assertRaises(
+                ImprintingError
+                ):
+            Rejected(
+                    ari
+                    )
+
+        self.assertIn(
+                ari,
+                Existing,
+                )
+        self.assertIn(
+                ari,
+                Existing.Field,
+                )
+        self.assertIn(
+                ari,
+                Rejected,
+                )
+
+    def test_failed_record_names_its_materialization_error(self) -> None:
+        class Broken_Record(Tag):
+            @Record
+            def value(
+                    target,
+                    ) -> int:
+                raise TypeError(
+                        "invalid source value"
+                        )
+
+        ari = Agent()
+
+        with self.assertRaisesRegex(
+                TagCompositionError,
+                "Record .*Broken_Record.value failed to materialize",
+                ) as caught:
+            Broken_Record(
+                    ari
+                    )
+
+        self.assertIsInstance(
+                caught.exception.__cause__,
+                TypeError,
+                )
+        self.assertNotIn(
+                ari,
+                Broken_Record,
+                )
+        self.assertFalse(
+                hasattr(
+                    ari,
+                    "value",
+                    )
+                )
+
+    def test_aliased_record_names_its_declaration(self) -> None:
+        @Record
+        def Shared_Value(
+                target,
+                ) -> int:
+            raise TypeError(
+                    "invalid shared source"
+                    )
+
+        class Broken_Record(Tag):
+            value = Shared_Value
+
+        ari = Agent()
+
+        with self.assertRaisesRegex(
+                TagCompositionError,
+                "Record .*Broken_Record.value failed to materialize",
+                ):
+            Broken_Record(
+                    ari
+                    )
+
+    def test_record_tag_error_passes_through_unchanged(
+            self,
+            ) -> None:
+        class Coded_Resolution_Error(
+                TagResolutionError
+                ):
+            def __init__(
+                    error,
+                    code: int,
+                    detail: str,
+                    ) -> None:
+                super().__init__(
+                        code,
+                        detail,
+                        )
+
+                error.code = code
+                error.detail = detail
+
+        failure = Coded_Resolution_Error(
+                404,
+                "source unavailable",
+                )
+
+        class Broken_Record(Tag):
+            @Record
+            def value(
+                    target,
+                    ) -> int:
+                raise failure
+
+        ari = Agent()
+
+        with self.assertRaises(
+                Coded_Resolution_Error
+                ) as caught:
+            Broken_Record(
+                    ari
+                    )
+
+        self.assertIs(
+                caught.exception,
+                failure,
+                )
+        self.assertEqual(
+                caught.exception.code,
+                404,
+                )
+        self.assertEqual(
+                caught.exception.detail,
+                "source unavailable",
+                )
+        self.assertNotIn(
+                ari,
+                Broken_Record,
                 )
 
     # -- Rip protocol and redefined stickiness (rule 2) ----------------
@@ -1195,10 +5088,10 @@ class TagKitClaimTests(unittest.TestCase):
                 Knighted,
                 )
         self.assertIsNone(
-                ari.rank,
+                ari.rank(),
                 )
 
-    def test_ripping_a_required_base_is_refused(self) -> None:
+    def test_ripping_a_base_cascades_dependent_shapes(self) -> None:
         ari = Agent()
 
         Wolf(ari)
@@ -1208,33 +5101,87 @@ class TagKitClaimTests(unittest.TestCase):
                 Beast,
                 )
 
-        # Beast is a Base still required by the active Wolf Shape.
-        with self.assertRaises(TagCompositionError):
-            Beast.Rip(ari)
-
-        self.assertIn(
-                ari,
-                Beast,
-                )
-
-        # Ripping the leaf Shape is always allowed and does not
-        # auto-rip its Base.
-        Wolf.Rip(ari)
+        Beast.Rip(ari)
 
         self.assertNotIn(
                 ari,
                 Wolf,
                 )
-        self.assertIn(
+        self.assertNotIn(
+                ari,
+                Beast,
+                )
+        self.assertNotIn(
+                ari,
+                Wolf.Field,
+                )
+        self.assertNotIn(
+                ari,
+                Beast.Field,
+                )
+        self.assertIsInstance(
+                ari,
+                Wolf,
+                )
+        self.assertIsInstance(
                 ari,
                 Beast,
                 )
 
-        Beast.Rip(ari)
+    def test_base_rip_is_specific_first_and_preserves_other_bases(
+            self,
+            ) -> None:
+        class First_Base(Tag):
+            @Rip
+            def Leave_First(
+                    target,
+                    ) -> None:
+                target.events.append(
+                        "First"
+                        )
 
+        class Other_Base(Tag):
+            pass
+
+        class Shape(
+                First_Base,
+                Other_Base,
+                ):
+            @Rip
+            def Leave_Shape(
+                    target,
+                    ) -> None:
+                target.events.append(
+                        "Shape"
+                        )
+
+        ari = Agent()
+
+        Shape(
+                ari
+                )
+        First_Base.Rip(
+                ari
+                )
+
+        self.assertEqual(
+                ari.events,
+                [
+                    "Shape",
+                    "First",
+                    ],
+                )
         self.assertNotIn(
                 ari,
-                Beast,
+                Shape,
+                )
+        self.assertNotIn(
+                ari,
+                First_Base,
+                )
+        self.assertIn(
+                ari,
+                Other_Base,
                 )
 
     def test_ripped_agent_is_not_yielded_by_field_iteration(self) -> None:
@@ -1268,7 +5215,7 @@ class TagKitClaimTests(unittest.TestCase):
         with self.assertRaises(TagResolutionError):
             Knighted.Rip(ari)
 
-    # -- Retagging after Rip is a full fresh application (rule 3) -------
+    # -- Retagging after Rip starts a new Tagging (rule 3) ---------------
 
     def test_reapply_after_rip_restores_membership_and_reruns_imprint(self) -> None:
         ari = Agent()
@@ -1281,8 +5228,8 @@ class TagKitClaimTests(unittest.TestCase):
                 Squire,
                 )
 
-        # A previously ripped Tag re-applies as a fresh application:
-        # membership is restored and the Imprint runs again.
+        # A previously ripped Tag starts a new Tagging: membership is
+        # restored and the Imprint runs again over sticky Rogue history.
         Squire(ari)
 
         self.assertIn(
@@ -1294,7 +5241,43 @@ class TagKitClaimTests(unittest.TestCase):
                 [
                     "Squire",
                     "Squire",
-                    ],
+                ],
+                )
+
+    def test_reapply_after_rip_layers_over_sticky_rogue_action(
+            self,
+            ) -> None:
+        class Host:
+            def Work(
+                    host,
+                    ) -> str:
+                return "host"
+
+        class Skilled(Tag):
+            @Underlay
+            def Work(
+                    host,
+                    prior,
+                    ) -> str:
+                return (
+                        prior()
+                        + "+skilled"
+                        )
+
+        host = Host()
+        Skilled(host)
+
+        self.assertEqual(
+                host.Work(),
+                "host+skilled",
+                )
+
+        Skilled.Rip(host)
+        Skilled(host)
+
+        self.assertEqual(
+                host.Work(),
+                "host+skilled+skilled",
                 )
 
     # -- Explicit @Underlay with author-chosen parameter names (rule 4) -
@@ -1402,6 +5385,65 @@ class TagKitClaimTests(unittest.TestCase):
         self.assertEqual(
                 _DEL_LOG.count("stood down"),
                 1,
+                )
+
+    def test_scope_reports_cleanup_failures_without_hiding_body_errors(
+            self,
+            ) -> None:
+        class Broken(Tag):
+            @Action
+            @Rip
+            def Release(
+                    agent,
+                    ) -> None:
+                raise RuntimeError(
+                        "lock still held"
+                        )
+
+        clean_body = Agent()
+
+        with self.assertRaisesRegex(
+                TagCompositionError,
+                "Scope cleanup failed",
+                ):
+            with Scope(
+                    clean_body,
+                    Broken,
+                    ):
+                pass
+
+        self.assertNotIn(
+                clean_body,
+                Broken,
+                )
+
+        failing_body = Agent()
+
+        try:
+            with Scope(
+                    failing_body,
+                    Broken,
+                    ):
+                raise ValueError(
+                        "body failed"
+                        )
+        except ValueError as error:
+            self.assertEqual(
+                    str(error),
+                    "body failed",
+                    )
+            self.assertIsInstance(
+                    error.tagkit_cleanup_error,
+                    TagCompositionError,
+                    )
+        else:
+            self.fail(
+                    "Scope hid the body failure"
+                    )
+
+        self.assertNotIn(
+                failing_body,
+                Broken,
                 )
 
     def test_at_exit_registration_does_not_pin_the_agent(self) -> None:
@@ -1575,8 +5617,127 @@ class TagKitClaimTests(unittest.TestCase):
         Scholar(ari)
         del ari.spellbook
 
-        with self.assertRaises(TagPostconditionError):
+        with self.assertRaises(TagPostconditionError) as raised:
             Contract.Postconditions(ari)
+
+        self.assertEqual(
+                raised.exception.condition,
+                "Has_Book",
+                )
+        self.assertIsInstance(
+                raised.exception,
+                TagPostconditionError.Has_Book,
+                )
+
+    def test_agent_contract_format_specs(self) -> None:
+        ari = Agent()
+        ari.level = 1
+        Scholar(ari)
+
+        display = f"{ari:Display}"
+        contract = f"{ari:Contract}"
+        status = f"{ari:Status}"
+
+        self.assertEqual(
+                display,
+                contract,
+                )
+        self.assertIn(
+                "Has_Book",
+                display,
+                )
+        self.assertIn(
+                "OK ",
+                display,
+                )
+        self.assertIn(
+                "Has_Book",
+                status,
+                )
+
+        del ari.spellbook
+
+        self.assertIn(
+                "XX ",
+                f"{ari:Display}",
+                )
+
+    def test_named_postcondition_error_is_catchable(self) -> None:
+        broken = Agent()
+        broken.ready = False
+
+        with self.assertRaises(TagPostconditionError.Accepts_Token):
+            Candidate_Record(broken)
+
+        with self.assertRaises(TagPostconditionError.Accepts_Token):
+            raise broken.Accepts_Token.Error(
+                    "named",
+                    condition="Accepts_Token",
+                    )
+
+    def test_conditions_are_binary_agent_members(self) -> None:
+        ari = Agent()
+        ari.level = 1
+
+        Scholar(ari)
+
+        self.assertTrue(ari.Has_Book)
+        self.assertTrue(ari.Has_Book())
+        self.assertTrue(ari.Level_Over_Zero)
+        self.assertTrue(ari.Level_Over_Zero())
+        self.assertTrue(
+                Scholar[ari].Has_Book(),
+                )
+
+        del ari.spellbook
+
+        self.assertFalse(ari.Has_Book)
+        self.assertFalse(ari.Has_Book())
+        self.assertFalse(
+                Scholar[ari].Has_Book,
+                )
+
+        broken = Agent()
+        broken.ready = False
+
+        with self.assertRaises(TagPostconditionError) as post_error:
+            Candidate_Record(broken)
+
+        self.assertEqual(
+                post_error.exception.condition,
+                "Accepts_Token",
+                )
+        self.assertFalse(broken.Accepts_Token)
+        self.assertFalse(broken.Accepts_Token())
+
+        broken.ready = True
+
+        self.assertTrue(broken.Accepts_Token())
+
+    def test_condition_conflicts_with_action_or_record(self) -> None:
+        class Skill(Tag):
+            def power(
+                    target,
+                    ) -> int:
+                return 4
+
+        class Checked(Tag):
+            @Post
+            def power(
+                    target,
+                    ) -> bool:
+                return True
+
+        ari = Agent()
+        Skill(ari)
+
+        with self.assertRaises(TagCompositionError):
+            Checked(ari)
+
+        self.assertNotIn(
+                ari,
+                Checked,
+                )
 
     def test_if_agent_inside_a_post_does_not_recurse(self) -> None:
         ari = Agent()
@@ -1717,6 +5878,1641 @@ class TagKitClaimTests(unittest.TestCase):
         other = Agent()
         Field_Member(other)                        # tagged, but contributes no items
         self.assertNotIn(Inventory.items, other)   # -> no items Record
+
+    # -- Neutral runtime composition -----------------------------------
+
+    def test_runtime_type_does_not_inherit_tag_namespaces(self) -> None:
+        class Semantic(Tag):
+            Only_Tag = "private to the semantic category"
+            Shared = Report("field knowledge")
+
+            @Operation
+            def Catalog(
+                    tag,
+                    ) -> str:
+                return tag.__name__
+
+            @Action
+            def Act(
+                    agent,
+                    ) -> str:
+                return "acting"
+
+        ari = Agent()
+
+        Semantic(ari)
+
+        self.assertEqual(
+                ari.Act(),
+                "acting",
+                )
+        self.assertEqual(
+                Semantic[ari].Shared,
+                "field knowledge",
+                )
+        self.assertEqual(
+                Semantic[ari].Catalog(),
+                "Semantic",
+                )
+        self.assertFalse(
+                hasattr(
+                        ari,
+                        "Shared",
+                        )
+                )
+        self.assertFalse(
+                hasattr(
+                        ari,
+                        "Catalog",
+                        )
+                )
+        self.assertFalse(
+                hasattr(
+                        ari,
+                        "Only_Tag",
+                        )
+                )
+        self.assertNotIn(
+                Semantic,
+                type(ari).__mro__,
+                )
+        self.assertIsInstance(
+                ari,
+                Semantic,
+                )
+
+    def test_opposite_tag_orders_do_not_create_runtime_mro_conflicts(
+            self,
+            ) -> None:
+        class X(Tag):
+            pass
+
+        class Y(Tag):
+            pass
+
+        class Forward(X, Y):
+            pass
+
+        class Reverse(Y, X):
+            pass
+
+        ari = Agent()
+
+        Forward(ari)
+        Reverse(ari)
+
+        for tag in (
+                X,
+                Y,
+                Forward,
+                Reverse,
+                ):
+            self.assertIn(
+                    ari,
+                    tag,
+                    )
+            self.assertIsInstance(
+                    ari,
+                    tag,
+                    )
+
+    def test_top_managed_dunders_cannot_be_replaced(self) -> None:
+        class Unsafe(Tag):
+            @Action
+            def __del__(
+                    agent,
+                    ) -> None:
+                pass
+
+        ari = Agent()
+        original_type = type(ari)
+
+        with self.assertRaisesRegex(
+                TagCompositionError,
+                "TOP-managed runtime protocol.*'__del__'",
+                ):
+            Unsafe(ari)
+
+        self.assertIs(
+                type(ari),
+                original_type,
+                )
+        self.assertNotIn(
+                ari,
+                Unsafe,
+                )
+
+    # -- Read-only and commit-only membership --------------------------
+
+    def test_field_is_a_read_only_population_view(self) -> None:
+        class Member(Tag):
+            pass
+
+        ari = Agent()
+        field = Member[:]
+
+        self.assertFalse(
+                hasattr(
+                        field,
+                        "Add",
+                        )
+                )
+        self.assertFalse(
+                hasattr(
+                        field,
+                        "Remove",
+                        )
+                )
+        self.assertEqual(
+                len(field),
+                0,
+                )
+
+        Member(ari)
+
+        self.assertEqual(
+                len(field),
+                1,
+                )
+        self.assertIn(
+                ari,
+                field,
+                )
+
+        Member.Rip(ari)
+
+        self.assertEqual(
+                len(field),
+                0,
+                )
+
+    def test_failed_precondition_never_exposes_provisional_membership(
+            self,
+            ) -> None:
+        observed: dict[str, object] = {}
+
+        class Pending(Tag):
+            def Act(
+                    agent,
+                    ) -> str:
+                return "provisional"
+
+            @Pre
+            def Remains_Provisional(
+                    agent,
+                    ) -> bool:
+                observed["in_tag"] = agent in Pending
+                observed["in_field"] = agent in Pending[:]
+                observed["has_been"] = isinstance(
+                        agent,
+                        Pending,
+                        )
+                observed["has_action"] = Has(
+                        agent,
+                        Pending.Act,
+                        )
+
+                try:
+                    Pending[agent]
+                except Exception as error:
+                    observed["view_error"] = type(error)
+
+                return False
+
+        ari = Agent()
+
+        with self.assertRaises(TagPreconditionError):
+            Pending(ari)
+
+        self.assertEqual(
+                observed,
+                {
+                    "in_tag": False,
+                    "in_field": False,
+                    "has_been": False,
+                    "has_action": False,
+                    "view_error": TagResolutionError,
+                    },
+                )
+        self.assertNotIn(
+                ari,
+                Pending,
+                )
+        self.assertNotIsInstance(
+                ari,
+                Pending,
+                )
+
+    def test_failed_shape_never_publishes_its_missing_base(self) -> None:
+        observed: dict[str, bool] = {}
+
+        class Base(Tag):
+            pass
+
+        class Shape(Base):
+            @Pre
+            def Reject(
+                    agent,
+                    ) -> bool:
+                observed["active"] = agent in Base
+                observed["field"] = agent in Base[:]
+                observed["history"] = isinstance(
+                        agent,
+                        Base,
+                        )
+
+                return False
+
+        ari = Agent()
+
+        with self.assertRaises(TagPreconditionError):
+            Shape(ari)
+
+        self.assertEqual(
+                observed,
+                {
+                    "active": False,
+                    "field": False,
+                    "history": False,
+                    },
+                )
+        self.assertNotIn(
+                ari,
+                Base,
+                )
+        self.assertNotIsInstance(
+                ari,
+                Base,
+                )
+
+    def test_failed_pin_shape_never_publishes_its_missing_base(
+            self,
+            ) -> None:
+        observed: dict[str, bool] = {}
+
+        class Target(Tag):
+            pass
+
+        class Base_Pin(Tag):
+            pass
+
+        class Shape_Pin(Base_Pin):
+            @Pre
+            def Reject(
+                    target,
+                    ) -> bool:
+                observed["active"] = target in Base_Pin
+                observed["field"] = target in Base_Pin[:]
+                observed["history"] = isinstance(
+                        target,
+                        Base_Pin,
+                        )
+
+                return False
+
+        with self.assertRaises(TagPreconditionError):
+            Shape_Pin(Target)
+
+        self.assertEqual(
+                observed,
+                {
+                    "active": False,
+                    "field": False,
+                    "history": False,
+                    },
+                )
+        self.assertNotIn(
+                Target,
+                Base_Pin,
+                )
+        self.assertNotIsInstance(
+                Target,
+                Base_Pin,
+                )
+
+    # -- Inputs belong to their own Tagging ----------------------------
+
+    def test_conditions_keep_inputs_from_each_tagging(self) -> None:
+        class Coded_Base(Tag):
+            @Pre
+            def Correct_Code(
+                    agent,
+                    code,
+                    ) -> bool:
+                return code == "base"
+
+            @Post
+            def Stable_Code(
+                    agent,
+                    code,
+                    ) -> bool:
+                return code == "base"
+
+        class Coded_Shape(Coded_Base):
+            @Pre
+            @Underlay
+            def Correct_Code(
+                    agent,
+                    prior,
+                    code,
+                    ) -> bool:
+                return (
+                        prior()
+                        and code == "shape"
+                        )
+
+            @Post
+            @Underlay
+            def Stable_Code(
+                    agent,
+                    prior,
+                    code,
+                    ) -> bool:
+                return (
+                        prior()
+                        and code == "shape"
+                        )
+
+        class Unrelated(Tag):
+            pass
+
+        ari = Agent()
+
+        Coded_Base(
+                ari,
+                code="base",
+                )
+        Coded_Shape(
+                ari,
+                code="shape",
+                )
+        Unrelated(
+                ari,
+                code="unrelated",
+                )
+
+        self.assertTrue(
+                Contract.Conditions(ari)
+                )
+
+    def test_pin_conditions_keep_inputs_from_each_pinning(self) -> None:
+        class Profession(Tag):
+            pass
+
+        class Base_Pin(Tag):
+            @Pre
+            def Correct_Code(
+                    target,
+                    code,
+                    ) -> bool:
+                return code == "base"
+
+        class Shaped_Pin(Base_Pin):
+            @Pre
+            @Underlay
+            def Correct_Code(
+                    target,
+                    prior,
+                    code,
+                    ) -> bool:
+                return (
+                        prior()
+                        and code == "shape"
+                        )
+
+        class Unrelated_Pin(Tag):
+            pass
+
+        Base_Pin(
+                Profession,
+                code="base",
+                )
+        Shaped_Pin(
+                Profession,
+                code="shape",
+                )
+        Unrelated_Pin(
+                Profession,
+                code="unrelated",
+                )
+
+        self.assertTrue(
+                Contract.Preconditions(Profession)
+                )
+
+    def test_record_builders_receive_application_inputs(self) -> None:
+        class Named(Tag):
+            @Record
+            def title(
+                    agent,
+                    prefix,
+                    ) -> str:
+                return prefix
+
+        class Ranked(Named):
+            @Record
+            @Underlay
+            def title(
+                    agent,
+                    prior,
+                    rank,
+                    ) -> str:
+                return (
+                        prior()
+                        + rank
+                        )
+
+        ari = Agent()
+
+        Ranked(
+                ari,
+                prefix="Captain ",
+                rank="of the Guard",
+                )
+
+        self.assertEqual(
+                ari.title,
+                "Captain of the Guard",
+                )
+
+    def test_pin_report_builders_receive_pinning_inputs(self) -> None:
+        class Profession(Tag):
+            pass
+
+        class Headed(Tag):
+            @Record
+            def heading(
+                    target,
+                    prefix,
+                    ) -> str:
+                return (
+                        prefix
+                        + target.__name__
+                        )
+
+        Headed(
+                Profession,
+                prefix="Guild: ",
+                )
+
+        self.assertEqual(
+                Profession.heading,
+                "Guild: Profession",
+                )
+        self.assertTrue(
+                Has(
+                        Profession,
+                        Headed.heading,
+                        )
+                )
+
+    # -- Independent contribution adapters ----------------------------
+
+    def test_contribution_decorators_do_not_mutate_shared_callables(
+            self,
+            ) -> None:
+        def Shared(
+                target,
+                ) -> str:
+            return "shared value"
+
+        shared_action = Action(Shared)
+        shared_record = Record(Shared)
+
+        class Acting(Tag):
+            Use = shared_action
+
+        class Storing(Tag):
+            Value = shared_record
+
+        actor = Agent()
+        record = Agent()
+
+        Acting(actor)
+        Storing(record)
+
+        self.assertIsNot(
+                Shared,
+                shared_action,
+                )
+        self.assertIsNot(
+                Shared,
+                shared_record,
+                )
+        self.assertIsNot(
+                shared_action,
+                shared_record,
+                )
+        self.assertEqual(
+                actor.Use(),
+                "shared value",
+                )
+        self.assertEqual(
+                record.Value,
+                "shared value",
+                )
+        self.assertEqual(
+                Shared(record),
+                "shared value",
+                )
+        self.assertTrue(
+                Has(
+                        actor,
+                        Acting.Use,
+                        )
+                )
+        self.assertTrue(
+                Has(
+                        record,
+                        Storing.Value,
+                        )
+                )
+
+    def test_contribution_adapters_preserve_callable_kind(self) -> None:
+        async def Awaitable(
+                target,
+                ) -> str:
+            return "awaited"
+
+        def Generated(
+                target,
+                ):
+            yield target
+
+        adapted_async = Action(Awaitable)
+        adapted_generator = Action(Generated)
+
+        self.assertTrue(
+                inspect.iscoroutinefunction(
+                        adapted_async
+                        )
+                )
+        self.assertTrue(
+                inspect.isgeneratorfunction(
+                        adapted_generator
+                        )
+                )
+        self.assertEqual(
+                inspect.signature(adapted_async),
+                inspect.signature(Awaitable),
+                )
+        self.assertEqual(
+                inspect.signature(adapted_generator),
+                inspect.signature(Generated),
+                )
+
+    def test_unhashable_callable_objects_compose_as_actions(self) -> None:
+        class Strategy:
+            __hash__ = None
+
+            def __call__(
+                    strategy,
+                    agent,
+                    ) -> str:
+                return "strategy"
+
+        class Strategic(Tag):
+            Work = Strategy()
+
+        ari = Agent()
+        Strategic(ari)
+
+        self.assertEqual(
+                ari.Work(),
+                "strategy",
+                )
+
+    def test_has_reports_only_the_visible_overlaid_contribution(
+            self,
+            ) -> None:
+        class First(Tag):
+            def Work(
+                    agent,
+                    ) -> str:
+                return "first"
+
+        class Second(Tag):
+            def Work(
+                    agent,
+                    ) -> str:
+                return "second"
+
+        ari = Agent()
+        First(ari)
+
+        self.assertTrue(
+                Has(
+                        ari,
+                        First.Work,
+                        )
+                )
+
+        with warnings.catch_warnings():
+            warnings.simplefilter(
+                    "ignore",
+                    TagOverwriteWarning,
+                    )
+            Second(ari)
+
+        self.assertFalse(
+                Has(
+                        ari,
+                        First.Work,
+                        )
+                )
+        self.assertTrue(
+                Has(
+                        ari,
+                        Second.Work,
+                        )
+                )
+
+    def test_has_reads_the_committed_overlay_during_rejected_tagging(
+            self,
+            ) -> None:
+        observed: dict[str, object] = {}
+
+        class Host:
+            def __contains__(
+                    host,
+                    probe,
+                    ) -> bool:
+                return False
+
+        class Old(Tag):
+            def Work(
+                    agent,
+                    ) -> str:
+                return "old"
+
+        class Rejecting(Tag):
+            def Work(
+                    agent,
+                    ) -> str:
+                return "new"
+
+            @Pre
+            def Reject(
+                    agent,
+                    ) -> bool:
+                observed["old"] = Has(
+                        agent,
+                        Old.Work,
+                        )
+                observed["new"] = Has(
+                        agent,
+                        Rejecting.Work,
+                        )
+                observed["old_in"] = Old.Work in agent
+                observed["new_in"] = Rejecting.Work in agent
+                observed["direct"] = agent.Work()
+
+                return False
+
+        ari = Host()
+        Old(ari)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter(
+                    "ignore",
+                    TagOverwriteWarning,
+                    )
+
+            with self.assertRaises(TagPreconditionError):
+                Rejecting(ari)
+
+        self.assertEqual(
+                observed,
+                {
+                    "old": True,
+                    "new": False,
+                    "old_in": True,
+                    "new_in": False,
+                    "direct": "new",
+                    },
+                )
+        self.assertTrue(
+                Has(
+                        ari,
+                        Old.Work,
+                        )
+                )
+        self.assertFalse(
+                Has(
+                        ari,
+                        Rejecting.Work,
+                        )
+                )
+
+    def test_has_reads_the_committed_overlay_during_rejected_pinning(
+            self,
+            ) -> None:
+        observed: dict[str, object] = {}
+
+        class Profession(Tag):
+            pass
+
+        class Old(Tag):
+            def Work(
+                    target,
+                    ) -> str:
+                return "old"
+
+        class Rejecting(Tag):
+            def Work(
+                    target,
+                    ) -> str:
+                return "new"
+
+            @Pre
+            def Reject(
+                    target,
+                    ) -> bool:
+                observed["old"] = Has(
+                        target,
+                        Old.Work,
+                        )
+                observed["new"] = Has(
+                        target,
+                        Rejecting.Work,
+                        )
+                observed["direct"] = target.Work()
+
+                return False
+
+        Old(Profession)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter(
+                    "ignore",
+                    TagOverwriteWarning,
+                    )
+
+            with self.assertRaises(TagPreconditionError):
+                Rejecting(Profession)
+
+        self.assertEqual(
+                observed,
+                {
+                    "old": True,
+                    "new": False,
+                    "direct": "new",
+                    },
+                )
+        self.assertTrue(
+                Has(
+                        Profession,
+                        Old.Work,
+                        )
+                )
+        self.assertFalse(
+                Has(
+                        Profession,
+                        Rejecting.Work,
+                        )
+                )
+
+    # -- Procedural and functional composition ------------------------
+
+    def test_functional_facade_composes_without_target_methods(self) -> None:
+        class First(Tag):
+            @Imprint
+            def Mark(
+                    agent,
+                    token,
+                    ) -> None:
+                agent.events.append(
+                        f"first:{token}"
+                        )
+
+        class Domain_Names(Tag):
+            def Tags(
+                    agent,
+                    ) -> str:
+                return "domain Tags"
+
+            def Has(
+                    agent,
+                    ) -> str:
+                return "domain Has"
+
+        ari = Agent()
+
+        result = Apply(
+                ari,
+                First,
+                Domain_Names,
+                token="x",
+                )
+
+        self.assertIs(
+                result,
+                ari,
+                )
+        self.assertEqual(
+                ari.events,
+                [
+                    "first:x",
+                    ],
+                )
+        self.assertEqual(
+                ari.Tags(),
+                "domain Tags",
+                )
+        self.assertEqual(
+                ari.Has(),
+                "domain Has",
+                )
+        self.assertEqual(
+                set(Tags(ari)),
+                {
+                    First,
+                    Domain_Names,
+                    },
+                )
+        self.assertTrue(
+                Has(
+                        ari,
+                        First,
+                        Domain_Names,
+                        "First",
+                        )
+                )
+
+        agents = [
+                Agent(),
+                Agent(),
+                ]
+
+        self.assertEqual(
+                list(
+                        map(
+                                First,
+                                agents,
+                                )
+                        ),
+                agents,
+                )
+
+    def test_host_protocols_remain_available_after_tagging(self) -> None:
+        class Root(Tag):
+            pass
+
+        class Host:
+            FORM_ROOTS = (
+                    Root,
+                    )
+
+            def __getattribute__(
+                    host,
+                    name,
+                    ):
+                if name == "native":
+                    return "custom getattribute"
+
+                return object.__getattribute__(
+                        host,
+                        name,
+                        )
+
+            def Tags(
+                    host,
+                    ) -> str:
+                return "host Tags"
+
+            def Has(
+                    host,
+                    ) -> str:
+                return "host Has"
+
+            def AppliedTags(
+                    host,
+                    ) -> str:
+                return "host AppliedTags"
+
+            def __contains__(
+                    host,
+                    value,
+                    ) -> bool:
+                return value == 7
+
+            def __or__(
+                    host,
+                    value,
+                    ) -> str:
+                return (
+                        "host|"
+                        + value
+                        )
+
+            def __bool__(
+                    host,
+                    ) -> bool:
+                return False
+
+        class Semantic(Root):
+            pass
+
+        class Promised(Tag):
+            @Post
+            def Holds(
+                    host,
+                    ) -> bool:
+                return True
+
+        host = Host()
+        Semantic(host)
+
+        self.assertEqual(
+                host.Tags(),
+                "host Tags",
+                )
+        self.assertEqual(
+                host.Has(),
+                "host Has",
+                )
+        self.assertEqual(
+                host.AppliedTags(),
+                "host AppliedTags",
+                )
+        self.assertEqual(
+                host.FORM_ROOTS,
+                (
+                    Root,
+                    ),
+                )
+        self.assertEqual(
+                host.native,
+                "custom getattribute",
+                )
+        self.assertEqual(
+                Tags(host),
+                (
+                    Semantic,
+                    ),
+                )
+        self.assertTrue(
+                7 in host
+                )
+        self.assertFalse(
+                8 in host
+                )
+        self.assertTrue(
+                Has(
+                        host,
+                        "Semantic",
+                        )
+                )
+        self.assertEqual(
+                host | "value",
+                "host|value",
+                )
+        self.assertFalse(
+                bool(host)
+                )
+
+        Promised(host)
+
+        self.assertTrue(
+                bool(host)
+                )
+
+    def test_host_instance_values_and_access_policy_win_name_collisions(
+            self,
+            ) -> None:
+        class Root(Tag):
+            pass
+
+        class Host:
+            FORM_ROOTS = (
+                    Root,
+                    )
+
+            def __init__(
+                    host,
+                    ) -> None:
+                host.FORM_ROOTS = ()
+                host.Tags = "instance Tags"
+
+            def __getattribute__(
+                    host,
+                    name,
+                    ):
+                if name == "Has":
+                    return "policy Has"
+
+                return object.__getattribute__(
+                        host,
+                        name,
+                        )
+
+            def Tags(
+                    host,
+                    ) -> str:
+                return "class Tags"
+
+        class Semantic(Tag):
+            pass
+
+        host = Host()
+        Semantic(host)
+
+        self.assertEqual(
+                host.FORM_ROOTS,
+                (),
+                )
+        self.assertEqual(
+                host.Tags,
+                "instance Tags",
+                )
+        self.assertEqual(
+                host.Has,
+                "policy Has",
+                )
+        self.assertTrue(
+                Has(
+                        host,
+                        Semantic,
+                        )
+                )
+
+    def test_descriptor_host_protocols_remain_available_after_tagging(
+            self,
+            ) -> None:
+        class Descriptor_Host:
+            @staticmethod
+            def __bool__() -> bool:
+                return False
+
+            @staticmethod
+            def __or__(
+                    value,
+                    ) -> str:
+                return (
+                        "descriptor|"
+                        + value
+                        )
+
+            @classmethod
+            def __contains__(
+                    host_type,
+                    value,
+                    ) -> bool:
+                return (
+                        issubclass(
+                                host_type,
+                                Descriptor_Host,
+                                )
+                        and value == 7
+                        )
+
+        class Semantic(Tag):
+            pass
+
+        host = Descriptor_Host()
+        Semantic(host)
+
+        self.assertFalse(
+                bool(host)
+                )
+        self.assertEqual(
+                host | "value",
+                "descriptor|value",
+                )
+        self.assertTrue(
+                7 in host
+                )
+        self.assertFalse(
+                8 in host
+                )
+
+    def test_disabled_host_protocols_remain_disabled_after_tagging(
+            self,
+            ) -> None:
+        class Disabled_Host:
+            __bool__ = None
+            __getattr__ = None
+            __ior__ = None
+            __or__ = None
+
+        class Reflected:
+            def __ror__(
+                    value,
+                    other,
+                    ) -> str:
+                return "reflected"
+
+        class Semantic(Tag):
+            pass
+
+        host = Disabled_Host()
+        reflected = Reflected()
+
+        for operation in (
+                lambda: bool(host),
+                lambda: getattr(
+                        host,
+                        "missing",
+                        ),
+                lambda: operator.or_(
+                        host,
+                        reflected,
+                        ),
+                lambda: operator.ior(
+                        host,
+                        reflected,
+                        ),
+                ):
+            with self.assertRaises(TypeError):
+                operation()
+
+        Semantic(host)
+
+        for operation in (
+                lambda: bool(host),
+                lambda: getattr(
+                        host,
+                        "missing",
+                        ),
+                lambda: operator.or_(
+                        host,
+                        reflected,
+                        ),
+                lambda: operator.ior(
+                        host,
+                        reflected,
+                        ),
+                ):
+            with self.assertRaises(TypeError):
+                operation()
+
+    def test_host_truth_protocol_errors_remain_native_after_tagging(
+            self,
+            ) -> None:
+        class Bad_Bool:
+            def __bool__(
+                    host,
+                    ):
+                return 1
+
+        class Bad_Length:
+            def __len__(
+                    host,
+                    ):
+                return -1
+
+        class Float_Length:
+            def __len__(
+                    host,
+                    ):
+                return 1.5
+
+        class Semantic(Tag):
+            pass
+
+        for host, error_type in (
+                (
+                    Bad_Bool(),
+                    TypeError,
+                    ),
+                (
+                    Bad_Length(),
+                    ValueError,
+                    ),
+                (
+                    Float_Length(),
+                    TypeError,
+                    ),
+                ):
+            with self.assertRaises(error_type):
+                bool(host)
+
+            Semantic(host)
+
+            with self.assertRaises(error_type):
+                bool(host)
+
+    def test_descriptor_host_finalizers_remain_available_after_tagging(
+            self,
+            ) -> None:
+        events: list[str] = []
+
+        class Static_Host:
+            @staticmethod
+            def __del__() -> None:
+                events.append(
+                        "static"
+                        )
+
+        class Class_Host:
+            @classmethod
+            def __del__(
+                    host_type,
+                    ) -> None:
+                if issubclass(
+                        host_type,
+                        Class_Host,
+                        ):
+                    events.append(
+                            "class"
+                            )
+
+        class Semantic(Tag):
+            pass
+
+        static_host = Static_Host()
+        class_host = Class_Host()
+        Semantic(static_host)
+        Semantic(class_host)
+
+        static_host.__del__()
+        class_host.__del__()
+
+        self.assertEqual(
+                events,
+                [
+                    "static",
+                    "class",
+                    ],
+                )
+
+    def test_callable_host_descriptors_can_supply_action_underlays(
+            self,
+            ) -> None:
+        class Callable_Descriptor:
+            def __get__(
+                    descriptor,
+                    host,
+                    host_type,
+                    ):
+                if host is None:
+                    return descriptor
+
+                return lambda: "host"
+
+        class Host:
+            Work = Callable_Descriptor()
+
+        class Refined(Tag):
+            @Underlay
+            def Work(
+                    host,
+                    prior,
+                    ) -> str:
+                return (
+                        prior()
+                        + "+tag"
+                        )
+
+        host = Host()
+        Refined(host)
+
+        self.assertEqual(
+                host.Work(),
+                "host+tag",
+                )
+
+    def test_noncallable_host_descriptor_rejects_action_underlay(
+            self,
+            ) -> None:
+        class Host:
+            @property
+            def Work(
+                    host,
+                    ) -> str:
+                return "data"
+
+        class Refined(Tag):
+            @Underlay
+            def Work(
+                    host,
+                    prior,
+                    ) -> str:
+                return prior()
+
+        host = Host()
+
+        with self.assertRaisesRegex(
+                TagResolutionError,
+                "requires a visible Underlay",
+                ):
+            Refined(host)
+
+        self.assertNotIn(
+                host,
+                Refined,
+                )
+
+    def test_arbitrary_descriptor_host_finalizer_survives_tagging(
+            self,
+            ) -> None:
+        events: list[str] = []
+
+        class Finalizer_Descriptor:
+            def __get__(
+                    descriptor,
+                    host,
+                    host_type,
+                    ):
+                return lambda: events.append(
+                        "descriptor"
+                        )
+
+        class Host:
+            __del__ = Finalizer_Descriptor()
+
+        class Semantic(Tag):
+            pass
+
+        host = Host()
+        Semantic(host)
+        host.__del__()
+
+        self.assertEqual(
+                events,
+                [
+                    "descriptor",
+                    ],
+                )
+
+    def test_tag_length_drives_truth_without_postconditions(self) -> None:
+        class Empty(Tag):
+            def __len__(
+                    agent,
+                    ) -> int:
+                return 0
+
+        ari = Agent()
+        Empty(ari)
+
+        self.assertEqual(
+                len(ari),
+                0,
+                )
+        self.assertFalse(
+                bool(ari)
+                )
+
+    def test_native_containment_fallbacks_remain_available_after_tagging(
+            self,
+            ) -> None:
+        class Iteration_Host:
+            def __iter__(
+                    host,
+                    ):
+                return iter(
+                        (
+                            3,
+                            7,
+                            )
+                        )
+
+        class Indexed_Host:
+            def __getitem__(
+                    host,
+                    index,
+                    ):
+                values = (
+                        3,
+                        7,
+                        )
+
+                if index >= len(values):
+                    raise IndexError(index)
+
+                return values[index]
+
+        class Semantic(Tag):
+            pass
+
+        for host in (
+                Iteration_Host(),
+                Indexed_Host(),
+                ):
+            self.assertTrue(
+                    7 in host
+                    )
+            self.assertFalse(
+                    8 in host
+                    )
+
+            Semantic(host)
+
+            self.assertTrue(
+                    7 in host
+                    )
+            self.assertFalse(
+                    8 in host
+                    )
+
+    def test_apply_validates_all_tags_before_mutating(self) -> None:
+        class Valid(Tag):
+            pass
+
+        ari = Agent()
+
+        with self.assertRaises(TypeError):
+            Apply(
+                    ari,
+                    Valid,
+                    object(),
+                    )
+
+        self.assertNotIn(
+                ari,
+                Valid,
+                )
+
+    def test_first_tag_candidate_actions_are_visible_to_its_contract(
+            self,
+            ) -> None:
+        class Ready(Tag):
+            def Is_Ready(
+                    agent,
+                    ) -> bool:
+                return True
+
+            @Post
+            def Can_Act(
+                    agent,
+                    ) -> bool:
+                return agent.Is_Ready()
+
+        ari = Agent()
+        Ready(ari)
+
+        self.assertIn(
+                ari,
+                Ready,
+                )
+        self.assertTrue(
+                ari.Is_Ready()
+                )
+
+    # -- Scope owns its membership delta -------------------------------
+
+    def test_scope_owns_exactly_its_membership_delta(self) -> None:
+        class Base(Tag):
+            pass
+
+        class Shape(Base):
+            pass
+
+        fresh = Agent()
+
+        with Scope(
+                fresh,
+                Shape,
+                ):
+            self.assertIn(
+                    fresh,
+                    Base,
+                    )
+            self.assertIn(
+                    fresh,
+                    Shape,
+                    )
+
+        self.assertNotIn(
+                fresh,
+                Base,
+                )
+        self.assertNotIn(
+                fresh,
+                Shape,
+                )
+
+        borrowed = Agent()
+        Base(borrowed)
+
+        with Scope(
+                borrowed,
+                Shape,
+                ):
+            self.assertIn(
+                    borrowed,
+                    Shape,
+                    )
+
+        self.assertIn(
+                borrowed,
+                Base,
+                )
+        self.assertNotIn(
+                borrowed,
+                Shape,
+                )
+
+    def test_scope_setup_failure_cleans_only_owned_memberships(self) -> None:
+        class Existing(Tag):
+            pass
+
+        class Temporary(Tag):
+            pass
+
+        class Rejecting(Tag):
+            @Pre
+            def Reject(
+                    agent,
+                    ) -> bool:
+                return False
+
+        ari = Agent()
+        Existing(ari)
+
+        with self.assertRaises(TagPreconditionError):
+            with Scope(
+                    ari,
+                    Existing,
+                    Temporary,
+                    Rejecting,
+                    ):
+                self.fail(
+                        "Rejecting should prevent Scope entry"
+                        )
+
+        self.assertIn(
+                ari,
+                Existing,
+                )
+        self.assertNotIn(
+                ari,
+                Temporary,
+                )
+        self.assertNotIn(
+                ari,
+                Rejecting,
+                )
+
+    # -- Reentrant diagnostics and complete teardown ------------------
+
+    def test_contract_status_stops_reentrant_diagnostics(self) -> None:
+        calls: list[str] = []
+
+        class Reflective(Tag):
+            @Post
+            def Stable(
+                    agent,
+                    ) -> bool:
+                calls.append("Stable")
+                Contract.Status(agent)
+
+                return True
+
+        ari = Agent()
+        Reflective(ari)
+        calls.clear()
+
+        self.assertEqual(
+                Contract.Status(ari),
+                {
+                    "Stable": True,
+                    },
+                )
+        self.assertEqual(
+                calls,
+                [
+                    "Stable",
+                    ],
+                )
+
+    def test_rip_runs_every_teardown_before_reporting_failure(self) -> None:
+        events: list[str] = []
+
+        class Equipped(Tag):
+            @Action
+            @Rip
+            def Break(
+                    agent,
+                    ) -> None:
+                events.append("Break")
+
+                raise RuntimeError("broken teardown")
+
+            @Action
+            @Rip
+            def Stow(
+                    agent,
+                    ) -> None:
+                events.append("Stow")
+
+        ari = Agent()
+        Equipped(ari)
+
+        with self.assertRaises(TagCompositionError):
+            Equipped.Rip(ari)
+
+        self.assertEqual(
+                events,
+                [
+                    "Break",
+                    "Stow",
+                    ],
+                )
+        self.assertNotIn(
+                ari,
+                Equipped,
+                )
 
 
 if __name__ == "__main__":

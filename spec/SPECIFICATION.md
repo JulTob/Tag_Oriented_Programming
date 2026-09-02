@@ -1,4 +1,7 @@
-# 🏷️ Guide to Tag-Oriented Programming 🔖
+# 🏷️ TOP Technical Specification 🔖
+
+[Manifesto](MANIFESTO.md) → **Technical Specification** →
+[TagKit Guide](../TagKit/GUIDE.md)
 
 ## 🏷️ Introduction
 
@@ -14,10 +17,11 @@ You don't need object-oriented programming to use TOP. But if you know OOP, you 
 
 TOP governs the substrate over OOP with membership and contracts.
 
+> **OOP owns inherent structure; TOP owns semantic context.**
+
 > **TOP is a programming paradigm for composing semantic layers on one stable object identity.**
 
 TOP lets a Target take on semantic meanings that cut across ordinary class hierarchies.
-
 
 Instead of forcing every semantic distinction into one class tree, TOP lets
 Tags compose independently on one Target.
@@ -33,6 +37,8 @@ A Target may be Human, Wizard, Sage, or any other semantic role while
 remaining that same Character.
 
 ---
+
+
 
 ## 🔰 TOP's Mental model
 
@@ -59,7 +65,7 @@ The primary result is membership in a semantic category.
 
 A Tag may also contribute Actions, Records, Conditions, and an Imprint, but none of those contributions defines membership.
 
-````python
+```python
 class Hero():
     def __init__(self, name):
         self.name = name
@@ -92,12 +98,13 @@ if charlie in Species:
 
 if charlie in Wizard:
     print(f"But {charlie.name} is also a Wizard.")
-````
-````txt
+```
+
+```txt
 Charlie is a great hero.
 Charlie is a human.
 But Charlie is also a wizard.
-````
+```
 
 An otherwise empty Tag is therefore meaningful. It can still define a
 category and a Field of Agents.
@@ -105,6 +112,8 @@ category and a Field of Agents.
 The Target keeps its identity. Its semantic meaning expands through composition.
 
 ---
+
+
 
 ## ⚖️ TOP with OOP
 
@@ -114,20 +123,22 @@ Ordinary Object Oriented Programming mainly answers:
 
 TOP answers a different question:
 
-> What's the use for this object?
+> What does this object mean here?
 
 TOP is external as a way of thinking: Tags are applied to an existing Target and compose visible semantic layers around it. OOP remains available for the Target's inherent structure, ordinary methods, and ordinary attributes.
 
 TOP complements OOP. The same project may use both.
 
-| OOP | TOP |
-| --- | --- |
-| Internal | External |
-| Parts | Layers |
-| Structures | Semantics |
-| What it is | What it does |
-| Definition | Use |
-| Inheritance | Overlay |
+
+| OOP                     | TOP                            |
+| ----------------------- | ------------------------------ |
+| Inherent structure      | Semantic context               |
+| Internal parts          | External layers                |
+| Identity and invariants | Meaning and use                |
+| Ordinary attributes     | Records contributed by context |
+| Ordinary methods        | Actions contributed by context |
+| Class inheritance       | Tag Geometry and Overlays      |
+
 
 TOP does not eliminate OOP, but complements it. The same structure may exist with or without TOP, in the same way it may or may not exist with OOP.
 
@@ -143,8 +154,9 @@ TOP is appropriate for durable meanings such as:
 - gameplay development; and
 - permissions whose membership is intentionally durable.
 
-
 ---
+
+
 
 ## 💡 Design Patterns
 
@@ -154,7 +166,7 @@ TOP should be:
 - readable before dense
 - explicit before magical
 - semantically strong before syntactically fancy
-- orthogonal before tangled
+- composable before tangled
 - contract-aware where obligations are real
 - practical
 
@@ -165,59 +177,90 @@ TOP should not become:
 - a syntax trick without stable semantic laws
 - a system where Target scope and Tag scope blur together
 
-
-
-
 ---
+
+
 
 # 🧰 Core vocabulary
 
+
+
 ## 🛠️ Core entities
 
-| Term    | Meaning |
-|---------|---------|
-| **Tag** | A semantic category that can contribute meaning, behaviors, values, and constraints. |
-| **Target** |  A variable (value, dictionary, record, object...) before or during tagging. |
+
+| Term        | Meaning                                                                                           |
+| ----------- | ------------------------------------------------------------------------------------------------- |
+| **Tag**     | A semantic category that can contribute meaning, behaviors, values, and constraints.              |
+| **Target**  | A variable (value, dictionary, record, object...) before or during tagging.                       |
 | **Tagging** | Applying a Tag to a Target, such as `Human(charlie)`, so the Target becomes an Agent of that Tag. |
-| **Agent** | A variable (value, dictionary, record, object...) when it belongs to a Tag. |
-| **Field** | The population of Agents belonging to a Tag. |
+| **Agent**   | A variable (value, dictionary, record, object...) when it belongs to a Tag.                       |
+| **Field**   | The current committed population of Agents carrying a Tag.                                        |
 
 
-| Term | Meaning |
-| --- | --- |
-| **Base** | A broader Tag that a Shape specializes. |
-| **Shape** | A more specific Tag built over one or more Bases. |
-| **Layer** | One Tag's semantic position in an Agent's composition. |
-| **Overlay** | The currently visible result of all active Layers. |
-| **Underlay** | The visible contribution captured immediately before a new contribution is applied. |
 
-TOP uses **Base**/**Supertag** and **Shape**/**Subtag** for specialization vocabulary. It does not use OOP parent/child
-terminology to avoid conflicts with OOP.
+| Term         | Meaning                                                                                       |
+| ------------ | --------------------------------------------------------------------------------------------- |
+| **Geometry** | The overall relationship structure established by Tags, Bases, and Shapes.                    |
+| **Base**     | A broader Tag that a Shape specializes.                                                       |
+| **Shape**    | A more specific Tag built over one or more Bases.                                             |
+| **Form**     | The deterministic, duplicate-free, Base-first closure of one Tag, ending with the Tag itself. |
+| **Layer**    | One Tag's semantic position in an Agent's composition.                                        |
+| **Overlay**  | The currently visible result of all active Layers.                                            |
+| **Underlay** | Explicit composition with the prior visible contribution sharing the same name.               |
 
+
+TOP uses **Base** and **Shape** for specialization vocabulary. It does not
+use OOP parent/child terminology, because those words describe a different
+model.
+
+A Tag may hold both roles: `Person` can be a Shape of `Being` and a Base of
+`Wizard`.
+
+The Geometry is the structure. A Form is one Tag's ordered route through
+that Geometry.
+
+```python
+assert Wizard.Form() == (
+        Being,
+        Person,
+        Wizard,
+        )
+```
+
+A Tag has one Form at a time. An Agent may carry several active Forms; taken
+together, they describe that Agent's current Geometry.
+
+**Forming** follows that order downward, from general Bases toward the
+specific Shape. **Deforming** moves upward in reverse dependency order,
+removing specific Shapes before the Bases that support them.
 
 ---
+
+
+
 # 🔩 Contributions
 
 TOP distinguishes between contributions made on the Agent and contributions kept on the Tag Field.
 
 
 Noun -> Tag (a category you are), adjective -> Record (a state you're in).
+
 ## 🪪 Agent-level contributions
 
 - **Action**: behavior exposed on the Agent
 - **Record**: state exposed on the Agent
 
-
-A Tag usually corresponds to __*Nouns*__, things you are (_ser_), while Records provide mutable states (_estar_), so they correspond to __*Adjectives*__. Tags should not be used for circumstantial states, but to provide the Records that hold those states on the Agent.
+A Tag usually corresponds to ***Nouns***, things you are (*ser*), while Records provide mutable states (*estar*), so they correspond to ***Adjectives***. Tags should not be used for circumstantial states, but to provide the Records that hold those states on the Agent.
 
 ## Imprinting and Ripping
 
 - **Imprint**: application-time logic that shapes the Target when a Tag is applied
 - **Rip**: extraction-time logic that shapes the Target when a Tag is rescinded.
 
-Imprint shapes the Agent when active Field membership begins. Rip cleans up when active Field membership ends. They are duals: constructor/destructor, __enter__/__exit__. 
+Imprint shapes the Agent when active Field membership begins. Rip cleans up when active Field membership ends. They are duals: constructor/destructor, **enter**/**exit**. 
 
-> ### __Tags are sticky.__ 
+> ### **Tags are sticky.**
+>
 > Ripping does not revert the Agent back to a pre-Tagging state. Any Action, Record, or Condition applied to a Target remains after Ripping the Tag unless a Rip protocol explicitly changes it. Rogue Agents are dangerous... but useful!
 
 - Imprint applies all missing Bases of a Tag by default.
@@ -230,6 +273,15 @@ Imprint shapes the Agent when active Field membership begins. Rip cleans up when
 - **Report**: shared semantic data, stored on the Tag, across the Field.
 - **Operation**: shared behavior on the Tag
 
+Every public data value declared on a Tag is a Report. An implementation must
+not invent application Reports: a Report name exists only when it is
+declared, inherited through the Tag's Form, or contributed by Tagging the
+Tag. Language runtime machinery is not a Report.
+
+No Report name is reserved for display identity or documentation. A language
+profile should use its language's native naming and documentation facilities
+for those purposes.
+
 In short:
 
 - ◀️ Actions define behavior
@@ -238,8 +290,9 @@ In short:
 - ⏪️ Operations define shared behavior
 - ⏹️ Reports define shared information
 
-This data/function structure avoids repetition, keeping structural behavior separate from individual object behavior.
----
+## This data/function structure avoids repetition, keeping structural behavior separate from individual object behavior.
+
+
 
 ## 🪢 Membership and Fields
 
@@ -264,12 +317,39 @@ If an Agent belongs to a Shape, it belongs to every active Base required
 by that Shape. The Agent appears in the Field of each of those Tags.
 
 > In TOP, Field Membership Checks (`agent in Tag`) means active Field membership. It does not mean that the Agent's history or identity is erased when Field membership ends.
-> **Ripping** is the only explicit exception to monotonic membership: it removes the Agent from the Field. Ripping exists for utility, cleanup, or in-extremis domain resolution, as a safety feature. But it does not undo the fact that the Agent _is an instance_ of the Tag.
+> **Ripping** is the only explicit exception to monotonic membership: it removes the Agent from the Field. Ripping exists for utility, cleanup, or in-extremis domain resolution, as a safety feature. But it does not undo the fact that the Agent *is an instance* of the Tag.
 > The Agent remains historically an instance of the Tag abstraction, even after leaving the active Field. Therefore, `isinstance` in Python should return true. Same for its equivalent in other languages.
 
 ```python
-for agent in Mortal:
+for agent in Mortal[:]:
     Observe( agent )
+
+for agent in ~Mortal[:]:
+    Review( agent )
+```
+
+Field iteration uses the **sound** population: Agents whose visible
+Postconditions hold. Invert that view for the **defective** population —
+members still in the Field whose Posts fail:
+
+```python
+~Mortal[:]
+```
+
+Sound and defective partition the Field. Their union is the U-set for that
+Tag — every committed member, valid or not:
+
+```python
+agent in Mortal[:] or agent in ~Mortal[:]
+Mortal[:] | ~Mortal[:]
+```
+
+```python
+for wizard in Wizard[:]:
+    play( wizard )
+
+for broken in ~Wizard[:]:
+    review( broken )
 ```
 
 A Tag must not keep an Agent alive. Once an
@@ -279,6 +359,8 @@ implementation will normally use weak references to satisfy this law.
 Reapplying an active Tag does nothing. It neither duplicates membership nor runs its Imprint again.
 
 ---
+
+
 
 # 🏳️ Applying Tags
 
@@ -314,42 +396,57 @@ then the missing `Duelist` branch, then `Arcane_Duelist` itself.
 
 ### 🧯 Expectations On Failed Taggings
 
-Tagging has no side effects. If an imprint fails to stick the Shape Tag, it does not apply new dependency Tags either. The Overlay will stay as before the Tagging call. Tags committed by earlier calls survive unchanged.
-
+Preconditions inspect the **incoming materials**. Records still commit the
+whole call or nothing. If a Precondition fails, missing Bases pulled in by
+this call roll back with it. Tags committed by earlier calls survive
+unchanged.
 
 ```text
 Human(ari)
-    Species succeeds
-    Human fails
+    Species would apply
+    Human Precondition fails
 
 ari in Human     == False
 ari in Species   == False
-
 ```
+
+An Imprint runs after that Tagging has applied. If it fails, the Tag stays.
+The call raises an Imprinting Error: the machine failed while writing.
+
+A Postcondition inspects the **finished product**. If it fails, the Tag stays
+as a defective result. The call raises a Postcondition Error. You do not
+unmake the Tag any more than a factory unmakes an unsafe toy; the error
+protocol lets the caller throw it away.
 
 For complex Taggings, incremental calls provide better control than one large Shape Tag, but TOP provides abstraction for hiding those complexities.
 
-
 ---
+
+
+
 # Composition
 
 Composition is order-sensitive for independent Tags. The last successful application of a Record or Action becomes the visible Overlay for that name. This is a core principle: TOP supports incremental design by letting later semantic layers refine, replace, or extend earlier ones. If the later Tag should preserve the previous behavior, it should use an Underlay. If a caller needs a specific historical layer, it should use Agent-bound Tag access.
 
 ---
 
+
+
 # 🔩 Contributions
 
 TOP distinguishes Agent-level and Tag-level contributions.
 
-| Contribution | Kind | Scope | Meaning |
-| --- | --- | --- | --- |
-| **Action** | Callable | Agent | Behavior visible on an Agent. |
-| **Record** | Data | Agent | State visible on an Agent. |
-| **Imprint** | Callable | Tag application | Work performed while the Tag is applied. |
-| **Operation** | Callable | Tag | Shared behavior belonging to the Tag. |
-| **Report** | Data | Tag | Shared semantic data belonging to the Tag. |
-| **Precondition** | Predicate | Tag application | A guard evaluated before Imprints. |
+
+| Contribution      | Kind      | Scope           | Meaning                                    |
+| ----------------- | --------- | --------------- | ------------------------------------------ |
+| **Action**        | Callable  | Agent           | Behavior visible on an Agent.              |
+| **Record**        | Data      | Agent           | State visible on an Agent.                 |
+| **Imprint**       | Callable  | Tag application | Work performed automatically after the Tag has applied. |
+| **Operation**     | Callable  | Tag             | Shared behavior belonging to the Tag.      |
+| **Report**        | Data      | Tag             | Shared semantic data belonging to the Tag. |
+| **Precondition**  | Predicate | Tag application | A guard evaluated before the Tag applies. |
 | **Postcondition** | Predicate | Tag application | A guard evaluated after Imprints. |
+
 
 An Agent acts through Actions, remembers through Records, coordinates through Operations, and gains context by Reports.
 
@@ -369,6 +466,8 @@ agent.asleep = False
 The `asleep` Record may remain part of the Agent's state while its value changes. Tag membership remains unchanged through that transition.
 
 ---
+
+
 
 # 💠 Layers and Overlays
 
@@ -444,6 +543,8 @@ current Action. An extending Action uses its captured Underlay instead.
 
 ---
 
+
+
 # 🪪 Records
 
 A Record is Agent state contributed by a Tag. It becomes visible when its Tag applies successfully.
@@ -454,7 +555,7 @@ Records may:
 - replace an existing TOP Record;
 - replace an ordinary Agent attribute;
 - derive a value from the Underlay when the implementation exposes that
-  form; or
+form; or
 - be removed at runtime with `del agent.record`.
 
 Mutable Record values must be fresh for each Agent unless shared state is the explicit intent. A shared value belongs in a Report, not a Record.
@@ -463,13 +564,14 @@ A Tag is something a Target became and remains in its history: a durable semanti
 
 A Record is something a Target currently is: a value that can change. An adjective is usually a Record.
 
-| Tag - you became this | Record - this can change |
-| --- | --- |
-| Human, Elf - species | asleep, poisoned - conditions |
-| Wizard, Paladin - class | hit points, gold - resources |
-| Sage, Soldier - background | location, morals |
-| Harpers - affiliation | friends? Enemies? Affinity? - current status |
-| Spellcaster - learned capability | spell slots left |
+
+| Tag - you became this                              | Record - this can change                                       |
+| -------------------------------------------------- | -------------------------------------------------------------- |
+| Human, Elf - species                               | asleep, poisoned - conditions                                  |
+| Wizard, Paladin - class                            | hit points, gold - resources                                   |
+| Sage, Soldier - background                         | location, morals                                               |
+| Harpers - affiliation                              | friends? Enemies? Affinity? - current status                   |
+| Spellcaster - learned capability                   | spell slots left                                               |
 | Access Pass - an Agent is recognized by the system | Permission - the specific security clearance of the individual |
 
 
@@ -497,14 +599,18 @@ class Worker(Tag):
         agent.safety_clearance = "visitor"
 
 ```
+
 ---
-##  Ripping Tags
+
+
+
+## Ripping Tags
 
 Tags can be seen like a pass, a sticker, or a badge. Having one is nice, but they should have a function: a security pass should identify the user, a police badge needs the District and Agent's number, and a logistic's sticker needs a destination. Having a Tag without those Records makes for a dangerous state of uncertainty for the contract.
 
 Ripping a Tag is an exceptional and violent act of Field expulsion. Like in 80s copaganda movies, to "return your badge" means the Agent is no longer an active member of the organization. But it creates a Rogue Agent: an element with the Actions and Records it had before Ripping the Tag, but without active access to the Tag's Field resources, Operations, or Reports. When an expulsion protocol is required ("Give me your badge and weapons. You can no longer go into the evidence room!"), the `@Rip` tag is used. A Rogue Agent can no longer be accessed by Field protocols.
 
-````py
+```py
 class Person:                       # a plain host class
     def __init__(self, name):
         self.name = name
@@ -530,14 +636,15 @@ MI6.Rip(bond)
 print(bond.status)                  # Former MI6 Agent
 
 assert bond not in MI6
-````
+```
 
-Imprint shapes the Agent when active Field membership begins. Rip cleans up when active Field membership ends. They are duals: constructor and destructor, __enter__/__exit__.
+Imprint shapes the Agent when active Field membership begins. Rip cleans up when active Field membership ends. They are duals: constructor and destructor, **enter**/**exit**.
 
 > Note: Ripping a Tag may apply another Tag. Technically, it may even apply itself. That would be outside good TOP use, but it could prevent an Agent from ever leaving the Field.
 
-
 ---
+
+
 
 # 🗑️ Deleting an Agent
 
@@ -562,20 +669,41 @@ Deletion always Rips the Agent. Any exit protocol will run on deletion of the ho
 
 ---
 
+
+
 # ⏸️ Imprints
 
-An Imprint performs the action of tagging itself. A Tag may have zero or more Imprints. Within one Tag, they run in declaration order.
+An Imprint writes into a Tag after that Tag has applied. A Tag may have zero
+or more Imprints. Within one Tag, they run in declaration order. They are
+the "write in a Tag" step: membership, Overlay, and Records are already
+committed. Postconditions inspect that finished Tag after the Imprints.
 
-Tagging may also establish Preconditions and Postconditions. Conditions are TOP's tag-time guardrails: they decide whether the Tagging may commit, but they do not wrap ordinary gameplay Action calls.
+An Imprint may apply further independent Tags to the same Target. Those
+Taggings are ordinary later calls. A nested Precondition rolls back only
+the nested Tag. The outer Tag stays. Use a Base when the extra meaning is
+required and more general. Use an Imprint Tagging when the meaning is
+optional, conditional, or should overlay the current Tag.
+
+Preconditions, Record materializers, and Postconditions do not apply Tags.
+
+Rip of the shape or its bases is forbidden while an Imprint of the shape is running.
+
+Tagging may also establish Preconditions and Postconditions. Conditions are
+TOP's tag-time quality control: they raise the alarms when a requisite is not met or when the output is defective, but
+they do not wrap ordinary gameplay Action calls.
 
 For one Tag application, TOP performs this logical sequence:
 
 1. Construct the candidate Overlay.
 2. Evaluate every Precondition visible in that candidate Overlay.
-3. Run the new Tag's Imprints.
-4. Evaluate every Postcondition visible in that candidate Overlay.
-5. Commit the Tag's active Field membership and TOP-managed
+3. Materialize the new Tag's Records.
+4. Commit the Tag's active Field membership and TOP-managed
    contributions.
+5. Run the new Tag's Imprints. If an Imprint fails, the Tag stays and the
+   call raises an Imprinting Error.
+6. Evaluate every Postcondition visible in that Overlay. If a
+   Postcondition fails, the Tag stays as a defective result and the call
+   raises a Postcondition Error.
 
 The detailed condition model is described in the Conditions section.
 
@@ -598,8 +726,9 @@ class Wizard(Tag):
         return (agent.level > 0)
 ```
 
-
 ---
+
+
 
 # 🎫 Access model
 
@@ -613,6 +742,55 @@ agent.weapon
 ```
 
 This uses the current visible Overlay at the moment of access.
+
+An Agent Action and an Agent Record occupy one name with one meaning. A
+language profile may offer both a value spelling and a call spelling for that
+same contribution. `agent.weapon` and `agent.weapon()` are not two slots.
+They are two ways to read one Overlay. Calling a Record reads the stored
+value; it does not run the materializer again. Reading a nullary Action
+without `()` evaluates it. An Action that needs inputs remains a handle
+until it is called, so capturing `send = agent.broadcast` stays valid.
+
+Independent Tags still cannot give one Agent name two meanings, one as an
+Action and one as a Record. A Shape may Overlay a Base contribution with the
+other kind because that is still one name and one visible meaning.
+
+### Polymorphic behaviour
+
+A Shape inside a Form may turn a Base Action into stored data, or a Base
+Record into a computed Action. With Uniform Access, the client asks what
+`strike` is **for**, not whether it is stored or calculated:
+
+```python
+class Combatant(Tag):
+
+    def strike(
+            agent,
+            ) -> int:
+        return 1
+
+
+class Fire(Combatant):
+
+    @Record
+    def strike(
+            agent,
+            ) -> int:
+        return 4
+
+
+Fire(ember)
+
+assert ember.strike == 4
+assert ember.strike() == 4
+assert Combatant[ember].strike == 1
+assert Combatant[ember].strike() == 1
+```
+
+The current Overlay is the Record. The Base view still holds the captured
+Action. Both spellings work on each view. This is polymorphic behaviour in
+TOP's sense: one name, one meaning per view, two readable spellings — not two
+independent Tags sharing one Agent name.
 
 ### 🪪 Agent-bound Tag access
 
@@ -646,6 +824,8 @@ access collides with ordinary Agent attributes. It must preserve the three
 semantic distinctions.
 
 ---
+
+
 
 # 🖼️ Example: stable identity and captured Underlay
 
@@ -715,22 +895,32 @@ The `Person` Base applies before `Paladin`. It remains active when `Elf` applies
 
 ---
 
+
+
 # 🚨 Failure model
 
 TOP failures must identify the violated semantic rule. A language profile may use its own exception or result types, but it must distinguish at least:
 
-| Failure | Meaning |
-| --- | --- |
-| **Tag Resolution Failure** | A required Underlay, Tag view, or contribution cannot be resolved. |
-| **Tag Precondition Failure** | A candidate Overlay's precondition does not hold. |
-| **Imprint Failure** | Tag application logic fails before the Tag becomes active. |
-| **Tag Postcondition Failure** | A candidate Overlay's postcondition does not hold. |
-| **Tag Composition Failure** | Contributions cannot form the required Overlay. |
-| **Tag Contract Failure** | A condition returns a non-boolean (truthy/falsy) value instead of a strict True / False / None. |
 
-Failure stops the current Tagging, preventing Dependencies that were not applied earlier from being committed. Modular and atomic application provides isolation from failure, keeping side effects contained. Dependency Tags committed earlier remain; the Agent does not lose previous successful taggings.
+| Failure                       | Meaning                                                                                         |
+| ----------------------------- | ----------------------------------------------------------------------------------------------- |
+| **Tag Resolution Failure**    | A required Underlay, Tag view, or contribution cannot be resolved.                              |
+| **Tag Precondition Failure**  | A candidate Overlay's precondition does not hold.                                               |
+| **Imprint Failure**           | An Imprint failed after the Tag had already applied.                                            |
+| **Tag Postcondition Failure** | A Postcondition found a defective finished product. The Tag stays. |
+| **Tag Composition Failure**   | Contributions cannot form the required Overlay.                                                 |
+| **Tag Contract Failure**      | A condition returns a non-boolean (truthy/falsy) value instead of a strict True / False / None. |
+
+
+Failure of a Precondition or Record stops the current Tagging. Dependencies
+that were not applied earlier are not committed. An Imprint failure is a
+machine error and does not un-apply the Tag. A Postcondition failure is a
+defective result and does not un-apply the Tag either. Modular application
+keeps earlier successful Taggings intact.
 
 ---
+
+
 
 # 🧰 Implementation obligations
 
@@ -757,28 +947,38 @@ TagKit is TagKit work, not a change to TOP.
 
 ---
 
-## 🧧 Purpose of This Guide
 
-This guide has two jobs:
+
+## 🧧 Purpose of This Specification
+
+This specification has two jobs:
 
 - explain the programming model
 - specify the observable behavior a TOP implementation should provide
 
-This guide explains the model first and the current TagKit surface second.
+This specification explains the model first and the required semantics
+second.
 
-Examples show intended meaning.
+## Examples show intended meaning.
 They do not freeze one permanent spelling.
----
+
+
+
 ## 🧯 TOP Commitments
 
-A conforming TOP implementation must preserve the observable semantics defined by this guide.
+A conforming TOP implementation must preserve the observable semantics
+defined by this specification.
 
 Surface spellings may evolve.
 Internal implementation strategies may evolve.
 But the semantic laws must remain stable.
 
 ---
+
+
+
 # TOP as a Paradigm
+
 TOP was arrived at independently, from storage systems, organizational models, and D&D character creation. Several established ideas share pieces of it:
 
 - Overlaying gives durable contributions, but fixed at tagging time. TOP keeps incremental change and moves acquisition to runtime, per object.
@@ -793,17 +993,23 @@ TOP goes beyond these ideas to build a complete paradigm: sticky runtime contrib
 
 More importantly to me, it provides a thinking system: a simple idea, with analogies to the real world, but powerful enough to simplify complex systems into an intuitive syntax. TOP is not just a library, not just a tool, but a new way to think about complex topics.
 
-
-
 ---
+
+
+
 # ⚖️ Conditions
 
 Conditions are TOP's contracts. They are tag-time guardrails: boolean checks that decide whether a Tagging is allowed to commit. A condition guards the *act of tagging*, not ordinary gameplay — an Action is never wrapped by a condition.
 
 TOP has two conditions:
 
-- **`@Pre`** — a Precondition. It guards *entry*: what must be true *before* a Tag may apply.
-- **`@Post`** — a Postcondition. It guards the *promise*: what must be true *after* a Tag has applied.
+- `@Pre` — a Precondition. It guards *input*: what must be true *before* a Tag may apply.
+- `@Post` — a Postcondition. It guards the *output*: what must be true *after* a Tag has applied.
+
+Think of Tagging as a factory line. A Precondition inspects the **incoming
+materials** — may this work enter the line at all? A Postcondition inspects
+the **finished product** — did this Tagging produce something sound? The gate
+and the quality check are different moments; TOP does not collapse them.
 
 A condition is a function with the Agent as its first input. As with every TOP contribution, the first parameter is the Agent by discipline; its name is yours to choose, never a reserved word.
 
@@ -814,30 +1020,48 @@ class Wizard(Tag):
     def Level_Over_Zero(agent):
         return agent.level > 0          # you need a level to become a Wizard
 
+    @Record
+    def spellbook(agent):
+        return "Tome"
+
     @Post
     def Has_Spellbook(agent):
         assert agent.spellbook          # a Wizard always ends up with a spellbook
 ```
 
-A condition is **strictly boolean**: it holds on `True` (or on absent `return` for an assert-style body that fell through), fails on `False`, and is *rejected* on anything else. TOP does not coerce truthy/falsy values, because they are not booleans, and prone to logic errors. A Record of `0` slots left is a real value, not a failure. So write the comparison you mean, `return agent.spell_slots > 0`, never the raw value `return agent.spell_slots` (which raises a contract error telling you to be explicit). 
+A condition is **strictly boolean**: it holds on `True` (or on absent `return` for an assert-style body that fell through), fails on `False`, and is *rejected* on anything else. **True always means the clause holds.** TOP does not coerce truthy/falsy values, because they are not booleans, and prone to logic errors. A Record of `0` slots left is a real value, not a failure. So write the comparison you mean, `return agent.spell_slots > 0`, never the raw value `return agent.spell_slots` (which raises a contract error telling you to be explicit). 
 
 The absence of a return statement defaults to True: a condition is a restriction, so saying nothing also permits. Legal until written into law.
 
 ---
+
+
 
 ## 🕰️ When conditions run
 
 Conditions fire at tagging boundaries, never continuously during play. For one Tagging, TOP performs:
 
 1. Build the candidate Overlay.
-2. Evaluate every visible **Precondition**. If one fails → *Precondition Failure*; nothing commits.
-3. Run the Imprints.
-4. Evaluate every visible **Postcondition**. If one fails → *Postcondition Failure*; nothing commits.
-5. Commit active Field membership and contributions.
+2. Evaluate the **Preconditions contributed by each layer applied in this
+   call** — Bases pulled in by the Form walk, then the requested Tag. If one
+   fails → *Precondition Failure*; nothing commits for that layer.
+3. Establish Records.
+4. Commit active Field membership and contributions.
+5. Run the Imprints. If one fails → *Imprint Failure*; the Tag stays.
+6. Evaluate every visible **Postcondition**. If one fails → *Postcondition
+   Failure*; the Tag stays as a defective result.
 
-Every *visible* condition runs, not only the ones the newest Shape declared. So a later Tagging can be refused because an earlier Tag's condition no longer holds — the contract is re-checked at each boundary. Conditions do not re-check themselves during gameplay; continuous, mutable checks belong in Records, not in conditions.
+Preconditions are **incoming-material gates**: they run at entry for the
+layers being applied now, not as standing re-checks on every later Tagging.
+Postconditions are **finished-product promises**: every visible Post is
+re-checked at each Tagging boundary, so a later call can raise because an
+earlier promise no longer holds — without unmaking the earlier Tag.
+Conditions do not re-check themselves during gameplay; continuous, mutable
+checks belong in Records, not in conditions.
 
 ---
+
+
 
 ## 🧅 Conditions Layer, like every contribution
 
@@ -856,6 +1080,8 @@ class Apprentice(Wizard):
 An `@Underlay` condition receives the Base's check and composes with it. Without `@Underlay`, the Shape's condition simply replaces the Base's.
 
 ---
+
+
 
 ## 🧭 The contract direction: **Forward-Post, Backward-Pre**
 
@@ -891,6 +1117,8 @@ class Knight(Soldier):
 
 ---
 
+
+
 ## 🪓 Relaxing a promise: the deliberate exception
 
 Sometimes a specific case really is looser than the rule. A rule says "no Strength above 20"; Barbarians break it.
@@ -921,6 +1149,8 @@ The whole discipline in three lines:
 
 ---
 
+
+
 ## 🔎 Writing a check
 
 A condition usually asks whether an Agent *has* something. The natural spelling is `assert`:
@@ -944,28 +1174,85 @@ So separate **having a contribution** from **its value**:
 `assert agent.rec` is the shorthand for "defined **and** truthy" — reach for it only when that is exactly what you mean. The same strictness that rejects a bare `return agent.spell_slots` is the discipline asking you, in `assert` too, to separate a contribution *being there* from a contribution *being falsy*.
 
 > Contracts should be picky.
-> - The Layer's Lawyer 
+>
+> - The Layer's Lawyer
 
 ---
 
+
+
 ## ✅ Verifying an Agent: `if agent`
 
-Preconditions are gates, checked once at entry. Postconditions are the standing promise, the active conditions, so TOP lets you re-check them on demand, with the most natural spelling in the language:
+Preconditions are gates, checked once at entry for the layers applied in
+that call. Postconditions are the standing promise, so TOP lets you re-check
+them on the Agent itself — the same address as Actions and Records. The basic
+obvious spellings are Uniform Access:
 
 ```python
-if agent:         # True exactly when every visible Postcondition holds
+if agent.Has_Spellbook:        # holds?
     proceed(agent)
 
-assert agent      # raise if any Postcondition fails
+if not agent.Has_Spellbook():  # same check, call spelling
+    restore_spellbook(agent)
 ```
 
-An Agent is **truthy if and only if its Postconditions hold**. `if` is the conditional and Post*conditions* **are** *conditions*. So `if agent` reads as "if the agent's conditions hold.", or "is the agent ok? in good condition?". 
+**True always means the clause holds.** Bare and `()` are two ways to read
+one Condition, not two meanings.
 
-> Python implementation notes: Truthiness on a plain object is vacuously True anyway, so this fills an empty seat rather than overriding a meaningful one. 
+Whole-Agent truthiness still runs every visible Post:
 
-If an agent's conditions assert to a failure, it controls the assertion so the Agent returns a False boolean value.
+```python
+if agent:                     # True exactly when every visible Post holds
+    proceed(agent)
 
-When you need to know *which* promise broke, ask the `Contract` namespace, whose method names say exactly what they check:
+assert agent                  # raise if any Postcondition fails
+```
+
+An Agent is **truthy if and only if its Postconditions hold**. `if` is the
+conditional and Post*conditions* **are** *conditions*. So `if agent` reads as
+"if the agent's conditions hold.", or "is the agent ok? in good condition?".
+
+> Python implementation notes: Truthiness on a plain object is vacuously True
+> anyway, so this fills an empty seat rather than overriding a meaningful one.
+
+If an agent's conditions assert to a failure, it controls the assertion so the
+Agent returns a False boolean value.
+
+Named failures carry the clause on the exception. Catch the named type, or
+branch on `.condition`. Soft recovery uses the Agent condition itself — Python
+cannot use `except agent.Has_Spellbook` because `except` needs an exception
+*type*, not a live check:
+
+```python
+try:
+    Wizard(agent)
+except TagPostconditionError.Has_Spellbook:
+    repair(agent)
+
+# same failure, branch form:
+except TagPostconditionError as error:
+    if error.condition == "Has_Spellbook":
+        repair(agent)
+
+# after a defective Tagging, or any time later:
+if not agent.Has_Spellbook:
+    repair(agent)
+```
+
+Print the contract without importing `Contract`:
+
+```python
+print(f"{agent:Contract}")
+print(f"{agent:Display}")
+print(f"{agent:Status}")
+```
+
+`:Contract` and `:Display` render the Pre/Post mini menu. `:Status` is the
+flat OK/XX list. `Contract.Status` / `Contract.Display` remain for tools that
+want the dict or an explicit call.
+
+When you need to sweep every visible condition at once and raise, ask the
+`Contract` diagnostic namespace:
 
 ```python
 Contract.Postconditions(agent)   
@@ -991,14 +1278,22 @@ The dict is the primitive; the display is one view built from it.
 
 ---
 
+
+
 ## 🚨 Failure
 
-A condition that does not hold stops the Tagging at its boundary, with nothing committed:
+A Precondition that does not hold stops the Tagging at entry, with nothing
+committed. A Postcondition that does not hold raises after the Tag has
+applied; the result is defective, and the Tag stays. A defective product may then be ammended, discarded, or ignored. 
 
-| Failure | Meaning |
-| --- | --- |
-| **Precondition Failure** | A visible Precondition did not hold before Imprints. The Tag does not apply. |
-| **Postcondition Failure** | A visible Postcondition did not hold after Imprints. The Tag does not apply. |
 
-Because Tagging is atomic, a failed condition leaves the Agent exactly as it was before the call. Conditions are how TOP keeps its word at every boundary: the contract layer that lets you refactor by Tag without fear.
+| Failure                   | Meaning                                                                      |
+| ------------------------- | ---------------------------------------------------------------------------- |
+| **Precondition Failure**  | A visible Precondition did not hold before the Tag applied. The Tag does not apply. |
+| **Postcondition Failure** | A visible Postcondition did not hold after Imprints. The Tag stays as a defective result. |
 
+
+Preconditions keep the gate on incoming materials. Postconditions name a
+defective finished product so the caller can throw it away. That is how TOP
+keeps its word at every boundary without pretending a finished Tag was never
+made.

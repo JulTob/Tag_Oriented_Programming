@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tagkit"
-version = "0.1.0"
+version = "0.2.0a1"
 description = "TagKit: the Python reference implementation of Tag-Oriented Programming."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -34,10 +34,19 @@ classifiers = [
 
 [project.urls]
 Homepage = "https://github.com/JulTob/Tag_Oriented_Programming"
+Documentation = "https://github.com/JulTob/Tag_Oriented_Programming/blob/main/TagKit/GUIDE.md"
 Specification = "https://github.com/JulTob/Tag_Oriented_Programming/blob/main/spec/SPECIFICATION.md"
 Issues = "https://github.com/JulTob/Tag_Oriented_Programming/issues"
 
 [tool.setuptools]
 packages = [
         "TagKit",
+        ]
+
+[tool.setuptools.package-data]
+TagKit = [
+        "GUIDE.md",
+        "IMPLEMENTATION_NOTES.md",
+        "PIN_GUIDE.md",
+        "py.typed",
         ]
