@@ -16,7 +16,7 @@ is for learning, one pattern at a time.
 
 ## The one idea
 
-A hero is one character. Over a game she becomes a Human, a Wizard, a Sage,
+A hero is one character. Over a game she becomes a Human, a Wizard, a Fighter,
 a Harper. She stays the same hero. In TOP you write each of those meanings
 as a **Tag**, and you **apply** Tags to an object you already have. The
 object keeps its identity. Its meaning grows.
@@ -93,15 +93,15 @@ Notice the first parameter is `agent`, not `self`. A Tag's methods act on
 ### Tags compose. The last one applied is what you see.
 
 ```python
-class Sage(Tag):
+class Fighter(Tag):
 
     def Attack(agent):
-        return f"{agent.name} quotes a proverb"
+        return f"{agent.name} "
 
 
-Sage(ari)
+Fighter(ari)
 
-assert ari.Attack() == "Ari quotes a proverb"       # Sage came last
+assert ari.Attack() == "Ari cuts with a blade."       # Fighter came last
 assert ari.Wizard.Attack() == "Ari casts a spell"   # the view after Wizard
 ```
 
@@ -112,11 +112,11 @@ class, exact even if two Tags share a name.
 ### A Tag can be taken away. What it gave stays.
 
 ```python
-del Sage[ari]                          # Rip: leave the Field
+del Fighter[ari]                          # Rip: leave the Field
 
-assert ari not in Sage
-assert isinstance(ari, Sage)           # ever a Sage, always a Sage
-assert ari.Attack() == "Ari quotes a proverb"   # sticky: the Action stays
+assert ari not in Fighter
+assert isinstance(ari, Fighter)           # ever a Fighter, always a Fighter
+assert ari.Attack() == "Ari cuts with a blade."   # sticky: the Action stays
 ```
 
 That last line surprises people. TOP calls this a **Rogue Agent**: it has
@@ -449,10 +449,10 @@ class Agency(Tag):
 
     @Public
     @Operation
-    def dispatch(agency, sender, message):
+    def dispatch(agency, sender, mesFighter):
         if sender not in agency:        # live authority: checked each call
             raise PermissionError("inactive")
-        return f"{sender.name}: {message}"
+        return f"{sender.name}: {mesFighter}"
 
     @Secret
     @Record
@@ -580,7 +580,7 @@ class Wizard(Class):
         return f"{agent.name} casts {agent.spells[-1]}"
 
 
-class Sage(Tag):
+class Fighter(Tag):
 
     @Record
     def spells(agent, stored):
@@ -601,14 +601,14 @@ class War_Caster(Tag):
 
 ari = Character("Ari", level=3)
 
-for choice in (Elf, Wizard, Sage, War_Caster):
+for choice in (Elf, Wizard, Fighter, War_Caster):
     choice(ari)
 
 assert ari.spells == ["Light", "Magic Missile", "Identify"]
 assert ari.hit_points == 18
 assert ari.Attack() == "Ari casts Identify behind a shield"
 assert ari                                      # every promise holds
-assert f"{ari:tags}" == "Elf, Wizard, Sage, War_Caster"
+assert f"{ari:tags}" == "Elf, Wizard, Fighter, War_Caster"
 
 print(Outline(ari))
 # Character
@@ -616,7 +616,7 @@ print(Outline(ari))
 #     Elf
 #   Class
 #     Wizard
-#   Sage
+#   Fighter
 #   War_Caster
 ```
 
