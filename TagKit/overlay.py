@@ -13,6 +13,7 @@ import warnings
 
 from .contracts import _bind_condition
 from .declarations import _Declarations
+from .declarations import _is_flag
 from .declarations import _takes_stored
 from .declarations import _takes_underlay
 from .errors import TagCompositionError
@@ -195,6 +196,12 @@ def _install(
     """Lay ``tag`` over ``state`` (a candidate copy). Order matters: deletions
     free names first; conditions, Tag members, Actions, Records follow."""
 
+    if _is_flag(tag):
+        _refuse_container_host(
+                state,
+                tag,
+                )
+
     for name in declarations.deletions:
         _delete(state, name)
 
@@ -261,6 +268,20 @@ def _install(
         state.rips[tag] = tuple(
                 state.actions[name]
                 for name in declarations.rips
+                )
+
+
+def _refuse_container_host(
+        state: _State,
+        tag: type,
+        ) -> None:
+    from .access import _host_member
+
+    if _host_member(state.host_type, "__contains__") is not None:
+        raise TagCompositionError(
+                f"{tag.__name__} is a Flag, but the host"
+                f" {state.host_type.__name__} defines its own `in`; a"
+                " keyword needs that seat empty"
                 )
 
 

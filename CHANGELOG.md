@@ -20,11 +20,13 @@ review reproduced, or a decision recorded in a STEP.
   (STEP-SPEC-4).
 - Native spellings for every Tag-level act; the Tag's dotted namespace
   belongs to the program (§0.8): `del Tag[agent]` Rips, `Form(Tag)` is a
-  function, `if Tag:` asks for a sound member, `Tag in agent` and
-  `"Tag" in agent` read membership from the Agent's side on the empty-seat
-  rule, and format specs are the display door (`f"{Tag:form}"`,
+  function, `if Tag:` asks for a sound member, and format specs are the
+  display door (`f"{Tag:form}"`,
   `f"{agent:tags}"`, `f"{agent:outline}"`, `f"{agent:contract}"`).
 - Records receive the stored value and pile up (STEP-SPEC-5).
+- Flags: `@Flag` marks a Tag as a keyword, searchable from the Agent's
+  side by name or class, `"Undead" in ghoul`; `Keyword(agent, ...)` is the
+  function form; refused on container hosts (STEP-SPEC-7).
 
 ### TagKit
 
@@ -39,8 +41,8 @@ review reproduced, or a decision recorded in a STEP.
   from Record failures; O(n²) Field registration; unbounded `At_Exit`
   registry; stale runtime type after Rip.
 - Added: `Secret`, `Public`, `~Tag`, `Tag[:]`, `Tag[agent]`,
-  `del Tag[agent]`, `len(Tag)`, `bool(Tag)`, `Tag in agent`,
-  `"Tag" in agent`, `Has` with names, format specs, `Form`, `Contract.Holds`, `Apply`, `Has`, `Tags`, `Outline`,
+  `del Tag[agent]`, `len(Tag)`, `bool(Tag)`, `Flag`, `Keyword`, format
+  specs, `Form`, `Contract.Holds`, `Apply`, `Tags`, `Outline`,
   `TagDeclarationError`, teardown failure reporting, explicit refusal of
   `copy.copy`, protocol parameter defaults honoured.
 - Removed: Agent sugar (`With`, `As`, `|`, `ApplyTags`, `agent.Tag(...)`,
@@ -54,6 +56,7 @@ review reproduced, or a decision recorded in a STEP.
   `def r(agent, stored): stored` (a value, `None` when nothing is stored).
 - A failed Postcondition no longer rolls back: check `bool(agent)` or Rip.
 - `agent.Tag(X)` → `X[agent]`; `agent.Tags()` → `Tags(agent)`;
-  `agent.Has(X)` → `Has(agent, X)`; `agent.Outline()` → `Outline(agent)`.
+  `agent.Has(X)` → `agent in X`; `"X" in agent` → mark `X` with `@Flag`;
+  `agent.Outline()` → `Outline(agent)`.
 - `Tag.Lineage()` → `Form(Tag)`; `Tag.Rip(agent)` → `del Tag[agent]`;
   `Tag.Field` → `Tag[:]`; `for a in Tag` now yields sound members only.

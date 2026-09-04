@@ -10,6 +10,8 @@ from __future__ import annotations
 import random
 
 from TagKit import Action
+from TagKit import Flag
+from TagKit import Keyword
 from TagKit import Post
 from TagKit import Public
 from TagKit import Record
@@ -39,6 +41,7 @@ class Element(Tag):
         return len(agent.attacks) > 0
 
 
+@Flag
 class Fire(Element):
     colour = Public(Report("red"))
 
@@ -47,6 +50,7 @@ class Fire(Element):
         return (stored or []) + ["Ember"]
 
 
+@Flag
 class Water(Element):
     colour = Public(Report("blue"))
 
@@ -55,6 +59,7 @@ class Water(Element):
         return (stored or []) + ["Bubble"]
 
 
+@Flag
 class Electric(Element):
     colour = Public(Report("yellow"))
 
@@ -95,6 +100,25 @@ class Armoured(Body):
         return underlay() + " [armoured]"
 
 
+# A type chart as data: keywords, not imports. It ports to any program
+# whose Flags carry these names.
+STRONG_AGAINST = {
+        "Water": "Fire",
+        "Fire": "Electric",
+        "Electric": "Water",
+        }
+
+
+def advantage(
+        attacker: Creature,
+        defender: Creature,
+        ) -> bool:
+    return any(
+            Keyword(attacker, mine) and Keyword(defender, theirs)
+            for mine, theirs in STRONG_AGAINST.items()
+            )
+
+
 def main() -> None:
     random.seed(7)
     elements = (Fire, Water, Electric)
@@ -113,6 +137,10 @@ def main() -> None:
     for creature in biome:
         print(creature.Describe(), "<-", [tag.__name__ for tag in Tags(creature)])
 
+    print()
+    first, second = biome[0], biome[1]
+    print(f"{first.name} vs {second.name}: advantage", advantage(first, second))
+    print("keywords of", first.name, "->", [w for w in STRONG_AGAINST if w in first])
     print()
     print("runtime types in the biome:", len({type(c) for c in biome}))
     print("Fire creatures:", [c.name for c in Fire])

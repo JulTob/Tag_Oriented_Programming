@@ -53,13 +53,15 @@ assert ari.Attack() == "Ari casts Magic Missile while holding a shield"
 assert ari.Wizard.Attack() == "Ari casts Magic Missile"   # the view after Wizard
 ```
 
-Run `examples/dnd_character.py` and `examples/biome.py` for the long form.
+Read [`TagKit/GUIDE.md`](TagKit/GUIDE.md) for the patterns, and run
+`examples/dnd_character.py` and `examples/biome.py` for the long form.
 
 ## This repository
 
 | Path | What | License |
 | --- | --- | --- |
 | [`spec/SPECIFICATION.md`](spec/SPECIFICATION.md) | **The Specification**, written in rings from the kernel outward. The source of truth. | CC-BY-4.0 |
+| [`TagKit/GUIDE.md`](TagKit/GUIDE.md) | **The Guide**: TOP for people, pattern by pattern. Start here. | Apache-2.0 |
 | [`TagKit/`](TagKit/) | **TagKit**, the Python reference implementation. | Apache-2.0 |
 | [`tests/`](tests/) | The conformance suite, organized by ring. | Apache-2.0 |
 | [`examples/`](examples/) | A D&D character sheet and a mix-and-match biome. | Apache-2.0 |

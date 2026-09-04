@@ -46,6 +46,7 @@ def _host_member(
 def _hooks_for(
         host_type: type,
         has_posts: bool,
+        has_flags: bool,
         ) -> dict[str, Any]:
     hooks: dict[str, Any] = {
             "__getattr__": _agent_getattr,
@@ -61,7 +62,7 @@ def _hooks_for(
     if _host_member(host_type, "__format__") is None:
         hooks["__format__"] = _agent_format
 
-    if _host_member(host_type, "__contains__") is None:
+    if has_flags:
         hooks["__contains__"] = _agent_contains
 
     if _host_member(host_type, "__copy__") is None:
@@ -140,19 +141,21 @@ def _agent_contains(
         agent: object,
         probe: object,
         ) -> bool:
-    """``Wizard in agent`` and ``"Wizard" in agent``: active membership,
-    by Tag or by Tag name."""
+    """``"Undead" in ghoul`` and ``Undead in ghoul``: an active Flag, by
+    name or by class."""
 
-    return _carries(
+    return _keyword(
             agent,
             probe,
             )
 
 
-def _carries(
+def _keyword(
         agent: object,
         probe: object,
         ) -> bool:
+    from .declarations import _is_flag
+
     state = _state_of(agent)
 
     if state is None:
@@ -160,11 +163,14 @@ def _carries(
 
     if isinstance(probe, str):
         return any(
-                tag.__name__ == probe
+                _is_flag(tag) and tag.__name__ == probe
                 for tag in state.active
                 )
 
-    return probe in state.active
+    return (
+            probe in state.active
+            and _is_flag(probe)
+            )
 
 
 def _agent_bool(

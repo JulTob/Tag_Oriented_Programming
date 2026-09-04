@@ -86,13 +86,16 @@ rollback target.
   `[:]`, `[agent]`, `del Tag[agent]`, `format`. The only class attribute
   TagKit adds is the private `_tagkit_field`. `bool(Tag)` is "any sound
   member", like a collection.
-- **The empty-seat rule on Agents.** `__bool__`, `__contains__`,
-  `__format__`, `__copy__` and `__deepcopy__` are installed on the runtime
-  type only when the host defines none of its own (`__bool__` only once a
-  Postcondition is visible). `Tag in agent` and `"Tag" in agent` therefore
-  exist on ordinary hosts and stay out of the way of containers; `Has()`
-  answers regardless. Format specs are the display door: `f"{Tag:form}"`,
+- **The empty-seat rule on Agents.** `__bool__`, `__format__`, `__copy__`
+  and `__deepcopy__` are installed on the runtime type only when the host
+  defines none of its own (`__bool__` only once a Postcondition is
+  visible). Format specs are the display door: `f"{Tag:form}"`,
   `f"{agent:tags}"`, `f"{agent:outline}"`, `f"{agent:contract}"`.
+- **Flags own the Agent's `in`.** `__contains__` is installed only while a
+  `@Flag` Tag is active (a type-level fact, part of the type key). It
+  answers the name or class of an active Flag and nothing else. A Flag on
+  a host that defines `__contains__` is refused at the gate. `Keyword()`
+  is the function form and works on any object.
 - **Assigning a Tag's name on an Agent** (`ari.Elf = 1`) shadows the view by
   name; plain Python, not intercepted. `Elf[ari]` is unaffected.
 - **Inputs and defaults.** A protocol parameter the caller omitted keeps

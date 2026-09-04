@@ -20,8 +20,9 @@ from TagKit import Apply
 from TagKit import At_Exit
 from TagKit import Contract
 from TagKit import Delete
+from TagKit import Flag
 from TagKit import Form
-from TagKit import Has
+from TagKit import Keyword
 from TagKit import Imprint
 from TagKit import Operation
 from TagKit import Outline
@@ -600,7 +601,6 @@ class HostPreservationTests(unittest.TestCase):
 
         self.assertIn("x", bag)
         self.assertNotIn(Field_Member, bag)       # the host keeps its `in`
-        self.assertTrue(Has(bag, Field_Member))   # the function still answers
         self.assertEqual(bag | 1, "host-or")
         self.assertTrue(bool(bag))
 
@@ -1540,59 +1540,92 @@ class AccessTests(unittest.TestCase):
 
 
 class QueryTests(unittest.TestCase):
-    def test_membership_from_the_agent_side_by_tag_or_by_name(self) -> None:
-        ari = Agent()
+    def test_flags_are_searchable_from_the_agent_side(self) -> None:
+        @Flag
+        class Undead(Tag):
+            pass
 
-        Elf(ari)
+        @Flag
+        class Flying(Tag):
+            pass
 
-        self.assertIn(Elf, ari)
-        self.assertIn(Person, ari)
-        self.assertIn("Elf", ari)
-        self.assertNotIn(Paladin, ari)
-        self.assertNotIn("Paladin", ari)
-        self.assertNotIn("elf", ari)              # names match exactly
-        self.assertTrue(Has(ari, "Elf", Person))
-        self.assertFalse(Has(ari, "Elf", "Paladin"))
+        ghoul = Agent()
 
-        # A never-tagged Target has no Agent side yet: `in` is the host's
-        # own (a plain object has none). Has() is the spelling that works
-        # before the first tagging.
-        with self.assertRaises(TypeError):
-            Elf in Agent()
+        Undead(ghoul)
+        Elf(ghoul)                                # an ordinary Tag, not a keyword
 
-        self.assertFalse(Has(Agent(), Elf, "Elf"))
+        self.assertIn("Undead", ghoul)
+        self.assertIn(Undead, ghoul)
+        self.assertNotIn("Flying", ghoul)
+        self.assertNotIn(Flying, ghoul)
+        self.assertNotIn("undead", ghoul)         # names match exactly
+        self.assertNotIn("Elf", ghoul)            # Elf is not a Flag
+        self.assertNotIn(Elf, ghoul)
+        self.assertIn(ghoul, Elf)                 # membership is untouched
 
-    def test_rules_written_as_names_port_between_programs(self) -> None:
+        self.assertTrue(Keyword(ghoul, "Undead", Undead))
+        self.assertFalse(Keyword(ghoul, "Undead", "Flying"))
+        self.assertFalse(Keyword(ghoul, "Elf"))
+        self.assertFalse(Keyword(Agent(), "Undead"))   # works before any tagging
+
+        del Undead[ghoul]
+
+        self.assertNotIn("Undead", ghoul)
+
+    def test_a_flag_on_a_container_host_is_refused(self) -> None:
+        @Flag
+        class Marked(Tag):
+            pass
+
+        bag = HostPreservationTests.Bag()
+
+        with self.assertRaises(TagCompositionError):
+            Marked(bag)
+
+        self.assertNotIn(bag, Marked)
+        self.assertIn("x", bag)
+
+    def test_flag_marks_only_tags(self) -> None:
+        with self.assertRaises(TagDeclarationError):
+            Flag(Agent)
+
+    def test_rules_written_as_keywords_port_between_programs(self) -> None:
+        @Flag
+        class Wizard(Tag):
+            pass
+
+        @Flag
+        class Elven(Tag):
+            pass
+
         rules = {
-                "Wizard-Elf": lambda a: "arcane archer",
+                "Wizard-Elven": lambda a: "arcane archer",
                 "Wizard": lambda a: "caster",
-                "Elf": lambda a: "archer",
+                "Elven": lambda a: "archer",
                 }
 
         def play(agent):
             for rule, act in rules.items():
-                if Has(agent, *rule.split("-")):
+                if Keyword(agent, *rule.split("-")):
                     return act(agent)
 
             return "commoner"
-
-        class Wizard(Tag):
-            pass
 
         ari = Agent()
         Wizard(ari)
         self.assertEqual(play(ari), "caster")
 
-        Elf(ari)
+        Elven(ari)
         self.assertEqual(play(ari), "arcane archer")
-        self.assertTrue(all(name in ari for name in "Wizard-Elf".split("-")))
+        self.assertTrue(all(word in ari for word in "Wizard-Elven".split("-")))
         self.assertEqual(play(Agent()), "commoner")
 
-    def test_apply_has_tags(self) -> None:
+    def test_apply_and_tags(self) -> None:
         ari = Apply(Agent(), Elf, Combatant)
 
-        self.assertTrue(Has(ari, Elf, Person, Combatant))
-        self.assertFalse(Has(ari, Paladin))
+        self.assertIn(ari, Elf)
+        self.assertIn(ari, Person)
+        self.assertNotIn(ari, Paladin)
         self.assertEqual(Tags(ari), (Elf, Combatant))
 
     def test_format_specs_are_the_display_door(self) -> None:

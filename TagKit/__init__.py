@@ -3,6 +3,7 @@
 from .contracts import Contract
 from .declarations import Action
 from .declarations import Delete
+from .declarations import Flag
 from .declarations import Imprint
 from .declarations import Operation
 from .declarations import Post
@@ -29,7 +30,7 @@ from .lifecycle import At_Exit
 from .lifecycle import Scope
 from .queries import Apply
 from .queries import Form
-from .queries import Has
+from .queries import Keyword
 from .queries import Outline
 from .queries import Tags
 from .tags import Tag
@@ -42,8 +43,9 @@ __all__ = [
         "At_Exit",
         "Contract",
         "Delete",
+        "Flag",
         "Form",
-        "Has",
+        "Keyword",
         "Imprint",
         "Operation",
         "Outline",

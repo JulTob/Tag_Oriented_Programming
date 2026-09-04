@@ -34,17 +34,18 @@ def Apply(
     return target
 
 
-def Has(
+def Keyword(
         agent: object,
-        *tags: type | str,
+        *words: type | str,
         ) -> bool:
-    """True when every given Tag, or Tag name, is active on the Agent."""
+    """True when the Agent carries every given keyword: the name, or the
+    class, of an active Flag Tag. Works on any object, tagged or not."""
 
-    from .access import _carries
+    from .access import _keyword
 
     return all(
-            _carries(agent, tag)
-            for tag in tags
+            _keyword(agent, word)
+            for word in words
             )
 
 

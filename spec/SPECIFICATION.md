@@ -243,7 +243,8 @@ language, not a library's naming.
 | Act | Python spelling |
 | --- | --- |
 | apply | `Wizard(agent, **inputs)` |
-| active member? | `agent in Wizard`, `Wizard in agent`, `"Wizard" in agent` |
+| active member? | `agent in Wizard` |
+| carries a keyword? (Flags, §1.8) | `"Undead" in ghoul`, `Undead in ghoul`, `Keyword(ghoul, "Undead")` |
 | ever a member? | `isinstance(agent, Wizard)` |
 | the sound population | `for w in Wizard`, `len(Wizard)`, `if Wizard:` |
 | the defective population | `for w in ~Wizard`, `if ~Wizard:` |
@@ -259,20 +260,16 @@ sound is a Wizard right now, `while Enemy:` fights while an enemy stands,
 `if not Boss:` spawns one, `if ~Wizard:` asks whether anyone waits for
 repair.
 
-Membership reads from either side. `Wizard in agent` says the Tag is
-actualized in the Agent; `"Wizard" in agent` says the same by name, so a
-rule written as data (`"Wizard-Elf"` in a table or a file) can be checked
-without importing the Tag. Names match exactly. On the Agent this follows
-the **empty-seat rule**: a host that defines its own `in` keeps it, and
-`Has(agent, Wizard, "Elf")` answers in every case, including for a Target
-that was never tagged and so has no Agent side yet.
+The Agent's own `in` is reserved for **keywords**: Tags marked `@Flag`
+(§1.8). Ordinary Tags are asked from the Tag's side, `agent in Wizard`.
 
 Format specs are the **display door**: a language's own string formatting
 renders what a Tag or Agent is, without a method on either. On an Agent the
 door follows the empty-seat rule: a host with its own formatting keeps it.
 
-Queries that need a name are functions (`Form`, `Tags`, `Has`, `Apply`,
-`Outline`, `Contract`, `Scope`), never members of the Tag or of the Agent.
+Queries that need a name are functions (`Form`, `Tags`, `Keyword`,
+`Apply`, `Outline`, `Contract`, `Scope`), never members of the Tag or of
+the Agent.
 Another language profile chooses its own native spellings; the acts and
 their distinctions are what must survive.
 
@@ -608,6 +605,40 @@ ari.Paladin.Attack()     # "Attack! For your holy oath!"
 captures the complete Attack Overlay (Person, then Paladin). The later Tag
 replaces `ari.Attack()` without changing what `ari.Paladin.Attack()` means.
 
+## 1.8 Flags: Tags as keywords
+
+Tabletop rules have **keywords**: Undead, Flying, Fey. A rule does not
+import the creature's species; it asks whether the word is on the sheet. A
+Tag marked `@Flag` is such a word. Its name becomes searchable from the
+Agent's side, by name or by class:
+
+```python
+@Flag
+class Undead(Tag):
+    pass
+
+Undead(ghoul)
+
+assert "Undead" in ghoul             # by name
+assert Undead in ghoul               # by class
+assert Keyword(ghoul, "Undead")      # the function form, works on any object
+assert ghoul in Undead               # membership, as for every Tag
+```
+
+This is what lets rules live as data. A table entry `"Undead-Flying"`
+splits into words, and `Keyword(agent, *words)` decides; the rule ports to
+any program whose Tags carry those names.
+
+Flags are **opt-in** on purpose. Matching by name is global: two Tags that
+share a name are one word to a string. Only Tags that ask to be words carry
+that risk, and an ordinary Tag is never found by name. Names match
+exactly.
+
+A Flag needs the Agent's `in`. Applying a Flag to a host that defines its
+own `in` (a container) is a declared collision and fails with a
+Composition Failure, like a Record over a host property. `Keyword(...)`
+answers for every object, tagged or not, container or not.
+
 ---
 
 # Ring 2 · Contracts
@@ -932,6 +963,9 @@ A conforming implementation provides, ring by ring:
 - publication: `@Secret` with a composition door that fails closed; `Public`
   Reports as read-only live names and `Public` Operations as Actions with
   the Agent as second input; illegal marks rejected at declaration;
+- Flags: opt-in keyword Tags searchable from the Agent's side by name and
+  by class, refused on a host that owns `in`, never matched for ordinary
+  Tags;
 - Delete; the three access forms, with Agent-bound views as read-only
   snapshots requiring active membership.
 

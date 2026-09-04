@@ -25,6 +25,7 @@ _UNDERLAY = "__tagkit_underlay__"
 _RIP = "__tagkit_rip__"
 _SECRET = "__tagkit_secret__"
 _PUBLIC = "__tagkit_public__"
+_FLAG = "__tagkit_flag__"
 
 _MISSING = object()
 
@@ -213,6 +214,40 @@ def Public(
     return _flag(
             member,
             _PUBLIC,
+            )
+
+
+def Flag(
+        tag: type,
+        ) -> type:
+    """Mark a Tag as a keyword: searchable from the Agent's side by name
+    or by class, ``"Undead" in ghoul`` and ``Undead in ghoul``.
+
+    Applying a Flag to a host that defines its own ``in`` is refused.
+    """
+
+    if not isinstance(tag, type) or not hasattr(tag, "_tagkit_field"):
+        raise TagDeclarationError(
+                "@Flag marks a Tag class"
+                )
+
+    setattr(
+            tag,
+            _FLAG,
+            True,
+            )
+
+    return tag
+
+
+def _is_flag(
+        tag: type,
+        ) -> bool:
+    return bool(
+            tag.__dict__.get(
+                    _FLAG,
+                    False,
+                    )
             )
 
 

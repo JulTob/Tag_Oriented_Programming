@@ -19,6 +19,7 @@ import weakref
 
 from .declarations import _MISSING
 from .declarations import _is_dunder
+from .declarations import _is_flag
 from .errors import TagCompositionError
 
 
@@ -455,6 +456,7 @@ def _type_key_of(
             frozenset(state.secrets),
             frozenset(state.published),
             bool(state.postconditions),
+            any(_is_flag(tag) for tag in state.active),
             tuple(
                     sorted(
                             (name, id(function))
@@ -484,10 +486,12 @@ def _runtime_type_for(
     secrets = key[2]
     published = key[3]
     has_posts = key[4]
+    has_flags = key[5]
 
     namespace: dict[str, Any] = _hooks_for(
             host_type,
             has_posts,
+            has_flags,
             )
     namespace.update(dunders)
 
