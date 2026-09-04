@@ -64,7 +64,9 @@ class Dwarf(Species):
 
 
 class Class(Tag):
-    hit_die = Report(8)
+    @Report
+    def hit_die(tag) -> int:
+        return 8
 
     @Record
     def hit_points(agent, stored) -> int:
@@ -72,7 +74,9 @@ class Class(Tag):
 
 
 class Wizard(Class):
-    hit_die = Report(6)
+    @Report
+    def hit_die(tag) -> int:
+        return 6
 
     @Pre
     def Can_Study(agent):
@@ -96,7 +100,9 @@ class Wizard(Class):
 
 
 class Fighter(Class):
-    hit_die = Report(10)
+    @Report
+    def hit_die(tag) -> int:
+        return 10
 
     @Record
     def hit_points(agent, stored) -> int:

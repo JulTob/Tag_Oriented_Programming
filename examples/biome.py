@@ -30,7 +30,10 @@ class Creature:
 
 
 class Element(Tag):
-    colour = Public(Report("grey"))
+    @Public
+    @Report
+    def colour(tag) -> str:
+        return "grey"
 
     @Record
     def attacks(agent, stored) -> list[str]:
@@ -43,7 +46,10 @@ class Element(Tag):
 
 @Flag
 class Fire(Element):
-    colour = Public(Report("red"))
+    @Public
+    @Report
+    def colour(tag) -> str:
+        return "red"
 
     @Record
     def attacks(agent, stored) -> list[str]:
@@ -52,7 +58,10 @@ class Fire(Element):
 
 @Flag
 class Water(Element):
-    colour = Public(Report("blue"))
+    @Public
+    @Report
+    def colour(tag) -> str:
+        return "blue"
 
     @Record
     def attacks(agent, stored) -> list[str]:
@@ -61,7 +70,10 @@ class Water(Element):
 
 @Flag
 class Electric(Element):
-    colour = Public(Report("yellow"))
+    @Public
+    @Report
+    def colour(tag) -> str:
+        return "yellow"
 
     @Record
     def attacks(agent, stored) -> list[str]:

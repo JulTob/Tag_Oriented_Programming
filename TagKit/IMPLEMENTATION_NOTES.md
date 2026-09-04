@@ -96,6 +96,11 @@ rollback target.
   answers the name or class of an active Flag and nothing else. A Flag on
   a host that defines `__contains__` is refused at the gate. `Keyword()`
   is the function form and works on any object.
+- **Reports are builders.** `@Report def r(tag[, inherited])` is a
+  descriptor that runs its builder once per Tag on first read and caches
+  the value per Tag (weakly). `Tag.r += 1` replaces the descriptor with a
+  plain value on that class, which is the documented counter pattern.
+  Views snapshot the computed value; a published Report reads live.
 - **Assigning a Tag's name on an Agent** (`ari.Elf = 1`) shadows the view by
   name; plain Python, not intercepted. `Elf[ari]` is unaffected.
 - **Inputs and defaults.** A protocol parameter the caller omitted keeps

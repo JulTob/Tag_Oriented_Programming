@@ -413,11 +413,20 @@ explicit intent. Shared values belong in a Report.
 ## 1.4 Reports and Operations
 
 A **Report** is shared data belonging to a Tag; an **Operation** is shared
-behaviour whose first input is the Tag.
+behaviour. Both take the Tag as their first input, the way Agent members
+take the Agent. The four kinds are one pattern, two scopes:
+
+| | behaviour | data |
+| --- | --- | --- |
+| **Agent** | `@Action def f(agent, ...)` | `@Record def r(agent, stored)` |
+| **Tag** | `@Operation def f(tag, ...)` | `@Report def r(tag, inherited)` |
 
 ```python
 class Community(Tag):
-    colour = Report("green")
+
+    @Report
+    def colour(tag) -> str:
+        return "green"
 
     @Operation
     def Greet(tag, name) -> str:
@@ -426,6 +435,11 @@ class Community(Tag):
 Community.colour            # "green"
 Community.Greet("Ari")      # "Community:Ari"
 ```
+
+A Report builder runs once per Tag, on first read, and its value is held
+on the Tag: one copy for the whole Field. Like a Record, it may declare a
+second parameter, which receives the value the Tag's Bases give that name,
+or `None`, so a Shape can extend a Base's Report rather than replace it.
 
 Reports and Operations are **not visible on the Agent**. `ari.colour` does
 not exist after `Community(ari)`, and neither does `ari.Greet`. Projecting
@@ -437,7 +451,10 @@ A shared counter is a Report; the Imprint that changes it acts on the Tag:
 
 ```python
 class Secret_Agent(Tag):
-    active = Report(0)
+
+    @Report
+    def active(tag) -> int:
+        return 0
 
     @Imprint
     def Activate(agent):
@@ -453,7 +470,7 @@ is public; what the Agency keeps is internal.
 | Contribution | Default | Mark |
 | --- | --- | --- |
 | Action, Record | **external** | `@Secret` makes it internal |
-| Operation, Report | **internal** | `Public(...)` publishes it on the Agent |
+| Operation, Report | **internal** | `@Public` publishes it on the Agent |
 
 **Composition** is the door. Inside it, everything of the relevant scopes
 resolves; outside it, only external members and the control plane (apply,
@@ -487,7 +504,7 @@ ember.ember_heat      # AttributeError: secret member
 A secret handle captured inside and called outside **fails closed**. A
 secret still occupies its `(Agent, name)` slot; it is not a third kind.
 
-`Public(...)` on a Report or Operation constructs the publishing member for
+`@Public` on a Report or Operation constructs the publishing member for
 you, so field economy (one value, one body on the Tag) needs no hand-written
 adapter:
 
@@ -500,7 +517,11 @@ adapter:
 
 ```python
 class Agency(Tag):
-    colour = Public(Report("navy"))
+
+    @Public
+    @Report
+    def colour(tag) -> str:
+        return "navy"
 
     @Public
     @Operation
@@ -521,8 +542,10 @@ captured before Rip fails closed after it. TOP is not a security system; a
 long-running task may need to re-check authority before an irreversible
 step.
 
-Illegal marks are rejected at declaration: `@Secret` on Tag members,
-`Public` on Agent members, or both on one member.
+`@Secret` and `@Public` are **modifiers**: they stack with `@Action`,
+`@Record`, `@Operation` and `@Report` in either order. A modifier that
+restates the default (`@Public @Record`, `@Secret @Report`) is accepted;
+both on one member is a contradiction and is rejected at declaration.
 
 ## 1.6 Delete
 

@@ -24,6 +24,11 @@ review reproduced, or a decision recorded in a STEP.
   display door (`f"{Tag:form}"`,
   `f"{agent:tags}"`, `f"{agent:outline}"`, `f"{agent:contract}"`).
 - Records receive the stored value and pile up (STEP-SPEC-5).
+- Reports are declared like Records: `@Report def hit_die(tag): ...`, built
+  once per Tag on first read, with an optional second parameter receiving
+  the Bases' value. `@Secret` / `@Public` are modifiers that stack in either
+  order; redundant modifiers are accepted, contradictory ones rejected
+  (STEP-SPEC-3 §6).
 - Flags: `@Flag` marks a Tag as a keyword, searchable from the Agent's
   side by name or class, `"Undead" in ghoul`; `Keyword(agent, ...)` is the
   function form; refused on container hosts (STEP-SPEC-7).
@@ -58,5 +63,6 @@ review reproduced, or a decision recorded in a STEP.
 - `agent.Tag(X)` → `X[agent]`; `agent.Tags()` → `Tags(agent)`;
   `agent.Has(X)` → `agent in X`; `"X" in agent` → mark `X` with `@Flag`;
   `agent.Outline()` → `Outline(agent)`.
+- `name = Report(value)` → `@Report def name(tag): return value`.
 - `Tag.Lineage()` → `Form(Tag)`; `Tag.Rip(agent)` → `del Tag[agent]`;
   `Tag.Field` → `Tag[:]`; `for a in Tag` now yields sound members only.

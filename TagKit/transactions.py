@@ -363,10 +363,15 @@ def _snapshot(
             if name in namespace
             }
 
+    reports = {
+            name: (origin, getattr(origin, name))
+            for name, (origin, _report) in state.reports.items()
+            }
+
     return _Snapshot(
             actions=dict(state.actions),
             records=records,
-            reports=dict(state.reports),
+            reports=reports,
             operations=dict(state.operations),
             deleted=frozenset(state.deleted),
             secrets=frozenset(state.secrets),

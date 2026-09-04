@@ -102,12 +102,16 @@ kind.
 
 ### 5. `Public(...)` on Reports and Operations
 
-`Public` is a function, so it spells the same way on data and on
-behaviour:
+`@Public` is a modifier and spells the same way on data and on behaviour,
+because a Report is declared like a Record, as a builder:
 
 ```python
 class Agency(Tag):
-    colour = Public(Report("navy"))
+
+    @Public
+    @Report
+    def colour(tag):
+        return "navy"
 
     @Public
     @Operation
@@ -128,10 +132,12 @@ The published Action is a normal Action: it overlays and underlays at
 `(Agent, name)`, it is sticky after Rip, and a guarded Operation therefore
 checks membership at invocation.
 
-### 6. Rejected combinations
+### 6. Modifiers
 
-`@Secret` on an Operation or Report; `Public` on an Action or Record; both
-on one member. All are Tag Declaration Failures.
+`@Secret` and `@Public` are modifiers that stack with `@Action`, `@Record`,
+`@Operation` and `@Report` in either order. A modifier that restates the
+default (`@Public @Record`, `@Secret @Report`) is accepted. Both on one
+member is a contradiction and a Tag Declaration Failure.
 
 ## Rationale
 
@@ -169,7 +175,7 @@ are equivalent to `Public` on the Operation they forward to.
 - captured `@Secret` handles fail closed;
 - `Public` Reports read live from the Tag and are read-only on the Agent;
 - `Public` Operations are Actions with the Agent as second input;
-- illegal marks rejected at declaration.
+- contradictory marks rejected at declaration; redundant ones accepted.
 
 Covered by `tests/test_tagkit.py::PublicationTests`.
 

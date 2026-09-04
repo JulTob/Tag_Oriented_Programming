@@ -408,8 +408,15 @@ clean line between what the Agent shows and what the Tag keeps.
 
 ```python
 class Agency(Tag):
-    colour = Public(Report("navy"))     # one copy, published on the Agent
-    HQ = Report("London")               # one copy, Tag-side only
+
+    @Public
+    @Report
+    def colour(tag):
+        return "navy"                   # one copy, published on the Agent
+
+    @Report
+    def HQ(tag):
+        return "London"                 # one copy, Tag-side only
 
     @Public
     @Operation
@@ -447,7 +454,14 @@ except PermissionError:
 ```
 
 The rule in one line: what the Agent does is public, what the Agency keeps
-is internal. `@Secret` hides an Agent member; `Public` shows a Tag member.
+is internal. `@Secret` hides an Agent member; `@Public` shows a Tag member.
+Both are modifiers: they stack on `@Record`, `@Action`, `@Report` or
+`@Operation` in either order.
+
+Notice the symmetry. A Report is written exactly like a Record, with the
+Tag instead of the Agent as its first input; it runs once per Tag and its
+value is shared by the whole Field. `def hit_die(tag, inherited)` extends
+the Base's value, as `def spells(agent, stored)` extends what is stored.
 
 **Watch out.** A secret resolves only while one of the Agent's own Actions
 or protocols is running. A handle to a secret Action captured inside and
@@ -505,11 +519,17 @@ class Elf(Species):
 
 
 class Class(Tag):
-    hit_die = Report(8)
+
+    @Report
+    def hit_die(tag):
+        return 8
 
 
 class Wizard(Class):
-    hit_die = Report(6)
+
+    @Report
+    def hit_die(tag):
+        return 6
 
     @Pre
     def Can_Study(agent):

@@ -1,7 +1,7 @@
 """Declarations: the marks an author puts on a Tag, and how they are read.
 
 Agent scope:  @Action, @Record          (external by default, @Secret hides)
-Tag scope:    @Operation, Report(...)   (internal by default, Public publishes)
+Tag scope:    @Operation, @Report     (internal by default, @Public publishes)
 Protocols:    @Imprint, @Pre, @Post, @Rip, @Delete
 Composition:  @Underlay                 (extend the prior visible contribution)
 
@@ -54,11 +54,14 @@ def _flag(
         target: Any,
         name: str,
         ) -> Any:
-    function = getattr(
-            target,
-            "__func__",
-            target,
-            )
+    if isinstance(target, Report):
+        function = target.builder
+    else:
+        function = getattr(
+                target,
+                "__func__",
+                target,
+                )
     setattr(
             function,
             name,
@@ -202,9 +205,10 @@ def Secret(
 def Public(
         member: Any,
         ) -> Any:
-    """Publish a Report or Operation on the Agent, as a read-only name or
-    as an Action that forwards to the Operation with the Agent as its
-    second input."""
+    """Publish a Report or Operation on the Agent: a Report as a read-only
+    name, an Operation as an Action that forwards to it with the Agent as
+    its second input. Stacks with ``@Report`` / ``@Operation`` in either
+    order."""
 
     if isinstance(member, Report):
         member.public = True
@@ -252,26 +256,104 @@ def _is_flag(
 
 
 class Report:
-    """Shared data belonging to a Tag. Reads as its value on the Tag."""
+    """Shared data belonging to a Tag, written like a Record::
+
+        @Report
+        def hit_die(tag):
+            return 8
+
+    The builder receives the Tag and runs once per Tag, on first read. A
+    second positional parameter receives the value the Tag's Bases give
+    that name, or None, so a Shape can extend a Base's Report the way a
+    Record extends what is stored.
+    """
 
     def __init__(
             report,
-            value: Any,
+            builder: Function,
             ) -> None:
-        report.value = value
-        report.public = False
+        if not callable(builder):
+            raise TagDeclarationError(
+                    "@Report marks a builder: `@Report def name(tag): ...`"
+                    )
+
+        report.builder = builder
+        report.public = _has_flag(builder, _PUBLIC)
+        report.__name__ = builder.__name__
+        report.__doc__ = builder.__doc__
+        report._name = builder.__name__
+        report._values: "WeakKeyDictionary[type, Any]" = WeakKeyDictionary()
+
+    def __set_name__(
+            report,
+            owner: type,
+            name: str,
+            ) -> None:
+        report._name = name
 
     def __get__(
             report,
             instance: object,
             owner: type | None = None,
             ) -> Any:
-        return report.value
+        if owner is None:
+            owner = type(instance)
+
+        try:
+            return report._values[owner]
+        except KeyError:
+            pass
+
+        value = report._build(owner)
+        report._values[owner] = value
+
+        return value
+
+    def _build(
+            report,
+            owner: type,
+            ) -> Any:
+        if _parameters_of(report.builder).positional >= 2:
+            return report.builder(
+                    owner,
+                    report._inherited(owner),
+                    )
+
+        return report.builder(owner)
+
+    def _inherited(
+            report,
+            owner: type,
+            ) -> Any:
+        """The value the Bases give this name, or None: the first member of
+        that name declared after this Report's own class in the MRO."""
+
+        passed_own_class = False
+
+        for klass in owner.__mro__:
+            member = klass.__dict__.get(report._name)
+
+            if member is report:
+                passed_own_class = True
+                continue
+
+            if not passed_own_class or member is None:
+                continue
+
+            if isinstance(member, Report):
+                return member.__get__(
+                        None,
+                        owner,
+                        )
+
+            return member
+
+        return None
 
     def __repr__(
             report,
             ) -> str:
-        return f"Report({report.value!r})"
+        return f"<Report {report._name}>"
 
 
 # ------------------------------------------------------------------
@@ -382,10 +464,13 @@ def _scan(
             continue
 
         if isinstance(attribute, Report):
+            if attribute.public and _has_flag(attribute.builder, _SECRET):
+                _reject_both(tag, name, True, True)
+
             reports.append(
                     (
                         name,
-                        attribute.value,
+                        attribute,
                         attribute.public,
                         )
                     )
@@ -396,7 +481,7 @@ def _scan(
         public = _has_flag(attribute, _PUBLIC)
 
         if kind == "operation":
-            _reject_secret(tag, name, secret)
+            _reject_both(tag, name, secret, public)
             operations.append(
                     (
                         name,
@@ -419,7 +504,7 @@ def _scan(
             continue
 
         if kind == "record":
-            _reject_public(tag, name, public)
+            _reject_both(tag, name, secret, public)
             records.append(
                     (
                         name,
@@ -459,7 +544,7 @@ def _scan(
             continue
 
         # Anything else callable is an Action (kind "action" or unmarked).
-        _reject_public(tag, name, public)
+        _reject_both(tag, name, secret, public)
         actions.append(
                 (
                     name,
@@ -491,27 +576,19 @@ def _scan(
             )
 
 
-def _reject_secret(
+def _reject_both(
         tag: type,
         name: str,
         secret: bool,
-        ) -> None:
-    if secret:
-        raise TagDeclarationError(
-                f"{tag.__name__}.{name}: @Secret applies to Actions and"
-                " Records only; Tag members are internal already"
-                )
-
-
-def _reject_public(
-        tag: type,
-        name: str,
         public: bool,
         ) -> None:
-    if public:
+    """A modifier that restates the default is accepted; both at once is
+    a contradiction."""
+
+    if secret and public:
         raise TagDeclarationError(
-                f"{tag.__name__}.{name}: Public applies to Reports and"
-                " Operations only; Agent members are external already"
+                f"{tag.__name__}.{name}: @Secret and @Public together say"
+                " nothing; a member is internal or external"
                 )
 
 

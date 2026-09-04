@@ -242,7 +242,9 @@ class Broken_Imprint(Tag):
 
 
 class Community(Tag):
-    colour = Report("green")
+    @Report
+    def colour(tag) -> str:
+        return "green"
 
     @Operation
     def Greet(tag, name: str) -> str:
@@ -882,8 +884,14 @@ class RecordTests(unittest.TestCase):
 
 class PublicationTests(unittest.TestCase):
     class Fire(Tag):
-        colour = Public(Report("#ef5b35"))
-        heat = Report(3)
+        @Public
+        @Report
+        def colour(tag) -> str:
+            return "#ef5b35"
+
+        @Report
+        def heat(tag) -> int:
+            return 3
 
         @Public
         @Operation
@@ -972,24 +980,66 @@ class PublicationTests(unittest.TestCase):
 
         self.assertEqual(captured[0](), 6)
 
-    def test_bad_mark_combinations_are_rejected_at_declaration(self) -> None:
+    def test_contradictory_marks_are_rejected_and_redundant_ones_accepted(self) -> None:
         with self.assertRaises(TagDeclarationError):
             class Wrong(Tag):
                 @Secret
-                @Operation
-                def op(tag) -> None:
-                    pass
-
-            Wrong(Agent())
-
-        with self.assertRaises(TagDeclarationError):
-            class Wrong_Too(Tag):
                 @Public
                 @Action
                 def act(agent) -> None:
                     pass
 
-            Wrong_Too(Agent())
+            Wrong(Agent())
+
+        class Redundant(Tag):
+            @Public                     # Records are external already
+            @Record
+            def hp(agent) -> int:
+                return 1
+
+            @Secret                     # Reports are internal already
+            @Report
+            def lore(tag) -> str:
+                return "old"
+
+        ari = Agent()
+        Redundant(ari)
+
+        self.assertEqual(ari.hp, 1)
+        self.assertEqual(Redundant.lore, "old")
+        self.assertFalse(hasattr(ari, "lore"))
+
+    def test_reports_are_builders_that_run_once_per_tag_and_extend_bases(self) -> None:
+        calls: list[str] = []
+
+        class Class_(Tag):
+            @Report
+            def hit_die(tag) -> int:
+                calls.append(tag.__name__)
+                return 8
+
+            @Report
+            def traits(tag, inherited) -> list[str]:
+                return (inherited or []) + ["mortal"]
+
+        class Fighter(Class_):
+            @Report
+            def hit_die(tag) -> int:
+                return 10
+
+            @Report
+            def traits(tag, inherited) -> list[str]:
+                return inherited + ["armoured"]
+
+        self.assertEqual(Class_.hit_die, 8)
+        self.assertEqual(Class_.hit_die, 8)
+        self.assertEqual(calls, ["Class_"])           # built once
+        self.assertEqual(Fighter.hit_die, 10)
+        self.assertEqual(Fighter.traits, ["mortal", "armoured"])
+        self.assertEqual(Class_.traits, ["mortal"])
+
+        with self.assertRaises(TagDeclarationError):
+            Report(8)                                 # a builder, not a value
 
     def test_reports_operations_and_their_deletion_follow_the_tag_view(self) -> None:
         ari = Agent()
@@ -1489,7 +1539,9 @@ class AccessTests(unittest.TestCase):
     def test_view_by_class_distinguishes_tags_that_share_a_name(self) -> None:
         def make(colour: str) -> type:
             class Fire(Tag):
-                hue = Report(colour)
+                @Report
+                def hue(tag) -> str:
+                    return colour
 
             return Fire
 
@@ -1529,9 +1581,17 @@ class AccessTests(unittest.TestCase):
         # Nothing TOP-level lives at Tag.name: a program may declare a
         # Report called Field, Form, or Rip without collision.
         class Freehold(Tag):
-            Field = Report("a farm")
-            Form = Report("a hut")
-            Rip = Report("a tear")
+            @Report
+            def Field(tag) -> str:
+                return "a farm"
+
+            @Report
+            def Form(tag) -> str:
+                return "a hut"
+
+            @Report
+            def Rip(tag) -> str:
+                return "a tear"
 
         self.assertEqual(Freehold.Field, "a farm")
         self.assertEqual(Freehold.Form, "a hut")

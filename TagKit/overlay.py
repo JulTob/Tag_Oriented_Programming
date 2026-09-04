@@ -229,8 +229,8 @@ def _install(
                 False,
                 )
 
-    for name, value, public in declarations.reports:
-        state.reports[name] = (tag, value)
+    for name, report, public in declarations.reports:
+        state.reports[name] = (tag, report)
 
         if public:
             state.published.add(name)
