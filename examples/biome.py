@@ -1,0 +1,123 @@
+"""A pokemon-style biome: creatures are mixed and matched from small Tags.
+No two need the same type to be predictable; every one answers the same
+questions.
+
+Run:  PYTHONPATH=. python3 examples/biome.py
+"""
+
+from __future__ import annotations
+
+import random
+
+from TagKit import Action
+from TagKit import Post
+from TagKit import Public
+from TagKit import Record
+from TagKit import Report
+from TagKit import Tag
+from TagKit import Tags
+from TagKit import Underlay
+
+
+class Creature:
+    def __init__(
+            creature,
+            name: str,
+            ) -> None:
+        creature.name = name
+
+
+class Element(Tag):
+    colour = Public(Report("grey"))
+
+    @Record
+    def attacks(agent, stored) -> list[str]:
+        return stored or []
+
+    @Post
+    def Has_An_Attack(agent):
+        return len(agent.attacks) > 0
+
+
+class Fire(Element):
+    colour = Public(Report("red"))
+
+    @Record
+    def attacks(agent, stored) -> list[str]:
+        return (stored or []) + ["Ember"]
+
+
+class Water(Element):
+    colour = Public(Report("blue"))
+
+    @Record
+    def attacks(agent, stored) -> list[str]:
+        return (stored or []) + ["Bubble"]
+
+
+class Electric(Element):
+    colour = Public(Report("yellow"))
+
+    @Record
+    def attacks(agent, stored) -> list[str]:
+        return (stored or []) + ["Spark"]
+
+
+class Body(Tag):
+    @Record
+    def hp(agent) -> int:
+        return 20
+
+    @Action
+    def Describe(agent) -> str:
+        return f"{agent.name} ({agent.colour}, {agent.hp} hp): {', '.join(agent.attacks)}"
+
+
+class Winged(Body):
+    @Record
+    def hp(agent, stored) -> int:
+        return stored - 5
+
+    @Action
+    @Underlay
+    def Describe(agent, underlay) -> str:
+        return underlay() + " [flies]"
+
+
+class Armoured(Body):
+    @Record
+    def hp(agent, stored) -> int:
+        return stored + 15
+
+    @Action
+    @Underlay
+    def Describe(agent, underlay) -> str:
+        return underlay() + " [armoured]"
+
+
+def main() -> None:
+    random.seed(7)
+    elements = (Fire, Water, Electric)
+    bodies = (Body, Winged, Armoured)
+    biome = []
+
+    for index in range(8):
+        creature = Creature(f"creature-{index}")
+
+        for element in random.sample(elements, k=random.randint(1, 2)):
+            element(creature)
+
+        random.choice(bodies)(creature)
+        biome.append(creature)
+
+    for creature in biome:
+        print(creature.Describe(), "<-", [tag.__name__ for tag in Tags(creature)])
+
+    print()
+    print("runtime types in the biome:", len({type(c) for c in biome}))
+    print("Fire creatures:", [c.name for c in Fire])
+    print("sound Elements:", len(list(Element[:])), "of", len(Element.Field))
+
+
+if __name__ == "__main__":
+    main()

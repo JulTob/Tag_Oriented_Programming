@@ -1,52 +1,65 @@
-from .TagKit import Action
-from .TagKit import At_Exit
-from .TagKit import Contract
-from .TagKit import Delete
-from .TagKit import Imprint
-from .TagKit import Operation
-from .TagKit import Post
-from .TagKit import Postcondition
-from .TagKit import Pre
-from .TagKit import Precondition
-from .TagKit import Record
-from .TagKit import Report
-from .TagKit import Rip
-from .TagKit import Scope
-from .TagKit import Tag
-from .TagKit import TagCompositionError
-from .TagKit import TagContractError
-from .TagKit import TagContractWarning
-from .TagKit import TagDeletionError
-from .TagKit import TagError
-from .TagKit import TagImprintError
-from .TagKit import TagOverwriteWarning
-from .TagKit import TagPostconditionError
-from .TagKit import TagPreconditionError
-from .TagKit import TagResolutionError
-from .TagKit import Tagged
-from .TagKit import Underlay
+"""TagKit: the Python reference implementation of Tag-Oriented Programming."""
+
+from .contracts import Contract
+from .declarations import Action
+from .declarations import Delete
+from .declarations import Imprint
+from .declarations import Operation
+from .declarations import Post
+from .declarations import Postcondition
+from .declarations import Pre
+from .declarations import Precondition
+from .declarations import Public
+from .declarations import Record
+from .declarations import Report
+from .declarations import Rip
+from .declarations import Secret
+from .declarations import Underlay
+from .errors import TagCompositionError
+from .errors import TagContractError
+from .errors import TagContractWarning
+from .errors import TagDeclarationError
+from .errors import TagError
+from .errors import TagImprintError
+from .errors import TagOverwriteWarning
+from .errors import TagPostconditionError
+from .errors import TagPreconditionError
+from .errors import TagResolutionError
+from .lifecycle import At_Exit
+from .lifecycle import Scope
+from .queries import Apply
+from .queries import Has
+from .queries import Outline
+from .queries import Tags
+from .tags import Tag
+from .tags import Tagged
 
 
 __all__ = [
         "Action",
+        "Apply",
         "At_Exit",
         "Contract",
         "Delete",
+        "Has",
         "Imprint",
         "Operation",
+        "Outline",
         "Post",
         "Postcondition",
         "Pre",
         "Precondition",
+        "Public",
         "Record",
         "Report",
         "Rip",
         "Scope",
+        "Secret",
         "Tag",
         "TagCompositionError",
         "TagContractError",
         "TagContractWarning",
-        "TagDeletionError",
+        "TagDeclarationError",
         "TagError",
         "TagImprintError",
         "TagOverwriteWarning",
@@ -54,5 +67,6 @@ __all__ = [
         "TagPreconditionError",
         "TagResolutionError",
         "Tagged",
+        "Tags",
         "Underlay",
         ]
