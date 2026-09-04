@@ -264,7 +264,8 @@ actualized in the Agent; `"Wizard" in agent` says the same by name, so a
 rule written as data (`"Wizard-Elf"` in a table or a file) can be checked
 without importing the Tag. Names match exactly. On the Agent this follows
 the **empty-seat rule**: a host that defines its own `in` keeps it, and
-`Has(agent, Wizard, "Elf")` answers in every case.
+`Has(agent, Wizard, "Elf")` answers in every case, including for a Target
+that was never tagged and so has no Agent side yet.
 
 Format specs are the **display door**: a language's own string formatting
 renders what a Tag or Agent is, without a method on either. On an Agent the
