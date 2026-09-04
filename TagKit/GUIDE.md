@@ -337,11 +337,14 @@ MI6(bond, code="007")
 assert bond.code == "007"
 ```
 
-Why the `*`? A Record's second *positional* parameter is always the stored
-value (pattern 3). Writing `def code(agent, code)` would hand you the
-stored value under the name `code`; TagKit refuses that collision at
-tagging and shows the spelling above. Preconditions and Imprints have no
-stored value, so there `def Has_A_Code(agent, code)` is enough.
+Read the `*` as a blank space. A Record's signature has three places:
+the Agent, what was stored (pattern 3), and what the call brings. When
+there is nothing stored to read, the star holds the empty seat, so
+`def code(agent, *, code)` says "agent, nothing stored, then `code` from
+the call". Writing `def code(agent, code)` would put `code` in the stored
+seat; TagKit refuses that at tagging and shows the spelling above.
+Preconditions and Imprints have no stored seat, so there
+`def Has_A_Code(agent, code)` is enough.
 
 **Watch out.** A condition must return `True`, `False`, or nothing. A
 count of `0` is not `False`; write `return agent.slots > 0`. TagKit refuses
