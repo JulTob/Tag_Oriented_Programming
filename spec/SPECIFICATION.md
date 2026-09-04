@@ -147,10 +147,11 @@ Tag(target, **inputs)
 
 It applies every Tag in the Form that is not yet active, Bases first, then
 returns the same Target. Keyword **inputs** are handed by name to the
-Preconditions and Imprints run during that call (§2.2, §2.3).
+Preconditions, Record builders and Imprints run during that call (§1.3,
+§2.2, §2.3).
 
 ```python
-MI6(bond, code="007")      # every Imprint that declares `code` receives it
+MI6(bond, code="007")      # every protocol that names `code` receives it
 ```
 
 **Reapplying an active Tag does nothing.** It does not duplicate
@@ -402,6 +403,28 @@ The author writes the merge. `stored + new`, `max(stored, new)`,
 `stored | new`: whatever the domain means. A builder without the second
 parameter **replaces**; replacing the Record of an independent Tag is
 diagnosed, like an Action.
+
+A Record signature has three seats: the Agent, the stored value, and the
+application inputs, which bind **by name**. The second positional
+parameter is always the stored seat; when there is nothing to read, a `*`
+holds the seat empty and the inputs follow it by name:
+
+```python
+class MI6(Tag):
+
+    @Record
+    def code(agent, *, code):        # agent, nothing stored, code from the call
+        return code
+
+MI6(bond, code="007")
+bond.code                            # "007"
+```
+
+A builder whose second positional parameter is named like a supplied input
+is refused at tagging with a Declaration Failure that shows the spelling
+above: the stored value must never be mistaken for the input in silence.
+An input the caller did not supply keeps the parameter's default, or is
+`None` when it has none.
 
 After tagging, a Record is an ordinary attribute: read it, assign it,
 delete it with the language's own `del agent.record`. Deleting is allowed
