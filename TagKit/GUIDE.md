@@ -453,10 +453,10 @@ class Agency(Tag):
 
     @Public
     @Operation
-    def dispatch(agency, sender, mesFighter):
+    def dispatch(agency, sender, message):
         if sender not in agency:        # live authority: checked each call
             raise PermissionError("inactive")
-        return f"{sender.name}: {mesFighter}"
+        return f"{sender.name}: {message}"
 
     @Secret
     @Record
