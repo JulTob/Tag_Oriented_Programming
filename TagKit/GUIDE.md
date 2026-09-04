@@ -144,15 +144,19 @@ class Undead(Tag):
 ghoul = Character("Ghoul")
 Undead(ghoul)
 
+corruption_level = 0
 for creature in Undead:                 # every sound member
-    creature.level += 1
+    corruption += creature.level
+    
 
 if not Undead:                          # nobody is Undead: nothing to do
-    pass
+    print("This area is safe")
+else:
+    print(f"This area is corrupted by a level of {corruption}")
 ```
 
 **Watch out.** `for creature in Undead` walks the *sound* population: the
-members whose promises hold (pattern 6). `Undead[:]` is everyone.
+members whose conditions hold (pattern 6). `Undead[:]` is everyone, regardless of conditions.
 
 ### Pattern 2 · State that belongs to the role
 
