@@ -47,6 +47,11 @@ came first.
    silent.
 5. Actions keep the callable Underlay and keep failing when none exists:
    behaviour has no natural empty value; data has `None`.
+6. Application inputs bind by name to a builder's parameters after the
+   Agent and the stored value, so `def code(agent, *, code)` stores the
+   input directly. A second positional parameter named like a supplied
+   input is refused with a Declaration Failure that shows the keyword-only
+   spelling.
 
 ## Rationale
 

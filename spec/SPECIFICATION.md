@@ -705,7 +705,8 @@ when a later, unrelated Tag arrives; it already let its Agent in. Because
 the gate runs before any Base applies, a Precondition sees the Agent as it
 arrives, never what a Base's Imprint is about to write.
 
-Preconditions receive application inputs by name:
+Preconditions, like Record builders and Imprints, receive application
+inputs by name:
 
 ```python
 class Coded(Tag):

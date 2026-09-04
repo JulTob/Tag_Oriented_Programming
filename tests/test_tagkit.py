@@ -1087,6 +1087,47 @@ class PreconditionTests(unittest.TestCase):
         Recruit(bond, code="007")
         self.assertEqual(bond.code, "007")
 
+    def test_records_take_inputs_by_name(self) -> None:
+        class MI6(Tag):
+            @Record
+            def code(agent, *, code):
+                return code
+
+            @Record
+            def aliases(agent, stored, alias=None):
+                return (stored or []) + ([alias] if alias else [])
+
+        bond = Agent()
+        bond.aliases = ["Jimmy"]
+
+        MI6(bond, code="007", alias="Bond")
+
+        self.assertEqual(bond.code, "007")
+        self.assertEqual(bond.aliases, ["Jimmy", "Bond"])
+
+        quiet = Agent()
+        MI6(quiet)
+
+        self.assertIsNone(quiet.code)           # unsupplied, no default
+        self.assertEqual(quiet.aliases, [])     # unsupplied, default kept
+
+    def test_stored_parameter_named_like_an_input_is_refused_loudly(self) -> None:
+        class Slip(Tag):
+            @Record
+            def code(agent, code):              # second positional = stored!
+                return code
+
+        bond = Agent()
+
+        with self.assertRaises(TagDeclarationError) as caught:
+            Slip(bond, code="007")
+
+        self.assertIn("def code(agent, *, code)", str(caught.exception))
+        self.assertNotIn(bond, Slip)
+
+        Slip(bond)                              # no input: stored is meant
+        self.assertIsNone(bond.code)
+
     def test_missing_input_keeps_the_declared_default_or_becomes_none(self) -> None:
         class With_Default(Tag):
             @Imprint

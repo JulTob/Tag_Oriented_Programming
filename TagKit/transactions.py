@@ -211,6 +211,7 @@ def _apply_one(
                 agent,
                 declarations,
                 deleted_before,
+                inputs,
                 )
 
         _commit(

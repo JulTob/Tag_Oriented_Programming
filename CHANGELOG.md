@@ -24,6 +24,9 @@ review reproduced, or a decision recorded in a STEP.
   display door (`f"{Tag:form}"`,
   `f"{agent:tags}"`, `f"{agent:outline}"`, `f"{agent:contract}"`).
 - Records receive the stored value and pile up (STEP-SPEC-5).
+- Record builders receive application inputs by name after the Agent and
+  the stored value: `def code(agent, *, code)` keeps the input; a stored
+  parameter named like an input is refused loudly (STEP-SPEC-5 §6).
 - Reports are declared like Records: `@Report def hit_die(tag): ...`, built
   once per Tag on first read, with an optional second parameter receiving
   the Bases' value. `@Secret` / `@Public` are modifiers that stack in either

@@ -624,16 +624,20 @@ def _parameters_of(
     for parameter in signature(function).parameters.values():
         if parameter.kind is Parameter.VAR_KEYWORD:
             var_keyword = True
-        elif parameter.kind is Parameter.VAR_POSITIONAL:
             continue
-        else:
+
+        if parameter.kind is Parameter.VAR_POSITIONAL:
+            continue
+
+        if parameter.kind is not Parameter.KEYWORD_ONLY:
             positional += 1
-            named.append(
-                    (
-                        parameter.name,
-                        parameter.default is not Parameter.empty,
-                        )
+
+        named.append(
+                (
+                    parameter.name,
+                    parameter.default is not Parameter.empty,
                     )
+                )
 
     spec = _Parameters(
             positional=positional,
@@ -680,10 +684,11 @@ def _protocol_inputs(
     """Bind application inputs to a protocol's named parameters.
 
     The first ``skip`` positional parameters are bound by position (the
-    Agent, and an underlay when present), so their names are the author's
-    choice. Later parameters are filled from ``inputs`` by name. A parameter
-    the caller did not supply keeps its own default, or receives None when
-    it has none. ``**kwargs`` receives any remaining inputs.
+    Agent, and an underlay or stored value when present), so their names
+    are the author's choice. Later parameters, positional or keyword-only,
+    are filled from ``inputs`` by name. A parameter the caller did not
+    supply keeps its own default, or receives None when it has none.
+    ``**kwargs`` receives any remaining inputs.
     """
 
     spec = _parameters_of(function)

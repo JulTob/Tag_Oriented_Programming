@@ -314,8 +314,34 @@ Wizard(bruk)
 War_Caster(bruk)                        # now it takes
 ```
 
-Inputs can travel with the tagging: `MI6(bond, code="007")` hands `code`
-to every Precondition and Imprint that names it.
+Inputs can travel with the tagging. `MI6(bond, code="007")` hands `code`,
+by name, to every Precondition, Record builder and Imprint of that call
+that has a parameter called `code`. The usual use is a Record that simply
+keeps the input:
+
+```python
+class MI6(Tag):
+
+    @Pre
+    def Has_A_Code(agent, code):
+        return code is not None
+
+    @Record
+    def code(agent, *, code):           # keyword-only: "this comes from the call"
+        return code
+
+
+bond = Character("Bond")
+MI6(bond, code="007")
+
+assert bond.code == "007"
+```
+
+Why the `*`? A Record's second *positional* parameter is always the stored
+value (pattern 3). Writing `def code(agent, code)` would hand you the
+stored value under the name `code`; TagKit refuses that collision at
+tagging and shows the spelling above. Preconditions and Imprints have no
+stored value, so there `def Has_A_Code(agent, code)` is enough.
 
 **Watch out.** A condition must return `True`, `False`, or nothing. A
 count of `0` is not `False`; write `return agent.slots > 0`. TagKit refuses

@@ -14,9 +14,12 @@ import warnings
 from .contracts import _bind_condition
 from .declarations import _Declarations
 from .declarations import _is_flag
+from .declarations import _parameters_of
+from .declarations import _protocol_inputs
 from .declarations import _takes_stored
 from .declarations import _takes_underlay
 from .errors import TagCompositionError
+from .errors import TagDeclarationError
 from .errors import TagError
 from .errors import TagOverwriteWarning
 from .errors import TagContractWarning
@@ -271,6 +274,26 @@ def _install(
                 )
 
 
+def _refuse_stored_input_collision(
+        builder: Function,
+        inputs: dict[str, Any],
+        ) -> None:
+    """A Record's second positional parameter is the stored value. If it is
+    named like a supplied input, the author almost certainly meant the
+    input; say so rather than hand over the stored value in silence."""
+
+    second = _parameters_of(builder).named[1][0]
+
+    if second in inputs:
+        raise TagDeclarationError(
+                f"{builder.__qualname__}: its second parameter {second!r} is"
+                f" the stored value, but an input named {second!r} was"
+                " supplied. Take the input by name after a `*`:"
+                f" `def {builder.__name__}(agent, *, {second})`, or rename"
+                " the stored parameter."
+                )
+
+
 def _refuse_container_host(
         state: _State,
         tag: type,
@@ -405,11 +428,14 @@ def _materialize(
         agent: object,
         declarations: _Declarations,
         deleted_before: set[str],
+        inputs: dict[str, Any],
         ) -> None:
     """Run the Tag's Record builders and store their values on the Agent.
 
-    The builder's optional second input is the value already stored under
-    that name, or None when there is none (or the name was deleted).
+    The builder's optional second positional input is the value already
+    stored under that name, or None when there is none (or the name was
+    deleted). Application inputs bind by name to the parameters after
+    that, so ``def code(agent, *, code)`` stores the input directly.
     """
 
     namespace = _namespace_of(agent)
@@ -420,14 +446,32 @@ def _materialize(
         if name in deleted_before or isinstance(stored, _Bound):
             stored = None
 
+        takes_stored = _takes_stored(builder)
+
+        if takes_stored:
+            _refuse_stored_input_collision(
+                    builder,
+                    inputs,
+                    )
+
+        named = _protocol_inputs(
+                builder,
+                inputs,
+                2 if takes_stored else 1,
+                )
+
         try:
-            if _takes_stored(builder):
+            if takes_stored:
                 value = builder(
                         agent,
                         stored,
+                        **named,
                         )
             else:
-                value = builder(agent)
+                value = builder(
+                        agent,
+                        **named,
+                        )
         except TagError:
             raise
         except Exception as error:
