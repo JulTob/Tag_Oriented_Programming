@@ -15,8 +15,12 @@ review reproduced, or a decision recorded in a STEP.
 - Two scopes and one slot per `(scope, name)` (STEP-SPEC-1, Deployed).
 - Publication: `@Secret`, `Public(...)`, the composition door (STEP-SPEC-3).
 - Defective taggings: Postconditions once per call after the whole Form;
-  failed Post or Imprint leaves the Tags; `Tag[:]`, `~Tag[:]`;
-  `bool(agent)` (STEP-SPEC-4).
+  failed Post or Imprint leaves the Tags; the plain loop is the sound
+  population, `~Tag` the defective one, `Tag[:]` everyone; `bool(agent)`
+  (STEP-SPEC-4).
+- Native spellings for every Tag-level act; the Tag's dotted namespace
+  belongs to the program (§0.8): `del Tag[agent]` Rips, `Form(Tag)` is a
+  function.
 - Records receive the stored value and pile up (STEP-SPEC-5).
 
 ### TagKit
@@ -31,14 +35,14 @@ review reproduced, or a decision recorded in a STEP.
   `@Rip @Underlay` teardown crashing; raw `AttributeError` / `TypeError`
   from Record failures; O(n²) Field registration; unbounded `At_Exit`
   registry; stale runtime type after Rip.
-- Added: `Secret`, `Public`, `Tag[:]`, `~Tag[:]`, `Tag[agent]`,
-  `Tag.Form()`, `Contract.Holds`, `Apply`, `Has`, `Tags`, `Outline`,
+- Added: `Secret`, `Public`, `~Tag`, `Tag[:]`, `Tag[agent]`,
+  `del Tag[agent]`, `len(Tag)`, `Form`, `Contract.Holds`, `Apply`, `Has`, `Tags`, `Outline`,
   `TagDeclarationError`, teardown failure reporting, explicit refusal of
   `copy.copy`, protocol parameter defaults honoured.
 - Removed: Agent sugar (`With`, `As`, `|`, `ApplyTags`, `agent.Tag(...)`,
   `Has`/`Tags` methods, `TagPaths`, `TagTree`, `Outline` method), `NAME`,
   `DESCRIPTION`, `ABSTRACT`, `Label`, `Describe`, `Lineage`, `Path`,
-  `TagDeletionError`, `TagKit/TagKit.py`.
+  `TagDeletionError`, `Tag.Field`, `Tag.Rip(agent)`, `TagKit/TagKit.py`.
 
 ### Migration from 0.1
 
@@ -47,4 +51,5 @@ review reproduced, or a decision recorded in a STEP.
 - A failed Postcondition no longer rolls back: check `bool(agent)` or Rip.
 - `agent.Tag(X)` → `X[agent]`; `agent.Tags()` → `Tags(agent)`;
   `agent.Has(X)` → `Has(agent, X)`; `agent.Outline()` → `Outline(agent)`.
-- `Tag.Lineage()` → `Tag.Form()`.
+- `Tag.Lineage()` → `Form(Tag)`; `Tag.Rip(agent)` → `del Tag[agent]`;
+  `Tag.Field` → `Tag[:]`; `for a in Tag` now yields sound members only.

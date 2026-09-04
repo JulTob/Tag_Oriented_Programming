@@ -10,6 +10,14 @@ from .geometry import _leaves
 from .state import _state_of
 
 
+def Form(
+        tag: type,
+        ) -> tuple[type, ...]:
+    """The Base-first closure of a Tag, ending with the Tag itself."""
+
+    return _form_of(tag)
+
+
 def Apply(
         target: object,
         *tags: type,

@@ -100,6 +100,6 @@ rollback target.
   queries live in `queries.py` as functions.
 - `Tag.NAME`, `DESCRIPTION`, `ABSTRACT`, `Label()`, `Describe()`,
   `Lineage()`, `Path()`: a Tag primitive should not invent application
-  data. `Tag.Form()` replaces `Lineage()`.
+  data. `Form(Tag)` replaces `Lineage()`.
 - `TagDeletionError` (never raised) in favour of `TagDeclarationError`.
 - The implicit `underlay`-named-parameter convention.

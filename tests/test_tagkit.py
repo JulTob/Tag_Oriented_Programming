@@ -20,6 +20,7 @@ from TagKit import Apply
 from TagKit import At_Exit
 from TagKit import Contract
 from TagKit import Delete
+from TagKit import Form
 from TagKit import Has
 from TagKit import Imprint
 from TagKit import Operation
@@ -459,7 +460,7 @@ class KernelTests(unittest.TestCase):
         self.assertIn(ari, Root)
         self.assertIn(ari, Left)
         self.assertIn(ari, Right)
-        self.assertEqual(Bridge.Form(), (Root, Left, Right, Bridge))
+        self.assertEqual(Form(Bridge), (Root, Left, Right, Bridge))
 
     def test_active_reapply_is_a_strict_noop(self) -> None:
         ari = Agent()
@@ -471,22 +472,24 @@ class KernelTests(unittest.TestCase):
 
         self.assertEqual(ari.supplies, ["ration", "torch"])
         self.assertEqual(ari.events, ["Stocked", "between"])
-        self.assertEqual(list(Stocked.Field).count(ari), 1)
+        self.assertEqual(list(Stocked[:]).count(ari), 1)
 
     def test_fields_are_non_owning_and_iterable_from_the_tag(self) -> None:
         ari = Agent()
         Field_Member(ari)
         reference = weakref.ref(ari)
 
-        self.assertEqual(list(Field_Member.Field), [ari])
+        self.assertEqual(list(Field_Member[:]), [ari])
         self.assertEqual(list(Field_Member), [ari])
-        self.assertEqual(len(Field_Member.Field), 1)
+        self.assertEqual(len(Field_Member[:]), 1)
+        self.assertEqual(len(Field_Member), 1)
+        self.assertTrue(Field_Member)
 
         del ari
         gc.collect()
 
         self.assertIsNone(reference())
-        self.assertEqual(list(Field_Member.Field), [])
+        self.assertEqual(list(Field_Member[:]), [])
 
     def test_fields_index_by_identity_not_equality(self) -> None:
         class Twin:
@@ -502,11 +505,11 @@ class KernelTests(unittest.TestCase):
         Field_Member(one)
         Field_Member(two)
 
-        self.assertEqual(len(Field_Member.Field), 2)
+        self.assertEqual(len(Field_Member[:]), 2)
 
-        Field_Member.Rip(one)
+        del Field_Member[one]
 
-        self.assertEqual(list(Field_Member.Field), [two])
+        self.assertEqual(list(Field_Member[:]), [two])
 
     def test_targets_that_cannot_carry_top_state_fail_explicitly(self) -> None:
         target = Slotted_Agent()
@@ -534,7 +537,7 @@ class KernelTests(unittest.TestCase):
         Squire(ari)
         self.assertIsInstance(ari, Squire)
 
-        Squire.Rip(ari)
+        del Squire[ari]
         self.assertNotIn(ari, Squire)
         self.assertIsInstance(ari, Squire)
 
@@ -945,7 +948,7 @@ class PublicationTests(unittest.TestCase):
 
         self.assertFalse(hasattr(ember, "ember_heat"))
 
-        self.Fire.Rip(ember)
+        del self.Fire[ember]
 
         self.assertEqual(ember.warmth, 0)
 
@@ -1109,16 +1112,18 @@ class DefectiveTaggingTests(unittest.TestCase):
         with self.assertRaises(TagPostconditionError):
             Candidate_Record(ari)
 
-        self.assertIn(ari, Candidate_Record)
+        self.assertIn(ari, Candidate_Record)          # still a member
+        self.assertIn(ari, Candidate_Record[:])       # everyone
         self.assertEqual(ari.token, "prepared")
         self.assertFalse(bool(ari))
-        self.assertNotIn(ari, Candidate_Record[:])
-        self.assertIn(ari, ~Candidate_Record[:])
+        self.assertNotIn(ari, list(Candidate_Record)) # not in the sound loop
+        self.assertIn(ari, ~Candidate_Record)
 
         ari.ready = True
 
         self.assertTrue(bool(ari))
-        self.assertIn(ari, Candidate_Record[:])
+        self.assertIn(ari, list(Candidate_Record))
+        self.assertNotIn(ari, ~Candidate_Record)
 
     def test_sound_and_defective_partition_the_field(self) -> None:
         good = Agent()
@@ -1130,10 +1135,12 @@ class DefectiveTaggingTests(unittest.TestCase):
         with self.assertRaises(TagPostconditionError):
             Candidate_Record(bad)
 
-        self.assertEqual(list(Candidate_Record[:]), [good])
-        self.assertEqual(list(~Candidate_Record[:]), [bad])
-        self.assertEqual(set(Candidate_Record), {good, bad})
-        self.assertIs(Candidate_Record[:] | ~Candidate_Record[:], Candidate_Record.Field)
+        self.assertEqual(list(Candidate_Record), [good])
+        self.assertEqual(list(~Candidate_Record), [bad])
+        self.assertEqual(set(Candidate_Record[:]), {good, bad})
+        self.assertEqual(len(Candidate_Record), 1)
+        self.assertEqual(len(~Candidate_Record), 1)
+        self.assertEqual(len(Candidate_Record[:]), 2)
 
     def test_posts_of_earlier_tags_recheck_on_later_tagging(self) -> None:
         ari = Agent()
@@ -1151,7 +1158,7 @@ class DefectiveTaggingTests(unittest.TestCase):
             Advanced(bea)
 
         self.assertIn(bea, Advanced)
-        self.assertIn(bea, ~Advanced[:])
+        self.assertIn(bea, ~Advanced)
 
     def test_imprint_failure_keeps_the_tag_and_its_raw_effects(self) -> None:
         ari = Agent()
@@ -1274,7 +1281,7 @@ class RipTests(unittest.TestCase):
         ari = Agent()
 
         Squire(ari)
-        Squire.Rip(ari)
+        del Squire[ari]
 
         self.assertNotIn(ari, Squire)
         self.assertEqual(ari.rank, "squire")
@@ -1288,7 +1295,7 @@ class RipTests(unittest.TestCase):
         self.assertEqual(ari.rank_reset(), "Disrobed")
 
         ari.rank = "knight"
-        Knighted.Rip(ari)
+        del Knighted[ari]
 
         self.assertNotIn(ari, Knighted)
         self.assertIsNone(ari.rank)
@@ -1309,7 +1316,7 @@ class RipTests(unittest.TestCase):
 
         ari = Agent()
         Elite(ari)
-        Elite.Rip(ari)
+        del Elite[ari]
 
         self.assertEqual(log, ["base", "elite"])
 
@@ -1323,7 +1330,7 @@ class RipTests(unittest.TestCase):
         Fragile(ari)
 
         with self.assertRaises(TagCompositionError):
-            Fragile.Rip(ari)
+            del Fragile[ari]
 
         self.assertNotIn(ari, Fragile)
 
@@ -1333,14 +1340,14 @@ class RipTests(unittest.TestCase):
         Wolf(ari)
 
         with self.assertRaises(TagCompositionError):
-            Beast.Rip(ari)
+            del Beast[ari]
 
         self.assertIn(ari, Beast)
 
-        Wolf.Rip(ari)
+        del Wolf[ari]
         self.assertIn(ari, Beast)
 
-        Beast.Rip(ari)
+        del Beast[ari]
         self.assertNotIn(ari, Beast)
 
     def test_ripped_agent_is_not_yielded_by_field_iteration(self) -> None:
@@ -1349,22 +1356,22 @@ class RipTests(unittest.TestCase):
 
         Squire(ari)
         Squire(bea)
-        Squire.Rip(ari)
+        del Squire[ari]
 
-        self.assertEqual(list(Squire.Field), [bea])
+        self.assertEqual(list(Squire[:]), [bea])
 
     def test_ripping_an_inactive_tag_raises(self) -> None:
         ari = Agent()
 
         with self.assertRaises(TagResolutionError):
-            Knighted.Rip(ari)
+            del Knighted[ari]
 
     def test_reapply_after_rip_is_a_fresh_application(self) -> None:
         ari = Agent()
 
         Squire(ari)
         ari.rank = "knight"
-        Squire.Rip(ari)
+        del Squire[ari]
         Squire(ari)
 
         self.assertIn(ari, Squire)
@@ -1388,7 +1395,7 @@ class ExitProtocolTests(unittest.TestCase):
     def test_explicit_rip_prevents_a_second_rip_on_collection(self) -> None:
         ari = Agent()
         Sentry(ari)
-        Sentry.Rip(ari)
+        del Sentry[ari]
 
         del ari
         gc.collect()
@@ -1488,7 +1495,7 @@ class AccessTests(unittest.TestCase):
         ari = Agent()
 
         Squire(ari)
-        Squire.Rip(ari)
+        del Squire[ari]
 
         with self.assertRaises(AttributeError):
             ari.Squire
@@ -1504,6 +1511,19 @@ class AccessTests(unittest.TestCase):
     def test_positional_slices_are_rejected(self) -> None:
         with self.assertRaises(TypeError):
             Squire[0:1]
+
+    def test_tag_dotted_namespace_belongs_to_the_program(self) -> None:
+        # Nothing TOP-level lives at Tag.name: a program may declare a
+        # Report called Field, Form, or Rip without collision.
+        class Freehold(Tag):
+            Field = Report("a farm")
+            Form = Report("a hut")
+            Rip = Report("a tear")
+
+        self.assertEqual(Freehold.Field, "a farm")
+        self.assertEqual(Freehold.Form, "a hut")
+        self.assertEqual(Freehold.Rip, "a tear")
+        self.assertEqual(Form(Freehold), (Freehold,))
 
 
 class QueryTests(unittest.TestCase):

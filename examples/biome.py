@@ -116,7 +116,7 @@ def main() -> None:
     print()
     print("runtime types in the biome:", len({type(c) for c in biome}))
     print("Fire creatures:", [c.name for c in Fire])
-    print("sound Elements:", len(list(Element[:])), "of", len(Element.Field))
+    print("sound Elements:", len(Element), "of", len(Element[:]))
 
 
 if __name__ == "__main__":

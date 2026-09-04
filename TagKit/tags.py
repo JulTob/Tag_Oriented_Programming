@@ -1,12 +1,17 @@
 """The public TOP types: Tag and its metaclass.
 
-    Wizard(charlie)          apply (Bases first)
-    charlie in Wizard        active membership
+TOP borrows the language's own syntax for Tag-level acts and leaves the
+Tag's dotted namespace to the program:
+
+    Wizard(charlie)               apply (Bases first)
+    charlie in Wizard             active membership, sound or defective
     isinstance(charlie, Wizard)   ever a member ("ever a Wizard, always a Wizard")
-    for w in Wizard          the whole Field
-    Wizard[:]  /  ~Wizard[:] sound / defective members
-    Wizard[charlie]          the Agent-bound view
-    Wizard.Rip(charlie)      leave the Field
+    for w in Wizard               the sound population
+    for w in ~Wizard              the defective population
+    Wizard[:]                     everyone: the whole Field
+    Wizard[charlie]               the Agent-bound view
+    del Wizard[charlie]           leave the Field (Rip)
+    Form(Wizard)                  the Base-first closure (a function)
 """
 
 from __future__ import annotations
@@ -19,7 +24,6 @@ from .contracts import _holds
 from .declarations import _MISSING
 from .fields import _Field
 from .fields import _Partition
-from .geometry import _form_of
 from .lifecycle import _rip
 from .state import Tagged
 from .state import _state_of
@@ -27,7 +31,7 @@ from .transactions import _apply
 
 
 class MetaTag(type):
-    """Metaclass of every Tag: the Tag-level operations."""
+    """Metaclass of every Tag: the Tag-level acts, in language syntax."""
 
     def __new__(
             meta,
@@ -47,79 +51,6 @@ class MetaTag(type):
                 bases,
                 namespace,
                 **kwargs,
-                )
-
-    @property
-    def Field(
-            tag,
-            ) -> _Field:
-        return tag._tagkit_field
-
-    def Form(
-            tag,
-            ) -> tuple[type, ...]:
-        """Base-first closure of this Tag, ending with the Tag itself."""
-
-        return _form_of(tag)
-
-    def __contains__(
-            tag,
-            candidate: object,
-            ) -> bool:
-        state = _state_of(candidate)
-
-        return (
-                state is not None
-                and tag in state.active
-                )
-
-    def __iter__(
-            tag,
-            ) -> Iterator[object]:
-        return iter(tag._tagkit_field)
-
-    def __getitem__(
-            tag,
-            key: Any,
-            ) -> Any:
-        if isinstance(key, slice):
-            if key != slice(None):
-                raise TypeError(
-                        "Tag[:] is the sound Field; positional slices have"
-                        " no meaning for a population"
-                        )
-
-            return _Partition(
-                    tag._tagkit_field,
-                    _holds,
-                    "sound",
-                    )
-
-        return _view_of(
-                key,
-                tag,
-                )
-
-    def __instancecheck__(
-            tag,
-            candidate: object,
-            ) -> bool:
-        state = _state_of(candidate)
-
-        if state is not None and tag in state.ever:
-            return True
-
-        return super().__instancecheck__(candidate)
-
-    def Rip(
-            tag,
-            agent: object,
-            ) -> object:
-        """Extract an Agent from this Tag's Field. Contributions stay."""
-
-        return _rip(
-                agent,
-                tag,
                 )
 
     def __call__(
@@ -143,6 +74,84 @@ class MetaTag(type):
                 target,
                 tag,
                 inputs,
+                )
+
+    def __contains__(
+            tag,
+            candidate: object,
+            ) -> bool:
+        state = _state_of(candidate)
+
+        return (
+                state is not None
+                and tag in state.active
+                )
+
+    def __instancecheck__(
+            tag,
+            candidate: object,
+            ) -> bool:
+        state = _state_of(candidate)
+
+        if state is not None and tag in state.ever:
+            return True
+
+        return super().__instancecheck__(candidate)
+
+    def _sound(
+            tag,
+            ) -> _Partition:
+        return _Partition(
+                tag._tagkit_field,
+                _holds,
+                "sound",
+                )
+
+    def __iter__(
+            tag,
+            ) -> Iterator[object]:
+        return iter(tag._sound())
+
+    def __len__(
+            tag,
+            ) -> int:
+        return len(tag._sound())
+
+    def __bool__(
+            tag,
+            ) -> bool:
+        return True
+
+    def __invert__(
+            tag,
+            ) -> _Partition:
+        return ~tag._sound()
+
+    def __getitem__(
+            tag,
+            key: Any,
+            ) -> Any:
+        if isinstance(key, slice):
+            if key != slice(None):
+                raise TypeError(
+                        "Tag[:] is the whole Field; positional slices have"
+                        " no meaning for a population"
+                        )
+
+            return tag._tagkit_field
+
+        return _view_of(
+                key,
+                tag,
+                )
+
+    def __delitem__(
+            tag,
+            agent: object,
+            ) -> None:
+        _rip(
+                agent,
+                tag,
                 )
 
 

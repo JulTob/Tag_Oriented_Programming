@@ -89,7 +89,7 @@ class Wizard(Tag):
 Wizard(charlie)
 
 assert charlie in Wizard            # active membership
-for wizard in Wizard:               # the Field
+for wizard in Wizard:               # the Field (its sound members, §2.5)
     Observe(wizard)
 ```
 
@@ -129,7 +129,7 @@ class Duelist(Tag): pass
 class Arcane_Duelist(Spellcaster, Duelist):
     pass
 
-assert Arcane_Duelist.Form() == (Spellcaster, Duelist, Arcane_Duelist)
+assert Form(Arcane_Duelist) == (Spellcaster, Duelist, Arcane_Duelist)
 ```
 
 A Base reachable through several paths appears once. **Forming** follows
@@ -213,7 +213,7 @@ exceptional, violent act of Field expulsion: *"Give me your badge and
 weapon. You can no longer go into the evidence room."*
 
 ```python
-MI6.Rip(bond)
+del MI6[bond]
 assert bond not in MI6
 assert isinstance(bond, MI6)      # once an agent, always an agent
 ```
@@ -225,11 +225,36 @@ Rip is the only exit from a Field, and it obeys three laws:
   Agent**: it has what it learned, but no active access to the Tag's Field,
   Operations, Reports or Agent-bound view. Rogue Agents are dangerous… but
   useful.
-- **Rip is refused while a Shape needs the Base.** `Beast.Rip(wolf)` fails
+- **Rip is refused while a Shape needs the Base.** `del Beast[wolf]` fails
   while `Wolf` is active. Deform the Shape first. Rip never cascades: TOP
   does not run other Tags' protocols behind your back.
 - **Reapplying a Ripped Tag is a fresh Tagging.** Imprints run again;
   Records are rebuilt.
+
+## 0.8 Spellings
+
+TOP borrows the language's own syntax for every Tag-level act and leaves
+the Tag's dotted namespace, `Wizard.something`, to the program. A Report
+called `Field`, `Form` or `Rip` must be possible. Structure without
+stepping on the programmer's choices: TOP should feel like part of the
+language, not a library's naming.
+
+| Act | Python spelling |
+| --- | --- |
+| apply | `Wizard(agent, **inputs)` |
+| active member? | `agent in Wizard` |
+| ever a member? | `isinstance(agent, Wizard)` |
+| the sound population | `for w in Wizard`, `len(Wizard)` |
+| the defective population | `for w in ~Wizard` |
+| everyone in the Field | `Wizard[:]` |
+| the Agent-bound view | `Wizard[agent]` |
+| leave the Field (Rip) | `del Wizard[agent]` |
+| the Form | `Form(Wizard)` |
+
+Queries that need a name are functions (`Form`, `Tags`, `Has`, `Apply`,
+`Outline`, `Contract`, `Scope`), never members of the Tag or of the Agent.
+Another language profile chooses its own native spellings; the acts and
+their distinctions are what must survive.
 
 ---
 
@@ -523,9 +548,9 @@ view.
 **Direct Tag access**: the Tag itself.
 
 ```python
-Paladin.Field
 Paladin.HONOUR_CODE
 Paladin.Operation(...)
+Paladin[:]                    # its Field
 ```
 
 Worked example:
@@ -721,14 +746,16 @@ assert agent            # or raise
 Fields partition accordingly:
 
 ```python
-for wizard in Wizard:        # every member, sound or defective
-for wizard in Wizard[:]:     # the sound population
-for broken in ~Wizard[:]:    # the defective population: repair them
-Wizard[:] | ~Wizard[:]       # the whole Field again
+for wizard in Wizard:        # the sound population: the ones fit to play
+for broken in ~Wizard:       # the defective population: repair them
+for anyone in Wizard[:]:     # everyone, sound or defective
+assert broken in Wizard      # a defective Agent is still a member
 ```
 
-Nobody disappears from a plain loop without being asked. A program that
-wants only sound Agents says so with `[:]`.
+The plain loop is the working population. A broken Agent does not stop
+being a member (`in`), does not leave `Wizard[:]`, and waits in `~Wizard`
+for repair or Rip. Membership and the loop deliberately disagree for it:
+the loop is the line, and a defective product is off the line.
 
 Truthiness on a plain object is vacuously true, so this fills an empty
 seat. A host that defines its own `__bool__` or `__len__` keeps it until a
@@ -787,7 +814,7 @@ class MI6(Tag):
         agent.status = "Former MI6 Agent"
 
 MI6(bond, code="007")
-MI6.Rip(bond)
+del MI6[bond]
 bond.status          # "Former MI6 Agent"
 ```
 
@@ -873,7 +900,9 @@ A conforming implementation provides, ring by ring:
 - the five-step tagging sequence with the call boundary: rollback on gate
   and Record failure, Tags stay on Imprint and Postcondition failure;
 - Rip: sticky contributions, refusal while a Shape requires the Base, no
-  cascade.
+  cascade;
+- native spellings for every Tag-level act, leaving the Tag's dotted
+  namespace to the program.
 
 **Ring 1**
 - Agent and Tag scopes, `(scope, name)` slots, cross-kind collision rules;
@@ -892,8 +921,9 @@ A conforming implementation provides, ring by ring:
   call after the whole Form, re-checked at every later boundary, without
   inputs;
 - the contract direction, with weakened Postconditions diagnosed;
-- defective Agents: contract truthiness, sound and defective partitions,
-  the plain loop as the whole Field; a namespace that names the culprit.
+- defective Agents: contract truthiness; the plain loop as the sound
+  population, `~Tag` the defective one, `Tag[:]` everyone, membership
+  unchanged; a namespace that names the culprit.
 
 **Ring 3**
 - `@Rip` protocols run after membership ends, once, composed, failures

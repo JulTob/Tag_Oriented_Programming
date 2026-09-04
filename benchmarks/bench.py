@@ -84,18 +84,18 @@ def main() -> None:
         tracemalloc.stop()
 
         start = time.perf_counter()
-        sound = sum(1 for _ in Wizard[:])
+        sound = sum(1 for _ in Wizard)
         iterate = time.perf_counter() - start
 
         print(f"population {population}")
         print(f"  tag Person+Wizard         {elapsed * 1e6 / population:7.1f} us per Agent")
-        print(f"  iterate Wizard[:]         {iterate * 1e3:7.1f} ms ({sound} sound)")
+        print(f"  iterate Wizard (sound)    {iterate * 1e3:7.1f} ms ({sound} sound)")
         print(f"  peak memory               {peak / population:7.0f} bytes per Agent")
         print(f"  runtime types             {len({type(h) for h in keep})}")
 
         for hero in keep:
-            Wizard.Rip(hero)
-            Person.Rip(hero)
+            del Wizard[hero]
+            del Person[hero]
 
         del keep
 

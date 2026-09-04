@@ -28,6 +28,7 @@ from .errors import TagResolutionError
 from .lifecycle import At_Exit
 from .lifecycle import Scope
 from .queries import Apply
+from .queries import Form
 from .queries import Has
 from .queries import Outline
 from .queries import Tags
@@ -41,6 +42,7 @@ __all__ = [
         "At_Exit",
         "Contract",
         "Delete",
+        "Form",
         "Has",
         "Imprint",
         "Operation",

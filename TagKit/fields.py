@@ -1,9 +1,9 @@
 """Fields: the population of Agents carrying a Tag.
 
 A Field never keeps an Agent alive. Membership is indexed by identity so
-registration and removal are constant-time. ``Tag[:]`` is the sound
-population (every visible Postcondition holds), ``~Tag[:]`` the defective
-one; iterating the Tag itself gives the whole Field.
+registration and removal are constant-time. Iterating a Tag gives the
+sound population (every visible Postcondition holds), ``~Tag`` the
+defective one, ``Tag[:]`` everyone.
 """
 
 from __future__ import annotations
@@ -142,15 +142,6 @@ class _Partition:
                 lambda agent: not holds(agent),
                 "defective" if partition._label == "sound" else "sound",
                 )
-
-    def __or__(
-            partition,
-            other: object,
-            ) -> _Field:
-        if isinstance(other, _Partition) and other._field is partition._field:
-            return partition._field
-
-        return NotImplemented
 
     def __repr__(
             partition,

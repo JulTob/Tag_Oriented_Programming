@@ -136,7 +136,10 @@ def Scope(
     finally:
         for tag in reversed(applied):
             try:
-                tag.Rip(agent)
+                _rip(
+                        agent,
+                        tag,
+                        )
             except TagError:
                 pass
 

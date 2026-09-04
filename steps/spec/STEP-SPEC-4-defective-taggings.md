@@ -17,9 +17,9 @@ raises, the Tags stay, and the Agent is a member whose promise is broken.
 An Imprint failure likewise leaves the Tags applied. Preconditions and
 Record failures still roll the whole call back.
 
-Fields partition into the **sound** population (`Tag[:]`) and the
-**defective** one (`~Tag[:]`); their union is the Field. The plain loop
-over a Tag is the whole Field.
+Fields partition into the **sound** population (`for a in Tag`) and the
+**defective** one (`for a in ~Tag`); `Tag[:]` is everyone. Membership
+(`agent in Tag`) is unchanged by defect.
 
 ## Motivation
 
@@ -46,9 +46,9 @@ nobody disappears from a plain loop silently.
    stay; the Agent is defective while any visible Postcondition fails.
 5. `bool(agent)` is true exactly when every visible Postcondition holds.
    A host's own truthiness is kept until a Postcondition is visible.
-6. `Tag[:]` iterates and tests membership of the sound population;
-   `~Tag[:]` the defective one; `Tag[:] | ~Tag[:]` is the Field; iterating
-   the Tag itself is the whole Field.
+6. Iterating the Tag gives the sound population and `len(Tag)` counts
+   it; `~Tag` is the defective population; `Tag[:]` is the whole Field.
+   `agent in Tag` stays true for a defective member.
 7. Postconditions take no application inputs.
 
 ## Rationale
@@ -57,9 +57,12 @@ Checking Postconditions once per call, after the whole Form, lets a Base
 promise what its Shape delivers ("an Element has an attack"). Checking
 per Tag would refuse every such Base at its own step.
 
-The plain loop is the whole Field because a defective Agent that vanishes
-from `for wizard in Wizard` is the silent failure this STEP exists to
-prevent. The partitions are one character away.
+The plain loop is the working population: gameplay iterates the Agents
+fit to play, repair iterates `~Wizard`, and `Wizard[:]` is there when a
+program wants everyone. A defective Agent never loses membership, so
+guards on `in` keep working while it waits for repair. The spellings
+follow the Director's rule that Tag-level acts use language syntax and
+leave `Tag.name` to the program (Specification §0.8).
 
 ## Backwards compatibility
 
@@ -74,7 +77,8 @@ and parts are atomic; write and quality check are not.
 | --- | --- |
 | Roll back on any failure (0.1 behaviour) | Rejected by the Director: a product is not unmade |
 | Author chooses per Tag | Set aside; two laws to explain |
-| Default iteration is the sound population (0.2 alpha) | Rejected; hides members from the most basic loop |
+| Default iteration is the whole Field, `Tag[:]` the sound one | Rejected by the Director; the loop should be the working population, with `~Tag` one character away |
+| `Tag.Field`, `Tag.Rip(agent)` as dotted methods | Rejected; `Tag.name` belongs to the program (§0.8) |
 | Uniform access (`agent.hp()` and `agent.hp`) | Redacted with this STEP's review: it returns a proxy that leaks into host code and violates "explicit before magical" |
 
 ## Acceptance requirements
