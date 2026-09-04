@@ -2,7 +2,7 @@
 
 [Manifesto](../spec/MANIFESTO.md) →
 [Technical Specification](../spec/SPECIFICATION.md) →
-**TagKit Guide** → [Pin Guide](PIN_GUIDE.md)
+**TagKit Guide** → [Python Profile](PYTHON_PROFILE.md) → [Pin Guide](PIN_GUIDE.md)
 
 ## Build from meaning, with no class jungle.
 

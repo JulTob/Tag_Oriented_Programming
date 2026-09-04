@@ -9,7 +9,9 @@ profile of TOP.
 
 ### Added
 
-- Stable public imports through `TagKit`.
+- [`TagKit/PYTHON_PROFILE.md`](TagKit/PYTHON_PROFILE.md) — TagKit utilities beside the
+  normative Specification.
+- STEP-SPEC-2 draft: Tag members composition-internal at runtime (Brief).
 - Procedural `Apply`, `Has`, and `Tags` queries.
 - Tag Fields through `Tag[:]` and Agent-bound views through `Tag[agent]`.
 - Geometry, Forms, Overlays, and explicit Underlays.
@@ -23,6 +25,9 @@ profile of TOP.
 
 ### Changed
 
+- Merge STEP-SPEC-1 into the Specification: contribution scope follows the
+  receiver, access law, contract phases, central Actions, and no implicit
+  Operation projection.
 - The implementation is divided into cohesive internal modules. Application
   imports remain rooted at `TagKit`.
 - Active reapplication is a strict no-op.

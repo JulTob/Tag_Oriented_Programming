@@ -21,6 +21,15 @@ A conforming implementation must provide:
 
 Surface spellings may differ between languages; the **semantic laws** must not.
 
+## TagKit profile features
+
+TagKit adds Python conveniences that are **not** required for TOP conformance:
+procedural `Apply` / `Has` / `Tags`, Checkpoints, Scope, Pins, Geometry
+helpers, uniform access spellings, and similar utilities. They are documented
+in [`TagKit/PYTHON_PROFILE.md`](TagKit/PYTHON_PROFILE.md). A conforming
+implementation in another language may omit them or express them differently,
+as long as core Specification semantics hold.
+
 ## The conformance suite
 
 `tests/` is the seed of a language-agnostic conformance suite. An implementation passes by satisfying the behaviours those tests assert, ported to its language.
