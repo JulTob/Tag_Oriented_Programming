@@ -61,6 +61,9 @@ def _hooks_for(
     if _host_member(host_type, "__format__") is None:
         hooks["__format__"] = _agent_format
 
+    if _host_member(host_type, "__contains__") is None:
+        hooks["__contains__"] = _agent_contains
+
     if _host_member(host_type, "__copy__") is None:
         hooks["__copy__"] = _agent_copy
 
@@ -131,6 +134,37 @@ def _agent_format(
             f"unknown format spec {spec!r} for an Agent; use 'tags',"
             " 'outline', or 'contract'"
             )
+
+
+def _agent_contains(
+        agent: object,
+        probe: object,
+        ) -> bool:
+    """``Wizard in agent`` and ``"Wizard" in agent``: active membership,
+    by Tag or by Tag name."""
+
+    return _carries(
+            agent,
+            probe,
+            )
+
+
+def _carries(
+        agent: object,
+        probe: object,
+        ) -> bool:
+    state = _state_of(agent)
+
+    if state is None:
+        return False
+
+    if isinstance(probe, str):
+        return any(
+                tag.__name__ == probe
+                for tag in state.active
+                )
+
+    return probe in state.active
 
 
 def _agent_bool(

@@ -243,16 +243,28 @@ language, not a library's naming.
 | Act | Python spelling |
 | --- | --- |
 | apply | `Wizard(agent, **inputs)` |
-| active member? | `agent in Wizard` |
+| active member? | `agent in Wizard`, `Wizard in agent`, `"Wizard" in agent` |
 | ever a member? | `isinstance(agent, Wizard)` |
-| the sound population | `for w in Wizard`, `len(Wizard)` |
-| the defective population | `for w in ~Wizard` |
-| everyone in the Field | `Wizard[:]` |
+| the sound population | `for w in Wizard`, `len(Wizard)`, `if Wizard:` |
+| the defective population | `for w in ~Wizard`, `if ~Wizard:` |
+| everyone in the Field | `Wizard[:]`, `if Wizard[:]:` |
 | the Agent-bound view | `Wizard[agent]` |
 | leave the Field (Rip) | `del Wizard[agent]` |
 | the Form, as Tags | `Form(Wizard)` |
 | the Form, as text | `f"{Wizard:form}"` |
 | an Agent's Tags, Outline, contract, as text | `f"{agent:tags}"`, `f"{agent:outline}"`, `f"{agent:contract}"` |
+
+Truth on a Tag is truth on a collection: `if Wizard:` asks whether anyone
+sound is a Wizard right now, `while Enemy:` fights while an enemy stands,
+`if not Boss:` spawns one, `if ~Wizard:` asks whether anyone waits for
+repair.
+
+Membership reads from either side. `Wizard in agent` says the Tag is
+actualized in the Agent; `"Wizard" in agent` says the same by name, so a
+rule written as data (`"Wizard-Elf"` in a table or a file) can be checked
+without importing the Tag. Names match exactly. On the Agent this follows
+the **empty-seat rule**: a host that defines its own `in` keeps it, and
+`Has(agent, Wizard, "Elf")` answers in every case.
 
 Format specs are the **display door**: a language's own string formatting
 renders what a Tag or Agent is, without a method on either. On an Agent the
@@ -759,9 +771,9 @@ for anyone in Wizard[:]:     # everyone, sound or defective
 assert broken in Wizard      # a defective Agent is still a member
 ```
 
-The plain loop is the working population. A broken Agent does not stop
-being a member (`in`), does not leave `Wizard[:]`, and waits in `~Wizard`
-for repair or Rip. Membership and the loop deliberately disagree for it:
+The plain loop is the working population, and `if Wizard:` asks whether
+it is empty. A broken Agent does not stop being a member (`in`), does not
+leave `Wizard[:]`, and waits in `~Wizard` for repair or Rip. Membership and the loop deliberately disagree for it:
 the loop is the line, and a defective product is off the line.
 
 Truthiness on a plain object is vacuously true, so this fills an empty

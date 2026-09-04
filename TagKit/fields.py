@@ -92,6 +92,14 @@ class _Field:
                 if reference() is not None
                 )
 
+    def __bool__(
+            field,
+            ) -> bool:
+        return any(
+                reference() is not None
+                for reference in list(field._members.values())
+                )
+
 
 class _Partition:
     """One half of a Field: the Agents for which ``holds`` is True."""
@@ -129,6 +137,14 @@ class _Partition:
             ) -> int:
         return sum(
                 1
+                for _ in partition
+                )
+
+    def __bool__(
+            partition,
+            ) -> bool:
+        return any(
+                True
                 for _ in partition
                 )
 

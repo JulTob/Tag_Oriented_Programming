@@ -81,6 +81,18 @@ rollback target.
   rolls the ever-set back.
 - **Records over host descriptors** are refused with a Composition Failure
   rather than silently bypassing a property.
+- **The Tag's dotted namespace is the program's.** Every Tag-level act is
+  language syntax on the metaclass: `in`, `for`, `~`, `len`, `bool`,
+  `[:]`, `[agent]`, `del Tag[agent]`, `format`. The only class attribute
+  TagKit adds is the private `_tagkit_field`. `bool(Tag)` is "any sound
+  member", like a collection.
+- **The empty-seat rule on Agents.** `__bool__`, `__contains__`,
+  `__format__`, `__copy__` and `__deepcopy__` are installed on the runtime
+  type only when the host defines none of its own (`__bool__` only once a
+  Postcondition is visible). `Tag in agent` and `"Tag" in agent` therefore
+  exist on ordinary hosts and stay out of the way of containers; `Has()`
+  answers regardless. Format specs are the display door: `f"{Tag:form}"`,
+  `f"{agent:tags}"`, `f"{agent:outline}"`, `f"{agent:contract}"`.
 - **Assigning a Tag's name on an Agent** (`ari.Elf = 1`) shadows the view by
   name; plain Python, not intercepted. `Elf[ari]` is unaffected.
 - **Inputs and defaults.** A protocol parameter the caller omitted keeps

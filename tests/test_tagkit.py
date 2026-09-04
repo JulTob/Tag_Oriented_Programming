@@ -484,12 +484,16 @@ class KernelTests(unittest.TestCase):
         self.assertEqual(len(Field_Member[:]), 1)
         self.assertEqual(len(Field_Member), 1)
         self.assertTrue(Field_Member)
+        self.assertTrue(Field_Member[:])
+        self.assertFalse(~Field_Member)
 
         del ari
         gc.collect()
 
         self.assertIsNone(reference())
         self.assertEqual(list(Field_Member[:]), [])
+        self.assertFalse(Field_Member)
+        self.assertFalse(Field_Member[:])
 
     def test_fields_index_by_identity_not_equality(self) -> None:
         class Twin:
@@ -595,6 +599,8 @@ class HostPreservationTests(unittest.TestCase):
         Field_Member(bag)
 
         self.assertIn("x", bag)
+        self.assertNotIn(Field_Member, bag)       # the host keeps its `in`
+        self.assertTrue(Has(bag, Field_Member))   # the function still answers
         self.assertEqual(bag | 1, "host-or")
         self.assertTrue(bool(bag))
 
@@ -1141,6 +1147,13 @@ class DefectiveTaggingTests(unittest.TestCase):
         self.assertEqual(len(Candidate_Record), 1)
         self.assertEqual(len(~Candidate_Record), 1)
         self.assertEqual(len(Candidate_Record[:]), 2)
+        self.assertTrue(Candidate_Record)          # someone sound
+        self.assertTrue(~Candidate_Record)         # someone broken
+        self.assertTrue(Candidate_Record[:])       # anyone
+
+        bad.ready = True
+
+        self.assertFalse(~Candidate_Record)        # nobody left to repair
 
     def test_posts_of_earlier_tags_recheck_on_later_tagging(self) -> None:
         ari = Agent()
@@ -1527,6 +1540,54 @@ class AccessTests(unittest.TestCase):
 
 
 class QueryTests(unittest.TestCase):
+    def test_membership_from_the_agent_side_by_tag_or_by_name(self) -> None:
+        ari = Agent()
+
+        Elf(ari)
+
+        self.assertIn(Elf, ari)
+        self.assertIn(Person, ari)
+        self.assertIn("Elf", ari)
+        self.assertNotIn(Paladin, ari)
+        self.assertNotIn("Paladin", ari)
+        self.assertNotIn("elf", ari)              # names match exactly
+        self.assertTrue(Has(ari, "Elf", Person))
+        self.assertFalse(Has(ari, "Elf", "Paladin"))
+
+        # A never-tagged Target has no Agent side yet: `in` is the host's
+        # own (a plain object has none). Has() is the spelling that works
+        # before the first tagging.
+        with self.assertRaises(TypeError):
+            Elf in Agent()
+
+        self.assertFalse(Has(Agent(), Elf, "Elf"))
+
+    def test_rules_written_as_names_port_between_programs(self) -> None:
+        rules = {
+                "Wizard-Elf": lambda a: "arcane archer",
+                "Wizard": lambda a: "caster",
+                "Elf": lambda a: "archer",
+                }
+
+        def play(agent):
+            for rule, act in rules.items():
+                if Has(agent, *rule.split("-")):
+                    return act(agent)
+
+            return "commoner"
+
+        class Wizard(Tag):
+            pass
+
+        ari = Agent()
+        Wizard(ari)
+        self.assertEqual(play(ari), "caster")
+
+        Elf(ari)
+        self.assertEqual(play(ari), "arcane archer")
+        self.assertTrue(all(name in ari for name in "Wizard-Elf".split("-")))
+        self.assertEqual(play(Agent()), "commoner")
+
     def test_apply_has_tags(self) -> None:
         ari = Apply(Agent(), Elf, Combatant)
 

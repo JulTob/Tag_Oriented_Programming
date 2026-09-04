@@ -36,12 +36,14 @@ def Apply(
 
 def Has(
         agent: object,
-        *tags: type,
+        *tags: type | str,
         ) -> bool:
-    """True when every given Tag is active on the Agent."""
+    """True when every given Tag, or Tag name, is active on the Agent."""
+
+    from .access import _carries
 
     return all(
-            agent in tag
+            _carries(agent, tag)
             for tag in tags
             )
 

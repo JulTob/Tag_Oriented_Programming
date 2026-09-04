@@ -5,8 +5,11 @@ Tag's dotted namespace to the program:
 
     Wizard(charlie)               apply (Bases first)
     charlie in Wizard             active membership, sound or defective
+    Wizard in charlie             the same, from the Agent's side
+    "Wizard" in charlie           the same, by name
     isinstance(charlie, Wizard)   ever a member ("ever a Wizard, always a Wizard")
     for w in Wizard               the sound population
+    if Wizard                     is there a sound Wizard at all?
     for w in ~Wizard              the defective population
     Wizard[:]                     everyone: the whole Field
     Wizard[charlie]               the Agent-bound view
@@ -122,7 +125,7 @@ class MetaTag(type):
     def __bool__(
             tag,
             ) -> bool:
-        return True
+        return bool(tag._sound())
 
     def __invert__(
             tag,

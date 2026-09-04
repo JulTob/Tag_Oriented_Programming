@@ -20,7 +20,10 @@ review reproduced, or a decision recorded in a STEP.
   (STEP-SPEC-4).
 - Native spellings for every Tag-level act; the Tag's dotted namespace
   belongs to the program (§0.8): `del Tag[agent]` Rips, `Form(Tag)` is a
-  function.
+  function, `if Tag:` asks for a sound member, `Tag in agent` and
+  `"Tag" in agent` read membership from the Agent's side on the empty-seat
+  rule, and format specs are the display door (`f"{Tag:form}"`,
+  `f"{agent:tags}"`, `f"{agent:outline}"`, `f"{agent:contract}"`).
 - Records receive the stored value and pile up (STEP-SPEC-5).
 
 ### TagKit
@@ -36,7 +39,8 @@ review reproduced, or a decision recorded in a STEP.
   from Record failures; O(n²) Field registration; unbounded `At_Exit`
   registry; stale runtime type after Rip.
 - Added: `Secret`, `Public`, `~Tag`, `Tag[:]`, `Tag[agent]`,
-  `del Tag[agent]`, `len(Tag)`, `Form`, `Contract.Holds`, `Apply`, `Has`, `Tags`, `Outline`,
+  `del Tag[agent]`, `len(Tag)`, `bool(Tag)`, `Tag in agent`,
+  `"Tag" in agent`, `Has` with names, format specs, `Form`, `Contract.Holds`, `Apply`, `Has`, `Tags`, `Outline`,
   `TagDeclarationError`, teardown failure reporting, explicit refusal of
   `copy.copy`, protocol parameter defaults honoured.
 - Removed: Agent sugar (`With`, `As`, `|`, `ApplyTags`, `agent.Tag(...)`,
