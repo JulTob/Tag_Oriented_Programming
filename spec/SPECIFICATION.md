@@ -130,6 +130,7 @@ class Arcane_Duelist(Spellcaster, Duelist):
     pass
 
 assert Form(Arcane_Duelist) == (Spellcaster, Duelist, Arcane_Duelist)
+assert f"{Arcane_Duelist:form}" == "Spellcaster → Duelist → Arcane_Duelist"
 ```
 
 A Base reachable through several paths appears once. **Forming** follows
@@ -249,7 +250,13 @@ language, not a library's naming.
 | everyone in the Field | `Wizard[:]` |
 | the Agent-bound view | `Wizard[agent]` |
 | leave the Field (Rip) | `del Wizard[agent]` |
-| the Form | `Form(Wizard)` |
+| the Form, as Tags | `Form(Wizard)` |
+| the Form, as text | `f"{Wizard:form}"` |
+| an Agent's Tags, Outline, contract, as text | `f"{agent:tags}"`, `f"{agent:outline}"`, `f"{agent:contract}"` |
+
+Format specs are the **display door**: a language's own string formatting
+renders what a Tag or Agent is, without a method on either. On an Agent the
+door follows the empty-seat rule: a host with its own formatting keeps it.
 
 Queries that need a name are functions (`Form`, `Tags`, `Has`, `Apply`,
 `Outline`, `Contract`, `Scope`), never members of the Tag or of the Agent.

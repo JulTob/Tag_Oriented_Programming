@@ -11,7 +11,8 @@ Tag's dotted namespace to the program:
     Wizard[:]                     everyone: the whole Field
     Wizard[charlie]               the Agent-bound view
     del Wizard[charlie]           leave the Field (Rip)
-    Form(Wizard)                  the Base-first closure (a function)
+    Form(Wizard)                  the Base-first closure, as Tags
+    f"{Wizard:form}"              the same, as text
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ from .contracts import _holds
 from .declarations import _MISSING
 from .fields import _Field
 from .fields import _Partition
+from .geometry import _form_of
 from .lifecycle import _rip
 from .state import Tagged
 from .state import _state_of
@@ -152,6 +154,23 @@ class MetaTag(type):
         _rip(
                 agent,
                 tag,
+                )
+
+    def __format__(
+            tag,
+            spec: str,
+            ) -> str:
+        if spec == "":
+            return str(tag)
+
+        if spec == "form":
+            return " → ".join(
+                    member.__name__
+                    for member in _form_of(tag)
+                    )
+
+        raise ValueError(
+                f"unknown format spec {spec!r} for a Tag; use 'form'"
                 )
 
 

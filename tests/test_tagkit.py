@@ -1534,6 +1534,40 @@ class QueryTests(unittest.TestCase):
         self.assertFalse(Has(ari, Paladin))
         self.assertEqual(Tags(ari), (Elf, Combatant))
 
+    def test_format_specs_are_the_display_door(self) -> None:
+        ari = Agent()
+        ari.level = 1
+
+        Elf(ari)
+        Scholar(ari)
+
+        self.assertEqual(f"{Elf:form}", "Person → Elf")
+        self.assertEqual(f"{Bridge:form}", "Root → Left → Right → Bridge")
+        self.assertEqual(f"{Elf}", str(Elf))
+        self.assertEqual(f"{ari:tags}", "Elf, Scholar")
+        self.assertEqual(f"{ari:outline}", Outline(ari))
+        self.assertEqual(f"{ari:contract}", Contract.Display(ari))
+        self.assertEqual(f"{ari}", str(ari))
+
+        with self.assertRaises(ValueError):
+            f"{Elf:nope}"
+
+        with self.assertRaises(ValueError):
+            f"{ari:nope}"
+
+    def test_host_format_keeps_its_seat(self) -> None:
+        class Money:
+            def __init__(self) -> None:
+                self.cents = 1234
+
+            def __format__(self, spec: str) -> str:
+                return f"${self.cents / 100:.2f}"
+
+        purse = Money()
+        Field_Member(purse)
+
+        self.assertEqual(f"{purse}", "$12.34")
+
     def test_outline_draws_each_form(self) -> None:
         ari = Agent()
 

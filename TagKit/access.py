@@ -58,6 +58,9 @@ def _hooks_for(
     if has_posts:
         hooks["__bool__"] = _agent_bool
 
+    if _host_member(host_type, "__format__") is None:
+        hooks["__format__"] = _agent_format
+
     if _host_member(host_type, "__copy__") is None:
         hooks["__copy__"] = _agent_copy
 
@@ -94,6 +97,39 @@ def _agent_getattr(
 
     raise AttributeError(
             f"{type(agent).__name__} has no member {name!r}"
+            )
+
+
+def _agent_format(
+        agent: object,
+        spec: str,
+        ) -> str:
+    """``f"{agent:tags}"``, ``f"{agent:outline}"``, ``f"{agent:contract}"``."""
+
+    if spec == "":
+        return str(agent)
+
+    if spec == "tags":
+        from .queries import Tags
+
+        return ", ".join(
+                tag.__name__
+                for tag in Tags(agent)
+                )
+
+    if spec == "outline":
+        from .queries import Outline
+
+        return Outline(agent)
+
+    if spec == "contract":
+        from .contracts import Contract
+
+        return Contract.Display(agent)
+
+    raise ValueError(
+            f"unknown format spec {spec!r} for an Agent; use 'tags',"
+            " 'outline', or 'contract'"
             )
 
 
