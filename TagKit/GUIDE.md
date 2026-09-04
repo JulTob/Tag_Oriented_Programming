@@ -174,14 +174,14 @@ class Wizard(Tag):
         return []                       # a new list for every Agent
 
 
-a = Character("A")
-b = Character("B")
-Wizard(a)
-Wizard(b)
+ada = Character("Ada")
+bob = Character("Robert")
+Wizard(ada)
+Wizard(bob)
 
-a.spellbook.append("Light")
+ada.spellbook.append("Light")
 
-assert b.spellbook == []                # not shared
+assert bob.spellbook == []                # not shared
 ```
 
 **Watch out.** A Record builder runs once, when the Tag applies. It is not a
