@@ -14,6 +14,7 @@ from typing import Iterable
 
 from .declarations import _protocol_inputs
 from .declarations import _takes_underlay
+from .errors import _Named
 from .errors import TagContractError
 from .errors import TagError
 from .errors import TagPostconditionError
@@ -106,7 +107,7 @@ def _evaluate(
         checks: Iterable[tuple[str, Check]],
         agent: object,
         inputs: dict[str, Any],
-        failure: type[TagError],
+        failure: _Named,
         phase: str,
         ) -> None:
     """Run conditions; raise ``failure`` naming the first that does not hold."""
@@ -117,12 +118,12 @@ def _evaluate(
         except TagContractError:
             raise
         except Exception as error:
-            raise failure(
+            raise failure.Named(name)(
                     f"{phase} {name!r} raised {type(error).__name__}: {error}"
                     ) from error
 
         if not _verdict(result, f"{phase} {name!r}"):
-            raise failure(
+            raise failure.Named(name)(
                     f"{phase} {name!r} failed"
                     )
 
@@ -131,7 +132,7 @@ def _guarded(
         agent: object,
         scope: str,
         detailed: bool,
-        failure: type[TagError],
+        failure: _Named,
         phase: str,
         ) -> bool:
     """Run one scope of the Agent's visible conditions on demand.

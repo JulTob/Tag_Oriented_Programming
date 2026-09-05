@@ -101,6 +101,16 @@ rollback target.
   the value per Tag (weakly). `Tag.r += 1` replaces the descriptor with a
   plain value on that class, which is the documented counter pattern.
   Views snapshot the computed value; a published Report reads live.
+- **Failures name their check.** `TagPreconditionError`,
+  `TagImprintError` and `TagPostconditionError` use the `_Named`
+  metaclass: `Failure.Named("X")` makes, once, the subclass
+  `Failure.X` with `name = "X"`, and attribute access answers only names
+  that were declared. Names are registered in `MetaTag.__new__`
+  (`_name_checks`) so the handler is valid as soon as the Tag class
+  exists. `Precondition`, `Postcondition` and `Imprint` are `_Check_Mark`
+  objects: called, they mark; read, they forward to their failure class.
+  Per kind, not per Tag, on purpose: the handler reads the program's own
+  word, and the Tag is already in the message.
 - **Assigning a Tag's name on an Agent** (`ari.Elf = 1`) shadows the view by
   name; plain Python, not intercepted. `Elf[ari]` is unaffected.
 - **Inputs and defaults.** A protocol parameter the caller omitted keeps

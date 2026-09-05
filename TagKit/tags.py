@@ -26,6 +26,7 @@ from typing import Iterator
 from .access import _view_of
 from .contracts import _holds
 from .declarations import _MISSING
+from .declarations import _name_checks
 from .fields import _Field
 from .fields import _Partition
 from .geometry import _form_of
@@ -49,6 +50,7 @@ class MetaTag(type):
                 "_tagkit_field",
                 _Field(),
                 )
+        _name_checks(namespace)
 
         return super().__new__(
                 meta,

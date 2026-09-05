@@ -18,6 +18,9 @@ from typing import Callable
 from weakref import WeakKeyDictionary
 
 from .errors import TagDeclarationError
+from .errors import TagImprintError
+from .errors import TagPostconditionError
+from .errors import TagPreconditionError
 
 
 _KIND = "__tagkit_kind__"
@@ -130,37 +133,68 @@ def Rip(
             )
 
 
-def Imprint(
-        function: Function,
-        ) -> Function:
-    """Work performed after the Tag has applied."""
+class _Check_Mark:
+    """A mark for a named check: Imprint, Precondition, Postcondition.
 
-    return _mark(
-            function,
-            "imprint",
-            )
+    Called, it marks the function. Read as a namespace, it names the
+    failure of one check: ``Precondition.Is_A_Caster`` is the error raised
+    when the Precondition declared as ``Is_A_Caster`` refuses, so a program
+    writes ``except Precondition.Is_A_Caster:`` in its own words.
+    """
+
+    def __init__(
+            mark,
+            kind: str,
+            failure: type,
+            doc: str,
+            ) -> None:
+        mark.kind = kind
+        mark.failure = failure
+        mark.__name__ = kind.capitalize()
+        mark.__doc__ = doc
+
+    def __call__(
+            mark,
+            function: Function,
+            ) -> Function:
+        return _mark(
+                function,
+                mark.kind,
+                )
+
+    def __getattr__(
+            mark,
+            name: str,
+            ) -> type:
+        return getattr(
+                mark.failure,
+                name,
+                )
+
+    def __repr__(
+            mark,
+            ) -> str:
+        return f"<TagKit mark @{mark.__name__}>"
 
 
-def Precondition(
-        function: Function,
-        ) -> Function:
-    """A gate on the incoming Agent. Evaluated before the Tag applies."""
-
-    return _mark(
-            function,
-            "precondition",
-            )
+Imprint = _Check_Mark(
+        "imprint",
+        TagImprintError,
+        "Work performed after the Tag has applied.",
+        )
 
 
-def Postcondition(
-        function: Function,
-        ) -> Function:
-    """A promise about the finished Agent. Evaluated after every Tagging."""
+Precondition = _Check_Mark(
+        "precondition",
+        TagPreconditionError,
+        "A gate on the incoming Agent. Evaluated before the Tag applies.",
+        )
 
-    return _mark(
-            function,
-            "postcondition",
-            )
+Postcondition = _Check_Mark(
+        "postcondition",
+        TagPostconditionError,
+        "A promise about the finished Agent. Evaluated after every Tagging.",
+        )
 
 
 Pre = Precondition
@@ -366,7 +400,7 @@ class _Declarations:
     actions: tuple[tuple[str, Function], ...]
     records: tuple[tuple[str, Function], ...]
     secrets: frozenset[str]
-    imprints: tuple[Function, ...]
+    imprints: tuple[tuple[str, Function], ...]
     preconditions: tuple[tuple[str, Function], ...]
     postconditions: tuple[tuple[str, Function], ...]
     deletions: tuple[str, ...]
@@ -444,13 +478,39 @@ def _has_flag(
             )
 
 
+_NAMED_FAILURES: dict[str, type] = {
+        "imprint": TagImprintError,
+        "precondition": TagPreconditionError,
+        "postcondition": TagPostconditionError,
+        }
+
+
+def _name_checks(
+        namespace: dict[str, Any],
+        ) -> None:
+    """Give every check in a Tag body its named failure, at class creation.
+
+    Done when the class is made, not at the first tagging, so
+    ``except Precondition.Is_A_Caster`` is valid as soon as the Tag exists.
+    """
+
+    for name, attribute in namespace.items():
+        if _is_private(name):
+            continue
+
+        failure = _NAMED_FAILURES.get(_kind_of(attribute))
+
+        if failure is not None:
+            failure.Named(name)
+
+
 def _scan(
         tag: type,
         ) -> _Declarations:
     actions: list[tuple[str, Function]] = []
     records: list[tuple[str, Function]] = []
     secrets: set[str] = set()
-    imprints: list[Function] = []
+    imprints: list[tuple[str, Function]] = []
     preconditions: list[tuple[str, Function]] = []
     postconditions: list[tuple[str, Function]] = []
     deletions: list[str] = []
@@ -518,7 +578,12 @@ def _scan(
             continue
 
         if kind == "imprint":
-            imprints.append(attribute)
+            imprints.append(
+                    (
+                        name,
+                        attribute,
+                        )
+                    )
             continue
 
         if kind == "precondition":

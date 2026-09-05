@@ -338,7 +338,7 @@ def _imprint(
         declarations: _Declarations,
         inputs: dict[str, Any],
         ) -> None:
-    for imprint in declarations.imprints:
+    for name, imprint in declarations.imprints:
         try:
             imprint(
                     agent,
@@ -347,7 +347,7 @@ def _imprint(
         except TagError:
             raise
         except Exception as error:
-            raise TagImprintError(
+            raise TagImprintError.Named(name)(
                     f"Imprint {imprint.__qualname__} failed:"
                     f" {type(error).__name__}: {error}"
                     ) from error

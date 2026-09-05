@@ -255,6 +255,7 @@ language, not a library's naming.
 | the Form, as Tags | `Form(Wizard)` |
 | the Form, as text | `f"{Wizard:form}"` |
 | an Agent's Tags, Outline, contract, as text | `f"{agent:tags}"`, `f"{agent:outline}"`, `f"{agent:contract}"` |
+| catch one check's failure (§2.6) | `except Precondition.Is_A_Caster:`, `except Postcondition.Has_Book:`, `except Imprint.Arm:` |
 
 Truth on a Tag is truth on a collection: `if Wizard:` asks whether anyone
 sound is a Wizard right now, `while Enemy:` fights while an enemy stands,
@@ -861,8 +862,38 @@ Postcondition becomes visible on that Agent.
 
 ## 2.6 Naming the culprit
 
-`bool(agent)` is the verdict. The `Contract` namespace names the promise
-that broke:
+A failed check raises a failure that **carries the check's name**, as a
+subclass of the general failure: the Precondition declared as
+`Is_A_Caster` refuses with `TagPreconditionError.Is_A_Caster`, an
+Imprint called `Arm` fails with `TagImprintError.Arm`, a Postcondition
+called `Has_Book` with `TagPostconditionError.Has_Book`. The marks are
+the short spelling of the same classes, so a program catches a refusal in
+its own words:
+
+```python
+try:
+    War_Caster(bruk)
+except Precondition.Is_A_Caster:      # this one refusal
+    ...
+except TagPreconditionError:          # any refusal
+    ...
+```
+
+Rules:
+
+1. The named failure **is** the general failure (`issubclass`), so a
+   handler for the general one still catches everything. `error.name` is
+   the check's name; the general failure's `name` is `None`.
+2. A name exists from the moment its Tag class exists, not from its first
+   tagging. A name that no Tag declared is an error at the `except` line
+   (`AttributeError`), never a handler that silently fails to match.
+3. Names are per kind, not per Tag: two Tags that each declare `Ready`
+   share `Precondition.Ready`. A program that needs to tell them apart
+   reads `f"{agent:contract}"` or names the checks differently.
+4. A check that raises instead of returning `False` is named the same way.
+
+`bool(agent)` is the verdict on a finished Agent. The `Contract` namespace
+names the promise that broke:
 
 ```python
 Contract.Postconditions(agent)   # promises hold, or raise naming one

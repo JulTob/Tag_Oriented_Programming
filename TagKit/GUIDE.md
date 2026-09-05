@@ -28,8 +28,8 @@ an adjective, changeable. Wizard is a Tag. Hit points are a Record.
 ```python
 from TagKit import (
         Action, Contract, Delete, Flag, Form, Imprint, Keyword, Operation,
-        Outline, Post, Pre, Public, Record, Report, Rip, Scope, Secret, Tag,
-        Tags, Underlay,
+        Outline, Post, Postcondition, Pre, Precondition, Public, Record,
+        Report, Rip, Scope, Secret, Tag, Tags, Underlay,
         TagCompositionError, TagPostconditionError, TagPreconditionError,
         )
 
@@ -96,7 +96,7 @@ Notice the first parameter is `agent`, not `self`. A Tag's methods act on
 class Fighter(Tag):
 
     def Attack(agent):
-        return f"{agent.name} "
+        return f"{agent.name} cuts with a blade."
 
 
 Fighter(ari)
@@ -144,10 +144,9 @@ class Undead(Tag):
 ghoul = Character("Ghoul")
 Undead(ghoul)
 
-corruption_level = 0
+corruption = 0
 for creature in Undead:                 # every sound member
     corruption += creature.level
-    
 
 if not Undead:                          # nobody is Undead: nothing to do
     print("This area is safe")
@@ -287,8 +286,11 @@ sheet.
 
 ### Pattern 5 · Gate the door
 
-**When you want** a Tag that not everyone may take. Preconditions inspect
-the incoming Agent before anything changes.
+**When you want** a Tag that not everyone may take. Think of a door with a
+bouncer. Before a Tag is applied, the Tag looks at the Agent and decides:
+in, or not. That look is a **Precondition**, written with `@Pre`. It is a
+function that receives the Agent and answers `True` (come in) or `False`
+(stay out).
 
 ```python
 class Wizard(Tag):
@@ -309,7 +311,7 @@ bruk = Character("Bruk", level=2)
 
 try:
     War_Caster(bruk)
-except TagPreconditionError:
+except Precondition.Is_A_Caster:
     pass                                # Bruk is no caster: nothing changed
 
 assert bruk not in War_Caster
@@ -318,10 +320,24 @@ Wizard(bruk)
 War_Caster(bruk)                        # now it takes
 ```
 
-Inputs can travel with the tagging. `MI6(bond, code="007")` hands `code`,
-by name, to every Precondition, Record builder and Imprint of that call
-that has a parameter called `code`. The usual use is a Record that simply
-keeps the input:
+Three things to notice.
+
+- **A refused Agent is untouched.** When a Precondition says no, the
+  tagging stops before anything is written. Bruk is exactly as he was.
+- **The error carries the name you wrote.** `except Precondition.Is_A_Caster`
+  catches that one refusal and nothing else. `except TagPreconditionError`
+  catches every refusal. Both work; the named one reads better. A name
+  you never declared, such as a typo, is an error at the `except` line,
+  so a silent handler that never fires cannot happen.
+- **A gate can ask about other Tags.** `agent in Wizard` is an ordinary
+  check, so a Tag can require another Tag. That is how synergies are
+  written: the second Tag needs the first.
+
+**Inputs travel with the tagging.** Sometimes the gate needs information
+that is not on the Agent yet, like a code number. You give it at the call:
+`MI6(bond, code="007")`. TagKit then hands `code`, by name, to every
+Precondition, Record builder and Imprint of that Tag that has a parameter
+called `code`. The usual use is a Record that simply keeps the input:
 
 ```python
 class MI6(Tag):
@@ -341,20 +357,20 @@ MI6(bond, code="007")
 assert bond.code == "007"
 ```
 
-Read the `*` as a blank space. A Record's signature has three places:
-the Agent, what was stored (pattern 3), and what the call brings. When
-there is nothing stored to read, the star holds the empty seat, so
-`def code(agent, *, code)` says "agent, nothing stored, then `code` from
-the call". Writing `def code(agent, code)` would put `code` in the stored
-seat; TagKit refuses that at tagging and shows the spelling above.
-Preconditions and Imprints have no stored seat, so there
-`def Has_A_Code(agent, code)` is enough.
+Read the `*` as a blank space. A Record's function has three places, in
+order: the Agent, what was already stored under that name (pattern 3),
+and what the call brings. Here nothing was stored, so the star holds that
+seat empty: `def code(agent, *, code)` says "agent, nothing stored, then
+`code` from the call". If you wrote `def code(agent, code)`, Python would
+put `code` in the stored seat, and TagKit refuses that at tagging time
+and prints the spelling above. Preconditions and Imprints have no stored
+seat, so there `def Has_A_Code(agent, code)` is enough.
 
-**Watch out.** A condition must return `True`, `False`, or nothing. A
-count of `0` is not `False`; write `return agent.slots > 0`. TagKit refuses
-raw values so a real zero is never mistaken for a failure. A Shape may
-*relax* its Base's gate by overriding it (founders skip the dues); that is
-the Liskov direction and it is silent.
+**Watch out.** A gate must answer `True`, `False`, or nothing at all.
+Do not return a number and hope: a count of `0` is not `False` to TagKit,
+and it will refuse the raw value. Write the comparison you mean, such as
+`return agent.slots > 0`. This keeps a real zero from being mistaken for
+a refusal.
 
 ### Pattern 6 · Promise, then repair
 
@@ -374,7 +390,7 @@ newt.spellbook = None
 
 try:
     Wizard(newt)
-except TagPostconditionError:
+except Postcondition.Has_Spellbook:
     pass                                # the Tag stays; Newt is defective
 
 assert newt in Wizard                   # a member

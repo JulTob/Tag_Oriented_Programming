@@ -24,6 +24,8 @@ review reproduced, or a decision recorded in a STEP.
   display door (`f"{Tag:form}"`,
   `f"{agent:tags}"`, `f"{agent:outline}"`, `f"{agent:contract}"`).
 - Records receive the stored value and pile up (STEP-SPEC-5).
+- A failed check raises a failure that carries the check's name, as a
+  subclass: `except Precondition.Is_A_Caster:` (§2.6, STEP-SPEC-8).
 - Record builders receive application inputs by name after the Agent and
   the stored value: `def code(agent, *, code)` keeps the input; a stored
   parameter named like an input is refused loudly (STEP-SPEC-5 §6).
@@ -51,6 +53,8 @@ review reproduced, or a decision recorded in a STEP.
 - Added: `Secret`, `Public`, `~Tag`, `Tag[:]`, `Tag[agent]`,
   `del Tag[agent]`, `len(Tag)`, `bool(Tag)`, `Flag`, `Keyword`, format
   specs, `Form`, `Contract.Holds`, `Apply`, `Tags`, `Outline`,
+  named failures (`Precondition.X`, `Postcondition.X`, `Imprint.X`,
+  `error.name`),
   `TagDeclarationError`, teardown failure reporting, explicit refusal of
   `copy.copy`, protocol parameter defaults honoured.
 - Removed: Agent sugar (`With`, `As`, `|`, `ApplyTags`, `agent.Tag(...)`,
