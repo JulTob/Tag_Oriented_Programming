@@ -1,516 +1,937 @@
-# 🏷️ Guide to Tag-Oriented Programming 🔖
+# 🏷️ Tag-Oriented Programming: The Specification 🔖
 
-## 🏷️ Introduction
+> **OOP owns inherent structure; TOP owns semantic context.**
 
 Tag-Oriented Programming (TOP) provides utility without changing identity.
 
-By semantic increments, it provides new features without changing the essence of a target.
+A hero is one character. Over a game she becomes a Human, a Wizard, a Sage,
+a Harper, and stays the same hero. TOP adds each meaning as a **Tag**; the
+object keeps its identity the whole way. Traditional programming asks
+*"what is this object?"* TOP asks *"what is this object for, here?"*, and
+lets the answer grow.
 
-A hero is one character. Over a game she becomes a Human, a Wizard, a Sage, a Harper... and stays the same hero. TOP adds each meaning as a Tag; the object keeps its identity the whole way.
+TOP was born from tabletop character creation: species, class, background
+and feats are independent choices, and the character sheet is what they
+compose. A spell list is written by all of them. TOP gives that idea a
+precise algebra: one identity, many layers, clear rules for how the layers
+meet.
 
-Traditional programming often asks, "what is this object?" TOP asks, "what is this object's use?", and lets the answer grow naturally.
+This document is the source of truth. It is written in **rings**, from the
+kernel outward. Everything in an inner ring holds without the outer rings.
+A conforming implementation must preserve the observable semantics of every
+ring it claims. Examples are in Python; the laws are language-neutral.
 
-You don't need object-oriented programming to use TOP. But if you know OOP, you will discover a complementary model that empowers your code with easy-to-use features and modular refactoring. Implementing TOP can make your codebases more structured, bringing forth Functional Programming and Contract Programming features without the headaches of refactoring your existing code. If you don't have a programming style yet, TOP provides an easy-to-follow model that has proven to be powerful and intuitive.
-
-TOP governs the substrate over OOP with membership and contracts.
-
-> **TOP is a programming paradigm for composing semantic layers on one stable object identity.**
-
-TOP lets a Target take on semantic meanings that cut across ordinary class hierarchies.
-
-
-Instead of forcing every semantic distinction into one class tree, TOP lets
-Tags compose independently on one Target.
-
-The Target keeps its identity.
-Its semantic meaning expands through composition.
-
-When a Tag is successfully applied, the Target becomes an Agent of that Tag: a concrete, acting expression of that abstraction.
-
-Initially inspired by tabletop RPG systems (like D&D), Tags behave like roles, jobs, backgrounds... They may bring forth specifications for the Agent, determine mutable states with Records, bestow Actions, and establish Tag-level functionality.
-
-A Target may be Human, Wizard, Sage, or any other semantic role while
-remaining that same Character.
-
----
-
-## 🔰 TOP's Mental model
-
-TOP works with one identity and many semantic layers.
-
-If an element is tagged as `Human`, then later tagged as `Wizard`, there is still one character. The element is not replaced conceptually. Its semantic role expands.
-
-TOP therefore combines two truths:
-
-- the Target remains the same entity; and
-- its visible semantic relation changes as Tags are composed.
-
-If `Human` exists on top of `Species`, then tagging with `Human` also implies membership in `Species`.
-
-When a Tag is successfully applied to a Target, that Target becomes an Agent of the Tag. A concrete, acting expression of that abstraction.
-
-```python
-Human( charlie )
-
-assert charlie in Human
-```
-
-The primary result is membership in a semantic category. 
-
-A Tag may also contribute Actions, Records, Conditions, and an Imprint, but none of those contributions defines membership.
-
-````python
-class Hero():
-    def __init__(self, name):
-        self.name = name
-
-class Species(Tag):
-    pass
-
-class Human(Species):
-    pass
-
-class Wizard(Tag):
-    pass
-
-
-charlie = Hero("Charlie")
-Human(charlie)
-Wizard(charlie)
-
-assert isinstance(charlie, Character)
-# charlie is still a Character Object 
-
-print(f"{charlie.name} is a great hero.")
-
-if charlie in Species: 
-    if charlie in Human:
-        print(f"{charlie.name} is a human.")
-    else:
-        print(f"{charlie.name} is of a non-human species.")
-
-
-if charlie in Wizard:
-    print(f"But {charlie.name} is also a Wizard.")
-````
-````txt
-Charlie is a great hero.
-Charlie is a human.
-But Charlie is also a wizard.
-````
-
-An otherwise empty Tag is therefore meaningful. It can still define a
-category and a Field of Agents.
-
-The Target keeps its identity. Its semantic meaning expands through composition.
-
----
-
-## ⚖️ TOP with OOP
-
-Ordinary Object Oriented Programming mainly answers:
-
-> What **is** this object?
-
-TOP answers a different question:
-
-> What's the use for this object?
-
-TOP is external as a way of thinking: Tags are applied to an existing Target and compose visible semantic layers around it. OOP remains available for the Target's inherent structure, ordinary methods, and ordinary attributes.
-
-TOP complements OOP. The same project may use both.
-
-| OOP | TOP |
+| Ring | Contents |
 | --- | --- |
-| Internal | External |
-| Parts | Layers |
-| Structures | Semantics |
-| What it is | What it does |
-| Definition | Use |
-| Inheritance | Overlay |
+| **0 · Kernel** | identity, membership, Geometry, the tagging sequence, Rip |
+| **1 · Contributions** | Actions, Records, Operations, Reports, Overlay and Underlay, publication, access |
+| **2 · Contracts** | Preconditions, Imprints, Postconditions, defective Agents |
+| **3 · Lifecycle** | teardown protocols, Scope, deletion |
+| **4 · Edges** | what TOP does not promise, and why |
 
-TOP does not eliminate OOP, but complements it. The same structure may exist with or without TOP, in the same way it may or may not exist with OOP.
-
-TOP is appropriate for durable meanings such as:
-
-- species;
-- roles;
-- backgrounds;
-- affiliations;
-- skill trees;
-- jobs;
-- classifications;
-- gameplay development; and
-- permissions whose membership is intentionally durable.
-
+The last sections give the failure model, the conformance obligations, and
+where TOP stands among paradigms.
 
 ---
 
-## 💡 Design Patterns
+# Ring 0 · The Kernel
 
-TOP should be:
+## 0.1 Identity
 
-- clear before clever
-- readable before dense
-- explicit before magical
-- semantically strong before syntactically fancy
-- orthogonal before tangled
-- contract-aware where obligations are real
-- practical
+A **Target** is any object a program already has. Tagging a Target never
+replaces it: before and after, it is the same object. Precisely:
 
-TOP should not become:
+- object identity is preserved (`tagged is original`, same `id`, same hash,
+  same equality);
+- every attribute and method the Target had keeps working the way it did,
+  unless a Tag deliberately contributes a member of that name;
+- the Target's own special methods (`__contains__`, `__len__`, `__bool__`,
+  operators, `__getattr__`) keep working, with one deliberate exception:
+  `bool(agent)` gains contract meaning once a Postcondition is visible
+  (§2.5);
+- the name of the object's type is unchanged.
 
-- a bag of decorators without a model
-- a disguised form of class-centric design
-- a syntax trick without stable semantic laws
-- a system where Target scope and Tag scope blur together
+What TOP does **not** promise is nominal type identity: a Python
+implementation may swap the object's class for a runtime subclass of it.
+`isinstance(agent, Host)` stays true; `type(agent) is Host` may not. See
+Ring 4.
 
-
-
-
----
-
-# 🧰 Core vocabulary
-
-## 🛠️ Core entities
-
-| Term    | Meaning |
-|---------|---------|
-| **Tag** | A semantic category that can contribute meaning, behaviors, values, and constraints. |
-| **Target** |  A variable (value, dictionary, record, object...) before or during tagging. |
-| **Tagging** | Applying a Tag to a Target, such as `Human(charlie)`, so the Target becomes an Agent of that Tag. |
-| **Agent** | A variable (value, dictionary, record, object...) when it belongs to a Tag. |
-| **Field** | The population of Agents belonging to a Tag. |
-
+## 0.2 Vocabulary
 
 | Term | Meaning |
 | --- | --- |
+| **Tag** | A semantic category that can contribute meaning, behaviour, values and constraints. A noun: something you *are* (*ser*). |
+| **Target** | An object before or during tagging. |
+| **Tagging** | Applying a Tag to a Target: `Human(charlie)`. |
+| **Agent** | A Target that belongs to at least one Tag. |
+| **Field** | The population of Agents currently carrying a Tag. |
 | **Base** | A broader Tag that a Shape specializes. |
 | **Shape** | A more specific Tag built over one or more Bases. |
-| **Layer** | One Tag's semantic position in an Agent's composition. |
+| **Form** | The ordered, duplicate-free, Base-first closure of one Tag, ending with the Tag itself. |
+| **Geometry** | The whole relationship structure of Tags, Bases and Shapes. |
+| **Layer** | One Tag's position in an Agent's composition. |
 | **Overlay** | The currently visible result of all active Layers. |
-| **Underlay** | The visible contribution captured immediately before a new contribution is applied. |
+| **Underlay** | The prior visible contribution of a name, captured for a later Layer to extend. |
 
-TOP uses **Base**/**Supertag** and **Shape**/**Subtag** for specialization vocabulary. It does not use OOP parent/child
-terminology to avoid conflicts with OOP.
+TOP uses **Base** and **Shape**, never *parent* and *child*: the words
+describe a different model. A Tag may be both: `Person` is a Shape of
+`Being` and a Base of `Wizard`.
 
+## 0.3 Membership
 
----
-# 🔩 Contributions
-
-TOP distinguishes between contributions made on the Agent and contributions kept on the Tag Field.
-
-
-Noun -> Tag (a category you are), adjective -> Record (a state you're in).
-## 🪪 Agent-level contributions
-
-- **Action**: behavior exposed on the Agent
-- **Record**: state exposed on the Agent
-
-
-A Tag usually corresponds to __*Nouns*__, things you are (_ser_), while Records provide mutable states (_estar_), so they correspond to __*Adjectives*__. Tags should not be used for circumstantial states, but to provide the Records that hold those states on the Agent.
-
-## Imprinting and Ripping
-
-- **Imprint**: application-time logic that shapes the Target when a Tag is applied
-- **Rip**: extraction-time logic that shapes the Target when a Tag is rescinded.
-
-Imprint shapes the Agent when active Field membership begins. Rip cleans up when active Field membership ends. They are duals: constructor/destructor, __enter__/__exit__. 
-
-> ### __Tags are sticky.__ 
-> Ripping does not revert the Agent back to a pre-Tagging state. Any Action, Record, or Condition applied to a Target remains after Ripping the Tag unless a Rip protocol explicitly changes it. Rogue Agents are dangerous... but useful!
-
-- Imprint applies all missing Bases of a Tag by default.
-- Ripping removes the Agent from the Tag's Field and, by default, from the Fields of Shapes that depend on that Tag.
-
-
-
-## 📇 Field-level contributions
-
-- **Report**: shared semantic data, stored on the Tag, across the Field.
-- **Operation**: shared behavior on the Tag
-
-In short:
-
-- ◀️ Actions define behavior
-- ⏺️ Records define state
-- ⏸️ Imprints shape taggings
-- ⏪️ Operations define shared behavior
-- ⏹️ Reports define shared information
-
-This data/function structure avoids repetition, keeping structural behavior separate from individual object behavior.
----
-
-## 🪢 Membership and Fields
-
-Membership is closed upward through Bases.
+The primary result of a Tagging is **membership**. An otherwise empty Tag
+is complete: it still defines a category and a Field.
 
 ```python
-class Mortal(Tag):
+class Wizard(Tag):
     pass
 
+Wizard(charlie)
 
-class Human(Mortal):
-    pass
+assert charlie in Wizard            # active membership
+for wizard in Wizard:               # the Field (its sound members, §2.5)
+    Observe(wizard)
+```
 
+Membership is **closed upward** through Bases: an Agent of a Shape is an
+Agent of every Base in the Shape's Form, and appears in each of those
+Fields.
 
-Human( charlie )
+```python
+class Mortal(Tag): pass
+class Human(Mortal): pass
 
+Human(charlie)
 assert charlie in Human
 assert charlie in Mortal
 ```
 
-If an Agent belongs to a Shape, it belongs to every active Base required
-by that Shape. The Agent appears in the Field of each of those Tags.
+Membership is **monotonic by design**. Only Rip (§0.7) ends it, and Rip
+does not erase history: an Agent that has ever been a member of a Tag
+remains *an instance* of that Tag. In Python, `isinstance(agent, Tag)` is
+that has-been check and stays true after Rip. `agent in Tag` is the is-now
+check.
 
-> In TOP, Field Membership Checks (`agent in Tag`) means active Field membership. It does not mean that the Agent's history or identity is erased when Field membership ends.
-> **Ripping** is the only explicit exception to monotonic membership: it removes the Agent from the Field. Ripping exists for utility, cleanup, or in-extremis domain resolution, as a safety feature. But it does not undo the fact that the Agent _is an instance_ of the Tag.
-> The Agent remains historically an instance of the Tag abstraction, even after leaving the active Field. Therefore, `isinstance` in Python should return true. Same for its equivalent in other languages.
+A Field **never keeps an Agent alive**. When an Agent ceases to exist it
+vanishes from every Field. Fields are indexed by identity: two equal but
+distinct Agents are two members.
 
-```python
-for agent in Mortal:
-    Observe( agent )
-```
+## 0.4 Geometry
 
-A Tag must not keep an Agent alive. Once an
-Agent no longer exists, it must no longer appear in any Field. A Python
-implementation will normally use weak references to satisfy this law.
-
-Reapplying an active Tag does nothing. It neither duplicates membership nor runs its Imprint again.
-
----
-
-# 🏳️ Applying Tags
-
-The canonical semantic act is:
+Bases and Shapes form a directed graph, the Geometry. Each Tag has one
+**Form**: its Bases, deepest first, in declaration order, each once, then
+the Tag.
 
 ```python
-Tag( target )
-```
+class Spellcaster(Tag): pass
+class Duelist(Tag): pass
 
-An implementation may provide readable sugar, but sugar must preserve the same semantics.
-
-### 🧋 Hidden Layering
-
-Applying a Tag follows this order:
-
-1. Apply each missing direct Base.
-2. When a Tag has several direct Bases, apply them in declaration order.
-3. Apply the requested Tag after its required Bases.
-
-Each Base follows the same rule recursively. A Base required through
-more than one path applies only once.
-
-```python
-class Arcane_Duelist(
-        Spellcaster,
-        Duelist,
-        ):
+class Arcane_Duelist(Spellcaster, Duelist):
     pass
+
+assert Form(Arcane_Duelist) == (Spellcaster, Duelist, Arcane_Duelist)
+assert f"{Arcane_Duelist:form}" == "Spellcaster → Duelist → Arcane_Duelist"
 ```
 
-Applying `Arcane_Duelist` first applies the missing `Spellcaster` branch,
-then the missing `Duelist` branch, then `Arcane_Duelist` itself.
+A Base reachable through several paths appears once. **Forming** follows
+the Form downward, general to specific. **Deforming** (Rip) goes the other
+way: a Shape leaves before the Bases that support it.
 
-### 🧯 Expectations On Failed Taggings
+## 0.5 Applying a Tag
 
-Tagging has no side effects. If an imprint fails to stick the Shape Tag, it does not apply new dependency Tags either. The Overlay will stay as before the Tagging call. Tags committed by earlier calls survive unchanged.
+The canonical act is:
 
+```python
+Tag(target, **inputs)
+```
+
+It applies every Tag in the Form that is not yet active, Bases first, then
+returns the same Target. Keyword **inputs** are handed by name to the
+Preconditions, Record builders and Imprints run during that call (§1.3,
+§2.2, §2.3).
+
+```python
+MI6(bond, code="007")      # every protocol that names `code` receives it
+```
+
+**Reapplying an active Tag does nothing.** It does not duplicate
+membership, does not rerun Imprints, does not reset Records. Resetting is a
+deliberate act: Rip, then apply again.
+
+## 0.6 The tagging sequence
+
+Think of a factory line. Once, for the whole call:
+
+1. **Gate.** The Preconditions visible in the Form this call will produce
+   inspect the incoming Agent and the inputs. A Shape's Precondition
+   overrides its Base's, so a Shape can relax the gate. A failed gate stops
+   the call before anything changes.
+
+Then for each Tag in the Form, in order:
+
+2. **Parts.** That Tag's Records are built, each allowed to read the value
+   already stored under its name.
+3. **Commit.** The Agent enters the Tag's Field; the Overlay and the
+   Agent-bound view are set.
+4. **Write.** That Tag's Imprints run, in declaration order.
+
+Then, once for the whole call:
+
+5. **Quality check.** Every visible Postcondition inspects the finished
+   Agent.
+
+The **call boundary** decides what a failure means:
+
+- A failure in steps 1 or 2, for any Tag in the Form, **rolls the whole
+  call back**. The Agent is exactly as it was at the call, including Bases
+  pulled in by this call. Tags committed by earlier calls are untouched.
+  Nothing partial is ever published.
+- A failure in steps 4 or 5 **raises, but the Tags stay**. The product left
+  the line. A defective product is not melted back to materials: it is
+  flagged, repaired, or Ripped (§2.5).
 
 ```text
-Human(ari)
-    Species succeeds
-    Human fails
+Citadel(ari)                      Form: Territory, Citadel
+    gate       Has_Charter FAILS
+→ TagPreconditionError; ari in Territory == False, ari in Citadel == False
 
-ari in Human     == False
-ari in Species   == False
-
+Broken_Wizard(ari)                Form: Person, Broken_Wizard
+    gate       ok
+    Person     parts, commit, write
+    Wizard     parts, commit, write
+    check      Has_Spellbook FAILS
+→ TagPostconditionError; ari in Person and ari in Wizard; bool(ari) == False
 ```
 
-For complex Taggings, incremental calls provide better control than one large Shape Tag, but TOP provides abstraction for hiding those complexities.
+Tagging is otherwise side-effect free: TOP-managed state is restored on
+rollback. An Imprint's in-place mutation of a pre-existing mutable value
+(`events.append(...)`) is outside what TOP can undo; keep such effects for
+step 4, where they are never rolled back, or hold them in Records.
 
+## 0.7 Rip
 
----
-# Composition
-
-Composition is order-sensitive for independent Tags. The last successful application of a Record or Action becomes the visible Overlay for that name. This is a core principle: TOP supports incremental design by letting later semantic layers refine, replace, or extend earlier ones. If the later Tag should preserve the previous behavior, it should use an Underlay. If a caller needs a specific historical layer, it should use Agent-bound Tag access.
-
----
-
-# 🔩 Contributions
-
-TOP distinguishes Agent-level and Tag-level contributions.
-
-| Contribution | Kind | Scope | Meaning |
-| --- | --- | --- | --- |
-| **Action** | Callable | Agent | Behavior visible on an Agent. |
-| **Record** | Data | Agent | State visible on an Agent. |
-| **Imprint** | Callable | Tag application | Work performed while the Tag is applied. |
-| **Operation** | Callable | Tag | Shared behavior belonging to the Tag. |
-| **Report** | Data | Tag | Shared semantic data belonging to the Tag. |
-| **Precondition** | Predicate | Tag application | A guard evaluated before Imprints. |
-| **Postcondition** | Predicate | Tag application | A guard evaluated after Imprints. |
-
-An Agent acts through Actions, remembers through Records, coordinates through Operations, and gains context by Reports.
-
-Actions and Records actualize the Agent. They may replace ordinary OOP methods
-and attributes as well as earlier TOP contributions.
-
-Reports and Operations remain Tag-scoped, but they participate in the
-Agent's Tag-contextual Overlay.
-
-Temporary state lives in Records:
+Tags can be seen like a pass, a sticker, a badge. Ripping one is an
+exceptional, violent act of Field expulsion: *"Give me your badge and
+weapon. You can no longer go into the evidence room."*
 
 ```python
-agent.asleep = True
-agent.asleep = False
+del MI6[bond]
+assert bond not in MI6
+assert isinstance(bond, MI6)      # once an agent, always an agent
 ```
 
-The `asleep` Record may remain part of the Agent's state while its value changes. Tag membership remains unchanged through that transition.
+Rip is the only exit from a Field, and it obeys three laws:
+
+- **Contributions are sticky.** Actions and Records stay on the Agent after
+  Rip unless a `@Rip` protocol (§3.1) changes them. The result is a **Rogue
+  Agent**: it has what it learned, but no active access to the Tag's Field,
+  Operations, Reports or Agent-bound view. Rogue Agents are dangerous… but
+  useful.
+- **Rip is refused while a Shape needs the Base.** `del Beast[wolf]` fails
+  while `Wolf` is active. Deform the Shape first. Rip never cascades: TOP
+  does not run other Tags' protocols behind your back.
+- **Reapplying a Ripped Tag is a fresh Tagging.** Imprints run again;
+  Records are rebuilt.
+
+## 0.8 Spellings
+
+TOP borrows the language's own syntax for every Tag-level act and leaves
+the Tag's dotted namespace, `Wizard.something`, to the program. A Report
+called `Field`, `Form` or `Rip` must be possible. Structure without
+stepping on the programmer's choices: TOP should feel like part of the
+language, not a library's naming.
+
+| Act | Python spelling |
+| --- | --- |
+| apply | `Wizard(agent, **inputs)` |
+| active member? | `agent in Wizard` |
+| carries a keyword? (Flags, §1.8) | `"Undead" in ghoul`, `Undead in ghoul`, `Keyword(ghoul, "Undead")` |
+| ever a member? | `isinstance(agent, Wizard)` |
+| the sound population | `for w in Wizard`, `len(Wizard)`, `if Wizard:` |
+| the defective population | `for w in ~Wizard`, `if ~Wizard:` |
+| everyone in the Field | `Wizard[:]`, `if Wizard[:]:` |
+| the Agent-bound view | `Wizard[agent]` |
+| leave the Field (Rip) | `del Wizard[agent]` |
+| the Form, as Tags | `Form(Wizard)` |
+| the Form, as text | `f"{Wizard:form}"` |
+| an Agent's Tags, Outline, contract, as text | `f"{agent:tags}"`, `f"{agent:outline}"`, `f"{agent:contract}"` |
+| catch one check's failure (§2.6) | `except Precondition.Is_A_Caster:`, `except Postcondition.Has_Book:`, `except Imprint.Arm:` |
+
+Truth on a Tag is truth on a collection: `if Wizard:` asks whether anyone
+sound is a Wizard right now, `while Enemy:` fights while an enemy stands,
+`if not Boss:` spawns one, `if ~Wizard:` asks whether anyone waits for
+repair.
+
+The Agent's own `in` is reserved for **keywords**: Tags marked `@Flag`
+(§1.8). Ordinary Tags are asked from the Tag's side, `agent in Wizard`.
+
+Format specs are the **display door**: a language's own string formatting
+renders what a Tag or Agent is, without a method on either. On an Agent the
+door follows the empty-seat rule: a host with its own formatting keeps it.
+
+Queries that need a name are functions (`Form`, `Tags`, `Keyword`,
+`Apply`, `Outline`, `Contract`, `Scope`), never members of the Tag or of
+the Agent.
+Another language profile chooses its own native spellings; the acts and
+their distinctions are what must survive.
 
 ---
 
-# 💠 Layers and Overlays
+# Ring 1 · Contributions
 
-The latest successfully applied Layer is the visible Overlay for a
-contribution name. This applies to Actions, Records, Reports, Operations,
-Preconditions, and Postconditions.
+## 1.1 Two scopes
 
-An ordinary Tag Action declaration has two semantic forms.
+Every contribution has a **receiver**, and the receiver decides its scope.
+
+| Scope | Contributions | Receiver | Meaning |
+| --- | --- | --- | --- |
+| **Agent** | Action, Record | one Agent | what *this* Agent does and holds |
+| **Tag** | Operation, Report | the Tag | what the whole Field shares |
+
+Where a contribution is *declared* does not change its scope. An Action
+written inside a Tag class is still an Agent contribution: the Tag stores
+it once, every Agent is its receiver.
+
+In Ada's terms, the Tag is the package specification and the Agent is the
+body. The specification declares what is shared; the body is what acts.
+
+A name identifies **one slot per scope**: `(scope, name)`. In Agent scope
+that slot holds an Action or a Record, never both at once:
+
+- **Independent** Tags (neither in the other's Form) cannot place an Action
+  and a Record at the same Agent name. The Tagging fails at step 1, atomic.
+- Within one Form, a Shape may **change the kind** of a Base slot: fix a
+  Base Action as a Record, or compute a Base Record with an Action. The
+  Base's view (§1.7) keeps the prior kind.
+- Across scopes, equal names do not collide. `Fire.colour` (Tag) and
+  `ember.colour` (Agent) are two slots with two histories.
+
+## 1.2 Actions
+
+An Action is Agent behaviour. Declared as a plain method on the Tag or with
+`@Action`; the first parameter is the Agent, by discipline, under any name.
 
 ```python
 class Person(Tag):
-
-    def Attack(
-            agent,
-            ) -> str:
+    def Attack(agent) -> str:
         return "Attack!"
 ```
 
-An Action with no Underlay input introduces or replaces the visible
-Action of that name. Replacing a contribution from an independent Tag is
-allowed, but a conforming implementation should emit a diagnostic.
+The latest applied Layer is the visible Overlay for a name. An Action
+declared without an Underlay **replaces**; with `@Underlay` it **extends**:
 
 ```python
 class Elf(Person):
-
     @Action
     @Underlay
-    def Attack(
-            agent,
-            underlay,
-            ) -> str:
-        return (
-            "With elven grace "
-            + underlay()
-            )
+    def Attack(agent, underlay) -> str:
+        return "With elven grace " + underlay()
 ```
 
-An Action with an Underlay input extends the visible Action. `@Underlay` is the decorator that indicates an Action needs an underlay. It makes the second input, whatever its name, the call to the underlay Action with the same name. If no Action is available as an underlay, the Tagging raises an error.
+The Underlay is **captured when the Tag applies**: it is the complete Action
+visible immediately before this Layer. It forms a backward chain of
+callables and never resolves again later. Calling it with no arguments
+forwards the current call's arguments; calling it with arguments passes
+those instead. If no prior Action exists, a Tag asking for an Underlay
+cannot apply (Tag Resolution Failure).
 
-The Underlay is captured when the Tag applies. It is the complete Action
-visible immediately before that Tag's contribution. It does not dynamically
-resolve again later.
-
-```text
-Paladin Underlay
-    -> Elf visible Action
-        -> Person visible Action
-```
-
-This is callable composition, not source-code copying. The captured callable
-forms a backward chain and does not capture the Agent itself.
-
-If no visible contribution exists, an Action that requires an Underlay
-cannot apply successfully.
-
-### 🥊 Dynamic Action calls
-
-An Action that calls another Action through the Agent uses the current Overlay
-at gameplay time.
+An Action that calls another Action **through the Agent** uses the current
+Overlay at play time:
 
 ```python
 class Combatant(Tag):
-
-    def Combat(
-            agent,
-            ) -> str:
-        return agent.Attack()
+    def Combat(agent) -> str:
+        return agent.Attack()          # whatever Attack is visible now
 ```
 
-If a later Tag actualizes `Attack`, `Combat` uses that later visible `Attack`.
-Inside an `Attack` Action itself, calling `agent.Attack()` recurses into the
-current Action. An extending Action uses its captured Underlay instead.
+Replacing an Action of an **independent** Tag without an Underlay is
+allowed but **diagnosed** (a warning): something was overwritten that
+another meaning still relies on.
 
----
+The same rules bind special methods: a Tag may contribute `__add__`,
+`__eq__` and the like, and they actualize the Agent.
 
-# 🪪 Records
+## 1.3 Records
 
-A Record is Agent state contributed by a Tag. It becomes visible when its Tag applies successfully.
+A Record is Agent state contributed by a Tag. A Tag is something you
+*are*; a Record is something you are *currently* (*estar*): an adjective.
 
-Records may:
-
-- introduce a new name;
-- replace an existing TOP Record;
-- replace an ordinary Agent attribute;
-- derive a value from the Underlay when the implementation exposes that
-  form; or
-- be removed at runtime with `del agent.record`.
-
-Mutable Record values must be fresh for each Agent unless shared state is the explicit intent. A shared value belongs in a Report, not a Record.
-
-A Tag is something a Target became and remains in its history: a durable semantic category. A noun is usually a Tag.
-
-A Record is something a Target currently is: a value that can change. An adjective is usually a Record.
-
-| Tag - you became this | Record - this can change |
+| Tag, you became this | Record, this can change |
 | --- | --- |
-| Human, Elf - species | asleep, poisoned - conditions |
-| Wizard, Paladin - class | hit points, gold - resources |
-| Sage, Soldier - background | location, morals |
-| Harpers - affiliation | friends? Enemies? Affinity? - current status |
-| Spellcaster - learned capability | spell slots left |
-| Access Pass - an Agent is recognized by the system | Permission - the specific security clearance of the individual |
+| Human, Elf: species | asleep, poisoned: conditions |
+| Wizard, Paladin: class | hit points, gold: resources |
+| Sage, Soldier: background | location, morals |
+| Harpers: affiliation | affinity, standing: current status |
+| Spellcaster: learned capability | spell slots left |
+| Access Pass: recognized by the system | clearance: the specific level |
 
+A Record is declared as a **builder**. The builder runs at step 2 of the
+tagging sequence; its value is stored on the Agent, fresh for each Agent:
 
-The same idea often splits across both. "Harper" is a Tag — you joined, and the joining is permanent history. "Affinity" is a Record: it changes. Tagging records that the membership happened; the Record tracks what's true now.
-
-Records may be deleted altogether, but good design can often avoid this. Frequent Record deletion may indicate unclear state ownership. To delete a Record you may use `del agent.myRecord`. This may be useful in Ripping to optimize memory management and avoid overloading a Target.
-
-```py
-class Person:
-    def __init__(self, name):
-        self.name = name
-
-class SafetyClearance(Tag):
-    @Imprint
-    def Protocol_Up(agent):
-        agent.safety_clearance = "visitor"
-
-class Worker(Tag):
-    @Imprint
-    def Protocol_Up(agent):
-        agent.safety_clearance = "worker"
-
-    @Rip
-    def Protocol_Down(agent):
-        agent.safety_clearance = "visitor"
-
+```python
+class Inventory(Tag):
+    @Record
+    def items(agent) -> list[str]:
+        return []
 ```
+
+A builder may declare a **second parameter**: it receives the value already
+stored under that name, or `None` when there is none. This is how
+independent Tags **pile up** on one Record, in application order, and how a
+Tag extends an ordinary attribute the host already had:
+
+```python
+class Elf(Species):
+    @Record
+    def spells(agent, stored) -> list[str]:
+        return (stored or []) + ["Light"]
+
+class Wizard(Class):
+    @Record
+    def spells(agent, stored) -> list[str]:
+        return (stored or []) + ["Magic Missile", "Shield"]
+
+class Sage(Tag):
+    @Record
+    def spells(agent, stored) -> list[str]:
+        return (stored or []) + ["Identify"]
+
+Elf(ari); Wizard(ari); Sage(ari)
+assert ari.spells == ["Light", "Magic Missile", "Shield", "Identify"]
+```
+
+The author writes the merge. `stored + new`, `max(stored, new)`,
+`stored | new`: whatever the domain means. A builder without the second
+parameter **replaces**; replacing the Record of an independent Tag is
+diagnosed, like an Action.
+
+A Record signature has three seats: the Agent, the stored value, and the
+application inputs, which bind **by name**. The second positional
+parameter is always the stored seat; when there is nothing to read, a `*`
+holds the seat empty and the inputs follow it by name:
+
+```python
+class MI6(Tag):
+
+    @Record
+    def code(agent, *, code):        # agent, nothing stored, code from the call
+        return code
+
+MI6(bond, code="007")
+bond.code                            # "007"
+```
+
+A builder whose second positional parameter is named like a supplied input
+is refused at tagging with a Declaration Failure that shows the spelling
+above: the stored value must never be mistaken for the input in silence.
+An input the caller did not supply keeps the parameter's default, or is
+`None` when it has none.
+
+After tagging, a Record is an ordinary attribute: read it, assign it,
+delete it with the language's own `del agent.record`. Deleting is allowed
+but rarely good design; frequent deletion means unclear state ownership.
+
+Mutable Record values must be fresh per Agent unless sharing is the
+explicit intent. Shared values belong in a Report.
+
+## 1.4 Reports and Operations
+
+A **Report** is shared data belonging to a Tag; an **Operation** is shared
+behaviour. Both take the Tag as their first input, the way Agent members
+take the Agent. The four kinds are one pattern, two scopes:
+
+| | behaviour | data |
+| --- | --- | --- |
+| **Agent** | `@Action def f(agent, ...)` | `@Record def r(agent, stored)` |
+| **Tag** | `@Operation def f(tag, ...)` | `@Report def r(tag, inherited)` |
+
+```python
+class Community(Tag):
+
+    @Report
+    def colour(tag) -> str:
+        return "green"
+
+    @Operation
+    def Greet(tag, name) -> str:
+        return f"{tag.__name__}:{name}"
+
+Community.colour            # "green"
+Community.Greet("Ari")      # "Community:Ari"
+```
+
+A Report builder runs once per Tag, on first read, and its value is held
+on the Tag: one copy for the whole Field. Like a Record, it may declare a
+second parameter, which receives the value the Tag's Bases give that name,
+or `None`, so a Shape can extend a Base's Report rather than replace it.
+
+Reports and Operations are **not visible on the Agent**. `ari.colour` does
+not exist after `Community(ari)`, and neither does `ari.Greet`. Projecting
+Tag members onto Agents would invent an Agent receiver for Tag behaviour,
+silently shadow host methods, and confuse the two histories. The Agent
+reaches them through its Tag-bound view (§1.7) or through publication.
+
+A shared counter is a Report; the Imprint that changes it acts on the Tag:
+
+```python
+class Secret_Agent(Tag):
+
+    @Report
+    def active(tag) -> int:
+        return 0
+
+    @Imprint
+    def Activate(agent):
+        Secret_Agent.active += 1
+```
+
+## 1.5 Publication
+
+Scope says *who owns* a member. **Publication** says *who may reach it from
+outside*. The defaults follow the Agency/Agent picture: what the Agent does
+is public; what the Agency keeps is internal.
+
+| Contribution | Default | Mark |
+| --- | --- | --- |
+| Action, Record | **external** | `@Secret` makes it internal |
+| Operation, Report | **internal** | `@Public` publishes it on the Agent |
+
+**Composition** is the door. Inside it, everything of the relevant scopes
+resolves; outside it, only external members and the control plane (apply,
+Rip, membership, Fields, views of carried meaning). *Inside composition*
+means: while an Action, Imprint, Record builder, condition, or Rip protocol
+bound to **this Agent** is running.
+
+`@Secret` on an Action or Record:
+
+```python
+class Fire(Tag):
+    @Secret
+    @Record
+    def ember_heat(agent) -> int:
+        return 3
+
+    @Secret
+    @Action
+    def ignite(agent) -> int:
+        return agent.ember_heat * 2
+
+    @Action
+    def strike(agent) -> int:
+        return agent.ignite() + 1     # inside composition: resolves
+
+ember.strike()        # 7
+ember.ignite()        # AttributeError: secret member
+ember.ember_heat      # AttributeError: secret member
+```
+
+A secret handle captured inside and called outside **fails closed**. A
+secret still occupies its `(Agent, name)` slot; it is not a third kind.
+
+`@Public` on a Report or Operation constructs the publishing member for
+you, so field economy (one value, one body on the Tag) needs no hand-written
+adapter:
+
+- A **published Report** appears on the Agent as a **read-only name** that
+  reads the Tag's current value. One copy lives on the Tag; the Agent does
+  not carry it.
+- A **published Operation** appears on the Agent as an **Action** that
+  forwards to the Operation with **the Agent as its second input**, after
+  the Tag.
+
+```python
+class Agency(Tag):
+
+    @Public
+    @Report
+    def colour(tag) -> str:
+        return "navy"
+
+    @Public
+    @Operation
+    def dispatch(agency, sender, message):
+        if sender not in agency:
+            raise PermissionError("inactive")
+        return network.broadcast(sender, message)
+
+Agency(agent)
+agent.colour                     # "navy", read-only
+agent.dispatch(message)          # Agency.dispatch(Agency, agent, message)
+```
+
+The published Action is a normal Action: it overlays and underlays at
+`(Agent, name)` and is sticky after Rip. That is why the guarded Operation
+checks membership **at invocation**: a stale `send = agent.dispatch`
+captured before Rip fails closed after it. TOP is not a security system; a
+long-running task may need to re-check authority before an irreversible
+step.
+
+`@Secret` and `@Public` are **modifiers**: they stack with `@Action`,
+`@Record`, `@Operation` and `@Report` in either order. A modifier that
+restates the default (`@Public @Record`, `@Secret @Report`) is accepted;
+both on one member is a contradiction and is rejected at declaration.
+
+## 1.6 Delete
+
+`@Delete` on a name removes the visible contribution, or the host member,
+of that name. It frees the slot: the next contribution may occupy it with
+either Agent kind, and an Underlay-seeking contribution finds nothing.
+
+```python
+class Pacifist(Tag):
+    @Delete
+    def Attack(agent): ...
+```
+
+## 1.7 Access model
+
+Three forms, three meanings. An implementation may spell them differently
+but must keep them distinct.
+
+**Current Agent access**: the visible Overlay now.
+
+```python
+agent.Attack()
+agent.weapon
+```
+
+**Agent-bound Tag access**: the Overlay **as it was immediately after that
+Tag applied** to this Agent, including prior independent Tags. It does not
+change when a later Tag actualizes the same name. It is a snapshot: read
+only. Two spellings:
+
+```python
+agent.Paladin.Attack()       # by name: the last active Tag called Paladin
+Paladin[agent].Attack()      # by class: exact, even when names collide
+```
+
+Agent-bound access requires **active** membership; a Rogue Agent keeps its
+sticky members but loses the view. Secret members obey the same door in a
+view.
+
+**Direct Tag access**: the Tag itself.
+
+```python
+Paladin.HONOUR_CODE
+Paladin.Operation(...)
+Paladin[:]                    # its Field
+```
+
+Worked example:
+
+```python
+class Character:
+    def Attack(agent) -> str:
+        return "Faulty OOP attack."
+
+class Person(Tag):
+    def Attack(agent) -> str:
+        return "Attack!"
+
+class Elf(Person):
+    @Action
+    @Underlay
+    def Attack(agent, underlay) -> str:
+        return "With elven grace " + underlay()
+
+class Paladin(Person):
+    @Action
+    @Underlay
+    def Attack(agent, underlay) -> str:
+        return underlay() + " For your holy oath!"
+
+ari = Character()
+Paladin(ari)
+Elf(ari)
+
+ari.Attack()             # "With elven grace Attack! For your holy oath!"
+ari.Paladin.Attack()     # "Attack! For your holy oath!"
+```
+
+`Person` applies before `Paladin` and stays active when `Elf` arrives. Elf
+captures the complete Attack Overlay (Person, then Paladin). The later Tag
+replaces `ari.Attack()` without changing what `ari.Paladin.Attack()` means.
+
+## 1.8 Flags: Tags as keywords
+
+Tabletop rules have **keywords**: Undead, Flying, Fey. A rule does not
+import the creature's species; it asks whether the word is on the sheet. A
+Tag marked `@Flag` is such a word. Its name becomes searchable from the
+Agent's side, by name or by class:
+
+```python
+@Flag
+class Undead(Tag):
+    pass
+
+Undead(ghoul)
+
+assert "Undead" in ghoul             # by name
+assert Undead in ghoul               # by class
+assert Keyword(ghoul, "Undead")      # the function form, works on any object
+assert ghoul in Undead               # membership, as for every Tag
+```
+
+This is what lets rules live as data. A table entry `"Undead-Flying"`
+splits into words, and `Keyword(agent, *words)` decides; the rule ports to
+any program whose Tags carry those names.
+
+Flags are **opt-in** on purpose. Matching by name is global: two Tags that
+share a name are one word to a string. Only Tags that ask to be words carry
+that risk, and an ordinary Tag is never found by name. Names match
+exactly.
+
+A Flag needs the Agent's `in`. Applying a Flag to a host that defines its
+own `in` (a container) is a declared collision and fails with a
+Composition Failure, like a Record over a host property. `Keyword(...)`
+answers for every object, tagged or not, container or not.
+
 ---
-##  Ripping Tags
 
-Tags can be seen like a pass, a sticker, or a badge. Having one is nice, but they should have a function: a security pass should identify the user, a police badge needs the District and Agent's number, and a logistic's sticker needs a destination. Having a Tag without those Records makes for a dangerous state of uncertainty for the contract.
+# Ring 2 · Contracts
 
-Ripping a Tag is an exceptional and violent act of Field expulsion. Like in 80s copaganda movies, to "return your badge" means the Agent is no longer an active member of the organization. But it creates a Rogue Agent: an element with the Actions and Records it had before Ripping the Tag, but without active access to the Tag's Field resources, Operations, or Reports. When an expulsion protocol is required ("Give me your badge and weapons. You can no longer go into the evidence room!"), the `@Rip` tag is used. A Rogue Agent can no longer be accessed by Field protocols.
+Conditions are TOP's quality control. They run at tagging boundaries, never
+continuously during play, and they never wrap an ordinary Action call.
 
-````py
-class Person:                       # a plain host class
-    def __init__(self, name):
-        self.name = name
+## 2.1 A condition is strictly boolean
 
-class MI6(Tag):                     # MI6 is a Tag applied to a Person
+A condition is a function whose first input is the Agent. It **holds** on
+`True` or on falling through without a `return` (an assert-style body),
+**fails** on `False`, and is **rejected** on anything else.
 
+```python
+class Wizard(Tag):
+    @Pre
+    def Level_Over_Zero(agent):
+        return agent.level > 0
+
+    @Post
+    def Has_Spellbook(agent):
+        assert agent.spellbook is not None
+```
+
+TOP does not coerce truthy and falsy values: a Record of `0` spell slots is
+a real value, not a failure. `return agent.spell_slots` raises a Contract
+Failure telling you to write the comparison you mean. The absence of a
+return is permission: a condition is a restriction, and saying nothing
+permits. Legal until written into law.
+
+> Contracts should be picky.
+> The Layer's Lawyer
+
+## 2.2 Preconditions: the gate
+
+A Precondition inspects the **incoming materials**: may this Agent, with
+these inputs, enter the line? It runs at step 1, once per call, for **the
+Tags applied in the current call only**, as they will be composed: a
+Shape's gate replaces its Base's. An earlier Tag's gate is not re-asked
+when a later, unrelated Tag arrives; it already let its Agent in. Because
+the gate runs before any Base applies, a Precondition sees the Agent as it
+arrives, never what a Base's Imprint is about to write.
+
+Preconditions, like Record builders and Imprints, receive application
+inputs by name:
+
+```python
+class Coded(Tag):
+    @Pre
+    def Has_Code(agent, code):
+        return code is not None
+
+Coded(bond)              # TagPreconditionError
+Coded(bond, code="007")  # applies
+```
+
+A parameter the caller did not supply keeps its declared default, or is
+`None` when it has none.
+
+Preconditions **relax backward**. A Shape may ask for less than its Base,
+never more, so a Shape can stand in wherever its Base is expected. Override
+freely; compose with `@Underlay` when you want the Base's gate too:
+
+```python
+class Founder(Guild):
+    @Pre
+    def Dues_Paid(agent):
+        return True                # founders skip the dues gate
+
+class Apprentice(Wizard):
+    @Pre
+    @Underlay
+    def Level_Over_Zero(agent, base):
+        assert agent.mentor        # also needs a mentor
+        return base()              # then the Base's gate
+```
+
+This is also how **synergy** is expressed: a feat that requires two other
+Tags gates on both.
+
+```python
+class War_Caster(Tag):
+    @Pre
+    def Is_A_Caster(agent):
+        return agent in Wizard
+```
+
+## 2.3 Imprints: the writing
+
+An Imprint performs the work of tagging: it runs at step 4, after the Tag
+has committed, in declaration order, with the application inputs by name.
+
+```python
+class MI6(Tag):
+    @Imprint
+    def SetUp(agent, code):
+        agent.code = code
+        agent.status = "Full"
+```
+
+An Imprint may apply further Tags to the same Agent; those are ordinary
+later calls. If an Imprint fails, the Tag **stays** and the call raises an
+Imprint Failure: the machine broke while writing, and the product is on the
+line for inspection.
+
+## 2.4 Postconditions: the promise
+
+A Postcondition inspects the **finished product**. Every visible
+Postcondition runs at step 5, **once per call, after the whole Form**, so a
+Base may promise what its Shape delivers. Postconditions take no inputs:
+they judge the Agent, not the materials.
+
+Every visible Postcondition is re-checked at each later tagging boundary,
+so a later Tagging can be refused by an earlier Tag's promise. Conditions
+do not check themselves during play; what must be watched continuously is
+a Record.
+
+Postconditions **strengthen forward**. A Shape promises at least what its
+Base promised: compose with `@Underlay` and `and`.
+
+```python
+class Knight(Soldier):
+    @Post
+    @Underlay
+    def Is_Equipped(agent, base):
+        return base() and agent.oath
+```
+
+Sometimes a specific case really is looser than the rule: "no Strength
+above 20", except Barbarians. Overriding a Base Postcondition **without**
+its Underlay is a **weakened** promise. TOP allows it, because forbidding it
+would break the refactoring that is the point of TOP, but it is **never
+silent**: a Contract Warning is raised at tagging. If the relaxation is
+intended, the warning is your receipt; if it was a slip, it is your alarm.
+
+The discipline in three lines:
+
+- **Strengthen a Post** → `@Post @Underlay`, `return base() and …`. Silent.
+- **Relax a Pre** → override freely. Silent.
+- **Weaken a Post** → override without the Underlay. Allowed, diagnosed.
+
+## 2.5 Defective Agents
+
+A Tag whose Postcondition failed is **applied and defective**. The Agent is
+a member; its promise is broken; it must be repaired or Ripped.
+
+An Agent is **truthy exactly when every visible Postcondition holds**.
+`if` is the conditional and Post*conditions* are conditions:
+
+```python
+if agent:               # every promise holds
+    proceed(agent)
+
+assert agent            # or raise
+```
+
+Fields partition accordingly:
+
+```python
+for wizard in Wizard:        # the sound population: the ones fit to play
+for broken in ~Wizard:       # the defective population: repair them
+for anyone in Wizard[:]:     # everyone, sound or defective
+assert broken in Wizard      # a defective Agent is still a member
+```
+
+The plain loop is the working population, and `if Wizard:` asks whether
+it is empty. A broken Agent does not stop being a member (`in`), does not
+leave `Wizard[:]`, and waits in `~Wizard` for repair or Rip. Membership and the loop deliberately disagree for it:
+the loop is the line, and a defective product is off the line.
+
+Truthiness on a plain object is vacuously true, so this fills an empty
+seat. A host that defines its own `__bool__` or `__len__` keeps it until a
+Postcondition becomes visible on that Agent.
+
+## 2.6 Naming the culprit
+
+A failed check raises a failure that **carries the check's name**, as a
+subclass of the general failure: the Precondition declared as
+`Is_A_Caster` refuses with `TagPreconditionError.Is_A_Caster`, an
+Imprint called `Arm` fails with `TagImprintError.Arm`, a Postcondition
+called `Has_Book` with `TagPostconditionError.Has_Book`. The marks are
+the short spelling of the same classes, so a program catches a refusal in
+its own words:
+
+```python
+try:
+    War_Caster(bruk)
+except Precondition.Is_A_Caster:      # this one refusal
+    ...
+except TagPreconditionError:          # any refusal
+    ...
+```
+
+Rules:
+
+1. The named failure **is** the general failure (`issubclass`), so a
+   handler for the general one still catches everything. `error.name` is
+   the check's name; the general failure's `name` is `None`.
+2. A name exists from the moment its Tag class exists, not from its first
+   tagging. A name that no Tag declared is an error at the `except` line
+   (`AttributeError`), never a handler that silently fails to match.
+3. Names are per kind, not per Tag: two Tags that each declare `Ready`
+   share `Precondition.Ready`. A program that needs to tell them apart
+   reads `f"{agent:contract}"` or names the checks differently.
+4. A check that raises instead of returning `False` is named the same way.
+
+`bool(agent)` is the verdict on a finished Agent. The `Contract` namespace
+names the promise that broke:
+
+```python
+Contract.Postconditions(agent)   # promises hold, or raise naming one
+Contract.Preconditions(agent)    # gates still hold, or raise
+Contract.Conditions(agent)       # both, Pre then Post
+Contract.Holds(agent)            # the boolean form, spelled out
+Contract.Status(agent)           # {condition: holds?}, never raises
+print(Contract.Display(agent))
+# Hero[Wizard] contract:
+#   Pre:
+#     OK  Level_Over_Zero
+#   Post:
+#     XX  Has_Spellbook
+```
+
+## 2.7 Writing a check
+
+A condition usually asks whether an Agent *has* something. `assert
+agent.spellbook` reads well, but asks two questions at once: *defined* and
+*truthy*. That is fine for a spellbook object; it is a trap for a
+`spell_slots` of `0`. Separate having a contribution from its value:
+
+- Is it there at all? `assert agent.spell_slots is not None`, or
+  `assert hasattr(agent, "spell_slots")` when `None` is itself valid.
+- Does it have a particular value? `assert agent.spell_slots > 0`.
+
+---
+
+# Ring 3 · Lifecycle
+
+## 3.1 Rip protocols
+
+Imprint and Rip are duals: constructor and destructor, `__enter__` and
+`__exit__`. A `@Rip` Action runs when the Agent leaves the Tag's Field. It
+is also an ordinary, callable Action.
+
+```python
+class MI6(Tag):
     @Imprint
     def SetUp(agent, code):
         agent.code = code
@@ -521,484 +942,180 @@ class MI6(Tag):                     # MI6 is a Tag applied to a Person
         del agent.code
         agent.status = "Former MI6 Agent"
 
-bond = Person("Bond James Bond")    # bond is a Person (the host object)
+MI6(bond, code="007")
+del MI6[bond]
+bond.status          # "Former MI6 Agent"
+```
 
-MI6(bond, code="007")               # tag bond as MI6
-print(bond.code)                    # 007
+Teardowns run **after** membership has ended, in declaration order, every
+one of them; failures are collected and reported once as a Composition
+Failure. A `@Rip` Action with an `@Underlay` runs composed, like any Action.
 
-MI6.Rip(bond)
-print(bond.status)                  # Former MI6 Agent
+Ripping a Tag may apply another Tag, even itself. That is outside good TOP
+use: it could keep an Agent from ever leaving a Field.
 
-assert bond not in MI6
-````
+## 3.2 Deleting an Agent
 
-Imprint shapes the Agent when active Field membership begins. Rip cleans up when active Field membership ends. They are duals: constructor and destructor, __enter__/__exit__.
+Deletion of an Agent Rips it from its active Tags, so exit protocols run.
+An implementation provides three tiers and says which is which:
 
-> Note: Ripping a Tag may apply another Tag. Technically, it may even apply itself. That would be outside good TOP use, but it could prevent an Agent from ever leaving the Field.
+| Tier | Guarantee |
+| --- | --- |
+| **Finalizer** (`__del__`) | best effort: teardowns run when the Agent is collected; the language may not run finalizers at shutdown or inside reference cycles |
+| **`Scope(agent, *tags)`** | guaranteed: Tags apply on entry and Rip, in reverse, on exit, even if the block raises |
+| **`At_Exit(agent)`** | opt-in: teardowns also run at normal interpreter exit; registration is weak |
 
+Every teardown runs at most once, whichever tier reaches it first.
+
+```python
+with Scope(agent, Sentry):
+    guard_the_gate(agent)
+# Sentry's teardown has run here, exception or not
+```
 
 ---
 
-# 🗑️ Deleting an Agent
+# Ring 4 · Edges
 
-Deletion of an Agent means it is also Ripped from its active Tags. To launch a deletion protocol, the `@Rip` modifier must define the actions to take on leaving.
+What TOP does not promise, stated so nobody has to discover it.
 
-```python
-class Secret_Agent(Tag):
-    active_agents = 0
-
-    @Imprint
-    def Activate(agent):
-        agent.status = "Active"
-        Secret_Agent.active_agents += 1
-
-    @Rip
-    def Deactivate(agent):
-        agent.status = "Not Active"
-        Secret_Agent.active_agents -= 1
-```
-
-Deletion always Rips the Agent. Any exit protocol will run on deletion of the hosting object.
-
----
-
-# ⏸️ Imprints
-
-An Imprint performs the action of tagging itself. A Tag may have zero or more Imprints. Within one Tag, they run in declaration order.
-
-Tagging may also establish Preconditions and Postconditions. Conditions are TOP's tag-time guardrails: they decide whether the Tagging may commit, but they do not wrap ordinary gameplay Action calls.
-
-For one Tag application, TOP performs this logical sequence:
-
-1. Construct the candidate Overlay.
-2. Evaluate every Precondition visible in that candidate Overlay.
-3. Run the new Tag's Imprints.
-4. Evaluate every Postcondition visible in that candidate Overlay.
-5. Commit the Tag's active Field membership and TOP-managed
-   contributions.
-
-The detailed condition model is described in the Conditions section.
-
-```python
-class Wizard(Tag):
-
-    @Post
-    def Has_Spellbook(
-            agent,
-            ) -> bool:
-        return hasattr(
-                agent,
-                "spellbook",
-                )
-    @Pre
-    def LevelOverZero(agent):
-        """ 
-        A 0 level character can't gain the Wizard Role!
-        """
-        return (agent.level > 0)
-```
-
-
----
-
-# 🎫 Access model
-
-TOP has three distinct access forms.
-
-### 🪪 Current Agent access
-
-```python
-agent.Attack()
-agent.weapon
-```
-
-This uses the current visible Overlay at the moment of access.
-
-### 🪪 Agent-bound Tag access
-
-```python
-agent.Paladin.Attack()
-agent.Paladin.HONOR_CODE
-```
-
-This accesses the Overlay snapshot immediately after `Paladin` applied to
-that Agent. It includes all visible contributions that existed at that point,
-including prior independent Tags. It does not change merely because a later
-Tag actualizes the same name.
-
-Agent-bound Tag access requires active Field membership in the requested Tag.
-Otherwise it fails with a Tag-resolution error. A Rogue Agent may keep sticky
-Actions and Records, but it does not keep Agent-bound Tag access after Rip.
-
-### 🪪 Direct Tag access
-
-```python
-Paladin.Field
-Paladin.Report
-Paladin.Operation()
-```
-
-This accesses Tag-level meaning, not an Agent-bound Action. A target-scoped
-Action needs an Agent context, which Agent-bound Tag access provides.
-
-An implementation may choose a different syntactic form where direct dot
-access collides with ordinary Agent attributes. It must preserve the three
-semantic distinctions.
-
----
-
-# 🖼️ Example: stable identity and captured Underlay
-
-```python
-class Character:
-
-    def Attack(
-            agent,
-            ) -> str:
-        return "Faulty OOP attack."
-
-
-class Person(Tag):
-
-    @Action
-    def Attack(
-            agent,
-            ) -> str:
-        return "Attack!"
-
-
-class Elf(Person):
-
-    @Action
-    @Underlay
-    def Attack(
-            agent,
-            underlay,
-            ) -> str:
-        return (
-            "With elven grace "
-            + underlay()
-            )
-
-
-class Paladin(Person):
-
-    @Action
-    @Underlay
-    def Attack(
-            agent,
-            underlay,
-            ) -> str:
-        return (
-            underlay()
-            + " For your holy oath!"
-            )
-
-
-ari = Character()
-
-Paladin( ari )
-Elf( ari )
-
-assert ari in Person
-assert ari in Elf
-assert ari in Paladin
-
-print(ari.Attack())
-# With elven grace Attack! For your holy oath!
-print(ari.Paladin.Attack())
-# Attack! For your holy oath!
-
-```
-
-The `Person` Base applies before `Paladin`. It remains active when `Elf` applies. Elf captures the complete current Attack Overlay: Person followed by Paladin. The later Tag replaces `ari.Attack()` without changing what `ari.Paladin.Attack()` means.
+- **Nominal type.** `type(agent) is Host` may be false after tagging. The
+  type's name is unchanged and `isinstance(agent, Host)` is true. Code that
+  keys on exact type identity is outside the guarantee.
+- **Copying and pickling.** Cloning an Agent is domain work: build a new
+  Target and apply its Tags again (`Tags(agent)` lists them). A Python
+  implementation refuses `copy.copy` explicitly rather than aliasing state.
+- **Threads.** One Agent, one thread. Fields are not synchronized.
+- **Host descriptors.** A Record cannot share a name with a host property
+  or slot; the Tagging fails with a Composition Failure.
+- **Raw side effects.** Rollback restores TOP-managed state and the Agent's
+  attributes at call entry. It cannot undo an in-place mutation of a
+  pre-existing mutable value.
+- **Operations and the door.** An Operation called directly on the Tag is
+  outside composition unless it was reached from an Action, Imprint,
+  condition or Rip of the Agent whose secrets it reads.
 
 ---
 
 # 🚨 Failure model
 
-TOP failures must identify the violated semantic rule. A language profile may use its own exception or result types, but it must distinguish at least:
+Every failure names the law it violates. A language profile may use its own
+types but must keep these distinct.
 
-| Failure | Meaning |
-| --- | --- |
-| **Tag Resolution Failure** | A required Underlay, Tag view, or contribution cannot be resolved. |
-| **Tag Precondition Failure** | A candidate Overlay's precondition does not hold. |
-| **Imprint Failure** | Tag application logic fails before the Tag becomes active. |
-| **Tag Postcondition Failure** | A candidate Overlay's postcondition does not hold. |
-| **Tag Composition Failure** | Contributions cannot form the required Overlay. |
-| **Tag Contract Failure** | A condition returns a non-boolean (truthy/falsy) value instead of a strict True / False / None. |
-
-Failure stops the current Tagging, preventing Dependencies that were not applied earlier from being committed. Modular and atomic application provides isolation from failure, keeping side effects contained. Dependency Tags committed earlier remain; the Agent does not lose previous successful taggings.
+| Failure | Meaning | Effect |
+| --- | --- | --- |
+| **Tag Declaration Failure** | A Tag is written wrong: illegal mark combination, `@Underlay` without a parameter to receive it. | at class use |
+| **Tag Composition Failure** | Contributions cannot form the Overlay: cross-kind collision, Record over a host descriptor, a Record builder or teardown that failed, a Target that cannot carry state, a Base still required. | call rolled back (or Rip refused) |
+| **Tag Resolution Failure** | A required Underlay, view, or membership is unavailable. | call rolled back |
+| **Tag Precondition Failure** | A gate refused the incoming Agent. | call rolled back |
+| **Tag Imprint Failure** | An Imprint failed after commit. | Tags stay |
+| **Tag Postcondition Failure** | The finished Agent breaks a promise. | Tags stay, Agent defective |
+| **Tag Contract Failure** | A condition returned a non-boolean. | call rolled back |
+| **Overwrite Warning** | An independent Tag replaced a visible Action or Record without an Underlay. | diagnostic |
+| **Contract Warning** | A Shape weakened a Base Postcondition. | diagnostic |
 
 ---
 
-# 🧰 Implementation obligations
+# 🧰 Conformance obligations
 
-A conforming implementation must provide:
+A conforming implementation provides, ring by ring:
 
-- stable Target identity under tagging;
-- observable membership and Base membership;
-- non-owning iterable Fields;
-- ordered Base then Shape application;
-- sticky Tag contributions;
-- Active Field membership ends only by explicit Rip;
-- the latest visible Overlay by contribution name;
-- captured Underlays for extending contributions;
-- Agent-bound Tag views that preserve historical overlay snapshots;
-- tag-time Preconditions, Imprints, and Postconditions; and
-- defined diagnostics and failure reporting.
+**Ring 0**
+- stable object identity under tagging, and preserved host behaviour;
+- membership and Base membership (`agent in Tag`), closed upward, with a
+  has-been check that survives Rip;
+- non-owning, identity-indexed, iterable Fields;
+- Base-first Form application, each Base once, active reapply a no-op;
+- the five-step tagging sequence with the call boundary: rollback on gate
+  and Record failure, Tags stay on Imprint and Postcondition failure;
+- Rip: sticky contributions, refusal while a Shape requires the Base, no
+  cascade;
+- native spellings for every Tag-level act, leaving the Tag's dotted
+  namespace to the program.
+
+**Ring 1**
+- Agent and Tag scopes, `(scope, name)` slots, cross-kind collision rules;
+- latest-Layer Overlay; captured, callable Underlays for Actions and
+  conditions; the stored value for Records;
+- Reports and Operations invisible on the Agent;
+- publication: `@Secret` with a composition door that fails closed; `Public`
+  Reports as read-only live names and `Public` Operations as Actions with
+  the Agent as second input; illegal marks rejected at declaration;
+- Flags: opt-in keyword Tags searchable from the Agent's side by name and
+  by class, refused on a host that owns `in`, never matched for ordinary
+  Tags;
+- Delete; the three access forms, with Agent-bound views as read-only
+  snapshots requiring active membership.
+
+**Ring 2**
+- strict boolean conditions; Preconditions gating only the current call,
+  with inputs; Imprints after commit, with inputs; Postconditions once per
+  call after the whole Form, re-checked at every later boundary, without
+  inputs;
+- the contract direction, with weakened Postconditions diagnosed;
+- defective Agents: contract truthiness; the plain loop as the sound
+  population, `~Tag` the defective one, `Tag[:]` everyone, membership
+  unchanged; a namespace that names the culprit.
+
+**Ring 3**
+- `@Rip` protocols run after membership ends, once, composed, failures
+  reported; the three deletion tiers.
+
+**Everywhere**
+- the failure types above, distinct and named.
 
 An implementation may choose runtime type composition, generated wrappers,
-proxies, trait machinery, static code generation, or another mechanism. Those
-are implementation details.
-
-TagKit is a Python implementation target for these obligations. Any gap in
-TagKit is TagKit work, not a change to TOP.
+proxies, trait machinery, or static code generation. Those are its business.
+TagKit is the Python reference; any gap in TagKit is TagKit's to fix, not a
+change to TOP.
 
 ---
 
-## 🧧 Purpose of This Guide
+# 🧭 TOP among paradigms
 
-This guide has two jobs:
+TOP was arrived at independently, from storage systems, organizational
+models, and character creation. Several established ideas share pieces of
+it:
 
-- explain the programming model
-- specify the observable behavior a TOP implementation should provide
+- **Mixins and traits** compose behaviour per class, resolved once. TOP
+  composes per instance, at runtime, and freezes each Layer as an Underlay.
+- **The Role Object pattern** adds roles to a live identity but treats
+  removal as ordinary. TOP treats removal as exceptional: a role is
+  something you became; only active membership can be rescinded; changing
+  state lives in Records.
+- **Entity-Component systems** attach data to an identity. TOP keeps
+  behaviour with the category and adds membership: "every Wizard".
+- **Aspect-oriented programming** layers behaviour across a hierarchy. TOP's
+  Imprints and conditions are a tag-time form of the same idea, scoped to
+  one semantic act.
+- **Design by Contract** (Meyer, Eiffel; Ada 2012 aspects) gives TOP its
+  contract direction and its refusal to coerce booleans.
+- **Ada packages** give TOP its specification/body picture: the Tag declares
+  what is shared, the Agent is what acts.
 
-This guide explains the model first and the current TagKit surface second.
+TOP goes beyond these to one vocabulary: sticky runtime contributions,
+active Field membership, captured Overlays, tag-time contracts, two scopes
+with publication, and one stable identity.
 
-Examples show intended meaning.
-They do not freeze one permanent spelling.
----
-## 🧯 TOP Commitments
-
-A conforming TOP implementation must preserve the observable semantics defined by this guide.
-
-Surface spellings may evolve.
-Internal implementation strategies may evolve.
-But the semantic laws must remain stable.
-
----
-# TOP as a Paradigm
-TOP was arrived at independently, from storage systems, organizational models, and D&D character creation. Several established ideas share pieces of it:
-
-- Overlaying gives durable contributions, but fixed at tagging time. TOP keeps incremental change and moves acquisition to runtime, per object.
-- Membership is monotonic by design principle. Rip is the explicit in-extremis exception: it removes active Field membership without reverting the Agent's identity, history, or sticky contributions.
-- Mixins / traits compose behavior, but per class, resolved once. TOP composes per instance and freezes each layer as an Underlay.
-- The Role Object pattern adds roles to a live identity, but treats removal as ordinary. TOP treats removal as exceptional: a role is something you became, while active Field membership is something that can be rescinded. States live in Records instead.
-- Aspect-oriented programming layers behavior across a hierarchy. TOP's Imprints and conditions are a tag-time form of the same idea, scoped to a single semantic act.
-- Entity-Component systems attach data to an identity. TOP keeps behavior with the category and adds membership ("every Wizard").
-- TOP brings forth Design by Contract (Meyer/Eiffel) and Ada 2012 contracts.
-
-TOP goes beyond these ideas to build a complete paradigm: sticky runtime contributions, active Field membership, captured overlays, tag-time contracts, and one scope x kind contribution model on a single stable identity, in one vocabulary.
-
-More importantly to me, it provides a thinking system: a simple idea, with analogies to the real world, but powerful enough to simplify complex systems into an intuitive syntax. TOP is not just a library, not just a tool, but a new way to think about complex topics.
-
-
-
----
-# ⚖️ Conditions
-
-Conditions are TOP's contracts. They are tag-time guardrails: boolean checks that decide whether a Tagging is allowed to commit. A condition guards the *act of tagging*, not ordinary gameplay — an Action is never wrapped by a condition.
-
-TOP has two conditions:
-
-- **`@Pre`** — a Precondition. It guards *entry*: what must be true *before* a Tag may apply.
-- **`@Post`** — a Postcondition. It guards the *promise*: what must be true *after* a Tag has applied.
-
-A condition is a function with the Agent as its first input. As with every TOP contribution, the first parameter is the Agent by discipline; its name is yours to choose, never a reserved word.
-
-```python
-class Wizard(Tag):
-
-    @Pre
-    def Level_Over_Zero(agent):
-        return agent.level > 0          # you need a level to become a Wizard
-
-    @Post
-    def Has_Spellbook(agent):
-        assert agent.spellbook          # a Wizard always ends up with a spellbook
-```
-
-A condition is **strictly boolean**: it holds on `True` (or on absent `return` for an assert-style body that fell through), fails on `False`, and is *rejected* on anything else. TOP does not coerce truthy/falsy values, because they are not booleans, and prone to logic errors. A Record of `0` slots left is a real value, not a failure. So write the comparison you mean, `return agent.spell_slots > 0`, never the raw value `return agent.spell_slots` (which raises a contract error telling you to be explicit). 
-
-The absence of a return statement defaults to True: a condition is a restriction, so saying nothing also permits. Legal until written into law.
+More importantly, it is a thinking system: a simple idea with analogies to
+the real world, strong enough to make complex systems intuitive. TOP is not
+just a library; it is a way to think.
 
 ---
 
-## 🕰️ When conditions run
+# 🧯 Commitments
 
-Conditions fire at tagging boundaries, never continuously during play. For one Tagging, TOP performs:
+1. A Target keeps one stable identity.
+2. Tags add semantic context; they never replace inherent structure.
+3. Membership is meaningful even when a Tag contributes nothing else.
+4. Mutable Agent state belongs in Records; shared Tag data in Reports.
+5. Composition is explicit, ordered, and inspectable.
+6. A failed gate publishes nothing; a failed promise is never silent.
+7. Rip ends active membership without pretending history never happened.
+8. What the Agent does is public; what the Agency keeps is internal.
+9. Language profiles feel native to their language.
+10. Implementations serve the paradigm; the paradigm serves no single
+    application.
 
-1. Build the candidate Overlay.
-2. Evaluate every visible **Precondition**. If one fails → *Precondition Failure*; nothing commits.
-3. Run the Imprints.
-4. Evaluate every visible **Postcondition**. If one fails → *Postcondition Failure*; nothing commits.
-5. Commit active Field membership and contributions.
-
-Every *visible* condition runs, not only the ones the newest Shape declared. So a later Tagging can be refused because an earlier Tag's condition no longer holds — the contract is re-checked at each boundary. Conditions do not re-check themselves during gameplay; continuous, mutable checks belong in Records, not in conditions.
-
----
-
-## 🧅 Conditions Layer, like every contribution
-
-A condition is a Layer. When a Shape declares a condition with the same name as a Base's, the Shape's becomes the visible Overlay and the Base's becomes its Underlay — the very law that governs Actions and Records. Conditions are not special, and TOP keeps no separate deletion verb for them: to relax or replace a condition you **override** it, crunching a new Layer on top.
-
-```python
-class Apprentice(Wizard):
-
-    @Pre
-    @Underlay
-    def Level_Over_Zero(agent, base):
-        assert agent.mentor   # also needs a mentor
-        return base()         # then defer to the Base's level gate
-```
-
-An `@Underlay` condition receives the Base's check and composes with it. Without `@Underlay`, the Shape's condition simply replaces the Base's.
-
----
-
-## 🧭 The contract direction: **Forward-Post, Backward-Pre**
-
-Conditions carry a direction, and it is the rule of substitutability (Liskov; Design by Contract):
-
-> **Forward-Post, Backward-Pre.**
-> As Tags specialize, Postconditions accumulate *forward* — a Shape promises at least as much as its Base, and more. Preconditions relax *backward* — a Shape may ask for less than its Base, never more.
-
-This is what lets a Shape stand in safely wherever its Base is expected. A more specific Tag may open easier doors in, but it must not quietly revoke what the Base guaranteed.
-
-**Relaxing a Precondition is ordinary.** A `Founder` joins a `Guild` without paying dues — the relaxed gate is just a Shape overriding it:
-
-```python
-class Founder(Guild):
-
-    @Pre
-    def Dues_Paid(agent):
-        return True                      # founders skip the dues gate
-```
-
-`agent in Guild` still means "is a Guild member," and code iterating `Guild.Field` is unaffected, because the Guild's *promises* are untouched. Easier entry, same guarantees.
-
-**Strengthening a Postcondition is ordinary too** — `@Underlay` and `and`:
-
-```python
-class Knight(Soldier):
-
-    @Post
-    @Underlay
-    def Is_Equipped(agent, base):
-        return base() and agent.oath    # keeps the Soldier promise, adds an oath
-```
-
----
-
-## 🪓 Relaxing a promise: the deliberate exception
-
-Sometimes a specific case really is looser than the rule. A rule says "no Strength above 20"; Barbarians break it.
-
-```python
-class Character(Tag):
-
-    @Post
-    def Strength_Capped(agent):
-        return agent.strength <= 20
-
-class Barbarian(Character):
-
-    @Post
-    def Strength_Capped(agent):
-        return agent.strength <= 24       # Barbarians widen the cap -- a plain crunch
-```
-
-*(Strictly a cap like this belongs in a Record, but it shows the shape of the feature.)* Here the Barbarian's Postcondition does **not** preserve the Base promise — it widens it. That is a *weakened* Postcondition, against Forward-Post.
-
-TOP allows it, because forbidding it outright would break the easy refactoring that is the point of TOP. But it is never silent: **overriding a Base Postcondition without preserving its Underlay raises a contract diagnostic.** A relaxed promise is therefore always a visible, deliberate decision, never an accident. If the relaxation is intended, the diagnostic is your receipt; if it was a slip, it is your warning.
-
-The whole discipline in three lines:
-
-- **Strengthen a Post** → `@Post @Underlay`, `return base() and ...`. Silent and correct.
-- **Relax a Pre** → override freely. Silent and correct.
-- **Weaken a Post** → override without the Underlay. Allowed, but diagnosed.
-
----
-
-## 🔎 Writing a check
-
-A condition usually asks whether an Agent *has* something. The natural spelling is `assert`:
-
-```python
-class Wizard(Tag):
-    @Post
-    def Has_Spellbook(agent):
-        assert agent.spellbook
-```
-
-`assert agent.spellbook` reads as a contract clause and fails with an `AssertionError` that names the line. But it asks **two questions at once**: it passes only if the contribution is *defined* **and** *truthy*. That is fine when a Record holds a truthy value whenever it is present (a spellbook object, a weapon). It is a trap when a Record can legitimately be falsy — a `spell_slots` of `0` is a real, defined value, yet `assert agent.spell_slots` would reject it as if it were missing.
-
-So separate **having a contribution** from **its value**:
-
-- **Is the contribution there at all?** (defined, with any value, even `0` or `False`):
-  - `assert agent.spell_slots is not None`  ·  or `assert hasattr(agent, "spell_slots")` when `None` is itself a valid value
-- **Does it have a particular value?**:
-  - `assert agent.spell_slots > 0`  ·  `assert agent.spell_slots != 0`
-
-`assert agent.rec` is the shorthand for "defined **and** truthy" — reach for it only when that is exactly what you mean. The same strictness that rejects a bare `return agent.spell_slots` is the discipline asking you, in `assert` too, to separate a contribution *being there* from a contribution *being falsy*.
-
-> Contracts should be picky.
-> - The Layer's Lawyer 
-
----
-
-## ✅ Verifying an Agent: `if agent`
-
-Preconditions are gates, checked once at entry. Postconditions are the standing promise, the active conditions, so TOP lets you re-check them on demand, with the most natural spelling in the language:
-
-```python
-if agent:         # True exactly when every visible Postcondition holds
-    proceed(agent)
-
-assert agent      # raise if any Postcondition fails
-```
-
-An Agent is **truthy if and only if its Postconditions hold**. `if` is the conditional and Post*conditions* **are** *conditions*. So `if agent` reads as "if the agent's conditions hold.", or "is the agent ok? in good condition?". 
-
-> Python implementation notes: Truthiness on a plain object is vacuously True anyway, so this fills an empty seat rather than overriding a meaningful one. 
-
-If an agent's conditions assert to a failure, it controls the assertion so the Agent returns a False boolean value.
-
-When you need to know *which* promise broke, ask the `Contract` namespace, whose method names say exactly what they check:
-
-```python
-Contract.Postconditions(agent)   
-    # the promises hold, or raise naming the one that failed
-Contract.Preconditions(agent)    
-    # the entry gates still hold, or raise
-Contract.Conditions(agent)       
-    # both, Pre then Post
-```
-
-For the whole picture rather than a single verdict, `Contract.Status(agent)` returns `{condition: holds?}` for every visible condition, Preconditions then Postconditions (it never raises; a broken condition maps to `False`), and `Contract.Display(agent)` renders that with Pre and Post in separate sections: a quick diagnostic while debugging:
-
-```python
-print(Contract.Display(charlie))
-# Hero__Wizard contract:
-#   Pre:
-#     OK  Level_Over_Zero
-#   Post:
-#     XX  Has_Spellbook
-```
-
-The dict is the primitive; the display is one view built from it.
-
----
-
-## 🚨 Failure
-
-A condition that does not hold stops the Tagging at its boundary, with nothing committed:
-
-| Failure | Meaning |
-| --- | --- |
-| **Precondition Failure** | A visible Precondition did not hold before Imprints. The Tag does not apply. |
-| **Postcondition Failure** | A visible Postcondition did not hold after Imprints. The Tag does not apply. |
-
-Because Tagging is atomic, a failed condition leaves the Agent exactly as it was before the call. Conditions are how TOP keeps its word at every boundary: the contract layer that lets you refactor by Tag without fear.
-
+Surface spellings may evolve. Implementation strategies may evolve. The
+semantic laws stay.
