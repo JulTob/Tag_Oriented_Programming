@@ -4,8 +4,9 @@
 - **Desk:** spec
 - **Title:** Flags, Tags as Keywords
 - **Author:** Julio Toboso (@JulTob)
-- **Status:** Vetting
+- **Status:** Deployed
 - **Created:** 2026-09-04
+- **Deployed:** 2026-09-05
 
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
@@ -67,8 +68,9 @@ rules as keywords).
 
 ### Decision *(filled by the Director)*
 
-> Status set to **____** on YYYY-MM-DD, because ____.
->
-> *Drafted for the Director's confirmation:* Cleared on 2026-09-04, per the
+> Status set to **Deployed** on 2026-09-05, because the Director approved
+> the whole review in PR #3 ("all changes approved"), the rule is
+> reflected in `spec/SPECIFICATION.md`, and TagKit 0.2.0a2 covers it in
+> `tests/test_tagkit.py`. Cleared on 2026-09-05, per the
 > Director's direction in review ("I confirm the if and in with the
 > @Flag"; `Keyword` as the function's name).

@@ -4,8 +4,9 @@
 - **Desk:** spec
 - **Title:** Member Publication
 - **Author:** Julio Toboso (@JulTob)
-- **Status:** Vetting        <!-- Recon | Brief | Vetting | Cleared | Redacted | Deployed -->
+- **Status:** Deployed
 - **Created:** 2026-09-04
+- **Deployed:** 2026-09-05
 - **Revised:** 2026-09-04 (second draft, after review)
 
 > One STEP, one topic. If this grows a second purpose, split it into another
@@ -183,9 +184,10 @@ Covered by `tests/test_tagkit.py::PublicationTests`.
 
 ### Decision *(filled by the Director)*
 
-> Status set to **____** on YYYY-MM-DD, because ____.
->
-> *Drafted for the Director's confirmation:* Cleared on 2026-09-04, per the
+> Status set to **Deployed** on 2026-09-05, because the Director approved
+> the whole review in PR #3 ("all changes approved"), the rule is
+> reflected in `spec/SPECIFICATION.md`, and TagKit 0.2.0a2 covers it in
+> `tests/test_tagkit.py`. Cleared on 2026-09-05, per the
 > Director's direction in review ("Tag features are hidden by default, and
 > agent's are public by default; `@Secret` for private agent features and
 > `@Public` for public agency features, following the Agency-Agent model").

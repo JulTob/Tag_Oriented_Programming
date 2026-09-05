@@ -4,8 +4,9 @@
 - **Desk:** spec
 - **Title:** Records Receive the Stored Value
 - **Author:** Julio Toboso (@JulTob)
-- **Status:** Vetting
+- **Status:** Deployed
 - **Created:** 2026-09-04
+- **Deployed:** 2026-09-05
 
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
@@ -81,9 +82,10 @@ Covered by `tests/test_tagkit.py::RecordTests`.
 
 ### Decision *(filled by the Director)*
 
-> Status set to **____** on YYYY-MM-DD, because ____.
->
-> *Drafted for the Director's confirmation:* Cleared on 2026-09-04, per the
+> Status set to **Deployed** on 2026-09-05, because the Director approved
+> the whole review in PR #3 ("all changes approved"), the rule is
+> reflected in `spec/SPECIFICATION.md`, and TagKit 0.2.0a2 covers it in
+> `tests/test_tagkit.py`. Cleared on 2026-09-05, per the
 > Director's direction in review ("a default input variable stored/new
 > inside the record definition, like `return stored + new`, and
 > `if stored is None: X`").

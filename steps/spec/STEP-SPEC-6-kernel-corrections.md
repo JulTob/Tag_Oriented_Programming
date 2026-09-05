@@ -4,8 +4,9 @@
 - **Desk:** spec
 - **Title:** Kernel Corrections
 - **Author:** Julio Toboso (@JulTob)
-- **Status:** Vetting
+- **Status:** Deployed
 - **Created:** 2026-09-04
+- **Deployed:** 2026-09-05
 
 > One STEP, one topic: resolve the contradictions the review of 2026-09-04
 > found between the Specification and its implementations, with no new
@@ -54,6 +55,7 @@ or the Agent-bound view.
 
 ### Decision *(filled by the Director)*
 
-> Status set to **____** on YYYY-MM-DD, because ____.
->
-> *Drafted for the Director's confirmation:* Cleared on 2026-09-04.
+> Status set to **Deployed** on 2026-09-05, because the Director approved
+> the whole review in PR #3 ("all changes approved"), the rule is
+> reflected in `spec/SPECIFICATION.md`, and TagKit 0.2.0a2 covers it in
+> `tests/test_tagkit.py`. Cleared on 2026-09-05.
