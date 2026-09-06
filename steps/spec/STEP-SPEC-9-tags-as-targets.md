@@ -4,7 +4,7 @@
 - **Desk:** spec
 - **Title:** Tags as Targets (Pins)
 - **Author:** Julio Toboso (@JulTob)
-- **Status:** Brief
+- **Status:** Vetting
 - **Created:** 2026-09-05
 
 > One STEP, one topic. If this grows a second purpose, split it into another
@@ -108,28 +108,34 @@ is. Membership does not inherit: `War_Caster in Rare` is False unless
 
 ### 4. One slot per scope and name
 
-The pinned Tag's own Operations and Reports are its host members. The
-laws of §1.2 and §1.3 apply with the Tag as host:
+A Pin **adds** to a Tag; it never replaces what the Tag declares. On an
+object, an Action shadows a host method in the instance dictionary and
+the host keeps its own; a Tag's own dictionary *is* its host, so the same
+write would destroy the declaration. Therefore:
 
-- A Pin Action over the Tag's own Operation shadows it, sticky, and the
-  view `Rare[Wizard]` keeps the prior. Independent Pins that both place
-  the name warn, as Actions do.
-- A Pin Record over a name the Tag declared as a Report is refused at the
-  gate, as a Record over a host descriptor is (§1.3). Declare the value
-  in one place.
-- Two Pins in one Form overlay in Form order; `@Underlay` extends.
-- A Pin member may not use a name that TOP itself reads on a Tag
-  (`__name__`, `__mro__`, `_tagkit_*`); refused at declaration.
+- A Pin member may not use a name the pinned Tag declares itself or
+  inherits from a Base (its Operations, Reports, Actions, Records or
+  conditions). The pinning is refused at the gate with a Composition
+  Failure; nothing changes.
+- A Pin member may not use a name every Tag already answers through its
+  metaclass (`mro`, `__name__`, the TOP acts). Refused at the gate.
+- Names another Pin landed are TOP-managed: two Pins on one Tag follow
+  the Overlay laws of §1.2 and §1.3, independent Pins warn, Pins in one
+  Form overlay in Form order, `@Underlay` extends, the view keeps the
+  prior.
 
 ### 5. Publication
 
-Pinned members are Tag scope and therefore **internal by default**
-(STEP-SPEC-3): reachable from the pinned Tag's own protocols and Agent
-members through the door, and from `Rare[Wizard]`. `@Public @Record` and
-`@Public @Action` on the Pin publish the landed member for direct
-`Wizard.rarity` and `Wizard.Describe()` reads, exactly as `@Public` on a
-Report or Operation does. `@Secret` on a Pin's Agent-scope member is
-redundant and accepted.
+Pinned members are Tag scope: readable on the Tag, `Wizard.rarity` and
+`Wizard.Describe()`, as every Report and Operation is (§1.7, direct Tag
+access), and **never projected onto the Tag's Agents**: `ari.rarity` does
+not exist. That is the whole of STEP-SPEC-3 for a Tag receiver.
+
+A Pin's members are **plain**. `@Secret`, `@Public` and `@Delete`, and
+special-method Actions, are refused at declaration with a Tag
+Declaration Failure. Each of them would put a descriptor or a hook on
+the Tag's metaclass, and none has a meaning there yet; a later STEP may
+give them one.
 
 ### 6. Spellings
 
@@ -152,9 +158,12 @@ Two seats are already taken on a Tag and stay as they are:
 
 - `bool(Wizard)` remains "is anyone a sound Wizard" (§0.8). A pinned Tag's
   own promises are read from the Pin's side: `Wizard in ~Rare`.
-- `x in Wizard` remains membership. A Flag that is also a Pin is not
-  searchable by `"Deprecated" in Wizard`; use `Keyword(Wizard,
-  "Deprecated")`, which works on any object.
+- `x in Wizard` remains membership, so a Pin cannot be a Flag: `@Flag`
+  and `@Pin` together are refused at declaration. A word on a Tag is a
+  Report.
+
+`Wizard.Rare` reads the Pin-bound view by name, as `ari.Wizard` does on
+an Agent, on the same miss-path rule.
 
 ### 7. Contracts, Imprints and Rip
 
@@ -164,7 +173,11 @@ once per pinning and re-checked at later pinning boundaries of that Tag;
 a broken promise leaves the Tag pinned and defective (STEP-SPEC-4).
 Imprints run after commit with the Tag as receiver. `del Rare[Wizard]`
 runs the Pin's Rip protocol; landed Operations and Report values stay,
-sticky, and `isinstance(Wizard, Rare)` stays True.
+sticky, and `isinstance(Wizard, Rare)` stays True. Pinning again after a
+Rip is a fresh pinning and silent: a Tag replacing its own earlier
+promise is not a Shape weakening a Base. (This closes the same gap for
+objects: re-applying a Ripped Tag with a Postcondition warned in
+0.2.0a2.)
 
 A Pin does **not** change the pinned Tag's own gate over its Agents. A
 Deprecated Tag that should refuse new members writes that as its own
@@ -238,15 +251,26 @@ To be covered by `tests/test_tagkit.py::PinTests`:
 
 ## TagKit notes
 
-Feasible on the 0.2 kernel without a new mechanism: the runtime type of a
-pinned Tag is a `(MetaTag, Tagged)` metaclass assigned through
+Built on the 0.2 kernel without a new mechanism (0.2.0a3): the runtime
+type of a pinned Tag is a `(MetaTag, Tagged)` metaclass assigned through
 `__class__`, as an Agent's is; state lives in the class namespace under
-the same key; rollback restores the namespace key by key, since a class
-namespace has no `clear`; Fields hold classes by weak reference as they
-hold objects. Verified by hand on 2026-09-05.
+the same key, written through a small adapter over the class dictionary;
+rollback restores the namespace key by key, since a class namespace has
+no `clear`; a landed Action is a descriptor that binds to the Tag it is
+read from, as a classmethod does; a landed Record is a plain class
+attribute, which is what a Report's value is; Fields hold classes by weak
+reference as they hold objects. The Tag's own scan skips TOP-managed
+names, so a pinned Tag applied to an Agent never projects its pinned
+members. Agents' paths are untouched: tagging costs the same and the
+membership check got faster (`_state_of` reads the dictionary directly).
 
 ---
 
 ### Decision *(filled by the Director)*
 
 > Status set to **____** on YYYY-MM-DD, because ____.
+>
+> *Drafted for the Director's confirmation:* Cleared on 2026-09-06, per the
+> Director's direction ("Establish a STEP for Tags as Targets. The Pins we
+> established in the last version are a good basis for it"; "Implement the
+> step with optimized code").

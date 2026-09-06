@@ -26,6 +26,7 @@ from TagKit import Keyword
 from TagKit import Imprint
 from TagKit import Operation
 from TagKit import Outline
+from TagKit import Pin
 from TagKit import Post
 from TagKit import Postcondition
 from TagKit import Pre
@@ -1483,6 +1484,257 @@ class NamedFailureTests(unittest.TestCase):
 
         self.assertIn(ari, Gated)
         self.assertEqual(Contract.Status(ari), {"Open": True, "Done": True})
+
+
+class PinTests(unittest.TestCase):
+    """STEP-SPEC-9: a Tag marked @Pin applies to Tags. The pinned Tag is
+    the Pin's Agent; the receiver rule lands Records as Reports and
+    Actions as Operations of that Tag."""
+
+    def setUp(self) -> None:
+        class Wizard(Tag):
+            @Report
+            def colour(tag):
+                return "blue"
+
+            @Operation
+            def Greet(tag, who):
+                return f"{tag.__name__}:{who}"
+
+            def Attack(agent):
+                return "casts"
+
+        class War_Caster(Wizard):
+            pass
+
+        @Pin
+        class Rare(Tag):
+            @Record
+            def rarity(tag):
+                return "rare"
+
+            @Action
+            def Describe(tag):
+                return f"{tag.__name__} is {tag.rarity}"
+
+        self.Wizard = Wizard
+        self.War_Caster = War_Caster
+        self.Rare = Rare
+
+    def test_a_pin_makes_a_tag_its_agent(self) -> None:
+        Wizard, Rare = self.Wizard, self.Rare
+        identity = (id(Wizard), hash(Wizard), Wizard.__name__, Form(Wizard))
+
+        self.assertIs(Rare(Wizard), Wizard)
+
+        self.assertIn(Wizard, Rare)
+        self.assertEqual(list(Rare), [Wizard])
+        self.assertEqual(list(Rare[:]), [Wizard])
+        self.assertEqual(len(Rare), 1)
+        self.assertTrue(Rare)
+        self.assertTrue(isinstance(Wizard, Rare))
+        self.assertEqual(identity, (id(Wizard), hash(Wizard), Wizard.__name__, Form(Wizard)))
+        self.assertIs(type(self.War_Caster), type(Tag))
+
+    def test_records_land_as_reports_and_actions_as_operations(self) -> None:
+        Wizard, War_Caster, Rare = self.Wizard, self.War_Caster, self.Rare
+        ari = Agent()
+        Wizard(ari)
+
+        Rare(Wizard)
+
+        self.assertEqual(Wizard.rarity, "rare")
+        self.assertEqual(Wizard.Describe(), "Wizard is rare")
+        self.assertEqual(War_Caster.rarity, "rare")                 # a Report: inherited
+        self.assertEqual(War_Caster.Describe(), "War_Caster is rare")   # an Operation: the receiver is the Tag read
+        self.assertNotIn(War_Caster, Rare)                            # membership does not inherit
+        self.assertFalse(hasattr(ari, "rarity"))
+        self.assertFalse(hasattr(ari, "Describe"))
+        self.assertEqual((Wizard.colour, Wizard.Greet("x"), ari.Attack()), ("blue", "Wizard:x", "casts"))
+
+        bo = Agent()
+        Wizard(bo)                                                    # tagging after the pinning
+
+        self.assertFalse(hasattr(bo, "rarity"))
+        self.assertFalse(hasattr(bo, "Describe"))
+
+    def test_view_format_and_queries(self) -> None:
+        Wizard, Rare = self.Wizard, self.Rare
+        Rare(Wizard)
+
+        self.assertEqual(Rare[Wizard].rarity, "rare")
+        self.assertEqual(Rare[Wizard].Describe(), "Wizard is rare")
+        self.assertEqual(Wizard.Rare.rarity, "rare")
+        self.assertEqual(f"{Wizard:pins}", "Rare")
+        self.assertEqual(f"{Wizard:form}", "Wizard")
+        self.assertEqual(Tags(Wizard), (Rare,))
+        self.assertEqual(Outline(Wizard), "Wizard\n  Rare")
+        self.assertTrue(f"{Wizard:contract}".startswith("Wizard[Rare]"))
+        self.assertFalse(Wizard)                                      # still "any sound member"
+        ari = Agent()
+        Wizard(ari)
+        self.assertTrue(Wizard)
+
+    def test_refusals(self) -> None:
+        Wizard, Rare = self.Wizard, self.Rare
+        ari = Agent()
+
+        with self.assertRaises(TagCompositionError):
+            Rare(ari)                                                 # a Pin on an object
+
+        with self.assertRaises(TypeError):
+            Wizard(Rare)                                              # an ordinary Tag on a class
+
+        with self.assertRaises(TagCompositionError):
+            Rare(Rare)                                                # itself
+
+        @Pin
+        class Loud(Tag):
+            @Record
+            def colour(tag):
+                return "red"
+
+        with self.assertRaises(TagCompositionError):
+            Loud(Wizard)                                              # over the Tag's own Report
+
+        self.assertEqual(Wizard.colour, "blue")
+        self.assertNotIn(Wizard, Loud)
+
+        @Pin
+        class Named(Tag):
+            def mro(tag):
+                return 1
+
+        with self.assertRaises(TagCompositionError):
+            Named(Wizard)                                             # what every Tag answers
+
+        with self.assertRaises(TagDeclarationError):
+            @Pin
+            class Hidden(Tag):
+                @Secret
+                @Record
+                def x(tag):
+                    return 1
+
+        with self.assertRaises(TagDeclarationError):
+            class Mixed(Rare, Wizard):
+                pass
+
+        with self.assertRaises(TagDeclarationError):
+            @Flag
+            @Pin
+            class Keyed(Tag):
+                pass
+
+    def test_a_failed_gate_leaves_the_tag_untouched(self) -> None:
+        Wizard = self.Wizard
+        before = dict(vars(Wizard))
+
+        @Pin
+        class Gated(Tag):
+            @Pre
+            def Has_Members(tag):
+                return bool(tag[:])
+
+            @Record
+            def stamp(tag):
+                return 1
+
+        with self.assertRaises(Precondition.Has_Members):
+            Gated(Wizard)
+
+        self.assertEqual(dict(vars(Wizard)), before)
+        self.assertIs(type(Wizard), type(Tag))
+        self.assertNotIn(Wizard, Gated)
+
+        ari = Agent()
+        Wizard(ari)
+        Gated(Wizard)
+        self.assertIn(Wizard, Gated)
+
+    def test_a_failed_promise_leaves_the_tag_pinned_and_defective(self) -> None:
+        Wizard = self.Wizard
+
+        @Pin
+        class Promised(Tag):
+            @Post
+            def Has_Members(tag):
+                return bool(tag[:])
+
+        with self.assertRaises(Postcondition.Has_Members):
+            Promised(Wizard)
+
+        self.assertIn(Wizard, Promised)
+        self.assertIn(Wizard, ~Promised)
+        self.assertEqual(list(Promised), [])
+
+        ari = Agent()
+        Wizard(ari)                                                   # repaired
+        self.assertEqual(list(Promised), [Wizard])
+
+    def test_rip_is_sticky_and_repinning_is_fresh(self) -> None:
+        Wizard, Rare = self.Wizard, self.Rare
+
+        @Pin
+        class Checked(Rare):
+            @Post
+            def Fine(tag):
+                return True
+
+        Checked(Wizard)
+        del Checked[Wizard]
+
+        self.assertNotIn(Wizard, Checked)
+        self.assertIn(Wizard, Rare)                                   # the Base stays
+        self.assertTrue(isinstance(Wizard, Checked))
+        self.assertEqual(Wizard.rarity, "rare")                       # sticky
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            Checked(Wizard)                                           # fresh, and silent
+
+        self.assertIn(Wizard, Checked)
+
+    def test_a_shape_of_a_pin_is_a_pin_and_a_pin_may_be_pinned(self) -> None:
+        Wizard, War_Caster, Rare = self.Wizard, self.War_Caster, self.Rare
+
+        class Homebrew(Rare):
+            @Record
+            def source(tag):
+                return "mine"
+
+        Homebrew(War_Caster)
+
+        self.assertIn(War_Caster, Rare)
+        self.assertIn(War_Caster, Homebrew)
+        self.assertEqual((War_Caster.source, War_Caster.rarity), ("mine", "rare"))
+        self.assertNotIn(Wizard, Rare)
+
+        @Pin
+        class Meta(Tag):
+            @Record
+            def level(tag):
+                return 2
+
+        Meta(Rare)
+
+        self.assertIn(Rare, Meta)
+        self.assertEqual(Rare.level, 2)
+        self.assertEqual(Homebrew.level, 2)
+
+    def test_a_ripped_tag_reapplied_to_an_object_is_silent(self) -> None:
+        class Promising(Tag):
+            @Post
+            def Fine(agent):
+                return True
+
+        ari = Agent()
+        Promising(ari)
+        del Promising[ari]
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            Promising(ari)
 
 
 # ==================================================================

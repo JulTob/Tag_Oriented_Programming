@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tagkit"
-version = "0.2.0a2"
+version = "0.2.0a3"
 description = "TagKit: the Python reference implementation of Tag-Oriented Programming."
 readme = "README.md"
 requires-python = ">=3.10"

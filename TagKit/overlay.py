@@ -24,8 +24,10 @@ from .errors import TagError
 from .errors import TagOverwriteWarning
 from .errors import TagContractWarning
 from .errors import TagResolutionError
+from .declarations import STATE
 from .geometry import _related
 from .state import _Bound
+from .state import _Pinned_Operation
 from .state import _State
 from .state import _namespace_of
 
@@ -218,7 +220,11 @@ def _install(
     for name, function in declarations.postconditions:
         prior = state.postconditions.get(name)
 
-        if prior is not None and not _takes_underlay(function):
+        if (
+                prior is not None
+                and not _takes_underlay(function)
+                and _origin_of(prior) is not tag
+                ):
             warnings.warn(
                     f"{tag.__name__}.{name} overrides a Base Postcondition"
                     " without @Underlay (weakens a promise; see Forward-Post)",
@@ -226,10 +232,13 @@ def _install(
                     stacklevel=6,
                     )
 
-        state.postconditions[name] = _bind_condition(
-                function,
-                prior,
-                False,
+        state.postconditions[name] = _stamp(
+                _bind_condition(
+                        function,
+                        prior,
+                        False,
+                        ),
+                tag,
                 )
 
     for name, report, public in declarations.reports:
@@ -308,6 +317,71 @@ def _refuse_container_host(
                 )
 
 
+def _stamp(
+        check: Function,
+        tag: type,
+        ) -> Function:
+    """Remember which Tag bound a condition, so a Tag re-applied after a
+    Rip replaces its own promise silently: a fresh Tagging, not a Shape
+    weakening a Base."""
+
+    check.__tagkit_origin__ = tag   # type: ignore[attr-defined]
+
+    return check
+
+
+def _origin_of(
+        check: Function,
+        ) -> type | None:
+    return getattr(
+            check,
+            "__tagkit_origin__",
+            None,
+            )
+
+
+def _refuse_tag_member(
+        state: _State,
+        tag: type,
+        name: str,
+        ) -> None:
+    """A Pin adds to a Tag; it never replaces what the Tag declares itself
+    or what every Tag answers through its metaclass. Names another Pin
+    landed are TOP-managed and follow the Overlay laws."""
+
+    pinned = state.pinned
+
+    if hasattr(type(pinned), name):
+        raise TagCompositionError(
+                f"{tag.__name__}.{name}: a Pin may not name what every Tag"
+                f" already answers ({name!r} belongs to the Tag's metaclass)"
+                )
+
+    for klass in pinned.__mro__:
+        if name not in klass.__dict__:
+            continue
+
+        managed = klass.__dict__.get(STATE)
+
+        if managed is not None and (
+                name in managed.actions
+                or name in managed.records
+                ):
+            return
+
+        where = (
+                "itself"
+                if klass is pinned
+                else f"in its Base {klass.__name__}"
+                )
+
+        raise TagCompositionError(
+                f"{tag.__name__}.{name}: {pinned.__name__} declares {name!r}"
+                f" {where}; a Pin adds to a Tag, it does not replace what"
+                " the Tag declares (STEP-SPEC-9 §4)"
+                )
+
+
 def _delete(
         state: _State,
         name: str,
@@ -330,6 +404,13 @@ def _install_action(
         name: str,
         function: Function,
         ) -> None:
+    if state.pinned is not None:
+        _refuse_tag_member(
+                state,
+                tag,
+                name,
+                )
+
     record_origin = state.records.get(name)
 
     if record_origin is not None:
@@ -379,6 +460,13 @@ def _install_record(
         name: str,
         builder: Function,
         ) -> None:
+    if state.pinned is not None:
+        _refuse_tag_member(
+                state,
+                tag,
+                name,
+                )
+
     if _host_data_descriptor(state.host_type, name):
         raise TagCompositionError(
                 f"{tag.__name__}.{name} is a Record but the host"
@@ -443,7 +531,13 @@ def _materialize(
     for name, builder in declarations.records:
         stored = namespace.get(name)
 
-        if name in deleted_before or isinstance(stored, _Bound):
+        if name in deleted_before or isinstance(
+                stored,
+                (
+                    _Bound,
+                    _Pinned_Operation,
+                ),
+                ):
             stored = None
 
         takes_stored = _takes_stored(builder)

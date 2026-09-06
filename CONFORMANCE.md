@@ -12,7 +12,7 @@ from the inside out: a Ring 2 implementation also satisfies Rings 0 and 1.
 | Ring | Laws, in short |
 | --- | --- |
 | **0 · Kernel** | stable identity and preserved host behaviour; upward-closed membership with a has-been check; non-owning identity-indexed Fields; Base-first Forms; the five-step tagging sequence with rollback on gate and Record failure; Rip sticky, refused while required, never cascading |
-| **1 · Contributions** | two scopes, one slot per `(scope, name)`; latest-Layer Overlay with captured Underlays and stored-value Records; Tag members invisible on the Agent; `@Secret` and `Public` publication with a composition door; Delete; three access forms |
+| **1 · Contributions** | two scopes, one slot per `(scope, name)`; latest-Layer Overlay with captured Underlays and stored-value Records; Tag members invisible on the Agent; `@Secret` and `Public` publication with a composition door; Delete; three access forms; Pins: Tags as Targets, the receiver rule, Fields never mixed |
 | **2 · Contracts** | strict boolean conditions; Preconditions gate only the current call; Imprints after commit; Postconditions once per call and re-checked later; Forward-Post, Backward-Pre with weakening diagnosed; defective Agents, truthiness, sound and defective partitions; a failure names its check (`except Precondition.X`) |
 | **3 · Lifecycle** | `@Rip` protocols after membership ends; the three deletion tiers |
 

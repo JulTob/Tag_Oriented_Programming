@@ -45,6 +45,7 @@ from .state import _State
 from .state import _bind_to
 from .state import _namespace_of
 from .state import _rebind_all
+from .state import _restore_namespace
 from .state import _runtime_type_for
 from .state import _state_for
 from .state import _state_of
@@ -120,13 +121,14 @@ def _rollback(
             if tag not in entry_tags:
                 tag._tagkit_field.Remove(agent)
 
+    _restore_namespace(
+            agent,
+            entry_namespace,
+            )
     namespace = _namespace_of(agent)
 
     if namespace is None:
         return
-
-    namespace.clear()
-    namespace.update(entry_namespace)
 
     if entry_copy is not None:
         namespace[STATE] = entry_copy
