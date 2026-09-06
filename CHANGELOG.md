@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.2.0a3 — 2026-09-06
+
+### Specification
+
+- **Pins: Tags as Targets** (STEP-SPEC-9, §1.9). A Tag marked `@Pin`
+  applies to Tags and to nothing else; the pinned Tag is its Agent. The
+  receiver rule of STEP-SPEC-1 lands a Pin's Records as Reports and its
+  Actions as Operations of the pinned Tag, never on the Tag's Agents.
+  Every Tag-level act applies with a Tag in the Agent's seat:
+  `Rare(Wizard)`, `Wizard in Rare`, `for tag in Rare`, `Rare[Wizard]`,
+  `del Rare[Wizard]`, `f"{Wizard:pins}"`, `f"{Wizard:contract}"`.
+  Fields never mix Agents and Tags. A Pin adds to a Tag and never replaces
+  what the Tag declares; a Pin's members are plain (no `@Secret`,
+  `@Public`, `@Delete`, special methods); a Pin cannot be a Flag.
+- Re-applying a Ripped Tag is a fresh Tagging and silent (§0.7): a Tag
+  replacing its own earlier Postcondition is not a Shape weakening a Base.
+
+### TagKit
+
+- `Pin` mark; the tagging sequence runs unchanged on a Tag as Target
+  through a small adapter over the class dictionary; the runtime type of
+  a pinned Tag is a `(MetaTag, Tagged)` metaclass; landed Actions bind to
+  the Tag they are read from, landed Records are class attributes; the
+  Tag's own scan skips TOP-managed names.
+- Fixed: `TagContractWarning` on re-applying a Ripped Tag that declares a
+  Postcondition; `__bool__` installed over a host's own `__bool__` (the
+  empty-seat rule now holds for it, as the notes said).
+- Faster `agent in Tag`: the state read goes straight to the dictionary.
+- 106 tests.
+
 ## 0.2.0a2 — 2026-09-04
 
 A rewrite of TagKit on the review of 2026-09-04, and the Specification

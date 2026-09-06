@@ -17,6 +17,7 @@ from .errors import TagResolutionError
 from .state import _Bound
 from .state import _Snapshot
 from .state import _State
+from .state import _name_of
 from .state import _state_of
 
 
@@ -56,7 +57,7 @@ def _hooks_for(
             "_TAGKIT_HOST_DEL": _host_member(host_type, "__del__"),
             }
 
-    if has_posts:
+    if has_posts and _host_member(host_type, "__bool__") is None:
         hooks["__bool__"] = _agent_bool
 
     if _host_member(host_type, "__format__") is None:
@@ -100,7 +101,7 @@ def _agent_getattr(
                 )
 
     raise AttributeError(
-            f"{type(agent).__name__} has no member {name!r}"
+            f"{_name_of(agent)} has no member {name!r}"
             )
 
 
@@ -291,7 +292,7 @@ class _Tag_View:
     def __repr__(
             view,
             ) -> str:
-        return f"<{view._tag.__name__} view of {type(view._agent).__name__}>"
+        return f"<{view._tag.__name__} view of {_name_of(view._agent)}>"
 
 
 def _view_of(

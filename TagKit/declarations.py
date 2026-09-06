@@ -29,6 +29,9 @@ _RIP = "__tagkit_rip__"
 _SECRET = "__tagkit_secret__"
 _PUBLIC = "__tagkit_public__"
 _FLAG = "__tagkit_flag__"
+_PIN = "__tagkit_pin__"
+
+STATE = "_TAGKIT_STATE"
 
 _MISSING = object()
 
@@ -269,6 +272,12 @@ def Flag(
                 "@Flag marks a Tag class"
                 )
 
+    if _is_pin(tag):
+        raise TagDeclarationError(
+                f"{tag.__name__}: a Pin cannot be a Flag; on a Tag, `in`"
+                " is membership (STEP-SPEC-9 §6)"
+                )
+
     setattr(
             tag,
             _FLAG,
@@ -287,6 +296,95 @@ def _is_flag(
                     False,
                     )
             )
+
+
+def Pin(
+        tag: type,
+        ) -> type:
+    """Mark a Tag whose Targets are Tags (STEP-SPEC-9).
+
+    ``Rare(Wizard)`` makes the Tag ``Wizard`` an Agent of ``Rare``: its
+    Records land on ``Wizard`` as Reports, its Actions as Operations, and
+    the Field of ``Rare`` is a population of Tags. A Pin applies to
+    nothing else, and its Bases must be Pins.
+    """
+
+    if not isinstance(tag, type) or not hasattr(tag, "_tagkit_field"):
+        raise TagDeclarationError(
+                "@Pin marks a Tag class"
+                )
+
+    if _is_flag(tag):
+        raise TagDeclarationError(
+                f"{tag.__name__}: a Pin cannot be a Flag; on a Tag, `in`"
+                " is membership (STEP-SPEC-9 §6)"
+                )
+
+    setattr(
+            tag,
+            _PIN,
+            True,
+            )
+
+    _check_pin_bases(tag)
+    _declarations_of(tag)   # validate the members now, not at first pinning
+
+    return tag
+
+
+def _is_pin(
+        tag: type,
+        ) -> bool:
+    """A Shape of a Pin is a Pin."""
+
+    return bool(
+            getattr(
+                    tag,
+                    _PIN,
+                    False,
+                    )
+            )
+
+
+def _is_tag_base(
+        base: type,
+        ) -> bool:
+    """A Tag class other than the root ``Tag`` (the root is the only Tag
+    with no Tag among its own bases)."""
+
+    return hasattr(base, "_tagkit_field") and any(
+            hasattr(deeper, "_tagkit_field")
+            for deeper in base.__bases__
+            )
+
+
+def _check_pin_bases(
+        tag: type,
+        ) -> None:
+    """One Form is all Pins or no Pins."""
+
+    bases = tuple(
+            base
+            for base in tag.__bases__
+            if _is_tag_base(base)
+            )
+    pins = [
+            base
+            for base in bases
+            if _is_pin(base)
+            ]
+    marked = bool(tag.__dict__.get(_PIN, False))
+
+    if not bases or len(pins) == len(bases):
+        return
+
+    if not pins and not marked:
+        return
+
+    raise TagDeclarationError(
+                f"{tag.__name__} mixes Pins and Tags in one Form; a Pin's"
+                " Bases must be Pins (STEP-SPEC-9 §2)"
+                )
 
 
 class Report:
@@ -518,9 +616,17 @@ def _scan(
     operations: list[tuple[str, Function, bool]] = []
     rips: list[str] = []
     dunders: set[str] = set()
+    modified: list[str] = []
+    managed = tag.__dict__.get(STATE)   # names a Pin landed here
 
     for name, attribute in tag.__dict__.items():
         if _is_private(name):
+            continue
+
+        if managed is not None and (
+                name in managed.actions
+                or name in managed.records
+                ):
             continue
 
         if isinstance(attribute, Report):
@@ -562,6 +668,9 @@ def _scan(
 
         if not callable(attribute):
             continue
+
+        if secret or public:
+            modified.append(name)
 
         if kind == "record":
             _reject_both(tag, name, secret, public)
@@ -626,7 +735,7 @@ def _scan(
         if _is_dunder(name):
             dunders.add(name)
 
-    return _Declarations(
+    declarations = _Declarations(
             actions=tuple(actions),
             records=tuple(records),
             secrets=frozenset(secrets),
@@ -639,6 +748,63 @@ def _scan(
             rips=tuple(rips),
             dunders=frozenset(dunders),
             )
+
+    if _is_pin(tag):
+        _validate_pin(
+                tag,
+                declarations,
+                modified,
+                )
+
+    return declarations
+
+
+def _validate_pin(
+        tag: type,
+        declarations: _Declarations,
+        modified: list[str],
+        ) -> None:
+    """A Pin's members are plain: no publication modifiers, no deletions,
+    no special-method Actions. Each of those would put a descriptor or a
+    hook on the Tag's metaclass; none has a meaning there yet."""
+
+    problems: list[str] = []
+
+    if modified:
+        problems.append(
+                "@Secret / @Public on " + ", ".join(modified)
+                )
+
+    published = [
+            name
+            for name, _value, public in declarations.reports
+            if public
+            ] + [
+            name
+            for name, _function, public in declarations.operations
+            if public
+            ]
+
+    if published:
+        problems.append(
+                "@Public on " + ", ".join(published)
+                )
+
+    if declarations.deletions:
+        problems.append(
+                "@Delete of " + ", ".join(declarations.deletions)
+                )
+
+    if declarations.dunders:
+        problems.append(
+                "special-method Actions " + ", ".join(sorted(declarations.dunders))
+                )
+
+    if problems:
+        raise TagDeclarationError(
+                f"{tag.__name__} is a Pin; its members are plain:"
+                f" {'; '.join(problems)} (STEP-SPEC-9 §5)"
+                )
 
 
 def _reject_both(

@@ -28,8 +28,8 @@ an adjective, changeable. Wizard is a Tag. Hit points are a Record.
 ```python
 from TagKit import (
         Action, Contract, Delete, Flag, Form, Imprint, Keyword, Operation,
-        Outline, Post, Postcondition, Pre, Precondition, Public, Record,
-        Report, Rip, Scope, Secret, Tag, Tags, Underlay,
+        Outline, Pin, Post, Postcondition, Pre, Precondition, Public,
+        Record, Report, Rip, Scope, Secret, Tag, Tags, Underlay,
         TagCompositionError, TagPostconditionError, TagPreconditionError,
         )
 
@@ -640,6 +640,51 @@ print(Outline(ari))
 #   War_Caster
 ```
 
+### Pattern 11 · Categories of categories
+
+**When you want** to say something about a Tag itself: this class is
+*rare*, that species is *homebrew*, this rule is *deprecated*. A Tag is an
+object, so a Tag can be tagged. A Tag marked `@Pin` applies to Tags, and
+the Tag it is applied to becomes its Agent: it joins a Field, it can be
+gated, it can promise, it can leave.
+
+```python
+@Pin
+class Rare(Tag):
+
+    @Record
+    def rarity(tag):                        # the receiver is the Tag
+        return "rare"
+
+    @Action
+    def Describe(tag):
+        return f"{tag.__name__} is {tag.rarity}"
+
+
+Rare(Wizard)                                # pin the Tag
+
+assert Wizard in Rare                       # membership, from the Pin's side
+assert list(Rare) == [Wizard]               # a Field of Tags
+assert Wizard.rarity == "rare"              # one value, held on the Tag
+assert Wizard.Describe() == "Wizard is rare"
+assert not hasattr(ari, "rarity")           # never on the Tag's Agents
+
+for tag in Rare:                            # walk the rare Tags
+    print(tag.Describe())
+```
+
+Notice the first parameter is `tag`, because the receiver is a Tag. What
+a Pin gives lands on the Tag the way a Report or an Operation does: one
+value shared by the whole Field, inherited by the Tag's Shapes
+(`War_Caster.rarity` is `"rare"` too), and never on the Tag's Agents.
+
+**Watch out.** A Pin adds to a Tag; it never replaces what the Tag
+declares itself, and TagKit refuses that at the gate. `if Wizard:` still
+asks whether anyone is a sound Wizard, not whether Wizard's own promises
+hold; ask those from the Pin's side, `Wizard in ~Rare`. A Pin applies
+only to Tags, and an ordinary Tag only to objects, so a Field is never a
+mix of the two.
+
 ---
 
 ## Reading an Agent
@@ -663,6 +708,7 @@ print(Outline(ari))
 | Everyone? | `Wizard[:]` |
 | What applies with it? | `Form(Wizard)`, `f"{Wizard:form}"` |
 | Take it away | `del Wizard[agent]` |
+| Which Pins does it carry? | `Wizard in Rare`, `f"{Wizard:pins}"` |
 
 Nothing TOP-level lives at `Wizard.something`. That namespace is yours: put
 your Reports and Operations there.
@@ -678,6 +724,7 @@ your Reports and Operations there.
 | Extend an Action with `@Underlay`. | Call `agent.Attack()` from inside `Attack` (that recurses). |
 | Gate with `@Pre`; promise with `@Post`; repair through `~Tag`. | Roll your own validation after the fact. |
 | Mark word-like Tags `@Flag` and write rules as data. | Match every Tag by name. Only Flags are words. |
+| Say things about a Tag with a `@Pin`. | Keep a side table of Tags outside TOP. |
 | Clean up with `@Rip`, guarantee it with `Scope`. | Rely on `del agent` for anything that matters. |
 | Reset by Rip and apply again. | Reapply an active Tag hoping it resets (it does nothing). |
 | Keep shared data in a `Report`, one copy. | Copy shared data into every Agent's Record. |

@@ -21,6 +21,7 @@ from .errors import TagPostconditionError
 from .errors import TagPreconditionError
 from .geometry import _leaves
 from .state import _State
+from .state import _name_of
 from .state import _state_of
 
 
@@ -224,7 +225,7 @@ def _title_of(
         agent: object,
         ) -> str:
     state = _state_of(agent)
-    host = type(agent).__name__
+    host = _name_of(agent)
 
     if state is None or not state.active:
         return host

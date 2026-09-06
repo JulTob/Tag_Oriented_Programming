@@ -111,6 +111,21 @@ rollback target.
   objects: called, they mark; read, they forward to their failure class.
   Per kind, not per Tag, on purpose: the handler reads the program's own
   word, and the Tag is already in the message.
+- **Pins reuse the whole sequence.** A pinned Tag is an Agent whose
+  namespace is its class dictionary. `_namespace_of` hands the kernel a
+  `_Class_Namespace` adapter (get, set, pop, keys) over the proxy, so
+  `_apply`, `_materialize`, `_commit`, `_snapshot` and `_rollback` are one
+  code path; the class case restores key by key. The runtime type is a
+  `(MetaTag, Tagged)` metaclass from the same cache. A landed Action is a
+  `_Pinned_Operation` descriptor binding to the Tag it is read from (a
+  Shape inherits it as it inherits a classmethod); a landed Record is a
+  plain class attribute, which is exactly a Report's value. `_scan` skips
+  names the class state manages, so a pinned Tag never projects them onto
+  its Agents. A Pin refuses names the Tag declares itself, because a class
+  dictionary is both host and instance namespace and a write there would
+  destroy the declaration. Pins' members are plain (no descriptors on a
+  metaclass). `_state_of` reads the dictionary directly, which is why
+  `agent in Tag` got faster rather than slower.
 - **Assigning a Tag's name on an Agent** (`ari.Elf = 1`) shadows the view by
   name; plain Python, not intercepted. `Elf[ari]` is unaffected.
 - **Inputs and defaults.** A protocol parameter the caller omitted keeps
