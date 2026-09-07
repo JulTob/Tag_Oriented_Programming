@@ -5,6 +5,7 @@ Tag's dotted namespace to the program:
 
     Wizard(charlie)               apply (Bases first)
     charlie in Wizard             active membership, sound or defective
+    "Deprecated" in Wizard        a keyword: the Tag carries the Flag Pin Deprecated
     Wizard in charlie             the same, from the Agent's side
     "Wizard" in charlie           the same, by name
     isinstance(charlie, Wizard)   ever a member ("ever a Wizard, always a Wizard")
@@ -104,6 +105,17 @@ class MetaTag(type):
             tag,
             candidate: object,
             ) -> bool:
+        """``agent in Wizard``: membership. ``"Deprecated" in Wizard``: a
+        keyword among the Tag's Flag Pins; a string is never a member."""
+
+        if isinstance(candidate, str):
+            from .access import _keyword
+
+            return _keyword(
+                    tag,
+                    candidate,
+                    )
+
         state = _state_of(candidate)
 
         return (

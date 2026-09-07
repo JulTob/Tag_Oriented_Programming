@@ -260,6 +260,7 @@ language, not a library's naming.
 | an Agent's Tags, Outline, contract, as text | `f"{agent:tags}"`, `f"{agent:outline}"`, `f"{agent:contract}"` |
 | catch one check's failure (§2.6) | `except Precondition.Is_A_Caster:`, `except Postcondition.Has_Book:`, `except Imprint.Arm:` |
 | pin a Tag (§1.9), and every act above with a Tag in the Agent's seat | `Rare(Wizard)`, `Wizard in Rare`, `for tag in Rare`, `Rare[Wizard]`, `del Rare[Wizard]` |
+| a Tag carries a keyword? (Flag Pins, §1.9) | `"Deprecated" in Wizard`, `Keyword(Wizard, "Deprecated")` |
 | a Tag's Pins and contract, as text | `f"{Wizard:pins}"`, `f"{Wizard:contract}"` |
 
 Truth on a Tag is truth on a collection: `if Wizard:` asks whether anyone
@@ -560,9 +561,7 @@ class Agency(Tag):
     @Public
     @Operation
     def dispatch(agency, sender, message):
-        if sender not in agency:
-            raise PermissionError("inactive")
-        return network.broadcast(sender, message)
+        return network.broadcast(sender, message)   # a Rogue sender never gets here
 
 Agency(agent)
 agent.colour                     # "navy", read-only
@@ -570,11 +569,15 @@ agent.dispatch(message)          # Agency.dispatch(Agency, agent, message)
 ```
 
 The published Action is a normal Action: it overlays and underlays at
-`(Agent, name)` and is sticky after Rip. That is why the guarded Operation
-checks membership **at invocation**: a stale `send = agent.dispatch`
-captured before Rip fails closed after it. TOP is not a security system; a
-long-running task may need to re-check authority before an irreversible
-step.
+`(Agent, name)` and stays on the Agent after Rip. Its **use** does not: a
+published member is a privilege of membership (STEP-SPEC-10). The
+Action checks active membership of the publishing Tag at invocation and
+refuses a Rogue Agent with a Resolution Failure, and the read-only name
+refuses with an Attribute failure; a stale `send = agent.dispatch`
+captured before Rip fails closed after it. The Agent's own Actions and
+Records are untouched: what it became stays. TOP is not a security
+system; a long-running task may still re-check authority before an
+irreversible step.
 
 `@Secret` and `@Public` are **modifiers**: they stack with `@Action`,
 `@Record`, `@Operation` and `@Report` in either order. A modifier that
@@ -743,17 +746,44 @@ does. Membership does not inherit: `War_Caster in Rare` is False until
 `Rare(War_Caster)`. Nothing a Pin lands is ever projected onto the Tag's
 Agents. A Pin's own Operations and Reports stay on the Pin.
 
-**One slot per scope and name.** A Pin adds to a Tag; it never replaces
-what the Tag declares. A Pin member whose name the pinned Tag declares
-itself or inherits from a Base (an Operation, Report, Action, Record or
-condition), or whose name every Tag already answers (`mro`, `__name__`,
-the TOP acts), is refused at the gate with a Composition Failure and
-nothing changes. Names another Pin landed are TOP-managed and follow the
+**Patching, with collision control.** The pinned Tag's own Tag-scope
+declarations are host members to a Pin, as a host method is to an
+Action. A Pin Action over the Tag's own Operation replaces it silently
+with the Operation as its Underlay, so `def Control(tag, underlay, ...)`
+can call the engine it patches; every Agent that reaches the Operation
+through the Tag is actualized at once, because an Operation is looked up
+on the Tag at call time. A Pin Record over the Tag's own Report receives
+the Report's value in the stored seat. A failed pinning rolls the
+declaration back; a Ripped Pin leaves the patch, sticky, and a Pin's
+`@Rip` teardown that declares a second seat receives the Tag's
+**original declarations** under the patched names, so un-patching is one
+line: `def Unpatch(tag, original): tag.Control = original.Control`. A Pin
+member
+named like something the Tag declares in **Agent scope** or as a
+**protocol**, itself or in a Base, is refused at the gate: on a class the
+scopes share one dictionary, and the write would silently remove the
+declaration from every future Agent's contract. So is a name every Tag
+answers through its metaclass. Names another Pin landed follow the
 Overlay laws of §1.2 and §1.3.
 
-**Plain members.** A Pin's members carry no `@Secret`, `@Public` or
-`@Delete`, and no special-method Actions; each is a Declaration Failure.
-A Pin cannot be a Flag: on a Tag, `in` is membership.
+**Publication on a Tag.** `@Secret` on a Pin's Record or Action makes it
+Pin-private state on the Tag: held in the Tag's state, resolved only
+while the Tag's own protocols or pinned Operations run, an Attribute
+failure from main, not inherited by Shapes. `@Public` publishes it onto
+the pinned Tag's **Field**: every present Agent receives it at pinning
+and every future Agent through the Tag, as the Tag's own published
+Report or Operation (`def Control(tag, agent, ...)`, the Agent second),
+under the privilege rule of §1.5. The Field is checked on copies first;
+a collision on any one Agent refuses the pinning and touches none. A
+Pin's own Reports and Operations are not published, and `@Delete` and
+special-method Actions on a Pin are Declaration Failures.
+
+**Keywords on a Tag.** A Pin may be a Flag. A string can never be a
+member, so on a Tag a string in the `in` seat asks for a keyword:
+`"Deprecated" in Wizard` is True while the Flag Pin `Deprecated` is
+active on it; objects and classes in that seat ask membership.
+`Keyword(Wizard, "Deprecated")` and `Keyword(Wizard, Deprecated)` answer
+the same.
 
 **Seats already taken.** `bool(Wizard)` remains "is anyone a sound
 Wizard" (§0.8); a pinned Tag's own promises are read from the Pin's side,
@@ -1135,8 +1165,12 @@ A conforming implementation provides, ring by ring:
   Tags;
 - Pins: opt-in Tags whose Targets are Tags, the pinned Tag as Agent under
   every Ring 0 act, the receiver rule (Records as Reports, Actions as
-  Operations, never on the Tag's Agents), Fields never mixed, a Pin never
-  replacing what the Tag declares;
+  Operations), Fields never mixed, the Tag's Tag-scope declarations as
+  host members (Underlay, stored seat) with Agent-scope and protocol
+  names refused, `@Secret` as Pin-private state, `@Public` as publication
+  onto the Field, Flag Pins as keywords by string;
+- published members as privileges of membership: use refused on a Rogue
+  Agent, restored by membership;
 - Delete; the three access forms, with Agent-bound views as read-only
   snapshots requiring active membership.
 

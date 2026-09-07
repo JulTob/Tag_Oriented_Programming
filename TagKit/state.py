@@ -62,6 +62,8 @@ class _State:
     deleted: set[str] = field(default_factory=set)
     snapshots: dict[type, _Snapshot] = field(default_factory=dict)
     rips: dict[type, tuple[Function, ...]] = field(default_factory=dict)
+    secret_values: dict[str, Any] = field(default_factory=dict)   # a pinned Tag's @Secret members
+    originals: dict[str, Any] = field(default_factory=dict)       # what a Pin patched, as declared
     composing: int = 0
     checking: bool = False
 
@@ -85,6 +87,8 @@ class _State:
                 deleted=set(state.deleted),
                 snapshots=dict(state.snapshots),
                 rips=dict(state.rips),
+                secret_values=dict(state.secret_values),
+                originals=dict(state.originals),
                 composing=state.composing,
                 checking=state.checking,
                 )
@@ -398,6 +402,101 @@ class _Pinned_Operation:
         return f"<pinned Operation {operation._function.__name__}>"
 
 
+class _Originals:
+    """The pinned Tag's declarations as they were before its Pins patched
+    them, handed to a Pin's @Rip teardown as its second seat, so
+    un-patching is one deliberate line: ``tag.Control = original.Control``.
+    """
+
+    __slots__ = ("_declared",)
+
+    def __init__(
+            original,
+            declared: dict[str, Any],
+            ) -> None:
+        object.__setattr__(original, "_declared", dict(declared))
+
+    def __getattr__(
+            original,
+            name: str,
+            ) -> Any:
+        try:
+            return original._declared[name]
+        except KeyError:
+            raise AttributeError(
+                    f"no original declaration named {name!r} was patched"
+                    ) from None
+
+    def __setattr__(
+            original,
+            name: str,
+            value: Any,
+            ) -> None:
+        raise AttributeError("the originals are a record; they are read-only")
+
+    def __contains__(
+            original,
+            name: object,
+            ) -> bool:
+        return name in original._declared
+
+    def __iter__(
+            original,
+            ) -> Iterator[str]:
+        return iter(original._declared)
+
+    def __repr__(
+            original,
+            ) -> str:
+        return f"<originals of {', '.join(original._declared) or 'nothing'}>"
+
+
+class _Composing_Pinned_Operation(_Pinned_Operation):
+    """A pinned Operation that opens the pinned Tag's composition door
+    while it runs, so the Pin's @Secret members resolve inside it."""
+
+    __slots__ = ("_state",)
+
+    def __init__(
+            operation,
+            function: Function,
+            state: "_State",
+            ) -> None:
+        super().__init__(function)
+        operation._state = state
+
+    def __get__(
+            operation,
+            instance: object,
+            owner: type | None = None,
+            ) -> Any:
+        if owner is None:
+            owner = type(instance)
+
+        function = operation._function
+        state = operation._state
+
+        def Composing(
+                *args: Any,
+                **kwargs: Any,
+                ) -> Any:
+            state.composing += 1
+
+            try:
+                return function(
+                        owner,
+                        *args,
+                        **kwargs,
+                        )
+            finally:
+                state.composing -= 1
+
+        Composing.__name__ = function.__name__
+        Composing.__doc__ = function.__doc__
+
+        return Composing
+
+
 class _Composing_Bound(_Bound):
     """A bound Action that opens the composition door while it runs, so
     @Secret members resolve inside it."""
@@ -437,13 +536,41 @@ def _bind_to(
     function = state.actions[name]
 
     if state.pinned is not None:
-        bound: Any = _Pinned_Operation(function)
-    elif state.secrets:
-        bound = _Composing_Bound(function, agent)
+        _bind_pinned(
+                agent,
+                state,
+                name,
+                function,
+                )
+        return
+
+    if state.secrets:
+        bound: _Bound = _Composing_Bound(function, agent)
     else:
         bound = _Bound(function, agent)
 
     _namespace_of(agent)[name] = bound
+
+
+def _bind_pinned(
+        tag: type,
+        state: _State,
+        name: str,
+        function: Function,
+        ) -> None:
+    """A Pin's Action on a Tag: a secret one lives in the state and is
+    read through the door; the rest live in the class dictionary."""
+
+    if state.secrets:
+        bound: _Pinned_Operation = _Composing_Pinned_Operation(function, state)
+    else:
+        bound = _Pinned_Operation(function)
+
+    if name in state.secrets:
+        _namespace_of(tag).pop(name, None)
+        state.secret_values[name] = bound
+    else:
+        _namespace_of(tag)[name] = bound
 
 
 def _rebind_all(
@@ -600,6 +727,14 @@ class _Published:
         state = _namespace_of(agent)[STATE]
         origin, _declared = state.reports[gate.name]
 
+        if origin not in state.active:
+            raise AttributeError(
+                    f"{gate.name!r} is a published Report of"
+                    f" {origin.__name__}; {_name_of(agent)} is no longer a"
+                    " member, and a published member is a privilege of"
+                    " membership"
+                    )
+
         return getattr(
                 origin,
                 gate.name,
@@ -688,14 +823,18 @@ def _runtime_type_for(
             )
     namespace.update(dunders)
 
-    for name in deleted:
-        namespace[name] = _Deleted(name)
+    if not issubclass(host_type, type):
+        # A Tag's gates are answered on its miss path, never by a data
+        # descriptor on its metaclass (which would also intercept the
+        # class-attribute writes the kernel makes).
+        for name in deleted:
+            namespace[name] = _Deleted(name)
 
-    for name in secrets:
-        namespace[name] = _Secret_Gate(name)
+        for name in secrets:
+            namespace[name] = _Secret_Gate(name)
 
-    for name in published:
-        namespace[name] = _Published(name)
+        for name in published:
+            namespace[name] = _Published(name)
 
     if issubclass(host_type, Tagged):
         bases: tuple[type, ...] = (host_type,)

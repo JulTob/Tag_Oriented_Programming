@@ -31,6 +31,7 @@ from TagKit import (
         Outline, Pin, Post, Postcondition, Pre, Precondition, Public,
         Record, Report, Rip, Scope, Secret, Tag, Tags, Underlay,
         TagCompositionError, TagPostconditionError, TagPreconditionError,
+        TagResolutionError,
         )
 
 
@@ -470,9 +471,7 @@ class Agency(Tag):
     @Public
     @Operation
     def dispatch(agency, sender, message):
-        if sender not in agency:        # live authority: checked each call
-            raise PermissionError("inactive")
-        return f"{sender.name}: {message}"
+        return f"{sender.name}: {message}"   # only members ever get here
 
     @Secret
     @Record
@@ -496,16 +495,23 @@ assert not hasattr(bond, "clearance")   # secret from outside
 send = bond.dispatch                    # a captured handle
 del Agency[bond]
 
+assert bond.status() == "top"           # his own Action: he keeps it
+
 try:
     send("late")
-except PermissionError:
-    pass                                # the Operation checks membership
+except TagResolutionError:
+    pass                                # the Agency's: revoked with membership
 ```
 
 The rule in one line: what the Agent does is public, what the Agency keeps
 is internal. `@Secret` hides an Agent member; `@Public` shows a Tag member.
 Both are modifiers: they stack on `@Record`, `@Action`, `@Report` or
 `@Operation` in either order.
+
+A published member is a **privilege of membership**. After Rip, a Rogue
+Agent keeps what it became (its own Actions and Records) and loses what
+the Agency lent it: a published Operation refuses, a published Report is
+unreadable, until the Tag applies again. You never write that check.
 
 Notice the symmetry. A Report is written exactly like a Record, with the
 Tag instead of the Agent as its first input; it runs once per Tag and its
@@ -678,12 +684,62 @@ a Pin gives lands on the Tag the way a Report or an Operation does: one
 value shared by the whole Field, inherited by the Tag's Shapes
 (`War_Caster.rarity` is `"rare"` too), and never on the Tag's Agents.
 
-**Watch out.** A Pin adds to a Tag; it never replaces what the Tag
-declares itself, and TagKit refuses that at the gate. `if Wizard:` still
-asks whether anyone is a sound Wizard, not whether Wizard's own promises
-hold; ask those from the Pin's side, `Wizard in ~Rare`. A Pin applies
-only to Tags, and an ordinary Tag only to objects, so a Field is never a
-mix of the two.
+A Pin can also **patch** what a Tag shares. Say a Tag has an Operation
+that controls an engine, and the engine changed. A Pin Action of the
+same name replaces it, with the old one as its Underlay, and every Agent
+that goes through the Tag gets the new control at once:
+
+```python
+class Engine(Tag):
+
+    @Operation
+    def Control(tag, level):
+        return f"{tag.__name__} v1 at {level}"
+
+    def Drive(agent):
+        return Engine.Control(agent.level)      # through the Tag, at call time
+
+
+kit = Character("Kit", level=2)
+Engine(kit)
+assert kit.Drive() == "Engine v1 at 2"
+
+
+@Pin
+class Firmware_2(Tag):
+
+    @Action
+    @Underlay
+    def Control(tag, underlay, level):
+        return underlay(level).replace("v1", "v2")
+
+    @Public                                 # reach every Agent of the Tag, too
+    @Record
+    def firmware(tag):
+        return "v2"
+
+    @Rip
+    def Unpatch(tag, original):             # the originals, handed to you
+        tag.Control = original.Control
+
+
+Firmware_2(Engine)
+
+assert kit.Drive() == "Engine v2 at 2"      # actualized, no per-Agent work
+assert kit.firmware == "v2"                 # published onto the Field
+
+del Firmware_2[Engine]                      # un-patch: one deliberate line
+assert kit.Drive() == "Engine v1 at 2"
+```
+
+**Watch out.** A Pin may replace what a Tag *shares* (its Operations
+and Reports), never what its Agents *do* (its Actions, Records and
+conditions); TagKit refuses that at the gate, because on a class the two
+live in one dictionary. `if Wizard:` still asks whether anyone is a
+sound Wizard, not whether Wizard's own promises hold; ask those from the
+Pin's side, `Wizard in ~Rare`. A Pin applies only to Tags, and an
+ordinary Tag only to objects, so a Field is never a mix of the two. A
+Flag Pin is a keyword on the Tag: `"Deprecated" in Wizard`.
 
 ---
 
@@ -727,6 +783,7 @@ your Reports and Operations there.
 | Say things about a Tag with a `@Pin`. | Keep a side table of Tags outside TOP. |
 | Clean up with `@Rip`, guarantee it with `Scope`. | Rely on `del agent` for anything that matters. |
 | Reset by Rip and apply again. | Reapply an active Tag hoping it resets (it does nothing). |
+| Expect a Rogue Agent to keep its own Actions and lose the Agency's published ones. | Check membership by hand inside every published Operation. |
 | Keep shared data in a `Report`, one copy. | Copy shared data into every Agent's Record. |
 | Ask `agent in Wizard`. | Ask `type(agent) is Character`; the type is wrapped. |
 

@@ -14,7 +14,9 @@ from typing import Any
 
 from .errors import TagCompositionError
 from .errors import TagResolutionError
+from .declarations import _MISSING
 from .state import _Bound
+from .state import _Pinned_Operation
 from .state import _Snapshot
 from .state import _State
 from .state import _name_of
@@ -63,7 +65,7 @@ def _hooks_for(
     if _host_member(host_type, "__format__") is None:
         hooks["__format__"] = _agent_format
 
-    if has_flags:
+    if has_flags and _host_member(host_type, "__contains__") is None:
         hooks["__contains__"] = _agent_contains
 
     if _host_member(host_type, "__copy__") is None:
@@ -84,6 +86,13 @@ def _agent_getattr(
     state = _state_of(agent)
 
     if state is not None:
+        if name in state.secrets and state.pinned is not None:
+            return _secret_of_tag(
+                    agent,
+                    state,
+                    name,
+                    )
+
         for tag in reversed(state.active):
             if tag.__name__ == name:
                 return _view_of(
@@ -103,6 +112,39 @@ def _agent_getattr(
     raise AttributeError(
             f"{_name_of(agent)} has no member {name!r}"
             )
+
+
+def _secret_of_tag(
+        tag: type,
+        state: _State,
+        name: str,
+        ) -> Any:
+    """A Pin's @Secret member on a Tag: held in the state, resolved only
+    while the Tag's own protocols or pinned Operations run."""
+
+    if state.composing == 0:
+        raise AttributeError(
+                f"{name!r} is a secret member of {tag.__name__}; it is"
+                " reachable only from its Pins' own Actions and protocols"
+                )
+
+    value = state.secret_values.get(
+            name,
+            _MISSING,
+            )
+
+    if value is _MISSING:
+        raise AttributeError(
+                f"{tag.__name__} has no visible member {name!r}"
+                )
+
+    if isinstance(value, _Pinned_Operation):
+        return value.__get__(
+                None,
+                tag,
+                )
+
+    return value
 
 
 def _agent_format(

@@ -11,9 +11,17 @@
   Every Tag-level act applies with a Tag in the Agent's seat:
   `Rare(Wizard)`, `Wizard in Rare`, `for tag in Rare`, `Rare[Wizard]`,
   `del Rare[Wizard]`, `f"{Wizard:pins}"`, `f"{Wizard:contract}"`.
-  Fields never mix Agents and Tags. A Pin adds to a Tag and never replaces
-  what the Tag declares; a Pin's members are plain (no `@Secret`,
-  `@Public`, `@Delete`, special methods); a Pin cannot be a Flag.
+  Fields never mix Agents and Tags. The pinned Tag's own Operations and
+  Reports are host members to a Pin (Underlay and stored seat: a patch
+  reaches every Agent at once); its Agent-scope members and protocols are
+  refused at the gate. `@Secret` on a Pin member is Pin-private state on
+  the Tag; `@Public` publishes it onto the Tag's Field, present and future
+  Agents. A Ripped Pin is sticky; its `@Rip` teardown may take a second
+  seat and receives the originals, so un-patching is `tag.Control =
+  original.Control`. A Pin may be a Flag: `"Deprecated" in Wizard`.
+- **Published members are privileges of membership** (STEP-SPEC-10,
+  §1.5). A Rogue Agent keeps its own Actions and Records; a published
+  Operation refuses at invocation and a published Report at read.
 - Re-applying a Ripped Tag is a fresh Tagging and silent (§0.7): a Tag
   replacing its own earlier Postcondition is not a Shape weakening a Base.
 
@@ -21,14 +29,20 @@
 
 - `Pin` mark; the tagging sequence runs unchanged on a Tag as Target
   through a small adapter over the class dictionary; the runtime type of
-  a pinned Tag is a `(MetaTag, Tagged)` metaclass; landed Actions bind to
-  the Tag they are read from, landed Records are class attributes; the
-  Tag's own scan skips TOP-managed names.
+  a pinned Tag is a `(MetaTag, Tagged)` metaclass without descriptors;
+  landed Actions bind to the Tag they are read from, landed Records are
+  class attributes; secrets live in the Tag's state and answer on the
+  miss path; `@Public` pinned members reach present Agents at pinning
+  (checked on copies first) and future Agents through the Tag's scan;
+  the Tag's own scan skips TOP-managed names.
+- Published Operations and Reports check membership at use.
+- A string in a Tag's `in` asks for a keyword; `__contains__` and
+  `__bool__` follow the empty-seat rule.
 - Fixed: `TagContractWarning` on re-applying a Ripped Tag that declares a
   Postcondition; `__bool__` installed over a host's own `__bool__` (the
   empty-seat rule now holds for it, as the notes said).
 - Faster `agent in Tag`: the state read goes straight to the dictionary.
-- 106 tests.
+- 116 tests.
 
 ## 0.2.0a2 — 2026-09-04
 

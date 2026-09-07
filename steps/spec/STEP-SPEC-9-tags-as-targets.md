@@ -106,36 +106,66 @@ seat (§1.4), and inherited by the pinned Tag's Shapes the way every Report
 is. Membership does not inherit: `War_Caster in Rare` is False unless
 `Rare(War_Caster)` was applied.
 
-### 4. One slot per scope and name
+### 4. One slot per scope and name: patching, with collision control
 
-A Pin **adds** to a Tag; it never replaces what the Tag declares. On an
-object, an Action shadows a host method in the instance dictionary and
-the host keeps its own; a Tag's own dictionary *is* its host, so the same
-write would destroy the declaration. Therefore:
+A Pin's members are Tag scope, so the pinned Tag's own **Tag-scope**
+declarations are its host members, exactly as a host method is to an
+Action on an object:
 
-- A Pin member may not use a name the pinned Tag declares itself or
-  inherits from a Base (its Operations, Reports, Actions, Records or
-  conditions). The pinning is refused at the gate with a Composition
-  Failure; nothing changes.
-- A Pin member may not use a name every Tag already answers through its
-  metaclass (`mro`, `__name__`, the TOP acts). Refused at the gate.
-- Names another Pin landed are TOP-managed: two Pins on one Tag follow
-  the Overlay laws of §1.2 and §1.3, independent Pins warn, Pins in one
-  Form overlay in Form order, `@Underlay` extends, the view keeps the
-  prior.
+- A Pin Action over the Tag's own Operation replaces it, silently, with
+  the Operation as its **Underlay**: `def Control(tag, underlay, ...)`
+  calls the engine it patches. Every Agent that reaches the Operation
+  through the Tag, `Wizard.Control(...)`, is actualized at once, because
+  an Operation is looked up on the Tag at call time. No per-Agent work.
+- A Pin Record over the Tag's own Report replaces it with the Report's
+  current value in the **stored** seat: `def colour(tag, stored)`.
+- A failed pinning rolls the declaration back. A Ripped Pin leaves the
+  patch in place, sticky, as a Rogue Agent keeps its Actions. To
+  un-patch, the Pin's `@Rip` teardown declares a second seat and receives
+  the Tag's **original declarations**, as declared, under the names the
+  Pin patched: `def Unpatch(tag, original): tag.Control =
+  original.Control`. One deliberate line, not a hidden rule.
+
+Collision control refuses, at the gate, with nothing changed:
+
+- A Pin member named like something the pinned Tag declares in **Agent
+  scope** (an Action or Record) or as a **protocol** (a condition, an
+  Imprint, a Delete), itself or in a Base. On a class the two scopes
+  share one dictionary; the write would silently remove the declaration
+  from every future Agent's contract.
+- A Pin member named like something every Tag answers through its
+  metaclass (`mro`, `__name__`, the TOP acts).
+
+Names another Pin landed are TOP-managed: two Pins on one Tag follow the
+Overlay laws of §1.2 and §1.3, independent Pins warn, Pins in one Form
+overlay in Form order, `@Underlay` extends, the view keeps the prior.
 
 ### 5. Publication
 
 Pinned members are Tag scope: readable on the Tag, `Wizard.rarity` and
 `Wizard.Describe()`, as every Report and Operation is (§1.7, direct Tag
-access), and **never projected onto the Tag's Agents**: `ari.rarity` does
-not exist. That is the whole of STEP-SPEC-3 for a Tag receiver.
+access), and by default **not projected onto the Tag's Agents**:
+`ari.rarity` does not exist. The two modifiers say who may reach them,
+with the pinned Tag as the Agent:
 
-A Pin's members are **plain**. `@Secret`, `@Public` and `@Delete`, and
-special-method Actions, are refused at declaration with a Tag
-Declaration Failure. Each of them would put a descriptor or a hook on
-the Tag's metaclass, and none has a meaning there yet; a later STEP may
-give them one.
+- **`@Secret`** on a Pin's Record or Action makes it Pin-private state
+  on the Tag: resolved only while the Tag's own protocols or its pinned
+  Operations run; from main, `Wizard.key` is an Attribute failure. It is
+  held in the Tag's state, not in its class dictionary, and does not
+  reach Shapes.
+- **`@Public`** on a Pin's Record or Action publishes it onto the pinned
+  Tag's **Field**: every present Agent receives it at pinning, every
+  future Agent through the Tag's declarations, as the Tag's own published
+  Report (a read-only live name) or Operation (an Action with the Agent
+  as second input, `def Control(tag, agent, ...)`). This is the explicit
+  way to push a patch to a whole Field. The Field is checked on copies
+  first: a name that collides on any one Agent refuses the pinning and
+  no Agent is touched.
+
+A Pin's **own** Reports and Operations are not published (`@Public` on
+them is a Declaration Failure): they belong to the Pin, and the Pin's
+Agents are Tags. `@Delete` and special-method Actions on a Pin are
+Declaration Failures too, for now.
 
 ### 6. Spellings
 
@@ -158,9 +188,12 @@ Two seats are already taken on a Tag and stay as they are:
 
 - `bool(Wizard)` remains "is anyone a sound Wizard" (§0.8). A pinned Tag's
   own promises are read from the Pin's side: `Wizard in ~Rare`.
-- `x in Wizard` remains membership, so a Pin cannot be a Flag: `@Flag`
-  and `@Pin` together are refused at declaration. A word on a Tag is a
-  Report.
+- `x in Wizard` remains membership for objects and classes. A **string**
+  can never be a member, so on a Tag a string asks for a **keyword**:
+  `"Deprecated" in Wizard` is True when the Flag Pin `Deprecated` is
+  active on Wizard. A Pin may be a Flag. `Keyword(Wizard, "Deprecated")`
+  and `Keyword(Wizard, Deprecated)` answer the same; the class form in
+  the `in` seat stays membership, because a class can be a member there.
 
 `Wizard.Rare` reads the Pin-bound view by name, as `ari.Wizard` does on
 an Agent, on the same miss-path rule.
@@ -177,7 +210,9 @@ sticky, and `isinstance(Wizard, Rare)` stays True. Pinning again after a
 Rip is a fresh pinning and silent: a Tag replacing its own earlier
 promise is not a Shape weakening a Base. (This closes the same gap for
 objects: re-applying a Ripped Tag with a Postcondition warned in
-0.2.0a2.)
+0.2.0a2.) A teardown that declares a seat after the receiver (after its
+Underlay, if it takes one) receives the originals (§4); one without the
+seat leaves the patch.
 
 A Pin does **not** change the pinned Tag's own gate over its Agents. A
 Deprecated Tag that should refuse new members writes that as its own
@@ -230,6 +265,9 @@ pointer to this STEP.
 | `bool(Wizard)` answers the Tag's own contract when pinned | Rejected: the seat means "any sound member" and a Tag-level meaning must not depend on whether a Pin exists |
 | Pins that alter the pinned Tag's gate over its Agents | Deferred to a later STEP; the pinned Tag can read its Pins in its own Precondition today |
 | Reports plus a set of Tags outside TOP (today) | Kept as the fallback; it lacks membership acts, gates, promises and Rip |
+| A Pin never replaces what the Tag declares (first cut) | Rejected by the Director: a patched driver must reach every Agent. Replaced by the host-member rule with collision control (§4) |
+| Pins' members plain, no `@Secret` / `@Public` (first cut) | Rejected by the Director: the modifiers clarify intent. `@Secret` as Pin-private state, `@Public` as publication onto the Field (§5) |
+| No Flag Pins (first cut) | Rejected by the Director. A string in a Tag's `in` asks for a keyword; objects and classes ask membership (§6) |
 
 ## Acceptance requirements
 
@@ -273,4 +311,10 @@ membership check got faster (`_state_of` reads the dictionary directly).
 > *Drafted for the Director's confirmation:* Cleared on 2026-09-06, per the
 > Director's direction ("Establish a STEP for Tags as Targets. The Pins we
 > established in the last version are a good basis for it"; "Implement the
-> step with optimized code").
+> step with optimized code"; "Replacing needs fixing then, with the
+> collision control"; "@Secret and @Public make sense for clarification";
+> on un-patching, "sticky with the original handed to the Pin's @Rip
+> teardown, so un-patching is one deliberate line rather than a hidden
+> rule"). Flag Pins (§6) came out of the design rather than the
+> Director's ask ("No, pin-flags"); kept or dropped on the Director's
+> word.

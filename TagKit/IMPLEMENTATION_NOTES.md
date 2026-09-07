@@ -121,11 +121,27 @@ rollback target.
   Shape inherits it as it inherits a classmethod); a landed Record is a
   plain class attribute, which is exactly a Report's value. `_scan` skips
   names the class state manages, so a pinned Tag never projects them onto
-  its Agents. A Pin refuses names the Tag declares itself, because a class
-  dictionary is both host and instance namespace and a write there would
-  destroy the declaration. Pins' members are plain (no descriptors on a
-  metaclass). `_state_of` reads the dictionary directly, which is why
-  `agent in Tag` got faster rather than slower.
+  its Agents. The Tag's own Operations and Reports are host members to a
+  Pin (`_pinned_host_function`, `_pinned_stored`); its Agent-scope names
+  and protocols are refused, because a class dictionary is both host and
+  instance namespace and a write there would remove the declaration.
+  No descriptor is ever placed on a metaclass (it would intercept the
+  class-attribute writes the kernel makes): a pinned Tag's `@Secret`
+  members live in `state.secret_values` and answer on the miss path
+  while `composing` is open; `@Public` pinned members are pushed to the
+  Field at commit (`_publish_to_field`, dry run on copies first) and
+  emitted by the Tag's scan for future Agents, so the scan cache is
+  dropped at pinning. `_state_of` reads the dictionary directly, which
+  is why `agent in Tag` got faster rather than slower.
+- **Originals for un-patching.** When a Pin overlays a Tag's own
+  Operation, Report or plain value, `_refuse_tag_member` records the
+  declared object in `state.originals` (first patch wins). `_call_teardown`
+  hands an `_Originals` namespace to a Pin's `@Rip` teardown that declares
+  a seat beyond its receiver (and Underlay), read through `__wrapped__`
+  of the composed Action.
+- **Published members check membership at use** (STEP-SPEC-10): the
+  adapter and `_Published.__get__` read `state.active`. One dictionary
+  lookup per call; the Action itself stays sticky.
 - **Assigning a Tag's name on an Agent** (`ari.Elf = 1`) shadows the view by
   name; plain Python, not intercepted. `Elf[ari]` is unaffected.
 - **Inputs and defaults.** A protocol parameter the caller omitted keeps

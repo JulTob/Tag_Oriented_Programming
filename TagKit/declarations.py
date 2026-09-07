@@ -272,12 +272,6 @@ def Flag(
                 "@Flag marks a Tag class"
                 )
 
-    if _is_pin(tag):
-        raise TagDeclarationError(
-                f"{tag.__name__}: a Pin cannot be a Flag; on a Tag, `in`"
-                " is membership (STEP-SPEC-9 §6)"
-                )
-
     setattr(
             tag,
             _FLAG,
@@ -312,12 +306,6 @@ def Pin(
     if not isinstance(tag, type) or not hasattr(tag, "_tagkit_field"):
         raise TagDeclarationError(
                 "@Pin marks a Tag class"
-                )
-
-    if _is_flag(tag):
-        raise TagDeclarationError(
-                f"{tag.__name__}: a Pin cannot be a Flag; on a Tag, `in`"
-                " is membership (STEP-SPEC-9 §6)"
                 )
 
     setattr(
@@ -506,6 +494,7 @@ class _Declarations:
     operations: tuple[tuple[str, Function, bool], ...]
     rips: tuple[str, ...]
     dunders: frozenset[str]
+    published: frozenset[str]   # Agent-scope members marked @Public (Pins)
 
 
 _scan_cache: "WeakKeyDictionary[type, _Declarations]" = WeakKeyDictionary()
@@ -616,8 +605,15 @@ def _scan(
     operations: list[tuple[str, Function, bool]] = []
     rips: list[str] = []
     dunders: set[str] = set()
-    modified: list[str] = []
+    published: set[str] = set()
     managed = tag.__dict__.get(STATE)   # names a Pin landed here
+
+    if managed is not None:
+        _emit_published_pins(
+                managed,
+                reports,
+                operations,
+                )
 
     for name, attribute in tag.__dict__.items():
         if _is_private(name):
@@ -669,8 +665,8 @@ def _scan(
         if not callable(attribute):
             continue
 
-        if secret or public:
-            modified.append(name)
+        if public:
+            published.add(name)
 
         if kind == "record":
             _reject_both(tag, name, secret, public)
@@ -747,33 +743,56 @@ def _scan(
             operations=tuple(operations),
             rips=tuple(rips),
             dunders=frozenset(dunders),
+            published=frozenset(published),
             )
 
     if _is_pin(tag):
         _validate_pin(
                 tag,
                 declarations,
-                modified,
                 )
 
     return declarations
 
 
+def _emit_published_pins(
+        managed: Any,
+        reports: list[tuple[str, Any, bool]],
+        operations: list[tuple[str, Function, bool]],
+        ) -> None:
+    """Members a Pin landed on this Tag with @Public are the Tag's own
+    published Reports and Operations to every Agent tagged from now on
+    (STEP-SPEC-9 §5). Present Agents were reached at pinning."""
+
+    for name in managed.published:
+        if name in managed.records:
+            reports.append(
+                    (
+                        name,
+                        None,
+                        True,
+                        )
+                    )
+        elif name in managed.actions:
+            operations.append(
+                    (
+                        name,
+                        managed.actions[name],
+                        True,
+                        )
+                    )
+
+
 def _validate_pin(
         tag: type,
         declarations: _Declarations,
-        modified: list[str],
         ) -> None:
-    """A Pin's members are plain: no publication modifiers, no deletions,
-    no special-method Actions. Each of those would put a descriptor or a
-    hook on the Tag's metaclass; none has a meaning there yet."""
+    """A Pin's members carry no @Delete and no special-method Actions, and
+    its own Reports and Operations are not published: each would need a
+    descriptor or a hook on the Tag's metaclass, and none has a meaning
+    there yet. @Secret and @Public on its Agent-scope members do."""
 
     problems: list[str] = []
-
-    if modified:
-        problems.append(
-                "@Secret / @Public on " + ", ".join(modified)
-                )
 
     published = [
             name
@@ -787,7 +806,7 @@ def _validate_pin(
 
     if published:
         problems.append(
-                "@Public on " + ", ".join(published)
+                "@Public on the Pin's own Reports / Operations " + ", ".join(published)
                 )
 
     if declarations.deletions:

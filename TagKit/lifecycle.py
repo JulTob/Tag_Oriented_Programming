@@ -13,10 +13,13 @@ from typing import Iterator
 import atexit
 import weakref
 
+from .declarations import _parameters_of
+from .declarations import _takes_underlay
 from .errors import TagCompositionError
 from .errors import TagError
 from .errors import TagResolutionError
 from .geometry import _requiring_shapes
+from .state import _Originals
 from .state import _State
 from .state import _state_of
 
@@ -73,7 +76,11 @@ def _teardown(
     try:
         for teardown in teardowns:
             try:
-                teardown(agent)
+                _call_teardown(
+                        teardown,
+                        agent,
+                        state,
+                        )
             except Exception as error:
                 failures.append(
                         (
@@ -108,9 +115,44 @@ def _teardown_all(
     for tag in reversed(list(state.active)):
         for teardown in state.rips.pop(tag, ()):
             try:
-                teardown(agent)
+                _call_teardown(
+                        teardown,
+                        agent,
+                        state,
+                        )
             except Exception:
                 pass
+
+
+def _call_teardown(
+        teardown: Any,
+        agent: object,
+        state: _State,
+        ) -> None:
+    """Run one @Rip teardown. On a pinned Tag, a teardown that declares a
+    seat after the receiver (and after its Underlay, if it takes one)
+    receives the Tag's original declarations, so un-patching is
+    ``tag.Control = original.Control``."""
+
+    if state.pinned is None:
+        teardown(agent)
+        return
+
+    declared = getattr(
+            teardown,
+            "__wrapped__",
+            teardown,
+            )
+    seats = _parameters_of(declared).positional
+    receiver_seats = 2 if _takes_underlay(declared) else 1
+
+    if seats > receiver_seats:
+        teardown(
+                agent,
+                _Originals(state.originals),
+                )
+    else:
+        teardown(agent)
 
 
 @contextmanager

@@ -25,11 +25,15 @@ from .errors import TagOverwriteWarning
 from .errors import TagContractWarning
 from .errors import TagResolutionError
 from .declarations import STATE
+from .declarations import Report
+from .declarations import _declarations_of
 from .geometry import _related
+from .declarations import _MISSING
 from .state import _Bound
 from .state import _Pinned_Operation
 from .state import _State
 from .state import _namespace_of
+from .state import _state_of
 
 
 Function = Callable[..., Any]
@@ -167,13 +171,22 @@ def _adapter(
         operation: Function,
         ) -> Function:
     """The Action a Public Operation publishes: the Agent is passed to the
-    Operation as its second input."""
+    Operation as its second input. A published member is an Agency
+    privilege: it requires active membership, so a Rogue Agent's call
+    fails closed (STEP-SPEC-10)."""
 
     def Published(
             agent: object,
             *args: Any,
             **kwargs: Any,
             ) -> Any:
+        _require_membership(
+                agent,
+                tag,
+                name,
+                "Operation",
+                )
+
         return operation(
                 tag,
                 agent,
@@ -186,6 +199,25 @@ def _adapter(
     Published.__doc__ = operation.__doc__
 
     return Published
+
+
+def _require_membership(
+        agent: object,
+        tag: type,
+        name: str,
+        kind: str,
+        ) -> None:
+    from .state import _name_of
+    from .state import _state_of
+
+    state = _state_of(agent)
+
+    if state is None or tag not in state.active:
+        raise TagResolutionError(
+                f"{name!r} is a published {kind} of {tag.__name__};"
+                f" {_name_of(agent)} is no longer a member, and a published"
+                " member is a privilege of membership"
+                )
 
 
 # ------------------------------------------------------------------
@@ -276,6 +308,9 @@ def _install(
 
     state.secrets.update(declarations.secrets)
 
+    if state.pinned is not None:
+        state.published.update(declarations.published)
+
     if declarations.rips:
         state.rips[tag] = tuple(
                 state.actions[name]
@@ -309,6 +344,9 @@ def _refuse_container_host(
         ) -> None:
     from .access import _host_member
 
+    if state.pinned is not None:
+        return   # on a Tag, TOP owns `in`: a string in it asks for a keyword
+
     if _host_member(state.host_type, "__contains__") is not None:
         raise TagCompositionError(
                 f"{tag.__name__} is a Flag, but the host"
@@ -340,22 +378,14 @@ def _origin_of(
             )
 
 
-def _refuse_tag_member(
-        state: _State,
-        tag: type,
+def _own_declaration(
+        pinned: type,
         name: str,
-        ) -> None:
-    """A Pin adds to a Tag; it never replaces what the Tag declares itself
-    or what every Tag answers through its metaclass. Names another Pin
-    landed are TOP-managed and follow the Overlay laws."""
-
-    pinned = state.pinned
-
-    if hasattr(type(pinned), name):
-        raise TagCompositionError(
-                f"{tag.__name__}.{name}: a Pin may not name what every Tag"
-                f" already answers ({name!r} belongs to the Tag's metaclass)"
-                )
+        ) -> tuple[type, str, Any] | None:
+    """Where the pinned Tag itself declares ``name``, as what, and the
+    declared object: ("operation" | "report" | "value" | "agent" |
+    "protocol"). None when the name is absent or TOP-managed (landed by a
+    Pin), in which case the Overlay laws decide."""
 
     for klass in pinned.__mro__:
         if name not in klass.__dict__:
@@ -367,19 +397,163 @@ def _refuse_tag_member(
                 name in managed.actions
                 or name in managed.records
                 ):
-            return
+            return None
 
-        where = (
-                "itself"
-                if klass is pinned
-                else f"in its Base {klass.__name__}"
-                )
+        declared = klass.__dict__[name]
 
+        if not hasattr(klass, "_tagkit_field"):
+            return (klass, "protocol", declared)
+
+        declarations = _declarations_of(klass)
+
+        if any(name == n for n, _f, _p in declarations.operations):
+            return (klass, "operation", declared)
+
+        if any(name == n for n, _r, _p in declarations.reports):
+            return (klass, "report", declared)
+
+        if any(name == n for n, _f in declarations.actions) or any(
+                name == n for n, _f in declarations.records
+                ):
+            return (klass, "agent", declared)
+
+        if (
+                any(name == n for n, _f in declarations.preconditions)
+                or any(name == n for n, _f in declarations.postconditions)
+                or any(name == n for n, _f in declarations.imprints)
+                or name in declarations.deletions
+                ):
+            return (klass, "protocol", declared)
+
+        return (klass, "value", declared)
+
+    return None
+
+
+def _refuse_tag_member(
+        state: _State,
+        tag: type,
+        name: str,
+        ) -> None:
+    """Collision control for a Pin (STEP-SPEC-9 §4). A Pin's members are
+    Tag scope, so they may overlay what the Tag declares in Tag scope (an
+    Operation, a Report, a plain value) as a host member: silently, with
+    the declaration as Underlay or stored value. They may never take a
+    name the Tag declares in Agent scope or as a protocol: on a class the
+    two scopes share one dictionary, and the write would silently remove
+    the declaration from every future Agent's contract. Nor a name every
+    Tag answers through its metaclass."""
+
+    pinned = state.pinned
+
+    if hasattr(type(pinned), name):
         raise TagCompositionError(
-                f"{tag.__name__}.{name}: {pinned.__name__} declares {name!r}"
-                f" {where}; a Pin adds to a Tag, it does not replace what"
-                " the Tag declares (STEP-SPEC-9 §4)"
+                f"{tag.__name__}.{name}: a Pin may not name what every Tag"
+                f" already answers ({name!r} belongs to the Tag's metaclass)"
                 )
+
+    found = _own_declaration(
+            pinned,
+            name,
+            )
+
+    if found is None:
+        return
+
+    klass, kind, declared = found
+
+    if kind in ("operation", "report", "value"):
+        state.originals.setdefault(
+                name,
+                declared,
+                )   # the first patch remembers the declaration
+        return
+
+    where = (
+            "itself"
+            if klass is pinned
+            else f"in its Base {klass.__name__}"
+            )
+    what = (
+            "an Agent-scope member"
+            if kind == "agent"
+            else "a protocol"
+            )
+
+    raise TagCompositionError(
+            f"{tag.__name__}.{name}: {pinned.__name__} declares {name!r}"
+            f" {where} as {what}; a Pin overlays a Tag's Operations and"
+            " Reports, never its Agent members or protocols (STEP-SPEC-9 §4)"
+            )
+
+
+def _pinned_host_function(
+        pinned: type,
+        name: str,
+        ) -> Function | None:
+    """The pinned Tag's own Operation under ``name``, as the Underlay of a
+    Pin Action: the patch can call the engine it replaces."""
+
+    found = _own_declaration(
+            pinned,
+            name,
+            )
+
+    if found is None or found[1] != "operation":
+        return None
+
+    operation = found[2].__func__
+
+    @wraps(operation)
+    def Host_Operation(
+            tag: type,
+            *args: Any,
+            **kwargs: Any,
+            ) -> Any:
+        return operation(
+                tag,
+                *args,
+                **kwargs,
+                )
+
+    return Host_Operation
+
+
+def _pinned_stored(
+        pinned: type,
+        name: str,
+        ) -> Any:
+    """What the pinned Tag currently holds under ``name``, for a Pin
+    Record's stored seat: its own Report's value, a plain value, or what an
+    earlier Pin landed (own or inherited). Behaviour is never a stored
+    value."""
+
+    for klass in pinned.__mro__:
+        if name not in klass.__dict__:
+            continue
+
+        declared = klass.__dict__[name]
+
+        if isinstance(declared, Report):
+            return declared.__get__(
+                    None,
+                    pinned,
+                    )
+
+        if isinstance(
+                declared,
+                (
+                    _Bound,
+                    _Pinned_Operation,
+                    classmethod,
+                    staticmethod,
+                ),
+                ) or callable(declared):
+            return None
+
+        return declared
+
+    return None
 
 
 def _delete(
@@ -428,10 +602,16 @@ def _install_action(
     origin = state.action_origins.get(name, state.host_type)
 
     if underlay is None and name not in state.deleted:
-        underlay = _host_function(
-                state.host_type,
-                name,
-                )
+        if state.pinned is not None:
+            underlay = _pinned_host_function(
+                    state.pinned,
+                    name,
+                    )
+        else:
+            underlay = _host_function(
+                    state.host_type,
+                    name,
+                    )
 
     if (
             underlay is not None
@@ -527,9 +707,19 @@ def _materialize(
     """
 
     namespace = _namespace_of(agent)
+    pinned = isinstance(agent, type)
 
     for name, builder in declarations.records:
-        stored = namespace.get(name)
+        if pinned:
+            stored = _state_of(agent).secret_values.get(name, _MISSING)
+
+            if stored is _MISSING:
+                stored = _pinned_stored(
+                        agent,
+                        name,
+                        )
+        else:
+            stored = namespace.get(name)
 
         if name in deleted_before or isinstance(
                 stored,
@@ -574,4 +764,8 @@ def _materialize(
                     f" materialized: {type(error).__name__}: {error}"
                     ) from error
 
-        namespace[name] = value
+        if pinned and name in declarations.secrets:
+            namespace.pop(name, None)
+            _state_of(agent).secret_values[name] = value
+        else:
+            namespace[name] = value
