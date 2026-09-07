@@ -327,5 +327,5 @@ membership check got faster (`_state_of` reads the dictionary directly).
 > on un-patching, "sticky with the original handed to the Pin's @Rip
 > teardown, so un-patching is one deliberate line rather than a hidden
 > rule"). Flag Pins (§6) came out of the design rather than the
-> Director's ask ("No, pin-flags"); kept or dropped on the Director's
-> word.
+> Director's ask ("No, pin-flags") and were then accepted: "Pin flags
+> stay as part of the kit."
