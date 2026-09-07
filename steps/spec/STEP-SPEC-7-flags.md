@@ -61,7 +61,7 @@ without Flags pay nothing.
 
 ## Acceptance requirements
 
-Covered by `tests/test_tagkit.py::QueryTests` (flags, container refusal,
+Covered by `tests/test_topkit.py::QueryTests` (flags, container refusal,
 rules as keywords).
 
 ---
@@ -70,7 +70,7 @@ rules as keywords).
 
 > Status set to **Deployed** on 2026-09-05, because the Director approved
 > the whole review in PR #3 ("all changes approved"), the rule is
-> reflected in `spec/SPECIFICATION.md`, and TagKit 0.2.0a2 covers it in
-> `tests/test_tagkit.py`. Cleared on 2026-09-05, per the
+> reflected in `spec/SPECIFICATION.md`, and TopKit 0.2.0a2 covers it in
+> `tests/test_topkit.py`. Cleared on 2026-09-05, per the
 > Director's direction in review ("I confirm the if and in with the
 > @Flag"; `Keyword` as the function's name).

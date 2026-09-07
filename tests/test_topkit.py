@@ -1,4 +1,4 @@
-"""TagKit conformance tests, ring by ring.
+"""TopKit conformance tests, ring by ring.
 
 Ring 0  Kernel: identity, membership, Geometry, Fields.
 Ring 1  Contributions: Overlay, Underlay, Records, publication.
@@ -15,40 +15,42 @@ import unittest
 import warnings
 import weakref
 
-from TagKit import Action
-from TagKit import Apply
-from TagKit import At_Exit
-from TagKit import Contract
-from TagKit import Delete
-from TagKit import Flag
-from TagKit import Form
-from TagKit import Keyword
-from TagKit import Imprint
-from TagKit import Operation
-from TagKit import Outline
-from TagKit import Post
-from TagKit import Postcondition
-from TagKit import Pre
-from TagKit import Precondition
-from TagKit import Public
-from TagKit import Record
-from TagKit import Report
-from TagKit import Rip
-from TagKit import Scope
-from TagKit import Secret
-from TagKit import Tag
-from TagKit import TagCompositionError
-from TagKit import TagContractError
-from TagKit import TagContractWarning
-from TagKit import TagDeclarationError
-from TagKit import TagImprintError
-from TagKit import TagOverwriteWarning
-from TagKit import TagPostconditionError
-from TagKit import TagPreconditionError
-from TagKit import TagResolutionError
-from TagKit import Tags
-from TagKit import Underlay
-import TagKit.lifecycle as lifecycle
+from TopKit import Action
+from TopKit import Apply
+from TopKit import At_Exit
+from TopKit import Contract
+from TopKit import Delete
+from TopKit import Flag
+from TopKit import Form
+from TopKit import Keyword
+from TopKit import Imprint
+from TopKit import Operation
+from TopKit import Outline
+from TopKit import Pin
+from TopKit import Post
+from TopKit import Postcondition
+from TopKit import Pre
+from TopKit import Precondition
+from TopKit import Public
+from TopKit import Record
+from TopKit import Report
+from TopKit import Rip
+from TopKit import Scope
+from TopKit import Secret
+from TopKit import Tag
+from TopKit import TagCompositionError
+from TopKit import TagContractError
+from TopKit import TagContractWarning
+from TopKit import TagDeclarationError
+from TopKit import TagImprintError
+from TopKit import TagOverwriteWarning
+from TopKit import TagPostconditionError
+from TopKit import TagPreconditionError
+from TopKit import TagPrivilegeError
+from TopKit import TagResolutionError
+from TopKit import Tags
+from TopKit import Underlay
+import TopKit.lifecycle as lifecycle
 
 
 # ==================================================================
@@ -528,7 +530,7 @@ class KernelTests(unittest.TestCase):
         ari = Agent()
 
         self.assertNotIn(ari, Person)
-        self.assertFalse(hasattr(ari, "_TAGKIT_STATE"))
+        self.assertFalse(hasattr(ari, "_TOPKIT_STATE"))
         self.assertEqual(Tags(ari), ())
 
     def test_a_tag_needs_a_target(self) -> None:
@@ -1063,6 +1065,115 @@ class PublicationTests(unittest.TestCase):
 # ==================================================================
 
 
+class RevokedPrivilegeTests(unittest.TestCase):
+    """STEP-SPEC-10: a published member is a privilege of membership. A
+    Rogue Agent keeps its own Actions and Records; the Agency's published
+    Operations and Reports fail closed after Rip."""
+
+    def setUp(self) -> None:
+        class Agency(Tag):
+            @Public
+            @Report
+            def colour(tag):
+                return "navy"
+
+            @Public
+            @Operation
+            def Dispatch(agency, agent, message):
+                return f"{agency.__name__}:{message}"
+
+            def Own(agent):
+                return "mine"
+
+        self.Agency = Agency
+
+    def test_published_members_work_for_members(self) -> None:
+        ari = Agent()
+        self.Agency(ari)
+
+        self.assertEqual(ari.colour, "navy")
+        self.assertEqual(ari.Dispatch("go"), "Agency:go")
+
+    def test_published_members_are_revoked_on_rip(self) -> None:
+        Agency = self.Agency
+        ari = Agent()
+        Agency(ari)
+        send = ari.Dispatch                                           # a stale handle
+
+        del Agency[ari]
+
+        self.assertEqual(ari.Own(), "mine")                           # the Agent's own stays
+        self.assertTrue(hasattr(ari, "Dispatch"))                     # the Action is still there
+
+        with self.assertRaises(TagPrivilegeError):
+            ari.Dispatch("go")                                        # and refuses: a Rogue Agent
+
+        with self.assertRaises(TagPrivilegeError):
+            send("go")
+
+        self.assertFalse(hasattr(ari, "colour"))                      # a Privilege Failure is an AttributeError too
+        self.assertTrue(issubclass(TagPrivilegeError, TagResolutionError))
+
+        Agency(ari)                                                   # back in: privileges return
+        self.assertEqual(ari.Dispatch("go"), "Agency:go")
+        self.assertEqual(ari.colour, "navy")
+
+    def test_published_members_are_suspended_while_defective(self) -> None:
+        """Soundness is holistic: any broken promise on the Agent suspends
+        every published member, and the refusal names the promise."""
+
+        Agency = self.Agency
+
+        class Elf(Tag):
+            @Post
+            def Has_Homeland(agent):
+                return agent.homeland is not None
+
+        ari = Agent()
+        ari.homeland = "Rivendell"
+        Elf(ari)
+        Agency(ari)
+        self.assertEqual(ari.Dispatch("go"), "Agency:go")
+
+        ari.homeland = None                                           # Elf's promise breaks, not Agency's
+
+        with self.assertRaises(Postcondition.Has_Homeland):
+            ari.Dispatch("go")
+
+        with self.assertRaises(Postcondition.Has_Homeland):
+            ari.colour
+
+        self.assertEqual(ari.Own(), "mine")                           # her own Action still works
+        self.assertIn(ari, Agency)                                    # still a member, just defective
+
+        ari.homeland = "Rivendell"                                    # repaired
+        self.assertEqual(ari.Dispatch("go"), "Agency:go")
+        self.assertEqual(ari.colour, "navy")
+
+    def test_the_autofix_pattern(self) -> None:
+        Agency = self.Agency
+
+        class Elf(Tag):
+            @Post
+            def Has_Homeland(agent):
+                return agent.homeland is not None
+
+        ari = Agent()
+        ari.homeland = None
+        Agency(ari)
+
+        with self.assertRaises(Postcondition.Has_Homeland):
+            Elf(ari)                                                  # applied, defective
+
+        try:
+            ari.Dispatch("go")
+        except Postcondition.Has_Homeland:
+            ari.homeland = "Rivendell"                                # repair what the failure names
+            sent = ari.Dispatch("go")                                 # and retry
+
+        self.assertEqual(sent, "Agency:go")
+
+
 class PreconditionTests(unittest.TestCase):
     def test_preconditions_gate_only_the_current_call(self) -> None:
         ari = Agent()
@@ -1199,6 +1310,40 @@ class PreconditionTests(unittest.TestCase):
         Apprentice(ari)
 
         self.assertIn(ari, Apprentice)
+
+
+class ConditionTests(unittest.TestCase):
+    """@Pre and @Post stacked on one function: necessary to enter and
+    necessary to stay."""
+
+    def test_a_stacked_condition_gates_and_promises(self) -> None:
+        class Elf(Tag):
+            @Pre
+            @Post
+            def Alive(agent):
+                return agent.alive
+
+        dead = Agent()
+        dead.alive = False
+
+        with self.assertRaises(Precondition.Alive):
+            Elf(dead)                                                 # necessary to enter
+
+        ari = Agent()
+        ari.alive = True
+        Elf(ari)
+        self.assertEqual(Contract.Status(ari), {"Alive": True})
+        self.assertTrue(ari)
+
+        ari.alive = False                                             # necessary to stay
+        self.assertFalse(ari)
+        self.assertIn(ari, ~Elf)
+
+        with self.assertRaises(Postcondition.Alive):
+            Contract.Postconditions(ari)
+
+        self.assertIs(Precondition.Alive, TagPreconditionError.Alive)
+        self.assertIs(Postcondition.Alive, TagPostconditionError.Alive)
 
 
 class DefectiveTaggingTests(unittest.TestCase):
@@ -1485,6 +1630,481 @@ class NamedFailureTests(unittest.TestCase):
         self.assertEqual(Contract.Status(ari), {"Open": True, "Done": True})
 
 
+class PinTests(unittest.TestCase):
+    """STEP-SPEC-9: a Tag marked @Pin applies to Tags. The pinned Tag is
+    the Pin's Agent; the receiver rule lands Records as Reports and
+    Actions as Operations of that Tag."""
+
+    def setUp(self) -> None:
+        class Wizard(Tag):
+            @Report
+            def colour(tag):
+                return "blue"
+
+            @Operation
+            def Greet(tag, who):
+                return f"{tag.__name__}:{who}"
+
+            def Attack(agent):
+                return "casts"
+
+        class War_Caster(Wizard):
+            pass
+
+        @Pin
+        class Rare(Tag):
+            @Record
+            def rarity(tag):
+                return "rare"
+
+            @Action
+            def Describe(tag):
+                return f"{tag.__name__} is {tag.rarity}"
+
+        self.Wizard = Wizard
+        self.War_Caster = War_Caster
+        self.Rare = Rare
+
+    def test_a_pin_makes_a_tag_its_agent(self) -> None:
+        Wizard, Rare = self.Wizard, self.Rare
+        identity = (id(Wizard), hash(Wizard), Wizard.__name__, Form(Wizard))
+
+        self.assertIs(Rare(Wizard), Wizard)
+
+        self.assertIn(Wizard, Rare)
+        self.assertEqual(list(Rare), [Wizard])
+        self.assertEqual(list(Rare[:]), [Wizard])
+        self.assertEqual(len(Rare), 1)
+        self.assertTrue(Rare)
+        self.assertTrue(isinstance(Wizard, Rare))
+        self.assertEqual(identity, (id(Wizard), hash(Wizard), Wizard.__name__, Form(Wizard)))
+        self.assertIs(type(self.War_Caster), type(Tag))
+
+    def test_records_land_as_reports_and_actions_as_operations(self) -> None:
+        Wizard, War_Caster, Rare = self.Wizard, self.War_Caster, self.Rare
+        ari = Agent()
+        Wizard(ari)
+
+        Rare(Wizard)
+
+        self.assertEqual(Wizard.rarity, "rare")
+        self.assertEqual(Wizard.Describe(), "Wizard is rare")
+        self.assertEqual(War_Caster.rarity, "rare")                 # a Report: inherited
+        self.assertEqual(War_Caster.Describe(), "War_Caster is rare")   # an Operation: the receiver is the Tag read
+        self.assertNotIn(War_Caster, Rare)                            # membership does not inherit
+        self.assertFalse(hasattr(ari, "rarity"))
+        self.assertFalse(hasattr(ari, "Describe"))
+        self.assertEqual((Wizard.colour, Wizard.Greet("x"), ari.Attack()), ("blue", "Wizard:x", "casts"))
+
+        bo = Agent()
+        Wizard(bo)                                                    # tagging after the pinning
+
+        self.assertFalse(hasattr(bo, "rarity"))
+        self.assertFalse(hasattr(bo, "Describe"))
+
+    def test_view_format_and_queries(self) -> None:
+        Wizard, Rare = self.Wizard, self.Rare
+        Rare(Wizard)
+
+        self.assertEqual(Rare[Wizard].rarity, "rare")
+        self.assertEqual(Rare[Wizard].Describe(), "Wizard is rare")
+        self.assertEqual(Wizard.Rare.rarity, "rare")
+        self.assertEqual(f"{Wizard:pins}", "Rare")
+        self.assertEqual(f"{Wizard:form}", "Wizard")
+        self.assertEqual(Tags(Wizard), (Rare,))
+        self.assertEqual(Outline(Wizard), "Wizard\n  Rare")
+        self.assertTrue(f"{Wizard:contract}".startswith("Wizard[Rare]"))
+        self.assertFalse(Wizard)                                      # still "any sound member"
+        ari = Agent()
+        Wizard(ari)
+        self.assertTrue(Wizard)
+
+    def test_refusals(self) -> None:
+        Wizard, Rare = self.Wizard, self.Rare
+        ari = Agent()
+
+        with self.assertRaises(TagCompositionError):
+            Rare(ari)                                                 # a Pin on an object
+
+        with self.assertRaises(TypeError):
+            Wizard(Rare)                                              # an ordinary Tag on a class
+
+        with self.assertRaises(TagCompositionError):
+            Rare(Rare)                                                # itself
+
+        @Pin
+        class Loud(Tag):
+            @Action
+            def Attack(tag):                                          # the Tag's own Agent-scope member
+                return "shout"
+
+        with self.assertRaises(TagCompositionError):
+            Loud(Wizard)
+
+        bo = Agent()
+        Wizard(bo)
+        self.assertEqual(bo.Attack(), "casts")                        # the declaration survived
+        self.assertNotIn(Wizard, Loud)
+
+
+        @Pin
+        class Named(Tag):
+            def mro(tag):
+                return 1
+
+        with self.assertRaises(TagCompositionError):
+            Named(Wizard)                                             # what every Tag answers
+
+        with self.assertRaises(TagDeclarationError):
+            @Pin
+            class Loudspeaker(Tag):
+                @Public
+                @Report
+                def x(tag):                                           # a Pin's own Report: nowhere to publish
+                    return 1
+
+        with self.assertRaises(TagDeclarationError):
+            class Mixed(Rare, Wizard):
+                pass
+
+        with self.assertRaises(TagCompositionError):
+            Rare(Tag)                                                 # the root is nobody's Target
+
+    def test_a_failed_gate_leaves_the_tag_untouched(self) -> None:
+        Wizard = self.Wizard
+        before = dict(vars(Wizard))
+
+        @Pin
+        class Gated(Tag):
+            @Pre
+            def Has_Members(tag):
+                return bool(tag[:])
+
+            @Record
+            def stamp(tag):
+                return 1
+
+        with self.assertRaises(Precondition.Has_Members):
+            Gated(Wizard)
+
+        self.assertEqual(dict(vars(Wizard)), before)
+        self.assertIs(type(Wizard), type(Tag))
+        self.assertNotIn(Wizard, Gated)
+
+        ari = Agent()
+        Wizard(ari)
+        Gated(Wizard)
+        self.assertIn(Wizard, Gated)
+
+    def test_a_failed_promise_leaves_the_tag_pinned_and_defective(self) -> None:
+        Wizard = self.Wizard
+
+        @Pin
+        class Promised(Tag):
+            @Post
+            def Has_Members(tag):
+                return bool(tag[:])
+
+        with self.assertRaises(Postcondition.Has_Members):
+            Promised(Wizard)
+
+        self.assertIn(Wizard, Promised)
+        self.assertIn(Wizard, ~Promised)
+        self.assertEqual(list(Promised), [])
+
+        ari = Agent()
+        Wizard(ari)                                                   # repaired
+        self.assertEqual(list(Promised), [Wizard])
+
+    def test_rip_is_sticky_and_repinning_is_fresh(self) -> None:
+        Wizard, Rare = self.Wizard, self.Rare
+
+        @Pin
+        class Checked(Rare):
+            @Post
+            def Fine(tag):
+                return True
+
+        Checked(Wizard)
+        del Checked[Wizard]
+
+        self.assertNotIn(Wizard, Checked)
+        self.assertIn(Wizard, Rare)                                   # the Base stays
+        self.assertTrue(isinstance(Wizard, Checked))
+        self.assertEqual(Wizard.rarity, "rare")                       # sticky
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            Checked(Wizard)                                           # fresh, and silent
+
+        self.assertIn(Wizard, Checked)
+
+    def test_a_shape_of_a_pin_is_a_pin_and_a_pin_may_be_pinned(self) -> None:
+        Wizard, War_Caster, Rare = self.Wizard, self.War_Caster, self.Rare
+
+        class Homebrew(Rare):
+            @Record
+            def source(tag):
+                return "mine"
+
+        Homebrew(War_Caster)
+
+        self.assertIn(War_Caster, Rare)
+        self.assertIn(War_Caster, Homebrew)
+        self.assertEqual((War_Caster.source, War_Caster.rarity), ("mine", "rare"))
+        self.assertNotIn(Wizard, Rare)
+
+        @Pin
+        class Meta(Tag):
+            @Record
+            def level(tag):
+                return 2
+
+        Meta(Rare)
+
+        self.assertIn(Rare, Meta)
+        self.assertEqual(Rare.level, 2)
+        self.assertEqual(Homebrew.level, 2)
+
+    def test_a_pin_patches_the_tags_own_operations_and_reports(self) -> None:
+        """A Tag's Tag-scope declarations are host members to a Pin: the
+        Operation is the Underlay, the Report's value the stored seat."""
+
+        Wizard, War_Caster = self.Wizard, self.War_Caster
+        ari = Agent()
+        Wizard(ari)
+
+        class Caller(Tag):
+            def Hail(agent):
+                return Wizard.Greet("all")                            # through the Tag, at call time
+
+        Caller(ari)
+        self.assertEqual(ari.Hail(), "Wizard:all")
+
+        @Pin
+        class Patch(Tag):
+            @Action
+            @Underlay
+            def Greet(tag, underlay, who):
+                return underlay(who).upper()
+
+            @Record
+            def colour(tag, stored):
+                return stored + "-patched"
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")                            # a host member: silent
+            Patch(Wizard)
+
+        self.assertEqual(Wizard.Greet("x"), "WIZARD:X")
+        self.assertEqual(War_Caster.Greet("x"), "WAR_CASTER:X")
+        self.assertEqual(Wizard.colour, "blue-patched")
+        self.assertEqual(ari.Hail(), "WIZARD:ALL")                    # every Agent actualized, no per-Agent work
+
+        del Patch[Wizard]
+        self.assertEqual(Wizard.Greet("x"), "WIZARD:X")               # sticky, like a Rogue Agent
+
+    def test_a_failed_patch_rolls_the_declaration_back(self) -> None:
+        Wizard = self.Wizard
+
+        @Pin
+        class Broken(Tag):
+            @Action
+            def Greet(tag, who):
+                return "patched"
+
+            @Record
+            def boom(tag):
+                raise ValueError("no")
+
+        with self.assertRaises(TagCompositionError):
+            Broken(Wizard)
+
+        self.assertEqual(Wizard.Greet("x"), "Wizard:x")
+        self.assertIsInstance(vars(Wizard)["Greet"], classmethod)
+
+    def test_a_flag_pin_is_a_keyword_on_the_tag(self) -> None:
+        Wizard, Rare = self.Wizard, self.Rare
+        ari = Agent()
+        Wizard(ari)
+
+        @Flag
+        @Pin
+        class Deprecated(Tag):
+            pass
+
+        Rare(Wizard)
+        Deprecated(Wizard)
+
+        self.assertTrue("Deprecated" in Wizard)                       # a string asks for a keyword
+        self.assertFalse("Rare" in Wizard)                            # only Flags are words
+        self.assertTrue(ari in Wizard)                                # an object asks membership
+        self.assertFalse(Deprecated in Wizard)                        # a class asks membership too
+        self.assertTrue(Keyword(Wizard, "Deprecated"))
+        self.assertTrue(Keyword(Wizard, Deprecated))
+        self.assertFalse(Keyword(Wizard, "Rare"))
+        self.assertIn(Wizard, Deprecated)
+
+    def test_a_secret_pin_member_is_pin_private_state_on_the_tag(self) -> None:
+        Wizard = self.Wizard
+
+        @Pin
+        class Licensed(Tag):
+            @Secret
+            @Record
+            def key(tag):
+                return "k-1"
+
+            @Action
+            def Check(tag, key):
+                return key == tag.key                                 # inside the door
+
+            @Post
+            def Keyed(tag):
+                return tag.key is not None                            # protocols see it
+
+        Licensed(Wizard)
+
+        self.assertTrue(Wizard.Check("k-1"))
+        self.assertFalse(Wizard.Check("nope"))
+
+        with self.assertRaises(AttributeError):
+            Wizard.key                                                # hidden from main
+
+        self.assertNotIn("key", vars(Wizard))                         # not in the class dictionary at all
+        self.assertEqual(Contract.Status(Wizard), {"Keyed": True})
+
+    def test_a_public_pin_member_reaches_the_whole_field(self) -> None:
+        Wizard, War_Caster = self.Wizard, self.War_Caster
+        ari = Agent()
+        Wizard(ari)                                                   # present before the pinning
+        cal = Agent()
+        War_Caster(cal)
+
+        @Pin
+        class Engine(Tag):
+            @Public
+            @Record
+            def firmware(tag):
+                return "v2"
+
+            @Public
+            @Action
+            def Control(tag, agent, level):
+                return f"{tag.__name__} sets {agent.name} to {level}"
+
+        ari.name, cal.name = "Ari", "Cal"
+        Engine(Wizard)
+
+        self.assertEqual(Wizard.firmware, "v2")
+        self.assertEqual(Wizard.Control(ari, 3), "Wizard sets Ari to 3")
+        self.assertEqual(ari.firmware, "v2")                          # a present Agent, actualized
+        self.assertEqual(ari.Control(3), "Wizard sets Ari to 3")
+        self.assertEqual(cal.Control(1), "Wizard sets Cal to 1")      # through the Base's Layer
+
+        bo = Agent()
+        bo.name = "Bo"
+        Wizard(bo)                                                    # a future Agent
+        self.assertEqual(bo.firmware, "v2")
+        self.assertEqual(bo.Control(2), "Wizard sets Bo to 2")
+
+        with self.assertRaises(AttributeError):
+            ari.firmware = "v3"                                       # read-only on the Agent
+
+        del Wizard[ari]
+        with self.assertRaises(TagResolutionError):
+            ari.Control(3)                                            # a privilege of membership
+
+    def test_a_public_pin_member_that_cannot_reach_every_agent_reaches_none(self) -> None:
+        Wizard = self.Wizard
+        ari = Agent()
+        Wizard(ari)
+
+        class Holder(Tag):
+            @Record
+            def firmware(agent):
+                return "own"
+
+        Holder(ari)                                                   # an independent Record of that name
+
+        @Pin
+        class Engine(Tag):
+            @Public
+            @Action
+            def firmware(tag, agent):
+                return 1
+
+        with self.assertRaises(TagCompositionError):
+            Engine(Wizard)
+
+        self.assertNotIn(Wizard, Engine)
+        self.assertEqual(ari.firmware, "own")
+        self.assertFalse(hasattr(Wizard, "firmware"))
+
+    def test_a_pins_teardown_receives_the_originals_for_unpatching(self) -> None:
+        Wizard = self.Wizard
+        ari = Agent()
+        Wizard(ari)
+
+        @Pin
+        class Patch(Tag):
+            @Action
+            @Underlay
+            def Greet(tag, underlay, who):
+                return underlay(who).upper()
+
+            @Record
+            def colour(tag, stored):
+                return stored + "-patched"
+
+            @Rip
+            def Unpatch(tag, original):                               # the second seat: the originals
+                tag.Greet = original.Greet
+                tag.colour = original.colour
+
+        Patch(Wizard)
+        self.assertEqual((Wizard.Greet("x"), Wizard.colour), ("WIZARD:X", "blue-patched"))
+
+        del Patch[Wizard]                                             # one deliberate line each: un-patched
+
+        self.assertEqual((Wizard.Greet("x"), Wizard.colour), ("Wizard:x", "blue"))
+        self.assertIsInstance(vars(Wizard)["Greet"], classmethod)
+        self.assertTrue(isinstance(Wizard, Patch))
+
+    def test_a_pins_teardown_without_the_seat_leaves_the_patch(self) -> None:
+        Wizard = self.Wizard
+
+        @Pin
+        class Patch(Tag):
+            @Action
+            def Greet(tag, who):
+                return "patched"
+
+            @Rip
+            def Note(tag):
+                tag.noted = True
+
+        Patch(Wizard)
+        del Patch[Wizard]
+
+        self.assertEqual(Wizard.Greet("x"), "patched")                # sticky
+        self.assertTrue(Wizard.noted)
+
+    def test_a_ripped_tag_reapplied_to_an_object_is_silent(self) -> None:
+        class Promising(Tag):
+            @Post
+            def Fine(agent):
+                return True
+
+        ari = Agent()
+        Promising(ari)
+        del Promising[ari]
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            Promising(ari)
+
+
 # ==================================================================
 # Ring 3: Lifecycle
 # ==================================================================
@@ -1591,6 +2211,134 @@ class RipTests(unittest.TestCase):
         self.assertIn(ari, Squire)
         self.assertEqual(ari.events, ["Squire", "Squire"])
         self.assertEqual(ari.rank, "squire")
+
+
+class ConditionsEndWithMembershipTests(unittest.TestCase):
+    """STEP-SPEC-11: a Tag's gates and promises end with its membership."""
+
+    def test_a_ripped_tags_promise_no_longer_binds(self) -> None:
+        class Wizard(Tag):
+            @Post
+            def Has_Book(agent):
+                return agent.book is not None
+
+        ari = Agent()
+        ari.book = []
+        Wizard(ari)
+        self.assertEqual(Contract.Status(ari), {"Has_Book": True})
+
+        del Wizard[ari]
+        ari.book = None                                               # would have broken the promise
+
+        self.assertEqual(Contract.Status(ari), {})
+        self.assertTrue(Contract.Holds(ari))                          # a Rogue Agent is not defective
+
+    def test_a_ripped_gate_no_longer_gates(self) -> None:
+        class Gated(Tag):
+            @Pre
+            def Ready(agent):
+                return agent.ready
+
+        ari = Agent()
+        ari.ready = True
+        Gated(ari)
+        del Gated[ari]
+
+        self.assertEqual(Contract.Status(ari), {})
+
+    def test_ripping_a_shape_gives_the_bases_promise_back(self) -> None:
+        class Base(Tag):
+            @Post
+            def Fine(agent):
+                return agent.level > 0
+
+        class Shape(Base):
+            @Post
+            @Underlay
+            def Fine(agent, base):
+                return base() and agent.level > 5
+
+        ari = Agent()
+        ari.level = 9
+        Shape(ari)
+        ari.level = 3
+        self.assertFalse(ari)                                         # the Shape's promise
+
+        del Shape[ari]
+        self.assertTrue(ari)                                          # the Base's own promise, back
+        self.assertIn(ari, Base)
+
+        ari.level = 0
+        self.assertFalse(ari)
+
+    def test_an_overlaid_independent_promise_returns_or_leaves(self) -> None:
+        class Left(Tag):
+            @Post
+            def Fine(agent):
+                return agent.left
+
+        class Right(Tag):
+            @Post
+            def Fine(agent):
+                return agent.right
+
+        ari = Agent()
+        ari.left, ari.right = True, True
+        Left(ari)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            Right(ari)                                                # overlays Left's promise
+
+        del Right[ari]
+        ari.left = False
+        self.assertFalse(ari)                                         # Left's promise is back
+
+        del Left[ari]
+        self.assertTrue(ari)                                          # nothing binds
+
+    def test_ripping_the_underneath_first_leaves_the_visible_promise(self) -> None:
+        class Left(Tag):
+            @Post
+            def Fine(agent):
+                return agent.left
+
+        class Right(Tag):
+            @Post
+            def Fine(agent):
+                return agent.right
+
+        ari = Agent()
+        ari.left, ari.right = True, True
+        Left(ari)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            Right(ari)
+
+        del Left[ari]                                                 # not the visible one: nothing changes
+        ari.right = False
+        self.assertFalse(ari)
+
+        del Right[ari]
+        self.assertTrue(ari)
+
+    def test_a_pins_promise_ends_with_its_membership(self) -> None:
+        class Wizard(Tag):
+            pass
+
+        @Pin
+        class Promised(Tag):
+            @Post
+            def Has_Members(tag):
+                return bool(tag[:])
+
+        with self.assertRaises(Postcondition.Has_Members):
+            Promised(Wizard)
+
+        self.assertIn(Wizard, ~Promised)
+        del Promised[Wizard]
+        self.assertEqual(Contract.Status(Wizard), {})
 
 
 class ExitProtocolTests(unittest.TestCase):

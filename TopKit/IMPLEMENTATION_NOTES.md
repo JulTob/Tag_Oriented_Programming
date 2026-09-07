@@ -1,4 +1,4 @@
-# TagKit Implementation Notes
+# TopKit Implementation Notes
 
 Non-normative. How the Python reference implementation meets the
 Specification, and the judgment calls it makes. The Specification wins
@@ -84,7 +84,7 @@ rollback target.
 - **The Tag's dotted namespace is the program's.** Every Tag-level act is
   language syntax on the metaclass: `in`, `for`, `~`, `len`, `bool`,
   `[:]`, `[agent]`, `del Tag[agent]`, `format`. The only class attribute
-  TagKit adds is the private `_tagkit_field`. `bool(Tag)` is "any sound
+  TopKit adds is the private `_topkit_field`. `bool(Tag)` is "any sound
   member", like a collection.
 - **The empty-seat rule on Agents.** `__bool__`, `__format__`, `__copy__`
   and `__deepcopy__` are installed on the runtime type only when the host
@@ -111,6 +111,50 @@ rollback target.
   objects: called, they mark; read, they forward to their failure class.
   Per kind, not per Tag, on purpose: the handler reads the program's own
   word, and the Tag is already in the message.
+- **Pins reuse the whole sequence.** A pinned Tag is an Agent whose
+  namespace is its class dictionary. `_namespace_of` hands the kernel a
+  `_Class_Namespace` adapter (get, set, pop, keys) over the proxy, so
+  `_apply`, `_materialize`, `_commit`, `_snapshot` and `_rollback` are one
+  code path; the class case restores key by key. The runtime type is a
+  `(MetaTag, Tagged)` metaclass from the same cache. A landed Action is a
+  `_Pinned_Operation` descriptor binding to the Tag it is read from (a
+  Shape inherits it as it inherits a classmethod); a landed Record is a
+  plain class attribute, which is exactly a Report's value. `_scan` skips
+  names the class state manages, so a pinned Tag never projects them onto
+  its Agents. The Tag's own Operations and Reports are host members to a
+  Pin (`_pinned_host_function`, `_pinned_stored`); its Agent-scope names
+  and protocols are refused, because a class dictionary is both host and
+  instance namespace and a write there would remove the declaration.
+  No descriptor is ever placed on a metaclass (it would intercept the
+  class-attribute writes the kernel makes): a pinned Tag's `@Secret`
+  members live in `state.secret_values` and answer on the miss path
+  while `composing` is open; `@Public` pinned members are pushed to the
+  Field at commit (`_publish_to_field`, dry run on copies first) and
+  emitted by the Tag's scan for future Agents, so the scan cache is
+  dropped at pinning. `_state_of` reads the dictionary directly, which
+  is why `agent in Tag` got faster rather than slower.
+- **Originals for un-patching.** When a Pin overlays a Tag's own
+  Operation, Report or plain value, `_refuse_tag_member` records the
+  declared object in `state.originals` (first patch wins). `_call_teardown`
+  hands an `_Originals` namespace to a Pin's `@Rip` teardown that declares
+  a seat beyond its receiver (and Underlay), read through `__wrapped__`
+  of the composed Action.
+- **Published members check sound membership at use** (STEP-SPEC-10):
+  the adapter and `_Published.__get__` call `_require_membership`, which
+  raises `TagPrivilegeError` (a `TagResolutionError` that is also an
+  `AttributeError`, so `hasattr` is honest) when the Agent left, and
+  otherwise runs the Agent's Postconditions through `_guarded` with
+  `detailed=True`, which raises the named promise and is re-entrancy
+  safe. An Agent without Postconditions pays one dictionary lookup.
+- **Conditions end with membership** (STEP-SPEC-11): every bound check
+  carries its origin Tag and the check it was laid over. `_rip` calls
+  `_release_conditions`, which walks each name the ripped Tag bound and
+  restores the nearest prior whose Tag is still active, or frees the
+  name. A check that is not the visible one is left alone: it lives on
+  only as the visible check's Underlay, which is that Tag's composition.
+- **Stacked `@Pre @Post`** marks the function's kind `"condition"`;
+  the scan appends it to both lists and `_name_checks` registers both
+  named failures.
 - **Assigning a Tag's name on an Agent** (`ari.Elf = 1`) shadows the view by
   name; plain Python, not intercepted. `Elf[ari]` is unaffected.
 - **Inputs and defaults.** A protocol parameter the caller omitted keeps

@@ -11,9 +11,9 @@ from the inside out: a Ring 2 implementation also satisfies Rings 0 and 1.
 
 | Ring | Laws, in short |
 | --- | --- |
-| **0 · Kernel** | stable identity and preserved host behaviour; upward-closed membership with a has-been check; non-owning identity-indexed Fields; Base-first Forms; the five-step tagging sequence with rollback on gate and Record failure; Rip sticky, refused while required, never cascading |
-| **1 · Contributions** | two scopes, one slot per `(scope, name)`; latest-Layer Overlay with captured Underlays and stored-value Records; Tag members invisible on the Agent; `@Secret` and `Public` publication with a composition door; Delete; three access forms |
-| **2 · Contracts** | strict boolean conditions; Preconditions gate only the current call; Imprints after commit; Postconditions once per call and re-checked later; Forward-Post, Backward-Pre with weakening diagnosed; defective Agents, truthiness, sound and defective partitions; a failure names its check (`except Precondition.X`) |
+| **0 · Kernel** | stable identity and preserved host behaviour; upward-closed membership with a has-been check; non-owning identity-indexed Fields; Base-first Forms; the five-step tagging sequence with rollback on gate and Record failure; Rip sticky for contributions, conditions ending with membership, refused while required, never cascading |
+| **1 · Contributions** | two scopes, one slot per `(scope, name)`; latest-Layer Overlay with captured Underlays and stored-value Records; Tag members invisible on the Agent; `@Secret` and `Public` publication with a composition door, published members as privileges of sound membership (Privilege Failure for a Rogue Agent, the named promise for a defective one); Delete; three access forms; Pins: Tags as Targets, the receiver rule, patching Tag-scope declarations with collision control, publication onto the Field, Fields never mixed |
+| **2 · Contracts** | strict boolean conditions; Preconditions gate only the current call; Imprints after commit; Postconditions once per call and re-checked later; Forward-Post, Backward-Pre with weakening diagnosed; defective Agents, truthiness, sound and defective partitions; a failure names its check (`except Precondition.X`); `@Pre` and `@Post` stacked as one condition |
 | **3 · Lifecycle** | `@Rip` protocols after membership ends; the three deletion tiers |
 
 Surface spellings may differ between languages. The **semantic laws** may
@@ -21,7 +21,7 @@ not. Every failure in the failure model must stay distinct and named.
 
 ## The conformance suite
 
-`tests/test_tagkit.py` is organized by ring and is the seed of the
+`tests/test_topkit.py` is organized by ring and is the seed of the
 language-agnostic suite. Test classes named for a ring assert laws; a port
 in another language satisfies the behaviours those tests assert, in its
 own spelling. Tests that exercise Python-only mechanics (garbage

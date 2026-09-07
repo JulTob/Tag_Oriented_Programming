@@ -1,11 +1,11 @@
-# The TagKit Guide
+# The TopKit Guide
 
 *Tag-Oriented Programming for people. Read this before the Specification.*
 
 This guide teaches TOP by building one thing: a character sheet the way a
 tabletop game builds it. Species, class, background and feats are separate
 choices, and the sheet is what they compose. Every code block runs, in
-order, on Python 3.10 or later, with nothing installed but TagKit.
+order, on Python 3.10 or later, with nothing installed but TopKit.
 
 If you want the laws, read [the Specification](../spec/SPECIFICATION.md).
 If you want to see the whole thing at once, run
@@ -26,11 +26,12 @@ Two words from Spanish say the whole model. A Tag is something you *are*
 an adjective, changeable. Wizard is a Tag. Hit points are a Record.
 
 ```python
-from TagKit import (
+from TopKit import (
         Action, Contract, Delete, Flag, Form, Imprint, Keyword, Operation,
-        Outline, Post, Postcondition, Pre, Precondition, Public, Record,
-        Report, Rip, Scope, Secret, Tag, Tags, Underlay,
+        Outline, Pin, Post, Postcondition, Pre, Precondition, Public,
+        Record, Report, Rip, Scope, Secret, Tag, Tags, Underlay,
         TagCompositionError, TagPostconditionError, TagPreconditionError,
+        TagResolutionError,
         )
 
 
@@ -235,7 +236,7 @@ You write the merge. `stored + new`, `max(stored, new)`, `stored | new`:
 whatever the domain means. There is nothing to configure.
 
 **Watch out.** A builder *without* the second parameter replaces. If it
-replaces a Record that an unrelated Tag put there, TagKit warns, because
+replaces a Record that an unrelated Tag put there, TopKit warns, because
 something another meaning relied on was overwritten.
 
 ### Pattern 4 · Extend behaviour instead of replacing it
@@ -335,7 +336,7 @@ Three things to notice.
 
 **Inputs travel with the tagging.** Sometimes the gate needs information
 that is not on the Agent yet, like a code number. You give it at the call:
-`MI6(bond, code="007")`. TagKit then hands `code`, by name, to every
+`MI6(bond, code="007")`. TopKit then hands `code`, by name, to every
 Precondition, Record builder and Imprint of that Tag that has a parameter
 called `code`. The usual use is a Record that simply keeps the input:
 
@@ -362,12 +363,12 @@ order: the Agent, what was already stored under that name (pattern 3),
 and what the call brings. Here nothing was stored, so the star holds that
 seat empty: `def code(agent, *, code)` says "agent, nothing stored, then
 `code` from the call". If you wrote `def code(agent, code)`, Python would
-put `code` in the stored seat, and TagKit refuses that at tagging time
+put `code` in the stored seat, and TopKit refuses that at tagging time
 and prints the spelling above. Preconditions and Imprints have no stored
 seat, so there `def Has_A_Code(agent, code)` is enough.
 
 **Watch out.** A gate must answer `True`, `False`, or nothing at all.
-Do not return a number and hope: a count of `0` is not `False` to TagKit,
+Do not return a number and hope: a count of `0` is not `False` to TopKit,
 and it will refuse the raw value. Write the comparison you mean, such as
 `return agent.slots > 0`. This keeps a real zero from being mistaken for
 a refusal.
@@ -411,9 +412,38 @@ is flagged, repaired, or thrown away (`del Wizard[newt]`).
 name of the broken one, `Contract.Display(agent)` or `f"{agent:contract}"`
 prints them.
 
+**Necessary to enter, necessary to stay.** Stack `@Pre` and `@Post` on
+one function and it is both: a gate at the door and a promise kept after.
+
+```python
+class Elf(Tag):
+
+    @Pre
+    @Post
+    def Alive(agent):
+        return agent.alive
+
+
+ghost = Character("Ghost")
+ghost.alive = False
+
+try:
+    Elf(ghost)
+except Precondition.Alive:
+    pass                                # not alive: cannot become an Elf
+
+ari.alive = True
+Elf(ari)
+ari.alive = False                       # an Elf who died is a broken Elf
+assert ari in ~Elf
+```
+
+Being alive is necessary to be an Elf, not sufficient: other living things
+are not Elves. That is the difference between a condition and a Tag.
+
 **Watch out.** A Shape should promise *at least* what its Base promised.
 Use `@Post @Underlay` and `return base() and ...`. Overriding a Base's
-promise without it weakens the contract; TagKit allows it and warns.
+promise without it weakens the contract; TopKit allows it and warns.
 
 ### Pattern 7 · Keywords for rules written as data
 
@@ -448,7 +478,7 @@ assert not Keyword(Character("x"), "Undead")
 **Watch out.** Only Flags answer by name; an ordinary Tag never does, so
 `"Wizard" in agent` is `False` unless Wizard is a Flag. A Flag cannot be
 applied to an object that already has its own `in` (a list-like host);
-TagKit refuses rather than take the seat. `Keyword(...)` works everywhere.
+TopKit refuses rather than take the seat. `Keyword(...)` works everywhere.
 
 ### Pattern 8 · Shared things, and who may reach them
 
@@ -470,9 +500,7 @@ class Agency(Tag):
     @Public
     @Operation
     def dispatch(agency, sender, message):
-        if sender not in agency:        # live authority: checked each call
-            raise PermissionError("inactive")
-        return f"{sender.name}: {message}"
+        return f"{sender.name}: {message}"   # only members ever get here
 
     @Secret
     @Record
@@ -496,16 +524,48 @@ assert not hasattr(bond, "clearance")   # secret from outside
 send = bond.dispatch                    # a captured handle
 del Agency[bond]
 
+assert bond.status() == "top"           # his own Action: he keeps it
+
 try:
     send("late")
-except PermissionError:
-    pass                                # the Operation checks membership
+except TagResolutionError:
+    pass                                # the Agency's: revoked with membership
 ```
 
 The rule in one line: what the Agent does is public, what the Agency keeps
 is internal. `@Secret` hides an Agent member; `@Public` shows a Tag member.
 Both are modifiers: they stack on `@Record`, `@Action`, `@Report` or
 `@Operation` in either order.
+
+A published member is a **privilege of sound membership**. A Rogue Agent
+(he left) keeps what he became, his own Actions and Records, and loses
+what the Agency lent him: `TagPrivilegeError`. A defective Agent (a
+promise broke, any promise, whoever made it) is suspended until repaired,
+and the refusal names the broken promise. You never write either check,
+and the second one gives you the **autofix** pattern: catch the promise,
+repair what it names, try again.
+
+```python
+class Sworn(Tag):
+
+    @Post
+    def Has_Oath(agent):
+        return agent.oath is not None
+
+
+Agency(bond)
+bond.oath = None
+try:
+    Sworn(bond)
+except Postcondition.Has_Oath:
+    pass                                # a member, but defective
+
+try:
+    bond.dispatch("hello")
+except Postcondition.Has_Oath:          # the privilege names what is broken
+    bond.oath = "for Queen and country"
+    assert bond.dispatch("hello") == "Bond: hello"
+```
 
 Notice the symmetry. A Report is written exactly like a Record, with the
 Tag instead of the Agent as its first input; it runs once per Tag and its
@@ -544,6 +604,32 @@ assert guard not in Sentry
 
 `@Imprint` runs after the Tag applies; `@Rip` runs after it leaves. They
 are constructor and destructor, `__enter__` and `__exit__`.
+
+A role's conditions leave with it. What the Agent *became* stays (pattern
+1's Rogue Agent); what the role *required* ends, because there is nothing
+left to stay in.
+
+```python
+class Knight(Tag):
+
+    @Post
+    def Has_Sword(agent):
+        return agent.sword is not None
+
+    def Salute(agent):
+        return f"{agent.name} salutes"
+
+
+lance = Character("Lance")
+lance.sword = "Excalibur"
+Knight(lance)
+
+del Knight[lance]                       # dubbed no more
+lance.sword = None
+
+assert lance.Salute() == "Lance salutes"   # what he became: stays
+assert lance                               # what the role required: gone
+```
 
 **Watch out.** Python does not promise to run finalizers at shutdown, so
 `del agent` is best-effort. `Scope` is the guaranteed path.
@@ -640,6 +726,104 @@ print(Outline(ari))
 #   War_Caster
 ```
 
+### Pattern 11 · Categories of categories
+
+**When you want** to say something about a Tag itself: this class is
+*rare*, that species is *homebrew*, this rule is *deprecated*. A Tag is an
+object, so a Tag can be tagged. A Tag marked `@Pin` applies to Tags, and
+the Tag it is applied to becomes its Agent: it joins a Field, it can be
+gated, it can promise, it can leave.
+
+```python
+@Pin
+class Rare(Tag):
+
+    @Record
+    def rarity(tag):                        # the receiver is the Tag
+        return "rare"
+
+    @Action
+    def Describe(tag):
+        return f"{tag.__name__} is {tag.rarity}"
+
+
+Rare(Wizard)                                # pin the Tag
+
+assert Wizard in Rare                       # membership, from the Pin's side
+assert list(Rare) == [Wizard]               # a Field of Tags
+assert Wizard.rarity == "rare"              # one value, held on the Tag
+assert Wizard.Describe() == "Wizard is rare"
+assert not hasattr(ari, "rarity")           # never on the Tag's Agents
+
+for tag in Rare:                            # walk the rare Tags
+    print(tag.Describe())
+```
+
+Notice the first parameter is `tag`, because the receiver is a Tag. What
+a Pin gives lands on the Tag the way a Report or an Operation does: one
+value shared by the whole Field, inherited by the Tag's Shapes
+(`War_Caster.rarity` is `"rare"` too), and never on the Tag's Agents.
+
+A Pin can also **patch** what a Tag shares. Say a Tag has an Operation
+that controls an engine, and the engine changed. A Pin Action of the
+same name replaces it, with the old one as its Underlay, and every Agent
+that goes through the Tag gets the new control at once:
+
+```python
+class Engine(Tag):
+
+    @Operation
+    def Control(tag, level):
+        return f"{tag.__name__} v1 at {level}"
+
+    def Drive(agent):
+        return Engine.Control(agent.level)      # through the Tag, at call time
+
+
+kit = Character("Kit", level=2)
+Engine(kit)
+assert kit.Drive() == "Engine v1 at 2"
+
+
+@Pin
+class Firmware_2(Tag):
+
+    @Action
+    @Underlay
+    def Control(tag, underlay, level):
+        return underlay(level).replace("v1", "v2")
+
+    @Public                                 # reach every Agent of the Tag, too
+    @Record
+    def firmware(tag):
+        return "v2"
+
+    @Rip
+    def Unpatch(tag, original):             # the originals, handed to you
+        tag.Control = original.Control
+
+
+Firmware_2(Engine)
+
+assert kit.Drive() == "Engine v2 at 2"      # actualized, no per-Agent work
+assert kit.firmware == "v2"                 # published onto the Field
+
+del Firmware_2[Engine]                      # un-patch: one deliberate line
+assert kit.Drive() == "Engine v1 at 2"
+```
+
+**Watch out.** A Pin may replace what a Tag *shares* (its Operations
+and Reports), never what its Agents *do* (its Actions, Records and
+conditions); TopKit refuses that at the gate, because on a class the two
+live in one dictionary. `if Wizard:` still asks whether anyone is a
+sound Wizard, not whether Wizard's own promises hold; ask those from the
+Pin's side, `Wizard in ~Rare`. A Pin applies only to Tags, and an
+ordinary Tag only to objects, so a Field is never a mix of the two. A
+Flag Pin is a keyword on the Tag: `"Deprecated" in Wizard`. Prefer it to
+`Wizard.deprecated = True` for the same reason you prefer an `Undead` Tag
+to `asleep = True`: a value can be flipped back, membership is a state of
+the architecture, with a Field to walk and a history that stays.
+
 ---
 
 ## Reading an Agent
@@ -663,6 +847,7 @@ print(Outline(ari))
 | Everyone? | `Wizard[:]` |
 | What applies with it? | `Form(Wizard)`, `f"{Wizard:form}"` |
 | Take it away | `del Wizard[agent]` |
+| Which Pins does it carry? | `Wizard in Rare`, `f"{Wizard:pins}"` |
 
 Nothing TOP-level lives at `Wizard.something`. That namespace is yours: put
 your Reports and Operations there.
@@ -678,8 +863,11 @@ your Reports and Operations there.
 | Extend an Action with `@Underlay`. | Call `agent.Attack()` from inside `Attack` (that recurses). |
 | Gate with `@Pre`; promise with `@Post`; repair through `~Tag`. | Roll your own validation after the fact. |
 | Mark word-like Tags `@Flag` and write rules as data. | Match every Tag by name. Only Flags are words. |
+| Say things about a Tag with a `@Pin`. | Keep a side table of Tags outside TOP. |
 | Clean up with `@Rip`, guarantee it with `Scope`. | Rely on `del agent` for anything that matters. |
 | Reset by Rip and apply again. | Reapply an active Tag hoping it resets (it does nothing). |
+| Expect a Rogue Agent to keep its own Actions and lose the Agency's published ones. | Check membership by hand inside every published Operation. |
+| Catch the named promise, repair what it names, retry. | Catch every failure in one handler and guess. |
 | Keep shared data in a `Report`, one copy. | Copy shared data into every Agent's Record. |
 | Ask `agent in Wizard`. | Ask `type(agent) is Character`; the type is wrapped. |
 
@@ -691,4 +879,4 @@ your Reports and Operations there.
 - [`examples/dnd_character.py`](../examples/dnd_character.py) and
   [`examples/biome.py`](../examples/biome.py): the long form.
 - [`benchmarks/bench.py`](../benchmarks/bench.py): what it costs.
-- [`IMPLEMENTATION_NOTES.md`](IMPLEMENTATION_NOTES.md): how TagKit does it.
+- [`IMPLEMENTATION_NOTES.md`](IMPLEMENTATION_NOTES.md): how TopKit does it.

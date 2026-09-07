@@ -6,16 +6,16 @@ Run:  PYTHONPATH=. python3 examples/dnd_character.py
 
 from __future__ import annotations
 
-from TagKit import Action
-from TagKit import Contract
-from TagKit import Imprint
-from TagKit import Outline
-from TagKit import Post
-from TagKit import Pre
-from TagKit import Record
-from TagKit import Report
-from TagKit import Tag
-from TagKit import Underlay
+from TopKit import Action
+from TopKit import Contract
+from TopKit import Imprint
+from TopKit import Outline
+from TopKit import Post
+from TopKit import Pre
+from TopKit import Record
+from TopKit import Report
+from TopKit import Tag
+from TopKit import Underlay
 
 
 class Character:

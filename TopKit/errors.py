@@ -64,7 +64,7 @@ class _Named(type):
 
 
 class TagError(Exception):
-    """Base failure for TagKit."""
+    """Base failure for TopKit."""
 
 
 class TagDeclarationError(TagError):
@@ -78,6 +78,12 @@ class TagCompositionError(TagError):
 
 class TagResolutionError(TagError):
     """A required Underlay, Tag view, or contribution is unavailable."""
+
+
+class TagPrivilegeError(TagResolutionError, AttributeError):
+    """A published member was used by an Agent that is no longer a member
+    of the publishing Tag: a Rogue Agent's privilege (STEP-SPEC-10). Also
+    an AttributeError, so a read through ``hasattr`` answers False."""
 
 
 class TagPreconditionError(TagError, metaclass=_Named):

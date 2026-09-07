@@ -72,6 +72,8 @@ Ring 4.
 | **Layer** | One Tag's position in an Agent's composition. |
 | **Overlay** | The currently visible result of all active Layers. |
 | **Underlay** | The prior visible contribution of a name, captured for a later Layer to extend. |
+| **Pin** | A Tag marked `@Pin`, whose Targets are Tags (§1.9). |
+| **Pinning** | Applying a Pin to a Tag: `Rare(Wizard)`. The pinned Tag is the Pin's Agent. |
 
 TOP uses **Base** and **Shape**, never *parent* and *child*: the words
 describe a different model. A Tag may be both: `Person` is a Shape of
@@ -230,6 +232,10 @@ Rip is the only exit from a Field, and it obeys three laws:
 - **Rip is refused while a Shape needs the Base.** `del Beast[wolf]` fails
   while `Wolf` is active. Deform the Shape first. Rip never cascades: TOP
   does not run other Tags' protocols behind your back.
+- **Conditions end with membership** (STEP-SPEC-11). Rip removes the
+  Tag's Preconditions and Postconditions from the Agent; a condition the
+  Tag had laid over another active Tag's gives that one back. A Rogue
+  Agent keeps what it became and is not held to a role it left.
 - **Reapplying a Ripped Tag is a fresh Tagging.** Imprints run again;
   Records are rebuilt.
 
@@ -256,6 +262,9 @@ language, not a library's naming.
 | the Form, as text | `f"{Wizard:form}"` |
 | an Agent's Tags, Outline, contract, as text | `f"{agent:tags}"`, `f"{agent:outline}"`, `f"{agent:contract}"` |
 | catch one check's failure (§2.6) | `except Precondition.Is_A_Caster:`, `except Postcondition.Has_Book:`, `except Imprint.Arm:` |
+| pin a Tag (§1.9), and every act above with a Tag in the Agent's seat | `Rare(Wizard)`, `Wizard in Rare`, `for tag in Rare`, `Rare[Wizard]`, `del Rare[Wizard]` |
+| a Tag carries a keyword? (Flag Pins, §1.9) | `"Deprecated" in Wizard`, `Keyword(Wizard, "Deprecated")` |
+| a Tag's Pins and contract, as text | `f"{Wizard:pins}"`, `f"{Wizard:contract}"` |
 
 Truth on a Tag is truth on a collection: `if Wizard:` asks whether anyone
 sound is a Wizard right now, `while Enemy:` fights while an enemy stands,
@@ -291,6 +300,11 @@ Every contribution has a **receiver**, and the receiver decides its scope.
 Where a contribution is *declared* does not change its scope. An Action
 written inside a Tag class is still an Agent contribution: the Tag stores
 it once, every Agent is its receiver.
+
+The receiver may itself be a Tag. When a Tag is applied to another Tag
+(**pinning**, §1.9), the pinned Tag is the receiver, so the Pin's Records
+land as Reports and its Actions as Operations of that Tag: Tag scope,
+because a Tag is what receives them.
 
 In Ada's terms, the Tag is the package specification and the Agent is the
 body. The specification declares what is shared; the body is what acts.
@@ -550,9 +564,7 @@ class Agency(Tag):
     @Public
     @Operation
     def dispatch(agency, sender, message):
-        if sender not in agency:
-            raise PermissionError("inactive")
-        return network.broadcast(sender, message)
+        return network.broadcast(sender, message)   # a Rogue sender never gets here
 
 Agency(agent)
 agent.colour                     # "navy", read-only
@@ -560,11 +572,22 @@ agent.dispatch(message)          # Agency.dispatch(Agency, agent, message)
 ```
 
 The published Action is a normal Action: it overlays and underlays at
-`(Agent, name)` and is sticky after Rip. That is why the guarded Operation
-checks membership **at invocation**: a stale `send = agent.dispatch`
-captured before Rip fails closed after it. TOP is not a security system; a
-long-running task may need to re-check authority before an irreversible
-step.
+`(Agent, name)` and stays on the Agent after Rip. Its **use** does not: a
+published member is a **privilege of sound membership** (STEP-SPEC-10).
+At every use, an Operation's call or a Report's read, TOP checks that
+the Agent still belongs to the publishing Tag and that every promise on
+the Agent holds, whichever Tag made it: the same soundness `if agent:`
+and the loop ask about. A Rogue Agent (it left) gets a **Privilege
+Failure**, a Resolution Failure that is also an Attribute failure, so
+`hasattr` answers False; a stale `send = agent.dispatch` captured before
+Rip fails the same way. A defective Agent (a promise broke) gets the
+**broken promise by name**, `except Postcondition.Has_Homeland`, so it
+can repair what the failure names and retry. Membership or repair
+restores the privilege; nothing is re-declared. The Agent's own Actions
+and Records are untouched: what it became stays. A defective Agent
+reads the Tag's shared values through the Tag directly, which is never a
+privilege. TOP is not a security system; a long-running task may still
+re-check authority before an irreversible step.
 
 `@Secret` and `@Public` are **modifiers**: they stack with `@Action`,
 `@Record`, `@Operation` and `@Report` in either order. A modifier that
@@ -685,6 +708,116 @@ A Flag needs the Agent's `in`. Applying a Flag to a host that defines its
 own `in` (a container) is a declared collision and fails with a
 Composition Failure, like a Record over a host property. `Keyword(...)`
 answers for every object, tagged or not, container or not.
+
+## 1.9 Pins: Tags as Targets
+
+Categories have categories. A game marks Tags as *Rare* or *Homebrew*; a
+rules engine keeps Tags by *School*; a tool walks every Tag that is
+*Deprecated*. A Tag marked `@Pin` applies to Tags, and the pinned Tag is
+its Agent in every sense of Ring 0: membership, a Field to walk, a gate,
+a promise, a view, a Rip.
+
+```python
+@Pin
+class Rare(Tag):
+
+    @Record
+    def rarity(tag):                     # lands as Wizard.rarity: a Report
+        return "rare"
+
+    @Action
+    def Describe(tag):                   # lands as Wizard.Describe: an Operation
+        return f"{tag.__name__} is {tag.rarity}"
+
+
+Rare(Wizard)
+
+assert Wizard in Rare                    # active membership, from the Pin's side
+assert list(Rare) == [Wizard]            # a Field of Tags
+assert Wizard.rarity == "rare"           # one value, held on the Tag
+assert Wizard.Describe() == "Wizard is rare"
+assert not hasattr(charlie, "rarity")    # never on the Tag's Agents
+```
+
+**Who may be a Target.** A Pin applies to Tags only; on an object it
+fails with a Composition Failure. An ordinary Tag applies to objects only;
+on a class it is refused, as before. A Pin may not pin itself or any Tag
+of its own Form. A Shape of a Pin is a Pin, and one Form is all Pins or
+no Pins: mixing them is a Declaration Failure. Fields therefore never mix
+Agents and Tags.
+
+**The receiver rule** (§1.1). The first parameter of a Pin's Agent-scope
+member is the pinned Tag; write it `tag`. A Pin's Record lands as a
+Report of the pinned Tag: one value, held on the Tag, inherited by its
+Shapes, and readable through the `inherited` seat of a Shape's own Report
+(§1.4). A Pin's Action lands as an Operation: read from the pinned Tag or
+any of its Shapes, it receives the Tag it was read from, as an Operation
+does. Membership does not inherit: `War_Caster in Rare` is False until
+`Rare(War_Caster)`. Nothing a Pin lands is ever projected onto the Tag's
+Agents. A Pin's own Operations and Reports stay on the Pin.
+
+**Patching, with collision control.** The pinned Tag's own Tag-scope
+declarations are host members to a Pin, as a host method is to an
+Action. A Pin Action over the Tag's own Operation replaces it silently
+with the Operation as its Underlay, so `def Control(tag, underlay, ...)`
+can call the engine it patches; every Agent that reaches the Operation
+through the Tag is actualized at once, because an Operation is looked up
+on the Tag at call time. A Pin Record over the Tag's own Report receives
+the Report's value in the stored seat. A failed pinning rolls the
+declaration back; a Ripped Pin leaves the patch, sticky, and a Pin's
+`@Rip` teardown that declares a second seat receives the Tag's
+**original declarations** under the patched names, so un-patching is one
+line: `def Unpatch(tag, original): tag.Control = original.Control`. A Pin
+member
+named like something the Tag declares in **Agent scope** or as a
+**protocol**, itself or in a Base, is refused at the gate: on a class the
+scopes share one dictionary, and the write would silently remove the
+declaration from every future Agent's contract. So is a name every Tag
+answers through its metaclass. Names another Pin landed follow the
+Overlay laws of §1.2 and §1.3.
+
+**Publication on a Tag.** `@Secret` on a Pin's Record or Action makes it
+Pin-private state on the Tag: held in the Tag's state, resolved only
+while the Tag's own protocols or pinned Operations run, an Attribute
+failure from main, not inherited by Shapes. `@Public` publishes it onto
+the pinned Tag's **Field**: every present Agent receives it at pinning
+and every future Agent through the Tag, as the Tag's own published
+Report or Operation (`def Control(tag, agent, ...)`, the Agent second),
+under the privilege rule of §1.5. The Field is checked on copies first;
+a collision on any one Agent refuses the pinning and touches none. A
+Pin's own Reports and Operations are not published, and `@Delete` and
+special-method Actions on a Pin are Declaration Failures.
+
+**Keywords on a Tag.** A Pin may be a Flag. A string can never be a
+member, so on a Tag a string in the `in` seat asks for a keyword:
+`"Deprecated" in Wizard` is True while the Flag Pin `Deprecated` is
+active on it; objects and classes in that seat ask membership.
+`Keyword(Wizard, "Deprecated")` and `Keyword(Wizard, Deprecated)` answer
+the same. A word like *Deprecated* is a Pin and not a Report for the
+reason `Undead` is a Tag and not `asleep = True`: a Report is a value,
+and a value implies it may be flipped back; a Pin is membership, with a
+Field, a gate, a promise, a Rip that is an act, and a history
+`isinstance` remembers. A Tag says what something *is*; a Record says
+what it *has* right now.
+
+**Seats already taken.** `bool(Wizard)` remains "is anyone a sound
+Wizard" (§0.8); a pinned Tag's own promises are read from the Pin's side,
+`Wizard in ~Rare`, `Contract.Display(Wizard)`, `f"{Wizard:contract}"`.
+`f"{Wizard:pins}"` names its Pins. `Wizard.Rare` is the Pin-bound view
+by name, on the same miss-path rule as `charlie.Wizard`.
+
+**Contracts, Imprints, Rip.** A Pin's Preconditions gate the pinning and
+receive the Tag; a failed gate leaves the Tag exactly as it was, its
+metaclass included. Postconditions are checked once per pinning and
+re-checked at later pinning boundaries of that Tag; a broken promise
+leaves the Tag pinned and defective (§2.5). Imprints run after commit.
+`del Rare[Wizard]` runs the Pin's Rip protocols; landed values and
+Operations stay, sticky, and `isinstance(Wizard, Rare)` stays True.
+Pinning again after a Rip is a fresh pinning (§0.7).
+
+A Pin does not alter the pinned Tag's own gate over its Agents. A Tag
+that should refuse new members while Deprecated writes that as its own
+Precondition, reading its Pins.
 
 ---
 
@@ -909,7 +1042,30 @@ print(Contract.Display(agent))
 #     XX  Has_Spellbook
 ```
 
-## 2.7 Writing a check
+## 2.7 Necessary to enter, necessary to stay
+
+`@Pre` and `@Post` stacked on one function make it a **condition**:
+checked at the door as a Precondition and kept as a Postcondition. It is
+one body, named once, and it fails under both names:
+
+```python
+class Elf(Tag):
+
+    @Pre
+    @Post
+    def Alive(agent):
+        return agent.alive
+
+
+Elf(dead)                     # refused: Precondition.Alive
+Elf(ari)                      # in; and from now on Ari must stay alive
+```
+
+Being alive is necessary to become an Elf and necessary to remain a sound
+one; it is not sufficient, since other living things are not Elves. A
+condition says *necessary*; membership says *is*.
+
+## 2.8 Writing a check
 
 A condition usually asks whether an Agent *has* something. `assert
 agent.spellbook` reads well, but asks two questions at once: *defined* and
@@ -981,7 +1137,8 @@ What TOP does not promise, stated so nobody has to discover it.
 
 - **Nominal type.** `type(agent) is Host` may be false after tagging. The
   type's name is unchanged and `isinstance(agent, Host)` is true. Code that
-  keys on exact type identity is outside the guarantee.
+  keys on exact type identity is outside the guarantee. A pinned Tag's
+  metaclass may be wrapped the same way; its Shapes' is not.
 - **Copying and pickling.** Cloning an Agent is domain work: build a new
   Target and apply its Tags again (`Tags(agent)` lists them). A Python
   implementation refuses `copy.copy` explicitly rather than aliasing state.
@@ -1007,6 +1164,7 @@ types but must keep these distinct.
 | **Tag Declaration Failure** | A Tag is written wrong: illegal mark combination, `@Underlay` without a parameter to receive it. | at class use |
 | **Tag Composition Failure** | Contributions cannot form the Overlay: cross-kind collision, Record over a host descriptor, a Record builder or teardown that failed, a Target that cannot carry state, a Base still required. | call rolled back (or Rip refused) |
 | **Tag Resolution Failure** | A required Underlay, view, or membership is unavailable. | call rolled back |
+| **Tag Privilege Failure** | A published member was used by an Agent that is no longer a member of its Tag. A Resolution Failure that is also an Attribute failure. | use refused |
 | **Tag Precondition Failure** | A gate refused the incoming Agent. | call rolled back |
 | **Tag Imprint Failure** | An Imprint failed after commit. | Tags stay |
 | **Tag Postcondition Failure** | The finished Agent breaks a promise. | Tags stay, Agent defective |
@@ -1028,8 +1186,8 @@ A conforming implementation provides, ring by ring:
 - Base-first Form application, each Base once, active reapply a no-op;
 - the five-step tagging sequence with the call boundary: rollback on gate
   and Record failure, Tags stay on Imprint and Postcondition failure;
-- Rip: sticky contributions, refusal while a Shape requires the Base, no
-  cascade;
+- Rip: sticky contributions, conditions ending with membership, refusal
+  while a Shape requires the Base, no cascade;
 - native spellings for every Tag-level act, leaving the Tag's dotted
   namespace to the program.
 
@@ -1044,6 +1202,16 @@ A conforming implementation provides, ring by ring:
 - Flags: opt-in keyword Tags searchable from the Agent's side by name and
   by class, refused on a host that owns `in`, never matched for ordinary
   Tags;
+- Pins: opt-in Tags whose Targets are Tags, the pinned Tag as Agent under
+  every Ring 0 act, the receiver rule (Records as Reports, Actions as
+  Operations), Fields never mixed, the Tag's Tag-scope declarations as
+  host members (Underlay, stored seat) with Agent-scope and protocol
+  names refused, `@Secret` as Pin-private state, `@Public` as publication
+  onto the Field, Flag Pins as keywords by string;
+- published members as privileges of sound membership: a Privilege
+  Failure on a Rogue Agent, the broken promise by name on a defective one,
+  restored by membership or repair;
+- `@Pre` and `@Post` stacked on one function as one condition;
 - Delete; the three access forms, with Agent-bound views as read-only
   snapshots requiring active membership.
 
@@ -1066,7 +1234,7 @@ A conforming implementation provides, ring by ring:
 
 An implementation may choose runtime type composition, generated wrappers,
 proxies, trait machinery, or static code generation. Those are its business.
-TagKit is the Python reference; any gap in TagKit is TagKit's to fix, not a
+TopKit is the Python reference; any gap in TopKit is TopKit's to fix, not a
 change to TOP.
 
 ---

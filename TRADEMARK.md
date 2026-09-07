@@ -1,6 +1,6 @@
 # Trademark Policy
 
-"**Tag-Oriented Programming**", "**TOP**", and "**TagKit**" are trademarks of Julio Toboso (common-law ™; registration may follow).
+"**Tag-Oriented Programming**", "**TOP**", and "**TopKit**" (until 0.2.0a2, "TagKit") are trademarks of Julio Toboso (common-law ™; registration may follow).
 
 ## You may, freely
 

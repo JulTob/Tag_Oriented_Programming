@@ -1,6 +1,6 @@
 """Agent state and the runtime type.
 
-An Agent keeps one ``_TAGKIT_STATE`` in its instance dictionary. Actions
+An Agent keeps one ``_TOPKIT_STATE`` in its instance dictionary. Actions
 live in that dictionary as bound callables, Records as plain values, so
 ordinary attribute access costs what it costs on a plain object. The
 runtime type is neutral (host first, then the ``Tagged`` marker) and only
@@ -12,18 +12,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from dataclasses import field
+from types import MethodType
 from typing import Any
 from typing import Callable
+from typing import Iterator
 from weakref import WeakValueDictionary
 import weakref
 
+from .declarations import STATE
 from .declarations import _MISSING
 from .declarations import _is_dunder
 from .declarations import _is_flag
 from .errors import TagCompositionError
-
-
-STATE = "_TAGKIT_STATE"
 
 Function = Callable[..., Any]
 Check = Callable[..., Any]
@@ -47,6 +47,7 @@ class _Snapshot:
 @dataclass
 class _State:
     host_type: type
+    pinned: type | None = None   # the Tag itself, when the Agent is a Tag
     active: list[type] = field(default_factory=list)
     ever: set[type] = field(default_factory=set)
     actions: dict[str, Function] = field(default_factory=dict)
@@ -61,6 +62,8 @@ class _State:
     deleted: set[str] = field(default_factory=set)
     snapshots: dict[type, _Snapshot] = field(default_factory=dict)
     rips: dict[type, tuple[Function, ...]] = field(default_factory=dict)
+    secret_values: dict[str, Any] = field(default_factory=dict)   # a pinned Tag's @Secret members
+    originals: dict[str, Any] = field(default_factory=dict)       # what a Pin patched, as declared
     composing: int = 0
     checking: bool = False
 
@@ -69,6 +72,7 @@ class _State:
             ) -> "_State":
         return _State(
                 host_type=state.host_type,
+                pinned=state.pinned,
                 active=list(state.active),
                 ever=set(state.ever),
                 actions=dict(state.actions),
@@ -83,32 +87,179 @@ class _State:
                 deleted=set(state.deleted),
                 snapshots=dict(state.snapshots),
                 rips=dict(state.rips),
+                secret_values=dict(state.secret_values),
+                originals=dict(state.originals),
                 composing=state.composing,
                 checking=state.checking,
                 )
 
 
+class _Class_Namespace:
+    """The namespace of a Tag used as a Target (a pinned Tag).
+
+    A class dictionary is read through a proxy and written through the
+    class. This adapter gives the kernel the few dictionary operations it
+    uses, so the tagging sequence is one code path for objects and Tags.
+    """
+
+    __slots__ = ("_owner",)
+
+    def __init__(
+            namespace,
+            owner: type,
+            ) -> None:
+        namespace._owner = owner
+
+    def get(
+            namespace,
+            name: str,
+            default: Any = None,
+            ) -> Any:
+        return namespace._owner.__dict__.get(
+                name,
+                default,
+                )
+
+    def __getitem__(
+            namespace,
+            name: str,
+            ) -> Any:
+        return namespace._owner.__dict__[name]
+
+    def __setitem__(
+            namespace,
+            name: str,
+            value: Any,
+            ) -> None:
+        setattr(
+                namespace._owner,
+                name,
+                value,
+                )
+
+    def __contains__(
+            namespace,
+            name: object,
+            ) -> bool:
+        return name in namespace._owner.__dict__
+
+    def pop(
+            namespace,
+            name: str,
+            default: Any = _MISSING,
+            ) -> Any:
+        value = namespace._owner.__dict__.get(
+                name,
+                _MISSING,
+                )
+
+        if value is _MISSING:
+            if default is _MISSING:
+                raise KeyError(name)
+
+            return default
+
+        delattr(
+                namespace._owner,
+                name,
+                )
+
+        return value
+
+    def keys(
+            namespace,
+            ) -> Any:
+        return namespace._owner.__dict__.keys()
+
+    def items(
+            namespace,
+            ) -> Any:
+        return namespace._owner.__dict__.items()
+
+    def __iter__(
+            namespace,
+            ) -> Iterator[str]:
+        return iter(namespace._owner.__dict__)
+
+    def __len__(
+            namespace,
+            ) -> int:
+        return len(namespace._owner.__dict__)
+
+
 def _namespace_of(
         agent: object,
-        ) -> dict[str, Any] | None:
+        ) -> Any:
+    """The Agent's writable namespace: its dictionary, or the adapter over
+    a Tag's class dictionary; None when it has neither."""
+
     try:
-        return object.__getattribute__(
+        namespace = object.__getattribute__(
                 agent,
                 "__dict__",
                 )
     except AttributeError:
         return None
 
+    if isinstance(namespace, dict):
+        return namespace
+
+    if isinstance(agent, type):
+        return _Class_Namespace(agent)
+
+    return None
+
+
+def _restore_namespace(
+        agent: object,
+        entry: dict[str, Any],
+        ) -> None:
+    """Put the namespace back exactly as it was at entry."""
+
+    namespace = _namespace_of(agent)
+
+    if namespace is None:
+        return
+
+    if isinstance(namespace, dict):
+        namespace.clear()
+        namespace.update(entry)
+        return
+
+    for name in list(namespace.keys()):
+        if name not in entry:
+            namespace.pop(name, None)
+
+    for name, value in entry.items():
+        if namespace.get(name, _MISSING) is not value:
+            namespace[name] = value
+
+
+def _name_of(
+        agent: object,
+        ) -> str:
+    """How an Agent is called in messages: a Tag by its own name, an
+    object by its type's."""
+
+    if isinstance(agent, type):
+        return agent.__name__
+
+    return type(agent).__name__
+
 
 def _state_of(
         agent: object,
         ) -> _State | None:
-    namespace = _namespace_of(agent)
+    """The Agent's state, or None. Read straight from the dictionary (or a
+    Tag's dictionary proxy): this is on the path of ``agent in Tag``."""
 
-    if namespace is None:
+    try:
+        return object.__getattribute__(
+                agent,
+                "__dict__",
+                ).get(STATE)
+    except AttributeError:
         return None
-
-    return namespace.get(STATE)
 
 
 def _state_for(
@@ -127,7 +278,10 @@ def _state_for(
     state = namespace.get(STATE)
 
     if state is None:
-        state = _State(host_type=type(agent))
+        state = _State(
+                host_type=type(agent),
+                pinned=agent if isinstance(agent, type) else None,
+                )
         namespace[STATE] = state
 
     return state
@@ -202,9 +356,145 @@ class _Bound:
             bound,
             ) -> str:
         agent = bound._reference()
-        owner = type(agent).__name__ if agent is not None else "<gone>"
+        owner = _name_of(agent) if agent is not None else "<gone>"
 
         return f"<Action {bound._function.__name__} of {owner}>"
+
+
+class _Pinned_Operation:
+    """An Action a Pin landed on a Tag: an Operation of that Tag.
+
+    Read from the pinned Tag or from any of its Shapes, it binds to the
+    Tag it was read from, as a classmethod does, so a Shape inherits it
+    the way it inherits every Tag-scope member.
+    """
+
+    __slots__ = ("_function",)
+
+    def __init__(
+            operation,
+            function: Function,
+            ) -> None:
+        operation._function = function
+
+    def __get__(
+            operation,
+            instance: object,
+            owner: type | None = None,
+            ) -> Any:
+        if owner is None:
+            owner = type(instance)
+
+        return MethodType(
+                operation._function,
+                owner,
+                )
+
+    @property
+    def __func__(
+            operation,
+            ) -> Function:
+        return operation._function
+
+    def __repr__(
+            operation,
+            ) -> str:
+        return f"<pinned Operation {operation._function.__name__}>"
+
+
+class _Originals:
+    """The pinned Tag's declarations as they were before its Pins patched
+    them, handed to a Pin's @Rip teardown as its second seat, so
+    un-patching is one deliberate line: ``tag.Control = original.Control``.
+    """
+
+    __slots__ = ("_declared",)
+
+    def __init__(
+            original,
+            declared: dict[str, Any],
+            ) -> None:
+        object.__setattr__(original, "_declared", dict(declared))
+
+    def __getattr__(
+            original,
+            name: str,
+            ) -> Any:
+        try:
+            return original._declared[name]
+        except KeyError:
+            raise AttributeError(
+                    f"no original declaration named {name!r} was patched"
+                    ) from None
+
+    def __setattr__(
+            original,
+            name: str,
+            value: Any,
+            ) -> None:
+        raise AttributeError("the originals are a record; they are read-only")
+
+    def __contains__(
+            original,
+            name: object,
+            ) -> bool:
+        return name in original._declared
+
+    def __iter__(
+            original,
+            ) -> Iterator[str]:
+        return iter(original._declared)
+
+    def __repr__(
+            original,
+            ) -> str:
+        return f"<originals of {', '.join(original._declared) or 'nothing'}>"
+
+
+class _Composing_Pinned_Operation(_Pinned_Operation):
+    """A pinned Operation that opens the pinned Tag's composition door
+    while it runs, so the Pin's @Secret members resolve inside it."""
+
+    __slots__ = ("_state",)
+
+    def __init__(
+            operation,
+            function: Function,
+            state: "_State",
+            ) -> None:
+        super().__init__(function)
+        operation._state = state
+
+    def __get__(
+            operation,
+            instance: object,
+            owner: type | None = None,
+            ) -> Any:
+        if owner is None:
+            owner = type(instance)
+
+        function = operation._function
+        state = operation._state
+
+        def Composing(
+                *args: Any,
+                **kwargs: Any,
+                ) -> Any:
+            state.composing += 1
+
+            try:
+                return function(
+                        owner,
+                        *args,
+                        **kwargs,
+                        )
+            finally:
+                state.composing -= 1
+
+        Composing.__name__ = function.__name__
+        Composing.__doc__ = function.__doc__
+
+        return Composing
 
 
 class _Composing_Bound(_Bound):
@@ -245,12 +535,42 @@ def _bind_to(
 
     function = state.actions[name]
 
+    if state.pinned is not None:
+        _bind_pinned(
+                agent,
+                state,
+                name,
+                function,
+                )
+        return
+
     if state.secrets:
         bound: _Bound = _Composing_Bound(function, agent)
     else:
         bound = _Bound(function, agent)
 
     _namespace_of(agent)[name] = bound
+
+
+def _bind_pinned(
+        tag: type,
+        state: _State,
+        name: str,
+        function: Function,
+        ) -> None:
+    """A Pin's Action on a Tag: a secret one lives in the state and is
+    read through the door; the rest live in the class dictionary."""
+
+    if state.secrets:
+        bound: _Pinned_Operation = _Composing_Pinned_Operation(function, state)
+    else:
+        bound = _Pinned_Operation(function)
+
+    if name in state.secrets:
+        _namespace_of(tag).pop(name, None)
+        state.secret_values[name] = bound
+    else:
+        _namespace_of(tag)[name] = bound
 
 
 def _rebind_all(
@@ -404,8 +724,16 @@ class _Published:
         if agent is None:
             return gate
 
+        from .overlay import _require_membership
+
         state = _namespace_of(agent)[STATE]
         origin, _declared = state.reports[gate.name]
+        _require_membership(
+                agent,
+                origin,
+                gate.name,
+                "Report",
+                )
 
         return getattr(
                 origin,
@@ -495,14 +823,18 @@ def _runtime_type_for(
             )
     namespace.update(dunders)
 
-    for name in deleted:
-        namespace[name] = _Deleted(name)
+    if not issubclass(host_type, type):
+        # A Tag's gates are answered on its miss path, never by a data
+        # descriptor on its metaclass (which would also intercept the
+        # class-attribute writes the kernel makes).
+        for name in deleted:
+            namespace[name] = _Deleted(name)
 
-    for name in secrets:
-        namespace[name] = _Secret_Gate(name)
+        for name in secrets:
+            namespace[name] = _Secret_Gate(name)
 
-    for name in published:
-        namespace[name] = _Published(name)
+        for name in published:
+            namespace[name] = _Published(name)
 
     if issubclass(host_type, Tagged):
         bases: tuple[type, ...] = (host_type,)

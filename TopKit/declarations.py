@@ -23,12 +23,15 @@ from .errors import TagPostconditionError
 from .errors import TagPreconditionError
 
 
-_KIND = "__tagkit_kind__"
-_UNDERLAY = "__tagkit_underlay__"
-_RIP = "__tagkit_rip__"
-_SECRET = "__tagkit_secret__"
-_PUBLIC = "__tagkit_public__"
-_FLAG = "__tagkit_flag__"
+_KIND = "__topkit_kind__"
+_UNDERLAY = "__topkit_underlay__"
+_RIP = "__topkit_rip__"
+_SECRET = "__topkit_secret__"
+_PUBLIC = "__topkit_public__"
+_FLAG = "__topkit_flag__"
+_PIN = "__topkit_pin__"
+
+STATE = "_TOPKIT_STATE"
 
 _MISSING = object()
 
@@ -40,10 +43,30 @@ Function = Callable[..., Any]
 # ------------------------------------------------------------------
 
 
+_CONDITION_KINDS = ("precondition", "postcondition", "condition")
+
+
 def _mark(
         function: Function,
         kind: str,
         ) -> Function:
+    """Mark a function with its kind. ``@Pre`` and ``@Post`` stacked on one
+    function make it a *condition*: necessary to enter and to stay."""
+
+    existing = getattr(
+            function,
+            _KIND,
+            None,
+            )
+
+    if (
+            existing is not None
+            and existing != kind
+            and existing in _CONDITION_KINDS
+            and kind in _CONDITION_KINDS
+            ):
+        kind = "condition"
+
     setattr(
             function,
             _KIND,
@@ -174,7 +197,7 @@ class _Check_Mark:
     def __repr__(
             mark,
             ) -> str:
-        return f"<TagKit mark @{mark.__name__}>"
+        return f"<TopKit mark @{mark.__name__}>"
 
 
 Imprint = _Check_Mark(
@@ -264,7 +287,7 @@ def Flag(
     Applying a Flag to a host that defines its own ``in`` is refused.
     """
 
-    if not isinstance(tag, type) or not hasattr(tag, "_tagkit_field"):
+    if not isinstance(tag, type) or not hasattr(tag, "_topkit_field"):
         raise TagDeclarationError(
                 "@Flag marks a Tag class"
                 )
@@ -287,6 +310,89 @@ def _is_flag(
                     False,
                     )
             )
+
+
+def Pin(
+        tag: type,
+        ) -> type:
+    """Mark a Tag whose Targets are Tags (STEP-SPEC-9).
+
+    ``Rare(Wizard)`` makes the Tag ``Wizard`` an Agent of ``Rare``: its
+    Records land on ``Wizard`` as Reports, its Actions as Operations, and
+    the Field of ``Rare`` is a population of Tags. A Pin applies to
+    nothing else, and its Bases must be Pins.
+    """
+
+    if not isinstance(tag, type) or not hasattr(tag, "_topkit_field"):
+        raise TagDeclarationError(
+                "@Pin marks a Tag class"
+                )
+
+    setattr(
+            tag,
+            _PIN,
+            True,
+            )
+
+    _check_pin_bases(tag)
+    _declarations_of(tag)   # validate the members now, not at first pinning
+
+    return tag
+
+
+def _is_pin(
+        tag: type,
+        ) -> bool:
+    """A Shape of a Pin is a Pin."""
+
+    return bool(
+            getattr(
+                    tag,
+                    _PIN,
+                    False,
+                    )
+            )
+
+
+def _is_tag_base(
+        base: type,
+        ) -> bool:
+    """A Tag class other than the root ``Tag`` (the root is the only Tag
+    with no Tag among its own bases)."""
+
+    return hasattr(base, "_topkit_field") and any(
+            hasattr(deeper, "_topkit_field")
+            for deeper in base.__bases__
+            )
+
+
+def _check_pin_bases(
+        tag: type,
+        ) -> None:
+    """One Form is all Pins or no Pins."""
+
+    bases = tuple(
+            base
+            for base in tag.__bases__
+            if _is_tag_base(base)
+            )
+    pins = [
+            base
+            for base in bases
+            if _is_pin(base)
+            ]
+    marked = bool(tag.__dict__.get(_PIN, False))
+
+    if not bases or len(pins) == len(bases):
+        return
+
+    if not pins and not marked:
+        return
+
+    raise TagDeclarationError(
+                f"{tag.__name__} mixes Pins and Tags in one Form; a Pin's"
+                " Bases must be Pins (STEP-SPEC-9 §2)"
+                )
 
 
 class Report:
@@ -408,6 +514,7 @@ class _Declarations:
     operations: tuple[tuple[str, Function, bool], ...]
     rips: tuple[str, ...]
     dunders: frozenset[str]
+    published: frozenset[str]   # Agent-scope members marked @Public (Pins)
 
 
 _scan_cache: "WeakKeyDictionary[type, _Declarations]" = WeakKeyDictionary()
@@ -498,7 +605,14 @@ def _name_checks(
         if _is_private(name):
             continue
 
-        failure = _NAMED_FAILURES.get(_kind_of(attribute))
+        kind = _kind_of(attribute)
+
+        if kind == "condition":
+            TagPreconditionError.Named(name)
+            TagPostconditionError.Named(name)
+            continue
+
+        failure = _NAMED_FAILURES.get(kind)
 
         if failure is not None:
             failure.Named(name)
@@ -518,9 +632,24 @@ def _scan(
     operations: list[tuple[str, Function, bool]] = []
     rips: list[str] = []
     dunders: set[str] = set()
+    published: set[str] = set()
+    managed = tag.__dict__.get(STATE)   # names a Pin landed here
+
+    if managed is not None:
+        _emit_published_pins(
+                managed,
+                reports,
+                operations,
+                )
 
     for name, attribute in tag.__dict__.items():
         if _is_private(name):
+            continue
+
+        if managed is not None and (
+                name in managed.actions
+                or name in managed.records
+                ):
             continue
 
         if isinstance(attribute, Report):
@@ -563,6 +692,9 @@ def _scan(
         if not callable(attribute):
             continue
 
+        if public:
+            published.add(name)
+
         if kind == "record":
             _reject_both(tag, name, secret, public)
             records.append(
@@ -586,22 +718,23 @@ def _scan(
                     )
             continue
 
-        if kind == "precondition":
+        if kind in ("precondition", "condition"):
             preconditions.append(
                     (
                         name,
                         attribute,
                         )
                     )
-            continue
 
-        if kind == "postcondition":
+        if kind in ("postcondition", "condition"):
             postconditions.append(
                     (
                         name,
                         attribute,
                         )
                     )
+
+        if kind in _CONDITION_KINDS:
             continue
 
         if kind == "delete":
@@ -626,7 +759,7 @@ def _scan(
         if _is_dunder(name):
             dunders.add(name)
 
-    return _Declarations(
+    declarations = _Declarations(
             actions=tuple(actions),
             records=tuple(records),
             secrets=frozenset(secrets),
@@ -638,7 +771,87 @@ def _scan(
             operations=tuple(operations),
             rips=tuple(rips),
             dunders=frozenset(dunders),
+            published=frozenset(published),
             )
+
+    if _is_pin(tag):
+        _validate_pin(
+                tag,
+                declarations,
+                )
+
+    return declarations
+
+
+def _emit_published_pins(
+        managed: Any,
+        reports: list[tuple[str, Any, bool]],
+        operations: list[tuple[str, Function, bool]],
+        ) -> None:
+    """Members a Pin landed on this Tag with @Public are the Tag's own
+    published Reports and Operations to every Agent tagged from now on
+    (STEP-SPEC-9 §5). Present Agents were reached at pinning."""
+
+    for name in managed.published:
+        if name in managed.records:
+            reports.append(
+                    (
+                        name,
+                        None,
+                        True,
+                        )
+                    )
+        elif name in managed.actions:
+            operations.append(
+                    (
+                        name,
+                        managed.actions[name],
+                        True,
+                        )
+                    )
+
+
+def _validate_pin(
+        tag: type,
+        declarations: _Declarations,
+        ) -> None:
+    """A Pin's members carry no @Delete and no special-method Actions, and
+    its own Reports and Operations are not published: each would need a
+    descriptor or a hook on the Tag's metaclass, and none has a meaning
+    there yet. @Secret and @Public on its Agent-scope members do."""
+
+    problems: list[str] = []
+
+    published = [
+            name
+            for name, _value, public in declarations.reports
+            if public
+            ] + [
+            name
+            for name, _function, public in declarations.operations
+            if public
+            ]
+
+    if published:
+        problems.append(
+                "@Public on the Pin's own Reports / Operations " + ", ".join(published)
+                )
+
+    if declarations.deletions:
+        problems.append(
+                "@Delete of " + ", ".join(declarations.deletions)
+                )
+
+    if declarations.dunders:
+        problems.append(
+                "special-method Actions " + ", ".join(sorted(declarations.dunders))
+                )
+
+    if problems:
+        raise TagDeclarationError(
+                f"{tag.__name__} is a Pin; its members are plain:"
+                f" {'; '.join(problems)} (STEP-SPEC-9 §5)"
+                )
 
 
 def _reject_both(
