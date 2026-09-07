@@ -19,6 +19,7 @@ from .errors import TagCompositionError
 from .errors import TagError
 from .errors import TagResolutionError
 from .geometry import _requiring_shapes
+from .overlay import _release_conditions
 from .state import _Originals
 from .state import _State
 from .state import _state_of
@@ -52,6 +53,10 @@ def _rip(
 
     state.active.remove(tag)
     tag._topkit_field.Remove(agent)
+    _release_conditions(
+            state,
+            tag,
+            )
 
     _teardown(
             agent,

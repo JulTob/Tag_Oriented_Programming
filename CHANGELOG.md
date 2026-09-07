@@ -30,6 +30,9 @@ an unrelated project.
   Actions and Records are untouched.
 - `@Pre` and `@Post` stacked on one function are one condition: necessary
   to enter and necessary to stay (§2.7).
+- **Conditions end with membership** (STEP-SPEC-11, §0.7). Rip removes
+  the Tag's gates and promises; a condition laid over another active
+  Tag's gives it back. A Rogue Agent is not held to a role it left.
 - **The Contracts Guide** (`TopKit/CONTRACTS.md`): gates, promises,
   privileges and error control, aboard a starship; every block runs.
 - Re-applying a Ripped Tag is a fresh Tagging and silent (§0.7): a Tag
@@ -53,7 +56,7 @@ an unrelated project.
   Postcondition; `__bool__` installed over a host's own `__bool__` (the
   empty-seat rule now holds for it, as the notes said).
 - Faster `agent in Tag`: the state read goes straight to the dictionary.
-- 121 tests.
+- 127 tests.
 
 ## 0.2.0a2 — 2026-09-04
 

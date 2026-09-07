@@ -232,9 +232,12 @@ Rip is the only exit from a Field, and it obeys three laws:
 - **Rip is refused while a Shape needs the Base.** `del Beast[wolf]` fails
   while `Wolf` is active. Deform the Shape first. Rip never cascades: TOP
   does not run other Tags' protocols behind your back.
+- **Conditions end with membership** (STEP-SPEC-11). Rip removes the
+  Tag's Preconditions and Postconditions from the Agent; a condition the
+  Tag had laid over another active Tag's gives that one back. A Rogue
+  Agent keeps what it became and is not held to a role it left.
 - **Reapplying a Ripped Tag is a fresh Tagging.** Imprints run again;
-  Records are rebuilt, and the Tag replaces its own earlier conditions
-  silently: that is not a Shape weakening a Base.
+  Records are rebuilt.
 
 ## 0.8 Spellings
 
@@ -1183,8 +1186,8 @@ A conforming implementation provides, ring by ring:
 - Base-first Form application, each Base once, active reapply a no-op;
 - the five-step tagging sequence with the call boundary: rollback on gate
   and Record failure, Tags stay on Imprint and Postcondition failure;
-- Rip: sticky contributions, refusal while a Shape requires the Base, no
-  cascade;
+- Rip: sticky contributions, conditions ending with membership, refusal
+  while a Shape requires the Base, no cascade;
 - native spellings for every Tag-level act, leaving the Tag's dotted
   namespace to the program.
 

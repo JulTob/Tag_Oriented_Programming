@@ -2213,6 +2213,134 @@ class RipTests(unittest.TestCase):
         self.assertEqual(ari.rank, "squire")
 
 
+class ConditionsEndWithMembershipTests(unittest.TestCase):
+    """STEP-SPEC-11: a Tag's gates and promises end with its membership."""
+
+    def test_a_ripped_tags_promise_no_longer_binds(self) -> None:
+        class Wizard(Tag):
+            @Post
+            def Has_Book(agent):
+                return agent.book is not None
+
+        ari = Agent()
+        ari.book = []
+        Wizard(ari)
+        self.assertEqual(Contract.Status(ari), {"Has_Book": True})
+
+        del Wizard[ari]
+        ari.book = None                                               # would have broken the promise
+
+        self.assertEqual(Contract.Status(ari), {})
+        self.assertTrue(Contract.Holds(ari))                          # a Rogue Agent is not defective
+
+    def test_a_ripped_gate_no_longer_gates(self) -> None:
+        class Gated(Tag):
+            @Pre
+            def Ready(agent):
+                return agent.ready
+
+        ari = Agent()
+        ari.ready = True
+        Gated(ari)
+        del Gated[ari]
+
+        self.assertEqual(Contract.Status(ari), {})
+
+    def test_ripping_a_shape_gives_the_bases_promise_back(self) -> None:
+        class Base(Tag):
+            @Post
+            def Fine(agent):
+                return agent.level > 0
+
+        class Shape(Base):
+            @Post
+            @Underlay
+            def Fine(agent, base):
+                return base() and agent.level > 5
+
+        ari = Agent()
+        ari.level = 9
+        Shape(ari)
+        ari.level = 3
+        self.assertFalse(ari)                                         # the Shape's promise
+
+        del Shape[ari]
+        self.assertTrue(ari)                                          # the Base's own promise, back
+        self.assertIn(ari, Base)
+
+        ari.level = 0
+        self.assertFalse(ari)
+
+    def test_an_overlaid_independent_promise_returns_or_leaves(self) -> None:
+        class Left(Tag):
+            @Post
+            def Fine(agent):
+                return agent.left
+
+        class Right(Tag):
+            @Post
+            def Fine(agent):
+                return agent.right
+
+        ari = Agent()
+        ari.left, ari.right = True, True
+        Left(ari)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            Right(ari)                                                # overlays Left's promise
+
+        del Right[ari]
+        ari.left = False
+        self.assertFalse(ari)                                         # Left's promise is back
+
+        del Left[ari]
+        self.assertTrue(ari)                                          # nothing binds
+
+    def test_ripping_the_underneath_first_leaves_the_visible_promise(self) -> None:
+        class Left(Tag):
+            @Post
+            def Fine(agent):
+                return agent.left
+
+        class Right(Tag):
+            @Post
+            def Fine(agent):
+                return agent.right
+
+        ari = Agent()
+        ari.left, ari.right = True, True
+        Left(ari)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            Right(ari)
+
+        del Left[ari]                                                 # not the visible one: nothing changes
+        ari.right = False
+        self.assertFalse(ari)
+
+        del Right[ari]
+        self.assertTrue(ari)
+
+    def test_a_pins_promise_ends_with_its_membership(self) -> None:
+        class Wizard(Tag):
+            pass
+
+        @Pin
+        class Promised(Tag):
+            @Post
+            def Has_Members(tag):
+                return bool(tag[:])
+
+        with self.assertRaises(Postcondition.Has_Members):
+            Promised(Wizard)
+
+        self.assertIn(Wizard, ~Promised)
+        del Promised[Wizard]
+        self.assertEqual(Contract.Status(Wizard), {})
+
+
 class ExitProtocolTests(unittest.TestCase):
     def setUp(self) -> None:
         _DEL_LOG.clear()

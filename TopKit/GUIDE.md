@@ -605,6 +605,32 @@ assert guard not in Sentry
 `@Imprint` runs after the Tag applies; `@Rip` runs after it leaves. They
 are constructor and destructor, `__enter__` and `__exit__`.
 
+A role's conditions leave with it. What the Agent *became* stays (pattern
+1's Rogue Agent); what the role *required* ends, because there is nothing
+left to stay in.
+
+```python
+class Knight(Tag):
+
+    @Post
+    def Has_Sword(agent):
+        return agent.sword is not None
+
+    def Salute(agent):
+        return f"{agent.name} salutes"
+
+
+lance = Character("Lance")
+lance.sword = "Excalibur"
+Knight(lance)
+
+del Knight[lance]                       # dubbed no more
+lance.sword = None
+
+assert lance.Salute() == "Lance salutes"   # what he became: stays
+assert lance                               # what the role required: gone
+```
+
 **Watch out.** Python does not promise to run finalizers at shutdown, so
 `del agent` is best-effort. `Scope` is the guaranteed path.
 
