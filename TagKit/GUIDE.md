@@ -739,7 +739,10 @@ live in one dictionary. `if Wizard:` still asks whether anyone is a
 sound Wizard, not whether Wizard's own promises hold; ask those from the
 Pin's side, `Wizard in ~Rare`. A Pin applies only to Tags, and an
 ordinary Tag only to objects, so a Field is never a mix of the two. A
-Flag Pin is a keyword on the Tag: `"Deprecated" in Wizard`.
+Flag Pin is a keyword on the Tag: `"Deprecated" in Wizard`. Prefer it to
+`Wizard.deprecated = True` for the same reason you prefer an `Undead` Tag
+to `asleep = True`: a value can be flipped back, membership is a state of
+the architecture, with a Field to walk and a history that stays.
 
 ---
 

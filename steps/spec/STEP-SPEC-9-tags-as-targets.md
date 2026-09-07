@@ -198,6 +198,15 @@ Two seats are already taken on a Tag and stay as they are:
 `Wizard.Rare` reads the Pin-bound view by name, as `ari.Wizard` does on
 an Agent, on the same miss-path rule.
 
+Why a Pin and not a Report for a word like *Deprecated*: a Report is a
+value, and a value implies it may be flipped back. A Pin is membership:
+it has a Field to walk, a gate, a promise, a Rip that is an act, and a
+history that `isinstance` remembers. The Director: "It is a very
+different meaning to Tag Deprecated to a record deprecated." A Tag says
+what something *is*; a Record says what it *has* right now. The same
+rule that separates `Undead` from `asleep = True` on an Agent separates
+a Flag Pin from a Report on a Tag.
+
 ### 7. Contracts, Imprints and Rip
 
 A Pin's Preconditions gate the pinning and receive the Tag:
@@ -267,7 +276,7 @@ pointer to this STEP.
 | Reports plus a set of Tags outside TOP (today) | Kept as the fallback; it lacks membership acts, gates, promises and Rip |
 | A Pin never replaces what the Tag declares (first cut) | Rejected by the Director: a patched driver must reach every Agent. Replaced by the host-member rule with collision control (§4) |
 | Pins' members plain, no `@Secret` / `@Public` (first cut) | Rejected by the Director: the modifiers clarify intent. `@Secret` as Pin-private state, `@Public` as publication onto the Field (§5) |
-| No Flag Pins (first cut) | Rejected by the Director. A string in a Tag's `in` asks for a keyword; objects and classes ask membership (§6) |
+| No Flag Pins (first cut; the Director's first instinct too) | Accepted by the Director once the reading was found: "only distinction is a String vs object in, which provides a reused pattern, that provides similarity in concepts" (§6) |
 
 ## Acceptance requirements
 
@@ -313,6 +322,8 @@ membership check got faster (`_state_of` reads the dictionary directly).
 > established in the last version are a good basis for it"; "Implement the
 > step with optimized code"; "Replacing needs fixing then, with the
 > collision control"; "@Secret and @Public make sense for clarification";
+> "sticky with the original handed to the Pin's @Rip teardown"; "Pin flags
+> stay as part of the kit";
 > on un-patching, "sticky with the original handed to the Pin's @Rip
 > teardown, so un-patching is one deliberate line rather than a hidden
 > rule"). Flag Pins (§6) came out of the design rather than the

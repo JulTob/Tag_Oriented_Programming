@@ -783,7 +783,12 @@ member, so on a Tag a string in the `in` seat asks for a keyword:
 `"Deprecated" in Wizard` is True while the Flag Pin `Deprecated` is
 active on it; objects and classes in that seat ask membership.
 `Keyword(Wizard, "Deprecated")` and `Keyword(Wizard, Deprecated)` answer
-the same.
+the same. A word like *Deprecated* is a Pin and not a Report for the
+reason `Undead` is a Tag and not `asleep = True`: a Report is a value,
+and a value implies it may be flipped back; a Pin is membership, with a
+Field, a gate, a promise, a Rip that is an act, and a history
+`isinstance` remembers. A Tag says what something *is*; a Record says
+what it *has* right now.
 
 **Seats already taken.** `bool(Wizard)` remains "is anyone a sound
 Wizard" (§0.8); a pinned Tag's own promises are read from the Pin's side,
