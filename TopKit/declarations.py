@@ -23,15 +23,15 @@ from .errors import TagPostconditionError
 from .errors import TagPreconditionError
 
 
-_KIND = "__tagkit_kind__"
-_UNDERLAY = "__tagkit_underlay__"
-_RIP = "__tagkit_rip__"
-_SECRET = "__tagkit_secret__"
-_PUBLIC = "__tagkit_public__"
-_FLAG = "__tagkit_flag__"
-_PIN = "__tagkit_pin__"
+_KIND = "__topkit_kind__"
+_UNDERLAY = "__topkit_underlay__"
+_RIP = "__topkit_rip__"
+_SECRET = "__topkit_secret__"
+_PUBLIC = "__topkit_public__"
+_FLAG = "__topkit_flag__"
+_PIN = "__topkit_pin__"
 
-STATE = "_TAGKIT_STATE"
+STATE = "_TOPKIT_STATE"
 
 _MISSING = object()
 
@@ -43,10 +43,30 @@ Function = Callable[..., Any]
 # ------------------------------------------------------------------
 
 
+_CONDITION_KINDS = ("precondition", "postcondition", "condition")
+
+
 def _mark(
         function: Function,
         kind: str,
         ) -> Function:
+    """Mark a function with its kind. ``@Pre`` and ``@Post`` stacked on one
+    function make it a *condition*: necessary to enter and to stay."""
+
+    existing = getattr(
+            function,
+            _KIND,
+            None,
+            )
+
+    if (
+            existing is not None
+            and existing != kind
+            and existing in _CONDITION_KINDS
+            and kind in _CONDITION_KINDS
+            ):
+        kind = "condition"
+
     setattr(
             function,
             _KIND,
@@ -177,7 +197,7 @@ class _Check_Mark:
     def __repr__(
             mark,
             ) -> str:
-        return f"<TagKit mark @{mark.__name__}>"
+        return f"<TopKit mark @{mark.__name__}>"
 
 
 Imprint = _Check_Mark(
@@ -267,7 +287,7 @@ def Flag(
     Applying a Flag to a host that defines its own ``in`` is refused.
     """
 
-    if not isinstance(tag, type) or not hasattr(tag, "_tagkit_field"):
+    if not isinstance(tag, type) or not hasattr(tag, "_topkit_field"):
         raise TagDeclarationError(
                 "@Flag marks a Tag class"
                 )
@@ -303,7 +323,7 @@ def Pin(
     nothing else, and its Bases must be Pins.
     """
 
-    if not isinstance(tag, type) or not hasattr(tag, "_tagkit_field"):
+    if not isinstance(tag, type) or not hasattr(tag, "_topkit_field"):
         raise TagDeclarationError(
                 "@Pin marks a Tag class"
                 )
@@ -340,8 +360,8 @@ def _is_tag_base(
     """A Tag class other than the root ``Tag`` (the root is the only Tag
     with no Tag among its own bases)."""
 
-    return hasattr(base, "_tagkit_field") and any(
-            hasattr(deeper, "_tagkit_field")
+    return hasattr(base, "_topkit_field") and any(
+            hasattr(deeper, "_topkit_field")
             for deeper in base.__bases__
             )
 
@@ -585,7 +605,14 @@ def _name_checks(
         if _is_private(name):
             continue
 
-        failure = _NAMED_FAILURES.get(_kind_of(attribute))
+        kind = _kind_of(attribute)
+
+        if kind == "condition":
+            TagPreconditionError.Named(name)
+            TagPostconditionError.Named(name)
+            continue
+
+        failure = _NAMED_FAILURES.get(kind)
 
         if failure is not None:
             failure.Named(name)
@@ -691,22 +718,23 @@ def _scan(
                     )
             continue
 
-        if kind == "precondition":
+        if kind in ("precondition", "condition"):
             preconditions.append(
                     (
                         name,
                         attribute,
                         )
                     )
-            continue
 
-        if kind == "postcondition":
+        if kind in ("postcondition", "condition"):
             postconditions.append(
                     (
                         name,
                         attribute,
                         )
                     )
+
+        if kind in _CONDITION_KINDS:
             continue
 
         if kind == "delete":

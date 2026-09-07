@@ -2,6 +2,10 @@
 
 ## 0.2.0a3 — 2026-09-06
 
+**TagKit is now TopKit.** The distribution is `topkit`, the module is
+`TopKit`; the T is the Tag in T.O.P. The name `tagkit` on PyPI belongs to
+an unrelated project.
+
 ### Specification
 
 - **Pins: Tags as Targets** (STEP-SPEC-9, §1.9). A Tag marked `@Pin`
@@ -19,13 +23,19 @@
   Agents. A Ripped Pin is sticky; its `@Rip` teardown may take a second
   seat and receives the originals, so un-patching is `tag.Control =
   original.Control`. A Pin may be a Flag: `"Deprecated" in Wizard`.
-- **Published members are privileges of membership** (STEP-SPEC-10,
-  §1.5). A Rogue Agent keeps its own Actions and Records; a published
-  Operation refuses at invocation and a published Report at read.
+- **Published members are privileges of sound membership** (STEP-SPEC-10,
+  §1.5). A Rogue Agent gets a Privilege Failure (also an Attribute
+  failure); a defective Agent gets the broken promise by name, whichever
+  Tag made it, and repairs it: the autofix pattern. The Agent's own
+  Actions and Records are untouched.
+- `@Pre` and `@Post` stacked on one function are one condition: necessary
+  to enter and necessary to stay (§2.7).
+- **The Contracts Guide** (`TopKit/CONTRACTS.md`): gates, promises,
+  privileges and error control, aboard a starship; every block runs.
 - Re-applying a Ripped Tag is a fresh Tagging and silent (§0.7): a Tag
   replacing its own earlier Postcondition is not a Shape weakening a Base.
 
-### TagKit
+### TopKit
 
 - `Pin` mark; the tagging sequence runs unchanged on a Tag as Target
   through a small adapter over the class dictionary; the runtime type of
@@ -35,18 +45,19 @@
   miss path; `@Public` pinned members reach present Agents at pinning
   (checked on copies first) and future Agents through the Tag's scan;
   the Tag's own scan skips TOP-managed names.
-- Published Operations and Reports check membership at use.
+- Published Operations and Reports check sound membership at use;
+  `TagPrivilegeError`.
 - A string in a Tag's `in` asks for a keyword; `__contains__` and
   `__bool__` follow the empty-seat rule.
 - Fixed: `TagContractWarning` on re-applying a Ripped Tag that declares a
   Postcondition; `__bool__` installed over a host's own `__bool__` (the
   empty-seat rule now holds for it, as the notes said).
 - Faster `agent in Tag`: the state read goes straight to the dictionary.
-- 116 tests.
+- 121 tests.
 
 ## 0.2.0a2 — 2026-09-04
 
-A rewrite of TagKit on the review of 2026-09-04, and the Specification
+A rewrite of TopKit on the review of 2026-09-04, and the Specification
 rewritten in rings. Every change below is either a fix of a defect the
 review reproduced, or a decision recorded in a STEP.
 
@@ -82,7 +93,7 @@ review reproduced, or a decision recorded in a STEP.
   side by name or class, `"Undead" in ghoul`; `Keyword(agent, ...)` is the
   function form; refused on container hosts (STEP-SPEC-7).
 
-### TagKit
+### TopKit
 
 - Split into eleven modules, one idea each.
 - Attribute reads and Action calls at plain-object cost: no
@@ -104,7 +115,7 @@ review reproduced, or a decision recorded in a STEP.
 - Removed: Agent sugar (`With`, `As`, `|`, `ApplyTags`, `agent.Tag(...)`,
   `Has`/`Tags` methods, `TagPaths`, `TagTree`, `Outline` method), `NAME`,
   `DESCRIPTION`, `ABSTRACT`, `Label`, `Describe`, `Lineage`, `Path`,
-  `TagDeletionError`, `Tag.Field`, `Tag.Rip(agent)`, `TagKit/TagKit.py`.
+  `TagDeletionError`, `Tag.Field`, `Tag.Rip(agent)`, `TopKit/TopKit.py`.
 
 ### Migration from 0.1
 

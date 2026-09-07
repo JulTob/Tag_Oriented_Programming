@@ -1,4 +1,4 @@
-"""TagKit runtime budget.
+"""TopKit runtime budget.
 
 Run:  PYTHONPATH=. python3 benchmarks/bench.py
 
@@ -12,9 +12,9 @@ import gc
 import time
 import tracemalloc
 
-from TagKit import Post
-from TagKit import Record
-from TagKit import Tag
+from TopKit import Post
+from TopKit import Record
+from TopKit import Tag
 
 
 class Hero:

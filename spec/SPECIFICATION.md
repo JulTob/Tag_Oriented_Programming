@@ -570,14 +570,21 @@ agent.dispatch(message)          # Agency.dispatch(Agency, agent, message)
 
 The published Action is a normal Action: it overlays and underlays at
 `(Agent, name)` and stays on the Agent after Rip. Its **use** does not: a
-published member is a privilege of membership (STEP-SPEC-10). The
-Action checks active membership of the publishing Tag at invocation and
-refuses a Rogue Agent with a Resolution Failure, and the read-only name
-refuses with an Attribute failure; a stale `send = agent.dispatch`
-captured before Rip fails closed after it. The Agent's own Actions and
-Records are untouched: what it became stays. TOP is not a security
-system; a long-running task may still re-check authority before an
-irreversible step.
+published member is a **privilege of sound membership** (STEP-SPEC-10).
+At every use, an Operation's call or a Report's read, TOP checks that
+the Agent still belongs to the publishing Tag and that every promise on
+the Agent holds, whichever Tag made it: the same soundness `if agent:`
+and the loop ask about. A Rogue Agent (it left) gets a **Privilege
+Failure**, a Resolution Failure that is also an Attribute failure, so
+`hasattr` answers False; a stale `send = agent.dispatch` captured before
+Rip fails the same way. A defective Agent (a promise broke) gets the
+**broken promise by name**, `except Postcondition.Has_Homeland`, so it
+can repair what the failure names and retry. Membership or repair
+restores the privilege; nothing is re-declared. The Agent's own Actions
+and Records are untouched: what it became stays. A defective Agent
+reads the Tag's shared values through the Tag directly, which is never a
+privilege. TOP is not a security system; a long-running task may still
+re-check authority before an irreversible step.
 
 `@Secret` and `@Public` are **modifiers**: they stack with `@Action`,
 `@Record`, `@Operation` and `@Report` in either order. A modifier that
@@ -1032,7 +1039,30 @@ print(Contract.Display(agent))
 #     XX  Has_Spellbook
 ```
 
-## 2.7 Writing a check
+## 2.7 Necessary to enter, necessary to stay
+
+`@Pre` and `@Post` stacked on one function make it a **condition**:
+checked at the door as a Precondition and kept as a Postcondition. It is
+one body, named once, and it fails under both names:
+
+```python
+class Elf(Tag):
+
+    @Pre
+    @Post
+    def Alive(agent):
+        return agent.alive
+
+
+Elf(dead)                     # refused: Precondition.Alive
+Elf(ari)                      # in; and from now on Ari must stay alive
+```
+
+Being alive is necessary to become an Elf and necessary to remain a sound
+one; it is not sufficient, since other living things are not Elves. A
+condition says *necessary*; membership says *is*.
+
+## 2.8 Writing a check
 
 A condition usually asks whether an Agent *has* something. `assert
 agent.spellbook` reads well, but asks two questions at once: *defined* and
@@ -1131,6 +1161,7 @@ types but must keep these distinct.
 | **Tag Declaration Failure** | A Tag is written wrong: illegal mark combination, `@Underlay` without a parameter to receive it. | at class use |
 | **Tag Composition Failure** | Contributions cannot form the Overlay: cross-kind collision, Record over a host descriptor, a Record builder or teardown that failed, a Target that cannot carry state, a Base still required. | call rolled back (or Rip refused) |
 | **Tag Resolution Failure** | A required Underlay, view, or membership is unavailable. | call rolled back |
+| **Tag Privilege Failure** | A published member was used by an Agent that is no longer a member of its Tag. A Resolution Failure that is also an Attribute failure. | use refused |
 | **Tag Precondition Failure** | A gate refused the incoming Agent. | call rolled back |
 | **Tag Imprint Failure** | An Imprint failed after commit. | Tags stay |
 | **Tag Postcondition Failure** | The finished Agent breaks a promise. | Tags stay, Agent defective |
@@ -1174,8 +1205,10 @@ A conforming implementation provides, ring by ring:
   host members (Underlay, stored seat) with Agent-scope and protocol
   names refused, `@Secret` as Pin-private state, `@Public` as publication
   onto the Field, Flag Pins as keywords by string;
-- published members as privileges of membership: use refused on a Rogue
-  Agent, restored by membership;
+- published members as privileges of sound membership: a Privilege
+  Failure on a Rogue Agent, the broken promise by name on a defective one,
+  restored by membership or repair;
+- `@Pre` and `@Post` stacked on one function as one condition;
 - Delete; the three access forms, with Agent-bound views as read-only
   snapshots requiring active membership.
 
@@ -1198,7 +1231,7 @@ A conforming implementation provides, ring by ring:
 
 An implementation may choose runtime type composition, generated wrappers,
 proxies, trait machinery, or static code generation. Those are its business.
-TagKit is the Python reference; any gap in TagKit is TagKit's to fix, not a
+TopKit is the Python reference; any gap in TopKit is TopKit's to fix, not a
 change to TOP.
 
 ---

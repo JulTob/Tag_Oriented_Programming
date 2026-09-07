@@ -1,4 +1,4 @@
-"""TagKit conformance tests, ring by ring.
+"""TopKit conformance tests, ring by ring.
 
 Ring 0  Kernel: identity, membership, Geometry, Fields.
 Ring 1  Contributions: Overlay, Underlay, Records, publication.
@@ -15,41 +15,42 @@ import unittest
 import warnings
 import weakref
 
-from TagKit import Action
-from TagKit import Apply
-from TagKit import At_Exit
-from TagKit import Contract
-from TagKit import Delete
-from TagKit import Flag
-from TagKit import Form
-from TagKit import Keyword
-from TagKit import Imprint
-from TagKit import Operation
-from TagKit import Outline
-from TagKit import Pin
-from TagKit import Post
-from TagKit import Postcondition
-from TagKit import Pre
-from TagKit import Precondition
-from TagKit import Public
-from TagKit import Record
-from TagKit import Report
-from TagKit import Rip
-from TagKit import Scope
-from TagKit import Secret
-from TagKit import Tag
-from TagKit import TagCompositionError
-from TagKit import TagContractError
-from TagKit import TagContractWarning
-from TagKit import TagDeclarationError
-from TagKit import TagImprintError
-from TagKit import TagOverwriteWarning
-from TagKit import TagPostconditionError
-from TagKit import TagPreconditionError
-from TagKit import TagResolutionError
-from TagKit import Tags
-from TagKit import Underlay
-import TagKit.lifecycle as lifecycle
+from TopKit import Action
+from TopKit import Apply
+from TopKit import At_Exit
+from TopKit import Contract
+from TopKit import Delete
+from TopKit import Flag
+from TopKit import Form
+from TopKit import Keyword
+from TopKit import Imprint
+from TopKit import Operation
+from TopKit import Outline
+from TopKit import Pin
+from TopKit import Post
+from TopKit import Postcondition
+from TopKit import Pre
+from TopKit import Precondition
+from TopKit import Public
+from TopKit import Record
+from TopKit import Report
+from TopKit import Rip
+from TopKit import Scope
+from TopKit import Secret
+from TopKit import Tag
+from TopKit import TagCompositionError
+from TopKit import TagContractError
+from TopKit import TagContractWarning
+from TopKit import TagDeclarationError
+from TopKit import TagImprintError
+from TopKit import TagOverwriteWarning
+from TopKit import TagPostconditionError
+from TopKit import TagPreconditionError
+from TopKit import TagPrivilegeError
+from TopKit import TagResolutionError
+from TopKit import Tags
+from TopKit import Underlay
+import TopKit.lifecycle as lifecycle
 
 
 # ==================================================================
@@ -529,7 +530,7 @@ class KernelTests(unittest.TestCase):
         ari = Agent()
 
         self.assertNotIn(ari, Person)
-        self.assertFalse(hasattr(ari, "_TAGKIT_STATE"))
+        self.assertFalse(hasattr(ari, "_TOPKIT_STATE"))
         self.assertEqual(Tags(ari), ())
 
     def test_a_tag_needs_a_target(self) -> None:
@@ -1104,18 +1105,73 @@ class RevokedPrivilegeTests(unittest.TestCase):
         self.assertEqual(ari.Own(), "mine")                           # the Agent's own stays
         self.assertTrue(hasattr(ari, "Dispatch"))                     # the Action is still there
 
-        with self.assertRaises(TagResolutionError):
-            ari.Dispatch("go")                                        # and refuses
+        with self.assertRaises(TagPrivilegeError):
+            ari.Dispatch("go")                                        # and refuses: a Rogue Agent
 
-        with self.assertRaises(TagResolutionError):
+        with self.assertRaises(TagPrivilegeError):
             send("go")
 
-        with self.assertRaises(AttributeError):
-            ari.colour
+        self.assertFalse(hasattr(ari, "colour"))                      # a Privilege Failure is an AttributeError too
+        self.assertTrue(issubclass(TagPrivilegeError, TagResolutionError))
 
         Agency(ari)                                                   # back in: privileges return
         self.assertEqual(ari.Dispatch("go"), "Agency:go")
         self.assertEqual(ari.colour, "navy")
+
+    def test_published_members_are_suspended_while_defective(self) -> None:
+        """Soundness is holistic: any broken promise on the Agent suspends
+        every published member, and the refusal names the promise."""
+
+        Agency = self.Agency
+
+        class Elf(Tag):
+            @Post
+            def Has_Homeland(agent):
+                return agent.homeland is not None
+
+        ari = Agent()
+        ari.homeland = "Rivendell"
+        Elf(ari)
+        Agency(ari)
+        self.assertEqual(ari.Dispatch("go"), "Agency:go")
+
+        ari.homeland = None                                           # Elf's promise breaks, not Agency's
+
+        with self.assertRaises(Postcondition.Has_Homeland):
+            ari.Dispatch("go")
+
+        with self.assertRaises(Postcondition.Has_Homeland):
+            ari.colour
+
+        self.assertEqual(ari.Own(), "mine")                           # her own Action still works
+        self.assertIn(ari, Agency)                                    # still a member, just defective
+
+        ari.homeland = "Rivendell"                                    # repaired
+        self.assertEqual(ari.Dispatch("go"), "Agency:go")
+        self.assertEqual(ari.colour, "navy")
+
+    def test_the_autofix_pattern(self) -> None:
+        Agency = self.Agency
+
+        class Elf(Tag):
+            @Post
+            def Has_Homeland(agent):
+                return agent.homeland is not None
+
+        ari = Agent()
+        ari.homeland = None
+        Agency(ari)
+
+        with self.assertRaises(Postcondition.Has_Homeland):
+            Elf(ari)                                                  # applied, defective
+
+        try:
+            ari.Dispatch("go")
+        except Postcondition.Has_Homeland:
+            ari.homeland = "Rivendell"                                # repair what the failure names
+            sent = ari.Dispatch("go")                                 # and retry
+
+        self.assertEqual(sent, "Agency:go")
 
 
 class PreconditionTests(unittest.TestCase):
@@ -1254,6 +1310,40 @@ class PreconditionTests(unittest.TestCase):
         Apprentice(ari)
 
         self.assertIn(ari, Apprentice)
+
+
+class ConditionTests(unittest.TestCase):
+    """@Pre and @Post stacked on one function: necessary to enter and
+    necessary to stay."""
+
+    def test_a_stacked_condition_gates_and_promises(self) -> None:
+        class Elf(Tag):
+            @Pre
+            @Post
+            def Alive(agent):
+                return agent.alive
+
+        dead = Agent()
+        dead.alive = False
+
+        with self.assertRaises(Precondition.Alive):
+            Elf(dead)                                                 # necessary to enter
+
+        ari = Agent()
+        ari.alive = True
+        Elf(ari)
+        self.assertEqual(Contract.Status(ari), {"Alive": True})
+        self.assertTrue(ari)
+
+        ari.alive = False                                             # necessary to stay
+        self.assertFalse(ari)
+        self.assertIn(ari, ~Elf)
+
+        with self.assertRaises(Postcondition.Alive):
+            Contract.Postconditions(ari)
+
+        self.assertIs(Precondition.Alive, TagPreconditionError.Alive)
+        self.assertIs(Postcondition.Alive, TagPostconditionError.Alive)
 
 
 class DefectiveTaggingTests(unittest.TestCase):

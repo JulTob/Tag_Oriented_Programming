@@ -11,7 +11,7 @@ background and feats are independent choices, and the character sheet is
 what they compose.
 
 ```python
-from TagKit import Tag, Record, Action, Underlay, Pre
+from TopKit import Tag, Record, Action, Underlay, Pre
 
 class Character:
     def __init__(self, name, level):
@@ -53,7 +53,7 @@ assert ari.Attack() == "Ari casts Magic Missile while holding a shield"
 assert ari.Wizard.Attack() == "Ari casts Magic Missile"   # the view after Wizard
 ```
 
-Read [`TagKit/GUIDE.md`](TagKit/GUIDE.md) for the patterns, and run
+Read [`TopKit/GUIDE.md`](TopKit/GUIDE.md) for the patterns, and run
 `examples/dnd_character.py` and `examples/biome.py` for the long form.
 
 ## This repository
@@ -61,26 +61,27 @@ Read [`TagKit/GUIDE.md`](TagKit/GUIDE.md) for the patterns, and run
 | Path | What | License |
 | --- | --- | --- |
 | [`spec/SPECIFICATION.md`](spec/SPECIFICATION.md) | **The Specification**, written in rings from the kernel outward. The source of truth. | CC-BY-4.0 |
-| [`TagKit/GUIDE.md`](TagKit/GUIDE.md) | **The Guide**: TOP for people, pattern by pattern. Start here. | Apache-2.0 |
-| [`TagKit/`](TagKit/) | **TagKit**, the Python reference implementation. | Apache-2.0 |
+| [`TopKit/GUIDE.md`](TopKit/GUIDE.md) | **The Guide**: TOP for people, pattern by pattern. Start here. | Apache-2.0 |
+| [`TopKit/`](TopKit/) | **TopKit**, the Python reference implementation (the T is the Tag in T.O.P.). | Apache-2.0 |
+| [`TopKit/CONTRACTS.md`](TopKit/CONTRACTS.md) | **The Contracts Guide**: gates, promises, privileges and error control, aboard a starship. | Apache-2.0 |
 | [`tests/`](tests/) | The conformance suite, organized by ring. | Apache-2.0 |
 | [`examples/`](examples/) | A D&D character sheet and a mix-and-match biome. | Apache-2.0 |
 | [`benchmarks/`](benchmarks/) | The runtime budget: reads, calls, tagging, memory. | Apache-2.0 |
 | [`steps/`](steps/) | **STEP**s, Standard TOP Enhancement Proposals. | CC-BY-4.0 |
 
-The **Specification is the source of truth.** TagKit demonstrates it and
-must perform as the Specification describes; any gap in TagKit is TagKit's
+The **Specification is the source of truth.** TopKit demonstrates it and
+must perform as the Specification describes; any gap in TopKit is TopKit's
 to fix, not a change to TOP.
 
-## Using TagKit
+## Using TopKit
 
 ```
 pip install .                         # or: PYTHONPATH=. python3 ...
-PYTHONPATH=. python3 -m unittest tests.test_tagkit
+PYTHONPATH=. python3 -m unittest tests.test_topkit
 PYTHONPATH=. python3 benchmarks/bench.py
 ```
 
-Python 3.10 or later, no dependencies. TagKit is built so that an Agent's
+Python 3.10 or later, no dependencies. TopKit is built so that an Agent's
 attribute reads and Action calls cost what they cost on a plain object;
 tagging is the slower, rarer act.
 
@@ -102,7 +103,7 @@ in the open, with its reason.
 ## License & trademark
 
 Code is **Apache-2.0**; the Specification and STEPs are **CC-BY-4.0**.
-"Tag-Oriented Programming", "TOP", and "TagKit" are trademarks; see
+"Tag-Oriented Programming", "TOP", and "TopKit" are trademarks; see
 [`TRADEMARK.md`](TRADEMARK.md). You may implement the paradigm freely; the
 marks identify the official spec and conformant implementations.
 

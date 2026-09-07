@@ -76,7 +76,7 @@ test for `None`.
 
 ## Acceptance requirements
 
-Covered by `tests/test_tagkit.py::RecordTests`.
+Covered by `tests/test_topkit.py::RecordTests`.
 
 ---
 
@@ -84,8 +84,8 @@ Covered by `tests/test_tagkit.py::RecordTests`.
 
 > Status set to **Deployed** on 2026-09-05, because the Director approved
 > the whole review in PR #3 ("all changes approved"), the rule is
-> reflected in `spec/SPECIFICATION.md`, and TagKit 0.2.0a2 covers it in
-> `tests/test_tagkit.py`. Cleared on 2026-09-05, per the
+> reflected in `spec/SPECIFICATION.md`, and TopKit 0.2.0a2 covers it in
+> `tests/test_topkit.py`. Cleared on 2026-09-05, per the
 > Director's direction in review ("a default input variable stored/new
 > inside the record definition, like `return stored + new`, and
 > `if stored is None: X`").

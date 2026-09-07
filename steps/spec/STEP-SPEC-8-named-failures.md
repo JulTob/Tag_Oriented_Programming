@@ -69,7 +69,7 @@ names a Tag not yet applied is still valid.
 
 ## Acceptance requirements
 
-Covered by `tests/test_tagkit.py::NamedFailureTests`.
+Covered by `tests/test_topkit.py::NamedFailureTests`.
 
 ---
 
@@ -77,6 +77,6 @@ Covered by `tests/test_tagkit.py::NamedFailureTests`.
 
 > Status set to **Deployed** on 2026-09-05, because the Director approved
 > the whole review in PR #3 ("all changes approved"), the rule is
-> reflected in `spec/SPECIFICATION.md`, and TagKit 0.2.0a2 covers it in
-> `tests/test_tagkit.py`. Cleared on 2026-09-05, per the
+> reflected in `spec/SPECIFICATION.md`, and TopKit 0.2.0a2 covers it in
+> `tests/test_topkit.py`. Cleared on 2026-09-05, per the
 > Director's request ("even nicer `except Precondition.Is_A_Caster`").

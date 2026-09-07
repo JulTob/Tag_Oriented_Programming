@@ -58,7 +58,7 @@ another Tag, an Action may be adapted into an Operation and a Record may be
 materialized as a Report. The resulting contributions occupy Tag scope
 because the Pinned Tag is their receiver." The Specification rewrite of
 2026-09-04 kept the two-scope law but did not carry the Pin sentence, and
-neither TagKit 0.1 nor 0.2 ever accepted a class as a Target. This STEP
+neither TopKit 0.1 nor 0.2 ever accepted a class as a Target. This STEP
 restores the rule as its own topic and gives it a shape that can be built
 and tested.
 
@@ -280,7 +280,7 @@ pointer to this STEP.
 
 ## Acceptance requirements
 
-To be covered by `tests/test_tagkit.py::PinTests`:
+To be covered by `tests/test_topkit.py::PinTests`:
 
 1. `Rare(Wizard)`: membership, Field, `isinstance`, `len`, `bool`, `~Rare`,
    `Rare[:]`, `Rare[Wizard]`, `del Rare[Wizard]`, rollback on a failed
@@ -296,7 +296,7 @@ To be covered by `tests/test_tagkit.py::PinTests`:
    unchanged by pinning.
 6. Every Guide and Specification block for Pins runs.
 
-## TagKit notes
+## TopKit notes
 
 Built on the 0.2 kernel without a new mechanism (0.2.0a3): the runtime
 type of a pinned Tag is a `(MetaTag, Tagged)` metaclass assigned through

@@ -1,6 +1,6 @@
 """Agent state and the runtime type.
 
-An Agent keeps one ``_TAGKIT_STATE`` in its instance dictionary. Actions
+An Agent keeps one ``_TOPKIT_STATE`` in its instance dictionary. Actions
 live in that dictionary as bound callables, Records as plain values, so
 ordinary attribute access costs what it costs on a plain object. The
 runtime type is neutral (host first, then the ``Tagged`` marker) and only
@@ -724,16 +724,16 @@ class _Published:
         if agent is None:
             return gate
 
+        from .overlay import _require_membership
+
         state = _namespace_of(agent)[STATE]
         origin, _declared = state.reports[gate.name]
-
-        if origin not in state.active:
-            raise AttributeError(
-                    f"{gate.name!r} is a published Report of"
-                    f" {origin.__name__}; {_name_of(agent)} is no longer a"
-                    " member, and a published member is a privilege of"
-                    " membership"
-                    )
+        _require_membership(
+                agent,
+                origin,
+                gate.name,
+                "Report",
+                )
 
         return getattr(
                 origin,

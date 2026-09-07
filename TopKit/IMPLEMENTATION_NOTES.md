@@ -1,4 +1,4 @@
-# TagKit Implementation Notes
+# TopKit Implementation Notes
 
 Non-normative. How the Python reference implementation meets the
 Specification, and the judgment calls it makes. The Specification wins
@@ -84,7 +84,7 @@ rollback target.
 - **The Tag's dotted namespace is the program's.** Every Tag-level act is
   language syntax on the metaclass: `in`, `for`, `~`, `len`, `bool`,
   `[:]`, `[agent]`, `del Tag[agent]`, `format`. The only class attribute
-  TagKit adds is the private `_tagkit_field`. `bool(Tag)` is "any sound
+  TopKit adds is the private `_topkit_field`. `bool(Tag)` is "any sound
   member", like a collection.
 - **The empty-seat rule on Agents.** `__bool__`, `__format__`, `__copy__`
   and `__deepcopy__` are installed on the runtime type only when the host
@@ -139,9 +139,16 @@ rollback target.
   hands an `_Originals` namespace to a Pin's `@Rip` teardown that declares
   a seat beyond its receiver (and Underlay), read through `__wrapped__`
   of the composed Action.
-- **Published members check membership at use** (STEP-SPEC-10): the
-  adapter and `_Published.__get__` read `state.active`. One dictionary
-  lookup per call; the Action itself stays sticky.
+- **Published members check sound membership at use** (STEP-SPEC-10):
+  the adapter and `_Published.__get__` call `_require_membership`, which
+  raises `TagPrivilegeError` (a `TagResolutionError` that is also an
+  `AttributeError`, so `hasattr` is honest) when the Agent left, and
+  otherwise runs the Agent's Postconditions through `_guarded` with
+  `detailed=True`, which raises the named promise and is re-entrancy
+  safe. An Agent without Postconditions pays one dictionary lookup.
+- **Stacked `@Pre @Post`** marks the function's kind `"condition"`;
+  the scan appends it to both lists and `_name_checks` registers both
+  named failures.
 - **Assigning a Tag's name on an Agent** (`ari.Elf = 1`) shadows the view by
   name; plain Python, not intercepted. `Elf[ari]` is unaffected.
 - **Inputs and defaults.** A protocol parameter the caller omitted keeps

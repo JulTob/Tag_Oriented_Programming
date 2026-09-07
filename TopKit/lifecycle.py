@@ -51,7 +51,7 @@ def _rip(
                 )
 
     state.active.remove(tag)
-    tag._tagkit_field.Remove(agent)
+    tag._topkit_field.Remove(agent)
 
     _teardown(
             agent,

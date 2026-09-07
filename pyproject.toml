@@ -6,9 +6,9 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "tagkit"
+name = "topkit"
 version = "0.2.0a3"
-description = "TagKit: the Python reference implementation of Tag-Oriented Programming."
+description = "TopKit: the Python reference implementation of Tag-Oriented Programming."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
@@ -18,7 +18,7 @@ authors = [
 keywords = [
         "tag-oriented-programming",
         "top",
-        "tagkit",
+        "topkit",
         "tags",
         ]
 classifiers = [
@@ -39,5 +39,5 @@ Issues = "https://github.com/JulTob/Tag_Oriented_Programming/issues"
 
 [tool.setuptools]
 packages = [
-        "TagKit",
+        "TopKit",
         ]

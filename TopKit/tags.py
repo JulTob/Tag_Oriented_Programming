@@ -57,7 +57,7 @@ class MetaTag(type):
             **kwargs: Any,
             ) -> "MetaTag":
         namespace.setdefault(
-                "_tagkit_field",
+                "_topkit_field",
                 _Field(),
                 )
         _name_checks(namespace)
@@ -138,7 +138,7 @@ class MetaTag(type):
             tag,
             ) -> _Partition:
         return _Partition(
-                tag._tagkit_field,
+                tag._topkit_field,
                 _holds,
                 "sound",
                 )
@@ -174,7 +174,7 @@ class MetaTag(type):
                         " no meaning for a population"
                         )
 
-            return tag._tagkit_field
+            return tag._topkit_field
 
         return _view_of(
                 key,

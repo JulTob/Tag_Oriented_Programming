@@ -54,9 +54,9 @@ def _hooks_for(
     hooks: dict[str, Any] = {
             "__getattr__": _agent_getattr,
             "__del__": _agent_del,
-            "_TAGKIT_HOST_TYPE": host_type,
-            "_TAGKIT_HOST_GETATTR": _host_member(host_type, "__getattr__"),
-            "_TAGKIT_HOST_DEL": _host_member(host_type, "__del__"),
+            "_TOPKIT_HOST_TYPE": host_type,
+            "_TOPKIT_HOST_GETATTR": _host_member(host_type, "__getattr__"),
+            "_TOPKIT_HOST_DEL": _host_member(host_type, "__del__"),
             }
 
     if has_posts and _host_member(host_type, "__bool__") is None:
@@ -101,7 +101,7 @@ def _agent_getattr(
                         state,
                         )
 
-    host_getattr = type(agent).__dict__.get("_TAGKIT_HOST_GETATTR")
+    host_getattr = type(agent).__dict__.get("_TOPKIT_HOST_GETATTR")
 
     if host_getattr is not None:
         return host_getattr(
@@ -235,7 +235,7 @@ def _agent_del(
 
         _teardown_all(agent)
 
-        host_del = type(agent).__dict__.get("_TAGKIT_HOST_DEL")
+        host_del = type(agent).__dict__.get("_TOPKIT_HOST_DEL")
 
         if host_del is not None:
             host_del(agent)

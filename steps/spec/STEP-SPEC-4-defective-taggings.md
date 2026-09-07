@@ -84,7 +84,7 @@ and parts are atomic; write and quality check are not.
 
 ## Acceptance requirements
 
-Covered by `tests/test_tagkit.py::DefectiveTaggingTests`.
+Covered by `tests/test_topkit.py::DefectiveTaggingTests`.
 
 ---
 
@@ -92,8 +92,8 @@ Covered by `tests/test_tagkit.py::DefectiveTaggingTests`.
 
 > Status set to **Deployed** on 2026-09-05, because the Director approved
 > the whole review in PR #3 ("all changes approved"), the rule is
-> reflected in `spec/SPECIFICATION.md`, and TagKit 0.2.0a2 covers it in
-> `tests/test_tagkit.py`. Cleared on 2026-09-05, per the
+> reflected in `spec/SPECIFICATION.md`, and TopKit 0.2.0a2 covers it in
+> `tests/test_topkit.py`. Cleared on 2026-09-05, per the
 > Director's direction in review ("If a product leaves a factory defective
 > you don't roll it back to materials, you try fixing it first, or delete
 > it"; partitions spelled `Wizard[:]` and `~Wizard[:]`).

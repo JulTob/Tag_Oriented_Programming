@@ -207,16 +207,33 @@ def _require_membership(
         name: str,
         kind: str,
         ) -> None:
+    """A published member is a privilege of sound membership
+    (STEP-SPEC-10): the Agent must still belong to the publishing Tag, and
+    every promise on the Agent must hold. A Rogue Agent raises a Privilege
+    Failure; a defective one raises the broken promise by name."""
+
+    from .contracts import _guarded
+    from .errors import TagPostconditionError
+    from .errors import TagPrivilegeError
     from .state import _name_of
     from .state import _state_of
 
     state = _state_of(agent)
 
     if state is None or tag not in state.active:
-        raise TagResolutionError(
+        raise TagPrivilegeError(
                 f"{name!r} is a published {kind} of {tag.__name__};"
                 f" {_name_of(agent)} is no longer a member, and a published"
                 " member is a privilege of membership"
+                )
+
+    if state.postconditions:
+        _guarded(
+                agent,
+                "postconditions",
+                True,
+                TagPostconditionError,
+                "Postcondition",
                 )
 
 
@@ -363,7 +380,7 @@ def _stamp(
     Rip replaces its own promise silently: a fresh Tagging, not a Shape
     weakening a Base."""
 
-    check.__tagkit_origin__ = tag   # type: ignore[attr-defined]
+    check.__topkit_origin__ = tag   # type: ignore[attr-defined]
 
     return check
 
@@ -373,7 +390,7 @@ def _origin_of(
         ) -> type | None:
     return getattr(
             check,
-            "__tagkit_origin__",
+            "__topkit_origin__",
             None,
             )
 
@@ -401,7 +418,7 @@ def _own_declaration(
 
         declared = klass.__dict__[name]
 
-        if not hasattr(klass, "_tagkit_field"):
+        if not hasattr(klass, "_topkit_field"):
             return (klass, "protocol", declared)
 
         declarations = _declarations_of(klass)
