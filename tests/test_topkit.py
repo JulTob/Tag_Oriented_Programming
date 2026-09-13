@@ -34,6 +34,7 @@ from TopKit import Precondition
 from TopKit import Public
 from TopKit import Record
 from TopKit import Report
+from TopKit import Requirement
 from TopKit import Rip
 from TopKit import Scope
 from TopKit import Secret
@@ -46,7 +47,7 @@ from TopKit import TagImprintError
 from TopKit import TagOverwriteWarning
 from TopKit import TagPostconditionError
 from TopKit import TagPreconditionError
-from TopKit import TagPrivilegeError
+from TopKit import TagRogueAccessError
 from TopKit import TagResolutionError
 from TopKit import Tags
 from TopKit import Underlay
@@ -1065,9 +1066,9 @@ class PublicationTests(unittest.TestCase):
 # ==================================================================
 
 
-class RevokedPrivilegeTests(unittest.TestCase):
-    """STEP-SPEC-10: a published member is a privilege of membership. A
-    Rogue Agent keeps its own Actions and Records; the Agency's published
+class RogueAccessTests(unittest.TestCase):
+    """STEP-SPEC-10: a published member answers members only. A Rogue
+    Agent keeps its own Actions and Records; the Agency's published
     Operations and Reports fail closed after Rip."""
 
     def setUp(self) -> None:
@@ -1105,16 +1106,22 @@ class RevokedPrivilegeTests(unittest.TestCase):
         self.assertEqual(ari.Own(), "mine")                           # the Agent's own stays
         self.assertTrue(hasattr(ari, "Dispatch"))                     # the Action is still there
 
-        with self.assertRaises(TagPrivilegeError):
+        with self.assertRaises(TagRogueAccessError):
             ari.Dispatch("go")                                        # and refuses: a Rogue Agent
 
-        with self.assertRaises(TagPrivilegeError):
+        with self.assertRaises(TagRogueAccessError):
             send("go")
 
-        self.assertFalse(hasattr(ari, "colour"))                      # a Privilege Failure is an AttributeError too
-        self.assertTrue(issubclass(TagPrivilegeError, TagResolutionError))
+        with self.assertRaises(TagRogueAccessError):
+            ari.colour                                                # the published Report, the same way
 
-        Agency(ari)                                                   # back in: privileges return
+        self.assertTrue(issubclass(TagRogueAccessError, TagResolutionError))
+        self.assertFalse(issubclass(TagRogueAccessError, AttributeError))
+
+        with self.assertRaises(TagRogueAccessError):
+            hasattr(ari, "colour")                                    # a TOP failure is not swallowed below
+
+        Agency(ari)                                                   # back in: a member reads again
         self.assertEqual(ari.Dispatch("go"), "Agency:go")
         self.assertEqual(ari.colour, "navy")
 
@@ -1344,6 +1351,33 @@ class ConditionTests(unittest.TestCase):
 
         self.assertIs(Precondition.Alive, TagPreconditionError.Alive)
         self.assertIs(Postcondition.Alive, TagPostconditionError.Alive)
+
+    def test_requirement_is_the_stacked_pair_in_one_word(self) -> None:
+        class Vampire(Tag):
+            @Requirement
+            def Undead(agent):
+                return agent.undead
+
+        mortal = Agent()
+        mortal.undead = False
+
+        with self.assertRaises(Precondition.Undead):
+            Vampire(mortal)                                           # necessary to enter
+
+        nosferatu = Agent()
+        nosferatu.undead = True
+        Vampire(nosferatu)
+
+        nosferatu.undead = False                                      # necessary to stay
+        with self.assertRaises(Postcondition.Undead):
+            Contract.Postconditions(nosferatu)
+
+    def test_a_requirement_names_no_failure_of_its_own(self) -> None:
+        with self.assertRaises(AttributeError) as caught:
+            Requirement.Undead
+
+        self.assertIn("Precondition.Undead", str(caught.exception))
+        self.assertIn("Postcondition.Undead", str(caught.exception))
 
 
 class DefectiveTaggingTests(unittest.TestCase):
@@ -2013,7 +2047,7 @@ class PinTests(unittest.TestCase):
 
         del Wizard[ari]
         with self.assertRaises(TagResolutionError):
-            ari.Control(3)                                            # a privilege of membership
+            ari.Control(3)                                            # published: members only
 
     def test_a_public_pin_member_that_cannot_reach_every_agent_reaches_none(self) -> None:
         Wizard = self.Wizard

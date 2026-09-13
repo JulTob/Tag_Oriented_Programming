@@ -168,12 +168,13 @@ class _Check_Mark:
     def __init__(
             mark,
             kind: str,
-            failure: type,
+            failure: type | None,
             doc: str,
+            name: str | None = None,
             ) -> None:
         mark.kind = kind
         mark.failure = failure
-        mark.__name__ = kind.capitalize()
+        mark.__name__ = name if name is not None else kind.capitalize()
         mark.__doc__ = doc
 
     def __call__(
@@ -189,6 +190,14 @@ class _Check_Mark:
             mark,
             name: str,
             ) -> type:
+        if mark.failure is None:
+            raise AttributeError(
+                    f"@{mark.__name__} names no failure of its own: it fails"
+                    f" as a Precondition at the door, or as a Postcondition"
+                    f" afterwards. Catch `Precondition.{name}` or"
+                    f" `Postcondition.{name}`, whichever you mean to repair."
+                    )
+
         return getattr(
                 mark.failure,
                 name,
@@ -222,6 +231,16 @@ Postcondition = _Check_Mark(
 
 Pre = Precondition
 Post = Postcondition
+
+
+Requirement = _Check_Mark(
+        "condition",
+        None,
+        "A necessity in both directions: a gate on the incoming Agent and a"
+        " promise about it afterwards. The same as stacking @Pre and @Post"
+        " on one function, said in one word.",
+        "Requirement",
+        )
 
 
 def Delete(

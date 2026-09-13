@@ -171,9 +171,8 @@ def _adapter(
         operation: Function,
         ) -> Function:
     """The Action a Public Operation publishes: the Agent is passed to the
-    Operation as its second input. A published member is an Agency
-    privilege: it requires active membership, so a Rogue Agent's call
-    fails closed (STEP-SPEC-10)."""
+    Operation as its second input. A published member answers members
+    only, so a Rogue Agent's call fails closed (STEP-SPEC-10)."""
 
     def Published(
             agent: object,
@@ -207,24 +206,24 @@ def _require_membership(
         name: str,
         kind: str,
         ) -> None:
-    """A published member is a privilege of sound membership
+    """A published member answers members only, and only sound ones
     (STEP-SPEC-10): the Agent must still belong to the publishing Tag, and
-    every promise on the Agent must hold. A Rogue Agent raises a Privilege
-    Failure; a defective one raises the broken promise by name."""
+    every promise on the Agent must hold. A Rogue Agent raises a Rogue
+    Access Failure; a defective one raises the broken promise by name."""
 
     from .contracts import _guarded
     from .errors import TagPostconditionError
-    from .errors import TagPrivilegeError
+    from .errors import TagRogueAccessError
     from .state import _name_of
     from .state import _state_of
 
     state = _state_of(agent)
 
     if state is None or tag not in state.active:
-        raise TagPrivilegeError(
+        raise TagRogueAccessError(
                 f"{name!r} is a published {kind} of {tag.__name__};"
-                f" {_name_of(agent)} is no longer a member, and a published"
-                " member is a privilege of membership"
+                f" {_name_of(agent)} is a Rogue Agent of that Tag, and a"
+                " published member answers members only"
                 )
 
     if state.postconditions:

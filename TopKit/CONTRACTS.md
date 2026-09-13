@@ -1,6 +1,6 @@
 # The Contracts Guide
 
-*Gates, promises, privileges, and what to do when they fail.*
+*Gates, promises, membership, and what to do when they fail.*
 
 The [Guide](GUIDE.md) teaches Tag-Oriented Programming one pattern at a
 time. This guide goes deeper into one ring of it: **contracts**, and the
@@ -16,8 +16,8 @@ is a contract.
 ```python
 from TopKit import (
         Action, Contract, Operation, Pin, Post, Postcondition, Pre,
-        Precondition, Public, Record, Report, Rip, Tag,
-        TagPrivilegeError,
+        Precondition, Public, Record, Report, Requirement, Rip, Tag,
+        TagRogueAccessError,
         )
 
 
@@ -48,7 +48,7 @@ at its own time.
 | Claim | Mark | Checked | When it fails |
 | --- | --- | --- | --- |
 | "You may enter" | `@Pre` | at the door, once | nothing changes: refused |
-| "You will stay like this" | `@Post` | at the door, then at every tagging and every use of a privilege | the Tag stays; the Agent is **defective** |
+| "You will stay like this" | `@Post` | at the door, then at every tagging and every use of a published member | the Tag stays; the Agent is **defective** |
 | "You may use what we share" | `@Public` | at every use | refused until membership and soundness return |
 
 The first two are conditions the Tag declares. The third is not declared
@@ -94,7 +94,7 @@ silently and never fire.
 
 A Postcondition is a promise about the finished Agent. It is checked when
 the Tag applies, and again at every later tagging and every use of a
-privilege. When it breaks, TOP does not undo anything. The product left
+published member. When it breaks, TOP does not undo anything. The product left
 the line; it is flagged.
 
 ```python
@@ -168,19 +168,20 @@ failure said which promise, the handler fixed that promise, and the
 retry went through. That is error control that reads as the program's
 own words.
 
-**Soundness is holistic.** The privilege refused because *a* promise on
-the ship was broken, not because Engineering's own promises were. A ship
+**Soundness is holistic.** The published member refused because *a*
+promise on the ship was broken, not because Engineering's own promises were. A ship
 with a working helm and a failing core is not cleared to engage. If a
 Shape needs to relax a Base's promise, it deletes it in its Overlay; a
 promise is never quietly ignored.
 
 ---
 
-## 5. Privileges: relieved of duty
+## 5. Published members: relieved of duty
 
-What the Agent does is its own. What the Agency shares is a privilege.
-When a crew member leaves the Bridge, she keeps everything she became,
-and loses what the Bridge lent her.
+What the Agent does is its own. What the Tag publishes stays the Tag's,
+lent for as long as the Agent is a sound member. When a crew member
+leaves the Bridge, she keeps everything she became, and loses what the
+Bridge lent her.
 
 ```python
 class Bridge(Tag):
@@ -216,25 +217,34 @@ del Bridge[worf]                        # relieved of duty
 
 assert worf.Report_In() == "Worf at tactical"   # his own: he keeps it
 assert isinstance(worf, Bridge)                  # ever bridge crew, always
-assert not hasattr(worf, "alert")                # the Agency's: gone
+try:
+    worf.alert                          # the Bridge's: closed
+except TagRogueAccessError:
+    pass
 
 try:
     worf.Fire("asteroid")
-except TagPrivilegeError:
+except TagRogueAccessError:
     pass                                # a Rogue Agent, refused
 
 try:
     fire("asteroid")                    # the stale handle fails the same way
-except TagPrivilegeError:
+except TagRogueAccessError:
     pass
 
-Bridge(worf)                            # reinstated: privileges return
+Bridge(worf)                            # reinstated: the Bridge answers again
 assert worf.Fire("asteroid") == "Worf fires at asteroid"
 ```
 
-Two failures, two meanings. `TagPrivilegeError` says *you left*.
+Two failures, two meanings. `TagRogueAccessError` says *you left*.
 `Postcondition.Something` says *you are broken*. A program that catches
 them separately reacts correctly to each without reading a word of text.
+
+Notice what the refusal is **not**. Worf's `alert` still exists; Worf is
+simply no longer the one who may read it. So TOP raises a TOP failure and
+says so, rather than answering in the host language's words that there is
+no such name. A question about membership is answered by the layer that
+owns membership.
 
 ---
 
@@ -269,6 +279,23 @@ assert worf in list(Crew_Member)
 
 Being alive is necessary to be crew, not sufficient: other living things
 are not crew. A condition says *necessary*; membership says *is*.
+
+`@Requirement` is the same mark in one word, for a claim that reads as a
+necessity rather than as a pair of checks:
+
+```python
+class Crew_Member(Tag):
+
+    @Requirement
+    def Alive(agent):
+        return agent.alive
+```
+
+A Requirement still fails under two names, and that is the point: at the
+door it is `Precondition.Alive`, someone who may not come aboard;
+afterwards it is `Postcondition.Alive`, someone aboard who needs sickbay.
+Two repairs, two names. Asking `Requirement.Alive` for a failure of its
+own is a mistake, and the refusal tells you which of the two you meant.
 
 ---
 
@@ -387,11 +414,12 @@ assert Bridge in Certified
   untouched.
 - **Promise what must stay true** with `@Post`. A broken promise flags,
   never undoes.
-- **Stack both** when a claim is a necessity in both directions.
+- **Stack both**, or write `@Requirement`, when a claim is a necessity in
+  both directions.
 - **Catch the name**, `except Precondition.X`, `except Postcondition.X`,
   and repair what it names. Never one handler for everything.
-- **Expect two failures on a privilege**: `TagPrivilegeError` means the
-  Agent left; a named promise means it is broken. React to each.
+- **Expect two failures on a published member**: `TagRogueAccessError`
+  means the Agent left; a named promise means it is broken. React to each.
 - **Repair from the outside** with `for broken in ~Tag`, or **at the point
   of use** with autofix. Both are ordinary Python.
 - **Read the contract** with `Contract.Status`, `Contract.Display`, or

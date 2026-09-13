@@ -80,10 +80,14 @@ class TagResolutionError(TagError):
     """A required Underlay, Tag view, or contribution is unavailable."""
 
 
-class TagPrivilegeError(TagResolutionError, AttributeError):
-    """A published member was used by an Agent that is no longer a member
-    of the publishing Tag: a Rogue Agent's privilege (STEP-SPEC-10). Also
-    an AttributeError, so a read through ``hasattr`` answers False."""
+class TagRogueAccessError(TagResolutionError):
+    """A Rogue Agent reached a published member of a Tag it has left.
+
+    A published member answers members only (STEP-SPEC-10). The failure
+    says what happened in TOP's own words: an access, from a Rogue Agent.
+    It is a TOP failure and nothing else, so it is never swallowed by a
+    lower layer asking a different question.
+    """
 
 
 class TagPreconditionError(TagError, metaclass=_Named):

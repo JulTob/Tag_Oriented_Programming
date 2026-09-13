@@ -14,6 +14,7 @@ from .declarations import Precondition
 from .declarations import Public
 from .declarations import Record
 from .declarations import Report
+from .declarations import Requirement
 from .declarations import Rip
 from .declarations import Secret
 from .declarations import Underlay
@@ -26,8 +27,8 @@ from .errors import TagImprintError
 from .errors import TagOverwriteWarning
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
-from .errors import TagPrivilegeError
 from .errors import TagResolutionError
+from .errors import TagRogueAccessError
 from .lifecycle import At_Exit
 from .lifecycle import Scope
 from .queries import Apply
@@ -59,6 +60,7 @@ __all__ = [
         "Public",
         "Record",
         "Report",
+        "Requirement",
         "Rip",
         "Scope",
         "Secret",
@@ -72,8 +74,8 @@ __all__ = [
         "TagOverwriteWarning",
         "TagPostconditionError",
         "TagPreconditionError",
-        "TagPrivilegeError",
         "TagResolutionError",
+        "TagRogueAccessError",
         "Tagged",
         "Tags",
         "Underlay",

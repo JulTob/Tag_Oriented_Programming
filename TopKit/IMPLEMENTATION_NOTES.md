@@ -141,8 +141,10 @@ rollback target.
   of the composed Action.
 - **Published members check sound membership at use** (STEP-SPEC-10):
   the adapter and `_Published.__get__` call `_require_membership`, which
-  raises `TagPrivilegeError` (a `TagResolutionError` that is also an
-  `AttributeError`, so `hasattr` is honest) when the Agent left, and
+  raises `TagRogueAccessError` (a `TagResolutionError`, and nothing from
+  the host language: the failure is not an `AttributeError`, so a
+  `hasattr` never swallows it and reports a missing name for a name that
+  exists) when the Agent left, and
   otherwise runs the Agent's Postconditions through `_guarded` with
   `detailed=True`, which raises the named promise and is re-entrancy
   safe. An Agent without Postconditions pays one dictionary lookup.
@@ -154,7 +156,10 @@ rollback target.
   only as the visible check's Underlay, which is that Tag's composition.
 - **Stacked `@Pre @Post`** marks the function's kind `"condition"`;
   the scan appends it to both lists and `_name_checks` registers both
-  named failures.
+  named failures. `@Requirement` is the same mark written once: it sets
+  the kind `"condition"` directly, so the two spellings meet in the scan
+  and nowhere else. It carries no failure class of its own, and reading
+  `Requirement.Something` says which of the two names to catch.
 - **Assigning a Tag's name on an Agent** (`ari.Elf = 1`) shadows the view by
   name; plain Python, not intercepted. `Elf[ari]` is unaffected.
 - **Inputs and defaults.** A protocol parameter the caller omitted keeps

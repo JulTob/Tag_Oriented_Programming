@@ -63,11 +63,12 @@ Read [`TopKit/GUIDE.md`](TopKit/GUIDE.md) for the patterns, and run
 | [`spec/SPECIFICATION.md`](spec/SPECIFICATION.md) | **The Specification**, written in rings from the kernel outward. The source of truth. | CC-BY-4.0 |
 | [`TopKit/GUIDE.md`](TopKit/GUIDE.md) | **The Guide**: TOP for people, pattern by pattern. Start here. | Apache-2.0 |
 | [`TopKit/`](TopKit/) | **TopKit**, the Python reference implementation (the T is the Tag in T.O.P.). | Apache-2.0 |
-| [`TopKit/CONTRACTS.md`](TopKit/CONTRACTS.md) | **The Contracts Guide**: gates, promises, privileges and error control, aboard a starship. | Apache-2.0 |
+| [`TopKit/CONTRACTS.md`](TopKit/CONTRACTS.md) | **The Contracts Guide**: gates, promises, membership and error control, aboard a starship. | Apache-2.0 |
 | [`tests/`](tests/) | The conformance suite, organized by ring. | Apache-2.0 |
 | [`examples/`](examples/) | A D&D character sheet and a mix-and-match biome. | Apache-2.0 |
 | [`benchmarks/`](benchmarks/) | The runtime budget: reads, calls, tagging, memory. | Apache-2.0 |
 | [`steps/`](steps/) | **STEP**s, Standard TOP Enhancement Proposals. | CC-BY-4.0 |
+| [`RELEASING.md`](RELEASING.md) | How TopKit reaches PyPI, and what to check first. | Apache-2.0 |
 
 The **Specification is the source of truth.** TopKit demonstrates it and
 must perform as the Specification describes; any gap in TopKit is TopKit's

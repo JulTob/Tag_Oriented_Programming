@@ -23,18 +23,19 @@ an unrelated project.
   Agents. A Ripped Pin is sticky; its `@Rip` teardown may take a second
   seat and receives the originals, so un-patching is `tag.Control =
   original.Control`. A Pin may be a Flag: `"Deprecated" in Wizard`.
-- **Published members are privileges of sound membership** (STEP-SPEC-10,
-  §1.5). A Rogue Agent gets a Privilege Failure (also an Attribute
-  failure); a defective Agent gets the broken promise by name, whichever
-  Tag made it, and repairs it: the autofix pattern. The Agent's own
-  Actions and Records are untouched.
+- **Published members answer members only, and only sound ones**
+  (STEP-SPEC-10, §1.5). A Rogue Agent gets a Rogue Access Failure, a TOP
+  failure and nothing else; a defective Agent gets the broken promise by
+  name, whichever Tag made it, and repairs it: the autofix pattern. The
+  Agent's own Actions and Records are untouched.
 - `@Pre` and `@Post` stacked on one function are one condition: necessary
-  to enter and necessary to stay (§2.7).
+  to enter and necessary to stay, spelled `@Requirement` in one word
+  (§2.7).
 - **Conditions end with membership** (STEP-SPEC-11, §0.7). Rip removes
   the Tag's gates and promises; a condition laid over another active
   Tag's gives it back. A Rogue Agent is not held to a role it left.
 - **The Contracts Guide** (`TopKit/CONTRACTS.md`): gates, promises,
-  privileges and error control, aboard a starship; every block runs.
+  membership and error control, aboard a starship; every block runs.
 - Re-applying a Ripped Tag is a fresh Tagging and silent (§0.7): a Tag
   replacing its own earlier Postcondition is not a Shape weakening a Base.
 
@@ -49,13 +50,21 @@ an unrelated project.
   (checked on copies first) and future Agents through the Tag's scan;
   the Tag's own scan skips TOP-managed names.
 - Published Operations and Reports check sound membership at use;
-  `TagPrivilegeError`.
+  `TagRogueAccessError`, which is a `TagResolutionError` and deliberately
+  not an `AttributeError`.
+- `Requirement`: one mark for `@Pre` + `@Post`. It names no failure of
+  its own and says which of the two to catch.
 - A string in a Tag's `in` asks for a keyword; `__contains__` and
   `__bool__` follow the empty-seat rule.
 - Fixed: `TagContractWarning` on re-applying a Ripped Tag that declares a
   Postcondition; `__bool__` installed over a host's own `__bool__` (the
   empty-seat rule now holds for it, as the notes said).
 - Faster `agent in Tag`: the state read goes straight to the dictionary.
+
+### Project
+
+- [`RELEASING.md`](RELEASING.md): what a release checks and how `topkit`
+  is claimed on PyPI. The name is free; the first upload reserves it.
 - 127 tests.
 
 ## 0.2.0a2 — 2026-09-04

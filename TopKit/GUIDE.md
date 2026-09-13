@@ -29,7 +29,8 @@ an adjective, changeable. Wizard is a Tag. Hit points are a Record.
 from TopKit import (
         Action, Contract, Delete, Flag, Form, Imprint, Keyword, Operation,
         Outline, Pin, Post, Postcondition, Pre, Precondition, Public,
-        Record, Report, Rip, Scope, Secret, Tag, Tags, Underlay,
+        Record, Report, Requirement, Rip, Scope, Secret, Tag, Tags,
+        Underlay,
         TagCompositionError, TagPostconditionError, TagPreconditionError,
         TagResolutionError,
         )
@@ -441,6 +442,21 @@ assert ari in ~Elf
 Being alive is necessary to be an Elf, not sufficient: other living things
 are not Elves. That is the difference between a condition and a Tag.
 
+When the claim reads better as one necessity than as two checks, write
+`@Requirement` instead of the pair. It means exactly the same thing:
+
+```python
+class Elf(Tag):
+
+    @Requirement
+    def Alive(agent):
+        return agent.alive
+```
+
+It still fails under two names, because you repair the two differently:
+`Precondition.Alive` is someone who may not come in, `Postcondition.Alive`
+is an Elf already in and now broken.
+
 **Watch out.** A Shape should promise *at least* what its Base promised.
 Use `@Post @Underlay` and `return base() and ...`. Overriding a Base's
 promise without it weakens the contract; TopKit allows it and warns.
@@ -537,13 +553,13 @@ is internal. `@Secret` hides an Agent member; `@Public` shows a Tag member.
 Both are modifiers: they stack on `@Record`, `@Action`, `@Report` or
 `@Operation` in either order.
 
-A published member is a **privilege of sound membership**. A Rogue Agent
-(he left) keeps what he became, his own Actions and Records, and loses
-what the Agency lent him: `TagPrivilegeError`. A defective Agent (a
-promise broke, any promise, whoever made it) is suspended until repaired,
-and the refusal names the broken promise. You never write either check,
-and the second one gives you the **autofix** pattern: catch the promise,
-repair what it names, try again.
+A published member **answers members only, and only sound ones**. A Rogue
+Agent (he left) keeps what he became, his own Actions and Records, and
+loses what the Agency lent him: `TagRogueAccessError`. A defective Agent
+(a promise broke, any promise, whoever made it) is turned away until
+repaired, and the refusal names the broken promise. You never write
+either check, and the second one gives you the **autofix** pattern: catch
+the promise, repair what it names, try again.
 
 ```python
 class Sworn(Tag):
@@ -562,7 +578,7 @@ except Postcondition.Has_Oath:
 
 try:
     bond.dispatch("hello")
-except Postcondition.Has_Oath:          # the privilege names what is broken
+except Postcondition.Has_Oath:          # the refusal names what is broken
     bond.oath = "for Queen and country"
     assert bond.dispatch("hello") == "Bond: hello"
 ```
