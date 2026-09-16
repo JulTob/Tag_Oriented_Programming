@@ -4,8 +4,9 @@
 - **Desk:** spec
 - **Title:** Published Members Answer Members Only
 - **Author:** Julio Toboso (@JulTob)
-- **Status:** Vetting
+- **Status:** Cleared
 - **Created:** 2026-09-06
+- **Cleared:** 2026-09-16
 
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
@@ -120,13 +121,18 @@ Covered by `tests/test_topkit.py::RogueAccessTests` and
 
 ### Decision *(filled by the Director)*
 
-> Status set to **____** on YYYY-MM-DD, because ____.
+> Status set to **Cleared** on 2026-09-16, because the Director reviewed
+> the three STEPs against the goals of the project and directed: "clear
+> and commit steps 9 and 10. Implement them and test in some examples
+> with practical design patterns we can adopt through them."
 >
-> *Drafted for the Director's confirmation:* Cleared on 2026-09-07, per the
-> Director's words above and in review ("It should check membership AND
-> post-validity"; "soundness is an holistic property"; "we gain a lot
-> from two different error codes"; "Apply it"), with the failure renamed
-> and un-crossed from the lower layer on the Director's correction of
-> 2026-09-13 ("Error Rogue Access is clear... It stays TOP vocabulary";
-> "Do not use AttributeError, which is an OOP problem, as a TOP
-> problem").
+> The direction that shaped the STEP, in the Director's words: "It should
+> check membership AND post-validity"; "soundness is an holistic
+> property"; "we gain a lot from two different error codes"; "Apply it".
+> The failure was renamed and un-crossed from the lower layer on the
+> Director's correction of 2026-09-13: "Error Rogue Access is clear... It
+> stays TOP vocabulary"; "Do not use AttributeError, which is an OOP
+> problem, as a TOP problem".
+>
+> Deployed follows the merge of the pull request that carries §1.5 of the
+> Specification.

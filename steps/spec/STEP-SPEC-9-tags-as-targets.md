@@ -4,8 +4,9 @@
 - **Desk:** spec
 - **Title:** Tags as Targets (Pins)
 - **Author:** Julio Toboso (@JulTob)
-- **Status:** Vetting
+- **Status:** Cleared
 - **Created:** 2026-09-05
+- **Cleared:** 2026-09-16
 
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
@@ -252,9 +253,11 @@ Report is already "one value held on the Tag, inherited by Shapes,
 extended through the second seat". Landing a Pin's Record as a Report
 reuses those laws instead of inventing near-copies.
 
-**Internal by default.** Tag scope is internal (STEP-SPEC-3). A Pin that
-wants `Wizard.rarity` readable from main says `@Public`, one word, the
-same word a Report uses.
+**Tag scope lands as Tag scope.** A Pin's Record lands as a Report of the
+pinned Tag, readable on the Tag as any Report is, `Wizard.rarity`, and
+never on the Tag's Agents. A Pin that wants its member to reach the
+Agents of the pinned Tag says `@Public`, one word, the same word a
+Report uses to publish (§5).
 
 ## Backwards compatibility
 
@@ -315,17 +318,20 @@ membership check got faster (`_state_of` reads the dictionary directly).
 
 ### Decision *(filled by the Director)*
 
-> Status set to **____** on YYYY-MM-DD, because ____.
+> Status set to **Cleared** on 2026-09-16, because the Director reviewed
+> the three STEPs against the goals of the project and directed: "clear
+> and commit steps 9 and 10. Implement them and test in some examples
+> with practical design patterns we can adopt through them."
 >
-> *Drafted for the Director's confirmation:* Cleared on 2026-09-06, per the
-> Director's direction ("Establish a STEP for Tags as Targets. The Pins we
-> established in the last version are a good basis for it"; "Implement the
-> step with optimized code"; "Replacing needs fixing then, with the
-> collision control"; "@Secret and @Public make sense for clarification";
-> "sticky with the original handed to the Pin's @Rip teardown"; "Pin flags
-> stay as part of the kit";
-> on un-patching, "sticky with the original handed to the Pin's @Rip
-> teardown, so un-patching is one deliberate line rather than a hidden
-> rule"). Flag Pins (§6) came out of the design rather than the
-> Director's ask ("No, pin-flags") and were then accepted: "Pin flags
-> stay as part of the kit."
+> The direction that shaped the STEP, in the Director's words: "Establish
+> a STEP for Tags as Targets. The Pins we established in the last version
+> are a good basis for it"; "Implement the step with optimized code";
+> "Replacing needs fixing then, with the collision control"; "@Secret and
+> @Public make sense for clarification"; on un-patching, "sticky with the
+> original handed to the Pin's @Rip teardown, so un-patching is one
+> deliberate line rather than a hidden rule". Flag Pins (§6) came out of
+> the design rather than the Director's ask ("No, pin-flags") and were
+> then accepted: "Pin flags stay as part of the kit."
+>
+> Deployed follows the merge of the pull request that carries §1.9 of the
+> Specification.

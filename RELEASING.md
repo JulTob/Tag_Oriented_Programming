@@ -28,7 +28,7 @@ one you mean to publish.
 
 ## Before any upload
 
-- `python3 -m unittest tests.test_topkit` passes.
+- `PYTHONPATH=. python3 -m unittest tests.test_topkit tests.test_examples` passes.
 - Every runnable block of the Specification, the Guide and the Contracts
   Guide runs clean.
 - `CHANGELOG.md` has an entry for this version.

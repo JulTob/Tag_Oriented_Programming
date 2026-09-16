@@ -54,7 +54,9 @@ assert ari.Wizard.Attack() == "Ari casts Magic Missile"   # the view after Wizar
 ```
 
 Read [`TopKit/GUIDE.md`](TopKit/GUIDE.md) for the patterns, and run
-`examples/dnd_character.py` and `examples/biome.py` for the long form.
+`examples/dnd_character.py` and `examples/biome.py` for the long form;
+`examples/fleet_patching.py` and `examples/crew_access.py` for the design
+patterns Pins and published members give you.
 
 ## This repository
 
@@ -65,7 +67,7 @@ Read [`TopKit/GUIDE.md`](TopKit/GUIDE.md) for the patterns, and run
 | [`TopKit/`](TopKit/) | **TopKit**, the Python reference implementation (the T is the Tag in T.O.P.). | Apache-2.0 |
 | [`TopKit/CONTRACTS.md`](TopKit/CONTRACTS.md) | **The Contracts Guide**: gates, promises, membership and error control, aboard a starship. | Apache-2.0 |
 | [`tests/`](tests/) | The conformance suite, organized by ring. | Apache-2.0 |
-| [`examples/`](examples/) | A D&D character sheet and a mix-and-match biome. | Apache-2.0 |
+| [`examples/`](examples/) | A D&D character sheet, a mix-and-match biome, a drone fleet patched through Pins, a starship crew under published members. Each is a set of design patterns. | Apache-2.0 |
 | [`benchmarks/`](benchmarks/) | The runtime budget: reads, calls, tagging, memory. | Apache-2.0 |
 | [`steps/`](steps/) | **STEP**s, Standard TOP Enhancement Proposals. | CC-BY-4.0 |
 | [`RELEASING.md`](RELEASING.md) | How TopKit reaches PyPI, and what to check first. | Apache-2.0 |
@@ -78,7 +80,7 @@ to fix, not a change to TOP.
 
 ```
 pip install .                         # or: PYTHONPATH=. python3 ...
-PYTHONPATH=. python3 -m unittest tests.test_topkit
+PYTHONPATH=. python3 -m unittest tests.test_topkit tests.test_examples
 PYTHONPATH=. python3 benchmarks/bench.py
 ```
 

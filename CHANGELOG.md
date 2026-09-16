@@ -63,6 +63,15 @@ an unrelated project.
 
 ### Project
 
+- STEP-SPEC-9 and STEP-SPEC-10 **Cleared** by the Director on 2026-09-16.
+- Two examples of design patterns, each self-checking and run by the test
+  suite (`tests/test_examples.py`): `examples/fleet_patching.py` (Pins: a
+  hot-fix across a fleet with rollback, a catalog of facts and keywords
+  read by a Tag's own gate, a registry that validates its entries, a
+  policy published onto a Field) and `examples/crew_access.py`
+  (published members: roles as membership, a repair table keyed by named
+  promises, quarantine through holistic soundness, stale handles refused
+  at run time, `@Requirement`).
 - [`RELEASING.md`](RELEASING.md): what a release checks and how `topkit`
   is claimed on PyPI. The name is free; the first upload reserves it.
 - 127 tests.
