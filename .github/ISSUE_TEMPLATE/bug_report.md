@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: A behaviour in TagKit (or the spec's examples) that doesn't match the Guide
+about: A behaviour in TopKit (or the spec's examples) that doesn't match the Guide
 title: "[bug] "
 labels: bug
 ---
@@ -15,5 +15,5 @@ labels: bug
 # ...
 ```
 
-**Is this a TagKit gap or a Specification issue?**
-<!-- Per the Guide, a gap in TagKit is TagKit's to fix, not a change to TOP. -->
+**Is this a TopKit gap or a Specification issue?**
+<!-- Per the Guide, a gap in TopKit is TopKit's to fix, not a change to TOP. -->

@@ -178,7 +178,7 @@ are equivalent to `Public` on the Operation they forward to.
 - `Public` Operations are Actions with the Agent as second input;
 - contradictory marks rejected at declaration; redundant ones accepted.
 
-Covered by `tests/test_tagkit.py::PublicationTests`.
+Covered by `tests/test_topkit.py::PublicationTests`.
 
 ---
 
@@ -186,8 +186,8 @@ Covered by `tests/test_tagkit.py::PublicationTests`.
 
 > Status set to **Deployed** on 2026-09-05, because the Director approved
 > the whole review in PR #3 ("all changes approved"), the rule is
-> reflected in `spec/SPECIFICATION.md`, and TagKit 0.2.0a2 covers it in
-> `tests/test_tagkit.py`. Cleared on 2026-09-05, per the
+> reflected in `spec/SPECIFICATION.md`, and TopKit 0.2.0a2 covers it in
+> `tests/test_topkit.py`. Cleared on 2026-09-05, per the
 > Director's direction in review ("Tag features are hidden by default, and
 > agent's are public by default; `@Secret` for private agent features and
 > `@Public` for public agency features, following the Agency-Agent model").

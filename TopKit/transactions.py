@@ -45,6 +45,7 @@ from .state import _State
 from .state import _bind_to
 from .state import _namespace_of
 from .state import _rebind_all
+from .state import _restore_namespace
 from .state import _runtime_type_for
 from .state import _state_for
 from .state import _state_of
@@ -118,15 +119,16 @@ def _rollback(
     if current is not None:
         for tag in current.active:
             if tag not in entry_tags:
-                tag._tagkit_field.Remove(agent)
+                tag._topkit_field.Remove(agent)
 
+    _restore_namespace(
+            agent,
+            entry_namespace,
+            )
     namespace = _namespace_of(agent)
 
     if namespace is None:
         return
-
-    namespace.clear()
-    namespace.update(entry_namespace)
 
     if entry_copy is not None:
         namespace[STATE] = entry_copy
@@ -311,7 +313,96 @@ def _commit(
                     f"{type(agent).__name__} cannot be actualized in place"
                     ) from error
 
-    tag._tagkit_field.Add(agent)
+    tag._topkit_field.Add(agent)
+
+    if state.pinned is not None and declarations.published:
+        _publish_to_field(
+                state.pinned,
+                declarations.published,
+                )
+
+
+def _publish_to_field(
+        pinned: type,
+        names: frozenset[str],
+        ) -> None:
+    """A Pin's @Public members reach the pinned Tag's Field: every present
+    Agent receives them now as the Tag's own published Reports and
+    Operations; every future Agent through the Tag's declarations. The
+    whole Field is checked on copies first, so no Agent is touched unless
+    all can be."""
+
+    from .declarations import _scan_cache
+    from .overlay import _adapter
+
+    state = _state_of(pinned)
+    _scan_cache.pop(pinned, None)   # the Tag's declarations grew
+    agents = list(pinned[:])
+    plans: list[tuple[object, _State]] = []
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")   # the real pass warns once
+
+        for agent in agents:
+            candidate = _state_of(agent).Copy()
+            _publish_into(
+                    candidate,
+                    pinned,
+                    state,
+                    names,
+                    _adapter,
+                    )
+            plans.append(
+                    (
+                        agent,
+                        candidate,
+                        )
+                    )
+
+    for agent, candidate in plans:
+        agent_state = _state_of(agent)
+        _publish_into(
+                agent_state,
+                pinned,
+                state,
+                names,
+                _adapter,
+                )
+
+        for name in names:
+            if name in agent_state.actions:
+                _bind_to(
+                        agent,
+                        agent_state,
+                        name,
+                        )
+
+        next_type = _runtime_type_for(agent_state)
+
+        if type(agent) is not next_type:
+            agent.__class__ = next_type
+
+
+def _publish_into(
+        agent_state: _State,
+        pinned: type,
+        state: _State,
+        names: frozenset[str],
+        adapter: Any,
+        ) -> None:
+    from .overlay import _install_action
+
+    for name in names:
+        if name in state.records:
+            agent_state.reports[name] = (pinned, None)
+            agent_state.published.add(name)
+        elif name in state.actions:
+            _install_action(
+                    agent_state,
+                    pinned,
+                    name,
+                    adapter(pinned, name, state.actions[name]),
+                    )
 
 
 def _needs_new_type(
@@ -363,6 +454,10 @@ def _snapshot(
             for name in state.records
             if name in namespace
             }
+
+    for name in state.records:
+        if name in state.secret_values:
+            records[name] = state.secret_values[name]
 
     reports = {
             name: (origin, getattr(origin, name))

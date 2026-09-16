@@ -5,6 +5,7 @@ Tag's dotted namespace to the program:
 
     Wizard(charlie)               apply (Bases first)
     charlie in Wizard             active membership, sound or defective
+    "Deprecated" in Wizard        a keyword: the Tag carries the Flag Pin Deprecated
     Wizard in charlie             the same, from the Agent's side
     "Wizard" in charlie           the same, by name
     isinstance(charlie, Wizard)   ever a member ("ever a Wizard, always a Wizard")
@@ -16,6 +17,10 @@ Tag's dotted namespace to the program:
     del Wizard[charlie]           leave the Field (Rip)
     Form(Wizard)                  the Base-first closure, as Tags
     f"{Wizard:form}"              the same, as text
+
+A Tag marked @Pin applies to Tags (STEP-SPEC-9); the pinned Tag is then
+an Agent in every spelling above: Rare(Wizard), Wizard in Rare,
+for tag in Rare, Rare[Wizard], del Rare[Wizard], f"{Wizard:pins}".
 """
 
 from __future__ import annotations
@@ -26,12 +31,17 @@ from typing import Iterator
 from .access import _view_of
 from .contracts import _holds
 from .declarations import _MISSING
+from .declarations import _check_pin_bases
+from .declarations import _is_pin
 from .declarations import _name_checks
+from .errors import TagCompositionError
 from .fields import _Field
 from .fields import _Partition
 from .geometry import _form_of
+from .geometry import _is_tag
 from .lifecycle import _rip
 from .state import Tagged
+from .state import _name_of
 from .state import _state_of
 from .transactions import _apply
 
@@ -47,18 +57,21 @@ class MetaTag(type):
             **kwargs: Any,
             ) -> "MetaTag":
         namespace.setdefault(
-                "_tagkit_field",
+                "_topkit_field",
                 _Field(),
                 )
         _name_checks(namespace)
 
-        return super().__new__(
+        tag = super().__new__(
                 meta,
                 name,
                 bases,
                 namespace,
                 **kwargs,
                 )
+        _check_pin_bases(tag)
+
+        return tag
 
     def __call__(
             tag,
@@ -72,7 +85,12 @@ class MetaTag(type):
                     f" {tag.__name__}(target)"
                     )
 
-        if isinstance(target, type):
+        if _is_pin(tag):
+            _check_pin_target(
+                    tag,
+                    target,
+                    )
+        elif isinstance(target, type):
             raise TypeError(
                     f"{tag.__name__} is applied to objects, not classes"
                     )
@@ -87,6 +105,17 @@ class MetaTag(type):
             tag,
             candidate: object,
             ) -> bool:
+        """``agent in Wizard``: membership. ``"Deprecated" in Wizard``: a
+        keyword among the Tag's Flag Pins; a string is never a member."""
+
+        if isinstance(candidate, str):
+            from .access import _keyword
+
+            return _keyword(
+                    tag,
+                    candidate,
+                    )
+
         state = _state_of(candidate)
 
         return (
@@ -109,7 +138,7 @@ class MetaTag(type):
             tag,
             ) -> _Partition:
         return _Partition(
-                tag._tagkit_field,
+                tag._topkit_field,
                 _holds,
                 "sound",
                 )
@@ -145,7 +174,7 @@ class MetaTag(type):
                         " no meaning for a population"
                         )
 
-            return tag._tagkit_field
+            return tag._topkit_field
 
         return _view_of(
                 key,
@@ -174,8 +203,38 @@ class MetaTag(type):
                     for member in _form_of(tag)
                     )
 
+        if spec == "pins":
+            from .queries import Tags
+
+            return ", ".join(
+                    pin.__name__
+                    for pin in Tags(tag)
+                    )
+
+        if spec == "contract":
+            from .contracts import Contract
+
+            return Contract.Display(tag)
+
         raise ValueError(
-                f"unknown format spec {spec!r} for a Tag; use 'form'"
+                f"unknown format spec {spec!r} for a Tag; use 'form',"
+                " 'pins', or 'contract'"
+                )
+
+
+def _check_pin_target(
+        pin: type,
+        target: object,
+        ) -> None:
+    if not _is_tag(target):
+        raise TagCompositionError(
+                f"{pin.__name__} is a Pin: apply it to a Tag, not to"
+                f" {_name_of(target)}"
+                )
+
+    if target in _form_of(pin):
+        raise TagCompositionError(
+                f"{pin.__name__} cannot pin itself"
                 )
 
 
