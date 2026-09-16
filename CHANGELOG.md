@@ -71,7 +71,10 @@ an unrelated project.
   policy published onto a Field) and `examples/crew_access.py`
   (published members: roles as membership, a repair table keyed by named
   promises, quarantine through holistic soundness, stale handles refused
-  at run time, `@Requirement`).
+  at run time, `@Requirement`, and the author's own guard: a condition
+  that follows another Tag's membership, a keyword on a Tag, or the Tag
+  under its Underlay, in one line of flow control). The Contracts Guide
+  gains the same guards as §8.
 - [`RELEASING.md`](RELEASING.md): what a release checks and how `topkit`
   is claimed on PyPI. The name is free; the first upload reserves it.
 - 127 tests.

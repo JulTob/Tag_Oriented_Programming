@@ -55,6 +55,8 @@ class ExampleTests(unittest.TestCase):
         self.assertIn("every published door is closed", output)
         self.assertIn("queued command refused at run time", output)
         self.assertIn("not alive: cannot join the crew", output)
+        self.assertIn("Weapons_Locked follows the Bridge", output)
+        self.assertIn("Veteran.Alive guards its own Underlay", output)
 
 
 if __name__ == "__main__":

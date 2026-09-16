@@ -15,9 +15,9 @@ is a contract.
 
 ```python
 from TopKit import (
-        Action, Contract, Operation, Pin, Post, Postcondition, Pre,
+        Action, Contract, Flag, Operation, Pin, Post, Postcondition, Pre,
         Precondition, Public, Record, Report, Requirement, Rip, Tag,
-        TagRogueAccessError,
+        TagRogueAccessError, Underlay,
         )
 
 
@@ -359,7 +359,106 @@ the ship's medical record still says infected. That is the point.
 
 ---
 
-## 8. Reading a contract
+## 8. The author writes the guard
+
+A condition is a function, and the question *does this promise still
+apply to this Agent* is one line inside it. Write it in your own words
+and it can follow any membership you like: another Tag's, a keyword on a
+Tag, or the Tag underneath an Underlay. No law has to guess which one
+you meant, and the guard is right there for the next reader.
+
+**A promise that follows another Tag.** The weapons lock matters only
+while the officer stands on the Bridge. Off the Bridge, the promise
+holds, because you said so.
+
+```python
+class Armed(Tag):
+
+    @Post
+    def Weapons_Locked(agent):
+        if agent not in Bridge:         # not on duty: nothing to lock
+            return True
+        return agent.safety_on
+
+
+worf.safety_on = True
+Armed(worf)
+worf.safety_on = False                  # during play
+assert worf in ~Armed                   # on the Bridge: the lock matters
+
+del Bridge[worf]
+assert worf in list(Armed)              # off the Bridge: it does not
+
+worf.safety_on = True                   # a tagging re-checks every promise
+Bridge(worf)
+```
+
+**A promise that follows a keyword on a Tag.** The ship's state is a
+keyword on the Bridge itself, a Flag Pin. The protocol bites only while
+that keyword is there.
+
+```python
+@Flag
+@Pin
+class Red_Alert(Tag):
+    """The ship's state, not the crew's."""
+
+
+class Alert_Protocol(Tag):
+
+    @Post
+    def At_Station(agent):
+        if "Red_Alert" not in Bridge:   # peacetime: the protocol sleeps
+            return True
+        return agent.station == "tactical"
+
+
+Alert_Protocol(worf)
+worf.station = "mess hall"
+assert worf in list(Alert_Protocol)     # nobody minds
+
+Red_Alert(Bridge)
+assert worf in ~Alert_Protocol          # to your station
+
+worf.station = "tactical"
+del Red_Alert[Bridge]
+```
+
+**An Underlay that knows whose promise the underneath is.** A Veteran's
+`Alive` is laid over the crew's. If the crew role is gone, the Veteran
+holds only his own clause, and the chain never calls a check of a Tag
+the Agent has left.
+
+```python
+class Veteran(Tag):
+
+    @Post
+    @Underlay
+    def Alive(agent, base):
+        underneath = base() if agent in Crew_Member else True
+        return underneath and agent.decorated
+
+
+kurn = Crew("Kurn")
+kurn.decorated = True
+Crew_Member(kurn)
+Veteran(kurn)
+
+del Crew_Member[kurn]                   # the underneath leaves
+kurn.alive = False                      # its promise no longer counts
+assert kurn in list(Veteran)            # only the Veteran's own clause
+
+kurn.decorated = False
+assert kurn in ~Veteran
+```
+
+The guard is flow control, nothing more. It costs one `in` and reads as
+the rule it is. When the kit offers you an automatic law for the same
+thing, prefer the line you can see.
+
+---
+
+## 9. Reading a contract
 
 When something is refused and you want the whole picture, ask the
 contract namespace. It never guesses; it runs the checks and tells you.
@@ -382,7 +481,7 @@ assert Contract.Holds(enterprise)
 
 ---
 
-## 9. Contracts on Tags themselves
+## 10. Contracts on Tags themselves
 
 A Pin (Guide, pattern 11) puts a Tag in the Agent's seat, so everything
 above applies to Tags too. Fleet command can require that a protocol Tag
@@ -408,7 +507,7 @@ assert Bridge in Certified
 
 ---
 
-## 10. The checklist
+## 11. The checklist
 
 - **Gate what must be true to enter** with `@Pre`. A refused Agent is
   untouched.
@@ -422,6 +521,9 @@ assert Bridge in Certified
   means the Agent left; a named promise means it is broken. React to each.
 - **Repair from the outside** with `for broken in ~Tag`, or **at the point
   of use** with autofix. Both are ordinary Python.
+- **Write the guard yourself** when a promise should follow another
+  Tag, a keyword, or the Tag under an Underlay: `if agent not in Bridge:
+  return True`. One visible line beats a law that guesses.
 - **Read the contract** with `Contract.Status`, `Contract.Display`, or
   `f"{agent:contract}"` when you need the whole picture.
 - **Return `True`, `False`, or nothing** from a condition. A count of `0`

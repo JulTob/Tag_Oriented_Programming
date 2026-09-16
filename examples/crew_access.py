@@ -8,6 +8,8 @@ security code of their own.
     4. Stale handles: a queued command from a relieved officer is refused
        when it runs, not when it was queued.
     5. Requirements: necessary to enter and necessary to stay, in one word.
+    6. The author writes the guard: a condition decides for itself which
+       membership it follows, in one line of ordinary flow control.
 
 Run:  PYTHONPATH=. python3 examples/crew_access.py
 """
@@ -17,9 +19,12 @@ from __future__ import annotations
 from typing import Callable
 
 from TopKit import Contract
+from TopKit import Flag
 from TopKit import Operation
+from TopKit import Pin
 from TopKit import Post
 from TopKit import Postcondition
+from TopKit import Pre
 from TopKit import Precondition
 from TopKit import Public
 from TopKit import Record
@@ -28,6 +33,7 @@ from TopKit import Requirement
 from TopKit import Tag
 from TopKit import TagPostconditionError
 from TopKit import TagRogueAccessError
+from TopKit import Underlay
 
 
 class Crew:
@@ -41,6 +47,8 @@ class Crew:
         crew.alive = True
         crew.infected = False
         crew.oath = None
+        crew.safety_on = True
+        crew.decorated = False
 
 
 # --- The crew's Tags ------------------------------------------------
@@ -213,6 +221,104 @@ def pattern_requirements() -> None:
     print("   Dax:", Contract.Status(dax))
 
 
+# --- Pattern 6 · The author writes the guard --------------------------
+#
+# A condition is a function. The question "does this promise still apply
+# to this Agent" is one line inside it, in the author's own words, and
+# it can follow any membership at all: another Tag's, a keyword on a
+# Tag, or the Tag underneath an Underlay. No law has to guess.
+
+
+class Armed(Tag):
+    """A promise that follows ANOTHER Tag's membership. The weapons lock
+    matters only while the officer stands on the Bridge; off the Bridge
+    the promise holds, because the author said so."""
+
+    @Post
+    def Weapons_Locked(agent) -> bool:
+        if agent not in Bridge:                         # not on duty: nothing to lock
+            return True
+        return agent.safety_on
+
+
+@Flag
+@Pin
+class Red_Alert(Tag):
+    """A keyword on the Bridge itself: the ship's state, not the crew's."""
+
+
+class Alert_Protocol(Tag):
+    """A promise that follows a keyword on a Tag. It bites only while the
+    Bridge is at Red Alert."""
+
+    @Post
+    def At_Station(agent) -> bool:
+        if "Red_Alert" not in Bridge:                   # peacetime: the protocol sleeps
+            return True
+        return agent.station == "tactical"
+
+
+class Officer(Tag):
+    """A gate that reads another Tag: you enter the officers' mess only as
+    crew. Necessary to enter, written where it is read."""
+
+    @Pre
+    def Is_Crew(agent) -> bool:
+        return agent in Crew_Member
+
+
+class Veteran(Tag):
+    """An Underlay whose guard says whose promise the underneath is. If the
+    crew role is gone, the Veteran holds only his own clause, and the
+    chain never calls a check of a Tag the Agent has left."""
+
+    @Post
+    @Underlay
+    def Alive(agent, base) -> bool:
+        underneath = base() if agent in Crew_Member else True
+        return underneath and agent.decorated
+
+
+def pattern_author_guard(worf: Crew) -> None:
+    print("6. the author writes the guard")
+
+    Armed(worf)
+    worf.safety_on = False
+    assert worf in ~Armed                               # on the Bridge: the lock matters
+    del Bridge[worf]
+    assert worf in list(Armed)                          # off the Bridge: it does not
+    worf.safety_on = True                               # a tagging re-checks every promise
+    Bridge(worf)
+    print("   Weapons_Locked follows the Bridge, not Armed")
+
+    Alert_Protocol(worf)
+    worf.station = "mess hall"
+    assert worf in list(Alert_Protocol)                 # peacetime: nobody minds
+    Red_Alert(Bridge)
+    assert worf in ~Alert_Protocol                      # red alert: to your station
+    worf.station = "tactical"
+    assert worf in list(Alert_Protocol)
+    del Red_Alert[Bridge]
+    print("   At_Station follows a keyword on the Bridge")
+
+    civilian = Crew("Guinan")
+    try:
+        Officer(civilian)
+    except Precondition.Is_Crew:
+        print("   Is_Crew: a gate that reads Crew_Member")
+
+    kurn = Crew("Kurn")
+    kurn.decorated = True
+    Crew_Member(kurn)
+    Veteran(kurn)                                       # Alive, laid over Crew_Member's
+    del Crew_Member[kurn]                               # the underneath leaves
+    kurn.alive = False                                  # its promise no longer counts
+    assert kurn in list(Veteran)                        # only the Veteran's own clause
+    kurn.decorated = False
+    assert kurn in ~Veteran
+    print("   Veteran.Alive guards its own Underlay")
+
+
 def main() -> None:
     worf = Crew("Worf")
     Crew_Member(worf)
@@ -223,6 +329,7 @@ def main() -> None:
     pattern_quarantine(worf)
     pattern_stale_handles(worf)
     pattern_requirements()
+    pattern_author_guard(worf)
     print(f"\n{worf:contract}")
 
 
