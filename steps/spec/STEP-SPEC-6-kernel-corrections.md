@@ -46,7 +46,7 @@ with materials that are no longer there.
 
 ## Backwards compatibility
 
-No program that ran against TagKit 0.1 changes behaviour under 1, 2 or 4.
+No program that ran against TopKit 0.1 changes behaviour under 1, 2 or 4.
 Under 5, programs that accidentally relied on `agent.Label()`,
 `agent.Greet()` or a Report object appearing on the Agent must use the Tag
 or the Agent-bound view.
@@ -57,5 +57,5 @@ or the Agent-bound view.
 
 > Status set to **Deployed** on 2026-09-05, because the Director approved
 > the whole review in PR #3 ("all changes approved"), the rule is
-> reflected in `spec/SPECIFICATION.md`, and TagKit 0.2.0a2 covers it in
-> `tests/test_tagkit.py`. Cleared on 2026-09-05.
+> reflected in `spec/SPECIFICATION.md`, and TopKit 0.2.0a2 covers it in
+> `tests/test_topkit.py`. Cleared on 2026-09-05.

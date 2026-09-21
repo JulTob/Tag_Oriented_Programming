@@ -1,4 +1,4 @@
-"""TagKit: the Python reference implementation of Tag-Oriented Programming."""
+"""TopKit: the Python reference implementation of Tag-Oriented Programming."""
 
 from .contracts import Contract
 from .declarations import Action
@@ -6,6 +6,7 @@ from .declarations import Delete
 from .declarations import Flag
 from .declarations import Imprint
 from .declarations import Operation
+from .declarations import Pin
 from .declarations import Post
 from .declarations import Postcondition
 from .declarations import Pre
@@ -13,6 +14,7 @@ from .declarations import Precondition
 from .declarations import Public
 from .declarations import Record
 from .declarations import Report
+from .declarations import Requirement
 from .declarations import Rip
 from .declarations import Secret
 from .declarations import Underlay
@@ -26,6 +28,7 @@ from .errors import TagOverwriteWarning
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
 from .errors import TagResolutionError
+from .errors import TagRogueAccessError
 from .lifecycle import At_Exit
 from .lifecycle import Scope
 from .queries import Apply
@@ -49,6 +52,7 @@ __all__ = [
         "Imprint",
         "Operation",
         "Outline",
+        "Pin",
         "Post",
         "Postcondition",
         "Pre",
@@ -56,6 +60,7 @@ __all__ = [
         "Public",
         "Record",
         "Report",
+        "Requirement",
         "Rip",
         "Scope",
         "Secret",
@@ -70,6 +75,7 @@ __all__ = [
         "TagPostconditionError",
         "TagPreconditionError",
         "TagResolutionError",
+        "TagRogueAccessError",
         "Tagged",
         "Tags",
         "Underlay",

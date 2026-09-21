@@ -7,6 +7,7 @@ from typing import Any
 
 from .geometry import _form_of
 from .geometry import _leaves
+from .state import _name_of
 from .state import _state_of
 
 
@@ -70,7 +71,7 @@ def Outline(
     Form from Base to Shape."""
 
     state = _state_of(agent)
-    host = type(agent).__name__
+    host = _name_of(agent)
     lines = [host]
 
     if state is None:
