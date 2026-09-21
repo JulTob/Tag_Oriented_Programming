@@ -267,7 +267,6 @@ def _install(
                         True,
                         ),
                 tag,
-                prior,
                 )
 
     for name, function in declarations.postconditions:
@@ -292,7 +291,6 @@ def _install(
                         False,
                         ),
                 tag,
-                prior,
                 )
 
     for name, report, public in declarations.reports:
@@ -380,14 +378,12 @@ def _refuse_container_host(
 def _stamp(
         check: Function,
         tag: type,
-        prior: Function | None,
         ) -> Function:
-    """Remember which Tag bound a condition and what it was laid over, so
-    a Tag re-applied after a Rip replaces its own promise silently, and so
-    Rip can give the prior condition back (STEP-SPEC-11)."""
+    """Remember which Tag bound a condition, so a Tag re-applied after a
+    Rip replaces its own promise silently (§0.7). Conditions are sticky:
+    Rip never touches them; the author ends them (STEP-SPEC-12)."""
 
     check.__topkit_origin__ = tag   # type: ignore[attr-defined]
-    check.__topkit_prior__ = prior   # type: ignore[attr-defined]
 
     return check
 
@@ -400,41 +396,6 @@ def _origin_of(
             "__topkit_origin__",
             None,
             )
-
-
-def _prior_of(
-        check: Function,
-        ) -> Function | None:
-    return getattr(
-            check,
-            "__topkit_prior__",
-            None,
-            )
-
-
-def _release_conditions(
-        state: _State,
-        tag: type,
-        ) -> None:
-    """A Tag's gates and promises end with its membership (STEP-SPEC-11).
-
-    Each condition the Tag bound gives way to the prior condition of that
-    name whose Tag is still active, or leaves the name free."""
-
-    for scope in (state.preconditions, state.postconditions):
-        for name, check in list(scope.items()):
-            if _origin_of(check) is not tag:
-                continue
-
-            prior = _prior_of(check)
-
-            while prior is not None and _origin_of(prior) not in state.active:
-                prior = _prior_of(prior)
-
-            if prior is None:
-                del scope[name]
-            else:
-                scope[name] = prior
 
 
 def _own_declaration(

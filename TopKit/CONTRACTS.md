@@ -452,9 +452,34 @@ kurn.decorated = False
 assert kurn in ~Veteran
 ```
 
-The guard is flow control, nothing more. It costs one `in` and reads as
-the rule it is. When the kit offers you an automatic law for the same
-thing, prefer the line you can see.
+**Or end it explicitly, when the role leaves.** A condition is sticky:
+Rip does not remove it, so a promise that outlives its Tag fails loud
+rather than vanishing. When a promise should end with the role, the
+role's own `@Rip` protocol ends it, one deliberate name at a time.
+
+```python
+class Sworn_Officer(Tag):
+
+    @Post
+    def Has_Oath(agent):
+        return agent.oath is not None
+
+    @Rip
+    def Release(agent):
+        Contract.Delete(agent, "Has_Oath")  # visibly, here, and nowhere else
+
+
+kurn.decorated = True                   # a tagging re-checks every promise
+kurn.oath = "to the Empire"
+Sworn_Officer(kurn)
+del Sworn_Officer[kurn]                 # released from the oath
+kurn.oath = None
+assert kurn in list(Veteran)            # no promise left to break
+```
+
+Both are flow control, nothing more. The guard costs one `in`; the
+deletion costs one name. Each reads as the rule it is, where the rule
+lives. There is no automatic law: a condition stays until you end it.
 
 ---
 
@@ -521,9 +546,11 @@ assert Bridge in Certified
   means the Agent left; a named promise means it is broken. React to each.
 - **Repair from the outside** with `for broken in ~Tag`, or **at the point
   of use** with autofix. Both are ordinary Python.
-- **Write the guard yourself** when a promise should follow another
-  Tag, a keyword, or the Tag under an Underlay: `if agent not in Bridge:
-  return True`. One visible line beats a law that guesses.
+- **End a condition yourself.** Rip never does. A guard in the promise,
+  `if agent not in Bridge: return True`, lets it follow any membership;
+  `Contract.Delete(agent, "Has_Oath")` in the role's `@Rip` protocol
+  ends it when the role leaves. One visible line beats a law that
+  guesses.
 - **Read the contract** with `Contract.Status`, `Contract.Display`, or
   `f"{agent:contract}"` when you need the whole picture.
 - **Return `True`, `False`, or nothing** from a condition. A count of `0`

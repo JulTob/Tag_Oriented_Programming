@@ -232,10 +232,17 @@ Rip is the only exit from a Field, and it obeys three laws:
 - **Rip is refused while a Shape needs the Base.** `del Beast[wolf]` fails
   while `Wolf` is active. Deform the Shape first. Rip never cascades: TOP
   does not run other Tags' protocols behind your back.
-- **Conditions end with membership** (STEP-SPEC-11). Rip removes the
-  Tag's Preconditions and Postconditions from the Agent; a condition the
-  Tag had laid over another active Tag's gives that one back. A Rogue
-  Agent keeps what it became and is not held to a role it left.
+- **Conditions are sticky too** (STEP-SPEC-12). Rip does not touch a
+  Tag's Preconditions or Postconditions: a promise that outlives its
+  Tag fails loud, never silently. Rip does one thing, and it is the one
+  act nothing can roll back, so it is not the place for a second rule.
+  **The author ends a condition**, in one of two visible ways: a **guard
+  in the condition** (`if agent not in Wizard: return True`), which can
+  follow any membership at all, another Tag's, a keyword on a Tag, the
+  Tag under an Underlay; or an **explicit deletion from the Tag's own
+  `@Rip` protocol**, `Contract.Delete(agent, "Has_Book")`, one
+  deliberate name at a time. A name that is not a condition on the Agent
+  is a Resolution Failure.
 - **Reapplying a Ripped Tag is a fresh Tagging.** Imprints run again;
   Records are rebuilt.
 
@@ -263,6 +270,7 @@ language, not a library's naming.
 | an Agent's Tags, Outline, contract, as text | `f"{agent:tags}"`, `f"{agent:outline}"`, `f"{agent:contract}"` |
 | catch one check's failure (§2.6) | `except Precondition.Is_A_Caster:`, `except Postcondition.Has_Book:`, `except Imprint.Arm:` |
 | catch a Rogue Agent's access (§1.5) | `except TagRogueAccessError:` |
+| end a condition explicitly (§0.7), from a `@Rip` protocol | `Contract.Delete(agent, "Has_Book")` |
 | necessary to enter and to stay (§2.7) | `@Pre` + `@Post`, or `@Requirement` |
 | pin a Tag (§1.9), and every act above with a Tag in the Agent's seat | `Rare(Wizard)`, `Wizard in Rare`, `for tag in Rare`, `Rare[Wizard]`, `del Rare[Wizard]` |
 | a Tag carries a keyword? (Flag Pins, §1.9) | `"Deprecated" in Wizard`, `Keyword(Wizard, "Deprecated")` |
@@ -1211,8 +1219,9 @@ A conforming implementation provides, ring by ring:
 - Base-first Form application, each Base once, active reapply a no-op;
 - the five-step tagging sequence with the call boundary: rollback on gate
   and Record failure, Tags stay on Imprint and Postcondition failure;
-- Rip: sticky contributions, conditions ending with membership, refusal
-  while a Shape requires the Base, no cascade;
+- Rip: sticky contributions and sticky conditions, ended by the author
+  (a guard, or `Contract.Delete` from the `@Rip` protocol), refusal while
+  a Shape requires the Base, no cascade;
 - native spellings for every Tag-level act, leaving the Tag's dotted
   namespace to the program.
 

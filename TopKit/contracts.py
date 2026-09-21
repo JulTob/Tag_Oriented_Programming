@@ -284,6 +284,42 @@ class Contract:
         return True
 
     @staticmethod
+    def Delete(
+            agent: object,
+            *names: str,
+            ) -> None:
+        """End the named conditions on the Agent, explicitly.
+
+        Conditions are sticky: Rip does not remove them. A Tag whose gate
+        or promise should end with its membership deletes it here, from
+        its own ``@Rip`` protocol, one deliberate name at a time. A name
+        that is not a condition on the Agent is a Resolution Failure: an
+        author who ends a promise must be ending a real one.
+        """
+
+        from .errors import TagResolutionError
+
+        state = _state_of(agent)
+
+        for name in names:
+            found = False
+
+            for scope in (
+                    state.preconditions if state is not None else {},
+                    state.postconditions if state is not None else {},
+                    ):
+                if name in scope:
+                    del scope[name]
+                    found = True
+
+            if not found:
+                raise TagResolutionError(
+                        f"{name!r} is not a condition on {_name_of(agent)};"
+                        " Contract.Delete ends a gate or a promise that is"
+                        " there"
+                        )
+
+    @staticmethod
     def Status(
             agent: object,
             ) -> dict[str, bool]:

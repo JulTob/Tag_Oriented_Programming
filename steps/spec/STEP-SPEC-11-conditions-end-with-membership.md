@@ -4,8 +4,9 @@
 - **Desk:** spec
 - **Title:** Conditions End With Membership
 - **Author:** Julio Toboso (@JulTob)
-- **Status:** Vetting
+- **Status:** Redacted
 - **Created:** 2026-09-07
+- **Redacted:** 2026-09-21
 
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
@@ -192,7 +193,20 @@ open question above is not covered; it has no test until it is decided.
 
 ### Decision *(filled by the Director)*
 
-> Status set to **____** on YYYY-MM-DD, because ____.
+> Status set to **Redacted** on 2026-09-21, because the Director
+> reviewed the mechanism against the goals of the project and rejected
+> deletion at Rip: "I am doubtful about the spec 11. Rip protocols can be
+> dangerous. They could be implemented with an 'if target in MyTag' flow
+> control." On the replacement: "Add some examples of the 'The author
+> writes it' guardrail for the conditions. more flexible this way." And,
+> confirming the practice: "Didn't we establish that the real good
+> practice was either explicit deletion on rip protocol or a field check
+> in the condition?"
 >
-> *Drafted for the Director's confirmation:* Cleared on 2026-09-07, per the
-> Director's "go on" to the recommendation.
+> What this STEP wanted, a Rogue Agent not held to a role it left, is
+> kept; the automatic law is not. STEP-SPEC-12 records the replacement:
+> conditions are sticky, and the author ends them, by a guard in the
+> condition or by `Contract.Delete` from the Tag's own `@Rip` protocol.
+> The open question below is moot under it: nothing is deleted at Rip,
+> so no chain is left half-alive; an Underlay that should skip a Tag the
+> Agent has left says so in its own line.
