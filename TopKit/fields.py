@@ -4,10 +4,17 @@ A Field never keeps an Agent alive. Membership is indexed by identity so
 registration and removal are constant-time. Iterating a Tag gives the
 sound population (every visible Postcondition holds), ``~Tag`` the
 defective one, ``Tag[:]`` everyone.
+
+Populations combine (STEP-SPEC-13): ``Wizard[:] | Fighter[:]`` is everyone
+who is either, ``Wizard - Sworn`` the sound Wizards who have not sworn,
+``Wizard & Fighter`` the sound Agents who are both. A Tag in an operator
+seat means its sound population. The result is a lazy view: it reads the
+Fields when it is walked, never copies them, and keeps application order.
 """
 
 from __future__ import annotations
 
+from typing import Any
 from typing import Callable
 from typing import Iterator
 import weakref
@@ -15,8 +22,214 @@ import weakref
 from .errors import TagCompositionError
 
 
-class _Field:
+class _Population:
+    """What every population answers: walk, ``in``, ``len``, truth, and
+    the algebra. ``__iter__`` and ``__contains__`` come from the subclass."""
+
+    _label: str = "population"
+
+    def __iter__(
+            population,
+            ) -> Iterator[object]:
+        raise NotImplementedError
+
+    def __contains__(
+            population,
+            agent: object,
+            ) -> bool:
+        raise NotImplementedError
+
+    def __len__(
+            population,
+            ) -> int:
+        return sum(
+                1
+                for _ in population
+                )
+
+    def __bool__(
+            population,
+            ) -> bool:
+        return any(
+                True
+                for _ in population
+                )
+
+    def __or__(
+            population,
+            other: Any,
+            ) -> Any:
+        return _combine(
+                population,
+                other,
+                "|",
+                )
+
+    def __ror__(
+            population,
+            other: Any,
+            ) -> Any:
+        return _combine(
+                _population_of(other),
+                population,
+                "|",
+                )
+
+    def __and__(
+            population,
+            other: Any,
+            ) -> Any:
+        return _combine(
+                population,
+                other,
+                "&",
+                )
+
+    def __rand__(
+            population,
+            other: Any,
+            ) -> Any:
+        return _combine(
+                _population_of(other),
+                population,
+                "&",
+                )
+
+    def __sub__(
+            population,
+            other: Any,
+            ) -> Any:
+        return _combine(
+                population,
+                other,
+                "-",
+                )
+
+    def __rsub__(
+            population,
+            other: Any,
+            ) -> Any:
+        return _combine(
+                _population_of(other),
+                population,
+                "-",
+                )
+
+    def __repr__(
+            population,
+            ) -> str:
+        return f"<{population._label} Field>"
+
+
+def _population_of(
+        candidate: Any,
+        ) -> Any:
+    """The population a value stands for in an operator seat: a population
+    as itself, a Tag as its sound population; anything else NotImplemented."""
+
+    if isinstance(candidate, _Population):
+        return candidate
+
+    sound = getattr(
+            candidate,
+            "_sound",
+            None,
+            )
+
+    if callable(sound) and isinstance(candidate, type):
+        return sound()
+
+    return NotImplemented
+
+
+def _combine(
+        left: Any,
+        right: Any,
+        operator: str,
+        ) -> Any:
+    left = _population_of(left)
+    right = _population_of(right)
+
+    if left is NotImplemented or right is NotImplemented:
+        return NotImplemented
+
+    return _Combined(
+            left,
+            right,
+            operator,
+            )
+
+
+class _Combined(_Population):
+    """Two populations under one operator, read lazily.
+
+    ``|`` walks the left population then the right, each Agent once;
+    ``&`` walks the left and keeps those also in the right; ``-`` walks
+    the left and drops those in the right. Application order is kept
+    within each side.
+    """
+
+    def __init__(
+            combined,
+            left: _Population,
+            right: _Population,
+            operator: str,
+            ) -> None:
+        combined._left = left
+        combined._right = right
+        combined._operator = operator
+        combined._label = f"{left._label} {operator} {right._label}"
+
+    def __iter__(
+            combined,
+            ) -> Iterator[object]:
+        left = combined._left
+        right = combined._right
+
+        if combined._operator == "|":
+            seen: set[int] = set()
+
+            for agent in left:
+                seen.add(id(agent))
+                yield agent
+
+            for agent in right:
+                if id(agent) not in seen:
+                    yield agent
+
+            return
+
+        if combined._operator == "&":
+            for agent in left:
+                if agent in right:
+                    yield agent
+
+            return
+
+        for agent in left:
+            if agent not in right:
+                yield agent
+
+    def __contains__(
+            combined,
+            agent: object,
+            ) -> bool:
+        left = combined._left
+        right = combined._right
+
+        if combined._operator == "|":
+            return agent in left or agent in right
+
+        if combined._operator == "&":
+            return agent in left and agent in right
+
+        return agent in left and agent not in right
+
+
+class _Field(_Population):
     """Whole population of one Tag, weakly held, in application order."""
+
+    _label = "whole"
 
     def __init__(
             field,
@@ -101,7 +314,7 @@ class _Field:
                 )
 
 
-class _Partition:
+class _Partition(_Population):
     """One half of a Field: the Agents for which ``holds`` is True."""
 
     def __init__(
@@ -132,22 +345,6 @@ class _Partition:
                 and partition._holds(agent)
                 )
 
-    def __len__(
-            partition,
-            ) -> int:
-        return sum(
-                1
-                for _ in partition
-                )
-
-    def __bool__(
-            partition,
-            ) -> bool:
-        return any(
-                True
-                for _ in partition
-                )
-
     def __invert__(
             partition,
             ) -> "_Partition":
@@ -158,8 +355,3 @@ class _Partition:
                 lambda agent: not holds(agent),
                 "defective" if partition._label == "sound" else "sound",
                 )
-
-    def __repr__(
-            partition,
-            ) -> str:
-        return f"<{partition._label} Field>"

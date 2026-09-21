@@ -43,6 +43,7 @@ from .state import Tagged
 from .state import _Snapshot
 from .state import _State
 from .state import _bind_to
+from .state import _name_of
 from .state import _namespace_of
 from .state import _rebind_all
 from .state import _restore_namespace
@@ -200,6 +201,12 @@ def _apply_one(
     state = _state_for(agent)
     declarations = _declarations_of(tag)
     deleted_before = set(state.deleted)
+    _refuse_conditions_shadowed_by_the_agent(
+            agent,
+            state,
+            tag,
+            declarations,
+            )
     state.composing += 1
 
     try:
@@ -237,6 +244,36 @@ def _apply_one(
                     )
     finally:
         state.composing -= 1
+
+
+def _refuse_conditions_shadowed_by_the_agent(
+        agent: object,
+        state: _State,
+        tag: type,
+        declarations: Any,
+        ) -> None:
+    """A condition is read on the Agent by its name (STEP-SPEC-14). A value
+    the Agent itself already holds under that name would shadow it in
+    silence, so the tagging is refused at the door."""
+
+    namespace = _namespace_of(agent) or {}
+
+    for name, _function in (
+            *declarations.preconditions,
+            *declarations.postconditions,
+            ):
+        if (
+                name in namespace
+                and name not in state.records
+                and name not in state.actions
+                and name != STATE
+                ):
+            raise TagCompositionError(
+                    f"{tag.__name__}.{name} is a condition, but"
+                    f" {_name_of(agent)} already holds a value called"
+                    f" {name!r}; a condition is read by its name and cannot"
+                    " share it"
+                    )
 
 
 def _inspect(

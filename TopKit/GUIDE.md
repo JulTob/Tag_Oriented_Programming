@@ -871,6 +871,7 @@ the architecture, with a Field to walk and a history that stays.
 | Who is one, and sound? | `for a in Wizard`, `len(Wizard)`, `if Wizard:` |
 | Who is one, and broken? | `for a in ~Wizard`, `if ~Wizard:` |
 | Everyone? | `Wizard[:]` |
+| Either, both, without? | `Wizard \| Fighter`, `Wizard & Fighter`, `Wizard - Sworn` (the Fields Guide) |
 | What applies with it? | `Form(Wizard)`, `f"{Wizard:form}"` |
 | Take it away | `del Wizard[agent]` |
 | Which Pins does it carry? | `Wizard in Rare`, `f"{Wizard:pins}"` |
@@ -901,6 +902,9 @@ your Reports and Operations there.
 
 ## Where next
 
+- [The Contracts Guide](CONTRACTS.md): gates, promises and error control,
+  aboard a starship; and one promise read by its name, `agent.Has_Oath`.
+- [The Fields Guide](FIELDS.md): populations, partitions and the algebra.
 - [The Specification](../spec/SPECIFICATION.md): the laws, ring by ring.
 - [`examples/dnd_character.py`](../examples/dnd_character.py) and
   [`examples/biome.py`](../examples/biome.py): the long form.

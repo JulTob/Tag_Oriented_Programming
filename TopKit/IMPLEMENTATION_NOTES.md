@@ -155,6 +155,31 @@ rollback target.
   pops the named conditions from the Agent's state and raises a
   Resolution Failure for a name that is not there; it is written to be
   called from a `@Rip` protocol, and works for a pinned Tag as well.
+- **Field algebra** (STEP-SPEC-13): `_Population` in `fields.py` gives
+  every population the three operators; `_Combined` holds two sides and
+  an operator and walks them lazily (`|` by identity, each once; `&` and
+  `-` by `in` on the right side). `_population_of` turns a Tag into its
+  sound partition; `MetaTag.__or__` falls back to `type.__or__` when the
+  other side is not a population, so `Wizard | None` stays a typing
+  union. No kernel state changes.
+- **Condition members** (STEP-SPEC-14): `_agent_getattr` answers a
+  condition by name on the miss path, after Tag views and before the
+  host's own `__getattr__`, through `contracts._condition_member`, which
+  evaluates one check under the re-entrancy guard and returns a plain
+  bool. Nothing is written to the namespace or the runtime type. The
+  collision rule lives in three places: `_refuse_condition_collision`
+  at install (Actions, Records, host class members),
+  `_refuse_member_over_condition` when an Action or Record is installed
+  over a condition's name, and
+  `_refuse_conditions_shadowed_by_the_agent` in `_apply_one` for a value
+  the Agent's own namespace already holds.
+- **Scope** (§0.7) skips a Tag the Agent already carries and records a
+  Tag whose tagging raised a Postcondition failure as applied, so the
+  teardown Rips exactly what the Scope applied.
+- **The oracle** (`tests/oracle_topkit.py`): an independent model of
+  the laws driven by a random walk; `tests/test_oracle.py` runs a short
+  walk under the suite. Run it at size with `--seeds 50 --steps 1200
+  --population 18` (about 60,000 transitions, under twenty seconds).
 - **Stacked `@Pre @Post`** marks the function's kind `"condition"`;
   the scan appends it to both lists and `_name_checks` registers both
   named failures. `@Requirement` is the same mark written once: it sets

@@ -17,6 +17,7 @@ from .declarations import _parameters_of
 from .declarations import _takes_underlay
 from .errors import TagCompositionError
 from .errors import TagError
+from .errors import TagPostconditionError
 from .errors import TagResolutionError
 from .geometry import _requiring_shapes
 from .state import _Originals
@@ -162,16 +163,30 @@ def Scope(
         **inputs: Any,
         ) -> Iterator[object]:
     """Apply Tags for a block and Rip them, in reverse, on exit, even if
-    the block raises. The guaranteed teardown path."""
+    the block raises. The guaranteed teardown path.
+
+    Only what the Scope itself applied is Ripped: a Tag the Agent already
+    carried at entry is left as it was. A Tag that applied and then
+    reported a broken promise at the door did apply, so it is Ripped on
+    the way out like any other.
+    """
 
     applied: list[type] = []
 
     try:
         for tag in tags:
-            tag(
-                    agent,
-                    **inputs,
-                    )
+            if agent in tag:
+                continue                    # already the Agent's: not the Scope's to take away
+
+            try:
+                tag(
+                        agent,
+                        **inputs,
+                        )
+            except TagPostconditionError:
+                applied.append(tag)         # applied, and defective: still the Scope's to Rip
+                raise
+
             applied.append(tag)
 
         yield agent

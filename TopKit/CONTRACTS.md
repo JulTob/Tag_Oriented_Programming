@@ -483,7 +483,80 @@ lives. There is no automatic law: a condition stays until you end it.
 
 ---
 
-## 9. Reading a contract
+## 9. One promise, by name
+
+`Contract.Status` reads the whole contract. Often you want one line of it,
+in the middle of an `if`. Every condition is readable on the Agent by its
+own name, as a plain `True` or `False` computed on read: nothing is
+stored, nothing is a proxy, and the member and the status always agree.
+
+```python
+worf.infected = True                    # Healthy's promise breaks
+assert worf.Not_Infected is False
+assert worf.Weapons_Locked is True
+assert Contract.Status(worf)["Not_Infected"] is False
+
+if not worf.Not_Infected:               # repair exactly what is broken
+    worf.infected = False
+
+assert worf.Not_Infected
+assert not hasattr(worf, "Has_Sword")   # no such promise: the ordinary miss
+```
+
+A gate reads the same way, and a `@Requirement` answers as one:
+
+```python
+dax = Crew("Dax")
+Crew_Member(dax)
+assert dax.Alive is True
+dax.alive = False
+assert dax.Alive is False               # Crew_Member's requirement, read on Dax
+```
+
+**The name is the promise's own.** Because the promise is read on the
+Agent by its name, no Action, Record, host member or value the Agent
+already holds may use it: the tagging is refused at the door rather than
+letting the real member hide the promise.
+
+```python
+from TopKit import TagCompositionError
+
+
+class Clash(Tag):
+
+    @Record
+    def Not_Infected(agent):            # a Record named like Healthy's promise
+        return "yes"
+
+
+try:
+    Clash(worf)
+except TagCompositionError:
+    pass                                # refused: Not_Infected is a promise on Worf
+```
+
+**Use it for the autofix table.** The repair table of §4 caught failures;
+the member lets a loop ask before acting:
+
+```python
+REPAIRS = {
+        "Weapons_Locked": lambda crew: setattr(crew, "safety_on", True),
+        "Not_Infected": lambda crew: setattr(crew, "infected", False),
+        }
+
+worf.safety_on = False
+worf.infected = True
+
+for name, repair in REPAIRS.items():
+    if not getattr(worf, name):         # the promise, by name
+        repair(worf)
+
+assert worf
+```
+
+---
+
+## 10. Reading a contract
 
 When something is refused and you want the whole picture, ask the
 contract namespace. It never guesses; it runs the checks and tells you.
@@ -506,7 +579,7 @@ assert Contract.Holds(enterprise)
 
 ---
 
-## 10. Contracts on Tags themselves
+## 11. Contracts on Tags themselves
 
 A Pin (Guide, pattern 11) puts a Tag in the Agent's seat, so everything
 above applies to Tags too. Fleet command can require that a protocol Tag
@@ -532,7 +605,7 @@ assert Bridge in Certified
 
 ---
 
-## 11. The checklist
+## 12. The checklist
 
 - **Gate what must be true to enter** with `@Pre`. A refused Agent is
   untouched.
@@ -552,7 +625,8 @@ assert Bridge in Certified
   ends it when the role leaves. One visible line beats a law that
   guesses.
 - **Read the contract** with `Contract.Status`, `Contract.Display`, or
-  `f"{agent:contract}"` when you need the whole picture.
+  `f"{agent:contract}"` when you need the whole picture, and **one
+  promise by its name**, `agent.Has_Oath`, when you need one line of it.
 - **Return `True`, `False`, or nothing** from a condition. A count of `0`
   is refused as a raw value, so a real zero is never mistaken for a
   failure.

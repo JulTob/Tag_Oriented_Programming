@@ -191,6 +191,42 @@ def _holds(
             )
 
 
+def _condition_member(
+        agent: object,
+        state: _State,
+        name: str,
+        ) -> bool | None:
+    """The condition called ``name`` on the Agent, read as a plain bool
+    (STEP-SPEC-14): a Postcondition first, then a Precondition. None when
+    the Agent has no condition of that name."""
+
+    check = state.postconditions.get(name)
+
+    if check is None:
+        check = state.preconditions.get(name)
+
+    if check is None:
+        return None
+
+    reentrant = state.checking
+    state.checking = True
+    state.composing += 1
+
+    try:
+        try:
+            return _verdict(
+                    check(agent, {}),
+                    name,
+                    )
+        except TagContractError:
+            raise
+        except Exception:
+            return False
+    finally:
+        state.composing -= 1
+        state.checking = reentrant
+
+
 def _status_of(
         agent: object,
         scope: str,
