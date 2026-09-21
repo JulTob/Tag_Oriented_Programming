@@ -1,6 +1,23 @@
 # Changelog
 
+## 0.2.0a4 — unreleased
+
+### Specification
+
+- STEP-SPEC-12 **Cleared** by the Director on 2026-09-21: conditions are
+  sticky; the author ends them. Deployed with the merge that carried it.
+
+### Project
+
+- `RELEASING.md` now records the whole path to PyPI, from the account
+  and the token to the virtual environment, as the first release ran it.
+
 ## 0.2.0a3 — 2026-09-06
+
+**Released on PyPI on 2026-09-21**: https://pypi.org/project/topkit/0.2.0a3/.
+The name `topkit` is claimed. The release is main at the merge of pull
+request #6, which carries STEP-SPEC-12 and the Redaction of STEP-SPEC-11.
+
 
 **TagKit is now TopKit.** The distribution is `topkit`, the module is
 `TopKit`; the T is the Tag in T.O.P. The name `tagkit` on PyPI belongs to

@@ -4,8 +4,9 @@
 - **Desk:** spec
 - **Title:** Conditions Are Sticky; the Author Ends Them
 - **Author:** Julio Toboso (@JulTob)
-- **Status:** Vetting
+- **Status:** Cleared
 - **Created:** 2026-09-21
+- **Cleared:** 2026-09-21
 
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
@@ -115,7 +116,12 @@ the test suite runs.
 
 ### Decision *(filled by the Director)*
 
-> Status set to **____** on YYYY-MM-DD, because ____.
+> Status set to **Cleared** on 2026-09-21, because the Director merged
+> the pull request that carried it the same day and, asked whether to
+> record the decision, said: "record and clear it". The reasoning is the
+> Director's, quoted in the Motivation: "Rip protocols can be dangerous.
+> They could be implemented with an 'if target in MyTag' flow control";
+> "the real good practice was either explicit deletion on rip protocol
+> or a field check in the condition".
 >
-> *Drafted for the Director's confirmation:* Cleared on 2026-09-21, per
-> the Director's words above.
+> Deployed by that merge: §0.7 and §0.8 of the Specification carry it.

@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "topkit"
-version = "0.2.0a3"
+version = "0.2.0a4"
 description = "TopKit: the Python reference implementation of Tag-Oriented Programming."
 readme = "README.md"
 requires-python = ">=3.10"
