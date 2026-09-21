@@ -8,8 +8,9 @@ security code of their own.
     4. Stale handles: a queued command from a relieved officer is refused
        when it runs, not when it was queued.
     5. Requirements: necessary to enter and necessary to stay, in one word.
-    6. The author writes the guard: a condition decides for itself which
-       membership it follows, in one line of ordinary flow control.
+    6. The author ends the condition: a guard inside it that decides
+       which membership it follows, or an explicit deletion from the
+       role's own @Rip protocol. Rip itself never touches a condition.
 
 Run:  PYTHONPATH=. python3 examples/crew_access.py
 """
@@ -30,6 +31,7 @@ from TopKit import Public
 from TopKit import Record
 from TopKit import Report
 from TopKit import Requirement
+from TopKit import Rip
 from TopKit import Tag
 from TopKit import TagPostconditionError
 from TopKit import TagRogueAccessError
@@ -70,6 +72,10 @@ class Sworn(Tag):
     @Post
     def Has_Oath(agent) -> bool:
         return agent.oath is not None
+
+    @Rip
+    def Release(agent) -> None:
+        Contract.Delete(agent, "Has_Oath")              # the oath ends with the role, visibly
 
 
 class Bridge(Tag):
@@ -221,12 +227,14 @@ def pattern_requirements() -> None:
     print("   Dax:", Contract.Status(dax))
 
 
-# --- Pattern 6 · The author writes the guard --------------------------
+# --- Pattern 6 · The author ends the condition -------------------------
 #
-# A condition is a function. The question "does this promise still apply
-# to this Agent" is one line inside it, in the author's own words, and
-# it can follow any membership at all: another Tag's, a keyword on a
-# Tag, or the Tag underneath an Underlay. No law has to guess.
+# Conditions are sticky: Rip never removes one, so a promise that outlives
+# its Tag fails loud, never silently. Two ways to end one, both visible:
+# a guard inside the condition, one line of flow control that can follow
+# any membership at all (another Tag's, a keyword on a Tag, the Tag under
+# an Underlay); or an explicit deletion from the role's own @Rip protocol,
+# one name at a time. No law has to guess.
 
 
 class Armed(Tag):
@@ -280,7 +288,14 @@ class Veteran(Tag):
 
 
 def pattern_author_guard(worf: Crew) -> None:
-    print("6. the author writes the guard")
+    print("6. the author ends the condition")
+
+    del Sworn[worf]                                     # Release runs: Has_Oath is deleted
+    worf.oath = None
+    assert "Has_Oath" not in Contract.Status(worf)      # no promise left to break
+    worf.oath = "to the Federation"
+    Sworn(worf)
+    print("   Has_Oath ended by Sworn's own Rip protocol")
 
     Armed(worf)
     worf.safety_on = False

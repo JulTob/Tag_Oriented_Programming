@@ -621,9 +621,11 @@ assert guard not in Sentry
 `@Imprint` runs after the Tag applies; `@Rip` runs after it leaves. They
 are constructor and destructor, `__enter__` and `__exit__`.
 
-A role's conditions leave with it. What the Agent *became* stays (pattern
-1's Rogue Agent); what the role *required* ends, because there is nothing
-left to stay in.
+A role's conditions do **not** leave with it on their own. What the
+Agent *became* stays (pattern 1's Rogue Agent), and so does what the role
+*required*: a promise that outlives its Tag fails loud, never silently.
+If a promise should end with the role, you say so, in the role's own
+`@Rip` protocol, one name at a time:
 
 ```python
 class Knight(Tag):
@@ -631,6 +633,10 @@ class Knight(Tag):
     @Post
     def Has_Sword(agent):
         return agent.sword is not None
+
+    @Rip
+    def Undub(agent):
+        Contract.Delete(agent, "Has_Sword")    # the promise ends here, visibly
 
     def Salute(agent):
         return f"{agent.name} salutes"
@@ -644,8 +650,12 @@ del Knight[lance]                       # dubbed no more
 lance.sword = None
 
 assert lance.Salute() == "Lance salutes"   # what he became: stays
-assert lance                               # what the role required: gone
+assert lance                               # what the role required: ended by you
 ```
+
+The other way is a guard inside the promise, `if agent not in Knight:
+return True`, which lets the promise follow any membership you like; the
+Contracts Guide shows both.
 
 **Watch out.** Python does not promise to run finalizers at shutdown, so
 `del agent` is best-effort. `Scope` is the guaranteed path.

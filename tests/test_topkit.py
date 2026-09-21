@@ -2247,10 +2247,12 @@ class RipTests(unittest.TestCase):
         self.assertEqual(ari.rank, "squire")
 
 
-class ConditionsEndWithMembershipTests(unittest.TestCase):
-    """STEP-SPEC-11: a Tag's gates and promises end with its membership."""
+class StickyConditionTests(unittest.TestCase):
+    """STEP-SPEC-12: conditions are sticky, like contributions. Rip never
+    touches them. The author ends them: a guard in the condition, or an
+    explicit deletion from the Tag's own @Rip protocol."""
 
-    def test_a_ripped_tags_promise_no_longer_binds(self) -> None:
+    def test_a_ripped_tags_promise_still_binds(self) -> None:
         class Wizard(Tag):
             @Post
             def Has_Book(agent):
@@ -2259,15 +2261,13 @@ class ConditionsEndWithMembershipTests(unittest.TestCase):
         ari = Agent()
         ari.book = []
         Wizard(ari)
-        self.assertEqual(Contract.Status(ari), {"Has_Book": True})
+        del Wizard[ari]                                               # a Rogue Agent
+        ari.book = None
 
-        del Wizard[ari]
-        ari.book = None                                               # would have broken the promise
+        self.assertEqual(Contract.Status(ari), {"Has_Book": False})   # the promise stays, and fails loud
+        self.assertFalse(Contract.Holds(ari))
 
-        self.assertEqual(Contract.Status(ari), {})
-        self.assertTrue(Contract.Holds(ari))                          # a Rogue Agent is not defective
-
-    def test_a_ripped_gate_no_longer_gates(self) -> None:
+    def test_a_ripped_gate_stays_on_the_record(self) -> None:
         class Gated(Tag):
             @Pre
             def Ready(agent):
@@ -2277,87 +2277,109 @@ class ConditionsEndWithMembershipTests(unittest.TestCase):
         ari.ready = True
         Gated(ari)
         del Gated[ari]
+        ari.ready = False
+
+        self.assertEqual(Contract.Status(ari), {"Ready": False})      # sticky: still on the Agent's record
+
+        with self.assertRaises(Precondition.Ready):
+            Contract.Preconditions(ari)
+
+    def test_the_author_ends_a_promise_from_the_rip_protocol(self) -> None:
+        class Sworn(Tag):
+            @Post
+            def Has_Oath(agent):
+                return agent.oath is not None
+
+            @Rip
+            def Release(agent):
+                Contract.Delete(agent, "Has_Oath")                    # one deliberate name
+
+        ari = Agent()
+        ari.oath = "sworn"
+        Sworn(ari)
+        del Sworn[ari]
+        ari.oath = None
 
         self.assertEqual(Contract.Status(ari), {})
+        self.assertTrue(Contract.Holds(ari))
 
-    def test_ripping_a_shape_gives_the_bases_promise_back(self) -> None:
-        class Base(Tag):
+    def test_the_author_guards_a_promise_with_membership(self) -> None:
+        class Sworn(Tag):
+            @Post
+            def Has_Oath(agent):
+                if agent not in Sworn:                                # the guard, in the author's words
+                    return True
+                return agent.oath is not None
+
+        ari = Agent()
+        ari.oath = "sworn"
+        Sworn(ari)
+        del Sworn[ari]
+        ari.oath = None
+
+        self.assertEqual(Contract.Status(ari), {"Has_Oath": True})    # still listed, holds by the guard
+        self.assertTrue(Contract.Holds(ari))
+
+        with self.assertRaises(Postcondition.Has_Oath):
+            Sworn(ari)                                                # back in: the promise bites again
+
+        self.assertFalse(Contract.Holds(ari))
+
+    def test_deleting_a_condition_that_is_not_there_is_refused(self) -> None:
+        ari = Agent()
+
+        with self.assertRaises(TagResolutionError):
+            Contract.Delete(ari, "Has_Oath")
+
+        class Plain(Tag):
+            pass
+
+        Plain(ari)
+
+        with self.assertRaises(TagResolutionError):
+            Contract.Delete(ari, "Has_Oath")
+
+    def test_deletion_ends_both_halves_of_a_requirement(self) -> None:
+        class Elf(Tag):
+            @Requirement
+            def Alive(agent):
+                return agent.alive
+
+            @Rip
+            def Release(agent):
+                Contract.Delete(agent, "Alive")
+
+        ari = Agent()
+        ari.alive = True
+        Elf(ari)
+        self.assertEqual(Contract.Status(ari), {"Alive": True})
+
+        del Elf[ari]
+        self.assertEqual(Contract.Status(ari), {})
+
+    def test_an_underlay_over_a_ripped_tag_keeps_calling_it_unless_guarded(self) -> None:
+        class Alive(Tag):
             @Post
             def Fine(agent):
-                return agent.level > 0
+                return agent.alive
 
-        class Shape(Base):
+        class Elf(Tag):
             @Post
             @Underlay
             def Fine(agent, base):
-                return base() and agent.level > 5
+                underneath = base() if agent in Alive else True       # whose promise base() is
+                return underneath and agent.pointy_ears
 
         ari = Agent()
-        ari.level = 9
-        Shape(ari)
-        ari.level = 3
-        self.assertFalse(ari)                                         # the Shape's promise
+        ari.alive, ari.pointy_ears = True, True
+        Alive(ari)
+        Elf(ari)
+        del Alive[ari]
+        ari.alive = False
 
-        del Shape[ari]
-        self.assertTrue(ari)                                          # the Base's own promise, back
-        self.assertIn(ari, Base)
+        self.assertTrue(Contract.Holds(ari))                          # the guard skipped the dead beat
 
-        ari.level = 0
-        self.assertFalse(ari)
-
-    def test_an_overlaid_independent_promise_returns_or_leaves(self) -> None:
-        class Left(Tag):
-            @Post
-            def Fine(agent):
-                return agent.left
-
-        class Right(Tag):
-            @Post
-            def Fine(agent):
-                return agent.right
-
-        ari = Agent()
-        ari.left, ari.right = True, True
-        Left(ari)
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            Right(ari)                                                # overlays Left's promise
-
-        del Right[ari]
-        ari.left = False
-        self.assertFalse(ari)                                         # Left's promise is back
-
-        del Left[ari]
-        self.assertTrue(ari)                                          # nothing binds
-
-    def test_ripping_the_underneath_first_leaves_the_visible_promise(self) -> None:
-        class Left(Tag):
-            @Post
-            def Fine(agent):
-                return agent.left
-
-        class Right(Tag):
-            @Post
-            def Fine(agent):
-                return agent.right
-
-        ari = Agent()
-        ari.left, ari.right = True, True
-        Left(ari)
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            Right(ari)
-
-        del Left[ari]                                                 # not the visible one: nothing changes
-        ari.right = False
-        self.assertFalse(ari)
-
-        del Right[ari]
-        self.assertTrue(ari)
-
-    def test_a_pins_promise_ends_with_its_membership(self) -> None:
+    def test_a_pins_promise_is_sticky_and_the_pin_may_end_it(self) -> None:
         class Wizard(Tag):
             pass
 
@@ -2367,13 +2389,16 @@ class ConditionsEndWithMembershipTests(unittest.TestCase):
             def Has_Members(tag):
                 return bool(tag[:])
 
+            @Rip
+            def Release(tag):
+                Contract.Delete(tag, "Has_Members")
+
         with self.assertRaises(Postcondition.Has_Members):
             Promised(Wizard)
 
         self.assertIn(Wizard, ~Promised)
         del Promised[Wizard]
         self.assertEqual(Contract.Status(Wizard), {})
-
 
 class ExitProtocolTests(unittest.TestCase):
     def setUp(self) -> None:

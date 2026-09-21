@@ -148,12 +148,13 @@ rollback target.
   otherwise runs the Agent's Postconditions through `_guarded` with
   `detailed=True`, which raises the named promise and is re-entrancy
   safe. An Agent without Postconditions pays one dictionary lookup.
-- **Conditions end with membership** (STEP-SPEC-11): every bound check
-  carries its origin Tag and the check it was laid over. `_rip` calls
-  `_release_conditions`, which walks each name the ripped Tag bound and
-  restores the nearest prior whose Tag is still active, or frees the
-  name. A check that is not the visible one is left alone: it lives on
-  only as the visible check's Underlay, which is that Tag's composition.
+- **Conditions are sticky** (STEP-SPEC-12): `_rip` removes membership
+  and runs the teardown, nothing else. Every bound check carries its
+  origin Tag (`_stamp`) only so that a Tag re-applied after a Rip
+  replaces its own promise silently. `Contract.Delete(agent, *names)`
+  pops the named conditions from the Agent's state and raises a
+  Resolution Failure for a name that is not there; it is written to be
+  called from a `@Rip` protocol, and works for a pinned Tag as well.
 - **Stacked `@Pre @Post`** marks the function's kind `"condition"`;
   the scan appends it to both lists and `_name_checks` registers both
   named failures. `@Requirement` is the same mark written once: it sets

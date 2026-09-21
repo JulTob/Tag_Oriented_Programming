@@ -31,9 +31,12 @@ an unrelated project.
 - `@Pre` and `@Post` stacked on one function are one condition: necessary
   to enter and necessary to stay, spelled `@Requirement` in one word
   (§2.7).
-- **Conditions end with membership** (STEP-SPEC-11, §0.7). Rip removes
-  the Tag's gates and promises; a condition laid over another active
-  Tag's gives it back. A Rogue Agent is not held to a role it left.
+- **Conditions are sticky; the author ends them** (STEP-SPEC-12, §0.7).
+  Rip does not touch a Tag's gates or promises. A condition ends by a
+  guard in its own body (`if agent not in Wizard: return True`) or by an
+  explicit `Contract.Delete(agent, "Has_Book")` from the Tag's `@Rip`
+  protocol. STEP-SPEC-11, which made Rip remove conditions and restore
+  the prior one, is Redacted: "Rip protocols can be dangerous."
 - **The Contracts Guide** (`TopKit/CONTRACTS.md`): gates, promises,
   membership and error control, aboard a starship; every block runs.
 - Re-applying a Ripped Tag is a fresh Tagging and silent (§0.7): a Tag
@@ -49,6 +52,8 @@ an unrelated project.
   miss path; `@Public` pinned members reach present Agents at pinning
   (checked on copies first) and future Agents through the Tag's scan;
   the Tag's own scan skips TOP-managed names.
+- `Contract.Delete(agent, *names)`: end conditions explicitly; a name
+  that is not a condition on the Agent is a `TagResolutionError`.
 - Published Operations and Reports check sound membership at use;
   `TagRogueAccessError`, which is a `TagResolutionError` and deliberately
   not an `AttributeError`.
