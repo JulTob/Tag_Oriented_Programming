@@ -245,6 +245,10 @@ Rip is the only exit from a Field, and it obeys three laws:
   is a Resolution Failure.
 - **Reapplying a Ripped Tag is a fresh Tagging.** Imprints run again;
   Records are rebuilt.
+- **A Scope Rips what it applied, and only that.** A Tag the Agent
+  already carried at entry is left as it was on exit; a Tag that applied
+  and reported a broken promise at the Scope's door did apply, and is
+  Ripped on the way out with the rest.
 
 ## 0.8 Spellings
 
@@ -263,6 +267,8 @@ language, not a library's naming.
 | the sound population | `for w in Wizard`, `len(Wizard)`, `if Wizard:` |
 | the defective population | `for w in ~Wizard`, `if ~Wizard:` |
 | everyone in the Field | `Wizard[:]`, `if Wizard[:]:` |
+| populations combined (§2.5) | `Wizard \| Fighter`, `Wizard & Fighter`, `Wizard - Sworn`; the same on `Wizard[:]` and `~Wizard` |
+| one condition, read on the Agent (§2.5) | `agent.Has_Book` |
 | the Agent-bound view | `Wizard[agent]` |
 | leave the Field (Rip) | `del Wizard[agent]` |
 | the Form, as Tags | `Form(Wizard)` |
@@ -1005,6 +1011,36 @@ it is empty. A broken Agent does not stop being a member (`in`), does not
 leave `Wizard[:]`, and waits in `~Wizard` for repair or Rip. Membership and the loop deliberately disagree for it:
 the loop is the line, and a defective product is off the line.
 
+**Populations combine** (STEP-SPEC-13). `|` is either, `&` is both, `-`
+is the left without the right, on any population: a whole Field, the
+sound view, the defective view, or a combination. A Tag in an operator
+seat is its sound population, as it is in the loop; `Wizard[:] |
+Fighter[:]` is everyone who is either; the levels mix. The result is a
+lazy view that reads its Fields when walked, keeps application order
+within each side, answers `in`, `len`, truth and iteration, and has no
+complement (`~` on a union has no universe). A Tag with anything that is
+not a population keeps the language's own class union (`Wizard | None`).
+
+```python
+for c in Wizard | Fighter:            # sound in either, each once
+for b in Wizard & Fighter:            # sound in both
+for u in (Wizard[:] | Fighter[:]) - Sworn:   # anyone with a role who has not sworn
+```
+
+**A condition is read on the Agent by its name** (STEP-SPEC-14).
+`agent.Has_Book` is `True` while the promise called `Has_Book` holds and
+`False` when it does not: the language's boolean, computed on read, never
+stored, never callable. A Postcondition answers before a Precondition of
+the same name; a condition that raises reads `False`; a non-boolean is a
+Contract Failure on read, as always. Because the name is read on the
+Agent, a condition may not share its name with an Action, a Record, a
+member the host defines or a value the Agent already holds: the tagging
+is refused at the door with a Composition Failure, and so is an Action or
+a Record laid over a condition's name. Nothing is silently shadowed. A
+pinned Tag reads its own conditions the same way (`Wizard.Has_Members`).
+A condition that outlived its Tag (§0.7) still reads by name until the
+author ends it.
+
 Truthiness on a plain object is vacuously true, so this fills an empty
 seat. A host that defines its own `__bool__` or `__len__` keeps it until a
 Postcondition becomes visible on that Agent.
@@ -1247,6 +1283,10 @@ A conforming implementation provides, ring by ring:
   defective one, open again on membership or repair;
 - `@Pre` and `@Post` stacked on one function as one condition, spelled
   `@Requirement` in one word;
+- populations combined with `|`, `&` and `-` at every level, lazily, a
+  Tag in an operator seat meaning its sound population;
+- every condition read on the Agent by its name as a plain boolean, with
+  a condition's name refused to Actions, Records and host members;
 - Delete; the three access forms, with Agent-bound views as read-only
   snapshots requiring active membership.
 

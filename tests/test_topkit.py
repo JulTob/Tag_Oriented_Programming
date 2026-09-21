@@ -2481,6 +2481,57 @@ class ExitProtocolTests(unittest.TestCase):
 # ==================================================================
 
 
+class ScopeTests(unittest.TestCase):
+    """Scope Rips only what it applied, and everything it applied."""
+
+    def test_a_tag_the_agent_already_had_survives_the_scope(self) -> None:
+        class Wizard(Tag):
+            pass
+
+        ari = Agent()
+        Wizard(ari)
+
+        with Scope(ari, Wizard):
+            self.assertIn(ari, Wizard)
+
+        self.assertIn(ari, Wizard)                                    # it was Ari's, not the Scope's
+
+    def test_a_tag_whose_promise_broke_at_the_door_is_ripped_on_exit(self) -> None:
+        class Sworn(Tag):
+            @Post
+            def Has_Oath(agent):
+                return agent.oath is not None
+
+        bo = Agent()
+        bo.oath = None
+
+        with self.assertRaises(Postcondition.Has_Oath):
+            with Scope(bo, Sworn):
+                raise AssertionError("the body must not run")
+
+        self.assertNotIn(bo, Sworn)                                   # applied, defective, and Ripped on the way out
+        self.assertTrue(isinstance(bo, Sworn))                        # the history stays
+
+    def test_a_refused_gate_applies_nothing_and_rips_nothing(self) -> None:
+        class Gated(Tag):
+            @Pre
+            def Ready(agent):
+                return agent.ready
+
+        class Plain(Tag):
+            pass
+
+        cal = Agent()
+        cal.ready = False
+
+        with self.assertRaises(Precondition.Ready):
+            with Scope(cal, Plain, Gated):
+                pass
+
+        self.assertNotIn(cal, Plain)                                  # Plain was the Scope's: gone
+        self.assertNotIn(cal, Gated)
+
+
 class AccessTests(unittest.TestCase):
     def test_views_by_name_and_by_class(self) -> None:
         ari = Agent()
@@ -2555,6 +2606,223 @@ class AccessTests(unittest.TestCase):
         self.assertEqual(Freehold.Form, "a hut")
         self.assertEqual(Freehold.Rip, "a tear")
         self.assertEqual(Form(Freehold), (Freehold,))
+
+
+class FieldAlgebraTests(unittest.TestCase):
+    """STEP-SPEC-13: populations combine. A Tag in an operator seat is its
+    sound population; `Tag[:]` is everyone; `~Tag` the defective ones."""
+
+    def setUp(self) -> None:
+        class Wizard(Tag):
+            pass
+
+        class Fighter(Tag):
+            @Post
+            def Fit(agent):
+                return agent.fit
+
+        self.Wizard, self.Fighter = Wizard, Fighter
+        self.ari, self.bo, self.cal = Agent(), Agent(), Agent()
+        self.bo.fit, self.cal.fit = True, False
+        Wizard(self.ari)
+        Wizard(self.bo)
+        Fighter(self.bo)
+
+        with self.assertRaises(Postcondition.Fit):
+            Fighter(self.cal)                                         # a defective Fighter
+
+    def test_union_of_sound_populations_in_application_order(self) -> None:
+        both = self.Wizard | self.Fighter
+
+        self.assertEqual(list(both), [self.ari, self.bo])             # cal is defective: not sound
+        self.assertEqual(len(both), 2)
+        self.assertTrue(both)
+        self.assertIn(self.bo, both)
+        self.assertNotIn(self.cal, both)
+        self.assertEqual(list(self.Fighter | self.Wizard), [self.bo, self.ari])
+
+    def test_union_of_whole_fields_includes_the_defective(self) -> None:
+        everyone = self.Wizard[:] | self.Fighter[:]
+
+        self.assertEqual(list(everyone), [self.ari, self.bo, self.cal])
+        self.assertIn(self.cal, everyone)
+
+    def test_intersection_and_difference(self) -> None:
+        self.assertEqual(list(self.Wizard & self.Fighter), [self.bo])
+        self.assertEqual(list(self.Wizard - self.Fighter), [self.ari])
+        self.assertEqual(list(self.Wizard[:] - self.Fighter[:]), [self.ari])
+        self.assertIn(self.ari, self.Wizard - self.Fighter)
+        self.assertNotIn(self.bo, self.Wizard - self.Fighter)
+
+    def test_levels_mix_and_the_defective_view_combines(self) -> None:
+        self.assertEqual(list(~self.Fighter | self.Wizard), [self.cal, self.ari, self.bo])
+        self.assertEqual(list(self.Wizard[:] & ~self.Fighter), [])
+        self.assertEqual(list(self.Fighter[:] - self.Wizard), [self.cal])
+
+    def test_a_combined_view_is_lazy(self) -> None:
+        both = self.Wizard | self.Fighter
+        dee = Agent()
+        self.Wizard(dee)                                              # joins after the view was made
+
+        self.assertIn(dee, both)
+        self.assertEqual(len(both), 3)
+
+        self.cal.fit = True                                           # repaired: sound now
+        self.assertIn(self.cal, both)
+
+    def test_a_tag_in_an_operator_seat_keeps_typing_unions(self) -> None:
+        self.assertEqual(repr(self.Wizard | self.Fighter), "<sound | sound Field>")
+        union = self.Wizard | None                                    # a typing union, untouched
+
+        self.assertIsNot(union, NotImplemented)
+        self.assertIn("Wizard", repr(union))
+
+        with self.assertRaises(TypeError):
+            self.Wizard & 3
+
+
+class ConditionMemberTests(unittest.TestCase):
+    """STEP-SPEC-14: a condition is read on the Agent by its name, as a
+    plain bool, computed on read. Nothing lands on the Agent."""
+
+    def test_a_condition_reads_as_a_bool_on_the_agent(self) -> None:
+        class Wizard(Tag):
+            @Post
+            def Has_Book(agent):
+                return agent.book is not None
+
+            @Pre
+            def Is_Awake(agent):
+                return agent.awake
+
+        ari = Agent()
+        ari.book, ari.awake = [], True
+        Wizard(ari)
+
+        self.assertIs(ari.Has_Book, True)
+        self.assertIs(ari.Is_Awake, True)
+        self.assertTrue(hasattr(ari, "Has_Book"))
+        self.assertNotIn("Has_Book", vars(ari))                       # computed on read, not stored
+
+        ari.book = None
+        self.assertIs(ari.Has_Book, False)
+        self.assertFalse(ari)
+        self.assertNotIn("Has_Book", Contract.Status(ari) and vars(ari))
+
+        with self.assertRaises(AttributeError):
+            ari.Has_Sword                                             # no such condition
+
+    def test_a_raising_condition_reads_false_and_a_non_bool_is_refused(self) -> None:
+        class Loud(Tag):
+            @Post
+            def Ready(agent):
+                assert agent.ready
+
+            @Post
+            def Count(agent):
+                return agent.count
+
+        ari = Agent()
+        ari.ready, ari.count = True, True
+        Loud(ari)
+        ari.ready = False
+        self.assertIs(ari.Ready, False)
+
+        ari.count = 0
+        with self.assertRaises(TagContractError):
+            ari.Count
+
+    def test_a_pinned_tags_condition_reads_on_the_tag(self) -> None:
+        class Wizard(Tag):
+            pass
+
+        @Pin
+        class Promised(Tag):
+            @Post
+            def Has_Members(tag):
+                return bool(tag[:])
+
+        with self.assertRaises(Postcondition.Has_Members):
+            Promised(Wizard)
+
+        self.assertIs(Wizard.Has_Members, False)
+        ari = Agent()                                                 # held: Fields are weak
+        Wizard(ari)
+        self.assertIs(Wizard.Has_Members, True)
+
+    def test_a_condition_cannot_share_a_name_with_an_action_or_record(self) -> None:
+        class Named(Tag):
+            @Post
+            def Has_Book(agent):
+                return True
+
+        class Clash_Record(Tag):
+            @Record
+            def Has_Book(agent):
+                return 1
+
+        class Clash_Action(Tag):
+            def Has_Book(agent):
+                return 1
+
+        ari = Agent()
+        Named(ari)
+
+        with self.assertRaises(TagCompositionError):
+            Clash_Record(ari)
+
+        with self.assertRaises(TagCompositionError):
+            Clash_Action(ari)
+
+        bo = Agent()
+        Clash_Record(bo)
+
+        with self.assertRaises(TagCompositionError):
+            Named(bo)                                                 # the other way round
+
+        self.assertNotIn(bo, Named)                                   # rolled back
+
+    def test_a_condition_cannot_share_a_name_with_the_host(self) -> None:
+        class Host:
+            def Has_Book(self):
+                return "host"
+
+        class Named(Tag):
+            @Post
+            def Has_Book(agent):
+                return True
+
+        with self.assertRaises(TagCompositionError):
+            Named(Host())
+
+        class Valued(Tag):
+            @Post
+            def book(agent):
+                return True
+
+        ari = Agent()
+        ari.book = []                                                 # a value the Agent holds
+
+        with self.assertRaises(TagCompositionError):
+            Valued(ari)
+
+        self.assertNotIn(ari, Valued)
+
+    def test_the_member_and_the_status_agree(self) -> None:
+        class Elf(Tag):
+            @Requirement
+            def Alive(agent):
+                return agent.alive
+
+        ari = Agent()
+        ari.alive = True
+        Elf(ari)
+        self.assertEqual(Contract.Status(ari), {"Alive": True})
+        self.assertIs(ari.Alive, True)
+
+        ari.alive = False
+        self.assertEqual(Contract.Status(ari), {"Alive": False})
+        self.assertIs(ari.Alive, False)
 
 
 class QueryTests(unittest.TestCase):

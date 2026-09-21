@@ -81,7 +81,8 @@ def _agent_getattr(
         agent: object,
         name: str,
         ) -> Any:
-    """Miss path only: Tag views by name, then the host's own __getattr__."""
+    """Miss path only: Tag views by name, then a condition by name as a
+    plain bool (STEP-SPEC-14), then the host's own __getattr__."""
 
     state = _state_of(agent)
 
@@ -100,6 +101,18 @@ def _agent_getattr(
                         tag,
                         state,
                         )
+
+        if state.postconditions or state.preconditions:
+            from .contracts import _condition_member
+
+            verdict = _condition_member(
+                    agent,
+                    state,
+                    name,
+                    )
+
+            if verdict is not None:
+                return verdict
 
     host_getattr = type(agent).__dict__.get("_TOPKIT_HOST_GETATTR")
 

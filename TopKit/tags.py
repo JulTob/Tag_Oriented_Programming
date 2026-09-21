@@ -37,6 +37,7 @@ from .declarations import _name_checks
 from .errors import TagCompositionError
 from .fields import _Field
 from .fields import _Partition
+from .fields import _population_of
 from .geometry import _form_of
 from .geometry import _is_tag
 from .lifecycle import _rip
@@ -162,6 +163,52 @@ class MetaTag(type):
             tag,
             ) -> _Partition:
         return ~tag._sound()
+
+    def __or__(
+            tag,
+            other: Any,
+            ) -> Any:
+        """``Wizard | Fighter``: the sound population of either. A Tag in an
+        operator seat is its sound population; anything that is not a
+        population keeps ``type``'s own meaning (``Wizard | None``)."""
+
+        if _population_of(other) is NotImplemented:
+            return super().__or__(other)
+
+        return tag._sound() | other
+
+    def __ror__(
+            tag,
+            other: Any,
+            ) -> Any:
+        if _population_of(other) is NotImplemented:
+            return super().__ror__(other)
+
+        return other | tag._sound()
+
+    def __and__(
+            tag,
+            other: Any,
+            ) -> Any:
+        return tag._sound() & other
+
+    def __rand__(
+            tag,
+            other: Any,
+            ) -> Any:
+        return other & tag._sound()
+
+    def __sub__(
+            tag,
+            other: Any,
+            ) -> Any:
+        return tag._sound() - other
+
+    def __rsub__(
+            tag,
+            other: Any,
+            ) -> Any:
+        return other - tag._sound()
 
     def __getitem__(
             tag,

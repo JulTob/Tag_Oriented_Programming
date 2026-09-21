@@ -35,12 +35,13 @@ python3 -m pip install --upgrade pip build twine
 Check before building:
 
 ```
-PYTHONPATH=. python3 -m unittest tests.test_topkit tests.test_examples
+PYTHONPATH=. python3 -m unittest discover -s tests -t .
 ```
 
-- The suite says `OK`.
-- Every runnable block of the Specification, the Guide and the Contracts
-  Guide runs clean.
+- The suite says `OK`. It runs the examples, every runnable block of the
+  Specification and the guides, and a short walk of the oracle.
+- The oracle at size passes: `PYTHONPATH=. python3 tests/oracle_topkit.py
+  --seeds 50 --steps 1200 --population 18`.
 - `CHANGELOG.md` has an entry for this version, and it is no longer
   marked unreleased.
 - `pyproject.toml`'s `version` matches that entry and is higher than the

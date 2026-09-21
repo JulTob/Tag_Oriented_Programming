@@ -258,6 +258,16 @@ def _install(
     for name in declarations.deletions:
         _delete(state, name)
 
+    for name, _function in (
+            *declarations.preconditions,
+            *declarations.postconditions,
+            ):
+        _refuse_condition_collision(
+                state,
+                tag,
+                name,
+                )
+
     for name, function in declarations.preconditions:
         prior = state.preconditions.get(name)
         state.preconditions[name] = _stamp(
@@ -592,12 +602,76 @@ def _delete(
     state.deleted.add(name)
 
 
+def _refuse_condition_collision(
+        state: _State,
+        tag: type,
+        name: str,
+        ) -> None:
+    """A condition is read on the Agent by its name (STEP-SPEC-14), so the
+    name may not also be an Action, a Record, or a member the host
+    defines: the real member would shadow the condition in silence."""
+
+    taken = None
+
+    if name in state.actions:
+        taken = "an Action"
+    elif name in state.records:
+        taken = "a Record"
+    elif (
+            state.pinned is None
+            and _host_declares(state.host_type, name)
+            ):
+        taken = f"a member of the host {state.host_type.__name__}"
+
+    if taken is not None:
+        raise TagCompositionError(
+                f"{tag.__name__}.{name} is a condition, but {name!r} is"
+                f" already {taken} on this Agent; a condition is read by its"
+                " name and cannot share it"
+                )
+
+
+def _refuse_member_over_condition(
+        state: _State,
+        tag: type,
+        name: str,
+        kind: str,
+        ) -> None:
+    if name in state.preconditions or name in state.postconditions:
+        raise TagCompositionError(
+                f"{tag.__name__}.{name} is {kind}, but {name!r} is already a"
+                " condition on this Agent; a condition is read by its name"
+                " and cannot share it"
+                )
+
+
+def _host_declares(
+        host_type: type,
+        name: str,
+        ) -> bool:
+    for klass in host_type.__mro__:
+        if klass is object:
+            break
+
+        if name in klass.__dict__:
+            return True
+
+    return False
+
+
 def _install_action(
         state: _State,
         tag: type,
         name: str,
         function: Function,
         ) -> None:
+    _refuse_member_over_condition(
+            state,
+            tag,
+            name,
+            "an Action",
+            )
+
     if state.pinned is not None:
         _refuse_tag_member(
                 state,
@@ -660,6 +734,13 @@ def _install_record(
         name: str,
         builder: Function,
         ) -> None:
+    _refuse_member_over_condition(
+            state,
+            tag,
+            name,
+            "a Record",
+            )
+
     if state.pinned is not None:
         _refuse_tag_member(
                 state,

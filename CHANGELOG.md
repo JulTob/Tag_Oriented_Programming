@@ -6,6 +6,35 @@
 
 - STEP-SPEC-12 **Cleared** by the Director on 2026-09-21: conditions are
   sticky; the author ends them. Deployed with the merge that carried it.
+- **Field algebra** (STEP-SPEC-13, §2.5): `Wizard | Fighter`, `Wizard &
+  Fighter`, `Wizard - Sworn`, on whole Fields, sound views and defective
+  views alike, lazily and in application order. A Tag in an operator seat
+  is its sound population. Back from the 0.2-alpha line, reviewed and
+  accepted by the Director.
+- **A condition is read on the Agent by its name** (STEP-SPEC-14, §2.5):
+  `agent.Has_Book` is a plain boolean computed on read, never stored,
+  never a proxy. A condition's name is refused to Actions, Records, host
+  members and values the Agent already holds. Back from the 0.2-alpha
+  line in the form the Director chose.
+- **Scope Rips what it applied, and only that** (§0.7): a Tag the Agent
+  already carried survives a Scope; a Tag that broke its promise at the
+  Scope's door is Ripped on exit. Both found by the oracle.
+- STEP-SPEC-15 (Trials, the recoverable phase the archived checkpoints
+  were) and STEP-SPEC-16 (uniform access) opened at Brief with the full
+  case for the Director's review.
+
+### TopKit
+
+- The **oracle**: `tests/oracle_topkit.py`, an independent model of the
+  paradigm checked against the kit after every transition of a random
+  walk (60,000 transitions at the audited size), ported from the
+  0.2-alpha line and extended with sticky conditions, published members,
+  condition members, Field algebra and Pins. A short walk runs under the
+  suite.
+- **The Fields Guide** (`TopKit/FIELDS.md`): populations, partitions and
+  the algebra, with the battle loop, the roster of the missing, the
+  repair queue across roles and a gate that reads a population.
+- The three document smoke runners are now `tests/test_documents.py`.
 
 ### Project
 

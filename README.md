@@ -66,7 +66,8 @@ patterns Pins and published members give you.
 | [`TopKit/GUIDE.md`](TopKit/GUIDE.md) | **The Guide**: TOP for people, pattern by pattern. Start here. | Apache-2.0 |
 | [`TopKit/`](TopKit/) | **TopKit**, the Python reference implementation (the T is the Tag in T.O.P.). | Apache-2.0 |
 | [`TopKit/CONTRACTS.md`](TopKit/CONTRACTS.md) | **The Contracts Guide**: gates, promises, membership and error control, aboard a starship. | Apache-2.0 |
-| [`tests/`](tests/) | The conformance suite, organized by ring. | Apache-2.0 |
+| [`TopKit/FIELDS.md`](TopKit/FIELDS.md) | **The Fields Guide**: populations, partitions and the algebra between them. | Apache-2.0 |
+| [`tests/`](tests/) | The conformance suite, the examples and every document block, and the oracle: an independent model of the paradigm checked against the kit on a random walk. | Apache-2.0 |
 | [`examples/`](examples/) | A D&D character sheet, a mix-and-match biome, a drone fleet patched through Pins, a starship crew under published members. Each is a set of design patterns. | Apache-2.0 |
 | [`benchmarks/`](benchmarks/) | The runtime budget: reads, calls, tagging, memory. | Apache-2.0 |
 | [`steps/`](steps/) | **STEP**s, Standard TOP Enhancement Proposals. | CC-BY-4.0 |
@@ -80,7 +81,7 @@ to fix, not a change to TOP.
 
 ```
 pip install .                         # or: PYTHONPATH=. python3 ...
-PYTHONPATH=. python3 -m unittest tests.test_topkit tests.test_examples
+PYTHONPATH=. python3 -m unittest discover -s tests -t .
 PYTHONPATH=. python3 benchmarks/bench.py
 ```
 
