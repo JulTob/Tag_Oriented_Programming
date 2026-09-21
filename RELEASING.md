@@ -1,41 +1,71 @@
 # Releasing TopKit
 
-TopKit is published to PyPI as **`topkit`**. The name is free and
-unclaimed; the first upload is what reserves it. Only the Director holds
-the PyPI account and the token, so the steps below are written to be run
-by the Director and by nobody else.
+TopKit is published to PyPI as **`topkit`**:
+https://pypi.org/project/topkit/. The name was claimed with `0.2.0a3` on
+2026-09-21. Only the Director holds the PyPI account and its tokens, so
+the steps below are written to be run by the Director and by nobody
+else.
 
-## Reserving the name
+## Once: the account and the token
 
-One upload of the current alpha claims `topkit` for the project. An
-alpha is a real release, so PyPI will not hand the name to anyone else
-afterwards.
+1. Register at https://pypi.org/account/register/ and confirm the email.
+2. Turn on two-factor authentication under Account settings. PyPI
+   refuses uploads without it.
+3. Make a token under Account settings, API tokens. Now that the project
+   exists, scope it to **`topkit`** only. PyPI shows the token once.
+
+Keep the token where no chat, file or repository will ever see it. A
+token that has been pasted anywhere is spent: revoke it and make a new
+one. Nothing in this repository stores a token, and nothing should.
+
+## Every release
+
+Work in a fresh clone of `main` and a virtual environment. Homebrew and
+distribution Pythons refuse system-wide installs, and the clone keeps
+stray files out of the distribution.
 
 ```
-python3 -m pip install --upgrade build twine
-python3 -m build                    # writes dist/
-python3 -m twine check dist/*       # metadata must PASS
-python3 -m twine upload dist/*      # asks for the API token
+git clone https://github.com/JulTob/Tag_Oriented_Programming.git topkit-release
+cd topkit-release
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install --upgrade pip build twine
 ```
 
-The token is a PyPI **project-scoped API token** once the project exists;
-the very first upload needs an account-scoped one. Nothing in this
-repository stores it, and nothing should.
+Check before building:
 
-Publishing is irreversible in the way that matters: a version number can
-be yanked but never reused. Upload the alpha only when the branch is the
-one you mean to publish.
+```
+PYTHONPATH=. python3 -m unittest tests.test_topkit tests.test_examples
+```
 
-## Before any upload
-
-- `PYTHONPATH=. python3 -m unittest tests.test_topkit tests.test_examples` passes.
+- The suite says `OK`.
 - Every runnable block of the Specification, the Guide and the Contracts
   Guide runs clean.
-- `CHANGELOG.md` has an entry for this version.
-- `pyproject.toml`'s `version` matches that entry.
+- `CHANGELOG.md` has an entry for this version, and it is no longer
+  marked unreleased.
+- `pyproject.toml`'s `version` matches that entry and is higher than the
+  last one on PyPI.
+
+Build, check, upload:
+
+```
+python3 -m build                    # writes dist/
+python3 -m twine check dist/*       # both files must say PASSED
+TWINE_USERNAME=__token__ TWINE_PASSWORD='<the token>' python3 -m twine upload dist/*
+```
+
+Twine prints the release page when it succeeds. Then `deactivate`, and
+the clone can be deleted.
+
+## What cannot be undone
+
+A version number, once uploaded, can be yanked but never reused. Bump
+`version` in `pyproject.toml` before any further upload; a second upload
+of the same number is refused.
 
 ## Version numbers
 
 `0.2.0aN` while the Specification is still moving. The version rises
 when a STEP is Deployed, not when the code changes: the kit tracks the
-paradigm, not the other way round.
+paradigm, not the other way round. An alpha is not installed by a plain
+`pip install topkit`; users who want it say `pip install --pre topkit`.
