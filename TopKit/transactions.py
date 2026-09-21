@@ -7,8 +7,9 @@ Once for the whole call:
 
 For each Tag in the Form (Bases first), in order:
 
-    2. Its Records are built (each may read the value already stored).
-    3. Commit: membership, Overlay, runtime type.
+    2. Its Records are built (each may read the value already stored);
+       the key its Index components form is checked (STEP-SPEC-17).
+    3. Commit: membership, Overlay, runtime type, the key.
     4. Its Imprints run.
 
 Once for the whole call:
@@ -28,6 +29,7 @@ import warnings
 
 from .contracts import _evaluate
 from .declarations import _Declarations
+from .declarations import _MISSING
 from .declarations import _declarations_of
 from .declarations import _protocol_inputs
 from .errors import TagCompositionError
@@ -36,6 +38,7 @@ from .errors import TagImprintError
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
 from .geometry import _form_of
+from .indexes import _check_key
 from .overlay import _install
 from .overlay import _materialize
 from .state import STATE
@@ -207,6 +210,12 @@ def _apply_one(
             tag,
             declarations,
             )
+    _refuse_index_shadowed_by_the_agent(
+            agent,
+            state,
+            tag,
+            declarations,
+            )
     state.composing += 1
 
     try:
@@ -223,12 +232,19 @@ def _apply_one(
                 inputs,
                 )
 
+        key = _key_for(
+                agent,
+                tag,
+                declarations,
+                )
+
         _commit(
                 agent,
                 state,
                 deleted_before,
                 tag,
                 declarations,
+                key,
                 )
 
         try:
@@ -276,6 +292,60 @@ def _refuse_conditions_shadowed_by_the_agent(
                     )
 
 
+def _refuse_index_shadowed_by_the_agent(
+        agent: object,
+        state: _State,
+        tag: type,
+        declarations: Any,
+        ) -> None:
+    """An Index component is constant and unique (STEP-SPEC-17). A value
+    the Agent already holds under that name, from the host or from
+    anywhere else, cannot become the key in silence. The Tag's own sticky
+    value, left by a Rip, is the one exception: the Tag takes it back."""
+
+    if not declarations.indexes:
+        return
+
+    namespace = _namespace_of(agent) or {}
+
+    for name in declarations.indexes:
+        if (
+                name in namespace
+                and name != STATE
+                and state.indexes.get(name) is not tag
+                ):
+            raise TagCompositionError(
+                    f"{tag.__name__}.{name} is an Index component, but"
+                    f" {_name_of(agent)} already holds a value called"
+                    f" {name!r}; a key needs a free name"
+                    )
+
+
+def _key_for(
+        agent: object,
+        tag: type,
+        declarations: Any,
+        ) -> Any:
+    """The whole key this Tag's Index components built, checked, or
+    ``_MISSING`` when the Tag declares none."""
+
+    if not declarations.indexes:
+        return _MISSING
+
+    namespace = _namespace_of(agent)
+    key = tuple(
+            namespace[name]
+            for name in declarations.indexes
+            )
+    _check_key(
+            tag,
+            key,
+            declarations.indexes,
+            )
+
+    return key
+
+
 def _inspect(
         agent: object,
         ) -> None:
@@ -302,6 +372,7 @@ def _commit(
         deleted_before: set[str],
         tag: type,
         declarations: _Declarations,
+        key: Any = _MISSING,
         ) -> None:
     namespace = _namespace_of(agent)
 
@@ -350,7 +421,10 @@ def _commit(
                     f"{type(agent).__name__} cannot be actualized in place"
                     ) from error
 
-    tag._topkit_field.Add(agent)
+    tag._topkit_field.Add(
+            agent,
+            key,
+            )
 
     if state.pinned is not None and declarations.published:
         _publish_to_field(
@@ -447,7 +521,8 @@ def _needs_new_type(
         declarations: _Declarations,
         ) -> bool:
     """Only type-level facts change the runtime type: the first tagging,
-    deletions, secrets, published Reports, dunder Actions, a first Post."""
+    deletions, secrets, published Reports, Index components, dunder
+    Actions, a first Post."""
 
     if not isinstance(agent, Tagged):
         return True
@@ -455,6 +530,7 @@ def _needs_new_type(
     return bool(
             declarations.deletions
             or declarations.secrets
+            or declarations.indexes
             or declarations.dunders
             or declarations.postconditions
             or any(public for _name, _value, public in declarations.reports)

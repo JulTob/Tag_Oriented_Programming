@@ -66,6 +66,9 @@ class DocumentTests(unittest.TestCase):
     def test_the_fields_guide(self) -> None:
         self.assertGreater(Run_Blocks(ROOT / "TopKit" / "FIELDS.md"), 8)
 
+    def test_the_index_guide(self) -> None:
+        self.assertGreater(Run_Blocks(ROOT / "TopKit" / "INDEX.md"), 12)
+
 
 if __name__ == "__main__":
     unittest.main()

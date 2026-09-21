@@ -256,6 +256,12 @@ def _install(
                 )
 
     for name in declarations.deletions:
+        _refuse_over_index(
+                state,
+                tag,
+                name,
+                "@Delete",
+                )
         _delete(state, name)
 
     for name, _function in (
@@ -329,12 +335,19 @@ def _install(
                 )
 
     for name, builder in declarations.records:
-        _install_record(
-                state,
-                tag,
-                name,
-                builder,
-                )
+        if name in declarations.indexes:
+            _install_index(
+                    state,
+                    tag,
+                    name,
+                    )
+        else:
+            _install_record(
+                    state,
+                    tag,
+                    name,
+                    builder,
+                    )
 
     state.secrets.update(declarations.secrets)
 
@@ -671,6 +684,12 @@ def _install_action(
             name,
             "an Action",
             )
+    _refuse_over_index(
+            state,
+            tag,
+            name,
+            "an Action",
+            )
 
     if state.pinned is not None:
         _refuse_tag_member(
@@ -740,6 +759,12 @@ def _install_record(
             name,
             "a Record",
             )
+    _refuse_over_index(
+            state,
+            tag,
+            name,
+            "a Record",
+            )
 
     if state.pinned is not None:
         _refuse_tag_member(
@@ -784,6 +809,77 @@ def _install_record(
                 )
 
     state.records[name] = tag
+    state.deleted.discard(name)
+    state.published.discard(name)
+
+
+def _refuse_over_index(
+        state: _State,
+        tag: type,
+        name: str,
+        kind: str,
+        ) -> None:
+    """An Index component is constant (STEP-SPEC-17): no later
+    contribution, of any kind, may take its name on the Agent."""
+
+    owner = state.indexes.get(name)
+
+    if owner is None:
+        return
+
+    raise TagCompositionError(
+            f"{tag.__name__}.{name} is {kind}, but {name!r} is an Index"
+            f" component of {owner.__name__} on this Agent; an Index is"
+            " constant, and its name stays taken"
+            )
+
+
+def _install_index(
+        state: _State,
+        tag: type,
+        name: str,
+        ) -> None:
+    """An Index component needs a free name (STEP-SPEC-17): not a
+    condition, not a host member, not another Tag's Record or Action. The
+    same Tag applying again after a Rip finds its own name and takes it
+    back."""
+
+    _refuse_member_over_condition(
+            state,
+            tag,
+            name,
+            "an Index component",
+            )
+
+    owner = state.indexes.get(name)
+
+    if owner is not None and owner is not tag:
+        raise TagCompositionError(
+                f"{tag.__name__}.{name} is an Index component, but {name!r}"
+                f" is already an Index component of {owner.__name__} on this"
+                " Agent; an Index is constant, and its name stays taken"
+                )
+
+    taken = None
+
+    if name in state.action_origins:
+        taken = f"an Action of {state.action_origins[name].__name__}"
+    elif name in state.records and state.records[name] is not tag:
+        taken = f"a Record of {state.records[name].__name__}"
+    elif (
+            state.pinned is None
+            and _host_declares(state.host_type, name)
+            ):
+        taken = f"a member of the host {state.host_type.__name__}"
+
+    if taken is not None:
+        raise TagCompositionError(
+                f"{tag.__name__}.{name} is an Index component, but {name!r}"
+                f" is already {taken} on this Agent; a key needs a free name"
+                )
+
+    state.records[name] = tag
+    state.indexes[name] = tag
     state.deleted.discard(name)
     state.published.discard(name)
 

@@ -5,6 +5,7 @@ from .declarations import Action
 from .declarations import Delete
 from .declarations import Flag
 from .declarations import Imprint
+from .declarations import Index
 from .declarations import Operation
 from .declarations import Pin
 from .declarations import Post
@@ -50,6 +51,7 @@ __all__ = [
         "Form",
         "Keyword",
         "Imprint",
+        "Index",
         "Operation",
         "Outline",
         "Pin",

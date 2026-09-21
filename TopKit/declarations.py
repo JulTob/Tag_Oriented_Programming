@@ -1,6 +1,7 @@
 """Declarations: the marks an author puts on a Tag, and how they are read.
 
 Agent scope:  @Action, @Record          (external by default, @Secret hides)
+              @Index                    (a Record that is a component of the Tag's key)
 Tag scope:    @Operation, @Report     (internal by default, @Public publishes)
 Protocols:    @Imprint, @Pre, @Post, @Rip, @Delete
 Composition:  @Underlay                 (extend the prior visible contribution)
@@ -515,6 +516,98 @@ class Report:
         return f"<Report {report._name}>"
 
 
+class Index:
+    """A component of the Tag's key (STEP-SPEC-17): a Record whose value is
+    a coordinate of the Field::
+
+        class Signal(Tag):
+
+            @Index
+            def t(agent, *, t):
+                return t
+
+    The builder runs at tagging like any Record and its value is stored on
+    the Agent, where it is constant: writes and deletes are refused. The
+    whole key, every component in declaration order, is unique across the
+    Tag's Field, and orders it. Read on the Tag, ``Signal.t`` is the
+    handle: the values of that component, and the seat ``Signal.t[...]``
+    for lookups and ranges. One Index per Form, declared in one Tag.
+    """
+
+    def __init__(
+            index,
+            builder: Function,
+            ) -> None:
+        if isinstance(builder, Index):
+            raise TagDeclarationError(
+                    f"{builder._name}: @Index is already on it"
+                    )
+
+        if isinstance(builder, Report):
+            raise TagDeclarationError(
+                    f"{builder._name}: an Index is a Record of the Agent,"
+                    " never a Report of the Tag"
+                    )
+
+        if not callable(builder):
+            raise TagDeclarationError(
+                    "@Index marks a builder:"
+                    " `@Index def name(agent, *, name): ...`"
+                    )
+
+        kind = _kind_of(builder)
+
+        if kind not in (None, "record"):
+            raise TagDeclarationError(
+                    f"{builder.__qualname__}: @Index marks a Record, not"
+                    f" {kind}"
+                    )
+
+        _mark(
+                builder,
+                "record",
+                )
+        index.builder = builder
+        index.__name__ = builder.__name__
+        index.__doc__ = builder.__doc__
+        index._name = builder.__name__
+
+    @property
+    def __func__(
+            index,
+            ) -> Function:
+        """The builder, so the marks and flags read and write through."""
+
+        return index.builder
+
+    def __set_name__(
+            index,
+            owner: type,
+            name: str,
+            ) -> None:
+        index._name = name
+
+    def __get__(
+            index,
+            instance: object,
+            owner: type | None = None,
+            ) -> Any:
+        if owner is None:
+            owner = type(instance)
+
+        from .indexes import _handle_of
+
+        return _handle_of(
+                owner,
+                index._name,
+                )
+
+    def __repr__(
+            index,
+            ) -> str:
+        return f"<Index {index._name}>"
+
+
 # ------------------------------------------------------------------
 # Scanning a Tag class
 # ------------------------------------------------------------------
@@ -534,6 +627,7 @@ class _Declarations:
     rips: tuple[str, ...]
     dunders: frozenset[str]
     published: frozenset[str]   # Agent-scope members marked @Public (Pins)
+    indexes: tuple[str, ...]    # the key's components, in declaration order
 
 
 _scan_cache: "WeakKeyDictionary[type, _Declarations]" = WeakKeyDictionary()
@@ -652,6 +746,7 @@ def _scan(
     rips: list[str] = []
     dunders: set[str] = set()
     published: set[str] = set()
+    indexes: list[str] = []
     managed = tag.__dict__.get(STATE)   # names a Pin landed here
 
     if managed is not None:
@@ -682,6 +777,21 @@ def _scan(
                         attribute.public,
                         )
                     )
+            continue
+
+        if isinstance(attribute, Index):
+            _validate_index(
+                    tag,
+                    name,
+                    attribute,
+                    )
+            records.append(
+                    (
+                        name,
+                        attribute.builder,
+                        )
+                    )
+            indexes.append(name)
             continue
 
         kind = _kind_of(attribute)
@@ -791,6 +901,7 @@ def _scan(
             rips=tuple(rips),
             dunders=frozenset(dunders),
             published=frozenset(published),
+            indexes=tuple(indexes),
             )
 
     if _is_pin(tag):
@@ -800,6 +911,36 @@ def _scan(
                 )
 
     return declarations
+
+
+def _validate_index(
+        tag: type,
+        name: str,
+        index: Index,
+        ) -> None:
+    """An Index component is a plain Record of the Agent: no stored seat
+    (a key is a coordinate, never a pile), not secret (it is read on the
+    Agent and on the Tag), and never on a Pin (a Pin's Field is a
+    population of Tags; ordering Tags by a key is a later STEP)."""
+
+    if _takes_stored(index.builder):
+        raise TagDeclarationError(
+                f"{tag.__name__}.{name}: an Index has no stored seat; a key"
+                " is a coordinate, not a pile. Take the inputs by name after"
+                f" a `*`: `def {name}(agent, *, {name})`"
+                )
+
+    if _has_flag(index.builder, _SECRET):
+        raise TagDeclarationError(
+                f"{tag.__name__}.{name}: an Index cannot be @Secret; it is"
+                " read on the Agent and, as a handle, on the Tag"
+                )
+
+    if _is_pin(tag):
+        raise TagDeclarationError(
+                f"{tag.__name__}.{name}: a Pin's Field is a population of"
+                " Tags; an Index on a Pin is not defined yet (STEP-SPEC-17)"
+                )
 
 
 def _emit_published_pins(

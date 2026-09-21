@@ -64,6 +64,7 @@ class _State:
     rips: dict[type, tuple[Function, ...]] = field(default_factory=dict)
     secret_values: dict[str, Any] = field(default_factory=dict)   # a pinned Tag's @Secret members
     originals: dict[str, Any] = field(default_factory=dict)       # what a Pin patched, as declared
+    indexes: dict[str, type] = field(default_factory=dict)        # Index components, and the Tag that declares them
     composing: int = 0
     checking: bool = False
 
@@ -89,6 +90,7 @@ class _State:
                 rips=dict(state.rips),
                 secret_values=dict(state.secret_values),
                 originals=dict(state.originals),
+                indexes=dict(state.indexes),
                 composing=state.composing,
                 checking=state.checking,
                 )
@@ -751,6 +753,47 @@ class _Published:
                 )
 
 
+class _Constant:
+    """An Index component (STEP-SPEC-17): constant on the Agent.
+
+    The value lives in the Agent's dictionary, where the kernel writes it
+    at tagging. The gate refuses writes and deletes and has no ``__get__``
+    on purpose: a data descriptor without one lets a read fall through to
+    the dictionary at the language's own speed, so reading a key costs
+    what reading a Record costs. The value is always there while the gate
+    is, because nothing can remove it. It stays after Rip: the value is
+    sticky, and so is the law on it.
+    """
+
+    __slots__ = ("name",)
+
+    def __init__(
+            gate,
+            name: str,
+            ) -> None:
+        gate.name = name
+
+    def __set__(
+            gate,
+            agent: object,
+            value: Any,
+            ) -> None:
+        raise AttributeError(
+                f"{gate.name!r} is an Index component of"
+                f" {type(agent).__name__}; it is constant. Rip the Tag and"
+                " apply it again to give the Agent another key"
+                )
+
+    def __delete__(
+            gate,
+            agent: object,
+            ) -> None:
+        raise AttributeError(
+                f"{gate.name!r} is an Index component of"
+                f" {type(agent).__name__}; it cannot be deleted"
+                )
+
+
 # ------------------------------------------------------------------
 # Runtime types
 # ------------------------------------------------------------------
@@ -783,6 +826,7 @@ def _type_key_of(
             frozenset(state.deleted),
             frozenset(state.secrets),
             frozenset(state.published),
+            frozenset(state.indexes),
             bool(state.postconditions),
             any(_is_flag(tag) for tag in state.active),
             tuple(
@@ -813,8 +857,9 @@ def _runtime_type_for(
     deleted = key[1]
     secrets = key[2]
     published = key[3]
-    has_posts = key[4]
-    has_flags = key[5]
+    indexes = key[4]
+    has_posts = key[5]
+    has_flags = key[6]
 
     namespace: dict[str, Any] = _hooks_for(
             host_type,
@@ -835,6 +880,9 @@ def _runtime_type_for(
 
         for name in published:
             namespace[name] = _Published(name)
+
+        for name in indexes:
+            namespace[name] = _Constant(name)
 
     if issubclass(host_type, Tagged):
         bases: tuple[type, ...] = (host_type,)

@@ -10,7 +10,9 @@ Ring 4  Access and queries.
 from __future__ import annotations
 
 import copy
+import dataclasses
 import gc
+import random
 import unittest
 import warnings
 import weakref
@@ -24,6 +26,7 @@ from TopKit import Flag
 from TopKit import Form
 from TopKit import Keyword
 from TopKit import Imprint
+from TopKit import Index
 from TopKit import Operation
 from TopKit import Outline
 from TopKit import Pin
@@ -883,6 +886,292 @@ class RecordTests(unittest.TestCase):
 
         self.assertEqual(ari.strike, 4)
         self.assertEqual(ari.Combatant_.strike(), 1)
+
+
+class IndexTests(unittest.TestCase):
+    """STEP-SPEC-17: a Record marked @Index is a component of the Tag's
+    key: constant on the Agent, unique as a whole across the Field, one
+    Index per Form, declared in one Tag."""
+
+    def setUp(self) -> None:
+        class Sample:
+            def __init__(
+                    sample,
+                    value: int = 0,
+                    ) -> None:
+                sample.value = value
+
+        class Signal(Tag):
+            @Index
+            def t(agent, *, t):
+                return t
+
+        class Ledger(Tag):
+            @Index
+            def page(agent, *, page):
+                return page
+
+            @Index
+            def line(agent, *, line):
+                return line
+
+        self.Sample, self.Signal, self.Ledger = Sample, Signal, Ledger
+
+    def test_an_index_is_a_record_on_the_agent_and_a_handle_on_the_tag(self) -> None:
+        x = self.Sample()
+        self.Signal(x, t=5)
+
+        self.assertEqual(x.t, 5)
+        self.assertEqual(vars(x)["t"], 5)                             # a plain value in the dictionary
+        self.assertIs(self.Signal.t[5], x)                            # the same name, Tag scope
+        self.assertEqual(repr(self.Signal.t), "<Signal.t>")
+        self.assertEqual(self.Signal[x].t, 5)                         # the Agent-bound view keeps it
+
+    def test_an_index_is_constant_on_the_agent(self) -> None:
+        x = self.Sample()
+        self.Signal(x, t=5)
+
+        with self.assertRaises(AttributeError):
+            x.t = 6
+
+        with self.assertRaises(AttributeError):
+            del x.t
+
+        self.assertEqual(x.t, 5)
+        self.assertIs(self.Signal.t[5], x)
+
+    def test_the_whole_key_is_unique_and_a_duplicate_rolls_the_call_back(self) -> None:
+        x, y = self.Sample(), self.Sample()
+        self.Signal(x, t=1)
+
+        with self.assertRaises(TagCompositionError):
+            self.Signal(y, t=1)
+
+        self.assertNotIn(y, self.Signal[:])
+        self.assertFalse(isinstance(y, self.Signal))                  # never a member: rolled back
+        self.assertFalse(hasattr(y, "t"))
+        self.assertIs(self.Signal.t[1], x)
+
+    def test_a_composite_key_is_unique_as_a_whole(self) -> None:
+        a, b, c = self.Sample(), self.Sample(), self.Sample()
+        self.Ledger(a, page=1, line=1)
+        self.Ledger(b, page=1, line=2)                                # the same page: allowed
+
+        with self.assertRaises(TagCompositionError):
+            self.Ledger(c, page=1, line=1)
+
+        self.assertIs(self.Ledger.page[1].line[2], b)
+        self.assertEqual(list(self.Ledger.page[1]), [a, b])
+
+    def test_a_key_is_hashable_and_comparable_with_the_keys_present(self) -> None:
+        x = self.Sample()
+        self.Signal(x, t=1)
+
+        with self.assertRaises(TagCompositionError):
+            self.Signal(self.Sample(), t=[2])                         # not hashable
+
+        with self.assertRaises(TagCompositionError):
+            self.Signal(self.Sample(), t="two")                       # not comparable with 1
+
+        self.assertEqual(list(self.Signal.t), [1])
+
+    def test_a_rolled_back_call_releases_the_key(self) -> None:
+        class Broken(self.Signal):
+            @Record
+            def boom(agent):
+                raise RuntimeError("no")
+
+        x = self.Sample()
+
+        with self.assertRaises(TagCompositionError):
+            Broken(x, t=7)                                            # Signal built the key, Broken failed
+
+        self.assertNotIn(7, self.Signal.t)
+        self.assertNotIn(x, self.Signal[:])
+        self.assertFalse(hasattr(x, "t"))
+
+        y = self.Sample()
+        self.Signal(y, t=7)                                           # the key is free again
+        self.assertIs(self.Signal.t[7], y)
+
+    def test_one_index_per_form_declared_in_one_tag(self) -> None:
+        with self.assertRaises(TagDeclarationError):
+            class Widened(self.Signal):
+                @Index
+                def channel(agent, *, channel):
+                    return channel
+
+        with self.assertRaises(TagDeclarationError):
+            class Both(self.Signal, self.Ledger):
+                pass
+
+        class Alarm(self.Signal):                                     # a Shape inherits the key
+            pass
+
+        x = self.Sample()
+        Alarm(x, t=3)
+
+        self.assertIs(Alarm.t[3], x)
+        self.assertIs(self.Signal.t[3], x)
+
+    def test_declaration_failures(self) -> None:
+        class Piled(Tag):
+            @Index
+            def t(agent, stored):                                     # a key has no stored seat
+                return 1
+
+        class Hidden(Tag):
+            @Secret
+            @Index
+            def t(agent):
+                return 1
+
+        for tag in (Piled, Hidden):
+            with self.assertRaises(TagDeclarationError):
+                tag(self.Sample())                                    # found at class use
+
+        with self.assertRaises(TagDeclarationError):
+            Index(Report(lambda tag: 1))                              # a Report is not a Record
+
+        with self.assertRaises(TagDeclarationError):
+            Index(Pre(lambda agent: True))                            # nor a condition
+
+        with self.assertRaises(TagDeclarationError):
+            Index(Index(lambda agent, *, t: t))
+
+        with self.assertRaises(TagDeclarationError):
+            @Pin
+            class Ranked(Tag):
+                @Index
+                def rank(tag, *, rank):
+                    return rank
+
+    def test_an_index_name_must_be_free_and_stays_taken(self) -> None:
+        Sample, Signal = self.Sample, self.Signal
+
+        class Other(Tag):
+            @Record
+            def t(agent):
+                return 0
+
+        class Acts(Tag):
+            def t(agent):
+                return 0
+
+        class Deletes(Tag):
+            @Delete
+            def t(agent):
+                ...
+
+        class Checks(Tag):
+            @Pre
+            def t(agent):
+                return True
+
+        held = Sample()
+        held.t = 3                                                    # a value the host holds
+
+        with self.assertRaises(TagCompositionError):
+            Signal(held, t=1)
+
+        other = Sample()
+        Other(other)
+
+        with self.assertRaises(TagCompositionError):
+            Signal(other, t=1)                                        # another Tag's Record
+
+        x = Sample()
+        Signal(x, t=1)
+
+        for tag in (Other, Acts, Deletes, Checks):
+            with self.assertRaises(TagCompositionError):
+                tag(x)                                                # the name stays taken
+
+        self.assertEqual(x.t, 1)
+        self.assertEqual(Tags(x), (Signal,))
+
+    def test_a_pin_cannot_land_on_an_index_name(self) -> None:
+        @Pin
+        class Rare(Tag):
+            @Record
+            def t(tag):
+                return "rare"
+
+        with self.assertRaises(TagCompositionError):
+            Rare(self.Signal)                                         # an Agent-scope name of the Tag
+
+        self.assertNotIn(self.Signal, Rare)
+
+    def test_rip_releases_the_key_and_keeps_the_value_sticky(self) -> None:
+        x, y = self.Sample(), self.Sample()
+        self.Signal(x, t=1)
+        del self.Signal[x]
+
+        self.assertNotIn(1, self.Signal.t)
+        self.assertEqual(x.t, 1)                                      # sticky
+
+        with self.assertRaises(AttributeError):
+            x.t = 2                                                   # and still constant
+
+        self.Signal(y, t=1)                                           # another member takes the key
+        self.assertIs(self.Signal.t[1], y)
+
+        with self.assertRaises(TagCompositionError):
+            self.Signal(x, t=1)                                       # taken
+
+        self.Signal(x, t=2)                                           # a fresh tagging, a fresh key
+        self.assertEqual(x.t, 2)
+        self.assertIs(self.Signal.t[2], x)
+
+    def test_a_dead_agent_releases_its_key(self) -> None:
+        x = self.Sample()
+        self.Signal(x, t=1)
+        del x
+        gc.collect()
+
+        self.assertNotIn(1, self.Signal.t)
+        self.assertEqual(list(self.Signal.t[:]), [])
+
+        y = self.Sample()
+        self.Signal(y, t=1)
+        self.assertIs(self.Signal.t[1], y)
+
+    def test_counted_numeration(self) -> None:
+        class Event(Tag):
+            @Report
+            def next(tag):
+                return 0
+
+            @Index
+            def n(agent):                                             # read the counter
+                return Event.next
+
+            @Imprint
+            def Count(agent):                                         # bump it after commit
+                Event.next += 1
+
+            @Pre
+            def Sane(agent):
+                return agent.value >= 0
+
+        events = [self.Sample(v) for v in (1, 2, 3)]
+
+        for event in events:
+            Event(event)
+
+        self.assertEqual([e.n for e in events], [0, 1, 2])
+
+        with self.assertRaises(Precondition.Sane):
+            Event(self.Sample(-1))                                    # a refused gate consumes no number
+
+        self.assertEqual(Event.next, 3)
+
+        del Event[events[1]]
+        late = self.Sample(4)
+        Event(late)
+
+        self.assertEqual(list(Event.n), [0, 2, 3])                    # the gap stays: keys are coordinates
+        self.assertEqual(late.n, 3)
 
 
 class PublicationTests(unittest.TestCase):
@@ -2679,6 +2968,274 @@ class FieldAlgebraTests(unittest.TestCase):
 
         with self.assertRaises(TypeError):
             self.Wizard & 3
+
+
+class IndexHandleTests(unittest.TestCase):
+    """STEP-SPEC-17: `Tag.name` for an Index component is a handle: the
+    values of that component, and the seat for one component per bracket.
+    The whole key names one Agent, part of it a population. The Index has
+    one order; a handle constrains, never reorders."""
+
+    def setUp(self) -> None:
+        class Sample:
+            def __init__(
+                    sample,
+                    value: int = 0,
+                    ) -> None:
+                sample.value = value
+
+        class Signal(Tag):
+            @Index
+            def t(agent, *, t):
+                return t
+
+            @Index
+            def seq(agent, *, seq):
+                return seq
+
+            @Post
+            def Positive(agent):
+                return agent.value >= 0
+
+        class Alarm(Signal):
+            pass
+
+        class Acknowledged(Tag):
+            pass
+
+        self.Sample, self.Signal, self.Alarm, self.Acknowledged = Sample, Signal, Alarm, Acknowledged
+        self.at: dict[tuple[int, int], object] = {}
+
+        for t, seq in ((1, 1), (1, 2), (0, 1), (2, 1)):
+            self.at[t, seq] = Sample(10 * t + seq)
+            Signal(self.at[t, seq], t=t, seq=seq)
+
+        self.alarm = Sample(99)
+        Alarm(self.alarm, t=1, seq=3)
+        Acknowledged(self.at[1, 2])
+
+    def keys(
+            self,
+            population: object,
+            ) -> list[tuple[int, int]]:
+        return [(member.t, member.seq) for member in population]
+
+    def test_everyone_in_index_order_and_descending(self) -> None:
+        self.assertEqual(self.keys(self.Signal.t[:]), [(0, 1), (1, 1), (1, 2), (1, 3), (2, 1)])
+        self.assertEqual(self.keys(self.Signal.t[::-1]), [(2, 1), (1, 3), (1, 2), (1, 1), (0, 1)])
+        self.assertEqual(self.keys(self.Signal.seq[:]), self.keys(self.Signal.t[:]))     # one order
+        self.assertEqual(len(self.Signal.t[:]), 5)
+        self.assertTrue(self.Signal.t[:])
+        self.assertEqual(repr(self.Signal.t[1:2]), "<Signal.t[1:2] Field>")
+
+    def test_a_range_is_half_open_and_the_step_is_a_direction(self) -> None:
+        self.assertEqual(self.keys(self.Signal.t[1:2]), [(1, 1), (1, 2), (1, 3)])
+        self.assertEqual(self.keys(self.Signal.t[1:]), [(1, 1), (1, 2), (1, 3), (2, 1)])
+        self.assertEqual(self.keys(self.Signal.t[:1]), [(0, 1)])
+        self.assertEqual(self.keys(self.Signal.t[0:2:-1]), [(1, 3), (1, 2), (1, 1), (0, 1)])
+        self.assertEqual(self.keys(self.Signal.seq[1:2]), [(0, 1), (1, 1), (2, 1)])      # still by t, then seq
+        self.assertEqual(self.keys(self.Signal.t[0:2].seq[2:9]), [(1, 2), (1, 3)])
+
+        with self.assertRaises(TypeError):
+            self.Signal.t[::2]
+
+    def test_part_of_the_key_names_a_population_and_the_whole_key_one_agent(self) -> None:
+        self.assertEqual(self.keys(self.Signal.t[1]), [(1, 1), (1, 2), (1, 3)])
+        self.assertIs(self.Signal.t[1].seq[2], self.at[1, 2])
+        self.assertIs(self.Signal.seq[2].t[1], self.at[1, 2])                           # step order is free
+        self.assertIn(self.at[1, 1], self.Signal.t[1])
+        self.assertNotIn(self.at[2, 1], self.Signal.t[1])
+        self.assertNotIn(self.alarm, self.Signal.t[0:1])
+
+    def test_a_chain_is_an_intersection(self) -> None:
+        chained = self.keys(self.Signal.t[1].seq[1:3])
+        combined = self.keys(self.Signal.t[1] & self.Signal.seq[1:3])
+
+        self.assertEqual(chained, combined)
+        self.assertEqual(chained, [(1, 1), (1, 2)])
+
+    def test_a_handle_is_the_set_of_its_values(self) -> None:
+        self.assertEqual(list(self.Signal.t), [0, 1, 2])
+        self.assertEqual((min(self.Signal.t), max(self.Signal.t), len(self.Signal.t)), (0, 2, 3))
+        self.assertEqual(list(self.Signal.seq), [1, 2, 3])
+        self.assertEqual(list(self.Signal.t[1].seq), [1, 2, 3])
+        self.assertEqual(list(self.Signal.t[::-1].seq), [3, 2, 1])
+        self.assertIn(1, self.Signal.t)
+        self.assertNotIn(5, self.Signal.t)
+        self.assertIn(2, self.Signal.t[1].seq)
+        self.assertNotIn(9, self.Signal.t[1].seq)
+        self.assertNotIn([1], self.Signal.t[1].seq)                                     # unhashable: never a key
+        self.assertTrue(self.Signal.t)
+        self.assertFalse(self.Signal.t[7:9].seq)
+
+    def test_a_miss_fails_and_a_question_does_not(self) -> None:
+        with self.assertRaises(TagResolutionError):
+            self.Signal.t[1].seq[9]
+
+        with self.assertRaises(TagResolutionError):
+            self.Alarm.t[1].seq[1]                                                       # a Signal, not an Alarm
+
+        self.assertFalse(9 in self.Signal.t[1].seq)
+        self.assertFalse(self.Signal.t[9])                                               # a population, empty
+
+    def test_refusals(self) -> None:
+        with self.assertRaises(AttributeError):
+            self.Signal.t[1].t                                                           # each component once
+
+        with self.assertRaises(AttributeError):
+            self.Signal.t[1].value                                                       # not a component
+
+        with self.assertRaises(AttributeError):
+            (self.Signal.t[1] | self.Alarm.t[1]).seq                                     # a combined view has none
+
+        with self.assertRaises(TypeError):
+            self.Signal.t[1] = self.alarm
+
+        with self.assertRaises(TypeError):
+            del self.Signal.t[1]
+
+        with self.assertRaises(AttributeError):
+            self.Signal.t[1].anything = 1
+
+    def test_a_handle_walks_everyone_and_the_loop_asks_soundness(self) -> None:
+        broken = self.at[2, 1]
+        broken.value = -1                                                                # defective now
+
+        self.assertIs(self.Signal.t[2].seq[1], broken)
+        self.assertIn(broken, self.Signal.t[:])
+        self.assertNotIn(broken, list(self.Signal))
+        self.assertCountEqual([m for m in self.Signal.t[:] if m], list(self.Signal))     # sound only, by truth
+
+    def test_a_shape_reads_through_its_bases_key(self) -> None:
+        self.assertEqual(self.keys(self.Alarm.t[:]), [(1, 3)])
+        self.assertIs(self.Alarm.t[1].seq[3], self.alarm)
+        self.assertEqual(list(self.Alarm.t), [1])
+        self.assertIn(self.alarm, self.Signal.t[1])
+        self.assertIn(self.alarm, self.Alarm.t[1])
+        self.assertNotIn(self.at[1, 1], self.Alarm.t[1])
+
+    def test_a_view_is_alive_and_composes_with_the_algebra(self) -> None:
+        window = self.Signal.t[1:3]
+
+        self.assertEqual(self.keys(window - self.Acknowledged), [(1, 1), (1, 3), (2, 1)])
+        self.assertEqual(self.keys(window & self.Alarm), [(1, 3)])
+        self.assertEqual(self.keys(self.Alarm.t[:] | self.Signal.t[0]), [(1, 3), (0, 1)])
+
+        late = self.Sample()
+        self.Signal(late, t=2, seq=2)                                                    # joins after the view was made
+
+        self.assertIn(late, window)
+        self.assertEqual(self.keys(window)[-1], (2, 2))
+
+    def test_a_view_never_keeps_an_agent_alive(self) -> None:
+        x = self.Sample()
+        self.Signal(x, t=9, seq=9)
+        window = self.Signal.t[5:20]
+        reference = weakref.ref(x)
+
+        self.assertIn(x, window)
+        del x
+        gc.collect()
+
+        self.assertIsNone(reference())
+        self.assertEqual(list(window), [])
+        self.assertNotIn(9, self.Signal.t)
+
+    def test_a_key_type_carries_its_own_order(self) -> None:
+        @dataclasses.dataclass(order=True, frozen=True)
+        class DNI:
+            number: int
+            letter: str
+
+        class Citizen(Tag):
+            @Index
+            def dni(agent, *, dni):
+                return dni
+
+        people = [self.Sample(number) for number in (30, 12, 99)]
+
+        for person in people:
+            Citizen(person, dni=DNI(person.value, "X"))
+
+        self.assertEqual([c.value for c in Citizen.dni[:]], [12, 30, 99])
+        self.assertEqual([c.value for c in Citizen.dni[DNI(20, "A"):DNI(90, "A")]], [30])
+        self.assertIs(Citizen.dni[DNI(12, "X")], people[1])
+        self.assertEqual(max(Citizen.dni).number, 99)
+
+    def test_the_field_by_key_agrees_with_a_model(self) -> None:
+        """A random walk of taggings, Rips and re-taggings over one key,
+        against a dictionary and a sorted list."""
+
+        class Reading(Tag):
+            @Index
+            def t(agent, *, t):
+                return t
+
+        rng = random.Random(1701)
+        model: dict[int, object] = {}
+        rogues: list[object] = []
+        alive: list[object] = []                                                         # the walk owns its samples
+
+        for step in range(400):
+            act = rng.random()
+
+            if act < 0.55:
+                sample = self.Sample(step)
+                alive.append(sample)
+                t = rng.randrange(40)
+
+                if t in model:
+                    with self.assertRaises(TagCompositionError):
+                        Reading(sample, t=t)
+
+                    self.assertNotIn(sample, Reading[:])
+                else:
+                    Reading(sample, t=t)
+                    model[t] = sample
+            elif act < 0.8 and model:
+                t = rng.choice(sorted(model))
+                sample = model.pop(t)
+                del Reading[sample]
+                rogues.append(sample)
+
+                self.assertEqual(sample.t, t)                                            # sticky
+            elif rogues:
+                sample = rogues.pop()
+                t = rng.randrange(40)
+
+                if t in model:
+                    with self.assertRaises(TagCompositionError):
+                        Reading(sample, t=t)
+
+                    rogues.append(sample)
+                else:
+                    Reading(sample, t=t)                                                 # a fresh tagging takes a key
+                    model[t] = sample
+
+                    self.assertEqual(sample.t, t)
+
+            expected = sorted(model)
+
+            self.assertEqual(list(Reading.t), expected)
+            self.assertEqual(list(Reading.t[:]), [model[t] for t in expected])
+            self.assertEqual(list(Reading.t[::-1]), [model[t] for t in reversed(expected)])
+            self.assertEqual(len(Reading.t), len(model))
+
+            if model:
+                self.assertEqual((min(Reading.t), max(Reading.t)), (expected[0], expected[-1]))
+                self.assertIs(Reading.t[expected[-1]], model[expected[-1]])
+                low, high = sorted((rng.randrange(40), rng.randrange(40)))
+                self.assertEqual(
+                        list(Reading.t[low:high]),
+                        [model[t] for t in expected if low <= t < high],
+                        )
+
+            missing = next(t for t in range(41) if t not in model)
+
+            self.assertNotIn(missing, Reading.t)
+
+            with self.assertRaises(TagResolutionError):
+                Reading.t[missing]
 
 
 class ConditionMemberTests(unittest.TestCase):
