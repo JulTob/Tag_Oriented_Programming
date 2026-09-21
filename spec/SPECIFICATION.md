@@ -74,6 +74,8 @@ Ring 4.
 | **Underlay** | The prior visible contribution of a name, captured for a later Layer to extend. |
 | **Pin** | A Tag marked `@Pin`, whose Targets are Tags (§1.9). |
 | **Pinning** | Applying a Pin to a Tag: `Rare(Wizard)`. The pinned Tag is the Pin's Agent. |
+| **Index** | The key of a Tag's Field: one or more Records marked `@Index`, constant on the Agent, unique as a whole across the Field, and ordering it (§1.10). |
+| **Handle** | An Index component read on the Tag, `Signal.t`: the values of that component, and the seat for lookups and ranges. |
 
 TOP uses **Base** and **Shape**, never *parent* and *child*: the words
 describe a different model. A Tag may be both: `Person` is a Shape of
@@ -267,6 +269,8 @@ language, not a library's naming.
 | the sound population | `for w in Wizard`, `len(Wizard)`, `if Wizard:` |
 | the defective population | `for w in ~Wizard`, `if ~Wizard:` |
 | everyone in the Field | `Wizard[:]`, `if Wizard[:]:` |
+| the Field by its key (§1.10) | `Signal.t[5]`, `Signal.t[a:b]`, `Signal.t[:]`, `Signal.t[::-1]`, `Event.t[1].seq[2]` |
+| the values of a key component (§1.10) | `for v in Signal.t`, `max(Signal.t)`, `5 in Signal.t` |
 | populations combined (§2.5) | `Wizard \| Fighter`, `Wizard & Fighter`, `Wizard - Sworn`; the same on `Wizard[:]` and `~Wizard` |
 | one condition, read on the Agent (§2.5) | `agent.Has_Book` |
 | the Agent-bound view | `Wizard[agent]` |
@@ -296,7 +300,8 @@ door follows the empty-seat rule: a host with its own formatting keeps it.
 
 Queries that need a name are functions (`Form`, `Tags`, `Keyword`,
 `Apply`, `Outline`, `Contract`, `Scope`), never members of the Tag or of
-the Agent.
+the Agent. An Index handle (§1.10) is not such a query: it is the
+program's own Record, read in Tag scope.
 Another language profile chooses its own native spellings; the acts and
 their distinctions are what must survive.
 
@@ -463,6 +468,10 @@ but rarely good design; frequent deletion means unclear state ownership.
 
 Mutable Record values must be fresh per Agent unless sharing is the
 explicit intent. Shared values belong in a Report.
+
+A Record marked `@Index` is a component of the Tag's key (§1.10): built
+like any Record, then constant, unique as a whole across the Field, and
+read on the Tag as a handle.
 
 ## 1.4 Reports and Operations
 
@@ -840,6 +849,130 @@ Pinning again after a Rip is a fresh pinning (§0.7).
 A Pin does not alter the pinned Tag's own gate over its Agents. A Tag
 that should refuse new members while Deprecated writes that as its own
 Precondition, reading its Pins.
+
+## 1.10 Indexes: the Field as a mapping
+
+A Field is a set. Some Fields are also maps: a signal has one sample at
+each time, a ledger one line at each number, a register one citizen at
+each identity. A Record marked `@Index` is a **component of the Tag's
+key** (STEP-SPEC-17). The key makes the Field an ordered mapping from key
+to Agent, under three laws that make it a law and not a convention.
+
+```python
+class Signal(Tag):
+
+    @Index
+    def t(agent, *, t):                  # the key, given by the caller
+        return t
+
+Signal(x0, t=0)
+Signal(x2, t=2)
+
+assert x2.t == 2                         # a Record, on the Agent
+assert Signal.t[2] is x2                 # the Field, by key
+assert list(Signal.t[:]) == [x0, x2]     # everyone, in key order
+```
+
+- **Constant.** The value is built at step 2 like any Record and stored
+  on the Agent, where writes and deletes are refused with the language's
+  own attribute failure, as a published Report's name is. It stays after
+  Rip, sticky and still constant. Another key means Rip, then apply
+  again.
+- **Unique as a whole.** The whole key, every component in declaration
+  order, is unique across the Tag's Field. It is checked when the key is
+  built, at step 2: a taken key, an unhashable one, or one not comparable
+  with the keys present is a Composition Failure, and the call rolls
+  back. Because the key is constant, uniqueness at the door is
+  uniqueness always.
+- **One Index per Form, declared in one Tag.** Its components are the
+  Tag's `@Index` Records in declaration order; the key is their tuple,
+  and it orders the Field as the language orders tuples. A Shape inherits
+  the key and may not add a component: membership is closed upward, so
+  every member of the Shape is in the Base's Field, where the Base's key
+  already decides uniqueness, and a component that can never separate
+  two members is a trap. Two Tags declaring components in one Form is a
+  Declaration Failure, found when the class is made. A component's name
+  must be free on the Agent, not a host member, not a value the Agent
+  holds, not another Tag's Record, Action or condition, or the tagging is
+  a Composition Failure; and the name stays taken, so a later Record,
+  Action or `@Delete` over it is refused the same way. An Index has no
+  stored seat and cannot be `@Secret`. An Index on a Pin is not defined
+  in this version.
+
+A key of two components separates what one cannot: two events at one
+time, told apart by a counted sequence number.
+
+```python
+class Event(Tag):
+
+    @Report
+    def next(tag):
+        return 0
+
+    @Index
+    def t(agent, *, t):
+        return t
+
+    @Index
+    def seq(agent):                      # counted: read here, bumped after commit
+        return Event.next
+
+    @Imprint
+    def Count(agent):
+        Event.next += 1
+```
+
+A refused gate consumes no number, because the Imprint never ran. A Rip
+leaves a gap, because a key is a coordinate: nothing renumbers.
+
+**The handle.** Read on the Tag, an Index component is a **handle**: one
+name in two scopes (§1.1), the value on the Agent and the map on the
+Tag. The handle is the set of that component's values among the members
+it sees, as a dictionary's keys are: iterate it, `len` it, ask `in`,
+take `min` and `max`. Its brackets are the seat for that one component.
+
+| Spelling | Meaning |
+| --- | --- |
+| `Signal.t[:]` | everyone, in Index order; `[::-1]` descending; any other step is refused |
+| `Signal.t[a:b]` | the half-open value range `a <= t < b`, in Index order; either bound may be omitted |
+| `Signal.t[v]` | the members with `t == v`: **one Agent when `t` is the whole key, a population otherwise** |
+| `Event.t[1].seq[2]` | one component per bracket; the chain means `Event.t[1] & Event.seq[2]`, then the one member |
+| `for v in Signal.t`, `max(Signal.t)`, `5 in Signal.t`, `2 in Event.t[1].seq` | the values of a component, and whether one is present, without failing |
+
+The laws of the handle:
+
+- **The whole key names one Agent; part of it names a population**, as a
+  nested dictionary does: `d[1]` is a dictionary, `d[1][2]` the value. A
+  miss on the whole key is a Resolution Failure. Presence is asked with
+  `in` on the last handle, and never fails.
+- **A handle walks everyone**, as `Tag[:]` does. A defective member is
+  still a member and is found by its key; sound only is `if agent:` in
+  the loop.
+- **One order.** The Index has one order, declaration order. A handle
+  constrains and never reorders: `Event.seq[1:2]` is still walked by `t`
+  then `seq`. The step of a slice is the direction.
+- **Each component once.** The same component twice in a chain is
+  refused, and so is a name that is not a component. A combined view
+  (§2.5) has no components, for the reason it has no complement: nothing
+  to constrain by.
+- **Read-only.** Membership comes from tagging, and Rip is `del
+  Tag[agent]`. Nothing is assigned or deleted through a handle.
+- **Live, and part of the algebra.** A population read through a handle
+  reads the Field when it is walked, and combines with `|`, `&` and `-`
+  like any population.
+
+A Shape's handle is the Shape's Field through the Base's key: `Alarm.t[:]`
+walks the Alarms in Index order, and `Alarm.t[5]` is the Alarm at five or
+a Resolution Failure, even when a plain Signal holds that key.
+
+After a Rip the Field releases the key, and a later member may take it;
+the Rogue keeps its value, constant. Two objects then carry one value,
+one inside the Field and one outside. Uniqueness is a law of the Field.
+
+The value's type carries its order and its hash, as it does for the
+language's own sorting and dictionaries. A key that needs another order
+is a type that defines one, and a slice bound is a value of the key's
+type.
 
 ---
 
@@ -1230,9 +1363,9 @@ types but must keep these distinct.
 
 | Failure | Meaning | Effect |
 | --- | --- | --- |
-| **Tag Declaration Failure** | A Tag is written wrong: illegal mark combination, `@Underlay` without a parameter to receive it. | at class use |
-| **Tag Composition Failure** | Contributions cannot form the Overlay: cross-kind collision, Record over a host descriptor, a Record builder or teardown that failed, a Target that cannot carry state, a Base still required. | call rolled back (or Rip refused) |
-| **Tag Resolution Failure** | A required Underlay, view, or membership is unavailable. | call rolled back |
+| **Tag Declaration Failure** | A Tag is written wrong: illegal mark combination, `@Underlay` without a parameter to receive it, two Indexes in one Form, an Index with a stored seat. | at class use |
+| **Tag Composition Failure** | Contributions cannot form the Overlay: cross-kind collision, Record over a host descriptor, a Record builder or teardown that failed, a Target that cannot carry state, a Base still required, a key that is taken, unhashable or incomparable, a name an Index needs already taken. | call rolled back (or Rip refused) |
+| **Tag Resolution Failure** | A required Underlay, view, or membership is unavailable; a whole key with no member. | call rolled back |
 | **Tag Rogue Access Failure** | A Rogue Agent reached a published member of a Tag it has left. A Resolution Failure, and a TOP failure only: never dressed as a host-language attribute failure. | use refused |
 | **Tag Precondition Failure** | A gate refused the incoming Agent. | call rolled back |
 | **Tag Imprint Failure** | An Imprint failed after commit. | Tags stay |
@@ -1287,6 +1420,14 @@ A conforming implementation provides, ring by ring:
   Tag in an operator seat meaning its sound population;
 - every condition read on the Agent by its name as a plain boolean, with
   a condition's name refused to Actions, Records and host members;
+- Indexes: `@Index` Records as the components of one key per Form,
+  declared in one Tag, constant on the Agent, unique as a whole across
+  the Field and ordering it, the key checked before commit and released
+  at Rip, at rollback and at death; the handle on the Tag as the values
+  of a component and the seat for one component per bracket, the whole
+  key naming one Agent and part of it a population, ranges half-open
+  with the step as direction, presence asked with `in`, a miss a
+  Resolution Failure, walking everyone, never reordering, read-only;
 - Delete; the three access forms, with Agent-bound views as read-only
   snapshots requiring active membership.
 

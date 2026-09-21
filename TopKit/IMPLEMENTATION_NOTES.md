@@ -13,7 +13,8 @@ One idea per module, nothing over 600 lines.
 | `errors.py` | the failure types |
 | `declarations.py` | the marks (`@Action`, `@Record`, `Report`, `Public`, `@Secret`, …), scanning a Tag class once, binding parameters |
 | `geometry.py` | Bases, Shapes, Forms, leaves |
-| `fields.py` | the Field and its sound / defective partitions |
+| `fields.py` | the Field and its sound / defective partitions; the keys of an Indexed Field |
+| `indexes.py` | the key of a Field (STEP-SPEC-17): the checks before commit, keyed views, handles |
 | `state.py` | the per-Agent state, bound Actions, the runtime type and its descriptors |
 | `overlay.py` | laying one Tag's declarations over a state; materializing Records |
 | `contracts.py` | strict verdicts, binding conditions, `Contract` |
@@ -81,6 +82,23 @@ rollback target.
   rolls the ever-set back.
 - **Records over host descriptors** are refused with a Composition Failure
   rather than silently bypassing a property.
+- **An Index is a Record with a Report-like face.** `@Index` is a
+  descriptor in the class dictionary, like `Report`: the scan reads its
+  builder as a Record, so materializing is unchanged; read on the Tag it
+  is the handle, which is why nothing is added to the metaclass. The
+  kernel writes the value into the Agent's dictionary and a `_Constant`
+  gate on the runtime type refuses writes and deletes, as `_Published`
+  does, in the language's own attribute failure. The gate has no
+  `__get__`, so a key read falls through to the dictionary and costs
+  what a Record read costs. Keys live on the
+  declaring Tag's Field: a map from the whole key to the member and the
+  keys kept sorted with `bisect`, registered at commit and released at
+  Rip, at rollback and in the weak-reference callback, so a Shape's Field
+  holds none and reads through its Base's. Every check on a key runs at
+  step 2, before commit, so a bad key rolls the whole call back like any
+  Record failure. One Index per Form is checked by the metaclass from the
+  MRO alone, because the Form cannot be asked for while the root `Tag`
+  is being made.
 - **The Tag's dotted namespace is the program's.** Every Tag-level act is
   language syntax on the metaclass: `in`, `for`, `~`, `len`, `bool`,
   `[:]`, `[agent]`, `del Tag[agent]`, `format`. The only class attribute

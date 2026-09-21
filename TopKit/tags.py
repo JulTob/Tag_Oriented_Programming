@@ -14,6 +14,7 @@ Tag's dotted namespace to the program:
     for w in ~Wizard              the defective population
     Wizard[:]                     everyone: the whole Field
     Wizard[charlie]               the Agent-bound view
+    Signal.t[5], Signal.t[a:b]    the Field by its key (STEP-SPEC-17)
     del Wizard[charlie]           leave the Field (Rip)
     Form(Wizard)                  the Base-first closure, as Tags
     f"{Wizard:form}"              the same, as text
@@ -40,6 +41,7 @@ from .fields import _Partition
 from .fields import _population_of
 from .geometry import _form_of
 from .geometry import _is_tag
+from .indexes import _check_index_form
 from .lifecycle import _rip
 from .state import Tagged
 from .state import _name_of
@@ -71,6 +73,7 @@ class MetaTag(type):
                 **kwargs,
                 )
         _check_pin_bases(tag)
+        _check_index_form(tag)
 
         return tag
 

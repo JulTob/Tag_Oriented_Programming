@@ -192,6 +192,41 @@ def Run() -> None:
     with Scope(Character(), Sentry) as s: assert s in Sentry
     assert log == ["down"]
 
+    # 1.10 Indexes
+    class Signal(Tag):
+        @Index
+        def t(agent, *, t): return t
+    x0, x2 = Character(), Character(); Signal(x0, t=0); Signal(x2, t=2)
+    assert x2.t == 2 and Signal.t[2] is x2 and list(Signal.t[:]) == [x0, x2]
+    try: x2.t = 3; raise SystemExit("constant")
+    except AttributeError: pass
+    try: Signal(Character(), t=2); raise SystemExit("unique")
+    except TagCompositionError: pass
+    class Event(Tag):
+        @Report
+        def next(tag): return 0
+        @Index
+        def t(agent, *, t): return t
+        @Index
+        def seq(agent): return Event.next
+        @Imprint
+        def Count(agent): Event.next += 1
+    e1, e2 = Character(), Character(); Event(e1, t=1); Event(e2, t=1)
+    assert (e1.seq, e2.seq) == (0, 1) and Event.t[1].seq[1] is e2 and list(Event.t[1]) == [e1, e2]
+    assert list(Event.t[1].seq[1:2]) == list(Event.t[1] & Event.seq[1:2]) == [e2]
+    assert list(Event.t) == [1] and 1 in Event.t and 5 not in Event.t and 0 in Event.t[1].seq
+    assert list(Event.seq[0:1]) == [e1] and list(Event.t[::-1]) == [e2, e1] and max(Event.seq) == 1
+    try: Event.t[1].seq[9]; raise SystemExit("miss")
+    except TagResolutionError: pass
+    try: Event.t[1].t; raise SystemExit("twice")
+    except AttributeError: pass
+    class Alarm(Signal): pass
+    a = Character(); Alarm(a, t=5); assert Alarm.t[5] is a and Signal.t[5] is a and list(Alarm.t[:]) == [a]
+    try: Alarm.t[2]; raise SystemExit("shape miss")
+    except TagResolutionError: pass
+    del Signal[x0]; assert 0 not in Signal.t and x0.t == 0
+    y = Character(); Signal(y, t=0); assert Signal.t[0] is y
+
     # 1.9 Pins
     @Pin
     class Rare(Tag):

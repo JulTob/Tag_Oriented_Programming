@@ -10,15 +10,24 @@ who is either, ``Wizard - Sworn`` the sound Wizards who have not sworn,
 ``Wizard & Fighter`` the sound Agents who are both. A Tag in an operator
 seat means its sound population. The result is a lazy view: it reads the
 Fields when it is walked, never copies them, and keeps application order.
+
+A Field whose Tag declares an Index (STEP-SPEC-17) also keeps the key of
+each member: a map from the whole key to the member, and the keys in
+order, so a lookup is one dictionary read and a range is a bisection.
+Keys come and go with membership: registered at commit, released at Rip,
+at rollback and when the Agent dies.
 """
 
 from __future__ import annotations
 
+from bisect import bisect_left
+from bisect import insort
 from typing import Any
 from typing import Callable
 from typing import Iterator
 import weakref
 
+from .declarations import _MISSING
 from .errors import TagCompositionError
 
 
@@ -227,7 +236,14 @@ class _Combined(_Population):
 
 
 class _Field(_Population):
-    """Whole population of one Tag, weakly held, in application order."""
+    """Whole population of one Tag, weakly held, in application order.
+
+    When the Tag declares an Index, the Field also holds each member's
+    whole key: ``_keys`` maps a key to the member's identity, ``_key_of``
+    the other way, and ``_ordered`` keeps the keys sorted. Only the Tag
+    that declares the Index registers keys; a Shape's Field holds none and
+    reads through its Base's.
+    """
 
     _label = "whole"
 
@@ -235,41 +251,140 @@ class _Field(_Population):
             field,
             ) -> None:
         field._members: dict[int, weakref.ReferenceType[object]] = {}
+        field._keys: dict[Any, int] = {}
+        field._key_of: dict[int, Any] = {}
+        field._ordered: list[Any] = []
 
     def Add(
             field,
             agent: object,
+            key: Any = _MISSING,
             ) -> None:
-        key = id(agent)
+        member_id = id(agent)
 
-        if key in field._members:
+        if member_id in field._members:
             return
 
         try:
             reference = weakref.ref(
                     agent,
-                    lambda expired, key=key: field._Forget(key, expired),
+                    lambda expired, member_id=member_id: field._Forget(
+                            member_id,
+                            expired,
+                            ),
                     )
         except TypeError as error:
             raise TagCompositionError(
                     "Tagged Agents must support weak references for Fields"
                     ) from error
 
-        field._members[key] = reference
+        field._members[member_id] = reference
+
+        if key is not _MISSING:
+            field._Register(
+                    member_id,
+                    key,
+                    )
 
     def Remove(
             field,
             agent: object,
             ) -> None:
-        field._members.pop(id(agent), None)
+        member_id = id(agent)
+        field._members.pop(member_id, None)
+        field._Release(member_id)
 
     def _Forget(
             field,
-            key: int,
+            member_id: int,
             expired: weakref.ReferenceType[object],
             ) -> None:
-        if field._members.get(key) is expired:
-            del field._members[key]
+        if field._members.get(member_id) is expired:
+            del field._members[member_id]
+            field._Release(member_id)
+
+    # -- keys (STEP-SPEC-17) -------------------------------------------
+
+    def _Register(
+            field,
+            member_id: int,
+            key: Any,
+            ) -> None:
+        """Hold ``key`` for the member. The key was checked before commit:
+        hashable, unique, comparable with the keys already present."""
+
+        field._keys[key] = member_id
+        field._key_of[member_id] = key
+        insort(
+                field._ordered,
+                key,
+                )
+
+    def _Release(
+            field,
+            member_id: int,
+            ) -> None:
+        key = field._key_of.pop(
+                member_id,
+                _MISSING,
+                )
+
+        if key is _MISSING:
+            return
+
+        field._keys.pop(key, None)
+        position = bisect_left(
+                field._ordered,
+                key,
+                )
+
+        if (
+                position < len(field._ordered)
+                and field._ordered[position] == key
+                ):
+            del field._ordered[position]
+
+    def Keys(
+            field,
+            ) -> list[Any]:
+        """The whole keys present, in order. Read, never written."""
+
+        return field._ordered
+
+    def Key_Of(
+            field,
+            agent: object,
+            ) -> Any:
+        """The member's whole key, or ``_MISSING`` when it has none."""
+
+        if agent not in field:
+            return _MISSING
+
+        return field._key_of.get(
+                id(agent),
+                _MISSING,
+                )
+
+    def Holder(
+            field,
+            key: Any,
+            ) -> object | None:
+        """The live member at ``key``, or None. A member that died before
+        its weak reference reported it is released on the way."""
+
+        member_id = field._keys.get(key)
+
+        if member_id is None:
+            return None
+
+        reference = field._members.get(member_id)
+        agent = reference() if reference is not None else None
+
+        if agent is None:
+            field._members.pop(member_id, None)
+            field._Release(member_id)
+
+        return agent
 
     def __contains__(
             field,

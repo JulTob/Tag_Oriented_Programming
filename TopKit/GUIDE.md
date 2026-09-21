@@ -875,9 +875,11 @@ the architecture, with a Field to walk and a history that stays.
 | What applies with it? | `Form(Wizard)`, `f"{Wizard:form}"` |
 | Take it away | `del Wizard[agent]` |
 | Which Pins does it carry? | `Wizard in Rare`, `f"{Wizard:pins}"` |
+| By its key, in order? | `Signal.t[5]`, `Signal.t[a:b]`, `Signal.t[:]`, `max(Signal.t)` (the Index Guide) |
 
 Nothing TOP-level lives at `Wizard.something`. That namespace is yours: put
-your Reports and Operations there.
+your Reports and Operations there. A Record you mark `@Index` is read
+there too, as the Field's key: your own name, from the Tag's side.
 
 ---
 
@@ -905,6 +907,8 @@ your Reports and Operations there.
 - [The Contracts Guide](CONTRACTS.md): gates, promises and error control,
   aboard a starship; and one promise read by its name, `agent.Has_Oath`.
 - [The Fields Guide](FIELDS.md): populations, partitions and the algebra.
+- [The Index Guide](INDEX.md): the Field as a mapping: keys, ranges, one
+  component per bracket.
 - [The Specification](../spec/SPECIFICATION.md): the laws, ring by ring.
 - [`examples/dnd_character.py`](../examples/dnd_character.py) and
   [`examples/biome.py`](../examples/biome.py): the long form.

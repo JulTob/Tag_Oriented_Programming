@@ -4,6 +4,18 @@
 
 ### Specification
 
+- **The Index** (STEP-SPEC-17, §1.10): a Record marked `@Index` is a
+  component of the Tag's key, constant on the Agent, unique as a whole
+  across the Field, one Index per Form declared in one Tag, and the key
+  orders the Field. Read on the Tag the component is a handle: the
+  values of the component (`for v in Signal.t`, `max(Signal.t)`, `5 in
+  Signal.t`) and the seat for one component (`Signal.t[5]`,
+  `Signal.t[a:b]`, `Signal.t[:]`, `Signal.t[::-1]`,
+  `Event.t[1].seq[2]`). The whole key names one Agent, part of it a
+  population; a chain is the intersection of §2.5, then the one member.
+  Keys come and go with membership and are never renumbered. Scouted
+  with the Director on 2026-09-21, one law at a time; opened at Brief
+  with a drafted decision.
 - STEP-SPEC-12 **Cleared** by the Director on 2026-09-21: conditions are
   sticky; the author ends them. Deployed with the merge that carried it.
 - **Field algebra** (STEP-SPEC-13, §2.5): `Wizard | Fighter`, `Wizard &
@@ -25,6 +37,19 @@
 
 ### TopKit
 
+- `Index` mark, a descriptor in the class dictionary like `Report`: the
+  scan reads its builder as a Record and refuses a stored seat,
+  `@Secret` and a Pin; read on the Tag it is the handle
+  (`TopKit/indexes.py`). Fields keep a map from the whole key and the
+  keys in order, registered at commit and released at Rip, rollback and
+  death, so a lookup is one dictionary read and a window a bisection.
+  A `_Constant` gate on the runtime type refuses writes and deletes, as
+  `_Published` does. The key is checked before commit, so a bad key
+  rolls the call back. One Index per Form is checked by the metaclass
+  when the class is made.
+- **The Index Guide** (`TopKit/INDEX.md`): a key on the Field, the
+  handle, two components one key, Shapes, windows and the algebra, keys
+  of your own type, Rip and gaps, three numerations, what is refused.
 - The **oracle**: `tests/oracle_topkit.py`, an independent model of the
   paradigm checked against the kit after every transition of a random
   walk (60,000 transitions at the audited size), ported from the
