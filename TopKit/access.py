@@ -48,6 +48,43 @@ def _host_member(
     return None
 
 
+IN_SEAT = (
+        "__contains__",
+        "__iter__",
+        )
+
+
+def _host_in_seat(
+        host_type: type,
+        ) -> tuple[str, type] | None:
+    """How the host answers `in`: the special method and the class that
+    defines it, or None when the seat is free (STEP-SPEC-7).
+
+    Resolved as Python resolves `in`: ``__contains__``, then ``__iter__``.
+    For each, the first class in the MRO that defines the name decides. A
+    method owns the seat; the value None says `in` is unavailable, Python
+    tries nothing further, and the seat is free. ``__getitem__`` alone is
+    not a seat a Flag respects: on a keyed host its `in` fails or never
+    ends; on an index-style host it worked, and stops meaning membership
+    once a Flag lands (the Director's call, STEP-SPEC-7)."""
+
+    for name in IN_SEAT:
+        for klass in host_type.__mro__:
+            if klass is object:
+                break
+
+            if name in klass.__dict__:
+                if klass.__dict__[name] is None:
+                    return None
+
+                return (
+                        name,
+                        klass,
+                        )
+
+    return None
+
+
 def _hooks_for(
         host_type: type,
         has_posts: bool,
@@ -67,7 +104,7 @@ def _hooks_for(
     if _host_member(host_type, "__format__") is None:
         hooks["__format__"] = _agent_format
 
-    if has_flags and _host_member(host_type, "__contains__") is None:
+    if has_flags and _host_in_seat(host_type) is None:
         hooks["__contains__"] = _agent_contains
 
     if _host_member(host_type, "__copy__") is None:

@@ -22,6 +22,13 @@
 - STEP-SPEC-15 (Trials, the recoverable phase the archived checkpoints
   were) and STEP-SPEC-16 (uniform access) opened at Brief with the full
   case for the Director's review.
+- **STEP-SPEC-7 amended** (§1.8): one seat, one meaning. A Flag is
+  refused on a host whose `in` comes from `__iter__` as well as
+  `__contains__`, and a Flag and a Tag's `__contains__`/`__iter__` Action
+  collide in either order. Each refusal names both sides. `__contains__
+  = None` frees the seat, as Python reads it; `__getitem__` alone is not
+  a seat. Before, `"alice" in party` flipped from True to False in
+  silence when a Flag landed.
 - **A Flag's words** (STEP-SPEC-17, §1.8): `@Flag("Wolf", "Lycanthrope")`
   makes a Tag answer to those words as well as to its name, `"Wolf" in
   howler`. A word is a keyword, never membership; many Tags may share

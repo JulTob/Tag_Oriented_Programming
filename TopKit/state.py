@@ -818,11 +818,12 @@ def _runtime_type_for(
     has_posts = key[4]
     has_flags = key[5]
 
-    namespace: dict[str, Any] = _hooks_for(
+    hooks = _hooks_for(
             host_type,
             has_posts,
             has_flags,
             )
+    namespace: dict[str, Any] = dict(hooks)
     namespace.update(dunders)
 
     if not issubclass(host_type, type):
@@ -837,6 +838,9 @@ def _runtime_type_for(
 
         for name in published:
             namespace[name] = _Published(name)
+
+        if "__contains__" in hooks:
+            namespace["__contains__"] = hooks["__contains__"]   # the Flag holds the seat
 
     if issubclass(host_type, Tagged):
         bases: tuple[type, ...] = (host_type,)

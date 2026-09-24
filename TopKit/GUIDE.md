@@ -522,9 +522,25 @@ it, a word is enough.
 answers to its name: `"Wizard" in agent` says nothing about being a
 Wizard, and is `True` only while an active Flag is named Wizard or lists
 the word. Words are strings, `@Flag("Beast")`; `@Flag(Beast)` is the bare
-form applied to the class `Beast`, not a word. A Flag cannot be applied
-to an object that already has its own `in` (a list-like host); TopKit
-refuses rather than take the seat. `Keyword(...)` works everywhere.
+form applied to the class `Beast`, not a word.
+
+**One seat, one meaning.** A Flag cannot join an object that already
+answers `in`: a list, a party that iterates its members (`__iter__`), or
+an Agent carrying a Tag with a `__contains__` or `__iter__` Action. Nor
+can such a Tag join an Agent that carries a Flag. TopKit refuses either
+way, and the message names both sides, so `"alice" in party` never
+changes meaning in silence. A keyed sheet (`sheet["STR"]`, only
+`__getitem__`) has no working `in`, and a Flag may take it. So may an
+old-style sequence that answers only `line[0]`, `line[1]`, …, and there
+`"alice" in line` stops meaning membership: give such a class a real
+`__iter__` if its `in` matters.
+
+A class that writes `__contains__ = None` tells Python its `in` is
+unavailable, and a Flag may then take the seat. The line belongs to the
+whole class, not to one Agent. Once a Flag lands, the class's own `x in
+self` answers keywords, and so do inherited container methods that ask
+`in` (the comparisons of a `collections.abc.Set`). Write it only for a
+class whose `in` nobody uses for membership.
 
 ### Pattern 8 · Shared things, and who may reach them
 

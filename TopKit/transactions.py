@@ -38,6 +38,7 @@ from .errors import TagPostconditionError
 from .errors import TagPreconditionError
 from .geometry import _form_of
 from .overlay import _install
+from .overlay import _refuse_in_collisions_of_the_form
 from .overlay import _materialize
 from .state import STATE
 from .state import Tagged
@@ -75,6 +76,12 @@ def _apply(
                 ]
 
         if pending:
+            if len(pending) > 1:
+                _refuse_in_collisions_of_the_form(
+                        state,
+                        pending,
+                        )
+
             if any(
                     _declarations_of(member).preconditions
                     for member in pending

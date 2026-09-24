@@ -348,6 +348,26 @@ def _mark_flag(
                 "@Flag marks a Tag class"
                 )
 
+    for name in (
+            "__contains__",
+            "__iter__",
+            ):
+        member = tag.__dict__.get(name)
+
+        if (
+                callable(member)
+                and not isinstance(member, (classmethod, staticmethod))
+                and _kind_of(member) in (None, "action")
+                ) or (
+                isinstance(member, classmethod)
+                and _has_flag(member, _PUBLIC)   # a published Operation is an Action on the Agent
+                ):
+            raise TagDeclarationError(
+                    f"{tag.__name__} is a Flag and needs the Agent's `in` for"
+                    f" its words, but its Action {name} would answer `in`"
+                    " too; a Flag cannot hold both"
+                    )
+
     setattr(
             tag,
             _FLAG,
