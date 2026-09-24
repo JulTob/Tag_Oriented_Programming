@@ -724,7 +724,7 @@ def _install_action(
             underlay,
             )
     state.action_origins[name] = tag
-    state.deleted.discard(name)
+    _restore(state, name)
     state.published.discard(name)
 
 
@@ -784,8 +784,22 @@ def _install_record(
                 )
 
     state.records[name] = tag
-    state.deleted.discard(name)
+    _restore(state, name)
     state.published.discard(name)
+
+
+def _restore(
+        state: _State,
+        name: str,
+        ) -> None:
+    """A later Layer stores a name a Tag deleted. The name is no longer
+    deleted, but the runtime type keeps its gate: the gate reads the
+    Agent's own value first, and it is what keeps a host property of that
+    name hidden. A type rebuilt later for another reason must not drop it."""
+
+    if name in state.deleted:
+        state.deleted.discard(name)
+        state.restored = state.restored | {name}
 
 
 # ------------------------------------------------------------------

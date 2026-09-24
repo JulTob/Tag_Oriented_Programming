@@ -298,14 +298,51 @@ def Public(
 
 
 def Flag(
-        tag: type,
-        ) -> type:
+        *words: type | str,
+        ) -> Any:
     """Mark a Tag as a keyword: searchable from the Agent's side by name
     or by class, ``"Undead" in ghoul`` and ``Undead in ghoul``.
 
-    Applying a Flag to a host that defines its own ``in`` is refused.
+    With words, the Tag answers to those too (STEP-SPEC-17)::
+
+        @Flag("Wolf", "Lycanthrope")
+        class Werewolf(Tag): ...
+
+    The Tag's own name is always a word. An alias is only a word: it
+    answers ``"Wolf" in agent``, never membership. Applying a Flag to a
+    host that defines its own ``in`` is refused.
     """
 
+    if len(words) == 1 and isinstance(words[0], type):
+        return _mark_flag(
+                words[0],
+                frozenset(),
+                )
+
+    for word in words:
+        if not isinstance(word, str) or not word:
+            raise TagDeclarationError(
+                    "@Flag marks a Tag class, or takes the words it also"
+                    f" answers to as non-empty strings; got {word!r}"
+                    )
+
+    aliases = frozenset(words)
+
+    def Flag_With_Words(
+            tag: type,
+            ) -> type:
+        return _mark_flag(
+                tag,
+                aliases,
+                )
+
+    return Flag_With_Words
+
+
+def _mark_flag(
+        tag: type,
+        aliases: frozenset[str],
+        ) -> type:
     if not isinstance(tag, type) or not hasattr(tag, "_topkit_field"):
         raise TagDeclarationError(
                 "@Flag marks a Tag class"
@@ -314,7 +351,7 @@ def Flag(
     setattr(
             tag,
             _FLAG,
-            True,
+            tag.__dict__.get(_FLAG, frozenset()) | aliases,
             )
 
     return tag
@@ -323,11 +360,22 @@ def Flag(
 def _is_flag(
         tag: type,
         ) -> bool:
-    return bool(
-            tag.__dict__.get(
-                    _FLAG,
-                    False,
-                    )
+    return tag.__dict__.get(_FLAG) is not None
+
+
+def _is_word(
+        tag: type,
+        word: str,
+        ) -> bool:
+    """A Flag answers to its own name and to its aliases, exactly. The
+    words are the Tag's own: a Shape of a Flag answers them through its
+    Base, never by inheriting them."""
+
+    aliases = tag.__dict__.get(_FLAG)
+
+    return aliases is not None and (
+            word == tag.__name__
+            or word in aliases
             )
 
 

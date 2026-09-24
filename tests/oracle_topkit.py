@@ -7,8 +7,9 @@ requires the Base, Scope as apply-then-rip, the call boundary (a refused
 gate rolls back, a broken promise keeps the Tag and marks the Agent
 defective, a failed Imprint keeps the Tag), sticky conditions ended by
 the author, published members answering sound members only, condition
-members read as booleans, Field algebra, and Pins with a Tag in the
-Agent's seat.
+members read as booleans, Field algebra, Pins with a Tag in the
+Agent's seat, and keywords: a Flag answers to its name and its words,
+through the Form, and a word is never membership.
 
 A random walk applies, rips, scopes and breaks promises over a population
 of Agents and of Tags; after each step the kit must agree with the model
@@ -35,7 +36,9 @@ import weakref
 
 from TopKit import Apply
 from TopKit import Contract
+from TopKit import Flag
 from TopKit import Imprint
+from TopKit import Keyword
 from TopKit import Operation
 from TopKit import Pin
 from TopKit import Post
@@ -71,6 +74,7 @@ class Agent:
 
 
 CLOCK = [0]                                 # ticks once per joining: Fields keep application order
+WORDS: dict[type, frozenset[str]] = {}      # what the model knows each Flag answers to
 
 
 @dataclass
@@ -213,6 +217,13 @@ def Family(
 
         return Pin(made) if pinned and bases == (Tag,) else made
 
+    def Words(
+            tag: type,
+            *aliases: str,
+            ) -> None:
+        WORDS[tag] = frozenset({tag.__name__, *aliases})
+        Flag(*aliases)(tag) if aliases else Flag(tag)
+
     root = Make("Root", (Tag,))
     left = Make("Left", (root,))
     right = Make("Right", (root,))
@@ -221,6 +232,12 @@ def Family(
     right_leaf = Make("Right_Leaf", (right,))
     independent = Make("Independent", (Tag,))
     composite = Make("Composite", (bridge, independent))
+
+    Words(root, f"{prefix}_Kin")                                   # every Shape below says it, through the Base
+    Words(right)                                                    # the name alone
+    Words(left_leaf, f"{prefix}_Kin", f"{prefix}_Right")            # a shared word, and another Flag's name
+    Words(independent, f"{prefix}_Loner", f"{prefix}_Kin")
+    Words(composite)
 
     return (
             root,
@@ -398,6 +415,42 @@ def Assert_Target(
 
     Assert_Contract(target, model, context)
     Assert_Published(target, model, context)
+    Assert_Keywords(target, model, family, context)
+
+
+def Assert_Keywords(
+        target: object,
+        model: Model,
+        family: tuple[type, ...],
+        context: str,
+        ) -> None:
+    """A word answers while an active Tag of the Form is a Flag that says
+    it; a class answers only for an active Flag itself. The Agent's `in`
+    is defined while a Flag is active; on a Tag, `in` always takes a
+    string as a word."""
+
+    vocabulary = sorted(
+            {word for tag in family for word in WORDS.get(tag, ())}
+            | {tag.__name__ for tag in family}
+            | {"Stranger", family[0].__name__.lower()}
+            )
+    seated = isinstance(target, type) or any(tag in WORDS for tag in model.active)
+
+    for word in vocabulary:
+        expected = any(word in WORDS.get(tag, ()) for tag in model.active)
+
+        assert Keyword(target, word) is expected, (context, "keyword", word, expected)
+
+        if seated:
+            assert (word in target) is expected, (context, "word in", word, expected)
+
+    for tag in family:
+        expected = tag in model.active and tag in WORDS
+
+        assert Keyword(target, tag) is expected, (context, "keyword class", tag.__name__, expected)
+
+        if seated and not isinstance(target, type):
+            assert (tag in target) is expected, (context, "class in", tag.__name__, expected)
 
 
 def Assert_Contract(

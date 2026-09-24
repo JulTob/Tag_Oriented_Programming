@@ -60,6 +60,7 @@ class _State:
     published: set[str] = field(default_factory=set)
     secrets: set[str] = field(default_factory=set)
     deleted: set[str] = field(default_factory=set)
+    restored: frozenset[str] = frozenset()   # deleted, then stored again; shared until used
     snapshots: dict[type, _Snapshot] = field(default_factory=dict)
     rips: dict[type, tuple[Function, ...]] = field(default_factory=dict)
     secret_values: dict[str, Any] = field(default_factory=dict)   # a pinned Tag's @Secret members
@@ -85,6 +86,7 @@ class _State:
                 published=set(state.published),
                 secrets=set(state.secrets),
                 deleted=set(state.deleted),
+                restored=state.restored,
                 snapshots=dict(state.snapshots),
                 rips=dict(state.rips),
                 secret_values=dict(state.secret_values),
@@ -780,7 +782,7 @@ def _type_key_of(
         ) -> tuple:
     return (
             state.host_type,
-            frozenset(state.deleted),
+            frozenset(state.deleted | state.restored),   # a restored name keeps its gate
             frozenset(state.secrets),
             frozenset(state.published),
             bool(state.postconditions),
