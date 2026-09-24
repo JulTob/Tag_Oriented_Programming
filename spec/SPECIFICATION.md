@@ -752,10 +752,24 @@ own: a Shape answers its Base's words because the Base is active (§0.3),
 never by inheriting them. Bare `@Flag` is the name alone. Words are
 non-empty strings and match exactly, like names.
 
-A Flag needs the Agent's `in`. Applying a Flag to a host that defines its
-own `in` (a container) is a declared collision and fails with a
-Composition Failure, like a Record over a host property. `Keyword(...)`
-answers for every object, tagged or not, container or not.
+A Flag needs the Agent's `in`, and one seat holds one meaning. Something
+else may already answer it: the host, through its own `__contains__` or
+`__iter__` (a container, a party that iterates its members), or a Tag's
+Action of either name, a published Operation included. A Flag and any of
+them collide, in either order, and within one Form before any of it
+applies. The later one fails with a Composition Failure naming both
+sides, like a Record over a host property, and nothing changes: a seat
+never changes meaning in silence. A Flag that declares such an Action
+itself is a Declaration Failure.
+
+The host's seat is read as the language reads `in`. In Python, for
+`__contains__` and then `__iter__`, the first class in the MRO that
+defines the name decides. The value `None`, Python's "`in` is
+unavailable", leaves the seat free. `__getitem__` alone is not a seat, and
+a Flag takes it: on a keyed host its `in` fails or never ends; on an
+index-style host (the old sequence protocol) its `in` worked, and stops
+meaning membership once a Flag lands.
+`Keyword(...)` answers for every object, tagged or not.
 
 ## 1.9 Pins: Tags as Targets
 
@@ -1298,8 +1312,8 @@ A conforming implementation provides, ring by ring:
   the Agent as second input; illegal marks rejected at declaration;
 - Flags: opt-in keyword Tags searchable from the Agent's side by name, by
   the words they list, and by class, a word never standing for
-  membership, refused on a host that owns `in`, never matched for
-  ordinary Tags;
+  membership, colliding in either order with a host or a Tag's Action
+  that already answers `in`, never matched for ordinary Tags;
 - Pins: opt-in Tags whose Targets are Tags, the pinned Tag as Agent under
   every Ring 0 act, the receiver rule (Records as Reports, Actions as
   Operations), Fields never mixed, the Tag's Tag-scope declarations as

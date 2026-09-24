@@ -11,6 +11,8 @@ from typing import Any
 from typing import Callable
 import warnings
 
+from .access import IN_SEAT
+from .access import _host_in_seat
 from .contracts import _bind_condition
 from .declarations import _Declarations
 from .declarations import _is_flag
@@ -249,11 +251,11 @@ def _install(
     """Lay ``tag`` over ``state`` (a candidate copy). Order matters: deletions
     free names first; conditions, Tag members, Actions, Records follow."""
 
-    if _is_flag(tag):
-        _refuse_container_host(
-                state,
-                tag,
-                )
+    _refuse_a_second_in(
+            state,
+            tag,
+            declarations,
+            )
 
     for name in declarations.deletions:
         _delete(state, name)
@@ -368,20 +370,143 @@ def _refuse_stored_input_collision(
                 )
 
 
-def _refuse_container_host(
+def _refuse_a_second_in(
         state: _State,
         tag: type,
+        declarations: _Declarations,
         ) -> None:
-    from .access import _host_member
+    """A Flag's words need the Agent's `in` (STEP-SPEC-7). Anything else
+    that answers `in` (the host's own ``__contains__`` or ``__iter__``, or
+    a Tag's Action of either name, published Operations included) collides
+    with it, in either order. The collision is refused and named, so a
+    seat never changes meaning in silence."""
 
     if state.pinned is not None:
         return   # on a Tag, TOP owns `in`: a string in it asks for a keyword
 
-    if _host_member(state.host_type, "__contains__") is not None:
+    _refuse_in_collision(
+            state.host_type,
+            tag,
+            declarations,
+            _flags_of(state),
+            _in_answers_of(state),
+            )
+
+
+def _refuse_in_collisions_of_the_form(
+        state: _State,
+        pending: list[type],
+        ) -> None:
+    """The same collision over a whole Form before any of it applies, so
+    a Flag Base never runs its Imprint for a Shape that is then refused."""
+
+    if state.pinned is not None:
+        return
+
+    flags = _flags_of(state)
+    answers = _in_answers_of(state)
+
+    for tag in pending:
+        declarations = _declarations_of(tag)
+        _refuse_in_collision(
+                state.host_type,
+                tag,
+                declarations,
+                flags,
+                answers,
+                )
+
+        if _is_flag(tag):
+            flags.append(tag)
+
+        for name in declarations.deletions:
+            answers.pop(name, None)
+
+        for name in _answering(declarations):
+            answers[name] = tag
+
+
+def _flags_of(
+        state: _State,
+        ) -> list[type]:
+    return [
+            active
+            for active in state.active
+            if _is_flag(active)
+            ]
+
+
+def _in_answers_of(
+        state: _State,
+        ) -> dict[str, type]:
+    """The Tags whose visible Actions answer `in`, by method."""
+
+    return {
+            method: state.action_origins[method]
+            for method in IN_SEAT
+            if method in state.action_origins
+            }
+
+
+def _answering(
+        declarations: _Declarations,
+        ) -> list[str]:
+    return [
+            name
+            for name, _function in declarations.actions
+            if name in IN_SEAT
+            ] + [
+            name
+            for name, _operation, public in declarations.operations
+            if public and name in IN_SEAT   # published: an Action on the Agent
+            ]
+
+
+def _refuse_in_collision(
+        host_type: type,
+        tag: type,
+        declarations: _Declarations,
+        flags: list[type],
+        answers: dict[str, type],
+        ) -> None:
+    host = host_type.__name__
+    arriving = _answering(declarations)
+
+    if _is_flag(tag):
+        seat = _host_in_seat(host_type)
+
+        if seat is not None:
+            method, owner = seat
+
+            raise TagCompositionError(
+                    f"{tag.__name__} is a Flag and needs the Agent's `in` for"
+                    f" its words, but {host} already answers `in` through"
+                    f" {owner.__name__}.{method}; taking the seat would change"
+                    f" what `in` means on a {host}"
+                    )
+
+        for method, origin in answers.items():
+            raise TagCompositionError(
+                    f"{tag.__name__} is a Flag and needs the Agent's `in` for"
+                    f" its words, but this {host} already answers `in` through"
+                    f" the Action {origin.__name__}.{method}"
+                    )
+
+        if arriving:
+            raise TagCompositionError(
+                    f"{tag.__name__} is a Flag and needs the Agent's `in` for"
+                    f" its words, but it also answers `in` through its own"
+                    f" Action {tag.__name__}.{arriving[0]}"
+                    )
+
+        return
+
+    if arriving and flags:
         raise TagCompositionError(
-                f"{tag.__name__} is a Flag, but the host"
-                f" {state.host_type.__name__} defines its own `in`; a"
-                " keyword needs that seat empty"
+                f"{tag.__name__}.{arriving[0]} would answer `in` on this"
+                f" {host}, but the Flag {flags[0].__name__} already holds"
+                " that seat for its words; the Action would change what"
+                " `in` means"
                 )
 
 

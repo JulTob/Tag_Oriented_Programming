@@ -100,9 +100,21 @@ rollback target.
   words in its own `__dict__` (empty for bare `@Flag`); the name is read
   live from `__name__`, and the words are never inherited by Shapes. A
   string probe of a `str` subclass is read as its plain text, so matching
-  stays exact and never hashes an unhashable subclass. A Flag on a host
-  that defines `__contains__` is refused at the gate. `Keyword()` is the
+  stays exact and never hashes an unhashable subclass. `Keyword()` is the
   function form and works on any object.
+- **One seat, one meaning.** `access._host_in_seat` reads the host's `in`
+  as Python does: `__contains__`, then `__iter__`; for each, the first
+  class in the MRO that defines the name decides, and `None` frees the
+  seat (`__getitem__` alone is ignored). The refusal check
+  (`overlay._refuse_a_second_in`) and the hook (`_hooks_for`) both use
+  it, so they cannot disagree. The same check refuses a Flag while a
+  Tag's `__contains__`/`__iter__` Action (a published Operation included)
+  is visible, and such an Action while a Flag is active; `@Flag` refuses
+  a Tag that declares one. A Form of several Tags is checked as a whole
+  before any of it applies (`_refuse_in_collisions_of_the_form`), so a
+  Flag Base's Imprint never runs for a Shape that is then refused. No
+  type-level gate (`@Delete`, `@Secret`, `@Public` of the same name) can
+  overwrite the Flag's hook. Pins are exempt: on a Tag, TOP owns `in`.
 - **A restored name keeps its gate.** A name a Tag `@Delete`d and a later
   Layer stored again leaves `state.deleted` for `state.restored`; the type
   key gates both. The gate reads the Agent's own value first, so it is
