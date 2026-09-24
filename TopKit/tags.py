@@ -28,6 +28,7 @@ from __future__ import annotations
 from typing import Any
 from typing import Iterator
 
+from .access import _keyword
 from .access import _view_of
 from .contracts import _holds
 from .declarations import _MISSING
@@ -110,8 +111,6 @@ class MetaTag(type):
         keyword among the Tag's Flag Pins; a string is never a member."""
 
         if isinstance(candidate, str):
-            from .access import _keyword
-
             return _keyword(
                     tag,
                     candidate,
