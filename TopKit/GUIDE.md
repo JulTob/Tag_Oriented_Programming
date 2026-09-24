@@ -491,10 +491,40 @@ assert Keyword(ghoul, "Undead")         # the function form: any object
 assert not Keyword(Character("x"), "Undead")
 ```
 
-**Watch out.** Only Flags answer by name; an ordinary Tag never does, so
-`"Wizard" in agent` is `False` unless Wizard is a Flag. A Flag cannot be
-applied to an object that already has its own `in` (a list-like host);
-TopKit refuses rather than take the seat. `Keyword(...)` works everywhere.
+**When one word is not enough**, list the others. The Tag's own name
+always counts; the words are its variants and neighbours:
+
+```python
+@Flag("Wolf", "Lycanthrope", "Beast")
+class Werewolf(Tag):
+    pass
+
+
+howler = Character("Howler")
+Werewolf(howler)
+
+assert "Wolf" in howler                 # a word
+assert "Werewolf" in howler             # the name, always
+assert Keyword(howler, "Beast", "Lycanthrope")
+
+HUNTED = ["Beast", "Fiend"]             # the table never imports Werewolf
+assert any(word in howler for word in HUNTED)
+```
+
+A word is a public name, not a membership: if there is also a `Beast`
+Tag, `"Beast" in howler` is `True` while `howler in Beast` is `False`.
+That is the point, a secret identity with a public face, but it is yours
+to keep straight. When a word needs a Field to walk, a gate or a promise,
+make it a Tag and a Base (`class Werewolf(Beast)`); when rules only match
+it, a word is enough.
+
+**Watch out.** A string never asks membership. An ordinary Tag never
+answers to its name: `"Wizard" in agent` says nothing about being a
+Wizard, and is `True` only while an active Flag is named Wizard or lists
+the word. Words are strings, `@Flag("Beast")`; `@Flag(Beast)` is the bare
+form applied to the class `Beast`, not a word. A Flag cannot be applied
+to an object that already has its own `in` (a list-like host); TopKit
+refuses rather than take the seat. `Keyword(...)` works everywhere.
 
 ### Pattern 8 · Shared things, and who may reach them
 
@@ -858,7 +888,7 @@ the architecture, with a Field to walk and a history that stays.
 | --- | --- |
 | Is it a Wizard now? | `agent in Wizard` |
 | Was it ever? | `isinstance(agent, Wizard)` |
-| Does it carry the keyword? | `"Undead" in agent`, `Keyword(agent, "Undead")` |
+| Does it carry the keyword? | `"Undead" in agent`, `Keyword(agent, "Undead")`, a Flag's words too |
 | Which Tags, in order? | `Tags(agent)`, `f"{agent:tags}"` |
 | The whole shape? | `Outline(agent)`, `f"{agent:outline}"` |
 | Are its promises holding? | `if agent:`, `Contract.Status(agent)`, `f"{agent:contract}"` |

@@ -29,6 +29,7 @@ import warnings
 from .contracts import _evaluate
 from .declarations import _Declarations
 from .declarations import _declarations_of
+from .declarations import _is_flag
 from .declarations import _protocol_inputs
 from .errors import TagCompositionError
 from .errors import TagError
@@ -336,6 +337,7 @@ def _commit(
 
     if _needs_new_type(
             agent,
+            tag,
             declarations,
             ):
         next_type = _runtime_type_for(state)
@@ -444,16 +446,19 @@ def _publish_into(
 
 def _needs_new_type(
         agent: object,
+        tag: type,
         declarations: _Declarations,
         ) -> bool:
     """Only type-level facts change the runtime type: the first tagging,
-    deletions, secrets, published Reports, dunder Actions, a first Post."""
+    deletions, secrets, published Reports, dunder Actions, a first Post,
+    a first Flag."""
 
     if not isinstance(agent, Tagged):
         return True
 
     return bool(
-            declarations.deletions
+            _is_flag(tag)
+            or declarations.deletions
             or declarations.secrets
             or declarations.dunders
             or declarations.postconditions

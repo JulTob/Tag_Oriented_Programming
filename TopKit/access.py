@@ -15,6 +15,8 @@ from typing import Any
 from .errors import TagCompositionError
 from .errors import TagResolutionError
 from .declarations import _MISSING
+from .declarations import _is_flag
+from .declarations import _is_word
 from .state import _Bound
 from .state import _Pinned_Operation
 from .state import _Snapshot
@@ -198,7 +200,7 @@ def _agent_contains(
         probe: object,
         ) -> bool:
     """``"Undead" in ghoul`` and ``Undead in ghoul``: an active Flag, by
-    name or by class."""
+    name, alias or class."""
 
     return _keyword(
             agent,
@@ -210,16 +212,17 @@ def _keyword(
         agent: object,
         probe: object,
         ) -> bool:
-    from .declarations import _is_flag
-
     state = _state_of(agent)
 
     if state is None:
         return False
 
     if isinstance(probe, str):
+        if type(probe) is not str:
+            probe = str.__str__(probe)   # its text: exact, and hashable
+
         return any(
-                _is_flag(tag) and tag.__name__ == probe
+                _is_word(tag, probe)
                 for tag in state.active
                 )
 

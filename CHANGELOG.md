@@ -22,15 +22,31 @@
 - STEP-SPEC-15 (Trials, the recoverable phase the archived checkpoints
   were) and STEP-SPEC-16 (uniform access) opened at Brief with the full
   case for the Director's review.
+- **A Flag's words** (STEP-SPEC-17, §1.8): `@Flag("Wolf", "Lycanthrope")`
+  makes a Tag answer to those words as well as to its name, `"Wolf" in
+  howler`. A word is a keyword, never membership; many Tags may share
+  one; a Shape answers its Base's words through the Base. Bare `@Flag` is
+  unchanged.
 
 ### TopKit
 
+- **Fixed:** a Flag applied to an Agent that already carried another Tag
+  did not take the Agent's `in`, so `"Undead" in ghoul` raised
+  `TypeError` (`Keyword()` was unaffected). The runtime type is now
+  rebuilt when a Flag lands.
+- **Fixed:** a name a Tag `@Delete`d and a later Layer stored again lost
+  its gate whenever the runtime type was rebuilt (by a Postcondition,
+  another deletion, a dunder Action, now a Flag), so a host property of
+  that name came back over the Layer's Action. The gate now survives.
+- A `str` subclass asked for a keyword is read as its text: matching
+  stays exact, and an unhashable subclass no longer raises.
 - The **oracle**: `tests/oracle_topkit.py`, an independent model of the
   paradigm checked against the kit after every transition of a random
   walk (60,000 transitions at the audited size), ported from the
   0.2-alpha line and extended with sticky conditions, published members,
-  condition members, Field algebra and Pins. A short walk runs under the
-  suite.
+  condition members, Field algebra, Pins and keywords (names, shared
+  words, a word naming another Flag, words through the Form). A short
+  walk runs under the suite.
 - **The Fields Guide** (`TopKit/FIELDS.md`): populations, partitions and
   the algebra, with the battle loop, the roster of the missing, the
   repair queue across roles and a gate that reads a population.

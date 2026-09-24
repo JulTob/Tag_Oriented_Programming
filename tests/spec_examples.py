@@ -192,6 +192,23 @@ def Run() -> None:
     with Scope(Character(), Sentry) as s: assert s in Sentry
     assert log == ["down"]
 
+    # 1.8 Flags, and their words
+    @Flag
+    class Undead(Tag): pass
+    ghoul = Character("Ghoul"); Undead(ghoul)
+    assert "Undead" in ghoul and Undead in ghoul and Keyword(ghoul, "Undead") and ghoul in Undead
+    @Flag("Wolf", "Lycanthrope")
+    class Werewolf(Tag): pass
+    howler = Character("Howler"); Werewolf(howler)
+    assert "Wolf" in howler and "Werewolf" in howler and Werewolf in howler
+    assert Keyword(howler, "Lycanthrope")
+    @Flag
+    class Beast(Tag): pass
+    @Flag("Beast")
+    class Skinwalker(Tag): pass
+    walker = Character("Walker"); Skinwalker(walker)
+    assert "Beast" in walker and walker not in Beast and Beast not in walker   # a word, not membership
+
     # 1.9 Pins
     @Pin
     class Rare(Tag):
@@ -213,3 +230,8 @@ def Run() -> None:
     del Rare[Wizard]; assert Wizard not in Rare and isinstance(Wizard, Rare) and Wizard.rarity == "rare"
     with warnings.catch_warnings():
         warnings.simplefilter("error"); Rare(Wizard)
+    @Pin
+    @Flag("Obsolete")
+    class Deprecated(Tag): pass
+    Deprecated(Wizard)
+    assert "Deprecated" in Wizard and "Obsolete" in Wizard and Keyword(Wizard, "Obsolete")

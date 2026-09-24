@@ -91,11 +91,23 @@ rollback target.
   defines none of its own (`__bool__` only once a Postcondition is
   visible). Format specs are the display door: `f"{Tag:form}"`,
   `f"{agent:tags}"`, `f"{agent:outline}"`, `f"{agent:contract}"`.
-- **Flags own the Agent's `in`.** `__contains__` is installed only while a
-  `@Flag` Tag is active (a type-level fact, part of the type key). It
-  answers the name or class of an active Flag and nothing else. A Flag on
-  a host that defines `__contains__` is refused at the gate. `Keyword()`
-  is the function form and works on any object.
+- **Flags own the Agent's `in`.** `__contains__` is installed when a
+  `@Flag` Tag lands (a type-level fact, part of the type key; a Flag
+  landing on an Agent that is already tagged rebuilds its runtime type).
+  After the last Flag is Ripped it stays until the type is next rebuilt,
+  answering False. It answers the name, a listed word, or the class of an
+  active Flag and nothing else. The mark is the frozenset of the Tag's
+  words in its own `__dict__` (empty for bare `@Flag`); the name is read
+  live from `__name__`, and the words are never inherited by Shapes. A
+  string probe of a `str` subclass is read as its plain text, so matching
+  stays exact and never hashes an unhashable subclass. A Flag on a host
+  that defines `__contains__` is refused at the gate. `Keyword()` is the
+  function form and works on any object.
+- **A restored name keeps its gate.** A name a Tag `@Delete`d and a later
+  Layer stored again leaves `state.deleted` for `state.restored`; the type
+  key gates both. The gate reads the Agent's own value first, so it is
+  harmless for the stored Layer and it keeps a host property of that name
+  hidden. A type rebuilt later for another reason keeps it.
 - **Reports are builders.** `@Report def r(tag[, inherited])` is a
   descriptor that runs its builder once per Tag on first read and caches
   the value per Tag (weakly). `Tag.r += 1` replaces the descriptor with a

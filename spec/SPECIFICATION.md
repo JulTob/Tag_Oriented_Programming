@@ -262,7 +262,7 @@ language, not a library's naming.
 | --- | --- |
 | apply | `Wizard(agent, **inputs)` |
 | active member? | `agent in Wizard` |
-| carries a keyword? (Flags, §1.8) | `"Undead" in ghoul`, `Undead in ghoul`, `Keyword(ghoul, "Undead")` |
+| carries a keyword? (Flags, §1.8) | `"Undead" in ghoul`, `Undead in ghoul`, `Keyword(ghoul, "Undead")`; a Flag's words the same, `"Wolf" in howler` |
 | ever a member? | `isinstance(agent, Wizard)` |
 | the sound population | `for w in Wizard`, `len(Wizard)`, `if Wizard:` |
 | the defective population | `for w in ~Wizard`, `if ~Wizard:` |
@@ -726,6 +726,32 @@ share a name are one word to a string. Only Tags that ask to be words carry
 that risk, and an ordinary Tag is never found by name. Names match
 exactly.
 
+**Words.** A keyword has variants and neighbours: to the rules that name
+it so, a werewolf is also a *Wolf* and a *Lycanthrope*. `@Flag` takes the
+words a Tag also answers to:
+
+```python
+@Flag("Wolf", "Lycanthrope")
+class Werewolf(Tag):
+    pass
+
+Werewolf(howler)
+
+assert "Wolf" in howler              # a word
+assert "Werewolf" in howler          # the name always flags
+assert Werewolf in howler            # the class form is unchanged
+assert Keyword(howler, "Lycanthrope")
+```
+
+A word is only a word. It answers `in` and `Keyword`, never membership:
+an Agent may carry the word *Beast* without being a `Beast`, the way a
+secret identity carries a public name. A word that names another Tag is
+accepted, and says nothing about that Tag's Field. Many Tags may share a
+word; it answers while any of them is active. The words are the Tag's
+own: a Shape answers its Base's words because the Base is active (§0.3),
+never by inheriting them. Bare `@Flag` is the name alone. Words are
+non-empty strings and match exactly, like names.
+
 A Flag needs the Agent's `in`. Applying a Flag to a host that defines its
 own `in` (a container) is a declared collision and fails with a
 Composition Failure, like a Record over a host property. `Keyword(...)`
@@ -813,7 +839,8 @@ special-method Actions on a Pin are Declaration Failures.
 **Keywords on a Tag.** A Pin may be a Flag. A string can never be a
 member, so on a Tag a string in the `in` seat asks for a keyword:
 `"Deprecated" in Wizard` is True while the Flag Pin `Deprecated` is
-active on it; objects and classes in that seat ask membership.
+active on it, and so is each word it lists; objects and classes in that
+seat ask membership.
 `Keyword(Wizard, "Deprecated")` and `Keyword(Wizard, Deprecated)` answer
 the same. A word like *Deprecated* is a Pin and not a Report for the
 reason `Undead` is a Tag and not `asleep = True`: a Report is a value,
@@ -1269,9 +1296,10 @@ A conforming implementation provides, ring by ring:
 - publication: `@Secret` with a composition door that fails closed; `Public`
   Reports as read-only live names and `Public` Operations as Actions with
   the Agent as second input; illegal marks rejected at declaration;
-- Flags: opt-in keyword Tags searchable from the Agent's side by name and
-  by class, refused on a host that owns `in`, never matched for ordinary
-  Tags;
+- Flags: opt-in keyword Tags searchable from the Agent's side by name, by
+  the words they list, and by class, a word never standing for
+  membership, refused on a host that owns `in`, never matched for
+  ordinary Tags;
 - Pins: opt-in Tags whose Targets are Tags, the pinned Tag as Agent under
   every Ring 0 act, the receiver rule (Records as Reports, Actions as
   Operations), Fields never mixed, the Tag's Tag-scope declarations as

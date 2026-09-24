@@ -39,8 +39,9 @@ def Keyword(
         agent: object,
         *words: type | str,
         ) -> bool:
-    """True when the Agent carries every given keyword: the name, or the
-    class, of an active Flag Tag. Works on any object, tagged or not."""
+    """True when the Agent carries every given keyword: the name, a listed
+    word (``@Flag("Wolf")``), or the class of an active Flag Tag. On a Tag,
+    its Flag Pins. Works on any object, tagged or not."""
 
     from .access import _keyword
 
