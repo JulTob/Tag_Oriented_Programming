@@ -226,6 +226,12 @@ class _Combined(_Population):
         return agent in left and agent not in right
 
 
+class _Member(weakref.ref):
+    """A Field's weak reference to one Agent, carrying its identity key."""
+
+    __slots__ = ("key",)
+
+
 class _Field(_Population):
     """Whole population of one Tag, weakly held, in application order."""
 
@@ -234,7 +240,8 @@ class _Field(_Population):
     def __init__(
             field,
             ) -> None:
-        field._members: dict[int, weakref.ReferenceType[object]] = {}
+        field._members: dict[int, _Member] = {}
+        field._expire = field._Forget   # one callback for every member
 
     def Add(
             field,
@@ -246,15 +253,16 @@ class _Field(_Population):
             return
 
         try:
-            reference = weakref.ref(
+            reference = _Member(
                     agent,
-                    lambda expired, key=key: field._Forget(key, expired),
+                    field._expire,
                     )
         except TypeError as error:
             raise TagCompositionError(
                     "Tagged Agents must support weak references for Fields"
                     ) from error
 
+        reference.key = key
         field._members[key] = reference
 
     def Remove(
@@ -265,11 +273,10 @@ class _Field(_Population):
 
     def _Forget(
             field,
-            key: int,
-            expired: weakref.ReferenceType[object],
+            expired: _Member,
             ) -> None:
-        if field._members.get(key) is expired:
-            del field._members[key]
+        if field._members.get(expired.key) is expired:
+            del field._members[expired.key]
 
     def __contains__(
             field,
@@ -344,6 +351,23 @@ class _Partition(_Population):
                 agent in partition._field
                 and partition._holds(agent)
                 )
+
+    def __bool__(
+            partition,
+            ) -> bool:
+        """Anyone? Stops at the first member that counts (``while Enemy:``)."""
+
+        holds = partition._holds
+        members = [
+                reference()
+                for reference in list(partition._field._members.values())
+                ]   # every member held while the checks run, as a walk holds them
+
+        for agent in members:
+            if agent is not None and holds(agent):
+                return True
+
+        return False
 
     def __invert__(
             partition,

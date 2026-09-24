@@ -98,7 +98,10 @@ rollback target.
   answering False. It answers the name, a listed word, or the class of an
   active Flag and nothing else. The mark is the frozenset of the Tag's
   words in its own `__dict__` (empty for bare `@Flag`); the name is read
-  live from `__name__`, and the words are never inherited by Shapes. A
+  live from `__name__`, and the words are never inherited by Shapes.
+  Each Agent keeps its active Flags and their aliases in `state.words`
+  until its Tags change or any `@Flag` is declared (the Flag generation).
+  A
   string probe of a `str` subclass is read as its plain text, so matching
   stays exact and never hashes an unhashable subclass. `Keyword()` is the
   function form and works on any object.
@@ -115,6 +118,15 @@ rollback target.
   Flag Base's Imprint never runs for a Shape that is then refused. No
   type-level gate (`@Delete`, `@Secret`, `@Public` of the same name) can
   overwrite the Flag's hook. Pins are exempt: on a Tag, TOP owns `in`.
+- **What the kit keeps, and for how long.** The Form cache holds a Tag's
+  Bases only, never the Tag, so a dropped Tag class is freed. A Rip drops
+  the Tag's view snapshot (a view needs membership). A Field entry is a
+  slotted weak reference carrying its key, with one callback per Field;
+  `At_Exit` numbers its registrations the same way and drops each one when
+  its Agent dies. A scratch pass (the gate, a Pin's publication) silences
+  the kit's warnings through a context variable, never
+  `warnings.catch_warnings()`, which would reset every warning registry.
+  `PERFORMANCE-2026-09-24.md` measures all of it.
 - **A restored name keeps its gate.** A name a Tag `@Delete`d and a later
   Layer stored again leaves `state.deleted` for `state.restored`; the type
   key gates both. The gate reads the Agent's own value first, so it is

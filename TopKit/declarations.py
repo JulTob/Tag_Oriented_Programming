@@ -29,6 +29,7 @@ _RIP = "__topkit_rip__"
 _SECRET = "__topkit_secret__"
 _PUBLIC = "__topkit_public__"
 _FLAG = "__topkit_flag__"
+_flag_generation = [0]   # bumped by every @Flag, so no Agent keeps stale words
 _PIN = "__topkit_pin__"
 
 STATE = "_TOPKIT_STATE"
@@ -373,30 +374,37 @@ def _mark_flag(
             _FLAG,
             tag.__dict__.get(_FLAG, frozenset()) | aliases,
             )
+    _flag_generation[0] += 1
 
     return tag
+
+
+def _words_of(
+        active: list[type],
+        ) -> tuple[tuple[type, ...], frozenset[str]]:
+    """The active Flags, and every alias they list. Their names are read
+    live at each question, so a renamed Tag answers to its new name."""
+
+    flags = []
+    aliases: set[str] = set()
+
+    for tag in active:
+        listed = tag.__dict__.get(_FLAG)
+
+        if listed is not None:
+            flags.append(tag)
+            aliases.update(listed)
+
+    return (
+            tuple(flags),
+            frozenset(aliases),
+            )
 
 
 def _is_flag(
         tag: type,
         ) -> bool:
     return tag.__dict__.get(_FLAG) is not None
-
-
-def _is_word(
-        tag: type,
-        word: str,
-        ) -> bool:
-    """A Flag answers to its own name and to its aliases, exactly. The
-    words are the Tag's own: a Shape of a Flag answers them through its
-    Base, never by inheriting them."""
-
-    aliases = tag.__dict__.get(_FLAG)
-
-    return aliases is not None and (
-            word == tag.__name__
-            or word in aliases
-            )
 
 
 def Pin(
