@@ -1227,11 +1227,52 @@ An implementation provides three tiers and says which is which:
 
 | Tier | Guarantee |
 | --- | --- |
-| **Finalizer** (`__del__`) | best effort: teardowns run when the Agent is collected; the language may not run finalizers at shutdown or inside reference cycles |
+| **Finalizer** (`__del__`) | best effort: when the Agent is collected, its teardowns run, then its `__del__` Layers; at interpreter exit only the `__del__` Layers run; the language may not run finalizers at shutdown or inside reference cycles |
 | **`Scope(agent, *tags)`** | guaranteed: Tags apply on entry and Rip, in reverse, on exit, even if the block raises |
 | **`At_Exit(agent)`** | opt-in: teardowns also run at normal interpreter exit; registration is weak |
 
 Every teardown runs at most once, whichever tier reaches it first.
+
+**The Agent's own finalizer is a member in Layers** (STEP-SPEC-18). The
+host's `__del__` is its first Layer, found as the language finds it. A
+Tag's `__del__` replaces the Layers beneath it, or with `@Underlay`
+extends them; `@Delete` removes them. With nothing stated, the host's own
+`__del__` runs, as it would for the untagged object. The Layer beneath a
+`__del__` is always callable, and where there is nothing it does nothing.
+Deletion runs in that order: every teardown still due runs, then the
+`__del__` runs as the Overlay shows it, top Layer first; both run inside
+the composition door (§1.5). A `__del__` never stops a teardown:
+replacing the Layers replaces only them, and an interrupted teardown
+does not skip them. At interpreter exit only the Layers run; teardowns
+at exit are `At_Exit`'s. An error raised by a `__del__` Layer is reported
+as the language reports any finalizer's; the teardowns stay best effort
+and silent. `@Rip` on a `__del__` is a Declaration Failure: a `__del__`
+Layer already runs at deletion. The language calls `__del__`, not the
+program: in Python, `agent.__del__` reads the kit's finalizer, and
+calling it by hand runs the teardowns while the Agent is still a member.
+
+```python
+class Lantern:
+    def __del__(self):
+        log.append("wick out")             # the first Layer
+
+class Carried(Tag):
+    @Rip
+    def Put_Down(agent):
+        log.append("put down")             # a teardown: runs first
+
+class Enchanted(Tag):
+    @Underlay
+    def __del__(agent, underlay):          # a Layer over the host's own
+        log.append("spell fades")
+        underlay()
+
+lamp = Lantern()
+Carried(lamp)
+Enchanted(lamp)
+del lamp
+assert log == ["put down", "spell fades", "wick out"]
+```
 
 ```python
 with Scope(agent, Sentry):
@@ -1344,7 +1385,8 @@ A conforming implementation provides, ring by ring:
 
 **Ring 3**
 - `@Rip` protocols run after membership ends, once, composed, failures
-  reported; the three deletion tiers.
+  reported; the three deletion tiers; the Agent's `__del__` as Layers of
+  its Overlay, run after the teardowns, and alone at interpreter exit.
 
 **Everywhere**
 - the failure types above, distinct and named.
