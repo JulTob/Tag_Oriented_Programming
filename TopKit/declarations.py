@@ -869,6 +869,13 @@ def _scan(
         if _is_dunder(name):
             dunders.add(name)
 
+    if "__del__" in rips:
+        raise TagDeclarationError(
+                f"{tag.__name__}.__del__ is marked @Rip, but a __del__ Layer"
+                " already runs when the Agent is deleted, after its"
+                " teardowns; give the teardown a name of its own"
+                )
+
     declarations = _Declarations(
             actions=tuple(actions),
             records=tuple(records),

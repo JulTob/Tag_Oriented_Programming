@@ -706,6 +706,43 @@ Contracts Guide shows both.
 **Watch out.** Python does not promise to run finalizers at shutdown, so
 `del agent` is best-effort. `Scope` is the guaranteed path.
 
+**An object's own `__del__` is a Layer.** It keeps running when the object
+is tagged. A Tag may replace it, or wrap it with `@Underlay`; the Tags'
+teardowns always run first, and a `__del__` never stops them:
+
+```python
+farewells = []
+
+
+class Lantern:
+    def __del__(self):
+        farewells.append("wick out")
+
+
+class Carried(Tag):
+    @Rip
+    def Put_Down(agent):
+        farewells.append("put down")
+
+
+class Enchanted(Tag):
+    @Underlay
+    def __del__(agent, underlay):
+        farewells.append("spell fades")
+        underlay()                          # the Lantern's own, or nothing
+
+
+lamp = Lantern()
+Carried(lamp)
+Enchanted(lamp)
+del lamp
+
+assert farewells == ["put down", "spell fades", "wick out"]
+```
+
+At interpreter exit only the `__del__` Layers run. To have teardowns run
+at exit too, register the Agent with `At_Exit(agent)`.
+
 ### Pattern 10 · Build the sheet from pieces
 
 Put it together. This is the D&D example in miniature.

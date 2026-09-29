@@ -14,6 +14,7 @@ import warnings
 
 from . import state as state_module
 from .access import IN_SEAT
+from .access import _host_finalizer
 from .access import _host_in_seat
 from .contracts import _bind_condition
 from .contracts import _guarded
@@ -68,6 +69,15 @@ def _is_tag_type(
         from .tags import MetaTag as _MetaTag
 
     return isinstance(candidate, _MetaTag)
+
+
+def _nothing_beneath(
+        agent: object,
+        *args: Any,
+        **kwargs: Any,
+        ) -> None:
+    """The Layer beneath a ``__del__`` after a Tag deleted it: calling it
+    does nothing (STEP-SPEC-18)."""
 
 
 def _independent(
@@ -840,7 +850,10 @@ def _install_action(
     underlay = state.actions.get(name)
     origin = state.action_origins.get(name, state.host_type)
 
-    if underlay is None and name not in state.deleted:
+    if underlay is None and name == "__del__":
+        # A finalizer's Layer beneath is always callable (STEP-SPEC-18).
+        underlay = _nothing_beneath if name in state.deleted else _host_finalizer
+    elif underlay is None and name not in state.deleted:
         if state.pinned is not None:
             underlay = _pinned_host_function(
                     state.pinned,

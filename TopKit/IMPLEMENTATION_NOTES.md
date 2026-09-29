@@ -40,7 +40,7 @@ Actions; Agents are built once and play for a long time. So:
   name. It carries only what Python requires on a type: special-method
   Actions, and one descriptor per deleted, secret, or published name, plus
   `__bool__` once a Postcondition is visible, `__getattr__` for views by
-  name, and `__del__` for teardown. Tags are **not** in the MRO;
+  name, and `__del__` for deletion. Tags are **not** in the MRO;
   `isinstance` is answered by the metaclass from the Agent's ever-set.
 - **Runtime types are shared** across every Agent whose host and
   type-level facts match, whatever Tags they carry. Ten thousand Agents of
@@ -117,6 +117,32 @@ rollback target.
   Flag Base's Imprint never runs for a Shape that is then refused. No
   type-level gate (`@Delete`, `@Secret`, `@Public` of the same name) can
   overwrite the Flag's hook. Pins are exempt: on a Tag, TOP owns `in`.
+- **Deletion in Layers** (STEP-SPEC-18). The runtime type's `__del__` is
+  always the kit's finalizer, never a Tag's: a Tag's `__del__` is an
+  ordinary Action in `state.actions`, never bound on the Agent, left out of
+  the type-level dunders and of the type key (deleted or not). So
+  `agent.__del__` always reads the finalizer. It runs the teardowns
+  (skipped when `sys.is_finalizing()`: at exit they are `At_Exit`'s), then
+  the visible `__del__`: the top Layer, nothing if deleted, else the
+  host's own. `_host_finalizer` finds the host's own by walking the MRO
+  past the runtime type, as Python does (first definer decides, `None`
+  means none, descriptors are bound). The exit path uses no module global
+  and no builtin: what it needs is bound as a default argument, because
+  late in exit both may be gone. The Layer's errors propagate, so Python
+  reports them as unraisable. The first `__del__` Layer's Underlay is
+  `_host_finalizer`, or a do-nothing Layer after `@Delete`. The host's
+  own is found through `type(agent).__mro__`, skipping every class that
+  holds `_TOPKIT_HOST_TYPE` (a runtime type, even one a user built on);
+  the Agent's `__dict__` is read with `object.__getattribute__`, never
+  through the host's own. An object without TOP state whose class is a
+  runtime type is reset to its host class when its state is attached;
+  if it is never tagged, the finalizer runs its host's `__del__`.
+- **A rollback restores the state in place** (`_State.Restore`), keeping
+  `composing` and `checking`: a door or a check opened before the call
+  that is rolled back closes on the same object. (A copy put in its place
+  used to leave the door open for good.) Known limit: in a reference cycle,
+  Python clears weak references before finalizers run, so a finalizer's
+  Tag code cannot call the Agent's bound Actions there (`ReferenceError`).
 - **What the kit keeps, and for how long.** The Form cache holds a Tag's
   Bases only, never the Tag, so a dropped Tag class is freed. A Rip drops
   the Tag's view snapshot (a view needs membership). A Field entry is a
