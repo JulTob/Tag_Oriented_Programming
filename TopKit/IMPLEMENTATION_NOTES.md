@@ -131,9 +131,17 @@ rollback target.
   and no builtin: what it needs is bound as a default argument, because
   late in exit both may be gone. The Layer's errors propagate, so Python
   reports them as unraisable. The first `__del__` Layer's Underlay is
-  `_host_finalizer`, or a do-nothing Layer after `@Delete`. An object
-  without TOP state whose class is a runtime type is reset to its host
-  class when its state is attached. Known limit: in a reference cycle,
+  `_host_finalizer`, or a do-nothing Layer after `@Delete`. The host's
+  own is found through `type(agent).__mro__`, skipping every class that
+  holds `_TOPKIT_HOST_TYPE` (a runtime type, even one a user built on);
+  the Agent's `__dict__` is read with `object.__getattribute__`, never
+  through the host's own. An object without TOP state whose class is a
+  runtime type is reset to its host class when its state is attached;
+  if it is never tagged, the finalizer runs its host's `__del__`.
+- **A rollback restores the state in place** (`_State.Restore`), keeping
+  `composing` and `checking`: a door or a check opened before the call
+  that is rolled back closes on the same object. (A copy put in its place
+  used to leave the door open for good.) Known limit: in a reference cycle,
   Python clears weak references before finalizers run, so a finalizer's
   Tag code cannot call the Agent's bound Actions there (`ReferenceError`).
 - **What the kit keeps, and for how long.** The Form cache holds a Tag's

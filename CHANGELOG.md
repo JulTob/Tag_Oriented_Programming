@@ -21,10 +21,16 @@
   runtime type at the first tagging (before, it kept its own class until
   a Tag brought a type-level fact, and until then had no finalizer, so no
   teardowns at deletion, no views or conditions by name, and no format
-  specs); teardowns run by the finalizer or the exit
-  pass run inside the composition door, so they read their own `@Secret`
-  members; the finalizer works late in interpreter exit, after the kit's
-  modules are cleared.
+  specs; one that cannot be subclassed is now refused, as any such host
+  is); teardowns run by the finalizer or the exit pass run inside the
+  composition door, so they read their own `@Secret` members; the
+  finalizer works late in interpreter exit, after the kit's modules are
+  cleared, and reads the Agent as Python does (never through the host's
+  own `__getattribute__`).
+- **Fixed:** a tagging refused inside an Action, a teardown or a
+  `__del__` Layer (rolled back) left the composition door open, so the
+  Agent's `@Secret` members stayed readable from outside. A rollback now
+  restores the state in place and keeps the counters of open doors.
 - STEP-SPEC-12 **Cleared** by the Director on 2026-09-21: conditions are
   sticky; the author ends them. Deployed with the merge that carried it.
 - **Field algebra** (STEP-SPEC-13, §2.5): `Wizard | Fighter`, `Wizard &

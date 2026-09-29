@@ -4193,6 +4193,367 @@ class LayeredDeletionTests(unittest.TestCase):
 
         self.assertEqual(log, ["teardown", "added later"])
 
+    def test_an_untagged_object_built_from_an_agents_type_keeps_its_finalizer(self) -> None:
+        log = self.log
+
+        class Lamp:
+            def __init__(self, name: str) -> None:
+                self.name = name
+
+            def __del__(self) -> None:
+                log.append(f"{self.name} host")
+
+            def Twin(self) -> "Lamp":
+                return type(self)(self.name + " twin")   # an instance of the runtime type
+
+        first = Lamp("first")
+        self.Guard(first)
+        twin = first.Twin()
+        del twin
+        gc.collect()
+
+        self.assertEqual(log, ["first twin host"])   # never tagged: a plain host
+
+    def test_the_hosts_finalizer_is_found_past_every_runtime_type(self) -> None:
+        log = self.log
+
+        class Warded(Tag):
+            @Underlay
+            def __del__(agent, underlay) -> None:
+                log.append("warded")
+                underlay()
+
+        first = self.Door()
+        self.Guard(first)
+
+        class Built_On(type(first)):   # a class built on an Agent's runtime type
+            pass
+
+        def Delete_Built() -> None:
+            built = Built_On()
+            Warded(built)
+            del built
+            gc.collect()
+
+        log.clear()
+        reported = self.reported(Delete_Built)
+
+        self.assertEqual(log, ["warded", "host"])   # once, and down to the host's own
+        self.assertEqual(reported, [])
+
+    def test_a_pinned_shape_with_a_flag_pin_ends_quietly(self) -> None:
+        import pathlib
+        import subprocess
+        import sys
+
+        program = """
+from TopKit import Tag, Pin, Flag, Record
+
+@Pin
+class Rare(Tag):
+    @Record
+    def rarity(tag): return "rare"
+
+@Flag
+@Pin
+class Deprecated(Tag): pass
+
+class Wizard(Tag): pass
+
+Rare(Wizard)
+
+class Archmage(Wizard): pass     # its metaclass is Wizard's runtime type
+
+Deprecated(Archmage)
+print("end", "Deprecated" in Archmage)
+"""
+        root = pathlib.Path(__file__).resolve().parent.parent
+        result = subprocess.run(
+                [sys.executable, "-c", program],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                env={"PYTHONPATH": str(root)},
+                )
+
+        self.assertEqual(result.stdout.splitlines(), ["end True"])
+        self.assertEqual(result.stderr, "")                   # no finalizer recursed at exit
+
+    def test_an_interruption_is_reported_even_when_a_layer_raises(self) -> None:
+        import sys
+
+        caught: list[BaseException] = []
+
+        class Impatient(Tag):
+            @Rip
+            def Leave(agent) -> None:
+                raise KeyboardInterrupt
+
+        class Cracked(Tag):
+            def __del__(agent) -> None:
+                raise ValueError("cracked")
+
+        hook = sys.unraisablehook
+        sys.unraisablehook = lambda raised: caught.append(raised.exc_value)
+
+        try:
+            self.delete(Impatient, Cracked)
+        finally:
+            sys.unraisablehook = hook
+
+        self.assertEqual([type(error) for error in caught], [KeyboardInterrupt])
+        self.assertIsInstance(caught[0].__context__, ValueError)   # the Layer's error, kept
+
+    def test_a_proxy_host_is_finalized_as_python_finalizes_it(self) -> None:
+        log = self.log
+
+        class Target:
+            def __del__(self) -> None:
+                log.append("the wrapped class's __del__")
+
+        class Proxy:
+            def __init__(self, wrapped: object) -> None:
+                self._wrapped = wrapped
+
+            def __getattribute__(self, name: str):
+                if name in ("__class__", "__dict__"):
+                    return getattr(object.__getattribute__(self, "_wrapped"), name)
+
+                return object.__getattribute__(self, name)
+
+            def __del__(self) -> None:
+                log.append("proxy host")
+
+        keep = Target()
+        proxy = Proxy(keep)
+        self.Guard(proxy)
+        del proxy
+        gc.collect()
+
+        self.assertEqual(log, ["teardown", "proxy host"])
+
+    def test_a_published_operation_named_del_is_a_layer_too(self) -> None:
+        log = self.log
+
+        class Closing(Tag):
+            @Public
+            @Operation
+            def __del__(tag, agent) -> None:
+                log.append("published layer")
+
+        door = self.Door()
+        self.Guard(door)
+        Closing(door)
+
+        self.assertIs(door.__del__.__func__, type(door).__del__)
+        self.assertNotIn("__del__", vars(door))
+
+        del door
+        gc.collect()
+
+        self.assertEqual(log, ["teardown", "published layer"])
+
+    def test_a_refused_tagging_inside_a_teardown_closes_the_door(self) -> None:
+        class Gate(Tag):
+            @Pre
+            def Never(agent) -> bool:
+                return False
+
+        class Vault(Tag):
+            @Secret
+            @Record
+            def code(agent) -> str:
+                return "1234"
+
+            @Rip
+            def Lock(agent) -> None:
+                try:
+                    Gate(agent)            # refused: the tagging rolls back
+                except TagPreconditionError:
+                    pass
+
+        door = self.Door()
+        Vault(door)
+        del Vault[door]
+
+        with self.assertRaises(AttributeError):
+            door.code                      # the door closed again: the secret stays hidden
+
+    def test_the_door_closes_after_a_finalizer_is_called_by_hand(self) -> None:
+        class Vault(Tag):
+            @Secret
+            @Record
+            def code(agent) -> str:
+                return "1234"
+
+            def __del__(agent) -> None:
+                raise ValueError("cracked")
+
+        def By_Hand() -> None:
+            door = self.Door()
+            Vault(door)
+
+            with self.assertRaises(ValueError):
+                door.__del__()
+
+            with self.assertRaises(AttributeError):
+                door.code
+
+        self.reported(By_Hand)             # the real deletion reports the Layer's error again
+
+    def test_the_hosts_finalizer_under_a_layer_is_found_as_python_finds_it(self) -> None:
+        import functools
+
+        log = self.log
+
+        class Warded(Tag):
+            @Underlay
+            def __del__(agent, underlay) -> None:
+                log.append("warded")
+                underlay()
+
+        def Closing(self, how: str) -> None:
+            log.append(how)
+
+        class Described:
+            __del__ = functools.partialmethod(Closing, "described")
+
+        class Base:
+            def __del__(self) -> None:
+                log.append("base")
+
+        class Muted(Base):
+            __del__ = None
+
+        class Callable_Finalizer:
+            def __call__(self) -> None:
+                log.append("called")
+
+        class Plain_Call:
+            __del__ = Callable_Finalizer()   # not a descriptor: called as it is
+
+        class Later:
+            pass
+
+        for host, expected in (
+                (Described, ["warded", "described"]),
+                (Muted, ["warded"]),
+                (Plain_Call, ["warded", "called"]),
+                ):
+            log.clear()
+            reported = self.reported(lambda: self.delete(Warded, host=host))
+
+            self.assertEqual(log, expected, host.__name__)
+            self.assertEqual(reported, [], host.__name__)
+
+        log.clear()
+        early = Later()
+        Warded(early)
+        Later.__del__ = lambda self: log.append("added later")
+        del early
+        gc.collect()
+
+        self.assertEqual(log, ["warded", "added later"])
+
+    def test_a_descriptor_finalizer_is_bound_with_the_objects_type(self) -> None:
+        log = self.log
+
+        class Recording:
+            def __get__(self, agent, owner):
+                log.append(f"owner is the object's type: {owner is type(agent)}")
+                return lambda: log.append("bound")
+
+        class Owned:
+            __del__ = Recording()
+
+        self.assertEqual(
+                self.delete(self.Guard, host=Owned),
+                ["teardown", "owner is the object's type: True", "bound"],
+                )
+
+    def test_a_secret_layer_named_del_keeps_the_finalizer(self) -> None:
+        log = self.log
+
+        class Hushed(Tag):
+            @Secret
+            def __del__(agent) -> None:
+                log.append("hushed")
+
+        door = self.Door()
+        self.Guard(door)
+        Hushed(door)
+
+        self.assertIs(door.__del__.__func__, type(door).__del__)
+
+        del door
+        gc.collect()
+
+        self.assertEqual(log, ["teardown", "hushed"])
+
+    def test_a_copy_built_from_a_gated_agent_is_a_plain_host(self) -> None:
+        class Lamp:
+            def Light(self) -> str:
+                return "lit"
+
+            def Twin(self) -> "Lamp":
+                return type(self)()
+
+        class Dark(Tag):
+            @Delete
+            def Light(agent): ...
+
+        dark = Lamp()
+        Dark(dark)
+        twin = dark.Twin()                 # wears Dark's runtime type and its gate
+        self.Guard(twin)
+        plain = Lamp()
+        self.Guard(plain)
+
+        self.assertEqual(twin.Light(), "lit")
+        self.assertIs(type(twin), type(plain))
+
+    def test_a_muted_hosts_finalizer_reports_nothing(self) -> None:
+        class Base:
+            def __del__(self) -> None:
+                pass
+
+        class Muted(Base):
+            __del__ = None
+
+        self.assertEqual(self.reported(lambda: self.delete(self.Guard, host=Muted)), [])
+
+    def test_a_restored_finalizer_shares_the_runtime_type(self) -> None:
+        class Sealed(Tag):
+            def __del__(agent) -> None:
+                pass
+
+        class Silent(Tag):
+            @Delete
+            def __del__(agent): ...
+
+        first, second = self.Door(), self.Door()
+        Sealed(first)
+        Silent(second)
+        Sealed(second)
+
+        self.assertIs(type(first), type(second))
+
+    def test_agent_del_reads_the_finalizer_with_secrets_too(self) -> None:
+        class Vaulted(Tag):
+            @Secret
+            @Record
+            def code(agent) -> str:
+                return "1234"
+
+            def __del__(agent) -> None:
+                pass
+
+        door = self.Door()
+        Vaulted(door)
+
+        self.assertIs(door.__del__.__func__, type(door).__del__)
+        self.assertNotIn("__del__", vars(door))
+
     def test_rip_on_a_finalizer_is_refused(self) -> None:
         class Keeper(Tag):
             @Rip
@@ -4334,9 +4695,24 @@ class Warded(Tag):
 
 def Hook(kind, value, trace): sys.__excepthook__(kind, value, trace)
 
-sys.excepthook = Hook                 # keeps this module alive until sys itself goes
+import TopKit.access, TopKit.lifecycle, TopKit.overlay, TopKit.state
+
+KIT = (TopKit.access, TopKit.lifecycle, TopKit.overlay, TopKit.state)
+
+def Hook(kind, value, trace, kit=KIT): sys.__excepthook__(kind, value, trace)
+
+sys.excepthook = Hook                 # keeps this module, and the kit's modules, alive
+                                      # until sys itself goes: their globals are wiped first
+
+class Closer:
+    def __call__(self, write=os.write): write(1, b"closer host\\n")
+
+class Called:
+    __del__ = Closer()                # a finalizer that is not a descriptor
+
 guarded = Door("guarded"); Guard(guarded)
 warded = Door("warded"); Guard(warded); Warded(warded)
+called = Called(); Guard(called)
 print("end")
 """
         root = pathlib.Path(__file__).resolve().parent.parent
@@ -4367,6 +4743,7 @@ print("end")
 
         self.assertEqual(lines[0], "end")
         self.assertIn("guarded host", lines)                  # even after the kit's modules are gone
+        self.assertIn("closer host", lines)
         self.assertLess(lines.index("warded warded"), lines.index("warded host"))
         self.assertNotIn("guarded teardown", lines)
 

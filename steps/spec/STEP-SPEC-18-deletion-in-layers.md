@@ -91,9 +91,13 @@ call to the underlaying del."
    `@Delete`. Calling it by hand runs the whole deletion, teardowns
    included, while the Agent is still a member: end an Agent with `del`,
    a Rip, or `Scope` instead.
-10. **Known limit.** In a reference cycle the language may clear weak
+10. **Known limits.** In a reference cycle the language may clear weak
     references before finalizers run (Python does), so a teardown or a
-    Layer that calls one of the Agent's own Actions there fails.
+    Layer that calls one of the Agent's own Actions there fails. Late in
+    interpreter exit, after the kit's own modules are cleared, the Layers
+    still run and still reach the host's own `__del__`, but a Layer that
+    reads a member the kit gates (a `@Secret`, a view or a condition by
+    name, a published member) may fail there.
 
 ```python
 class Lantern:
@@ -157,8 +161,13 @@ new output at exit. `At_Exit` already offers them, at a safer moment.
   `AttributeError`.
 - Agents whose only difference is their `__del__` Layers, deleted ones
   included, now share a runtime type.
+- A host class that subclasses `Tagged` but cannot be subclassed itself
+  (an `Enum`, a class whose `__init_subclass__` refuses) is now refused at
+  its first tagging, as any such host already was; before, it was tagged
+  in place and kept its own class.
 - Fixed with it: an object built from an Agent's runtime type
-  (`dataclasses.replace`, `type(self)(...)`) is tagged as a plain host; a
+  (`dataclasses.replace`, `type(self)(...)`) is tagged as a plain host,
+  and one that is never tagged runs its own `__del__`; a
   host class that subclasses `Tagged` gets its runtime type at the first
   tagging, and with it the finalizer (and views by name and format specs,
   which it also lacked until a Tag brought a type-level fact); the
@@ -179,10 +188,12 @@ new output at exit. `At_Exit` already offers them, at a safer moment.
 
 Covered by `tests/test_topkit.py::LayeredDeletionTests`, including real
 interpreter exits in a subprocess (one of them late, after the kit's
-modules are cleared), and by the existing `ExitProtocolTests`. An
-adversarial verification (kernel edge cases, a differential fuzz against
-`main`, and a docs-and-tests lens) found eleven defects in the first
-draft; each is fixed here and pinned by a test.
+modules are cleared), and by the existing `ExitProtocolTests`. Two
+rounds of adversarial verification (kernel edge cases, a differential
+fuzz against `main`, a docs-and-tests lens, then the fixed code and a
+mutation lens) found eleven defects in the first draft and seven in the
+fixes; each is fixed here and pinned by a test, and every mutation that
+undid a fix now fails a test.
 
 ---
 

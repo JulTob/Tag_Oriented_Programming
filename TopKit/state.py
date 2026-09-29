@@ -69,6 +69,22 @@ class _State:
     checking: bool = False
     words: tuple[int, tuple[type, ...], frozenset[str]] | None = None   # (Flag generation, Flags, aliases); None after the Tags change
 
+    def Restore(
+            state,
+            entry: "_State",
+            ) -> None:
+        """Take back everything ``entry`` held, in place. The counters of
+        open doors and checks stay: whoever opened them before the call
+        that is rolled back closes them on this same object."""
+
+        for name in state.__slots__:
+            if name not in ("composing", "checking"):
+                setattr(
+                        state,
+                        name,
+                        getattr(entry, name),
+                        )
+
     def Copy(
             state,
             ) -> "_State":

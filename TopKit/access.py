@@ -293,17 +293,22 @@ def _agent_bool(
 
 def _host_finalizer(
         agent: object,
+        kind: type = type,
         missing: type = AttributeError,
         ) -> None:
-    """The host's own ``__del__``, found as Python finds it: the first class
-    after the Agent's runtime type that defines one decides, ``None`` there
-    means there is none, and a descriptor is bound to the Agent first.
+    """The host's own ``__del__``, found as Python finds it: through the
+    object's type, past the kit's runtime types, the first class that
+    defines one decides, ``None`` there means there is none, and a
+    descriptor is bound first.
 
-    It runs at interpreter exit too, when this module's globals and even
-    the builtins may be gone, so it uses neither: ``missing`` is bound
-    here, and everything else is found on the Agent."""
+    It also runs late in interpreter exit, when this module's globals and
+    even the builtins may be gone, so it needs neither: ``kind`` and
+    ``missing`` are bound here."""
 
-    for klass in agent.__class__.__mro__[1:]:
+    for klass in kind(agent).__mro__:
+        if "_TOPKIT_HOST_TYPE" in klass.__dict__:
+            continue   # a runtime type: its __del__ is the kit's finalizer
+
         if "__del__" in klass.__dict__:
             finalizer = klass.__dict__["__del__"]
             break
@@ -314,14 +319,15 @@ def _host_finalizer(
         return
 
     try:
-        bind = finalizer.__get__
+        bind = kind(finalizer).__get__
     except missing:
         finalizer()   # not a descriptor: Python calls it as it is
         return
 
     bind(
+            finalizer,
             agent,
-            agent.__class__,
+            kind(agent),
             )()
 
 
@@ -330,6 +336,7 @@ def _agent_del(
         finalizing: Callable[[], bool] = sys.is_finalizing,
         state_key: str = STATE,
         host_finalizer: Callable[[object], None] = _host_finalizer,
+        read: Callable[[object, str], Any] = object.__getattribute__,
         ) -> None:
     """Deletion (§3.2, STEP-SPEC-18). The teardowns still due run, best
     effort; then the Agent's ``__del__`` runs as its Overlay shows it: the
@@ -341,11 +348,13 @@ def _agent_del(
 
     At exit this module's globals, and even the builtins, may already be
     gone. So the exit path uses neither: what it needs is bound here as a
-    default, or found on the Agent."""
+    default, or found on the Agent. The Agent is read as Python reads it,
+    never through the host's own ``__getattribute__``."""
 
-    state = agent.__dict__.get(state_key)
+    state = read(agent, "__dict__").get(state_key)
 
     if state is None:
+        host_finalizer(agent)   # built from an Agent's runtime type, never tagged: a plain host
         return
 
     interrupted = None
@@ -358,20 +367,21 @@ def _agent_del(
         except BaseException as error:
             interrupted = error   # Ctrl-C in a teardown: the __del__ Layers still run
 
-    layer = state.actions.get("__del__")
+    try:
+        layer = state.actions.get("__del__")
 
-    if layer is not None:
-        state.composing += 1   # a Tag's Layer runs inside the composition door (§1.5)
+        if layer is not None:
+            state.composing += 1   # a Tag's Layer runs inside the composition door (§1.5)
 
-        try:
-            layer(agent)
-        finally:
-            state.composing -= 1
-    elif "__del__" not in state.deleted:
-        host_finalizer(agent)
-
-    if interrupted is not None:
-        raise interrupted
+            try:
+                layer(agent)
+            finally:
+                state.composing -= 1
+        elif "__del__" not in state.deleted:
+            host_finalizer(agent)
+    finally:
+        if interrupted is not None:
+            raise interrupted   # reported after the Layers, whatever they raised
 
 
 def _agent_copy(

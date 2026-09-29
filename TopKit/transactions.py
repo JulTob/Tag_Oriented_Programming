@@ -146,7 +146,12 @@ def _rollback(
         return
 
     if entry_copy is not None:
-        namespace[STATE] = entry_copy
+        live = namespace.get(STATE)
+
+        if live is None:
+            namespace[STATE] = entry_copy
+        else:
+            live.Restore(entry_copy)   # in place: a door opened before this call closes on it
     else:
         namespace.pop(STATE, None)
 
@@ -347,7 +352,7 @@ def _commit(
                         )
 
         for name, _operation, public in declarations.operations:
-            if public and name in state.actions:
+            if public and name in state.actions and name != "__del__":
                 _bind_to(
                         agent,
                         state,
