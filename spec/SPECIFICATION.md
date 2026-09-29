@@ -90,7 +90,7 @@ class Wizard(Tag):
 
 Wizard(charlie)
 
-assert charlie in Wizard            # active membership
+assert charlie in Wizard            # membership: a sound member, once a contract narrows it (§2.5)
 for wizard in Wizard:               # the Field (its sound members, §2.5)
     Observe(wizard)
 ```
@@ -111,8 +111,10 @@ assert charlie in Mortal
 Membership is **monotonic by design**. Only Rip (§0.7) ends it, and Rip
 does not erase history: an Agent that has ever been a member of a Tag
 remains *an instance* of that Tag. In Python, `isinstance(agent, Tag)` is
-that has-been check and stays true after Rip. `agent in Tag` is the is-now
-check.
+that has-been check and stays true after Rip. `agent in Tag[:]` is the
+is-now check; `agent in Tag` is the is-now-and-sound check (§2.5), the
+same population the loop walks. Where no Postcondition is visible the
+two agree, so in Ring 0 `in` is membership.
 
 A Field **never keeps an Agent alive**. When an Agent ceases to exist it
 vanishes from every Field. Fields are indexed by identity: two equal but
@@ -202,7 +204,7 @@ Broken_Wizard(ari)                Form: Person, Broken_Wizard
     Person     parts, commit, write
     Wizard     parts, commit, write
     check      Has_Spellbook FAILS
-→ TagPostconditionError; ari in Person and ari in Wizard; bool(ari) == False
+→ TagPostconditionError; ari in Person[:] and ari in Wizard[:]; ari not in Wizard; bool(ari) == False
 ```
 
 Tagging is otherwise side-effect free: TOP-managed state is restored on
@@ -237,7 +239,7 @@ Rip is the only exit from a Field, and it obeys three laws:
   Tag fails loud, never silently. Rip does one thing, and it is the one
   act nothing can roll back, so it is not the place for a second rule.
   **The author ends a condition**, in one of two visible ways: a **guard
-  in the condition** (`if agent not in Wizard: return True`), which can
+  in the condition** (`if agent not in Wizard[:]: return True`), which can
   follow any membership at all, another Tag's, a keyword on a Tag, the
   Tag under an Underlay; or an **explicit deletion from the Tag's own
   `@Rip` protocol**, `Contract.Delete(agent, "Has_Book")`, one
@@ -261,12 +263,13 @@ language, not a library's naming.
 | Act | Python spelling |
 | --- | --- |
 | apply | `Wizard(agent, **inputs)` |
-| active member? | `agent in Wizard` |
+| a sound member? (§2.5) | `agent in Wizard` |
+| a member, sound or defective? | `agent in Wizard[:]` |
 | carries a keyword? (Flags, §1.8) | `"Undead" in ghoul`, `Undead in ghoul`, `Keyword(ghoul, "Undead")`; a Flag's words the same, `"Wolf" in howler` |
 | ever a member? | `isinstance(agent, Wizard)` |
 | the sound population | `for w in Wizard`, `len(Wizard)`, `if Wizard:` |
 | the defective population | `for w in ~Wizard`, `if ~Wizard:` |
-| everyone in the Field | `Wizard[:]`, `if Wizard[:]:` |
+| everyone in the Field | `Wizard[:]`, `if Wizard[:]:`, `agent in Wizard[:]` |
 | populations combined (§2.5) | `Wizard \| Fighter`, `Wizard & Fighter`, `Wizard - Sworn`; the same on `Wizard[:]` and `~Wizard` |
 | one condition, read on the Agent (§2.5) | `agent.Has_Book` |
 | the Agent-bound view | `Wizard[agent]` |
@@ -593,7 +596,7 @@ published member **answers members only, and only sound ones**
 (STEP-SPEC-10). At every use, an Operation's call or a Report's read, TOP
 checks that the Agent still belongs to the publishing Tag and that every
 promise on the Agent holds, whichever Tag made it: the same soundness
-`if agent:` and the loop ask about. A Rogue Agent (it left) gets a
+`if agent:`, the loop and `agent in Tag` ask about. A Rogue Agent (it left) gets a
 **Rogue Access Failure**, a Resolution Failure; a stale
 `send = agent.dispatch` captured before Rip fails the same way. A
 defective Agent (a promise broke) gets the **broken promise by name**,
@@ -1044,13 +1047,17 @@ Fields partition accordingly:
 for wizard in Wizard:        # the sound population: the ones fit to play
 for broken in ~Wizard:       # the defective population: repair them
 for anyone in Wizard[:]:     # everyone, sound or defective
-assert broken in Wizard      # a defective Agent is still a member
+assert broken in Wizard[:]   # a defective Agent is still a member
+assert broken not in Wizard  # and not a sound one: in agrees with the loop
 ```
 
 The plain loop is the working population, and `if Wizard:` asks whether
-it is empty. A broken Agent does not stop being a member (`in`), does not
-leave `Wizard[:]`, and waits in `~Wizard` for repair or Rip. Membership and the loop deliberately disagree for it:
-the loop is the line, and a defective product is off the line.
+it is empty. `agent in Wizard` answers for that same population
+(STEP-SPEC-19): a broken Agent is not `in Wizard`, does not leave
+`Wizard[:]`, and waits in `~Wizard` for repair or Rip. `in`, the loop,
+`len` and `if` agree on every population; the loop is the line, and a
+defective product is off the line. `isinstance` and `del Wizard[agent]`
+are unchanged: a defective member has been one, and can be Ripped.
 
 **Populations combine** (STEP-SPEC-13). `|` is either, `&` is both, `-`
 is the left without the right, on any population: a whole Field, the
@@ -1331,8 +1338,9 @@ A conforming implementation provides, ring by ring:
 
 **Ring 0**
 - stable object identity under tagging, and preserved host behaviour;
-- membership and Base membership (`agent in Tag`), closed upward, with a
-  has-been check that survives Rip;
+- membership and Base membership (`agent in Tag[:]`, and `agent in Tag`
+  where no contract narrows it), closed upward, with a has-been check
+  that survives Rip;
 - non-owning, identity-indexed, iterable Fields;
 - Base-first Form application, each Base once, active reapply a no-op;
 - the five-step tagging sequence with the call boundary: rollback on gate
@@ -1379,9 +1387,9 @@ A conforming implementation provides, ring by ring:
   call after the whole Form, re-checked at every later boundary, without
   inputs;
 - the contract direction, with weakened Postconditions diagnosed;
-- defective Agents: contract truthiness; the plain loop as the sound
-  population, `~Tag` the defective one, `Tag[:]` everyone, membership
-  unchanged; a namespace that names the culprit.
+- defective Agents: contract truthiness; the plain loop and `in` as the
+  sound population, `~Tag` the defective one, `Tag[:]` everyone; a
+  namespace that names the culprit.
 
 **Ring 3**
 - `@Rip` protocols run after membership ends, once, composed, failures

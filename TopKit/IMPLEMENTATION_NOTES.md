@@ -51,7 +51,7 @@ Actions; Agents are built once and play for a long time. So:
 
 Measured on Python 3.11 (`benchmarks/bench.py`), nanoseconds per
 operation: plain attribute read 42, Agent host-attribute read 65, Record
-read 64, plain method call 86, Action call 295, `agent in Tag` 291,
+read 64, plain method call 86, Action call 295, `agent in Tag[:]` 291,
 `bool(agent)` with one Post about 1900. Tagging a Record-plus-Post Shape
 over a Base costs about 60 µs per Agent; an empty Tag about 22 µs. Peak
 memory about 6 KB per Agent with two Tags.
@@ -75,7 +75,15 @@ rollback target.
 
 ## Judgment calls
 
-- **`in` vs `isinstance`.** `agent in Tag` is the is-now check; `isinstance`
+- **`in` vs `isinstance`.** `agent in Tag[:]` is the is-now check;
+  `agent in Tag` is the is-now-and-sound check (STEP-SPEC-19):
+  `MetaTag.__contains__` reads `state.active` and then the same `_holds`
+  as `bool(agent)`, so it costs a `bool(agent)` once a Postcondition is
+  visible and one dictionary read otherwise (on CPython 3.14 about 125
+  and 360 ns; `isinstance` about 100). Inside a condition it answers
+  membership, since `_holds` answers True under `state.checking`, which
+  the tagging's quality check (`_inspect`) now sets too; the gate does
+  not, so a Precondition reads the true sound population. `isinstance`
   is the has-been check and stays true after Rip. Kept because it is a
   dependable signal for spotting Rogue Agents. A rolled-back call also
   rolls the ever-set back.

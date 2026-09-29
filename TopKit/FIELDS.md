@@ -75,7 +75,8 @@ assert cal in Fighter[:]                    # still in the Field
 
 The plain loop, `for f in Fighter`, is the working population. `~Fighter`
 is the repair queue. `Fighter[:]` is the roster. `if Fighter:` asks
-whether anyone is fit; `len(Fighter[:])` counts everyone.
+whether anyone is fit; `len(Fighter[:])` counts everyone. `cal in
+Fighter` asks the working population, `cal in Fighter[:]` the roster.
 
 ---
 
@@ -225,6 +226,8 @@ assert list(Combat - Deprecated) == [Wizard]        # combat Tags still in use
 
 - **Walk a Tag** for the sound population, `~Tag` for the repair queue,
   `Tag[:]` for everyone.
+- **`in` follows the population.** `agent in Tag` is the sound one,
+  `agent in Tag[:]` everyone, `agent in ~Tag` the repair queue.
 - **Combine with `|`, `&`, `-`.** A Tag in an operator seat is its sound
   population; `Tag[:]` and `~Tag` say the other levels.
 - **Keep views, not lists.** A view is alive; a list is a moment.

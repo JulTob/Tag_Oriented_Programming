@@ -58,8 +58,10 @@ deletion on rip protocol or a field check in the condition?"
    protocols. It does not remove, restore or rebind any Precondition or
    Postcondition. §0.7 says so beside "contributions are sticky".
 2. **The guard.** A condition may read any membership and decide for
-   itself whether it applies: `agent in Tag`, `"Keyword" in Tag`,
-   `agent in ~Tag`. Returning `True` when it does not apply is the
+   itself whether it applies: `agent in Tag[:]`, `"Keyword" in Tag`,
+   `agent in ~Tag` *(amended 2026-09-29: a guard reads membership,
+   `agent in Tag[:]`; inside a condition `agent in Tag` reads the same,
+   STEP-SPEC-19)*. Returning `True` when it does not apply is the
    idiom. This is ordinary flow control; nothing in the kernel treats
    it specially.
 3. **The guarded Underlay.** An `@Underlay` condition that should skip a

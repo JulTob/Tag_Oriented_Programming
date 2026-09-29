@@ -333,7 +333,8 @@ Three things to notice.
   so a silent handler that never fires cannot happen.
 - **A gate can ask about other Tags.** `agent in Wizard` is an ordinary
   check, so a Tag can require another Tag. That is how synergies are
-  written: the second Tag needs the first.
+  written: the second Tag needs the first. It asks for a sound Wizard,
+  as the loop does; `agent in Wizard[:]` asks membership alone.
 
 **Inputs travel with the tagging.** Sometimes the gate needs information
 that is not on the Agent yet, like a code number. You give it at the call:
@@ -700,7 +701,7 @@ assert lance.Salute() == "Lance salutes"   # what he became: stays
 assert lance                               # what the role required: ended by you
 ```
 
-The other way is a guard inside the promise, `if agent not in Knight:
+The other way is a guard inside the promise, `if agent not in Knight[:]:
 return True`, which lets the promise follow any membership you like; the
 Contracts Guide shows both.
 
@@ -940,7 +941,8 @@ the architecture, with a Field to walk and a history that stays.
 
 | Question | Spelling |
 | --- | --- |
-| Is it a Wizard now? | `agent in Wizard` |
+| Is it a sound Wizard now? | `agent in Wizard` |
+| Is it a Wizard at all, sound or broken? | `agent in Wizard[:]` |
 | Was it ever? | `isinstance(agent, Wizard)` |
 | Does it carry the keyword? | `"Undead" in agent`, `Keyword(agent, "Undead")`, a Flag's words too |
 | Which Tags, in order? | `Tags(agent)`, `f"{agent:tags}"` |
