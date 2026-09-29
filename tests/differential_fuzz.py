@@ -823,6 +823,7 @@ PIN_MEMBERS = (
 
 
 WORDS = ("Kin", "Beast", "Undead", "Loner", "Wolf")
+LATE_WORD = "Late"   # no Tag answers to it until a Flag declared while the program runs gives it
 PIN_WORDS = ("Deprecated", "Homebrew", "Legacy")
 HOSTS = (
         ("Host", 5),
@@ -855,7 +856,7 @@ class Plan:
     pin_words: list[str] = field(default_factory=list)
     agents: list[str] = field(default_factory=list)          # the Agents bound now
     witnesses: list[str] = field(default_factory=list)       # the Witnesses bound now
-    tried: dict[str, list[Tag_Plan]] = field(default_factory=dict)   # the Tags each Agent was given
+    offered: dict[str, list[Tag_Plan]] = field(default_factory=dict)   # the Tags each Agent was offered: a tagging may be refused
     made: int = 0                                            # a name is never reused
     shapes: dict[str, type] = field(default_factory=dict)    # a plain class per Tag, to test its MRO first
 
@@ -931,7 +932,7 @@ def Declare_Tags(
             *plan.pin_words,
             *WORDS,
             *PIN_WORDS,
-            "Late",
+            LATE_WORD,
             *(tag.title for tag in plan.tags + plan.pins),
             ):
         if word not in known:
@@ -971,9 +972,9 @@ def Declare(
         chosen.append(member)
 
     tag = Tag_Plan(
-            name,
-            name,
-            {member.name: member.kind for member in chosen},
+            name=name,
+            title=name,
+            members={member.name: member.kind for member in chosen},
             )
     others = [known.name for known in plan.tags] or [name]
     decorators = []
@@ -1123,7 +1124,7 @@ def Do_Line(
         expression: str,
         label: str | None = None,
         ) -> str:
-    return f'Do("{step}", {label or expression!r}, lambda: {expression})'
+    return f'Do("{step}", {(label or expression)!r}, lambda: {expression})'
 
 
 def Any_Agent(
@@ -1157,6 +1158,7 @@ def Names_Of(
 def Inputs(
         plan: Plan,
         ) -> str:
+    # half the taggings take no inputs: the empty string is four of eight
     return plan.randomizer.choice(
             (
                 "",
@@ -1174,6 +1176,7 @@ def Inputs(
 def Arguments(
         plan: Plan,
         ) -> str:
+    # half the calls take no arguments
     return plan.randomizer.choice(
             (
                 "",
@@ -1204,23 +1207,29 @@ def Then_Look(
     return lines
 
 
-def Given_Tag(
+def Offer(
         plan: Plan,
         agent: str,
-        tag: Tag_Plan | None = None,
+        tag: Tag_Plan,
         ) -> Tag_Plan:
-    """A Tag for ``agent``: when ``tag`` is given, remember it was applied;
-    otherwise, mostly one it was given, so a Rip or a view has something
-    to find."""
+    """Remember that this step applies ``tag`` to ``agent``."""
 
-    given = plan.tried.setdefault(agent, [])
+    plan.offered.setdefault(agent, []).append(tag)
 
-    if tag is not None:
-        given.append(tag)
-        return tag
+    return tag
 
-    if given and plan.randomizer.random() < 0.75:
-        return plan.randomizer.choice(given)
+
+def Offered_Tag(
+        plan: Plan,
+        agent: str,
+        ) -> Tag_Plan:
+    """Mostly a Tag ``agent`` was offered, so a Rip or a view has something
+    to find; otherwise any Tag."""
+
+    offered = plan.offered.get(agent, [])
+
+    if offered and plan.randomizer.random() < 0.75:
+        return plan.randomizer.choice(offered)
 
     return Any_Tag(plan)
 
@@ -1230,7 +1239,7 @@ def Tagging(
         step: str,
         ) -> list[str]:
     agent = Any_Agent(plan)
-    tag = Given_Tag(
+    tag = Offer(
             plan,
             agent,
             Any_Tag(plan),
@@ -1258,7 +1267,7 @@ def Tagging_Many(
     tag = Any_Tag(plan)
 
     for target in targets:
-        Given_Tag(
+        Offer(
                 plan,
                 target,
                 tag,
@@ -1277,7 +1286,7 @@ def Ripping(
         step: str,
         ) -> list[str]:
     agent = Any_Agent(plan)
-    tag = Given_Tag(plan, agent).name
+    tag = Offered_Tag(plan, agent).name
 
     return Then_Look(
             plan,
@@ -1337,7 +1346,7 @@ def Applying(
         ) -> list[str]:
     agent = Any_Agent(plan)
     tags = ", ".join(
-            Given_Tag(plan, agent, Any_Tag(plan)).name
+            Offer(plan, agent, Any_Tag(plan)).name
             for _ in range(plan.randomizer.randint(1, 3))
             )
 
@@ -1421,8 +1430,12 @@ def Viewing(
 
     randomizer = plan.randomizer
     agent = Any_Agent(plan)
-    tag = Given_Tag(plan, agent)
+    tag = Offered_Tag(plan, agent)
     view = randomizer.choice((f"{agent}.{tag.title}", f"{tag.name}[{agent}]"))
+
+    if randomizer.random() < 0.1:
+        return [Do_Line(step, f'Set({view}, "hp", 1)', f"{view}.hp = 1")]
+
     reads = Names_Of([tag], "record", "report", "public report", "secret record") or ["hp"]
     calls = Names_Of([tag], "action", "operation", "public operation") or ["Speak"]
     expression = randomizer.choice(
@@ -1433,9 +1446,6 @@ def Viewing(
                 f"repr({view})",
                 )
             )
-
-    if randomizer.random() < 0.1:
-        return [Do_Line(step, f'Set({view}, "hp", 1)', f"{view}.hp = 1")]
 
     return [Do_Line(step, expression)]
 
@@ -1650,8 +1660,8 @@ def Flagging(
 
     randomizer = plan.randomizer
     tag = Any_Tag(plan)
-    word = randomizer.choice(WORDS + ("Late",))
-    given = [agent for agent in plan.agents if tag in plan.tried.get(agent, [])]
+    word = randomizer.choice(WORDS + (LATE_WORD,))
+    given = [agent for agent in plan.agents if tag in plan.offered.get(agent, [])]
 
     for known in (word, tag.title):
         if known not in plan.words:
@@ -1828,7 +1838,7 @@ def Misusing(
     return [Do_Line(step, expression)]
 
 
-Step = Callable[[Plan, str], "list[str] | None"]
+Step = Callable[[Plan, str], list[str] | None]
 
 STEPS: tuple[tuple[int, int, Step], ...] = (   # weight in the ordinary mix, in the heavy mix
         (16, 12, Tagging),
@@ -2192,8 +2202,8 @@ def Main() -> None:
                     differing.append(outcome.seed)
                     Print_Difference(
                             outcome,
-                            arguments.base,
-                            arguments.new,
+                            base_name,
+                            new_name,
                             )
 
     seconds = time.perf_counter() - started
