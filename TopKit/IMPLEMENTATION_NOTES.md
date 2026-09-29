@@ -34,7 +34,13 @@ Actions; Agents are built once and play for a long time. So:
   speed.
 - **Bound Actions hold the Agent weakly.** No reference cycle, so Fields
   (which hold Agents weakly) stay honest and finalizers run promptly. A
-  handle whose Agent died raises `ReferenceError`.
+  handle whose Agent died raises `ReferenceError`. In a reference cycle
+  (every tagged object still held in a module variable at exit is in
+  one, through its Tag's functions' `__globals__`) Python clears those
+  weak references before the finalizer runs, so `_agent_del` ties the
+  Agent's Actions to it again first (`_retie_actions`: a fresh weak
+  reference on each `_Bound` in the Agent's dictionary, never a strong
+  one, so nothing is resurrected and the Agent is still freed).
 - **The runtime type is neutral.** It is `(Host, Tagged)`, host first, so
   every special method of the host keeps working. Its name is the host's
   name. It carries only what Python requires on a type: special-method
@@ -122,10 +128,10 @@ rollback target.
   always the kit's finalizer, never a Tag's: a Tag's `__del__` is an
   ordinary Action in `state.actions`, never bound on the Agent, left out of
   the type-level dunders and of the type key (deleted or not). So
-  `agent.__del__` always reads the finalizer. It runs the teardowns
-  (skipped when `sys.is_finalizing()`: at exit they are `At_Exit`'s), then
-  the visible `__del__`: the top Layer, nothing if deleted, else the
-  host's own. `_host_finalizer` finds the host's own by walking the MRO
+  `agent.__del__` always reads the finalizer. It ties the Agent's
+  Actions to it again, runs the teardowns (skipped when
+  `sys.is_finalizing()`: at exit they are `At_Exit`'s), then the visible
+  `__del__`: the top Layer, nothing if deleted, else the host's own. `_host_finalizer` finds the host's own by walking the MRO
   past the runtime type, as Python does (first definer decides, `None`
   means none, descriptors are bound). The exit path uses no module global
   and no builtin: what it needs is bound as a default argument, because
@@ -141,9 +147,7 @@ rollback target.
 - **A rollback restores the state in place** (`_State.Restore`), keeping
   `composing` and `checking`: a door or a check opened before the call
   that is rolled back closes on the same object. (A copy put in its place
-  used to leave the door open for good.) Known limit: in a reference cycle,
-  Python clears weak references before finalizers run, so a finalizer's
-  Tag code cannot call the Agent's bound Actions there (`ReferenceError`).
+  used to leave the door open for good.)
 - **What the kit keeps, and for how long.** The Form cache holds a Tag's
   Bases only, never the Tag, so a dropped Tag class is freed. A Rip drops
   the Tag's view snapshot (a view needs membership). A Field entry is a

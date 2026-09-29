@@ -557,6 +557,15 @@ AGENT_MEMBERS = (
             def Leave(agent):
                 raise RuntimeError("{tag} will not let go")
             """),
+        Member("rip", "Leave", 1, """
+            @Rip
+            def Leave(agent, *, log=LOG):
+                try:
+                    answer = agent.describe()   # an Action, at deletion: in a cycle too
+                except Exception as error:
+                    answer = log.Failure(error)
+                log.Event("{tag}.Leave " + agent.name + " hears " + str(answer))
+            """),
         Member("rip", "Retire", 3, """
             @Rip
             def Retire(agent, *, log=LOG):
@@ -601,6 +610,14 @@ AGENT_MEMBERS = (
         Member("finalizer", "__del__", 1, """
             def __del__(agent, *, log=LOG):
                 log.Event("{tag}.__del__ " + agent.name)
+            """),
+        Member("finalizer", "__del__", 1, """
+            def __del__(agent, *, log=LOG):
+                try:
+                    answer = agent.describe()   # an Action, from a Layer: at program end too
+                except Exception as error:
+                    answer = log.Failure(error)
+                log.Event("{tag}.__del__ " + agent.name + " hears " + str(answer))
             """),
         Member("finalizer", "__del__", 1, """
             @Action

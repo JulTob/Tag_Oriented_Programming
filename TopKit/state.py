@@ -603,6 +603,35 @@ def _bind_pinned(
         _namespace_of(tag)[name] = bound
 
 
+def _retie_actions(
+        agent: object,
+        state: _State,
+        namespace: Any,
+        check: Callable[..., bool] = isinstance,
+        bound_type: type = _Bound,
+        ref: Callable[[object], Any] = weakref.ref,
+        ) -> None:
+    """Tie the Agent's bound Actions to it again, with fresh weak
+    references, where Python cleared them (STEP-SPEC-18, amended).
+
+    In a reference cycle Python clears every weak reference to the Agent
+    before its finalizers run, so ``agent.Ring()`` from a teardown or a
+    ``__del__`` Layer would raise ReferenceError. A new weak reference can
+    still be made there, and it answers the Agent until it is freed; it
+    is weak, so nothing is resurrected. Bound as defaults: this runs late
+    in interpreter exit too, when this module's globals may be gone."""
+
+    for name, function in state.actions.items():
+        value = namespace.get(name)
+
+        if (
+                check(value, bound_type)
+                and value._function is function
+                and value._reference() is None
+                ):
+            value._reference = ref(agent)
+
+
 def _rebind_all(
         agent: object,
         state: _State,

@@ -14,6 +14,11 @@
   over it, a host's `__del__` error was swallowed, and a Tag's `__del__`
   (or `@Delete` of it) silently stopped the teardowns. Teardowns of Agents
   collected as cyclic garbage at exit no longer run; `At_Exit` runs them.
+  Amended on 2026-09-29 by the Director's rulings: a teardown or a
+  `__del__` Layer may call the Agent's own Actions at deletion, in a
+  collected cycle and at program end too (before: `ReferenceError`, since
+  Python had cleared their weak references; the finalizer ties them again
+  first, and the Agent is still freed).
 - **Fixed with it:** an object built from an Agent's runtime type
   (`dataclasses.replace`, `type(self)(...)`) is tagged as a plain host
   (a `__del__` Layer used to recurse, and type-level gates of the other

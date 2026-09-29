@@ -70,6 +70,10 @@ call to the underlaying del."
    due runs, best effort (§3.1). Then its `__del__` runs as the Overlay
    shows it, top Layer first. Both run inside the composition door
    (§1.5), so a Tag's teardown and Layer read its own `@Secret` members.
+   The Agent's own Actions are tied to it again first, so a teardown and
+   a Layer call them as anywhere (`agent.Ring()`), in a collected cycle
+   and at program end too, where the language had cleared them; the
+   Agent is still freed afterwards.
 5. **A `__del__` never stops a teardown,** and a teardown never stops the
    Layers. Replacing the `__del__` Layers replaces only them; running the
    teardowns is a protocol of its own (§3.2), so no Tag can skip another
@@ -91,13 +95,12 @@ call to the underlaying del."
    `@Delete`. Calling it by hand runs the whole deletion, teardowns
    included, while the Agent is still a member: end an Agent with `del`,
    a Rip, or `Scope` instead.
-10. **Known limits.** In a reference cycle the language may clear weak
-    references before finalizers run (Python does), so a teardown or a
-    Layer that calls one of the Agent's own Actions there fails. Late in
-    interpreter exit, after the kit's own modules are cleared, the Layers
-    still run and still reach the host's own `__del__`, but a Layer that
-    reads a member the kit gates (a `@Secret`, a view or a condition by
-    name, a published member) may fail there.
+10. **Known limits.** Late in interpreter exit, after the kit's own
+    modules are cleared, the Layers still run and still reach the host's
+    own `__del__`, and a plain Action call still answers; but a Layer
+    that reads a member the kit gates (a `@Secret`, a view or a condition
+    by name, a published member, `bool(agent)`, a keyword) fails there,
+    and so does any Action of an Agent that has `@Secret` members.
 
 ```python
 class Lantern:

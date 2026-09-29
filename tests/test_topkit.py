@@ -4676,6 +4676,122 @@ print("end", "Deprecated" in Archmage)
         self.assertIs(type(first), type(second))
         self.assertIs(type(first), type(third))
 
+    def test_a_teardown_and_a_layer_call_the_agents_actions_in_a_collected_cycle(self) -> None:
+        log = self.log
+        freed: list[bool] = []
+
+        class Rung(Tag):
+            def Ring(agent) -> str:
+                return "ring"
+
+            @Rip
+            def Leave(agent) -> None:
+                log.append("teardown " + agent.Ring())
+
+            @Underlay
+            def __del__(agent, underlay) -> None:
+                log.append("layer " + agent.Ring())
+                underlay()
+
+        def Make() -> weakref.ref:
+            bell = self.Door()
+            Rung(bell)
+            bell.me = bell                     # a cycle: Python clears its weak references first
+
+            return weakref.ref(bell, lambda _: freed.append(True))
+
+        reference = Make()
+        gc.collect()
+
+        self.assertEqual(log, ["teardown ring", "layer ring", "host"])
+        self.assertEqual(freed, [True])        # tied again with weak references: nothing resurrected
+        self.assertIsNone(reference())
+        self.assertEqual(gc.garbage, [])
+
+    def test_a_secret_action_is_callable_from_a_teardown_in_a_cycle(self) -> None:
+        log = self.log
+
+        class Whisperer(Tag):
+            @Secret
+            def Whisper(agent) -> str:
+                return "hush"
+
+            def Relay(agent) -> str:
+                return agent.Whisper()
+
+            @Rip
+            def Leave(agent) -> None:
+                log.append("teardown " + agent.Relay() + " " + agent.Whisper())
+
+            def __del__(agent) -> None:
+                log.append("layer " + agent.Relay())
+
+        def Make() -> None:
+            bell = self.Door()
+            Whisperer(bell)
+            bell.me = bell
+
+        Make()
+        gc.collect()
+
+        self.assertEqual(log, ["teardown hush hush", "layer hush"])
+
+    def test_a_layer_calls_an_action_at_a_plain_del_and_the_agent_is_freed(self) -> None:
+        log = self.log
+
+        class Rung(Tag):
+            def Ring(agent) -> str:
+                return "ring"
+
+            @Underlay
+            def __del__(agent, underlay) -> None:
+                log.append("layer " + agent.Ring())
+                underlay()
+
+        bell = self.Door()
+        Rung(bell)
+        reference = weakref.ref(bell)
+        del bell
+        gc.collect()
+
+        self.assertEqual(log, ["layer ring", "host"])
+        self.assertIsNone(reference())
+
+    def test_actions_answer_a_layer_and_the_exit_pass_at_program_end(self) -> None:
+        program = """
+import os
+from TopKit import Tag, Rip, Underlay, At_Exit
+
+class Bell:
+    def __init__(self, name): self.name = name
+
+class Rung(Tag):
+    def Ring(agent): return agent.name + " rings"
+
+    @Rip
+    def Leave(agent, write=os.write, kind=type, base=BaseException):
+        try: write(1, ("teardown: " + agent.Ring() + "\\n").encode())
+        except base as error: write(1, ("teardown FAILED " + kind(error).__name__ + "\\n").encode())
+
+    @Underlay
+    def __del__(agent, underlay, write=os.write, kind=type, base=BaseException):
+        try: write(1, ("layer: " + agent.Ring() + "\\n").encode())
+        except base as error: write(1, ("layer FAILED " + kind(error).__name__ + "\\n").encode())
+        underlay()
+
+held = Bell("held"); Rung(held)       # in a cycle through Rung's functions: freed at exit by a collection
+listed = Bell("listed"); Rung(listed); At_Exit(listed)
+print("end", flush=True)              # the finalizers write with os.write, past the buffer
+"""
+        lines, stderr = Run_Program(program)
+
+        self.assertEqual(lines[0], "end")
+        self.assertIn("teardown: listed rings", lines)   # the At_Exit pass
+        self.assertIn("layer: held rings", lines)        # the Layer, at program end
+        self.assertIn("layer: listed rings", lines)
+        self.assertEqual([line for line in lines if "FAILED" in line], [])
+        self.assertEqual(stderr, "")
+
     def test_at_exit_only_the_layers_run(self) -> None:
         program = """
 from TopKit import Tag, Rip, At_Exit, Underlay

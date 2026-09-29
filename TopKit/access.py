@@ -29,6 +29,7 @@ from .state import _Pinned_Operation
 from .state import _Snapshot
 from .state import _State
 from .state import _name_of
+from .state import _retie_actions
 from .state import _state_of
 
 
@@ -339,25 +340,35 @@ def _agent_del(
         state_key: str = STATE,
         host_finalizer: Callable[[object], None] = _host_finalizer,
         read: Callable[[object, str], Any] = object.__getattribute__,
+        retie: Callable[..., None] = _retie_actions,
         ) -> None:
-    """Deletion (§3.2, STEP-SPEC-18). The teardowns still due run, best
-    effort; then the Agent's ``__del__`` runs as its Overlay shows it: the
-    top Layer, which reaches the host's own through ``@Underlay``, or the
-    host's own when no Tag declares one. At interpreter exit only the
-    ``__del__`` Layers run: teardowns there are At_Exit's, and opt-in. A
-    ``__del__`` Layer's own error is reported as Python reports any
-    finalizer's.
+    """Deletion (§3.2, STEP-SPEC-18). The Agent's Actions are tied to it
+    again first, so a teardown and a Layer call them as anywhere (in a
+    collected cycle Python has cleared their weak references). Then the
+    teardowns still due run, best effort; then the Agent's ``__del__``
+    runs as its Overlay shows it: the top Layer, which reaches the host's
+    own through ``@Underlay``, or the host's own when no Tag declares one.
+    At interpreter exit only the ``__del__`` Layers run: teardowns there
+    are At_Exit's, and opt-in. A ``__del__`` Layer's own error is reported
+    as Python reports any finalizer's.
 
     At exit this module's globals, and even the builtins, may already be
     gone. So the exit path uses neither: what it needs is bound here as a
     default, or found on the Agent. The Agent is read as Python reads it,
     never through the host's own ``__getattribute__``."""
 
-    state = read(agent, "__dict__").get(state_key)
+    namespace = read(agent, "__dict__")
+    state = namespace.get(state_key)
 
     if state is None:
         host_finalizer(agent)   # built from an Agent's runtime type, never tagged: a plain host
         return
+
+    retie(
+            agent,
+            state,
+            namespace,
+            )   # in a cycle Python cleared the Actions' weak references: agent.Ring() works again
 
     interrupted = None
 
