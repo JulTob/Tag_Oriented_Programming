@@ -49,9 +49,10 @@ def _is_tag_type(
 class _Population:
     """What every population answers: walk, ``in``, ``len``, truth, and
     the algebra. ``__iter__`` and ``__contains__`` come from the subclass,
-    as do ``_names`` (the Tags it is made of), ``_spell`` (how a program
-    writes it) and ``_kind`` ("Tags" for a Pin's, "objects" for an
-    ordinary Tag's, None where the Tag is gone)."""
+    as do ``_tags`` (the Tags it is made of, each once), ``_spell`` (how
+    a program writes it) and ``_kind`` ("Tags" for a Pin's, "objects" for
+    an ordinary Tag's, None where the Tag is gone). ``_names`` spells the
+    Tags by ``__name__``, or by ``__qualname__`` where two share one."""
 
     _label: str = "population"
 
@@ -66,10 +67,15 @@ class _Population:
             ) -> bool:
         raise NotImplementedError
 
+    def _tags(
+            population,
+            ) -> list[Any]:
+        raise NotImplementedError
+
     def _names(
             population,
             ) -> list[str]:
-        raise NotImplementedError
+        return _spell_tags(population._tags())
 
     def _spell(
             population,
@@ -181,6 +187,28 @@ class _Population:
             population,
             ) -> str:
         return f"<{population._label} Field>"
+
+
+def _spell_tags(
+        tags: list[Any],
+        ) -> list[str]:
+    """Each Tag by ``__name__``; by ``__qualname__`` where two Tags share
+    one; a Tag that is gone by a placeholder. A rewrite in a refusal
+    names the Tags this way, which a renamed Tag or a Twin (a Tag made
+    under another Tag's title) may not answer to in the program's own
+    namespace."""
+
+    names = [
+            "<a Tag that is gone>" if tag is None else tag.__name__
+            for tag in tags
+            ]
+
+    return [
+            tag.__qualname__
+            if tag is not None and names.count(name) > 1
+            else name
+            for tag, name in zip(tags, names)
+            ]
 
 
 def _tuple_of(
@@ -370,15 +398,16 @@ class _Combined(_Population):
 
         return agent in left and agent not in right
 
-    def _names(
+    def _tags(
             combined,
-            ) -> list[str]:
-        names = combined._left._names()
+            ) -> list[Any]:
+        tags = combined._left._tags()
+        seen = {id(tag) for tag in tags}
 
-        return names + [
-                name
-                for name in combined._right._names()
-                if name not in names
+        return tags + [
+                tag
+                for tag in combined._right._tags()
+                if id(tag) not in seen   # by identity: two Tags may share a name
                 ]
 
     def _spell(
@@ -462,14 +491,10 @@ class _Field(_Population):
 
         return None if owner is None else owner()
 
-    def _names(
+    def _tags(
             field,
-            ) -> list[str]:
-        tag = field._tag()
-
-        return [
-                "<a Tag that is gone>" if tag is None else tag.__name__
-                ]
+            ) -> list[Any]:
+        return [field._tag()]
 
     def _spell(
             field,
@@ -593,10 +618,10 @@ class _Partition(_Population):
                 "defective" if partition._label == "sound" else "sound",
                 )
 
-    def _names(
+    def _tags(
             partition,
-            ) -> list[str]:
-        return partition._field._names()
+            ) -> list[Any]:
+        return partition._field._tags()
 
     def _spell(
             partition,

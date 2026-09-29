@@ -797,7 +797,7 @@ class Rare(Tag):
 
 Rare(Wizard)
 
-assert Wizard in Rare                    # active membership, from the Pin's side
+assert Wizard in Rare                    # a sound member, from the Pin's side
 assert list(Rare) == [Wizard]            # a Field of Tags
 assert Wizard.rarity == "rare"           # one value, held on the Tag
 assert Wizard.Describe() == "Wizard is rare"

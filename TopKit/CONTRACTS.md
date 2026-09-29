@@ -623,7 +623,7 @@ assert Bridge in Certified
 - **End a condition yourself.** Rip never does. A guard in the promise,
   `if agent not in Bridge[:]: return True`, lets it follow any membership
   (inside a condition `in` reads membership, never the contract it is
-  part of);
+  part of, so `~Tag` is empty there and no guard);
   `Contract.Delete(agent, "Has_Oath")` in the role's `@Rip` protocol
   ends it when the role leaves. One visible line beats a law that
   guesses.

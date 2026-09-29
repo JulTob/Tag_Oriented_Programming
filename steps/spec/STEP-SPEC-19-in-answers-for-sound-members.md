@@ -19,10 +19,11 @@ spellings agree. `agent in Tag[:]` is membership, sound or defective:
 what `in` answered before. `agent in ~Tag` is True for a defective
 member. Combined populations answer `in` from their sides, as sets do.
 Nothing else moves: `isinstance`, Rip, views, Flags, published members,
-`bool(agent)` and Pins keep their rules. A Tag without a Postcondition
-changes nothing, so Ring 0's `in` stays membership; Ring 2 narrows it to
-the sound. This STEP amends STEP-SPEC-4 item 6 and Ring 2's "membership
-unchanged".
+`bool(agent)` and Pins keep their rules. Only Agents that carry a
+Postcondition are affected, whichever Tag made it; a Tag whose members
+carry none changes nothing, so Ring 0's `in` stays membership, and Ring
+2 narrows it to the sound. This STEP amends STEP-SPEC-4 item 6 and Ring
+2's "membership unchanged".
 
 ## Motivation
 
@@ -77,16 +78,22 @@ repair queue, `~Wizard`.
    and `bool(agent)`. Pins follow the same rule with the Tag as the
    Agent: `Wizard in Rare` is True for a sound pinned Tag, `Wizard in
    Rare[:]` for any pinned Tag, `Wizard in ~Rare` for a defective one.
-5. **Where no Postcondition is visible every member is sound**, so a Tag
-   without a contract changes nothing: `in` is membership there. Ring
-   0's `in` is membership; Ring 2 narrows it to the sound. Inside a
-   condition, `agent in Tag` reads membership, exactly as `bool(agent)`
-   answers True there and the loop yields every member: a promise never
-   reads the contract it is part of. The kit runs the tagging's quality
-   check under the same re-entrancy guard as every other run of the
-   contract, so this holds on every path. A guard that means membership
-   is best spelled `agent in Tag[:]` all the same, so it reads as it
-   works from outside a condition too.
+5. **Where no Postcondition is visible on the Agent every member is
+   sound.** Soundness is the Agent's (item 1), so a Tag whose members
+   carry no promise, from it or from any other Tag, changes nothing:
+   `in` is membership there. Ring 0's `in` is membership; Ring 2 narrows
+   it to the sound. Inside a check the kit runs, `agent in Tag` reads
+   membership and `agent in ~Tag` is False for every member, exactly as
+   `bool(agent)` answers True there and the loop yields every member: a
+   promise never reads the contract it is part of. The checks the kit
+   runs that way are a Postcondition, the tagging's quality check, a
+   condition read by name, a published member's gate, and
+   `Contract.Holds`, `Preconditions`, `Postconditions` and `Status`. A
+   Precondition at the tagging's gate runs outside that guard and reads
+   the sound population, so one Pre can refuse at the gate and read True
+   under `Contract.Status`. A guard that means membership is spelled
+   `agent in Tag[:]`, which reads as it works on every path; `agent in
+   ~Tag` is no guard inside a check.
 6. **Conformance text.** The Ring 0 line becomes "membership and Base
    membership (`agent in Tag[:]`, and `agent in Tag` where no contract
    narrows it), closed upward, with a has-been check that survives
@@ -137,12 +144,21 @@ A gate that reads another Tag, `@Pre def Is_A_Caster(agent): return
 agent in Wizard`, now asks for a sound Wizard. A defective Wizard is
 refused at that gate and nothing is applied; before, the Tag applied
 and the tagging reported the standing defect. Membership alone is
-`agent in Wizard[:]`.
+`agent in Wizard[:]`. `Contract.Status` and `Contract.Preconditions`
+read that same Pre under the re-entrancy guard, where `in` is
+membership, so they can answer True for an Agent the gate refused. That
+the gate runs outside the guard is older than this STEP; whether it
+should join the others is the Director's call.
 
 A guard inside a condition, `if agent not in Sworn: return True`,
-works as it did, because inside a condition `in` reads membership
-(item 5). The documents spell such guards `Sworn[:]`, which says what
-they read.
+works as it did, because inside a check `in` reads membership (item 5).
+The documents spell such guards `Sworn[:]`, which says what they read.
+A guard on the defective view, `if agent in ~Other: return True`, let a
+Postcondition pass at tagging before, because the tagging's quality
+check ran outside the guard and the view read a nested run of the
+contract; now that check runs under the guard, `~Other` is empty from
+inside, and the promise is read. Spell it `Other[:]`, or read the
+promise by name.
 
 The oracle model asserts membership, sound membership and defective
 membership apart. The tests that asserted a defective member `in` its
@@ -154,6 +170,7 @@ Tag now assert `in Tag[:]` and `not in Tag`.
 | --- | --- |
 | Keep the disagreement: `in` membership, the loop sound | Rejected by the Director: "that's not the director's ruling ... Make in consistent with for/len/if" |
 | The loop walks everyone, `in` and the loop agree on membership | Rejected when STEP-SPEC-4 was cleared: the loop is the working population |
+| A Tag in an operator seat means everyone in its Field, so `Wizard \| Fighter` reads as `Wizard[:] \| Fighter[:]` | Set aside by the Director: "Wizard \| Fighter should mean a valid fighter OR a valid Wizard, so it is present. A simple isinstance(wizard) or isinstance(fighter) can satisfy the other cases, which are rare and not good practice. Wizard[:] \| Fighter[:] would mean broken wizards or good wizards or broken fighters or good fighters, all active agency, all members in the sets (broken or not)." The sound population in every seat, `in` included (item 3) |
 | `in` raises for a defective member | Rejected: a question, not a failure; `~Tag` and `Tag[:]` say the other populations |
 | A fourth spelling for sound membership (`agent in +Wizard`) | Rejected: `Tag[:]` already exists; the Director: "Fighter[:] provides the behaviour we need" |
 | `in` inside a condition reads soundness too | Rejected: a promise would read the contract it is part of; `bool(agent)` already answers True there |
@@ -163,10 +180,12 @@ Tag now assert `in Tag[:]` and `not in Tag`.
 Covered by `tests/test_topkit.py::SoundMembershipTests`: a broken member
 in `Tag`, `Tag[:]` and `~Tag`; the same through a Shape; in every
 combined population, where `in` and the loop agree; after repair; after
-Rip, with the has-been check and the view's requirement; a Tag without
-Postconditions unchanged; a Pin with the Tag as the Agent; Flags in the
-Agent's seat; `in` inside a condition; a gate reading another Tag; a
-Scope over a defective Tag the Agent carried. The tests of STEP-SPEC-4,
+Rip, with the has-been check and the view's requirement; a Tag whose
+members carry no Postcondition unchanged, and one that follows its
+Agents' promises from another Tag; a Pin with the Tag as the Agent;
+Flags in the Agent's seat; `in` and `~Tag` inside a condition; a gate
+reading another Tag, and the same Pre under `Contract.Status`; a Scope
+over a defective Tag the Agent carried. The tests of STEP-SPEC-4,
 -9 and -10 that asserted a defective member `in` its Tag now assert the
 new answers. The oracle (`tests/oracle_topkit.py`, `Assert_Target`)
 checks membership, sound membership and defective membership on every

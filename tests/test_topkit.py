@@ -1658,21 +1658,29 @@ class SoundMembershipTests(unittest.TestCase):
         with self.assertRaises(TagResolutionError):
             Wizard[ari]
 
-    def test_a_tag_without_postconditions_is_unchanged(self) -> None:
+    def test_a_tag_whose_members_carry_no_postcondition_is_unchanged(self) -> None:
         Fighter = self.Fighter
         bo = Agent()
         bo.book = True
         Fighter(bo)
 
-        self.assertIn(bo, Fighter)                                    # no contract: every member is sound
+        self.assertIn(bo, Fighter)                                    # no promise on the Agent: every member is sound
         self.assertIn(bo, Fighter[:])
         self.assertEqual(Contract.Status(bo), {})
 
+    def test_a_tag_without_postconditions_follows_its_agents_promises(self) -> None:
+        Fighter = self.Fighter
+        bo = Agent()
+        bo.book = True
+        Fighter(bo)
         self.Wizard(bo)                                               # a promise from another Tag
+
         bo.book = False
 
         self.assertNotIn(bo, Fighter)                                 # soundness is the Agent's, whichever Tag promised
         self.assertIn(bo, Fighter[:])
+        self.assertIn(bo, ~Fighter)
+        self.assertEqual(list(Fighter), [])                           # as the loop already answered
 
     def test_a_pin_follows_the_rule_with_the_tag_as_the_agent(self) -> None:
         Wizard = self.Wizard
@@ -1728,6 +1736,36 @@ class SoundMembershipTests(unittest.TestCase):
         self.assertNotIn(ari, Sworn)
         self.assertIn(ari, Sworn[:])
 
+    def test_inside_a_condition_the_defective_view_is_empty(self) -> None:
+        class Repairing(Tag):
+            @Post
+            def Is_Fine(agent):
+                return agent.fine
+
+        class Watch(Tag):
+            @Post
+            def Sees_Defect(agent):
+                if agent in ~Repairing:                               # inside a check nobody is defective: no guard
+                    return True
+                return agent.ok
+
+        cal = Agent()
+        cal.fine = True
+        cal.ok = False
+        Repairing(cal)
+
+        with self.assertRaises(Postcondition.Sees_Defect):
+            Watch(cal)                                                # the guard never fires; the promise is read
+
+        self.assertIn(cal, Watch[:])                                  # applied, and defective
+        self.assertNotIn(cal, Watch)
+        self.assertIn(cal, ~Repairing)                                # outside, the repair queue answers
+
+        cal.fine = False                                              # defective under Repairing too
+
+        self.assertIn(cal, ~Repairing)
+        self.assertFalse(cal.Sees_Defect)                             # read by name: still no guard, ~Repairing is empty from inside
+
     def test_a_gate_reading_another_tag_asks_for_a_sound_one(self) -> None:
         Wizard, ari = self.Wizard, self.ari
 
@@ -1751,6 +1789,16 @@ class SoundMembershipTests(unittest.TestCase):
             Any_Caster(ari)                                           # membership alone: the gate opens, and the tagging reports the standing defect
 
         self.assertIn(ari, Any_Caster[:])
+
+        ari.book = True
+        War_Caster(ari)                                               # sound: through the gate
+        ari.book = False
+
+        self.assertEqual(                                             # the same Pre, read back under the re-entrancy guard, reads membership
+                Contract.Status(ari),
+                {"Is_A_Caster": True, "Has_Book": False},
+                )
+        self.assertTrue(Contract.Preconditions(ari))                  # where the gate refused
 
     def test_a_scope_leaves_a_defective_tag_the_agent_carried(self) -> None:
         Wizard, ari = self.Wizard, self.ari
@@ -3043,6 +3091,33 @@ class FieldAlgebraTests(unittest.TestCase):
                 self.assertIsInstance(union, types.UnionType)              # Python's own class union
                 self.assertTrue(isinstance(self.ari, union))
                 self.assertTrue(isinstance(Impostor(), union))
+
+    def test_a_rewrite_tells_two_tags_of_one_name_apart(self) -> None:
+        def Elsewhere():
+            class Wizard(Tag):
+                pass
+
+            return Wizard
+
+        Other = Elsewhere()
+
+        with self.assertRaises(TypeError) as caught:
+            isinstance(self.ari, self.Wizard | Other)
+
+        both = f"{self.Wizard.__qualname__}, {Other.__qualname__}"    # by __qualname__ where two Tags share a __name__
+
+        self.assertIn(f"isinstance(x, ({both}))", str(caught.exception))
+        self.assertIn("Elsewhere.<locals>.Wizard", both)
+
+        with self.assertRaises(TypeError) as caught:
+            (self.Wizard | Other) | None
+
+        self.assertIn(f"typing.Optional[typing.Union[{both}]]", str(caught.exception))
+
+        with self.assertRaises(TypeError) as caught:
+            isinstance(self.ari, self.Wizard | self.Wizard[:])        # one Tag twice: named once
+
+        self.assertIn("isinstance(x, (Wizard,))", str(caught.exception))
 
     def test_a_tag_declaring_a_member_named_sound_still_iterates(self) -> None:
         class Odd(Tag):

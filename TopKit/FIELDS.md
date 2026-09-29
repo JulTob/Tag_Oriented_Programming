@@ -227,7 +227,9 @@ objects; `Combat | Wizard` is refused, and the error names both sides.
   refused, and the refusal names the rewrite, `isinstance(x, (Wizard,
   Fighter))` and `typing.Optional[typing.Union[Wizard, Fighter]]`.
   Python 3.10 to 3.13 evaluate an annotation where it is written, so
-  `x: Wizard | Fighter | None` fails at definition.
+  `x: Wizard | Fighter | None` fails at definition. The rewrite names
+  the Tags by `__name__`, so a Tag you renamed, or a Twin made under
+  another Tag's title, may go by another name in your program.
 - **No Tags with objects.** A Pin's population holds Tags, a Tag's holds
   objects; `Rare | Wizard` is refused and the refusal names both.
 

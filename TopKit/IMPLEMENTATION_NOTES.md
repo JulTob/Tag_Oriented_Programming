@@ -82,9 +82,13 @@ rollback target.
   visible and one dictionary read otherwise (on CPython 3.14 about 125
   and 360 ns; `isinstance` about 100). Inside a condition it answers
   membership, since `_holds` answers True under `state.checking`, which
-  the tagging's quality check (`_inspect`) now sets too; the gate does
-  not, so a Precondition reads the true sound population. `isinstance`
-  is the has-been check and stays true after Rip. Kept because it is a
+  the tagging's quality check (`_inspect`) now sets too, and `agent in
+  ~Tag` is False there; the gate does not, so a Precondition reads the
+  true sound population (while `Contract.Status` of that same Pre, run
+  under the guard, reads membership). `isinstance` is the has-been
+  check and stays true after Rip. `Tag[:]` is the Field, held weakly:
+  once the interpreter tears the module down it is empty, while `agent
+  in Tag` and `Tags(agent)` read the Agent's own state and outlive it. Kept because it is a
   dependable signal for spotting Rogue Agents. A rolled-back call also
   rolls the ever-set back.
 - **Records over host descriptors** are refused with a Composition Failure
@@ -202,7 +206,7 @@ rollback target.
   Field at commit (`_publish_to_field`, dry run on copies first) and
   emitted by the Tag's scan for future Agents, so the scan cache is
   dropped at pinning. `_state_of` reads the dictionary directly, which
-  is why `agent in Tag` got faster rather than slower.
+  is why `agent in Tag[:]` got faster rather than slower.
 - **Originals for un-patching.** When a Pin overlays a Tag's own
   Operation, Report or plain value, `_refuse_tag_member` records the
   declared object in `state.originals` (first patch wins). `_call_teardown`
@@ -239,7 +243,10 @@ rollback target.
   `type.__or__` when the other side is not a population, so `Wizard |
   None` stays a typing union; a population is not a type: its class's
   `__instancecheck__`, and `|` with `None` or a class in either order,
-  raise `TypeError` naming the rewrite. No kernel state changes.
+  raise `TypeError` naming the rewrite. The rewrite names Tags by
+  `__name__` (by `__qualname__` where two share one), which a renamed
+  Tag, or a Twin made under another Tag's title, may not answer to in
+  the program's own namespace. No kernel state changes.
 - **Condition members** (STEP-SPEC-14): `_agent_getattr` answers a
   condition by name on the miss path, after Tag views and before the
   host's own `__getattr__`, through `contracts._condition_member`, which
