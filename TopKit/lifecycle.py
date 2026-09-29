@@ -11,7 +11,6 @@ from contextlib import contextmanager
 from typing import Any
 from typing import Iterator
 import atexit
-import weakref
 
 from .declarations import _parameters_of
 from .declarations import _takes_underlay
@@ -19,6 +18,7 @@ from .errors import TagCompositionError
 from .errors import TagError
 from .errors import TagPostconditionError
 from .errors import TagResolutionError
+from .fields import _Member
 from .geometry import _requiring_shapes
 from .state import _Originals
 from .state import _State
@@ -52,6 +52,8 @@ def _rip(
                 )
 
     state.active.remove(tag)
+    state.words = None
+    state.snapshots.pop(tag, None)   # a view needs membership: never read again
     tag._topkit_field.Remove(agent)
 
     _teardown(
@@ -201,7 +203,14 @@ def Scope(
                 pass
 
 
-_exit_registry: list[weakref.ReferenceType[object]] = []
+_exit_registry: dict[int, _Member] = {}   # by registration number; an entry leaves when its Agent dies
+_exit_count = [0]
+
+
+def _forget_exit(
+        expired: _Member,
+        ) -> None:
+    _exit_registry.pop(expired.key, None)
 
 
 def At_Exit(
@@ -209,27 +218,33 @@ def At_Exit(
         ) -> object:
     """Also run the Agent's teardowns at normal interpreter exit.
 
-    Registration is weak: it never keeps the Agent alive.
+    Registration is weak: it never keeps the Agent alive, and it leaves
+    the registry when the Agent dies.
     """
 
-    _exit_registry[:] = [
-            reference
-            for reference in _exit_registry
-            if reference() is not None
-            ]
-    _exit_registry.append(
-            weakref.ref(agent)
+    reference = _Member(
+            agent,
+            _forget_exit,
             )
+    reference.key = _exit_count[0]
+    _exit_registry[reference.key] = reference
+    _exit_count[0] += 1
 
     return agent
 
 
 def _run_exit_protocols() -> None:
-    for reference in _exit_registry:
-        agent = reference()
+    number = 0
 
-        if agent is not None:
-            _teardown_all(agent)
+    while number < _exit_count[0]:   # registrations made during the pass are reached too
+        reference = _exit_registry.get(number)
+        number += 1
+
+        if reference is not None:
+            agent = reference()
+
+            if agent is not None:
+                _teardown_all(agent)
 
 
 atexit.register(_run_exit_protocols)

@@ -70,6 +70,18 @@ def _bind_condition(
 
     skip = 2 if uses_underlay else 1
 
+    if not uses_underlay and not with_inputs:
+        def Plain_Check(
+                agent: object,
+                inputs: dict[str, Any],
+                ) -> Any:
+            return function(agent)   # holds no prior binding: re-applying cannot pile up
+
+        return Plain_Check
+
+    if not uses_underlay:
+        prior = None   # never called: do not keep the earlier binding alive
+
     def Check(
             agent: object,
             inputs: dict[str, Any],
@@ -182,13 +194,26 @@ def _holds(
         ) -> bool:
     """True exactly when every visible Postcondition holds."""
 
-    return _guarded(
-            agent,
-            "postconditions",
-            False,
-            TagPostconditionError,
-            "Postcondition",
-            )
+    state = _state_of(agent)
+
+    if state is None or state.checking or not state.postconditions:
+        return True   # nothing promised, or asked from inside a check
+
+    state.checking = True
+    state.composing += 1
+
+    try:
+        for name, check in state.postconditions.items():
+            try:
+                if not _verdict(check(agent, {}), name):
+                    return False
+            except Exception:
+                return False
+
+        return True
+    finally:
+        state.composing -= 1
+        state.checking = False
 
 
 def _condition_member(

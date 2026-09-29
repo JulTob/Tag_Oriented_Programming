@@ -12,11 +12,14 @@ from __future__ import annotations
 from functools import partial
 from typing import Any
 
+from .contracts import _condition_member
+from .contracts import _holds
 from .errors import TagCompositionError
 from .errors import TagResolutionError
 from .declarations import _MISSING
 from .declarations import _is_flag
-from .declarations import _is_word
+from .declarations import _flag_generation
+from .declarations import _words_of
 from .state import _Bound
 from .state import _Pinned_Operation
 from .state import _Snapshot
@@ -142,8 +145,6 @@ def _agent_getattr(
                         )
 
         if state.postconditions or state.preconditions:
-            from .contracts import _condition_member
-
             verdict = _condition_member(
                     agent,
                     state,
@@ -258,10 +259,22 @@ def _keyword(
         if type(probe) is not str:
             probe = str.__str__(probe)   # its text: exact, and hashable
 
-        return any(
-                _is_word(tag, probe)
-                for tag in state.active
-                )
+        words = state.words
+
+        if words is None or words[0] != _flag_generation[0]:
+            words = state.words = (
+                    _flag_generation[0],
+                    *_words_of(state.active),
+                    )
+
+        if probe in words[2]:
+            return True
+
+        for tag in words[1]:
+            if tag.__name__ == probe:
+                return True
+
+        return False
 
     return (
             probe in state.active
@@ -272,8 +285,6 @@ def _keyword(
 def _agent_bool(
         agent: object,
         ) -> bool:
-    from .contracts import _holds
-
     return _holds(agent)
 
 
@@ -284,7 +295,7 @@ def _agent_del(
     # Python does not promise finalizers at shutdown or inside cycles;
     # Scope() is the guaranteed path.
     try:
-        from .lifecycle import _teardown_all
+        from .lifecycle import _teardown_all   # at shutdown this fails, and nothing runs
 
         _teardown_all(agent)
 

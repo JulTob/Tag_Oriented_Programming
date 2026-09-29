@@ -34,7 +34,7 @@ Check = Callable[..., Any]
 # ------------------------------------------------------------------
 
 
-@dataclass
+@dataclass(slots=True)
 class _Snapshot:
     actions: dict[str, Function]
     records: dict[str, Any]
@@ -44,7 +44,7 @@ class _Snapshot:
     secrets: frozenset[str]
 
 
-@dataclass
+@dataclass(slots=True)
 class _State:
     host_type: type
     pinned: type | None = None   # the Tag itself, when the Agent is a Tag
@@ -67,6 +67,7 @@ class _State:
     originals: dict[str, Any] = field(default_factory=dict)       # what a Pin patched, as declared
     composing: int = 0
     checking: bool = False
+    words: tuple[int, tuple[type, ...], frozenset[str]] | None = None   # (Flag generation, Flags, aliases); None after the Tags change
 
     def Copy(
             state,
@@ -93,6 +94,7 @@ class _State:
                 originals=dict(state.originals),
                 composing=state.composing,
                 checking=state.checking,
+                words=state.words,
                 )
 
 
@@ -707,6 +709,9 @@ class _Secret_Gate:
                 )
 
 
+_require_membership: list[Callable[..., None]] = []
+
+
 class _Published:
     """A published Report: reads the Tag-scope value, read-only on the Agent."""
 
@@ -726,11 +731,14 @@ class _Published:
         if agent is None:
             return gate
 
-        from .overlay import _require_membership
+        if not _require_membership:
+            from .overlay import _require_membership as require   # overlay imports this module
+
+            _require_membership.append(require)
 
         state = _namespace_of(agent)[STATE]
         origin, _declared = state.reports[gate.name]
-        _require_membership(
+        _require_membership[0](
                 agent,
                 origin,
                 gate.name,
@@ -802,13 +810,13 @@ def _runtime_type_for(
     """The runtime type for a composition, shared across Agents that need
     the same type-level behaviour."""
 
-    from .access import _hooks_for
-
     key = _type_key_of(state)
     shared = _type_cache.get(key)
 
     if shared is not None:
         return shared
+
+    from .access import _hooks_for   # access imports this module
 
     host_type = state.host_type
     dunders = _dunder_actions(state)

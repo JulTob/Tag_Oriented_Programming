@@ -24,7 +24,6 @@ or Ripped.
 from __future__ import annotations
 
 from typing import Any
-import warnings
 
 from .contracts import _evaluate
 from .declarations import _Declarations
@@ -38,6 +37,7 @@ from .errors import TagPostconditionError
 from .errors import TagPreconditionError
 from .geometry import _form_of
 from .overlay import _install
+from .overlay import _quiet
 from .overlay import _refuse_in_collisions_of_the_form
 from .overlay import _materialize
 from .state import STATE
@@ -61,8 +61,15 @@ def _apply(
         ) -> object:
     """Apply ``tag`` and its missing Bases to ``agent`` as one call."""
 
-    entry_namespace = dict(_namespace_of(agent) or {})
     entry_state = _state_of(agent)
+
+    if entry_state is not None and all(
+            member in entry_state.active
+            for member in _form_of(tag)
+            ):
+        return agent   # the whole Form is active: nothing to apply, nothing to undo
+
+    entry_namespace = dict(_namespace_of(agent) or {})
     entry_copy = entry_state.Copy() if entry_state is not None else None
     entry_tags = tuple(entry_state.active) if entry_state is not None else ()
     entry_class = type(agent)
@@ -163,10 +170,9 @@ def _gate(
 
     scratch = state.Copy()
     names: list[str] = []
+    quiet = _quiet.set(_quiet.get() + 1)   # the real pass warns; catch_warnings() would reset every registry
 
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-
+    try:
         for tag in pending:
             declarations = _declarations_of(tag)
 
@@ -179,6 +185,8 @@ def _gate(
             for name, _function in declarations.preconditions:
                 if name not in names:
                     names.append(name)
+    finally:
+        _quiet.reset(quiet)
 
     state.composing += 1
 
@@ -290,6 +298,10 @@ def _inspect(
     """Quality check of the finished product: every visible Postcondition."""
 
     state = _state_of(agent)
+
+    if not state.postconditions:
+        return   # nothing promised: nothing to inspect
+
     state.composing += 1
 
     try:
@@ -317,6 +329,7 @@ def _commit(
         namespace.pop(name, None)
 
     state.active.append(tag)
+    state.words = None
     state.ever.add(tag)
 
     if declarations.secrets:
@@ -386,9 +399,9 @@ def _publish_to_field(
     agents = list(pinned[:])
     plans: list[tuple[object, _State]] = []
 
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")   # the real pass warns once
+    quiet = _quiet.set(_quiet.get() + 1)   # the real pass warns once
 
+    try:
         for agent in agents:
             candidate = _state_of(agent).Copy()
             _publish_into(
@@ -404,6 +417,8 @@ def _publish_to_field(
                         candidate,
                         )
                     )
+    finally:
+        _quiet.reset(quiet)
 
     for agent, candidate in plans:
         agent_state = _state_of(agent)
@@ -493,6 +508,9 @@ def _imprint(
                     ) from error
 
 
+_NONE: frozenset[str] = frozenset()   # one empty set for every snapshot that needs none
+
+
 def _snapshot(
         agent: object,
         state: _State,
@@ -518,6 +536,6 @@ def _snapshot(
             records=records,
             reports=reports,
             operations=dict(state.operations),
-            deleted=frozenset(state.deleted),
-            secrets=frozenset(state.secrets),
+            deleted=frozenset(state.deleted) if state.deleted else _NONE,
+            secrets=frozenset(state.secrets) if state.secrets else _NONE,
             )

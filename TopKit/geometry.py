@@ -11,7 +11,8 @@ from weakref import WeakKeyDictionary
 
 
 _tag_types: tuple[type, type] | None = None
-_form_cache: "WeakKeyDictionary[type, tuple[type, ...]]" = WeakKeyDictionary()
+_bases_cache: "WeakKeyDictionary[type, tuple[type, ...]]" = WeakKeyDictionary()
+# a Tag's Bases, Base-first; never the Tag itself, which would keep its own key alive
 
 
 def _is_tag(
@@ -50,10 +51,10 @@ def _form_of(
         ) -> tuple[type, ...]:
     """Base-first closure of one Tag: every required Base once, then the Tag."""
 
-    cached = _form_cache.get(tag)
+    cached = _bases_cache.get(tag)
 
     if cached is not None:
-        return cached
+        return cached + (tag,)
 
     form: list[type] = []
 
@@ -69,7 +70,7 @@ def _form_of(
     Visit(tag)
 
     result = tuple(form)
-    _form_cache[tag] = result
+    _bases_cache[tag] = result[:-1]
 
     return result
 
@@ -80,15 +81,20 @@ def _leaves(
     """Active Tags that no other active Tag specializes."""
 
     active = tuple(active)
+    specialized = {
+            base
+            for other in active
+            for base in _form_of(other)[:-1]
+            }
+
+    if len(active) > 1:
+        _is_tag(None)   # binds the root
+        specialized.add(_tag_types[1])   # every other Tag specializes the root
 
     return tuple(
             candidate
             for candidate in active
-            if not any(
-                    other is not candidate
-                    and issubclass(other, candidate)
-                    for other in active
-                    )
+            if candidate not in specialized
             )
 
 

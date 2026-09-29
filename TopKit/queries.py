@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .access import _keyword
 from .geometry import _form_of
 from .geometry import _leaves
 from .state import _name_of
@@ -42,8 +43,6 @@ def Keyword(
     """True when the Agent carries every given keyword: the name, a listed
     word (``@Flag("Wolf")``), or the class of an active Flag Tag. On a Tag,
     its Flag Pins. Works on any object, tagged or not."""
-
-    from .access import _keyword
 
     return all(
             _keyword(agent, word)

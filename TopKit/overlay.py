@@ -6,6 +6,7 @@ scope a name is one slot: an Action or a Record, never both at once.
 
 from __future__ import annotations
 
+from contextvars import ContextVar
 from functools import wraps
 from typing import Any
 from typing import Callable
@@ -14,6 +15,7 @@ import warnings
 from .access import IN_SEAT
 from .access import _host_in_seat
 from .contracts import _bind_condition
+from .contracts import _guarded
 from .declarations import _Declarations
 from .declarations import _is_flag
 from .declarations import _parameters_of
@@ -24,6 +26,8 @@ from .errors import TagCompositionError
 from .errors import TagDeclarationError
 from .errors import TagError
 from .errors import TagOverwriteWarning
+from .errors import TagPostconditionError
+from .errors import TagRogueAccessError
 from .errors import TagContractWarning
 from .errors import TagResolutionError
 from .declarations import STATE
@@ -34,6 +38,7 @@ from .declarations import _MISSING
 from .state import _Bound
 from .state import _Pinned_Operation
 from .state import _State
+from .state import _name_of
 from .state import _namespace_of
 from .state import _state_of
 
@@ -46,12 +51,22 @@ Function = Callable[..., Any]
 # ------------------------------------------------------------------
 
 
+_quiet: ContextVar[int] = ContextVar(   # above zero while a scratch pass lays Tags the real pass warns about
+        "topkit_quiet",
+        default=0,
+        )
+_meta_tag: list[type] = []   # tags imports this module: MetaTag is bound on first use
+
+
 def _is_tag_type(
         candidate: object,
         ) -> bool:
-    from .tags import MetaTag
+    if not _meta_tag:
+        from .tags import MetaTag
 
-    return isinstance(candidate, MetaTag)
+        _meta_tag.append(MetaTag)
+
+    return isinstance(candidate, _meta_tag[0])
 
 
 def _independent(
@@ -213,12 +228,6 @@ def _require_membership(
     every promise on the Agent must hold. A Rogue Agent raises a Rogue
     Access Failure; a defective one raises the broken promise by name."""
 
-    from .contracts import _guarded
-    from .errors import TagPostconditionError
-    from .errors import TagRogueAccessError
-    from .state import _name_of
-    from .state import _state_of
-
     state = _state_of(agent)
 
     if state is None or tag not in state.active:
@@ -288,6 +297,7 @@ def _install(
                 prior is not None
                 and not _takes_underlay(function)
                 and _origin_of(prior) is not tag
+                and not _quiet.get()
                 ):
             warnings.warn(
                     f"{tag.__name__}.{name} overrides a Base Postcondition"
@@ -384,6 +394,9 @@ def _refuse_a_second_in(
     if state.pinned is not None:
         return   # on a Tag, TOP owns `in`: a string in it asks for a keyword
 
+    if not _is_flag(tag) and not _answering(declarations):
+        return   # takes no seat and answers no `in`: nothing can collide
+
     _refuse_in_collision(
             state.host_type,
             tag,
@@ -400,8 +413,11 @@ def _refuse_in_collisions_of_the_form(
     """The same collision over a whole Form before any of it applies, so
     a Flag Base never runs its Imprint for a Shape that is then refused."""
 
-    if state.pinned is not None:
-        return
+    if state.pinned is not None or not any(
+            _is_flag(tag) or _answering(_declarations_of(tag))
+            for tag in pending
+            ):
+        return   # no Flag and no `in` answer arrives: nothing can collide
 
     flags = _flags_of(state)
     answers = _in_answers_of(state)
@@ -836,6 +852,7 @@ def _install_action(
             underlay is not None
             and not _takes_underlay(function)
             and _independent(tag, origin)
+            and not _quiet.get()
             ):
         warnings.warn(
                 f"{tag.__name__}.{name} replaces the Action of independent"
@@ -900,6 +917,7 @@ def _install_record(
             prior is not None
             and not _takes_stored(builder)
             and _independent(tag, prior)
+            and not _quiet.get()
             ):
         warnings.warn(
                 f"{tag.__name__}.{name} replaces the Record of independent"

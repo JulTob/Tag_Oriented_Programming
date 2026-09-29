@@ -37,6 +37,26 @@
 
 ### TopKit
 
+- **Performance** (`PERFORMANCE-2026-09-24.md`). Three leaks fixed: a
+  re-applied Tag with a `@Post` kept 808 B per turn; an applied Tag class
+  was never freed; a Ripped Tag's view snapshot was kept forever. Memory
+  per character falls 19 / 31 / 34 per cent for a Form of 1 / 3 / 6 Tags;
+  keywords, `bool(agent)` and walking a Field run 53 to 75 per cent
+  faster; re-applying an active Form 74 per cent; tagging 12 per cent;
+  `bool(Tag)` 38 per cent; `At_Exit` is O(1). A Rip costs about 45 ns
+  more, to free the snapshot.
+- **Fixed:** a gated tagging reset every warning registry (it used
+  `warnings.catch_warnings()`), so a once-per-place warning printed at
+  every such tagging; and a gate in one thread silenced the kit's
+  warnings in another.
+- Queries asked from a finalizer during interpreter shutdown (`bool(agent)`,
+  `Keyword`, a condition by name, a published Report) now answer instead of
+  raising `ImportError`.
+- `benchmarks/compare.py` sets TOP beside the same behaviour in plain
+  OOP, in time and in memory, including the misuse of keeping a passing
+  state as a Tag; `tests/test_performance.py` holds opt-in ratio budgets
+  (`TOPKIT_PERF=1`); `benchmarks/bench.py` no longer times tagging under
+  tracemalloc.
 - **Fixed:** a Flag applied to an Agent that already carried another Tag
   did not take the Agent's `in`, so `"Undead" in ghoul` raised
   `TypeError` (`Keyword()` was unaffected). The runtime type is now
