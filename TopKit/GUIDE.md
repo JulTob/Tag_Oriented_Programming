@@ -743,11 +743,14 @@ del lamp
 assert farewells == ["put down", "spell fades", "wick out"]
 ```
 
-A teardown and a `__del__` may call the object's Actions there, in a
-collected cycle too. At interpreter exit only the `__del__` Layers run.
-To have teardowns run at exit too, register the Agent with
-`At_Exit(agent)`; one that fails in that pass is printed on stderr the
-same way.
+At `del lamp` the teardowns run while the object is still a member of
+its Tags (`lamp in Carried`, and in `Carried[:]`); after `del
+Carried[lamp]` they run once it has left. A teardown and a `__del__` may
+call the object's Actions there, in a collected cycle too. At
+interpreter exit only the `__del__` Layers run. To have teardowns run at
+exit too, register the Agent with `At_Exit(agent)`: the pass runs them
+while the object is still a member, and one that fails there is printed
+on stderr the same way.
 
 ### Pattern 10 · Build the sheet from pieces
 

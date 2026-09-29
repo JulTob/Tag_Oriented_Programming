@@ -3979,10 +3979,13 @@ print("end")
 
 
 class LayeredDeletionTests(unittest.TestCase):
-    """STEP-SPEC-18: deletion in layers. The Agent leaves its Tags first
-    (every teardown runs), then its own __del__ runs as the Overlay shows
-    it: the host's own is the first Layer, a Tag's __del__ replaces the
-    Layers beneath or, with @Underlay, extends them."""
+    """STEP-SPEC-18: deletion in layers. Every teardown runs first, while
+    the Agent is still a member of its Tags, then its own __del__ runs as
+    the Overlay shows it: the host's own is the first Layer, a Tag's
+    __del__ replaces the Layers beneath or, with @Underlay, extends them.
+    Amended 2026-09-29: the Agent's Actions answer a teardown and a Layer
+    in a collected cycle and at program end; a failed teardown is
+    reported after the Layers."""
 
     def setUp(self) -> None:
         self.log: list[str] = []
@@ -4758,6 +4761,40 @@ print("end", "Deprecated" in Archmage)
         self.assertEqual(log, ["layer ring", "host"])
         self.assertIsNone(reference())
 
+    def test_a_teardown_at_deletion_still_sees_the_agent_as_a_member(self) -> None:
+        log = self.log
+
+        class Watchful(Tag):
+            @Rip
+            def Leave(agent) -> None:
+                log.append(("in", agent in Watchful, "walked", any(a is agent for a in Watchful[:])))
+
+        door = self.Door()
+        Watchful(door)
+        del door
+        gc.collect()
+
+        self.assertEqual(log, [("in", True, "walked", True), "host"])   # a member, found by a walk
+
+        log.clear()
+        other = self.Door()
+        Watchful(other)
+        del Watchful[other]                                              # a Rip: membership ended first
+
+        self.assertEqual(log, [("in", False, "walked", False)])
+
+        log.clear()
+
+        def Make() -> None:
+            bell = self.Door()
+            Watchful(bell)
+            bell.me = bell
+
+        Make()
+        gc.collect()                                                     # a collected cycle: still a member,
+                                                                         # but Python cleared the Field's weak
+        self.assertEqual(log, [("in", True, "walked", False), "host"])  # reference before the finalizer
+
     def test_a_failed_teardown_is_reported_after_the_layers_ran(self) -> None:
         log = self.log
 
@@ -4871,7 +4908,9 @@ class Stubborn(Tag):
 
 class Guard(Tag):
     @Rip
-    def Leave(agent): print(agent.name, "teardown", flush=True)
+    def Leave(agent):
+        member = agent in Guard and any(a is agent for a in Guard[:])
+        print(agent.name, "teardown", "as a member" if member else "as a stranger", flush=True)
 
 first = Door("first"); Stubborn(first); At_Exit(first)
 second = Door("second"); Guard(second); At_Exit(second)
@@ -4879,7 +4918,7 @@ print("end", flush=True)
 """
         lines, stderr = Run_Program(program)
 
-        self.assertEqual(lines, ["end", "first hold", "second teardown"])   # once, and the pass goes on
+        self.assertEqual(lines, ["end", "first hold", "second teardown as a member"])   # once, and on
         self.assertIn("Exception ignored in teardown Hold of Stubborn, deleting Door", stderr)
         self.assertIn("RuntimeError: first will not let go", stderr)
         self.assertEqual(stderr.count("Exception ignored"), 1)

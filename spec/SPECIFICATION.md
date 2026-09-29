@@ -1213,23 +1213,28 @@ del MI6[bond]
 bond.status          # "Former MI6 Agent"
 ```
 
-Teardowns run **after** membership has ended, in declaration order, every
-one of them; failures are collected and reported once as a Composition
-Failure. A `@Rip` Action with an `@Underlay` runs composed, like any Action.
+After a Rip, teardowns run **after** membership has ended, in
+declaration order, every one of them; failures are collected and
+reported once as a Composition Failure. At deletion, and in the
+`At_Exit` pass, the teardowns run while the Agent is still a member of
+its Tags (§3.2); a failed one is reported there as the language reports a
+finalizer's error. A `@Rip` Action with an `@Underlay` runs composed, like any Action.
 
 Ripping a Tag may apply another Tag, even itself. That is outside good TOP
 use: it could keep an Agent from ever leaving a Field.
 
 ## 3.2 Deleting an Agent
 
-Deletion of an Agent Rips it from its active Tags, so exit protocols run.
-An implementation provides three tiers and says which is which:
+Deletion of an Agent runs the exit protocols of its active Tags. It is
+not a Rip: membership does not end first, and the teardowns run while
+the Agent is still a member. An implementation provides three tiers and
+says which is which:
 
 | Tier | Guarantee |
 | --- | --- |
-| **Finalizer** (`__del__`) | best effort: when the Agent is collected, its teardowns run, then its `__del__` Layers; a teardown that fails is reported as the language reports a finalizer's error, and still runs at most once; at interpreter exit only the `__del__` Layers run; the language may not run finalizers at shutdown, and may not run them inside reference cycles |
+| **Finalizer** (`__del__`) | best effort: when the Agent is collected, its teardowns run, while it is still a member, then its `__del__` Layers; a teardown that fails is reported as the language reports a finalizer's error, and still runs at most once; at interpreter exit only the `__del__` Layers run; the language may not run finalizers at shutdown, and may not run them inside reference cycles |
 | **`Scope(agent, *tags)`** | guaranteed: Tags apply on entry and Rip, in reverse, on exit, even if the block raises |
-| **`At_Exit(agent)`** | opt-in: teardowns also run at normal interpreter exit, a failed one reported as at deletion; registration is weak |
+| **`At_Exit(agent)`** | opt-in: teardowns also run at normal interpreter exit, while the Agent is still a member, a failed one reported as at deletion; registration is weak |
 
 Every teardown runs at most once, whichever tier reaches it first.
 
@@ -1241,7 +1246,11 @@ extends them; `@Delete` removes them. With nothing stated, the host's own
 `__del__` is always callable, and where there is nothing it does nothing.
 Deletion runs in that order: every teardown still due runs, then the
 `__del__` runs as the Overlay shows it, top Layer first; both run inside
-the composition door (§1.5). A `__del__` never stops a teardown:
+the composition door (§1.5), and both may call the Agent's own Actions.
+The teardowns run while the Agent is still a member of its Tags, unlike
+after a Rip: `agent in Tag` answers yes, and a walk of the Field finds
+it, unless the language has already cleared the Field's weak references,
+as Python does for a collected cycle. A `__del__` never stops a teardown:
 replacing the Layers replaces only them, and an interrupted teardown
 does not skip them. At interpreter exit only the Layers run; teardowns
 at exit are `At_Exit`'s. An error raised by a `__del__` Layer is reported
@@ -1252,7 +1261,8 @@ naming the Agent and the teardown; nothing else is stopped by it, and
 the teardown still runs at most once. `@Rip` on a `__del__` is a
 Declaration Failure: a `__del__` Layer already runs at deletion. The language calls `__del__`, not the
 program: in Python, `agent.__del__` reads the kit's finalizer, and
-calling it by hand runs the teardowns while the Agent is still a member.
+calling it by hand runs the whole deletion, teardowns included, on a
+live Agent the program still holds.
 
 ```python
 class Lantern:
@@ -1387,9 +1397,11 @@ A conforming implementation provides, ring by ring:
   unchanged; a namespace that names the culprit.
 
 **Ring 3**
-- `@Rip` protocols run after membership ends, once, composed, failures
-  reported; the three deletion tiers; the Agent's `__del__` as Layers of
-  its Overlay, run after the teardowns, and alone at interpreter exit.
+- `@Rip` protocols run once, composed, failures reported: after
+  membership ends on a Rip, and while the Agent is still a member at
+  deletion and in the `At_Exit` pass; the three deletion tiers; the
+  Agent's `__del__` as Layers of its Overlay, run after the teardowns,
+  and alone at interpreter exit.
 
 **Everywhere**
 - the failure types above, distinct and named.

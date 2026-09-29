@@ -15,9 +15,10 @@
 An Agent's `__del__` is a member of its Overlay like any Action. The
 host's own finalizer is its first Layer. A Tag's `__del__` replaces the
 Layers beneath it, or with `@Underlay` extends them, and `@Delete`
-removes them. When an Agent is deleted, it first leaves its Tags (every
-`@Rip` teardown runs), then its `__del__` runs as the Overlay shows it.
-When nothing is stated, that is the host's own `__del__`. At interpreter
+removes them. When an Agent is deleted, every `@Rip` teardown still due
+runs, while the Agent is still a member of its Tags, then its `__del__`
+runs as the Overlay shows it. When nothing is stated, that is the host's
+own `__del__`. At interpreter
 exit only the `__del__` Layers run; teardowns there stay opt-in through
 `At_Exit`.
 
@@ -70,6 +71,14 @@ call to the underlaying del."
    due runs, best effort (§3.1). Then its `__del__` runs as the Overlay
    shows it, top Layer first. Both run inside the composition door
    (§1.5), so a Tag's teardown and Layer read its own `@Secret` members.
+   The teardowns run while the Agent is still a member of its Tags,
+   unlike after a Rip: `agent in Tag` answers yes, and a walk of the
+   Field (`Tag[:]`, `for a in Tag`) finds it, except where the language
+   has already cleared the Field's weak references, as Python does for a
+   collected cycle. A later STEP may end membership first; it would have
+   to let a Rip inside a finalizer skip the refusal that protects a Base
+   a Shape needs, and decide what a `__del__` Layer that reads a
+   published member does, since published members answer members only.
    The Agent's own Actions are tied to it again first, so a teardown and
    a Layer call them as anywhere (`agent.Ring()`), in a collected cycle
    and at program end too, where the language had cleared them; the
@@ -85,8 +94,8 @@ call to the underlaying del."
    Tag's remaining teardowns do not run: they were taken with it.)
 6. **At interpreter exit** only the `__del__` Layers run. Teardowns at
    exit stay opt-in: `At_Exit` runs them while the interpreter is still
-   whole; a teardown that fails in that pass is reported as at deletion
-   (item 7). Every teardown still runs at most once, whichever tier
+   whole and the Agent is still a member (a walk finds it there); a
+   teardown that fails in that pass is reported as at deletion (item 7). Every teardown still runs at most once, whichever tier
    reaches it first.
 7. **A `__del__` Layer's own error** is reported the way the language
    reports any finalizer's error (in Python, through
@@ -104,8 +113,8 @@ call to the underlaying del."
    finalizer must be found on the runtime type, so `agent.__del__` always
    reads the kit's finalizer, whatever the Layers are, even after
    `@Delete`. Calling it by hand runs the whole deletion, teardowns
-   included, while the Agent is still a member: end an Agent with `del`,
-   a Rip, or `Scope` instead.
+   included, on a live Agent the program still holds: end an Agent with
+   `del`, a Rip, or `Scope` instead.
 10. **Known limits.** Late in interpreter exit, after the kit's own
     modules are cleared, the Layers still run and still reach the host's
     own `__del__`, and a plain Action call still answers; but a Layer
@@ -145,7 +154,7 @@ point, because Python calls a type's `__del__` directly. So the finalizer
 stays on the runtime type and serves the Agent's `__del__` Layers after
 the teardowns.
 
-**Teardowns are not a Layer.** Leaving the Tags belongs to the Tags; the
+**Teardowns are not a Layer.** The teardowns belong to the Tags; the
 `__del__` belongs to the object. Letting a `__del__` skip teardowns would
 let one Tag break another's clean-up, which §3.1 rules out ("every one of
 them").
@@ -204,7 +213,7 @@ already offers them, at a safer moment.
 | Alternative | Verdict |
 | --- | --- |
 | Run the host's own `__del__` at exit and change nothing else | Set aside by the Director in favour of Layers: a Tag must be able to overrun the finalizer |
-| `__del__` Layers first, then the teardowns | Rejected by the Director: the Agent leaves its Tags first, as the kit already did for the host's finalizer |
+| `__del__` Layers first, then the teardowns | Rejected by the Director: the teardowns run first, as the kit already did for the host's finalizer |
 | A replacing `__del__` owns the whole deletion, teardowns included | Rejected by the Director: one Tag could break another's clean-up |
 | Teardowns also at interpreter exit, best effort | Rejected by the Director: they stay opt-in through `At_Exit` |
 | An `@Underlay` with nothing beneath is an error, as for other Actions | Set aside: every object can be finalized, so "nothing" is a valid Layer beneath a finalizer |
