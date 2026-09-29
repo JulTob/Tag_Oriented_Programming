@@ -227,7 +227,36 @@ rounds of adversarial verification (kernel edge cases, a differential
 fuzz against `main`, a docs-and-tests lens, then the fixed code and a
 mutation lens) found eleven defects in the first draft and seven in the
 fixes; each is fixed here and pinned by a test, and every mutation that
-undid a fix now fails a test.
+undid a fix now fails a test. The amendment below adds its own tests to
+the same class: the Agent's Actions answer a teardown and a Layer in a
+collected cycle, at a plain `del`, at program end and in the `At_Exit`
+pass, and the Agent is freed afterwards; a failed teardown is reported
+after the Layers, naming the Agent and the teardown, once each, in the
+`At_Exit` pass too, and before an interruption; a teardown reported on a
+Rip has nothing left to report; and membership is visible inside a
+teardown at deletion. Each fails when its fix is undone.
+
+---
+
+## Amendment, 2026-09-29
+
+Found after the merge, in the review of the fixes. Items 4, 5, 6, 7, 9
+and 10 above carry the amended text. The words said the Agent "leaves
+its Tags" at deletion, but the kit runs the teardowns while it is still
+a member (in the Tag, found by a walk), unlike after a Rip; a teardown or
+a `__del__` Layer that called one of the Agent's own Actions raised
+`ReferenceError` in a collected cycle, which includes every tagged object
+still held in a module variable at program end, because Python clears
+the Actions' weak references before the finalizer runs; and a teardown
+that failed at deletion, or in the `At_Exit` pass, was dropped.
+
+| Question | The Director's decision |
+| --- | --- |
+| Membership during deletion: end it first, as after a Rip, or keep the teardowns running while the Agent is still a member, as today and in 0.2.0a3 | "Fix the words now, STEP later": no behaviour change; the STEP, §3.1, §3.2, CONFORMANCE and the Guide say the teardowns at deletion and in the `At_Exit` pass run while the Agent is still a member; a later STEP may end membership first |
+| Actions at deletion: a teardown or a `__del__` Layer cannot call the Agent's own Actions where Python cleared their weak references | "Fix it now": the finalizer ties the Actions to the Agent again before the teardowns and the Layers run, with weak references, so `agent.Ring()` works there as anywhere and the Agent is still freed |
+| Teardown failures at deletion (`del`, a collection, program end, the `At_Exit` pass): swallowed or printed | "Print them": after every teardown and every Layer has run, each failed teardown is reported through `sys.unraisablehook`, naming the Agent and the teardown; nothing else is stopped; a teardown still runs at most once |
+
+Covered by `tests/test_topkit.py::LayeredDeletionTests`.
 
 ---
 
@@ -239,4 +268,6 @@ undid a fix now fails a test.
 > the Director's direction: "then it should del in layers, as an overlay.
 > We should be able to overrun it, but if nothing is stated, just overlay
 > the del with a call to the underlaying del"; with teardowns first, a
-> `__del__` that never stops a teardown, and only the Layers at exit.
+> `__del__` that never stops a teardown, and only the Layers at exit; and
+> as amended the same day by the Director's three rulings ("Fix the words
+> now, STEP later", "Fix it now", "Print them").
