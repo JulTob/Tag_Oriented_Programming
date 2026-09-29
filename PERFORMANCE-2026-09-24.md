@@ -2,7 +2,9 @@
 
 - **Date:** 2026-09-24
 - **Measured:** TopKit on `main` after PR #20, against the same behaviour
-  written as idiomatic Python classes, on CPython 3.14.3 (Apple silicon).
+  written as idiomatic Python classes, on one machine: an Apple M5 with
+  macOS 26.4 and CPython 3.14.3. Other machines give other figures; §9
+  has a second one.
 - **Why:** users reported that TopKit is slow. The Director suspected they
   kept passing states as Tags, and asked whether TOP only moves a budget
   between time and memory instead of saving it.
@@ -23,8 +25,10 @@
 1. **Tags used as Records.** A passing state (Asleep, Poisoned, Stunned)
    applied and Ripped as a Tag every turn costs **2.9 to 4.3 us per turn,
    280 to 420 times a plain attribute**, and 285 to 430 ms per 100,000
-   agent-turns. Kept as a Record, as the Guide says, the same state costs
-   **24 to 42 ns, 2.4 to 3 times a plain attribute**. No kit can close the
+   agent-turns (Apple M5, CPython 3.14; 248 to 363 times on a Linux
+   machine with CPython 3.13, §9). Kept as a Record, as the Guide says,
+   the same state costs **24 to 42 ns, 2.4 to 3 times a plain attribute**
+   (1.4 to 1.6 times on that Linux machine). No kit can close the
    first gap: a tagging is a transaction (gate, contributions, promise,
    rollback), and its floor is about 1 us. The remedy is the paradigm's own
    rule, *a Tag is what something is; a Record is what it is right now*.
@@ -58,7 +62,8 @@ are the Director's to decide as STEPs (§6).
 
 ## 2. What the users hit: a passing state kept as a Tag
 
-1,000 creatures, 100 turns, one state flipped every turn:
+1,000 creatures, 100 turns, one state flipped every turn (Apple M5,
+CPython 3.14):
 
 | State | Kept as | Per loop | Per turn | vs OOP |
 | --- | --- | --- | --- | --- |
@@ -168,21 +173,27 @@ Form-of-6 character's memory 61x -> 40x.
 
 ### 4.2 The four deliberate differences
 
-Each fixes a defect of the old kit; each has a test.
+Each fixes a defect of the old kit. Each has a test: the first and third
+in `EfficiencyTests`, the second and fourth in `DeliberateDifferenceTests`
+(added after review; before them, the second and fourth were shown only
+by one-off scripts).
 
 - **A warning given once is not repeated.** The gate used
   `warnings.catch_warnings()` for its scratch pass, which resets every
   warning registry, so a once-per-place warning (the default) printed at
   every gated tagging.
 - **Silencing is per thread.** Under `catch_warnings()`, a gate in one
-  thread dropped the kit's warnings in another (about 15 per cent of them
-  in the verification run).
+  thread dropped the kit's warnings in another: the old kit delivered
+  2,602 of 3,000 in the test (a reviewer saw 2,383 of 3,000); the new one
+  delivers all of them.
 - **A dropped Tag class is freed** (the leak of §3).
 - **Queries asked from a finalizer at interpreter shutdown answer.**
   `bool(agent)`, `Keyword`, a condition read by name, a published Report:
   the old kit raised `ImportError` there, because they imported at call
-  time. The finalizer itself still imports at call time, so teardowns at
-  shutdown behave exactly as before (see §5.6).
+  time. A published Report read for the first time at shutdown still
+  raised it after this PR; the review follow-up closed that too. The
+  finalizer itself still imports at call time, so teardowns at shutdown
+  behave exactly as before (see §5.6).
 
 ### 4.3 Tried and taken back
 
@@ -336,6 +347,24 @@ cent of a cycle, not worth a STEP.
    two in tagging and memory is.
 4. Revisit §6 items 2 and 4 with usage data: how often programs read
    Tag-bound views, and how many Agents need no hook at all.
+
+---
+
+## 9. Other machines
+
+Every figure above is from one machine (Apple M5, macOS 26.4, CPython
+3.14.3). A reviewer re-ran `benchmarks/compare.py` on Linux with CPython
+3.13 and measured:
+
+| Figure | Apple M5, CPython 3.14 | Linux, CPython 3.13 |
+| --- | --- | --- |
+| A passing state kept as a Tag, vs a plain attribute | 280 to 420x | 248 to 363x |
+| The same state kept as a Record, vs a plain attribute | 2.4 to 3x | 1.4 to 1.6x |
+
+The conclusions hold on both: the misuse costs two orders of magnitude,
+and a Record costs a small multiple of an attribute. The multiples depend
+on the interpreter's attribute fast paths, which differ between 3.13 and
+3.14. Run `benchmarks/compare.py` on the machine that matters to you.
 
 ---
 

@@ -37,7 +37,11 @@
 
 ### TopKit
 
-- **Performance** (`PERFORMANCE-2026-09-24.md`). Three leaks fixed: a
+- **Performance** (`PERFORMANCE-2026-09-24.md`; figures from an Apple
+  M5 with CPython 3.14, and other machines differ: on Linux with CPython
+  3.13 a reviewer measured the passing-state misuse at 248 to 363 times a
+  plain attribute where the M5 gave 280 to 420, and a Record at 1.4 to 1.6
+  times where the M5 gave 2.4 to 3). Three leaks fixed: a
   re-applied Tag with a `@Post` kept 808 B per turn; an applied Tag class
   was never freed; a Ripped Tag's view snapshot was kept forever. Memory
   per character falls 19 / 31 / 34 per cent for a Form of 1 / 3 / 6 Tags;
@@ -51,7 +55,14 @@
   warnings in another.
 - Queries asked from a finalizer during interpreter shutdown (`bool(agent)`,
   `Keyword`, a condition by name, a published Report) now answer instead of
-  raising `ImportError`.
+  raising `ImportError`. (A published Report read for the first time at
+  shutdown still raised it until the review follow-up: `overlay` now hands
+  its membership check to `state` when it loads.)
+- Review follow-up: tests for the two deliberate differences that had
+  none (per-thread warning silencing, queries at shutdown); tests that
+  read the kit's internals now test what a program can observe; the
+  one-item-list caches became plain module variables, and an Agent's
+  gathered Flag words a named tuple.
 - `benchmarks/compare.py` sets TOP beside the same behaviour in plain
   OOP, in time and in memory, including the misuse of keeping a passing
   state as a Tag; `tests/test_performance.py` holds opt-in ratio budgets
