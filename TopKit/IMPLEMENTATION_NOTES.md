@@ -228,10 +228,18 @@ rollback target.
 - **Field algebra** (STEP-SPEC-13): `_Population` in `fields.py` gives
   every population the three operators; `_Combined` holds two sides and
   an operator and walks them lazily (`|` by identity, each once; `&` and
-  `-` by `in` on the right side). `_population_of` turns a Tag into its
-  sound partition; `MetaTag.__or__` falls back to `type.__or__` when the
-  other side is not a population, so `Wizard | None` stays a typing
-  union. No kernel state changes.
+  `-` by `in` on the right side). `_population_of` decides Tag-ness by
+  the metaclass (as `overlay._is_tag_type` does), never by an attribute
+  named `_sound`, and turns a Tag into its sound partition through the
+  module function `_sound_of`, so a Tag declaring a member `_sound`
+  still iterates. A `_Field` holds a weak reference to its Tag, so a
+  refusal can name both sides and read Pin-ness at operator time (a
+  `@Pin` mark lands after the class exists); `_combine` refuses a Pin's
+  population with a Tag's, naming both. `MetaTag.__or__` falls back to
+  `type.__or__` when the other side is not a population, so `Wizard |
+  None` stays a typing union; a population is not a type: its class's
+  `__instancecheck__`, and `|` with `None` or a class in either order,
+  raise `TypeError` naming the rewrite. No kernel state changes.
 - **Condition members** (STEP-SPEC-14): `_agent_getattr` answers a
   condition by name on the miss path, after Tag views and before the
   host's own `__getattr__`, through `contracts._condition_member`, which

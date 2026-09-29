@@ -929,7 +929,9 @@ conditions); TopKit refuses that at the gate, because on a class the two
 live in one dictionary. `if Wizard:` still asks whether anyone is a
 sound Wizard, not whether Wizard's own promises hold; ask those from the
 Pin's side, `Wizard in ~Rare`. A Pin applies only to Tags, and an
-ordinary Tag only to objects, so a Field is never a mix of the two. A
+ordinary Tag only to objects, so a Field is never a mix of the two, and
+a Pin's population never combines with a Tag's: `Rare | Wizard` is
+refused, naming both sides. A
 Flag Pin is a keyword on the Tag: `"Deprecated" in Wizard`. Prefer it to
 `Wizard.deprecated = True` for the same reason you prefer an `Undead` Tag
 to `asleep = True`: a value can be flipped back, membership is a state of

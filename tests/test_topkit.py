@@ -12,6 +12,9 @@ from __future__ import annotations
 import collections.abc
 import copy
 import gc
+import sys
+import types
+import typing
 import unittest
 import warnings
 import weakref
@@ -2929,6 +2932,201 @@ class FieldAlgebraTests(unittest.TestCase):
 
         with self.assertRaises(TypeError):
             self.Wizard & 3
+
+    def test_a_population_is_not_a_type_for_isinstance(self) -> None:
+        Wizard, Fighter = self.Wizard, self.Fighter
+
+        for population, rewrite in (
+                (Wizard | Fighter, "isinstance(x, (Wizard, Fighter))"),
+                (Wizard[:] | ~Fighter, "isinstance(x, (Wizard, Fighter))"),
+                ((Wizard | Fighter) - Wizard, "isinstance(x, (Wizard, Fighter))"),
+                (Wizard[:], "isinstance(x, (Wizard,))"),
+                (~Fighter, "isinstance(x, (Fighter,))"),
+                ):
+            with self.subTest(population=repr(population)):
+                with self.assertRaises(TypeError) as caught:
+                    isinstance(self.ari, population)
+
+                self.assertIn("a population is not a type", str(caught.exception))
+                self.assertIn(rewrite, str(caught.exception))
+
+        with self.assertRaises(TypeError):
+            isinstance(Agent(), (Wizard, Wizard | Fighter))             # inside a tuple too
+
+        with self.assertRaises(TypeError) as caught:
+            issubclass(Agent, Wizard | Fighter)
+
+        self.assertIn("issubclass(x, (Wizard, Fighter))", str(caught.exception))
+        self.assertTrue(isinstance(self.ari, (Wizard, Fighter)))        # the rewrite
+        self.assertFalse(isinstance(Agent(), (Wizard, Fighter)))
+
+    def test_a_hint_over_a_population_is_refused_naming_the_rewrite(self) -> None:
+        Wizard, Fighter = self.Wizard, self.Fighter
+        rewrite = "typing.Optional[typing.Union[Wizard, Fighter]]"
+
+        with self.assertRaises(TypeError) as caught:
+            (Wizard | Fighter) | None
+
+        self.assertEqual(
+                str(caught.exception),
+                f"(Wizard | Fighter) | None: a population is not a type; write {rewrite}",
+                )
+
+        with self.assertRaises(TypeError) as caught:
+            None | (Wizard | Fighter)
+
+        self.assertEqual(
+                str(caught.exception),
+                f"None | (Wizard | Fighter): a population is not a type; write {rewrite}",
+                )
+
+        with self.assertRaises(TypeError) as caught:
+            Wizard | Fighter | None                                       # as a hint is written
+
+        self.assertIn(rewrite, str(caught.exception))
+
+        with self.assertRaises(TypeError) as caught:
+            (Wizard[:] | ~Fighter) | int                                  # a class on the other side
+
+        self.assertIn("typing.Union[Wizard, Fighter, int]", str(caught.exception))
+
+        with self.assertRaises(TypeError) as caught:
+            (Wizard | Fighter) | (int | str)                              # a union on the other side
+
+        self.assertIn("typing.Union[Wizard, Fighter, int | str]", str(caught.exception))
+
+        union = Wizard | None                                             # a Tag with a non-population: Python's own union
+        self.assertTrue(isinstance(None, union))
+        self.assertTrue(isinstance(self.ari, union))
+        self.assertIsNotNone(typing.Optional[typing.Union[Wizard, Fighter]])   # the rewrite
+
+    def test_a_hint_in_a_signature_is_refused_where_python_evaluates_it(self) -> None:
+        """Python 3.10 to 3.13 evaluate a signature's hints at definition;
+        3.14 when the annotations are read. Either way, the refusal names
+        the rewrite."""
+
+        lines, stderr = Run_Program(
+                "from TopKit import Tag\n"
+                "class Wizard(Tag): pass\n"
+                "class Fighter(Tag): pass\n"
+                "try:\n"
+                "    def f(x: Wizard | Fighter | None): pass\n"
+                "except TypeError as error:\n"
+                "    print('at definition:', error)\n"
+                "else:\n"
+                "    try:\n"
+                "        f.__annotations__\n"
+                "    except TypeError as error:\n"
+                "        print('when read:', error)\n"
+                "    else:\n"
+                "        print('accepted')\n"
+                )
+
+        self.assertEqual(stderr, "")
+        self.assertEqual(len(lines), 1, lines)
+        self.assertIn("typing.Optional[typing.Union[Wizard, Fighter]]", lines[0])
+        self.assertTrue(
+                lines[0].startswith("at definition:" if sys.version_info < (3, 14) else "when read:"),
+                lines[0],
+                )
+
+    def test_a_class_with_its_own_sound_is_not_a_tag_in_an_operator_seat(self) -> None:
+        class Impostor:
+            @classmethod
+            def _sound(cls):
+                return "not a population"
+
+        Wizard = self.Wizard
+
+        for union in (Wizard | Impostor, Impostor | Wizard):
+            with self.subTest(union=repr(union)):
+                self.assertIsInstance(union, types.UnionType)              # Python's own class union
+                self.assertTrue(isinstance(self.ari, union))
+                self.assertTrue(isinstance(Impostor(), union))
+
+    def test_a_tag_declaring_a_member_named_sound_still_iterates(self) -> None:
+        class Odd(Tag):
+            @Action
+            def _sound(agent):
+                return "a member, not the population"
+
+        class Odder(Tag):
+            _sound = 5
+
+        for tag in (Odd, Odder):
+            with self.subTest(tag=tag.__name__):
+                dee = Agent()
+                tag(dee)
+
+                self.assertEqual(list(tag), [dee])
+                self.assertEqual(len(tag), 1)
+                self.assertTrue(tag)
+                self.assertEqual(list(~tag), [])
+                self.assertIn(dee, tag)
+                self.assertEqual(list(tag | self.Wizard), [dee, self.ari, self.bo])
+                self.assertEqual(list(self.Wizard[:] - tag), [self.ari, self.bo])
+
+
+    def test_a_pins_population_never_combines_with_a_tags(self) -> None:
+        import operator as operators
+
+        Wizard, Fighter = self.Wizard, self.Fighter
+
+        @Pin
+        class Rare(Tag):
+            pass
+
+        @Pin
+        class Meta(Tag):
+            pass
+
+        Rare(Wizard)
+        Meta(Fighter)
+
+        with self.assertRaises(TypeError) as caught:
+            Rare | Wizard
+
+        self.assertEqual(
+                str(caught.exception),
+                "Rare | Wizard: Rare holds Tags and Wizard holds objects;"
+                " a Pin's population and a Tag's do not combine",
+                )
+
+        pin_seats = {
+                "Rare": Rare,
+                "Rare[:]": Rare[:],
+                "~Rare": ~Rare,
+                "(Rare[:] | Meta)": Rare[:] | Meta,
+                }
+        tag_seats = {
+                "Wizard": Wizard,
+                "Wizard[:]": Wizard[:],
+                "~Wizard": ~Wizard,
+                "(Wizard | Fighter[:])": Wizard | Fighter[:],
+                }
+
+        for symbol, combine in (("|", operators.or_), ("&", operators.and_), ("-", operators.sub)):
+            for pin_text, pin_seat in pin_seats.items():
+                for tag_text, tag_seat in tag_seats.items():
+                    for left_text, left, right_text, right in (
+                            (pin_text, pin_seat, tag_text, tag_seat),
+                            (tag_text, tag_seat, pin_text, pin_seat),   # both orders
+                            ):
+                        with self.subTest(expression=f"{left_text} {symbol} {right_text}"):
+                            with self.assertRaises(TypeError) as caught:
+                                combine(left, right)
+
+                            message = str(caught.exception)
+
+                            self.assertIn("Rare", message)               # both sides named
+                            self.assertIn("Wizard", message)
+                            self.assertIn("holds Tags", message)
+                            self.assertIn("holds objects", message)
+                            self.assertTrue(message.startswith(f"{left_text} {symbol} {right_text}:"), message)
+
+        self.assertEqual(list(Rare | Meta), [Wizard, Fighter])           # two Pins still combine
+        self.assertEqual(list(Rare[:] - Meta), [Wizard])
+        self.assertEqual(list(Wizard[:] | Fighter), [self.ari, self.bo]) # two Tags still combine
 
 
 class ConditionMemberTests(unittest.TestCase):

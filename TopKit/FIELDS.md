@@ -208,6 +208,9 @@ Deprecated(Fighter)
 assert list(Combat - Deprecated) == [Wizard]        # combat Tags still in use
 ```
 
+Among themselves only. A Pin's population holds Tags and a Tag's holds
+objects; `Combat | Wizard` is refused, and the error names both sides.
+
 ---
 
 ## 5. What the algebra does not do
@@ -218,9 +221,15 @@ assert list(Combat - Deprecated) == [Wizard]        # combat Tags still in use
   right; it does not interleave by join time.
 - **No copies.** A view reads the Fields it was made from. If you need a
   frozen moment, say so: `list(Wizard | Fighter)`.
-- **Type unions still work.** `Wizard | None` is the language's own class
-  union, untouched; only a Tag or a population on the other side makes
-  the operator a Field operator.
+- **A population is not a type.** `Wizard | None` is still the language's
+  own class union, but `Wizard | Fighter` is a population:
+  `isinstance(x, Wizard | Fighter)` and `Wizard | Fighter | None` are
+  refused, and the refusal names the rewrite, `isinstance(x, (Wizard,
+  Fighter))` and `typing.Optional[typing.Union[Wizard, Fighter]]`.
+  Python 3.10 to 3.13 evaluate an annotation where it is written, so
+  `x: Wizard | Fighter | None` fails at definition.
+- **No Tags with objects.** A Pin's population holds Tags, a Tag's holds
+  objects; `Rare | Wizard` is refused and the refusal names both.
 
 ## 6. The checklist
 

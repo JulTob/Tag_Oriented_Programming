@@ -270,7 +270,7 @@ language, not a library's naming.
 | the sound population | `for w in Wizard`, `len(Wizard)`, `if Wizard:` |
 | the defective population | `for w in ~Wizard`, `if ~Wizard:` |
 | everyone in the Field | `Wizard[:]`, `if Wizard[:]:`, `agent in Wizard[:]` |
-| populations combined (§2.5) | `Wizard \| Fighter`, `Wizard & Fighter`, `Wizard - Sworn`; the same on `Wizard[:]` and `~Wizard` |
+| populations combined (§2.5) | `Wizard \| Fighter`, `Wizard & Fighter`, `Wizard - Sworn`; the same on `Wizard[:]` and `~Wizard`; never a Pin's population with a Tag's |
 | one condition, read on the Agent (§2.5) | `agent.Has_Book` |
 | the Agent-bound view | `Wizard[agent]` |
 | leave the Field (Rip) | `del Wizard[agent]` |
@@ -809,7 +809,9 @@ fails with a Composition Failure. An ordinary Tag applies to objects only;
 on a class it is refused, as before. A Pin may not pin itself or any Tag
 of its own Form. A Shape of a Pin is a Pin, and one Form is all Pins or
 no Pins: mixing them is a Declaration Failure. Fields therefore never mix
-Agents and Tags.
+Agents and Tags, and a Pin's population never combines with a Tag's in
+`|`, `&` or `-`: the operator refuses, naming both sides, one holding
+Tags and the other objects (§2.5).
 
 **The receiver rule** (§1.1). The first parameter of a Pin's Agent-scope
 member is the pinned Tag; write it `tag`. A Pin's Record lands as a
@@ -1065,9 +1067,16 @@ sound view, the defective view, or a combination. A Tag in an operator
 seat is its sound population, as it is in the loop; `Wizard[:] |
 Fighter[:]` is everyone who is either; the levels mix. The result is a
 lazy view that reads its Fields when walked, keeps application order
-within each side, answers `in`, `len`, truth and iteration, and has no
-complement (`~` on a union has no universe). A Tag with anything that is
-not a population keeps the language's own class union (`Wizard | None`).
+within each side, answers `in` from its sides as a set does, `len`,
+truth and iteration, and has no complement (`~` on a union has no
+universe). A Tag with anything that is not a population keeps the
+language's own class union (`Wizard | None`). A population is not a
+type: `isinstance(x, Wizard | Fighter)`, `Wizard | Fighter | None` and
+`None | (Wizard | Fighter)` are refused, and the refusal names the
+rewrite, `isinstance(x, (Wizard, Fighter))` and
+`typing.Optional[typing.Union[Wizard, Fighter]]`. A Pin's population
+holds Tags and a Tag's holds objects; the two never combine, and the
+refusal names both sides.
 
 ```python
 for c in Wizard | Fighter:            # sound in either, each once
@@ -1375,7 +1384,8 @@ A conforming implementation provides, ring by ring:
 - `@Pre` and `@Post` stacked on one function as one condition, spelled
   `@Requirement` in one word;
 - populations combined with `|`, `&` and `-` at every level, lazily, a
-  Tag in an operator seat meaning its sound population;
+  Tag in an operator seat meaning its sound population, a Pin's
+  population never combined with a Tag's, and no population a type;
 - every condition read on the Agent by its name as a plain boolean, with
   a condition's name refused to Actions, Records and host members;
 - Delete; the three access forms, with Agent-bound views as read-only

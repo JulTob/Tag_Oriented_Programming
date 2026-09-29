@@ -45,11 +45,22 @@
   restores the state in place and keeps the counters of open doors.
 - STEP-SPEC-12 **Cleared** by the Director on 2026-09-21: conditions are
   sticky; the author ends them. Deployed with the merge that carried it.
-- **Field algebra** (STEP-SPEC-13, §2.5): `Wizard | Fighter`, `Wizard &
-  Fighter`, `Wizard - Sworn`, on whole Fields, sound views and defective
-  views alike, lazily and in application order. A Tag in an operator seat
-  is its sound population. Back from the 0.2-alpha line, reviewed and
-  accepted by the Director.
+- **Field algebra** (STEP-SPEC-13, §2.5), **breaking**: `Wizard |
+  Fighter`, `Wizard & Fighter`, `Wizard - Sworn`, on whole Fields, sound
+  views and defective views alike, lazily and in application order. A
+  Tag in an operator seat is its sound population. `Wizard | Fighter`
+  was Python's class union and is now a population, not a type:
+  `isinstance(x, Wizard | Fighter)` is refused, write `isinstance(x,
+  (Wizard, Fighter))`; a hint `Wizard | Fighter | None` is refused,
+  write `typing.Optional[typing.Union[Wizard, Fighter]]`; each refusal
+  names its rewrite. `Wizard | None` is unchanged. A Pin's population
+  (Tags) never combines with a Tag's (objects): refused, naming both
+  sides. Tag-ness in an operator seat is decided by the metaclass, never
+  by an attribute named `_sound`, so a class with its own `_sound` gives
+  a class union and a Tag declaring `_sound` still iterates. Back from
+  the 0.2-alpha line, reviewed and accepted by the Director; combining
+  two different Tags, and `&`, are new (the archived line combined only
+  views of one Field and had no `&`).
 - **A condition is read on the Agent by its name** (STEP-SPEC-14, §2.5):
   `agent.Has_Book` is a plain boolean computed on read, never stored,
   never a proxy. A condition's name is refused to Actions, Records, host

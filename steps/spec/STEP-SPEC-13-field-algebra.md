@@ -50,10 +50,33 @@ accepted by the Director on 2026-09-21: "Bring it back, both levels."
 4. A combined view answers `in`, `len`, truth and iteration like any
    population. It does not answer `~`: the complement of a union has no
    universe.
-5. **`Wizard | None` keeps the language's meaning.** A Tag is a class;
-   `|` with anything that is not a population or a Tag falls back to the
-   language's own class union, so type annotations are untouched.
+5. **`Wizard | None` keeps the language's meaning; `Wizard | Fighter`
+   does not.** A Tag is a class, and `|` with anything that is not a
+   population or a Tag falls back to the language's own class union.
+   Between two Tags the union is a population, not a type:
+   `isinstance(x, Wizard | Fighter)`, `Wizard | Fighter | None` and
+   `None | (Wizard | Fighter)` are refused with a `TypeError` naming the
+   rewrite, `isinstance(x, (Wizard, Fighter))` and
+   `typing.Optional[typing.Union[Wizard, Fighter]]`. Python 3.10 to
+   3.13 evaluate `x: Wizard | Fighter | None` at definition, so it fails
+   there; 3.14 when the annotations are read. The Director, 2026-09-29:
+   "Wizard | Fighter should mean a valid fighter OR a valid Wizard, so
+   it is present. A simple isinstance(wizard) or isinstance(fighter)
+   can satisfy the other cases, which are rare and not good practice.
+   Wizard[:] | Fighter[:] would mean broken wizards or good wizards or
+   broken fighters or good fighters, all active agency, all members in
+   the sets (broken or not)."
 6. Pins are Tags, so a Pin's populations combine the same way over Tags.
+   Among themselves: a Pin's population holds Tags and a Tag's holds
+   objects, and combining the two in `|`, `&` or `-`, in either order
+   and at every level (`Rare[:] & Wizard`, `~Rare - Wizard`, `(Rare[:]
+   | Meta) | Wizard`), is refused with a `TypeError` that names both
+   sides and says which holds Tags and which objects. The Director:
+   "Refuse".
+7. Tag-ness in an operator seat is decided by type (the Tag's
+   metaclass), never by an attribute named `_sound`: `Wizard |
+   SomeClass` where `SomeClass` has its own `_sound` is the language's
+   class union, and a Tag declaring a member `_sound` still iterates.
 
 ## Rationale
 
@@ -65,8 +88,17 @@ different truth a moment later.
 
 ## Backwards compatibility
 
-No spelling changes meaning. `|`, `&` and `-` were errors on Fields and
-Tags before; `Wizard | None` behaved as it does now.
+One spelling changes meaning. In 0.2.0a3 `Wizard | Fighter` was
+Python's class union, usable in `isinstance` and in annotations; now it
+is a population, and those uses are refused with the one-line rewrite
+in the message: `isinstance(x, Wizard | Fighter)` becomes
+`isinstance(x, (Wizard, Fighter))`; a hint `x: Wizard | Fighter |
+None` becomes `typing.Optional[typing.Union[Wizard, Fighter]]`.
+`Wizard | None` is unchanged. `|`, `&` and `-` on Fields and views were
+errors before. Combining two different Tags, and `&`, are new: the
+archived 0.2-alpha line combined only views of one Field and had no
+`&`. `in` on a combined view follows STEP-SPEC-19: it answers from the
+sides, as a set does, and agrees with the loop.
 
 ## Alternatives considered
 
@@ -76,12 +108,21 @@ Tags before; `Wizard | None` behaved as it does now.
 | Each level only with its own kind | Rejected: a population is a population; refusing `Wizard[:] - Sworn` would need a rule nobody can guess |
 | Eager results (a list) | Rejected: a Field is live; a snapshot would disagree with the next `in` |
 | `~` on a combined view | Rejected: no universe to complement |
+| A population that is also a type (answers `isinstance`, unions with `None`) | Rejected: one seat, one meaning; the rewrite is one line |
+| A Pin's population combined with a Tag's | Refused by the Director: "Refuse" |
+| A named failure for the refusals | Set aside: a `TypeError`, as Python refuses `set \| list`; no named failure of STEP-SPEC-8 fits, and a Composition Failure is an Overlay's |
 
 ## Acceptance requirements
 
 Covered by `tests/test_topkit.py::FieldAlgebraTests` and by the oracle
 (`tests/oracle_topkit.py`, `Assert_Fields`), which checks the three
-operators against its model after every seventeenth transition.
+operators against its model after every seventeenth transition. The
+refusals: a Pin's population with a Tag's in both orders, the three
+operators, on Tags, `[:]`, `~` and nested combinations, the message
+naming both sides; `isinstance` and `| None` in either order naming the
+rewrite, and a hint in a signature where Python evaluates it; a class
+with its own `_sound` giving the class union, and a Tag declaring
+`_sound` still iterating. The fuzzer asks the refusals too.
 
 ---
 
@@ -89,6 +130,15 @@ operators against its model after every seventeenth transition.
 
 > Status set to **____** on YYYY-MM-DD, because ____.
 >
-> *Drafted for the Director's confirmation:* Cleared on 2026-09-21, per
-> the Director's review of the archived features: "Bring it back, both
-> levels."
+> *Drafted for the Director's confirmation:* Cleared on 2026-09-29. The
+> origin is the Director's review of the archived features on
+> 2026-09-21: "Bring it back, both levels." On 2026-09-29 the Director
+> ruled on `|`: "Wizard | Fighter should mean a valid fighter OR a valid
+> Wizard, so it is present. A simple isinstance(wizard) or
+> isinstance(fighter) can satisfy the other cases, which are rare and
+> not good practice. Wizard[:] | Fighter[:] would mean broken wizards or
+> good wizards or broken fighters or good fighters, all active agency,
+> all members in the sets (broken or not)." And on mixing a Pin's
+> population with a Tag's: "Refuse". `in` on populations was made
+> consistent with the loop by STEP-SPEC-19, shipped with this STEP in
+> 0.2.0a4.

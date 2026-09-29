@@ -1531,6 +1531,9 @@ def Fielding(
                 f"{agent} in {tag}[:]",
                 f"{tag}[1:2]",
                 f"{tag} | None",
+                f"isinstance({agent}, {tag} | {other})",
+                f"({tag} | {other}) | None",
+                f"None | ({tag} | {other})",
                 )
             )
 
@@ -1626,6 +1629,9 @@ def Pinning(
             (
                 f"{tag} in {pin.name}",
                 f"list({pin.name})",
+                f"list({pin.name} | {tag})",
+                f"list({tag}[:] - {pin.name})",
+                f"list(~{pin.name} & ~{tag})",
                 f"list(~{pin.name})",
                 f"list({pin.name}[:])",
                 f"{pin.name}[{tag}].{randomizer.choice(tag_reads)}",
