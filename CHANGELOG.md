@@ -98,8 +98,9 @@
 - The **differential fuzzer**: `tests/differential_fuzz.py` runs the same
   random programs on two versions of the kit (git refs or the working
   tree) and compares the transcripts line by line, output at exit
-  included. Run on 0.2.0a3's kit against the performance work, every
-  difference it found is a deliberate one. A short run is in the suite.
+  included. Run on the kit before and after the performance work, it
+  found no change in behaviour but the deliberate ones. A short run is
+  in the suite.
 - **Fixed:** a Flag applied to an Agent that already carried another Tag
   did not take the Agent's `in`, so `"Undead" in ghoul` raised
   `TypeError` (`Keyword()` was unaffected). The runtime type is now

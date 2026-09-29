@@ -11,8 +11,10 @@ REPEAT runs, the sides taking turns. The budgets are generous, at least
 twice what the kit cost when they were set (CPython 3.14, Apple M5), so
 they catch a real regression, such as a Record that stops being a plain
 attribute or a tagging that starts copying the world, and not a busy
-machine. A budget that fails is
-measured once more before it is reported.
+machine. Machines differ in more than speed: on a reviewer's Linux
+machine with CPython 3.13, tagging a Form of 1 Tag costs 92 to 111 times
+the OOP construction (41 on the M5), so that budget is 250. A budget
+that fails is measured once more before it is reported.
 
 The scenarios and the timing come from `benchmarks/scenarios.py`;
 `benchmarks/compare.py` times the same scenarios and prints the whole
@@ -231,7 +233,7 @@ class PerformanceBudgetTests(unittest.TestCase):
                 Side(New_Party, Oop_Build(Oop_Person, 1)),
                 Side(New_Party, Top_Build(Person, 1)),
                 2_000,
-                100,
+                250,
                 )
 
     def test_applying_and_ripping_a_tag(self) -> None:

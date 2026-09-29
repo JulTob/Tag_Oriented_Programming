@@ -50,8 +50,10 @@ to 34 per cent; keywords, `bool(agent)` and walking a Field run 53 to 75
 per cent faster; re-applying an active Form 74 per cent; tagging 12 per
 cent. Targeted probes found four differences in behaviour, all
 deliberate, and each fixes a defect (§4.2). The differential fuzzer
-committed in the review follow-up ran 400 random programs on both kits:
-every difference it found is one of those four (§4.1).
+committed in the review follow-up ran 400 random programs on both kits.
+It can reach three of the four (the fourth needs threads), and it found
+no other change in behaviour; in two programs the order of finalizers at
+exit moved (§4.1).
 
 **What is left** (§5) is structural. Sharing one Overlay per composition
 instead of one per Agent would cut tagging by a further 34 to 56 per cent
@@ -153,12 +155,17 @@ script, reported no difference in 300 programs; it did not reach the
 deliberate differences. The one committed in the review follow-up
 (`tests/differential_fuzz.py`, §Reproducing) does. Old kit against new,
 300 programs of 300 steps and 100 heavy programs of 800 steps (490,000
-transcript lines): 397 programs differ, and every difference is one of
-§4.2. A warning shown once where the old kit repeated it (139 programs),
-a dropped Tag class freed (357), a finalizer's question answered at exit
-where the old kit raised `ImportError` (365; 2,459 answers). No other
-difference. Per-thread silencing needs threads, which the programs do
-not start; its test covers it.
+transcript lines): 397 programs differ on the M5. The differences are
+three of the four of §4.2: a warning shown once where the old kit
+repeated it (139 programs), a dropped Tag class freed (357), a
+finalizer's question answered at exit where the old kit raised
+`ImportError` (365; 2,459 answers). Per-thread silencing needs threads,
+which the programs do not start; its test covers it. In two programs,
+and only there, the sole difference is the order of finalizers at exit:
+a host's `__del__` runs after, not before, the objects a dropped Tag
+held are freed. That order follows where objects sit in memory, which
+the kit does not promise; a reviewer's Linux run, with the same counts
+for each of the three, shows 395 programs, without those two.
 
 | # | Change | Effect (alternating runs, before -> after) |
 | --- | --- | --- |

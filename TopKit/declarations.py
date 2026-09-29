@@ -11,11 +11,11 @@ A Tag class is scanned once; the result is cached per class.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import NamedTuple
 from inspect import Parameter
 from inspect import signature
 from typing import Any
 from typing import Callable
+from typing import NamedTuple
 from weakref import WeakKeyDictionary
 
 from .errors import TagDeclarationError

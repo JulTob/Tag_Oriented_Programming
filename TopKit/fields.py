@@ -294,14 +294,23 @@ class _Field(_Population):
             ) -> Iterator[object]:
         live = [
                 agent
-                for agent in (
-                    reference()
-                    for reference in list(field._members.values())
-                    )
-                if agent is not None
+                for reference in list(field._members.values())
+                if (agent := reference()) is not None
                 ]
 
         return iter(live)
+
+    def _held(
+            field,
+            ) -> list[object | None]:
+        """Every member, held for as long as the list lives; None where
+        one has died. A question that stops early skips the filtering a
+        walk pays for."""
+
+        return [
+                reference()
+                for reference in list(field._members.values())
+                ]
 
     def __len__(
             field,
@@ -359,10 +368,11 @@ class _Partition(_Population):
 
         holds = partition._holds
 
-        return any(
-                holds(agent)
-                for agent in partition._field   # the walk holds every member while the checks run
-                )
+        for agent in partition._field._held():   # every member held while the checks run
+            if agent is not None and holds(agent):
+                return True
+
+        return False
 
     def __invert__(
             partition,

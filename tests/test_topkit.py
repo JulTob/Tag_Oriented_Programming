@@ -61,6 +61,7 @@ def Run_Program(
     output lines and its stderr. What a program does at exit is observable
     only there."""
 
+    import os
     import pathlib
     import subprocess
     import sys
@@ -71,7 +72,8 @@ def Run_Program(
             cwd=root,
             capture_output=True,
             text=True,
-            env={"PYTHONPATH": str(root)},
+            env={**os.environ, "PYTHONPATH": str(root)},   # PATH, SYSTEMROOT and the rest kept
+            timeout=60,                                     # a hang at exit fails the test, not the run
             )
 
     return result.stdout.splitlines(), result.stderr
@@ -4281,10 +4283,6 @@ class LayeredDeletionTests(unittest.TestCase):
         self.assertEqual(reported, [])
 
     def test_a_pinned_shape_with_a_flag_pin_ends_quietly(self) -> None:
-        import pathlib
-        import subprocess
-        import sys
-
         program = """
 from TopKit import Tag, Pin, Flag, Record
 
@@ -4306,17 +4304,10 @@ class Archmage(Wizard): pass     # its metaclass is Wizard's runtime type
 Deprecated(Archmage)
 print("end", "Deprecated" in Archmage)
 """
-        root = pathlib.Path(__file__).resolve().parent.parent
-        result = subprocess.run(
-                [sys.executable, "-c", program],
-                cwd=root,
-                capture_output=True,
-                text=True,
-                env={"PYTHONPATH": str(root)},
-                )
+        lines, stderr = Run_Program(program)
 
-        self.assertEqual(result.stdout.splitlines(), ["end True"])
-        self.assertEqual(result.stderr, "")                   # no finalizer recursed at exit
+        self.assertEqual(lines, ["end True"])
+        self.assertEqual(stderr, "")                   # no finalizer recursed at exit
 
     def test_an_interruption_is_reported_even_when_a_layer_raises(self) -> None:
         import sys
@@ -4688,10 +4679,6 @@ print("end", "Deprecated" in Archmage)
         self.assertIs(type(first), type(third))
 
     def test_at_exit_only_the_layers_run(self) -> None:
-        import pathlib
-        import subprocess
-        import sys
-
         program = """
 from TopKit import Tag, Rip, At_Exit, Underlay
 
@@ -4732,8 +4719,6 @@ class Warded(Tag):
         write(1, (agent.name + " warded\\n").encode())
         underlay()
 
-def Hook(kind, value, trace): sys.__excepthook__(kind, value, trace)
-
 import TopKit.access, TopKit.lifecycle, TopKit.overlay, TopKit.state
 
 KIT = (TopKit.access, TopKit.lifecycle, TopKit.overlay, TopKit.state)
@@ -4754,31 +4739,16 @@ warded = Door("warded"); Guard(warded); Warded(warded)
 called = Called(); Guard(called)
 print("end")
 """
-        root = pathlib.Path(__file__).resolve().parent.parent
-        result = subprocess.run(
-                [sys.executable, "-c", program],
-                cwd=root,
-                capture_output=True,
-                text=True,
-                env={"PYTHONPATH": str(root)},
-                )
-        lines = result.stdout.splitlines()
+        lines, stderr = Run_Program(program)
 
         self.assertEqual(lines[0], "end")
         self.assertEqual(lines.index("listed teardown"), 1)   # At_Exit: while Python is whole
         self.assertNotIn("alive teardown", lines)             # teardowns at exit are opt-in
         self.assertLess(lines.index("alive warded"), lines.index("alive host"))
         self.assertIn("listed host", lines)
-        self.assertEqual(result.stderr, "")
+        self.assertEqual(stderr, "")
 
-        result = subprocess.run(
-                [sys.executable, "-c", late],
-                cwd=root,
-                capture_output=True,
-                text=True,
-                env={"PYTHONPATH": str(root)},
-                )
-        lines = result.stdout.splitlines()
+        lines, stderr = Run_Program(late)
 
         self.assertEqual(lines[0], "end")
         self.assertIn("guarded host", lines)                  # even after the kit's modules are gone
