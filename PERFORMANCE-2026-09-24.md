@@ -52,8 +52,7 @@ cent. Targeted probes found four differences in behaviour, all
 deliberate, and each fixes a defect (§4.2). The differential fuzzer
 committed in the review follow-up ran 400 random programs on both kits.
 It can reach three of the four (the fourth needs threads), and it found
-no other change in behaviour; in two programs the order of finalizers at
-exit moved (§4.1).
+no other change in behaviour (§4.1).
 
 **What is left** (§5) is structural. Sharing one Overlay per composition
 instead of one per Agent would cut tagging by a further 34 to 56 per cent
@@ -155,17 +154,19 @@ script, reported no difference in 300 programs; it did not reach the
 deliberate differences. The one committed in the review follow-up
 (`tests/differential_fuzz.py`, §Reproducing) does. Old kit against new,
 300 programs of 300 steps and 100 heavy programs of 800 steps (490,000
-transcript lines): 397 programs differ on the M5. The differences are
-three of the four of §4.2: a warning shown once where the old kit
-repeated it (139 programs), a dropped Tag class freed (357), a
-finalizer's question answered at exit where the old kit raised
-`ImportError` (365; 2,459 answers). Per-thread silencing needs threads,
-which the programs do not start; its test covers it. In two programs,
-and only there, the sole difference is the order of finalizers at exit:
-a host's `__del__` runs after, not before, the objects a dropped Tag
-held are freed. That order follows where objects sit in memory, which
-the kit does not promise; a reviewer's Linux run, with the same counts
-for each of the three, shows 395 programs, without those two.
+transcript lines), with CPython 3.14.3 on the M5: 397 programs differ.
+The differences are three of the four of §4.2: a warning shown once
+where the old kit repeated it (139 programs); a dropped Tag class freed
+(381: in 357 the objects it held are freed at a different step, in 24
+only earlier at exit, because the new kit frees them in an earlier
+shutdown collection, before a host's `__del__` or a finalizer's
+questions); a finalizer's question answered at exit where the old kit
+raised `ImportError` (365; 2,459 answers). Per-thread silencing needs
+threads, which the programs do not start; its test covers it. The
+interpreter matters: with CPython 3.12 on the same M5, 389 programs
+differ (139, 383 and none), because finalizers there ask the kit nothing
+at exit; a reviewer's run on Linux with CPython 3.13 gives 395, with the
+same counts for each kind.
 
 | # | Change | Effect (alternating runs, before -> after) |
 | --- | --- | --- |

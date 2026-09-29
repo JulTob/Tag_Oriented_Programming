@@ -61,19 +61,17 @@ def Run_Program(
     output lines and its stderr. What a program does at exit is observable
     only there."""
 
-    import os
     import pathlib
     import subprocess
     import sys
 
     root = pathlib.Path(__file__).resolve().parent.parent
     result = subprocess.run(
-            [sys.executable, "-c", source],
-            cwd=root,
+            [sys.executable, "-E", "-c", source],   # -E: the caller's PYTHON* settings stay out;
+            cwd=root,                               # -c puts this checkout, the cwd, first on the path
             capture_output=True,
             text=True,
-            env={**os.environ, "PYTHONPATH": str(root)},   # PATH, SYSTEMROOT and the rest kept
-            timeout=60,                                     # a hang at exit fails the test, not the run
+            timeout=60,                             # a hang at exit fails the test, not the run
             )
 
     return result.stdout.splitlines(), result.stderr
@@ -4737,6 +4735,8 @@ class Called:
 guarded = Door("guarded"); Guard(guarded)
 warded = Door("warded"); Guard(warded); Warded(warded)
 called = Called(); Guard(called)
+plain = type(guarded).__new__(type(guarded))   # built from an Agent's runtime type, never tagged
+plain.name = "plain"
 print("end")
 """
         lines, stderr = Run_Program(program)
@@ -4753,6 +4753,7 @@ print("end")
         self.assertEqual(lines[0], "end")
         self.assertIn("guarded host", lines)                  # even after the kit's modules are gone
         self.assertIn("closer host", lines)
+        self.assertIn("plain host", lines)                    # an untagged object of a runtime type, too
         self.assertLess(lines.index("warded warded"), lines.index("warded host"))
         self.assertNotIn("guarded teardown", lines)
 
