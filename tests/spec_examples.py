@@ -172,6 +172,7 @@ def Run() -> None:
         def Is_Equipped(agent, base): return base() and agent.oath
     k = Character(); k.armed = True; k.oath = True; Knight(k); assert bool(k)
     k.oath = False; assert not bool(k); assert k in ~Knight and k not in list(Knight)
+    assert k not in Knight and k in Knight[:]     # in agrees with the loop (STEP-SPEC-19)
     assert set(Knight[:]) == {k}
     class Barbarian(Tag):
         @Post

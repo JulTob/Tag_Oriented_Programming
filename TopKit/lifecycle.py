@@ -182,8 +182,8 @@ def Scope(
 
     try:
         for tag in tags:
-            if agent in tag:
-                continue                    # already the Agent's: not the Scope's to take away
+            if agent in tag[:]:
+                continue                    # already the Agent's, sound or not: not the Scope's to take away
 
             try:
                 tag(

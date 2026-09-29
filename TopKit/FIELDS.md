@@ -69,7 +69,7 @@ assert list(~Wizard) == []                  # the defective ones: a promise is b
 cal.alive = False                           # Cal breaks Officer's promise
 assert list(Fighter) == [bo]                # off the line
 assert list(~Fighter) == [cal]              # waiting for repair
-assert cal in Fighter                       # still a member
+assert cal not in Fighter                   # off the line: not a sound member
 assert cal in Fighter[:]                    # still in the Field
 ```
 

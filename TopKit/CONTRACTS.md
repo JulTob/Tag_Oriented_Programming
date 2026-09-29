@@ -116,7 +116,8 @@ assert enterprise                       # every promise holds
 enterprise.core_temperature = 1400      # an accident, during play
 
 assert not enterprise                   # a promise is broken
-assert enterprise in Warp_Core          # still a Warp_Core ship
+assert enterprise in Warp_Core[:]       # still a Warp_Core ship
+assert enterprise not in Warp_Core      # off the line
 assert enterprise in ~Warp_Core         # waiting in the repair queue
 ```
 
@@ -343,7 +344,7 @@ try:
 except Postcondition.Not_Infected:
     pass                                # applied; and the tagging reports the standing defect
 
-assert worf in Quarantined
+assert worf in Quarantined[:]           # a member, and a defective one
 assert worf.bay == "isolation ward 2"
 
 worf.infected = False                   # treated
@@ -376,7 +377,7 @@ class Armed(Tag):
 
     @Post
     def Weapons_Locked(agent):
-        if agent not in Bridge:         # not on duty: nothing to lock
+        if agent not in Bridge[:]:      # not on duty: nothing to lock
             return True
         return agent.safety_on
 
@@ -435,7 +436,7 @@ class Veteran(Tag):
     @Post
     @Underlay
     def Alive(agent, base):
-        underneath = base() if agent in Crew_Member else True
+        underneath = base() if agent in Crew_Member[:] else True
         return underneath and agent.decorated
 
 

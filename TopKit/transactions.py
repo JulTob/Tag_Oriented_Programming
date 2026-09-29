@@ -299,13 +299,20 @@ def _refuse_conditions_shadowed_by_the_agent(
 def _inspect(
         agent: object,
         ) -> None:
-    """Quality check of the finished product: every visible Postcondition."""
+    """Quality check of the finished product: every visible Postcondition.
+
+    Runs under ``checking``, as every other run of the contract does, so a
+    Postcondition that reads ``agent in Tag`` or ``bool(agent)`` reads
+    membership and True, never the contract it is part of.
+    """
 
     state = _state_of(agent)
 
     if not state.postconditions:
         return   # nothing promised: nothing to inspect
 
+    reentrant = state.checking
+    state.checking = True
     state.composing += 1
 
     try:
@@ -318,6 +325,7 @@ def _inspect(
                 )
     finally:
         state.composing -= 1
+        state.checking = reentrant
 
 
 def _commit(

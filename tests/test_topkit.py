@@ -1174,7 +1174,8 @@ class RogueAccessTests(unittest.TestCase):
             ari.colour
 
         self.assertEqual(ari.Own(), "mine")                           # her own Action still works
-        self.assertIn(ari, Agency)                                    # still a member, just defective
+        self.assertIn(ari, Agency[:])                                 # still a member, just defective
+        self.assertNotIn(ari, Agency)                                 # not a sound one: off the line
 
         ari.homeland = "Rivendell"                                    # repaired
         self.assertEqual(ari.Dispatch("go"), "Agency:go")
@@ -1411,8 +1412,8 @@ class DefectiveTaggingTests(unittest.TestCase):
         with self.assertRaises(TagPostconditionError):
             Candidate_Record(ari)
 
-        self.assertIn(ari, Candidate_Record)          # still a member
-        self.assertIn(ari, Candidate_Record[:])       # everyone
+        self.assertNotIn(ari, Candidate_Record)       # not a sound member: in agrees with the loop
+        self.assertIn(ari, Candidate_Record[:])       # everyone: still a member
         self.assertEqual(ari.token, "prepared")
         self.assertFalse(bool(ari))
         self.assertNotIn(ari, list(Candidate_Record)) # not in the sound loop
@@ -1463,7 +1464,8 @@ class DefectiveTaggingTests(unittest.TestCase):
         with self.assertRaises(TagPostconditionError):
             Advanced(bea)
 
-        self.assertIn(bea, Advanced)
+        self.assertNotIn(bea, Advanced)
+        self.assertIn(bea, Advanced[:])
         self.assertIn(bea, ~Advanced)
 
     def test_imprint_failure_keeps_the_tag_and_its_raw_effects(self) -> None:
@@ -1542,6 +1544,220 @@ class DefectiveTaggingTests(unittest.TestCase):
     def test_pre_and_post_are_aliases(self) -> None:
         self.assertIs(Pre, Precondition)
         self.assertIs(Post, Postcondition)
+
+
+class SoundMembershipTests(unittest.TestCase):
+    """STEP-SPEC-19: `agent in Tag` answers for the sound members, the
+    population the loop, `len` and `if` see. `agent in Tag[:]` is
+    membership; `agent in ~Tag` the defective ones. The Director: "Make in
+    consistent with for/len/if. Fighter[:] provides the behaviour we need."
+    """
+
+    def setUp(self) -> None:
+        class Wizard(Tag):
+            @Post
+            def Has_Book(agent):
+                return agent.book
+
+        class War_Caster(Wizard):
+            pass
+
+        class Fighter(Tag):
+            pass
+
+        self.Wizard, self.War_Caster, self.Fighter = Wizard, War_Caster, Fighter
+        self.ari = Agent()
+        self.ari.book = True
+
+    def test_a_broken_member_is_not_in_the_tag_but_in_its_field(self) -> None:
+        Wizard, ari = self.Wizard, self.ari
+        Wizard(ari)
+
+        self.assertIn(ari, Wizard)                                    # sound: in
+        self.assertIn(ari, Wizard[:])
+        self.assertNotIn(ari, ~Wizard)
+
+        ari.book = False                                              # the promise breaks
+
+        self.assertNotIn(ari, Wizard)                                 # off the line
+        self.assertIn(ari, Wizard[:])                                 # still a member
+        self.assertIn(ari, ~Wizard)                                   # in the repair queue
+        self.assertEqual(list(Wizard), [])                            # in agrees with the loop
+        self.assertEqual(len(Wizard), 0)
+        self.assertFalse(Wizard)
+
+    def test_the_same_through_a_shape(self) -> None:
+        Wizard, War_Caster, ari = self.Wizard, self.War_Caster, self.ari
+        War_Caster(ari)
+        ari.book = False
+
+        self.assertNotIn(ari, Wizard)                                 # membership is closed upward,
+        self.assertNotIn(ari, War_Caster)                             # and so is soundness
+        self.assertIn(ari, Wizard[:])
+        self.assertIn(ari, War_Caster[:])
+        self.assertIn(ari, ~Wizard)
+        self.assertIn(ari, ~War_Caster)
+
+    def test_combined_populations_answer_in_from_their_sides(self) -> None:
+        Wizard, Fighter, ari = self.Wizard, self.Fighter, self.ari
+        bo = Agent()
+        Wizard(ari)
+        Fighter(bo)
+        ari.book = False
+
+        everyone = list(Wizard[:] | Fighter[:])
+
+        for population in (
+                Wizard | Fighter,
+                Wizard[:] | Fighter[:],
+                ~Wizard | Fighter,
+                Wizard[:] - Fighter,
+                Wizard & Fighter[:],
+                (Wizard[:] | Fighter[:]) - Wizard,
+                ):
+            with self.subTest(population=repr(population)):
+                self.assertEqual(                                     # in and the loop agree on every population
+                        [agent for agent in everyone if agent in population],
+                        list(population),
+                        )
+
+        self.assertNotIn(ari, Wizard | Fighter)                       # the sound of either: not ari
+        self.assertIn(ari, Wizard[:] | Fighter[:])                    # everyone of either
+        self.assertIn(ari, ~Wizard | Fighter)
+        self.assertIn(ari, Wizard[:] - Fighter)
+        self.assertIn(bo, Wizard | Fighter)
+
+    def test_repair_puts_the_member_back(self) -> None:
+        Wizard, ari = self.Wizard, self.ari
+        Wizard(ari)
+        ari.book = False
+        self.assertNotIn(ari, Wizard)
+
+        ari.book = True                                               # repaired
+
+        self.assertIn(ari, Wizard)
+        self.assertNotIn(ari, ~Wizard)
+        self.assertEqual(list(Wizard), [ari])
+
+    def test_rip_takes_a_defective_member_and_ends_both_answers(self) -> None:
+        Wizard, ari = self.Wizard, self.ari
+        Wizard(ari)
+        ari.book = False
+
+        self.assertIsNotNone(Wizard[ari])                             # the view needs membership only, defective or sound
+        del Wizard[ari]                                               # Rip takes any member, defective too
+
+        self.assertNotIn(ari, Wizard)
+        self.assertNotIn(ari, Wizard[:])
+        self.assertNotIn(ari, ~Wizard)
+        self.assertTrue(isinstance(ari, Wizard))                      # the has-been check survives
+
+        with self.assertRaises(TagResolutionError):
+            Wizard[ari]
+
+    def test_a_tag_without_postconditions_is_unchanged(self) -> None:
+        Fighter = self.Fighter
+        bo = Agent()
+        bo.book = True
+        Fighter(bo)
+
+        self.assertIn(bo, Fighter)                                    # no contract: every member is sound
+        self.assertIn(bo, Fighter[:])
+        self.assertEqual(Contract.Status(bo), {})
+
+        self.Wizard(bo)                                               # a promise from another Tag
+        bo.book = False
+
+        self.assertNotIn(bo, Fighter)                                 # soundness is the Agent's, whichever Tag promised
+        self.assertIn(bo, Fighter[:])
+
+    def test_a_pin_follows_the_rule_with_the_tag_as_the_agent(self) -> None:
+        Wizard = self.Wizard
+
+        @Pin
+        class Promised(Tag):
+            @Post
+            def Has_Members(tag):
+                return bool(tag[:])
+
+        with self.assertRaises(Postcondition.Has_Members):
+            Promised(Wizard)
+
+        self.assertNotIn(Wizard, Promised)                            # pinned, and defective
+        self.assertIn(Wizard, Promised[:])
+        self.assertIn(Wizard, ~Promised)
+
+        Wizard(self.ari)                                              # repaired
+
+        self.assertIn(Wizard, Promised)
+
+    def test_flags_in_the_agents_seat_stay_keywords(self) -> None:
+        Wizard, ari = self.Wizard, self.ari
+
+        @Flag
+        class Undead(Tag):
+            pass
+
+        Wizard(ari)
+        Undead(ari)
+        ari.book = False
+
+        self.assertTrue(Undead in ari)                                # a keyword: membership, not soundness
+        self.assertTrue("Undead" in ari)
+        self.assertFalse(ari in Undead)                               # the Tag's seat: the sound population
+        self.assertTrue(ari in Undead[:])
+
+    def test_inside_a_condition_in_reads_membership(self) -> None:
+        class Sworn(Tag):
+            @Post
+            def Has_Oath(agent):
+                if agent not in Sworn:                                # inside a check: membership, as bool(agent) is True
+                    return True
+                return agent.oath is not None
+
+        ari = Agent()
+        ari.oath = None
+
+        with self.assertRaises(Postcondition.Has_Oath):
+            Sworn(ari)                                                # the guard sees a member: the promise bites
+
+        self.assertFalse(Contract.Holds(ari))
+        self.assertNotIn(ari, Sworn)
+        self.assertIn(ari, Sworn[:])
+
+    def test_a_gate_reading_another_tag_asks_for_a_sound_one(self) -> None:
+        Wizard, ari = self.Wizard, self.ari
+
+        class War_Caster(Tag):
+            @Pre
+            def Is_A_Caster(agent):
+                return agent in Wizard
+
+        class Any_Caster(Tag):
+            @Pre
+            def Is_A_Caster(agent):
+                return agent in Wizard[:]
+
+        Wizard(ari)
+        ari.book = False
+
+        with self.assertRaises(Precondition.Is_A_Caster):
+            War_Caster(ari)                                           # a defective Wizard is no caster at this gate
+
+        with self.assertRaises(Postcondition.Has_Book):
+            Any_Caster(ari)                                           # membership alone: the gate opens, and the tagging reports the standing defect
+
+        self.assertIn(ari, Any_Caster[:])
+
+    def test_a_scope_leaves_a_defective_tag_the_agent_carried(self) -> None:
+        Wizard, ari = self.Wizard, self.ari
+        Wizard(ari)
+        ari.book = False
+
+        with Scope(ari, Wizard):
+            pass
+
+        self.assertIn(ari, Wizard[:])                                 # carried at entry: not the Scope's to Rip
 
 
 class ContractNamespaceTests(unittest.TestCase):
@@ -1865,7 +2081,8 @@ class PinTests(unittest.TestCase):
         with self.assertRaises(Postcondition.Has_Members):
             Promised(Wizard)
 
-        self.assertIn(Wizard, Promised)
+        self.assertNotIn(Wizard, Promised)                            # the Tag is the Agent: the same rule
+        self.assertIn(Wizard, Promised[:])
         self.assertIn(Wizard, ~Promised)
         self.assertEqual(list(Promised), [])
 
@@ -1995,7 +2212,7 @@ class PinTests(unittest.TestCase):
 
         self.assertTrue("Deprecated" in Wizard)                       # a string asks for a keyword
         self.assertFalse("Rare" in Wizard)                            # only Flags are words
-        self.assertTrue(ari in Wizard)                                # an object asks membership
+        self.assertTrue(ari in Wizard)                                # an object asks sound membership
         self.assertFalse(Deprecated in Wizard)                        # a class asks membership too
         self.assertTrue(Keyword(Wizard, "Deprecated"))
         self.assertTrue(Keyword(Wizard, Deprecated))
@@ -2330,7 +2547,7 @@ class StickyConditionTests(unittest.TestCase):
         class Sworn(Tag):
             @Post
             def Has_Oath(agent):
-                if agent not in Sworn:                                # the guard, in the author's words
+                if agent not in Sworn[:]:                             # the guard, in the author's words
                     return True
                 return agent.oath is not None
 

@@ -395,7 +395,8 @@ try:
 except Postcondition.Has_Spellbook:
     pass                                # the Tag stays; Newt is defective
 
-assert newt in Wizard                   # a member
+assert newt in Wizard[:]                # a member
+assert newt not in Wizard               # not a sound one
 assert not newt                         # whose promise is broken
 assert newt in ~Wizard                  # waiting in the repair queue
 
@@ -403,7 +404,7 @@ for broken in ~Wizard:                  # the repair loop
     broken.spellbook = []
 
 assert newt                             # sound again
-assert newt in list(Wizard)             # back in the working population
+assert newt in Wizard                   # back in the working population
 ```
 
 This is the factory rule: a bad product is not melted back to materials. It

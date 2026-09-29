@@ -3,7 +3,8 @@
 A Field never keeps an Agent alive. Membership is indexed by identity so
 registration and removal are constant-time. Iterating a Tag gives the
 sound population (every visible Postcondition holds), ``~Tag`` the
-defective one, ``Tag[:]`` everyone.
+defective one, ``Tag[:]`` everyone. ``agent in Tag`` answers the same
+population as the loop (STEP-SPEC-19); ``agent in Tag[:]`` is membership.
 
 Populations combine (STEP-SPEC-13): ``Wizard[:] | Fighter[:]`` is everyone
 who is either, ``Wizard - Sworn`` the sound Wizards who have not sworn,

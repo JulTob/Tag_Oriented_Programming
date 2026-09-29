@@ -244,7 +244,7 @@ class Armed(Tag):
 
     @Post
     def Weapons_Locked(agent) -> bool:
-        if agent not in Bridge:                         # not on duty: nothing to lock
+        if agent not in Bridge[:]:                      # not on duty: nothing to lock
             return True
         return agent.safety_on
 
@@ -283,7 +283,7 @@ class Veteran(Tag):
     @Post
     @Underlay
     def Alive(agent, base) -> bool:
-        underneath = base() if agent in Crew_Member else True
+        underneath = base() if agent in Crew_Member[:] else True
         return underneath and agent.decorated
 
 

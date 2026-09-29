@@ -4,7 +4,8 @@ TOP borrows the language's own syntax for Tag-level acts and leaves the
 Tag's dotted namespace to the program:
 
     Wizard(charlie)               apply (Bases first)
-    charlie in Wizard             active membership, sound or defective
+    charlie in Wizard             a sound member: what the loop sees
+    charlie in Wizard[:]          a member, sound or defective
     "Deprecated" in Wizard        a keyword: the Tag carries the Flag Pin Deprecated
     Wizard in charlie             the same, from the Agent's side
     "Wizard" in charlie           the same, by name
@@ -107,8 +108,11 @@ class MetaTag(type):
             tag,
             candidate: object,
             ) -> bool:
-        """``agent in Wizard``: membership. ``"Deprecated" in Wizard``: a
-        keyword among the Tag's Flag Pins; a string is never a member."""
+        """``agent in Wizard``: a sound member, the population the loop
+        sees (STEP-SPEC-19); ``agent in Wizard[:]`` is membership. Inside
+        a condition it answers membership, as ``bool(agent)`` answers True
+        there. ``"Deprecated" in Wizard``: a keyword among the Tag's Flag
+        Pins; a string is never a member."""
 
         if isinstance(candidate, str):
             return _keyword(
@@ -121,6 +125,11 @@ class MetaTag(type):
         return (
                 state is not None
                 and tag in state.active
+                and (
+                    state.checking                  # asked from inside a check
+                    or not state.postconditions     # nothing promised: every member is sound
+                    or _holds(candidate)
+                    )
                 )
 
     def __instancecheck__(
