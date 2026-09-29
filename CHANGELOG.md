@@ -67,7 +67,12 @@
   OOP, in time and in memory, including the misuse of keeping a passing
   state as a Tag; `tests/test_performance.py` holds opt-in ratio budgets
   (`TOPKIT_PERF=1`); `benchmarks/bench.py` no longer times tagging under
-  tracemalloc.
+  tracemalloc. Both time the same scenarios, from `benchmarks/scenarios.py`.
+- The **differential fuzzer**: `tests/differential_fuzz.py` runs the same
+  random programs on two versions of the kit (git refs or the working
+  tree) and compares the transcripts line by line, output at exit
+  included. Run on 0.2.0a3's kit against the performance work, every
+  difference it found is a deliberate one. A short run is in the suite.
 - **Fixed:** a Flag applied to an Agent that already carried another Tag
   did not take the Agent's `in`, so `"Undead" in ghoul` raised
   `TypeError` (`Keyword()` was unaffected). The runtime type is now

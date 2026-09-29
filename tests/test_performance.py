@@ -6,11 +6,12 @@ Opt-in, because timing depends on the machine:
 
 Every budget is a ratio to the plain-OOP equivalent, measured in the same
 process a moment before, so a fast or a slow machine moves both sides.
-Each side is the fastest of seven runs, the sides taking turns. The
-budgets are generous, at least twice what the kit cost when they were
-set (CPython 3.14, Apple M5), so they catch a real regression, such as a
-Record that stops being a plain attribute or a tagging that starts
-copying the world, and not a busy machine. A budget that fails is
+Each side is timed by Race in benchmarks/scenarios.py: the fastest of
+REPEAT runs, the sides taking turns. The budgets are generous, at least
+twice what the kit cost when they were set (CPython 3.14, Apple M5), so
+they catch a real regression, such as a Record that stops being a plain
+attribute or a tagging that starts copying the world, and not a busy
+machine. A budget that fails is
 measured once more before it is reported.
 
 The scenarios and the timing come from `benchmarks/scenarios.py`;
@@ -96,31 +97,31 @@ class PerformanceBudgetTests(unittest.TestCase):
         attempts: list[tuple[float, float, float]] = []
 
         for _attempt in range(2):
-            oop_run, top_run = Race(
+            oop_seconds, top_seconds = Race(
                     [
                         oop,
                         top,
                         ],
                     number,
                     )
-            ratio = top_run / oop_run
+            ratio = top_seconds / oop_seconds
             attempts.append(
                     (
                         ratio,
-                        oop_run / number,
-                        top_run / number,
+                        oop_seconds / number,
+                        top_seconds / number,
                         )
                     )
 
             if ratio <= budget:
                 return
 
-        ratio, oop_seconds, top_seconds = min(attempts)
+        ratio, oop_per_step, top_per_step = min(attempts)
 
         self.fail(
                 f"{what}: TOP costs {ratio:.1f}x the OOP equivalent"
-                f" ({top_seconds * 1e9:,.0f} ns against"
-                f" {oop_seconds * 1e9:,.0f} ns); the budget is {budget}x"
+                f" ({top_per_step * 1e9:,.0f} ns against"
+                f" {oop_per_step * 1e9:,.0f} ns); the budget is {budget}x"
                 )
 
     # Reads, writes, calls: the hot path.

@@ -48,9 +48,10 @@ work moves about 45 ns into each Rip to free about 2 KB per Ripped Tag.
 layout, the tagging path and the hot path. Memory per character falls 19
 to 34 per cent; keywords, `bool(agent)` and walking a Field run 53 to 75
 per cent faster; re-applying an active Form 74 per cent; tagging 12 per
-cent. A differential fuzzer ran 300 random programs (560,000 transcript
-lines) on both kits with no difference; targeted probes found four, all
-deliberate, and each fixes a defect (§4.2).
+cent. Targeted probes found four differences in behaviour, all
+deliberate, and each fixes a defect (§4.2). The differential fuzzer
+committed in the review follow-up ran 400 random programs on both kits:
+every difference it found is one of those four (§4.1).
 
 **What is left** (§5) is structural. Sharing one Overlay per composition
 instead of one per Agent would cut tagging by a further 34 to 56 per cent
@@ -144,9 +145,20 @@ whole program, not only TOP's.
 ### 4.1 The fourteen changes
 
 Checked by the spec, 216 tests (13 of them the opt-in budgets), the oracle over 60,000 transitions, the
-examples, and a differential fuzzer: 300 random programs run on the old
-and the new kit, transcripts compared line by line (values, errors,
-warnings with file and line, output at exit), with no difference.
+examples, and a differential fuzzer. The fuzzer runs the same random
+programs on two versions of the kit and compares the transcripts line by
+line: values, errors, warnings with file and line, the questions a
+finalizer asks at exit, and what is freed. The first one, a one-off
+script, reported no difference in 300 programs; it did not reach the
+deliberate differences. The one committed in the review follow-up
+(`tests/differential_fuzz.py`, §Reproducing) does. Old kit against new,
+300 programs of 300 steps and 100 heavy programs of 800 steps (490,000
+transcript lines): 397 programs differ, and every difference is one of
+§4.2. A warning shown once where the old kit repeated it (139 programs),
+a dropped Tag class freed (357), a finalizer's question answered at exit
+where the old kit raised `ImportError` (365; 2,459 answers). No other
+difference. Per-thread silencing needs threads, which the programs do
+not start; its test covers it.
 
 | # | Change | Effect (alternating runs, before -> after) |
 | --- | --- | --- |
@@ -193,7 +205,12 @@ by one-off scripts).
   time. A published Report read for the first time at shutdown still
   raised it after this PR; the review follow-up closed that too. The
   finalizer itself still imports at call time, so teardowns at shutdown
-  behave exactly as before (see §5.6).
+  behave exactly as before (see §5.6). One consequence the fuzzer
+  showed: at exit the language clears weak references before finalizers
+  run, so a Report's per-Tag cache may be empty there and the Report is
+  computed again. A Report that depends on something that changed since
+  its first read (the Tag's `__name__`, say) answers with the new value
+  at exit and with the cached one before it.
 
 ### 4.3 Tried and taken back
 
@@ -378,3 +395,8 @@ on the interpreter's attribute fast paths, which differ between 3.13 and
   machine).
 - `PYTHONPATH=. python3 benchmarks/bench.py`: the kit's own hot path and
   population figures.
+- `PYTHONPATH=. python3 tests/differential_fuzz.py --base 1cedd77 --new
+  b819b0a --seeds 300 --steps 300` (and `--seeds 100 --steps 800
+  --heavy`): the same random programs on the kit before and after this
+  PR, transcripts compared; `--keep DIR` keeps every program and both
+  transcripts. Its smoke test runs with the suite.

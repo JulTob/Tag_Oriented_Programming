@@ -8,9 +8,10 @@ TOP way (a host, Tags, Records, Actions, Fields). The scenarios live in
 benchmarks/scenarios.py, which the budgets in tests/test_performance.py
 import too, so a row here and a budget there time the same code. Before
 anything is timed, both ways run once and must give the same observable
-result, so the table compares like with like. Each side is then timed as
-the fastest of seven runs (time.perf_counter), the sides taking turns so
-that both meet the same machine. The loop that drives an operation is the
+result, so the table compares like with like. Each side is then timed by
+Race in benchmarks/scenarios.py: the fastest of REPEAT runs
+(time.perf_counter), the sides taking turns so that both meet the same
+machine. The loop that drives an operation is the
 same on both sides and is counted; the garbage collector stays on, as in
 a program.
 

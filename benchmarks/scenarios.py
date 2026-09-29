@@ -16,7 +16,8 @@ before either is timed. Race times the Sides: the fastest of REPEAT runs,
 the sides taking turns, the garbage collector on, as in a program.
 
 The sections, a to h, are the table's; the budgets hold some of the same
-scenarios to a ratio.
+scenarios to a ratio. A few pieces serve only the budgets: in h,
+Plain_Herd and Cycle_Asleep.
 """
 
 from __future__ import annotations
@@ -1046,14 +1047,20 @@ def Oop_Herd() -> list[Oop_Creature]:
             ]
 
 
+def Plain_Herd() -> list[Character]:
+    """Bare hosts: the herd before any Tag."""
+
+    return [
+            Character(f"Creature {index}")
+            for index in range(POPULATION)
+            ]
+
+
 def Top_Herd(
         tag: type,
         ) -> Callable[[], list[Character]]:
     def Herd() -> list[Character]:
-        herd = [
-                Character(f"Creature {index}")
-                for index in range(POPULATION)
-                ]
+        herd = Plain_Herd()
 
         for creature in herd:
             tag(creature)
@@ -1061,13 +1068,6 @@ def Top_Herd(
         return herd
 
     return Herd
-
-
-def Plain_Herd() -> list[Character]:
-    return [
-            Character(f"Creature {index}")
-            for index in range(POPULATION)
-            ]
 
 
 def Flip_Asleep(
