@@ -12,6 +12,7 @@ from typing import Any
 from typing import Callable
 import warnings
 
+from . import state as state_module
 from .access import IN_SEAT
 from .access import _host_in_seat
 from .contracts import _bind_condition
@@ -55,18 +56,18 @@ _quiet: ContextVar[int] = ContextVar(   # above zero while a scratch pass lays T
         "topkit_quiet",
         default=0,
         )
-_meta_tag: list[type] = []   # tags imports this module: MetaTag is bound on first use
+_MetaTag: type | None = None   # imported on first use: tags imports this module
 
 
 def _is_tag_type(
         candidate: object,
         ) -> bool:
-    if not _meta_tag:
-        from .tags import MetaTag
+    global _MetaTag
 
-        _meta_tag.append(MetaTag)
+    if _MetaTag is None:
+        from .tags import MetaTag as _MetaTag
 
-    return isinstance(candidate, _meta_tag[0])
+    return isinstance(candidate, _MetaTag)
 
 
 def _independent(
@@ -245,6 +246,9 @@ def _require_membership(
                 TagPostconditionError,
                 "Postcondition",
                 )
+
+
+state_module._require_membership = _require_membership   # a published Report's read needs it; state cannot import this module
 
 
 # ------------------------------------------------------------------

@@ -358,16 +358,11 @@ class _Partition(_Population):
         """Anyone? Stops at the first member that counts (``while Enemy:``)."""
 
         holds = partition._holds
-        members = [
-                reference()
-                for reference in list(partition._field._members.values())
-                ]   # every member held while the checks run, as a walk holds them
 
-        for agent in members:
-            if agent is not None and holds(agent):
-                return True
-
-        return False
+        return any(
+                holds(agent)
+                for agent in partition._field   # the walk holds every member while the checks run
+                )
 
     def __invert__(
             partition,
