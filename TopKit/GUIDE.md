@@ -704,7 +704,10 @@ return True`, which lets the promise follow any membership you like; the
 Contracts Guide shows both.
 
 **Watch out.** Python does not promise to run finalizers at shutdown, so
-`del agent` is best-effort. `Scope` is the guaranteed path.
+`del agent` is best-effort. `Scope` is the guaranteed path. A teardown
+that fails at `del agent` is printed on stderr, as Python prints an error
+in a `__del__`, naming the object and the teardown; nothing else is
+stopped by it.
 
 **An object's own `__del__` is a Layer.** It keeps running when the object
 is tagged. A Tag may replace it, or wrap it with `@Underlay`; the Tags'
@@ -743,7 +746,8 @@ assert farewells == ["put down", "spell fades", "wick out"]
 A teardown and a `__del__` may call the object's Actions there, in a
 collected cycle too. At interpreter exit only the `__del__` Layers run.
 To have teardowns run at exit too, register the Agent with
-`At_Exit(agent)`.
+`At_Exit(agent)`; one that fails in that pass is printed on stderr the
+same way.
 
 ### Pattern 10 · Build the sheet from pieces
 

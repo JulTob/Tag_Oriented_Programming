@@ -11,6 +11,8 @@ from contextlib import contextmanager
 from typing import Any
 from typing import Iterator
 import atexit
+import sys
+import weakref
 
 from .declarations import _parameters_of
 from .declarations import _takes_underlay
@@ -22,6 +24,7 @@ from .fields import _Member
 from .geometry import _requiring_shapes
 from .state import _Originals
 from .state import _State
+from .state import _name_of
 from .state import _state_of
 
 
@@ -105,15 +108,26 @@ def _teardown(
                 ) from failures[0][1]
 
 
+_Failure = tuple[type, Any, Exception]   # the Tag, the teardown, its error
+
+
 def _teardown_all(
         agent: object,
-        ) -> None:
-    """Best-effort teardown of every still-active Tag (finalizer, exit)."""
+        failures: list[_Failure] | None = None,
+        ) -> list[_Failure]:
+    """Best-effort teardown of every still-active Tag (finalizer, exit):
+    every teardown still due runs, once, while the Agent is still a
+    member. The failures are returned, for the caller to report once
+    everything else has run (STEP-SPEC-18, amended). A caller that passes
+    its own list keeps what an interruption leaves in it."""
 
     state = _state_of(agent)
 
+    if failures is None:
+        failures = []
+
     if state is None:
-        return
+        return failures
 
     state.composing += 1   # teardowns run inside the composition door, as on a Rip
 
@@ -126,10 +140,79 @@ def _teardown_all(
                             agent,
                             state,
                             )
-                except Exception:
-                    pass
+                except Exception as error:
+                    failures.append(
+                            (
+                                tag,
+                                teardown,
+                                error,
+                                )
+                            )
     finally:
         state.composing -= 1
+
+    return failures
+
+
+def _unraisable_type() -> type | None:
+    """The type ``sys.unraisablehook`` receives (``UnraisableHookArgs``).
+    Python does not export it, so one report is provoked under a hook
+    that keeps its type: a weak reference whose callback raises."""
+
+    kinds: list[type] = []
+    hook = sys.unraisablehook
+    sys.unraisablehook = lambda report: kinds.append(type(report))
+
+    try:
+        def Raise(
+                reference: object,
+                ) -> None:
+            raise RuntimeError("probe")
+
+        probe: set[int] = set()
+        reference = weakref.ref(probe, Raise)
+        del probe
+    finally:
+        sys.unraisablehook = hook
+
+    return kinds[0] if kinds else None
+
+
+_Unraisable = _unraisable_type()
+
+
+def _report_failures(
+        agent: object,
+        failures: list[_Failure],
+        ) -> None:
+    """Each failed teardown, reported as Python reports a finalizer's
+    error: through ``sys.unraisablehook``, naming the Agent and the
+    teardown. Nothing is stopped by it."""
+
+    for tag, teardown, error in failures:
+        message = (
+                f"Exception ignored in teardown {teardown.__name__} of"
+                f" {tag.__name__}, deleting {_name_of(agent)}"
+                )
+
+        if _Unraisable is None:   # a Python whose report type the probe did not catch
+            import traceback
+
+            print(f"{message}: {teardown!r}", file=sys.stderr)
+            traceback.print_exception(error, file=sys.stderr)
+            continue
+
+        sys.unraisablehook(
+                _Unraisable(
+                    (
+                        type(error),
+                        error,
+                        error.__traceback__,
+                        message,
+                        teardown,
+                        )
+                    )
+                )
 
 
 def _call_teardown(
@@ -251,7 +334,10 @@ def _run_exit_protocols() -> None:
             agent = reference()
 
             if agent is not None:
-                _teardown_all(agent)
+                _report_failures(
+                        agent,
+                        _teardown_all(agent),
+                        )   # a failure in the pass is reported as at deletion
 
 
 atexit.register(_run_exit_protocols)

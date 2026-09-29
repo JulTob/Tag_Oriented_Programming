@@ -1227,9 +1227,9 @@ An implementation provides three tiers and says which is which:
 
 | Tier | Guarantee |
 | --- | --- |
-| **Finalizer** (`__del__`) | best effort: when the Agent is collected, its teardowns run, then its `__del__` Layers; at interpreter exit only the `__del__` Layers run; the language may not run finalizers at shutdown or inside reference cycles |
+| **Finalizer** (`__del__`) | best effort: when the Agent is collected, its teardowns run, then its `__del__` Layers; a teardown that fails is reported as the language reports a finalizer's error, and still runs at most once; at interpreter exit only the `__del__` Layers run; the language may not run finalizers at shutdown, and may not run them inside reference cycles |
 | **`Scope(agent, *tags)`** | guaranteed: Tags apply on entry and Rip, in reverse, on exit, even if the block raises |
-| **`At_Exit(agent)`** | opt-in: teardowns also run at normal interpreter exit; registration is weak |
+| **`At_Exit(agent)`** | opt-in: teardowns also run at normal interpreter exit, a failed one reported as at deletion; registration is weak |
 
 Every teardown runs at most once, whichever tier reaches it first.
 
@@ -1245,9 +1245,12 @@ the composition door (§1.5). A `__del__` never stops a teardown:
 replacing the Layers replaces only them, and an interrupted teardown
 does not skip them. At interpreter exit only the Layers run; teardowns
 at exit are `At_Exit`'s. An error raised by a `__del__` Layer is reported
-as the language reports any finalizer's; the teardowns stay best effort
-and silent. `@Rip` on a `__del__` is a Declaration Failure: a `__del__`
-Layer already runs at deletion. The language calls `__del__`, not the
+as the language reports any finalizer's. The teardowns stay best effort,
+and a teardown that fails at deletion, or in the `At_Exit` pass, is
+reported the same way, after every teardown and every Layer has run,
+naming the Agent and the teardown; nothing else is stopped by it, and
+the teardown still runs at most once. `@Rip` on a `__del__` is a
+Declaration Failure: a `__del__` Layer already runs at deletion. The language calls `__del__`, not the
 program: in Python, `agent.__del__` reads the kit's finalizer, and
 calling it by hand runs the teardowns while the Agent is still a member.
 

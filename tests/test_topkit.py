@@ -4010,15 +4010,16 @@ class LayeredDeletionTests(unittest.TestCase):
 
         return self.log
 
-    def reported(self, act) -> list[str]:
+    def reported(self, act, keep=lambda raised: type(raised.exc_value).__name__) -> list:
         """What Python reports as unraisable (a finalizer's error) while
-        ``act`` runs."""
+        ``act`` runs: the error's type name, or what ``keep`` takes from
+        each report (``err_msg``, ``exc_value``, ``object``)."""
 
         import sys
 
-        caught: list[str] = []
+        caught: list = []
         hook = sys.unraisablehook
-        sys.unraisablehook = lambda raised: caught.append(type(raised.exc_value).__name__)
+        sys.unraisablehook = lambda raised: caught.append(keep(raised))
 
         try:
             act()
@@ -4756,6 +4757,132 @@ print("end", "Deprecated" in Archmage)
 
         self.assertEqual(log, ["layer ring", "host"])
         self.assertIsNone(reference())
+
+    def test_a_failed_teardown_is_reported_after_the_layers_ran(self) -> None:
+        log = self.log
+
+        class Stubborn(Tag):
+            @Rip
+            def Hold(agent) -> None:
+                log.append("hold")
+                raise RuntimeError("will not let go")
+
+        class Warded(Tag):
+            @Underlay
+            def __del__(agent, underlay) -> None:
+                log.append("layer")
+                underlay()
+
+        def Keep(raised) -> tuple:
+            log.append("reported")
+
+            return raised.err_msg, raised.object.__name__, raised.exc_value
+
+        reports = self.reported(lambda: self.delete(self.Guard, Stubborn, Warded), Keep)
+
+        self.assertEqual(log, ["hold", "teardown", "layer", "host", "reported"])
+        self.assertEqual(len(reports), 1)
+        self.assertEqual(reports[0][0], "Exception ignored in teardown Hold of Stubborn, deleting Door")
+        self.assertEqual(reports[0][1], "Hold")
+        self.assertIsInstance(reports[0][2], RuntimeError)
+
+    def test_every_failed_teardown_is_reported_once(self) -> None:
+        log = self.log
+
+        class Stubborn(Tag):
+            @Rip
+            def Hold(agent) -> None:
+                log.append("hold")
+                raise RuntimeError("will not let go")
+
+            @Rip
+            def Cling(agent) -> None:
+                log.append("cling")
+                raise ValueError("clings")
+
+        class Sealed(Tag):
+            def __del__(agent) -> None:
+                log.append("sealed")
+
+        reports = self.reported(
+                lambda: self.delete(Stubborn, Sealed),
+                lambda raised: raised.object.__name__,
+                )
+        gc.collect()
+
+        self.assertEqual(log, ["hold", "cling", "sealed"])   # every teardown ran, once
+        self.assertEqual(reports, ["Hold", "Cling"])        # one report each
+
+    def test_a_teardown_reported_on_a_rip_has_nothing_left_to_report_at_deletion(self) -> None:
+        log = self.log
+
+        class Stubborn(Tag):
+            @Rip
+            def Hold(agent) -> None:
+                log.append("hold")
+                raise RuntimeError("will not let go")
+
+        door = self.Door()
+        Stubborn(door)
+
+        with self.assertRaises(TagCompositionError):   # the Rip reports it as a Composition Failure
+            del Stubborn[door]
+
+        def Delete() -> None:
+            nonlocal door
+            del door
+            gc.collect()
+
+        self.assertEqual(self.reported(Delete), [])    # at most once: nothing to run, nothing to report
+        self.assertEqual(log, ["hold", "host"])
+
+    def test_failures_gathered_before_an_interruption_are_reported_before_it(self) -> None:
+        log = self.log
+
+        class Impatient(Tag):
+            @Rip
+            def Leave(agent) -> None:
+                log.append("impatient")
+                raise KeyboardInterrupt
+
+        class Stubborn(Tag):
+            @Rip
+            def Hold(agent) -> None:
+                log.append("hold")
+                raise RuntimeError("will not let go")
+
+        reported = self.reported(lambda: self.delete(Impatient, Stubborn))   # reverse order: Hold first
+
+        self.assertEqual(log, ["hold", "impatient", "host"])
+        self.assertEqual(reported, ["RuntimeError", "KeyboardInterrupt"])
+
+    def test_a_failed_teardown_in_the_exit_pass_is_reported(self) -> None:
+        program = """
+from TopKit import Tag, Rip, At_Exit
+
+class Door:
+    def __init__(self, name): self.name = name
+
+class Stubborn(Tag):
+    @Rip
+    def Hold(agent):
+        print(agent.name, "hold", flush=True)
+        raise RuntimeError(agent.name + " will not let go")
+
+class Guard(Tag):
+    @Rip
+    def Leave(agent): print(agent.name, "teardown", flush=True)
+
+first = Door("first"); Stubborn(first); At_Exit(first)
+second = Door("second"); Guard(second); At_Exit(second)
+print("end", flush=True)
+"""
+        lines, stderr = Run_Program(program)
+
+        self.assertEqual(lines, ["end", "first hold", "second teardown"])   # once, and the pass goes on
+        self.assertIn("Exception ignored in teardown Hold of Stubborn, deleting Door", stderr)
+        self.assertIn("RuntimeError: first will not let go", stderr)
+        self.assertEqual(stderr.count("Exception ignored"), 1)
 
     def test_actions_answer_a_layer_and_the_exit_pass_at_program_end(self) -> None:
         program = """

@@ -23,6 +23,7 @@ from .declarations import STATE
 from .declarations import _MISSING
 from .declarations import _is_flag
 from .declarations import _words_of
+from .lifecycle import _report_failures
 from .lifecycle import _teardown_all
 from .state import _Bound
 from .state import _Pinned_Operation
@@ -350,7 +351,8 @@ def _agent_del(
     own through ``@Underlay``, or the host's own when no Tag declares one.
     At interpreter exit only the ``__del__`` Layers run: teardowns there
     are At_Exit's, and opt-in. A ``__del__`` Layer's own error is reported
-    as Python reports any finalizer's.
+    as Python reports any finalizer's; so is each teardown that failed,
+    after every teardown and every Layer has run.
 
     At exit this module's globals, and even the builtins, may already be
     gone. So the exit path uses neither: what it needs is bound here as a
@@ -371,10 +373,14 @@ def _agent_del(
             )   # in a cycle Python cleared the Actions' weak references: agent.Ring() works again
 
     interrupted = None
+    failures: list = []
 
     if not finalizing():
         try:
-            _teardown_all(agent)
+            _teardown_all(
+                    agent,
+                    failures,
+                    )   # the list is ours: an interruption leaves it filled
         except Exception:
             pass   # best effort (§3.2)
         except BaseException as error:
@@ -393,6 +399,12 @@ def _agent_del(
         elif "__del__" not in state.deleted:
             host_finalizer(agent)
     finally:
+        if failures:
+            _report_failures(
+                    agent,
+                    failures,
+                    )   # after every teardown and every Layer: one report each
+
         if interrupted is not None:
             raise interrupted   # reported after the Layers, whatever they raised
 

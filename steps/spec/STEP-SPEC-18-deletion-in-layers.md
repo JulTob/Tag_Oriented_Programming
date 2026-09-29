@@ -77,16 +77,27 @@ call to the underlaying del."
 5. **A `__del__` never stops a teardown,** and a teardown never stops the
    Layers. Replacing the `__del__` Layers replaces only them; running the
    teardowns is a protocol of its own (§3.2), so no Tag can skip another
-   Tag's teardown. A teardown interrupted by the language (a `Ctrl-C`) does
-   not skip the Layers; the interruption is reported after them.
+   Tag's teardown. A teardown that fails stops neither the other
+   teardowns nor the Layers; it is reported after them (item 7). A
+   teardown interrupted by the language (a `Ctrl-C`) does not skip the
+   Layers; the interruption is reported after them, and after the
+   reports of the teardowns that failed before it. (The interrupted
+   Tag's remaining teardowns do not run: they were taken with it.)
 6. **At interpreter exit** only the `__del__` Layers run. Teardowns at
    exit stay opt-in: `At_Exit` runs them while the interpreter is still
-   whole. Every teardown still runs at most once, whichever tier reaches
-   it first.
+   whole; a teardown that fails in that pass is reported as at deletion
+   (item 7). Every teardown still runs at most once, whichever tier
+   reaches it first.
 7. **A `__del__` Layer's own error** is reported the way the language
    reports any finalizer's error (in Python, through
-   `sys.unraisablehook`). The kit no longer swallows it. The kit's own
-   best-effort work (the teardowns) stays silent, as §3.2 says.
+   `sys.unraisablehook`). The kit no longer swallows it. A teardown that
+   fails at deletion, or in the `At_Exit` pass, is reported the same
+   way, after every teardown and every Layer has run: one report each,
+   on stderr, naming the Agent and the teardown (`Exception ignored in
+   teardown Hold of Stubborn, deleting Bell`). Nothing else is stopped by
+   it, and a teardown still runs at most once: one that already failed on
+   a Rip, reported there as a Composition Failure, leaves nothing to
+   report at deletion.
 8. **`@Rip` on `__del__` is a Declaration Failure.** A `__del__` Layer
    already runs at deletion; as a teardown too it would run twice.
 9. **The language calls `__del__`, not the program.** In Python the
@@ -142,8 +153,9 @@ them").
 **Why nothing at exit but the Layers.** An untagged object's `__del__`
 runs at exit, so the tagged one's must too (§0.1). Teardowns at exit
 would run while the interpreter is half shut down, where a teardown that
-uses other modules can fail without a word, and many programs would print
-new output at exit. `At_Exit` already offers them, at a safer moment.
+uses other modules can fail, and its report would come from a half-shut
+interpreter; and many programs would print new output at exit. `At_Exit`
+already offers them, at a safer moment.
 
 ## Backwards compatibility
 
@@ -155,6 +167,16 @@ new output at exit. `At_Exit` already offers them, at a safer moment.
 - An error raised by a host's `__del__` is now reported (on stderr,
   through `sys.unraisablehook`) instead of being swallowed. A Tag's
   `__del__` errors were already reported, and still are.
+- Programs whose teardowns already failed at deletion (a `del`, a
+  collection, program end, the `At_Exit` pass) now see each failure on
+  stderr, through `sys.unraisablehook`, naming the Agent and the
+  teardown. Before, the failure was dropped.
+- A teardown or a `__del__` Layer that calls one of the Agent's own
+  Actions no longer raises `ReferenceError` when the Agent was collected
+  in a cycle or is cleared at program end. Every tagged object still held
+  in a module variable whose Tag's Actions live in that module is in such
+  a cycle, through the functions' `__globals__`, so a Layer that called
+  an Action there failed at every program end.
 - Teardowns of Agents collected as cyclic garbage during interpreter exit
   no longer run (before, they ran when that collection came while the
   kit's modules were still loaded); `At_Exit` runs them, while the
