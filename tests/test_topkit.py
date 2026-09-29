@@ -4850,6 +4850,31 @@ print("end", "Deprecated" in Archmage)
         self.assertEqual(log, ["hold", "cling", "sealed"])   # every teardown ran, once
         self.assertEqual(reports, ["Hold", "Cling"])        # one report each
 
+    def test_a_reported_teardown_does_not_keep_the_agent_alive(self) -> None:
+        class Stubborn(Tag):
+            @Rip
+            def Hold(agent) -> None:
+                raise RuntimeError("will not let go")
+
+        door = self.Door()
+        Stubborn(door)
+        reference = weakref.ref(door)
+        gc.disable()   # a refcount death must free it at once: no collection may help
+
+        try:
+            def Delete() -> None:
+                nonlocal door
+                del door
+
+            reports = self.reported(Delete, lambda raised: raised.object.__name__)
+
+            self.assertEqual(reports, ["Hold"])
+            self.assertIsNone(reference())          # the error's traceback held its frames, and the Agent
+            self.assertEqual(list(Stubborn[:]), [])   # gone from its Field with it
+            self.assertEqual(self.log, ["host"])
+        finally:
+            gc.enable()
+
     def test_a_teardown_reported_on_a_rip_has_nothing_left_to_report_at_deletion(self) -> None:
         log = self.log
 

@@ -187,32 +187,52 @@ def _report_failures(
         ) -> None:
     """Each failed teardown, reported as Python reports a finalizer's
     error: through ``sys.unraisablehook``, naming the Agent and the
-    teardown. Nothing is stopped by it."""
+    teardown. Nothing is stopped by it. The failures are dropped once
+    reported: an error's traceback holds ``_teardown_all``'s frame, which
+    holds the list that holds the error, a cycle whose frames hold the
+    Agent; kept, it would resurrect the Agent until a collection."""
 
-    for tag, teardown, error in failures:
-        message = (
-                f"Exception ignored in teardown {teardown.__name__} of"
-                f" {tag.__name__}, deleting {_name_of(agent)}"
-                )
+    try:
+        for tag, teardown, error in failures:
+            _report_failure(
+                    agent,
+                    tag,
+                    teardown,
+                    error,
+                    )
+    finally:
+        failures.clear()
 
-        if _Unraisable is None:   # a Python whose report type the probe did not catch
-            import traceback
 
-            print(f"{message}: {teardown!r}", file=sys.stderr)
-            traceback.print_exception(error, file=sys.stderr)
-            continue
+def _report_failure(
+        agent: object,
+        tag: type,
+        teardown: Any,
+        error: Exception,
+        ) -> None:
+    message = (
+            f"Exception ignored in teardown {teardown.__name__} of"
+            f" {tag.__name__}, deleting {_name_of(agent)}"
+            )
 
-        sys.unraisablehook(
-                _Unraisable(
-                    (
-                        type(error),
-                        error,
-                        error.__traceback__,
-                        message,
-                        teardown,
-                        )
+    if _Unraisable is None:   # a Python whose report type the probe did not catch
+        import traceback
+
+        print(f"{message}: {teardown!r}", file=sys.stderr)
+        traceback.print_exception(error, file=sys.stderr)
+        return
+
+    sys.unraisablehook(
+            _Unraisable(
+                (
+                    type(error),
+                    error,
+                    error.__traceback__,
+                    message,
+                    teardown,
                     )
                 )
+            )
 
 
 def _call_teardown(

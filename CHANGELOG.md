@@ -21,7 +21,8 @@
   first, and the Agent is still freed); a teardown that fails at deletion
   or in the `At_Exit` pass is reported on stderr through
   `sys.unraisablehook`, after every teardown and Layer ran, naming the
-  Agent and the teardown (before: dropped).
+  Agent and the teardown (before: dropped); the reported failures are
+  then let go, since a traceback's frames hold the Agent.
 - **Fixed with it:** an object built from an Agent's runtime type
   (`dataclasses.replace`, `type(self)(...)`) is tagged as a plain host
   (a `__del__` Layer used to recurse, and type-level gates of the other

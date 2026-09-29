@@ -95,8 +95,9 @@ call to the underlaying del."
 6. **At interpreter exit** only the `__del__` Layers run. Teardowns at
    exit stay opt-in: `At_Exit` runs them while the interpreter is still
    whole and the Agent is still a member (a walk finds it there); a
-   teardown that fails in that pass is reported as at deletion (item 7). Every teardown still runs at most once, whichever tier
-   reaches it first.
+   teardown that fails in that pass is reported as at deletion (item 7).
+   Every teardown still runs at most once, whichever tier reaches it
+   first.
 7. **A `__del__` Layer's own error** is reported the way the language
    reports any finalizer's error (in Python, through
    `sys.unraisablehook`). The kit no longer swallows it. A teardown that
@@ -185,7 +186,9 @@ already offers them, at a safer moment.
   in a cycle or is cleared at program end. Every tagged object still held
   in a module variable whose Tag's Actions live in that module is in such
   a cycle, through the functions' `__globals__`, so a Layer that called
-  an Action there failed at every program end.
+  an Action there failed at every program end. Once the Agent's finalizer
+  has run, its Actions answer the other finalizers of the same collection
+  too (an object that holds the Agent and asks it from its own `__del__`).
 - Teardowns of Agents collected as cyclic garbage during interpreter exit
   no longer run (before, they ran when that collection came while the
   kit's modules were still loaded); `At_Exit` runs them, while the
@@ -234,7 +237,15 @@ pass, and the Agent is freed afterwards; a failed teardown is reported
 after the Layers, naming the Agent and the teardown, once each, in the
 `At_Exit` pass too, and before an interruption; a teardown reported on a
 Rip has nothing left to report; and membership is visible inside a
-teardown at deletion. Each fails when its fix is undone.
+teardown at deletion. Each fails when its fix is undone. The
+differential fuzz against the base (300 seeds, and 100 heavy) found one
+defect in the first draft of the reports: a failure's traceback held the
+frames that held the Agent, through the list that held the failure, so a
+reported teardown resurrected the Agent until the next collection, and a
+walk of its Fields still found it; the failures are dropped once
+reported, and a test pins the Agent freed at once with the collector
+off. Every remaining difference is a report block, or an Action that
+answers where it raised `ReferenceError`.
 
 ---
 

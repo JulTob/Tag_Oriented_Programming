@@ -1217,8 +1217,9 @@ After a Rip, teardowns run **after** membership has ended, in
 declaration order, every one of them; failures are collected and
 reported once as a Composition Failure. At deletion, and in the
 `At_Exit` pass, the teardowns run while the Agent is still a member of
-its Tags (§3.2); a failed one is reported there as the language reports a
-finalizer's error. A `@Rip` Action with an `@Underlay` runs composed, like any Action.
+its Tags (§3.2); a failed one is reported there as the language reports
+a finalizer's error. A `@Rip` Action with an `@Underlay` runs composed,
+like any Action.
 
 Ripping a Tag may apply another Tag, even itself. That is outside good TOP
 use: it could keep an Agent from ever leaving a Field.
@@ -1259,10 +1260,10 @@ and a teardown that fails at deletion, or in the `At_Exit` pass, is
 reported the same way, after every teardown and every Layer has run,
 naming the Agent and the teardown; nothing else is stopped by it, and
 the teardown still runs at most once. `@Rip` on a `__del__` is a
-Declaration Failure: a `__del__` Layer already runs at deletion. The language calls `__del__`, not the
-program: in Python, `agent.__del__` reads the kit's finalizer, and
-calling it by hand runs the whole deletion, teardowns included, on a
-live Agent the program still holds.
+Declaration Failure: a `__del__` Layer already runs at deletion. The
+language calls `__del__`, not the program: in Python, `agent.__del__`
+reads the kit's finalizer, and calling it by hand runs the whole
+deletion, teardowns included, on a live Agent the program still holds.
 
 ```python
 class Lantern:

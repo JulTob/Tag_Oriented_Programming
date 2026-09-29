@@ -134,9 +134,10 @@ rollback target.
   `__del__`: the top Layer, nothing if deleted, else the host's own; then
   it reports each teardown that failed through `sys.unraisablehook`, one
   `UnraisableHookArgs` each, naming the Agent and the teardown
-  (`_report_failures`; `_run_exit_protocols` reports the same way). Python
-  does not export that type, so `lifecycle.py` catches it once at import,
-  under a temporary hook, from a weak reference whose callback raises. `_host_finalizer` finds the host's own by walking the MRO
+  (`_report_failures`; `_run_exit_protocols` reports the same way).
+  Python does not export that type, so `lifecycle.py` catches it once at
+  import, under a temporary hook, from a weak reference whose callback
+  raises. `_host_finalizer` finds the host's own by walking the MRO
   past the runtime type, as Python does (first definer decides, `None`
   means none, descriptors are bound). The exit path uses no module global
   and no builtin: what it needs is bound as a default argument, because
