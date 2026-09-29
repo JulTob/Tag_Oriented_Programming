@@ -41,7 +41,6 @@ from .overlay import _quiet
 from .overlay import _refuse_in_collisions_of_the_form
 from .overlay import _materialize
 from .state import STATE
-from .state import Tagged
 from .state import _Snapshot
 from .state import _State
 from .state import _bind_to
@@ -340,7 +339,7 @@ def _commit(
                 )
     else:
         for name, _function in declarations.actions:
-            if name in state.actions:
+            if name in state.actions and name != "__del__":   # __del__ stays Python's: the finalizer
                 _bind_to(
                         agent,
                         state,
@@ -475,8 +474,8 @@ def _needs_new_type(
     deletions, secrets, published Reports, dunder Actions, a first Post,
     a first Flag."""
 
-    if not isinstance(agent, Tagged):
-        return True
+    if "_TOPKIT_HOST_TYPE" not in type(agent).__dict__:
+        return True   # the Agent still wears its host's own class
 
     return bool(
             _is_flag(tag)

@@ -115,16 +115,21 @@ def _teardown_all(
     if state is None:
         return
 
-    for tag in reversed(list(state.active)):
-        for teardown in state.rips.pop(tag, ()):
-            try:
-                _call_teardown(
-                        teardown,
-                        agent,
-                        state,
-                        )
-            except Exception:
-                pass
+    state.composing += 1   # teardowns run inside the composition door, as on a Rip
+
+    try:
+        for tag in reversed(list(state.active)):
+            for teardown in state.rips.pop(tag, ()):
+                try:
+                    _call_teardown(
+                            teardown,
+                            agent,
+                            state,
+                            )
+                except Exception:
+                    pass
+    finally:
+        state.composing -= 1
 
 
 def _call_teardown(

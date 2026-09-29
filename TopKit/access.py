@@ -11,15 +11,19 @@ from __future__ import annotations
 
 from functools import partial
 from typing import Any
+from typing import Callable
+import sys
 
 from .contracts import _condition_member
 from .contracts import _holds
 from .errors import TagCompositionError
 from .errors import TagResolutionError
+from .declarations import STATE
 from .declarations import _MISSING
 from .declarations import _is_flag
 from .declarations import _flag_generation
 from .declarations import _words_of
+from .lifecycle import _teardown_all
 from .state import _Bound
 from .state import _Pinned_Operation
 from .state import _Snapshot
@@ -98,7 +102,6 @@ def _hooks_for(
             "__del__": _agent_del,
             "_TOPKIT_HOST_TYPE": host_type,
             "_TOPKIT_HOST_GETATTR": _host_member(host_type, "__getattr__"),
-            "_TOPKIT_HOST_DEL": _host_member(host_type, "__del__"),
             }
 
     if has_posts and _host_member(host_type, "__bool__") is None:
@@ -288,23 +291,87 @@ def _agent_bool(
     return _holds(agent)
 
 
+def _host_finalizer(
+        agent: object,
+        missing: type = AttributeError,
+        ) -> None:
+    """The host's own ``__del__``, found as Python finds it: the first class
+    after the Agent's runtime type that defines one decides, ``None`` there
+    means there is none, and a descriptor is bound to the Agent first.
+
+    It runs at interpreter exit too, when this module's globals and even
+    the builtins may be gone, so it uses neither: ``missing`` is bound
+    here, and everything else is found on the Agent."""
+
+    for klass in agent.__class__.__mro__[1:]:
+        if "__del__" in klass.__dict__:
+            finalizer = klass.__dict__["__del__"]
+            break
+    else:
+        return
+
+    if finalizer is None:
+        return
+
+    try:
+        bind = finalizer.__get__
+    except missing:
+        finalizer()   # not a descriptor: Python calls it as it is
+        return
+
+    bind(
+            agent,
+            agent.__class__,
+            )()
+
+
 def _agent_del(
         agent: object,
+        finalizing: Callable[[], bool] = sys.is_finalizing,
+        state_key: str = STATE,
+        host_finalizer: Callable[[object], None] = _host_finalizer,
         ) -> None:
-    # Best effort: run remaining teardowns, then the host's finalizer.
-    # Python does not promise finalizers at shutdown or inside cycles;
-    # Scope() is the guaranteed path.
-    try:
-        from .lifecycle import _teardown_all   # at shutdown this fails, and nothing runs
+    """Deletion (§3.2, STEP-SPEC-18). The teardowns still due run, best
+    effort; then the Agent's ``__del__`` runs as its Overlay shows it: the
+    top Layer, which reaches the host's own through ``@Underlay``, or the
+    host's own when no Tag declares one. At interpreter exit only the
+    ``__del__`` Layers run: teardowns there are At_Exit's, and opt-in. A
+    ``__del__`` Layer's own error is reported as Python reports any
+    finalizer's.
 
-        _teardown_all(agent)
+    At exit this module's globals, and even the builtins, may already be
+    gone. So the exit path uses neither: what it needs is bound here as a
+    default, or found on the Agent."""
 
-        host_del = type(agent).__dict__.get("_TOPKIT_HOST_DEL")
+    state = agent.__dict__.get(state_key)
 
-        if host_del is not None:
-            host_del(agent)
-    except Exception:
-        pass
+    if state is None:
+        return
+
+    interrupted = None
+
+    if not finalizing():
+        try:
+            _teardown_all(agent)
+        except Exception:
+            pass   # best effort (§3.2)
+        except BaseException as error:
+            interrupted = error   # Ctrl-C in a teardown: the __del__ Layers still run
+
+    layer = state.actions.get("__del__")
+
+    if layer is not None:
+        state.composing += 1   # a Tag's Layer runs inside the composition door (§1.5)
+
+        try:
+            layer(agent)
+        finally:
+            state.composing -= 1
+    elif "__del__" not in state.deleted:
+        host_finalizer(agent)
+
+    if interrupted is not None:
+        raise interrupted
 
 
 def _agent_copy(

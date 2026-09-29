@@ -282,8 +282,17 @@ def _state_for(
     state = namespace.get(STATE)
 
     if state is None:
+        host_type = type(agent)
+        host_of_runtime = host_type.__dict__.get("_TOPKIT_HOST_TYPE")
+
+        if host_of_runtime is not None and not isinstance(agent, type):
+            # Built from an Agent's runtime type (dataclasses.replace,
+            # type(self)(...)): until tagged, it is a plain host object.
+            agent.__class__ = host_of_runtime
+            host_type = host_of_runtime
+
         state = _State(
-                host_type=type(agent),
+                host_type=host_type,
                 pinned=agent if isinstance(agent, type) else None,
                 )
         namespace[STATE] = state
@@ -778,10 +787,14 @@ _type_cache: "WeakValueDictionary[tuple, type]" = WeakValueDictionary()
 def _dunder_actions(
         state: _State,
         ) -> dict[str, Function]:
+    """Special-method Actions that live on the runtime type. ``__del__`` is
+    not one of them: the finalizer runs the Agent's ``__del__`` Layers after
+    its teardowns (STEP-SPEC-18)."""
+
     return {
             name: function
             for name, function in state.actions.items()
-            if _is_dunder(name)
+            if _is_dunder(name) and name != "__del__"
             }
 
 
@@ -790,7 +803,7 @@ def _type_key_of(
         ) -> tuple:
     return (
             state.host_type,
-            frozenset(state.deleted | state.restored),   # a restored name keeps its gate
+            frozenset((state.deleted | state.restored) - {"__del__"}),   # a restored name keeps its gate; __del__ has none
             frozenset(state.secrets),
             frozenset(state.published),
             bool(state.postconditions),
@@ -849,6 +862,8 @@ def _runtime_type_for(
 
         if "__contains__" in hooks:
             namespace["__contains__"] = hooks["__contains__"]   # the Flag holds the seat
+
+    namespace["__del__"] = hooks["__del__"]   # the finalizer, whatever gate names __del__
 
     if issubclass(host_type, Tagged):
         bases: tuple[type, ...] = (host_type,)

@@ -4,6 +4,27 @@
 
 ### Specification
 
+- **Deletion in Layers** (STEP-SPEC-18, §3.2): an Agent's `__del__` is a
+  member of its Overlay. The host's own is the first Layer; a Tag's
+  `__del__` replaces or, with `@Underlay`, extends it; `@Delete` removes
+  it. Deletion runs the teardowns first, then the `__del__` Layers; a
+  `__del__` never stops a teardown; at interpreter exit only the Layers
+  run; `@Rip` on `__del__` is refused. Before, a tagged object's own
+  `__del__` did not run at exit unless a Tag's `@Underlay __del__` sat
+  over it, a host's `__del__` error was swallowed, and a Tag's `__del__`
+  (or `@Delete` of it) silently stopped the teardowns. Teardowns of Agents
+  collected as cyclic garbage at exit no longer run; `At_Exit` runs them.
+- **Fixed with it:** an object built from an Agent's runtime type
+  (`dataclasses.replace`, `type(self)(...)`) is tagged as a plain host
+  (a `__del__` Layer used to recurse, and type-level gates of the other
+  Agent leaked in); a host class that subclasses `Tagged` gets its
+  runtime type at the first tagging (before, it kept its own class until
+  a Tag brought a type-level fact, and until then had no finalizer, so no
+  teardowns at deletion, no views or conditions by name, and no format
+  specs); teardowns run by the finalizer or the exit
+  pass run inside the composition door, so they read their own `@Secret`
+  members; the finalizer works late in interpreter exit, after the kit's
+  modules are cleared.
 - STEP-SPEC-12 **Cleared** by the Director on 2026-09-21: conditions are
   sticky; the author ends them. Deployed with the merge that carried it.
 - **Field algebra** (STEP-SPEC-13, §2.5): `Wizard | Fighter`, `Wizard &

@@ -192,6 +192,19 @@ def Run() -> None:
     with Scope(Character(), Sentry) as s: assert s in Sentry
     assert log == ["down"]
 
+    # 3.2 deletion in layers
+    log = []
+    class Lantern:
+        def __del__(self): log.append("wick out")
+    class Carried(Tag):
+        @Rip
+        def Put_Down(agent): log.append("put down")
+    class Enchanted(Tag):
+        @Underlay
+        def __del__(agent, underlay): log.append("spell fades"); underlay()
+    lamp = Lantern(); Carried(lamp); Enchanted(lamp); del lamp
+    assert log == ["put down", "spell fades", "wick out"]
+
     # 1.8 Flags, and their words
     @Flag
     class Undead(Tag): pass
