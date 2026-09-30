@@ -1837,6 +1837,59 @@ class SoundMembershipTests(unittest.TestCase):
                 )
         self.assertTrue(Contract.Preconditions(ari))                  # where the gate refused
 
+    def test_a_promise_that_tags_its_own_agent_still_reads_membership_after(self) -> None:
+        seen = []
+
+        class Nested(Tag):
+            pass
+
+        class Keeper(Tag):
+            @Post
+            def Keeps(agent):
+                if agent.go:
+                    agent.go, agent.ok = False, True
+                    Nested(agent)                                     # a tagging inside the check: its quality check nests
+                    agent.ok = False
+                    seen.append((bool(agent), agent in Keeper, agent in ~Keeper))
+                    return True
+                return agent.ok
+
+        dee = Agent()
+        dee.go, dee.ok = False, True
+        Keeper(dee)
+        dee.go, dee.ok = True, False                                  # defective outside
+
+        self.assertEqual(Contract.Status(dee), {"Keeps": True})
+        self.assertEqual(seen, [(True, True, False)])                 # the nested check gave the guard back
+        self.assertIn(dee, Nested[:])
+        self.assertNotIn(dee, Keeper)                                 # outside again: the contract answers
+
+    def test_an_imprint_reads_the_populations_as_outside_code_does(self) -> None:
+        """An Imprint runs outside the guard: the promise it is about to
+        keep is already visible, so the Agent is not `in` another Tag
+        there, as `bool(agent)` is False there. `Tag[:]` reads membership."""
+
+        Fighter = self.Fighter                                        # a Tag that makes no promise
+        seen = []
+
+        class Knight(Tag):
+            @Imprint
+            def Swear(agent):
+                seen.append((agent in Fighter, agent in Fighter[:], bool(agent)))
+                agent.oath = "kept"
+
+            @Post
+            def Sworn(agent):
+                return agent.oath is not None
+
+        ari = Agent()
+        ari.oath = None
+        Fighter(ari)
+        Knight(ari)
+
+        self.assertEqual(seen, [(False, True, False)])
+        self.assertIn(ari, Fighter)                                   # the promise kept: sound again
+
     def test_a_scope_leaves_a_defective_tag_the_agent_carried(self) -> None:
         Wizard, ari = self.Wizard, self.ari
         Wizard(ari)
