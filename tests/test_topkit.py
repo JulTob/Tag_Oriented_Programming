@@ -3155,6 +3155,40 @@ class FlagWordTests(unittest.TestCase):
         self.assertNotIn(Loose("Fiend"), howler)          # no TypeError from an unhashable word
         self.assertFalse(Keyword(howler, Loose("Fiend")))
 
+    def test_a_flag_word_is_kept_as_its_plain_text(self) -> None:
+        """A str subclass given to @Flag is kept as its text, as a probe is."""
+
+        class Unhashable(str):
+            __hash__ = None
+
+        class Folded(str):
+            def __eq__(self, other):
+                return isinstance(other, str) and self.lower() == other.lower()
+
+            def __hash__(self):
+                return hash(self.lower())
+
+        @Flag(Unhashable("Wolf"))                         # no TypeError at declaration
+        class Werewolf(Tag):
+            pass
+
+        @Flag(Folded("Wolf"))
+        class Lycan(Tag):
+            pass
+
+        howler, moon = Agent(), Agent()
+        Werewolf(howler)
+        Lycan(moon)
+
+        self.assertIn("Wolf", howler)
+        self.assertIn("Wolf", moon)                       # its own word matches
+        self.assertNotIn("wolf", moon)                    # exact, whatever the subclass says
+        self.assertTrue(Keyword(moon, "Wolf"))
+        self.assertFalse(Keyword(moon, "wolf"))
+
+        for tag in (Werewolf, Lycan):
+            self.assertEqual({type(word) for word in vars(tag)["__topkit_flag__"]}, {str})
+
     def test_a_flag_that_lands_after_another_tag_takes_the_seat(self) -> None:
         @Flag("Wolf")
         class Werewolf(Tag):

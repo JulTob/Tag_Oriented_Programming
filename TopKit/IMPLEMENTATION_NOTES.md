@@ -97,7 +97,8 @@ rollback target.
   After the last Flag is Ripped it stays until the type is next rebuilt,
   answering False. It answers the name, a listed word, or the class of an
   active Flag and nothing else. The mark is the frozenset of the Tag's
-  words in its own `__dict__` (empty for bare `@Flag`); the name is read
+  words, each stored as its plain text (`str.__str__`), in its own
+  `__dict__` (empty for bare `@Flag`); the name is read
   live from `__name__`, and the words are never inherited by Shapes.
   Each Agent keeps its active Flags and their aliases in `state.words`
   until its Tags change or any `@Flag` is declared (counted in

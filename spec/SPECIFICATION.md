@@ -750,7 +750,8 @@ accepted, and says nothing about that Tag's Field. Many Tags may share a
 word; it answers while any of them is active. The words are the Tag's
 own: a Shape answers its Base's words because the Base is active (§0.3),
 never by inheriting them. Bare `@Flag` is the name alone. Words are
-non-empty strings and match exactly, like names.
+non-empty strings, kept as their plain text, and match exactly, like
+names.
 
 A Flag needs the Agent's `in`, and one seat holds one meaning. Something
 else may already answer it: the host, through its own `__contains__` or

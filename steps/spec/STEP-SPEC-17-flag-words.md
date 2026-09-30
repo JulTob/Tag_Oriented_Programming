@@ -63,10 +63,10 @@ is the variant: a word with no Field behind it.
    or its words; it answers its Base's words because the Base is active.
    A Shape that is a Flag itself adds its own.
 7. Stacked `@Flag` marks add their words together.
-8. Words are non-empty strings, and a probe is read as its text. Anything
-   else among the words, including a class beside them (`@Flag(Beast,
-   "Wolf")`), is a Declaration Failure at the decorator; nothing is
-   marked. A lone class is the bare form applied to that class:
+8. Words are non-empty strings, each kept as its plain text when the Tag
+   is declared, and a probe is read as its text. Anything else among
+   the words, including a class beside them (`@Flag(Beast, "Wolf")`), is
+   a Declaration Failure at the decorator; nothing is marked. A lone class is the bare form applied to that class:
    `@Flag(Beast)` over another class marks `Beast` itself and then
    applies `Beast` to the new class. No kit can tell that from `Flag(Beast)`
    called on its own, so the Guide says it: a word is the string

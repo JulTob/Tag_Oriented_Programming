@@ -110,7 +110,10 @@
   another deletion, a dunder Action, now a Flag), so a host property of
   that name came back over the Layer's Action. The gate now survives.
 - A `str` subclass asked for a keyword is read as its text: matching
-  stays exact, and an unhashable subclass no longer raises.
+  stays exact, and an unhashable subclass no longer raises. A word given
+  to `@Flag` is kept as its text too, so a case-insensitive subclass
+  matches its own word, and an unhashable one no longer raises
+  `TypeError` at declaration.
 - The **oracle**: `tests/oracle_topkit.py`, an independent model of the
   paradigm checked against the kit after every transition of a random
   walk (60,000 transitions at the audited size), ported from the

@@ -322,14 +322,20 @@ def Flag(
                 frozenset(),
                 )
 
+    texts: list[str] = []
+
     for word in words:
-        if not isinstance(word, str) or not word:
+        text = str.__str__(word) if isinstance(word, str) else ""   # its text: exact, and hashable
+
+        if not text:
             raise TagDeclarationError(
                     "@Flag marks a Tag class, or takes the words it also"
                     f" answers to as non-empty strings; got {word!r}"
                     )
 
-    aliases = frozenset(words)
+        texts.append(text)
+
+    aliases = frozenset(texts)
 
     def Flag_With_Words(
             tag: type,
