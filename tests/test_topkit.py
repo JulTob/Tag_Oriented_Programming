@@ -3022,18 +3022,20 @@ class FieldAlgebraTests(unittest.TestCase):
         Wizard, Fighter = self.Wizard, self.Fighter
 
         for population, rewrite in (
-                (Wizard | Fighter, "isinstance(x, (Wizard, Fighter))"),
-                (Wizard[:] | ~Fighter, "isinstance(x, (Wizard, Fighter))"),
-                ((Wizard | Fighter) - Wizard, "isinstance(x, (Wizard, Fighter))"),
-                (Wizard[:], "isinstance(x, (Wizard,))"),
-                (~Fighter, "isinstance(x, (Fighter,))"),
+                (Wizard | Fighter, "write isinstance(x, (Wizard, Fighter))"),
+                (Wizard[:] | Fighter[:], "write isinstance(x, (Wizard, Fighter))"),
+                (Wizard[:], "write isinstance(x, Wizard)"),
+                (Wizard[:] | ~Fighter, "isinstance takes Tags"),           # only a union of members has a tuple
+                ((Wizard | Fighter) - Wizard, "isinstance takes Tags"),
+                (Wizard & Fighter, "isinstance takes Tags"),
+                (~Fighter, "isinstance takes Tags"),
                 ):
             with self.subTest(population=repr(population)):
                 with self.assertRaises(TypeError) as caught:
                     isinstance(self.ari, population)
 
                 self.assertIn("a population is not a type", str(caught.exception))
-                self.assertIn(rewrite, str(caught.exception))
+                self.assertTrue(str(caught.exception).endswith(rewrite), str(caught.exception))
 
         with self.assertRaises(TypeError):
             isinstance(Agent(), (Wizard, Wizard | Fighter))             # inside a tuple too
@@ -3071,9 +3073,21 @@ class FieldAlgebraTests(unittest.TestCase):
         self.assertIn(rewrite, str(caught.exception))
 
         with self.assertRaises(TypeError) as caught:
-            (Wizard[:] | ~Fighter) | int                                  # a class on the other side
+            (Wizard[:] | Fighter[:]) | int                                # a class on the other side
 
         self.assertIn("typing.Union[Wizard, Fighter, int]", str(caught.exception))
+
+        for population, ending in (
+                (Wizard[:], "write typing.Optional[Wizard]"),                 # one Tag: no Union of one
+                (Wizard - Fighter, "a hint takes Tags"),                      # no list of Tags means "not a Fighter"
+                (Wizard & Fighter, "a hint takes Tags"),
+                (~Wizard, "a hint takes Tags"),
+                ):
+            with self.subTest(hint=repr(population)):
+                with self.assertRaises(TypeError) as caught:
+                    population | None
+
+                self.assertTrue(str(caught.exception).endswith(ending), str(caught.exception))
 
         with self.assertRaises(TypeError) as caught:
             (Wizard | Fighter) | (int | str)                              # a union on the other side
@@ -3100,6 +3114,11 @@ class FieldAlgebraTests(unittest.TestCase):
                             )
 
         with self.assertRaises(TypeError) as caught:
+            (Wizard | Fighter) | typing.ForwardRef("Knight")              # typing's on 3.12, annotationlib's on 3.14
+
+        self.assertIn("write typing.Union[Wizard, Fighter, ", str(caught.exception))
+
+        with self.assertRaises(TypeError) as caught:
             (Wizard | Fighter) | "Wizard"                                 # a string is no hint material for |
 
         self.assertNotIn("a population", str(caught.exception))       # Python's own error
@@ -3110,9 +3129,10 @@ class FieldAlgebraTests(unittest.TestCase):
         self.assertIsNotNone(typing.Optional[typing.Union[Wizard, Fighter]])   # the rewrite
 
     def test_a_hint_in_a_signature_is_refused_where_python_evaluates_it(self) -> None:
-        """Python 3.10 to 3.13 evaluate a signature's hints at definition;
-        3.14 when the annotations are read. Either way, the refusal names
-        the rewrite."""
+        """Before 3.14 Python evaluates a signature's hints at definition
+        (unless the module has `from __future__ import annotations`); 3.14
+        when the annotations are read. Either way, the refusal names the
+        rewrite."""
 
         lines, stderr = Run_Program(
                 "from TopKit import Tag\n"
@@ -3178,7 +3198,23 @@ class FieldAlgebraTests(unittest.TestCase):
         with self.assertRaises(TypeError) as caught:
             isinstance(self.ari, self.Wizard | self.Wizard[:])        # one Tag twice: named once
 
-        self.assertIn("isinstance(x, (Wizard,))", str(caught.exception))
+        self.assertIn("write isinstance(x, Wizard)", str(caught.exception))
+
+        Twin = type(                                                  # a Twin that shares __name__ and __qualname__
+                "Wizard",
+                (self.Wizard,),
+                {"__qualname__": self.Wizard.__qualname__},
+                )
+
+        for build in (
+                lambda: isinstance(self.ari, self.Wizard | Twin),
+                lambda: issubclass(Agent, self.Wizard | Twin),
+                lambda: (self.Wizard | Twin) | None,
+                ):
+            with self.assertRaises(TypeError) as caught:
+                build()
+
+            self.assertNotIn("write", str(caught.exception))           # no rewrite that names one Tag twice
 
     def test_a_tag_declaring_a_member_named_sound_still_iterates(self) -> None:
         class Odd(Tag):

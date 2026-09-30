@@ -52,7 +52,9 @@ class _Population:
     as do ``_tags`` (the Tags it is made of, each once), ``_spell`` (how
     a program writes it) and ``_kind`` ("Tags" for a Pin's, "objects" for
     an ordinary Tag's, None where the Tag is gone). ``_names`` spells the
-    Tags by ``__name__``, or by ``__qualname__`` where two share one."""
+    Tags by ``__name__``, or by ``__qualname__`` where two share one.
+    ``_either`` says whether the population is its Tags' members joined
+    only by ``|``, the one shape a tuple of Tags can stand for."""
 
     _label: str = "population"
 
@@ -87,6 +89,11 @@ class _Population:
             ) -> str | None:
         raise NotImplementedError
 
+    def _either(
+            population,
+            ) -> bool:
+        raise NotImplementedError
+
     def __instancecheck__(
             population,
             candidate: object,
@@ -95,7 +102,7 @@ class _Population:
 
         raise TypeError(
                 f"isinstance(x, {population._spell()}): a population is not"
-                f" a type; write isinstance(x, {_tuple_of(population)})"
+                f" a type; {_class_rewrite('isinstance', population)}"
                 )
 
     def __subclasscheck__(
@@ -104,7 +111,7 @@ class _Population:
             ) -> bool:
         raise TypeError(
                 f"issubclass(x, {population._spell()}): a population is not"
-                f" a type; write issubclass(x, {_tuple_of(population)})"
+                f" a type; {_class_rewrite('issubclass', population)}"
                 )
 
     def __len__(
@@ -193,10 +200,11 @@ def _spell_tags(
         tags: list[Any],
         ) -> list[str]:
     """Each Tag by ``__name__``; by ``__qualname__`` where two Tags share
-    one; a Tag that is gone by a placeholder. A rewrite in a refusal
-    names the Tags this way, which a renamed Tag or a Twin (a Tag made
-    under another Tag's title) may not answer to in the program's own
-    namespace."""
+    a name; a Tag that is gone by a placeholder. Two Tags can still read
+    alike (a Twin made with ``type("T2", (T2,), {})`` shares both names),
+    so a refusal names a rewrite only when every Tag reads apart
+    (``_rewrite_names``); even then a renamed Tag may not answer to that
+    name in the program's own namespace."""
 
     names = [
             "<a Tag that is gone>" if tag is None else tag.__name__
@@ -211,14 +219,45 @@ def _spell_tags(
             ]
 
 
-def _tuple_of(
+def _rewrite_names(
+        population: _Population,
+        ) -> list[str] | None:
+    """The Tags a rewrite names, or None when no list of Tags says what
+    the population means: an operator other than ``|``, a defective view
+    (``~``), a Tag that is gone, or two Tags that read alike."""
+
+    if not population._either():
+        return None
+
+    tags = population._tags()
+
+    if any(tag is None for tag in tags):
+        return None
+
+    names = _spell_tags(tags)
+
+    if len(set(names)) < len(names):
+        return None
+
+    return names
+
+
+def _class_rewrite(
+        check: str,
         population: _Population,
         ) -> str:
-    """The tuple of types ``isinstance`` takes: ``(Wizard, Fighter)``."""
+    """The end of an ``isinstance`` or ``issubclass`` refusal: the call
+    that means "a member of any of these Tags", when there is one."""
 
-    names = population._names()
+    names = _rewrite_names(population)
 
-    return "(" + ", ".join(names) + ("," if len(names) == 1 else "") + ")"
+    if names is None:
+        return f"{check} takes Tags"
+
+    if len(names) == 1:
+        return f"write {check}(x, {names[0]})"
+
+    return f"write {check}(x, ({', '.join(names)}))"
 
 
 def _population_of(
@@ -249,7 +288,7 @@ def _is_type_material(
     return (
             value is None
             or isinstance(value, (type, types.UnionType, types.GenericAlias))
-            or type(value).__module__ == "typing"
+            or type(value).__module__ in ("typing", "annotationlib")   # ForwardRef lives in annotationlib from 3.14
             )
 
 
@@ -257,14 +296,21 @@ def _hint_rewrite(
         population: _Population,
         other: Any,
         ) -> str:
-    """The ``typing`` spelling of what a hint over a population meant."""
+    """The end of a hint's refusal: the ``typing`` spelling of what a hint
+    over the population meant, when a list of Tags says it."""
 
-    union = "typing.Union[" + ", ".join(population._names()) + "]"
+    names = _rewrite_names(population)
 
-    if other is None:
-        return f"typing.Optional[{union}]"
+    if names is None:
+        return "a hint takes Tags"
 
-    return f"typing.Union[{', '.join(population._names())}, {_spell_operand(other)}]"
+    if other is not None:
+        return f"write typing.Union[{', '.join(names)}, {_spell_operand(other)}]"
+
+    if len(names) == 1:
+        return f"write typing.Optional[{names[0]}]"
+
+    return f"write typing.Optional[typing.Union[{', '.join(names)}]]"
 
 
 def _combine(
@@ -300,7 +346,7 @@ def _combine(
                         )
 
                 raise TypeError(
-                        f"{spelled}: a population is not a type; write"
+                        f"{spelled}: a population is not a type;"
                         f" {_hint_rewrite(population, other)}"
                         )
 
@@ -429,6 +475,15 @@ class _Combined(_Population):
             ) -> str | None:
         return combined._left._kind() or combined._right._kind()
 
+    def _either(
+            combined,
+            ) -> bool:
+        return (
+                combined._operator == "|"
+                and combined._left._either()
+                and combined._right._either()
+                )
+
 
 class _Member(weakref.ref):
     """A Field's weak reference to one Agent, carrying its identity key."""
@@ -516,6 +571,11 @@ class _Field(_Population):
             return None
 
         return "Tags" if _is_pin(tag) else "objects"
+
+    def _either(
+            field,
+            ) -> bool:
+        return True
 
     def __contains__(
             field,
@@ -640,3 +700,8 @@ class _Partition(_Population):
             partition,
             ) -> str | None:
         return partition._field._kind()
+
+    def _either(
+            partition,
+            ) -> bool:
+        return partition._label == "sound"
