@@ -2594,7 +2594,8 @@ class ExitProtocolTests(unittest.TestCase):
 
 
 class ScopeTests(unittest.TestCase):
-    """Scope Rips only what it applied, and everything it applied."""
+    """Scope Rips only what it applied: everything it applied, except a
+    Tag a Shape that arrived in the block still requires."""
 
     def test_a_tag_the_agent_already_had_survives_the_scope(self) -> None:
         class Wizard(Tag):
@@ -2685,6 +2686,41 @@ class ScopeTests(unittest.TestCase):
         self.assertNotIn(cy, Dire)
         self.assertNotIn(di, Wolf)
         self.assertNotIn(di, Dire)
+
+    def test_a_tag_a_shape_still_requires_stays_after_the_scope(self) -> None:
+        class Wolf(Tag):
+            pass
+
+        class Dire(Wolf):
+            pass
+
+        bo = Agent()
+
+        with Scope(bo, Wolf):
+            Dire(bo)                                                  # the block brings a Shape that requires Wolf
+
+        self.assertIn(bo, Dire)
+        self.assertIn(bo, Wolf)                                       # the Rip was refused, and the Scope went on
+
+    def test_a_teardown_that_fails_in_a_scope_still_rips_the_tag(self) -> None:
+        class Sentry(Tag):
+            @Rip
+            def Stand_Down(agent):
+                raise ValueError("the post will not be left")
+
+        guard, other = Agent(), Agent()
+
+        with Scope(guard, Sentry):                                    # not reported, as the kit stands (STEP-SPEC-6: open)
+            pass
+
+        self.assertNotIn(guard, Sentry)                               # the membership ended all the same
+
+        Sentry(other)
+
+        with self.assertRaises(TagCompositionError):                  # a plain Rip reports it
+            del Sentry[other]
+
+        self.assertNotIn(other, Sentry)
 
 
 class AccessTests(unittest.TestCase):

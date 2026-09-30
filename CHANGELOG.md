@@ -54,7 +54,12 @@
   and then failed at the door, through its Postcondition or its Imprint,
   is now Ripped as the failure leaves the Scope. A Base the Scope pulled
   in with a Shape stays, even when the Scope names it after that Shape.
-  Found by the oracle.
+  Found by the oracle. Unchanged since 0.1, and now written down: a Rip
+  the Scope cannot make, because a Shape that arrived in the block still
+  requires the Tag, leaves that Tag; a teardown that fails as the Scope
+  Rips is not reported (open for the Director in STEP-SPEC-6). Still owed
+  for this release: the spelling `with Wizard[h]:`, with inputs as `with
+  Wizard[h](code="007"):` (STEP-SPEC-21).
 - STEP-SPEC-15 (Trials, the recoverable phase the archived checkpoints
   were) and STEP-SPEC-16 (uniform access) opened at Brief with the full
   case for the Director's review.
@@ -68,8 +73,8 @@
 - **A Flag's words** (STEP-SPEC-17, §1.8): `@Flag("Wolf", "Lycanthrope")`
   makes a Tag answer to those words as well as to its name, `"Wolf" in
   howler`. A word is a keyword, never membership; many Tags may share
-  one; a Shape answers its Base's words through the Base. Bare `@Flag` is
-  unchanged. A Flag, bare or with words, is part of the Tag's
+  one; a Shape answers its Base's words through the Base. Bare `@Flag` on
+  a new Tag is unchanged. A Flag, bare or with words, is part of the Tag's
   declaration: a mark on a Tag that already has members, or whose Shapes
   have, is a Declaration Failure that names the Tag and the count. Before,
   it was accepted halfway: `Keyword` answered the new word and the
@@ -99,10 +104,11 @@
   shutdown still raised it until the review follow-up: `overlay` now hands
   its membership check to `state` when it loads.) A Report's value is kept
   on its Tag, so a Report read from a finalizer at exit answers the value
-  it gave before. It used to be built again there, after the language had
-  cleared the weak cache: a renamed Tag gave a new value at exit. The weak
-  cache also kept a Shape alive forever when the value a Base's Report
-  built for the Shape held the Shape.
+  it gave before, as the Director ruled on 2026-09-29: the Tag keeps the
+  value it built, strongly. It used to be built again there, after the
+  language had cleared the weak cache: a renamed Tag gave a new value at
+  exit. The weak cache also kept a Shape alive forever when the value a
+  Base's Report built for the Shape held the Shape.
 - Review follow-up: tests for the two deliberate differences that had
   none (per-thread warning silencing, queries at shutdown); tests that
   read the kit's internals now test what a program can observe; the

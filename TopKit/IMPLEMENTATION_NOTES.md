@@ -248,8 +248,11 @@ rollback target.
   comes, so a Base named after its Shape is skipped too. When a
   tagging raises, it asks whether the Tag is now active (a Postcondition
   or an Imprint failed after commit) and, if so, records it as applied,
-  so the teardown Rips exactly what the Scope applied. A Base pulled in
-  with a Shape is not recorded.
+  so the teardown Rips what the Scope applied. A Base pulled in with a
+  Shape is not recorded. Each Rip on the way out is wrapped in `except
+  TagError: pass`: a Rip refused for a required Base leaves the Tag, and
+  a failed teardown (the Tag already Ripped) is dropped, where `_rip`
+  would raise it. STEP-SPEC-6 leaves the second open for the Director.
 - **The oracle** (`tests/oracle_topkit.py`): an independent model of
   the laws driven by a random walk; `tests/test_oracle.py` runs a short
   walk under the suite. Run it at size with `--seeds 50 --steps 1200

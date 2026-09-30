@@ -1242,7 +1242,7 @@ An implementation provides three tiers and says which is which:
 | Tier | Guarantee |
 | --- | --- |
 | **Finalizer** (`__del__`) | best effort: when the Agent is collected, its teardowns run, then its `__del__` Layers; at interpreter exit only the `__del__` Layers run; the language may not run finalizers at shutdown or inside reference cycles |
-| **`Scope(agent, *tags)`** | guaranteed: the Tags it names apply on entry, and those it applied Rip, in reverse, on exit, even if the block raises |
+| **`Scope(agent, *tags)`** | guaranteed: the Tags it names apply on entry, and those it applied Rip, in reverse, on exit, even if the block raises; a Rip refused because a Shape that arrived in the block still requires the Tag leaves that Tag on the Agent |
 | **`At_Exit(agent)`** | opt-in: teardowns also run at normal interpreter exit; registration is weak |
 
 Every teardown runs at most once, whichever tier reaches it first.
@@ -1296,12 +1296,18 @@ stays, and so does a Base the Scope names after that Shape, because the
 Agent already carries it by then. A Tag that applied and then failed at
 the door, through its Postcondition or its Imprint, stays applied
 (§0.6), so the Scope Rips it, and the Tags it applied before it, as the
-failure leaves; the block does not run.
+failure leaves; the block does not run. A Rip the Scope cannot make,
+because a Shape that arrived in the block still requires the Tag, is
+refused as any such Rip is (§0.7); the Tag stays, and the Scope goes on
+Ripping the rest. A teardown that fails as the Scope Rips its Tag ends
+the membership as on any Rip, but the Scope does not report the failure:
+whether it should, once the block is over, is open in STEP-SPEC-6.
 
 ```python
 with Scope(agent, Sentry):
     guard_the_gate(agent)
 # Sentry's teardown has run here, exception or not, if the Scope applied it
+# (and no Shape that arrived in the block still requires Sentry)
 ```
 
 ---
@@ -1412,9 +1418,10 @@ A conforming implementation provides, ring by ring:
 
 **Ring 3**
 - `@Rip` protocols run after membership ends, once, composed, failures
-  reported; the three deletion tiers, a Scope Ripping the Tags it
-  applied and only those; the Agent's `__del__` as Layers of its
-  Overlay, run after the teardowns, and alone at interpreter exit.
+  reported by the Rip; the three deletion tiers, a Scope Ripping the
+  Tags it applied and only those, leaving one a Shape still requires;
+  the Agent's `__del__` as Layers of its Overlay, run after the
+  teardowns, and alone at interpreter exit.
 
 **Everywhere**
 - the failure types above, distinct and named.

@@ -676,7 +676,11 @@ A Scope takes away only what it gave. If the guard is already a Sentry,
 the block runs and he stays one. A Base the Scope pulled in with a Shape
 stays too, even if the Scope names it after the Shape. A Sentry whose
 `post` fails at the door is Ripped as the error leaves the `with`, and
-the block does not run: the Scope applied it.
+the block does not run: the Scope applied it. Two things the Scope does
+not do on the way out. If the block made the guard a Shape of Sentry,
+the Shape still requires Sentry, so Sentry stays. And if Sentry's `@Rip`
+protocol fails there, the guard has left Sentry, but the Scope does not
+raise the failure, where `del Sentry[guard]` would.
 
 A role's conditions do **not** leave with it on their own. What the
 Agent *became* stays (pattern 1's Rogue Agent), and so does what the role

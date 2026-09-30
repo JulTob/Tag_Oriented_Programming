@@ -178,6 +178,10 @@ def Scope(
     Ripped on the way out like any other. A Base pulled in with a Shape
     stays, even when the Scope names it after that Shape: the Agent
     already carries it by then.
+
+    On the way out, a Rip refused because a Shape that arrived in the
+    block requires the Tag leaves that Tag, and a teardown that fails is
+    not reported (the Tag is Ripped); STEP-SPEC-6 leaves the second open.
     """
 
     applied: list[type] = []
