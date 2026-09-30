@@ -1543,6 +1543,8 @@ def Fielding(
                 f"list({tag}[:] & ~{other})",
                 f"{agent} in ~{tag}",
                 f"{agent} in {tag}[:]",
+                f"{agent} in ({tag} | {other})",
+                f"{agent} in ({tag}[:] - {other})",
                 f"{tag}[1:2]",
                 f"{tag} | None",
                 f"isinstance({agent}, {tag} | {other})",
@@ -1648,6 +1650,8 @@ def Pinning(
     expression = randomizer.choice(
             (
                 f"{tag} in {pin.name}",
+                f"{tag} in {pin.name}[:]",
+                f"{tag} in ~{pin.name}",
                 f"list({pin.name})",
                 f"list({pin.name} | {tag})",
                 f"list({tag} | {pin.name})",
