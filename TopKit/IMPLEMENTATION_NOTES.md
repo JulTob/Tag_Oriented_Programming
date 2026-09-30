@@ -140,9 +140,10 @@ rollback target.
   and the teardown (`_report_failures`). `_run_exit_protocols` reports
   the same way once each Agent's teardowns in the pass ran, before an
   interruption leaves the pass, with "in the At_Exit pass of" for
-  "deleting".
-  Python does not export that type, so `lifecycle.py` catches it once at
-  import, under a temporary hook, from a weak reference whose callback
+  "deleting". A hook that raises stops nothing: its error goes to
+  `sys.__unraisablehook__`, as Python does for its own reports. Python
+  does not export `UnraisableHookArgs`, so `lifecycle.py` catches it once
+  at import, under a temporary hook, from a weak reference whose callback
   raises. `_host_finalizer` finds the host's own by walking the MRO
   past the runtime type, as Python does (first definer decides, `None`
   means none, descriptors are bound). The exit path uses no module global

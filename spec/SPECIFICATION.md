@@ -1193,8 +1193,9 @@ agent.spellbook` reads well, but asks two questions at once: *defined* and
 ## 3.1 Rip protocols
 
 Imprint and Rip are duals: constructor and destructor, `__enter__` and
-`__exit__`. A `@Rip` Action runs when the Agent leaves the Tag's Field. It
-is also an ordinary, callable Action.
+`__exit__`. A `@Rip` Action runs when the Agent leaves the Tag's Field, and
+when the Agent is deleted (§3.2), while it is still a member. It is also an
+ordinary, callable Action.
 
 ```python
 class MI6(Tag):

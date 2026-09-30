@@ -150,8 +150,9 @@ def Underlay(
 def Rip(
         function: Function,
         ) -> Function:
-    """Teardown. Runs when the Agent leaves the Tag's Field. It is also a
-    normally callable Action."""
+    """Teardown. Runs when the Agent leaves the Tag's Field, and when it is
+    deleted, while it is still a member. It is also a normally callable
+    Action."""
 
     return _flag(
             function,

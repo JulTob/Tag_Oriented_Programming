@@ -78,9 +78,10 @@ call to the underlaying del."
    to let a Rip inside a finalizer skip the refusal that protects a Base
    a Shape needs, and decide what a `__del__` Layer that reads a
    published member does, since published members answer members only.
-   The Agent's own Actions are tied to it again first, so a teardown and
-   a Layer call them as anywhere (`agent.Ring()`), in a collected cycle
-   and at program end too, where the language had cleared them. The tie
+   Before the teardowns run, the Agent's own Actions are tied to it
+   again, so a teardown and a Layer call them as anywhere
+   (`agent.Ring()`), in a collected cycle too, and a Layer at program
+   end, where the language had cleared them. The tie
    ends with the finalizer: an Action kept past it (by an object a
    teardown built) meets `ReferenceError`, as before, and the Agent is
    still freed afterwards.
@@ -92,8 +93,8 @@ call to the underlaying del."
    teardown interrupted by the language (a `Ctrl-C`) does not skip the
    Layers; the interruption is reported after them, and after the
    reports of the teardowns that failed before it. (The teardowns not
-   yet run then do not run: the interrupted Tag's were taken with it,
-   and the other Tags' are not reached.)
+   yet run then do not run: the interrupted Tag's were already taken off
+   its list, and the other Tags' are not reached.)
 6. **At interpreter exit** only the `__del__` Layers run. Teardowns at
    exit stay opt-in: `At_Exit` runs them while the interpreter is still
    whole and the Agent is still a member (a walk finds it there); a
@@ -110,7 +111,9 @@ call to the underlaying del."
    is deleted). One report each, on stderr, naming the Agent and the
    teardown (`Exception ignored in teardown Hold of Stubborn, deleting
    Bell`; in the pass, `..., in the At_Exit pass of Bell`). Nothing else
-   is stopped by it, and a teardown still runs at most once: one that
+   is stopped by it (nor by a `sys.unraisablehook` that raises: its
+   error goes to Python's default hook, as Python does for its own
+   reports), and a teardown still runs at most once: one that
    already failed on a Rip, reported there as a Composition Failure,
    leaves nothing to report at deletion.
 8. **`@Rip` on `__del__` is a Declaration Failure.** A `__del__` Layer
@@ -125,7 +128,8 @@ call to the underlaying del."
     modules are cleared, the Layers still run and still reach the host's
     own `__del__`, and a plain Action call still answers; but a Layer
     that reads a member the kit gates (a `@Secret`, a view or a condition
-    by name, a published member, `bool(agent)`, a keyword) fails there,
+    by name, a published member, `bool(agent)`, a keyword) or asks for
+    membership (`agent in Tag`, a walk of a Field) fails there,
     and so does any Action of an Agent that has `@Secret` members.
 
 ```python
@@ -183,12 +187,14 @@ already offers them, at a safer moment.
   through `sys.unraisablehook`) instead of being swallowed. A Tag's
   `__del__` errors were already reported, and still are.
 - Programs whose teardowns already failed at deletion (a `del`, a
-  collection, program end, the `At_Exit` pass) now see each failure on
-  stderr, through `sys.unraisablehook`, naming the Agent and the
-  teardown. Before, the failure was dropped.
+  collection) or in the `At_Exit` pass now see each failure on stderr,
+  through `sys.unraisablehook`, naming the Agent and the teardown.
+  Before, the failure was dropped. (At program end no teardown runs
+  outside that pass, so none is reported there.)
 - A teardown or a `__del__` Layer that calls one of the Agent's own
   Actions no longer raises `ReferenceError` when the Agent was collected
-  in a cycle or is cleared at program end. Every tagged object still held
+  in a cycle, and neither does a `__del__` Layer when the Agent is
+  cleared at program end. Every tagged object still held
   at program end by a module that defines a function (a Tag's Actions, a
   method, any `def`) is in such a cycle, because that function's
   `__globals__` is the module's namespace; so a Layer that called an
@@ -256,7 +262,15 @@ off. A review of the amendment found two more: the re-tie outlived the
 finalizer, so an Action kept past it answered an Agent the collection
 had already cleared (or, with `@Secret` members, failed inside the kit);
 and the `At_Exit` pass dropped a failure gathered before an
-interruption. Both are fixed and pinned. Every remaining difference is a
+interruption. Both are fixed and pinned. A second review found two
+more: a `sys.unraisablehook` that raised stopped the `At_Exit` pass
+(and, at deletion, dropped the remaining reports and the interruption),
+and the cycle tests could not tell a resurrected Agent from a freed one,
+since Python clears weak references before the finalizer runs; the hook's
+error now goes to Python's default hook, and the tests ask the heap. It
+also found, from before this STEP, that an interrupted teardown kept the
+Agent until the next collection, through the interruption's traceback;
+the finalizer now lets go of it. Every remaining difference is a
 report block, or an Action that answers a teardown or a Layer where it
 raised `ReferenceError`.
 
@@ -281,7 +295,7 @@ was dropped.
 | --- | --- |
 | Membership during deletion: end it first, as after a Rip, or keep the teardowns running while the Agent is still a member, as today and in 0.2.0a3 | "Fix the words now, STEP later": no behaviour change; the STEP, §3.1, §3.2, CONFORMANCE and the Guide say the teardowns at deletion and in the `At_Exit` pass run while the Agent is still a member; a later STEP may end membership first |
 | Actions at deletion: a teardown or a `__del__` Layer cannot call the Agent's own Actions where Python cleared their weak references | "Fix it now": the finalizer ties the Actions to the Agent again before the teardowns and the Layers run, with weak references, until the finalizer is done, so `agent.Ring()` works there as anywhere and the Agent is still freed |
-| Teardown failures at deletion (`del`, a collection, program end, the `At_Exit` pass): swallowed or printed | "Print them": after every teardown and every Layer has run, each failed teardown is reported through `sys.unraisablehook`, naming the Agent and the teardown; nothing else is stopped; a teardown still runs at most once |
+| Teardown failures at deletion (`del`, a collection, program end, the `At_Exit` pass): swallowed or printed | "Print them": each failed teardown is reported through `sys.unraisablehook`, naming the Agent and the teardown: at deletion, after every teardown and every Layer has run; in the `At_Exit` pass, once that Agent's teardowns in the pass have run, since its Layers run only when it is deleted; nothing else is stopped; a teardown still runs at most once |
 
 Covered by `tests/test_topkit.py::LayeredDeletionTests`.
 

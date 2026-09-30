@@ -3984,8 +3984,8 @@ class LayeredDeletionTests(unittest.TestCase):
     the Overlay shows it: the host's own is the first Layer, a Tag's
     __del__ replaces the Layers beneath or, with @Underlay, extends them.
     Amended 2026-09-29: the Agent's Actions answer a teardown and a Layer
-    in a collected cycle and at program end; a failed teardown is
-    reported after the Layers."""
+    in a collected cycle, and a Layer at program end; a failed teardown
+    is reported after the Layers."""
 
     def setUp(self) -> None:
         self.log: list[str] = []
