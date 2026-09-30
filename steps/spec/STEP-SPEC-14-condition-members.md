@@ -16,8 +16,11 @@ Every condition on an Agent can be read on the Agent by its own name, as
 a plain boolean computed on read: `agent.Has_Book` is True while the
 promise called `Has_Book` holds and False when it does not. Nothing lands
 on the Agent: the name answers on the miss path, so no value is stored,
-no proxy stands in for the boolean, and `Contract.Status(agent)` and the
-member always agree. Because the name is read on the Agent, **a
+no proxy stands in for the boolean. The member and
+`Contract.Status(agent)` give the same True or False. A condition that
+returns anything else raises the Contract Failure on the member, while
+the status and `bool(agent)` read it as False. Because the name is read
+on the Agent, **a
 condition may not share its name** with an Action, a Record, a member
 the host defines, or a value the Agent already holds; the tagging is
 refused at the door.
@@ -39,12 +42,16 @@ back the Agent member."
    `Name`, `agent.Name` is `True` or `False`: the condition evaluated on
    read, under the same re-entrancy guard as `bool(agent)`. A
    Postcondition is looked up before a Precondition of the same name
-   (a `@Requirement` is one function; both answer the same).
+   (a `@Requirement` is one function; both answer the same). A gate is
+   read now, without the tagging's inputs: `@Pre def Has_Code(agent,
+   code=None)` reads False once the call is over.
 2. **Plain.** The value is the language's boolean and nothing else. It is
    not stored on the Agent, cannot be assigned, and is not callable.
-3. **A condition that raises reads False.** A condition that returns a
-   non-boolean is a Contract Failure on read, as it is in every other
-   evaluation.
+3. **A condition that raises reads False.** A condition that returns
+   something other than True, False or None (0, say) raises the Contract
+   Failure on read. `Contract.Status(agent)` and `bool(agent)` read it as
+   False, and the Agent waits in `~Tag`: the member names the defect, the
+   status counts it.
 4. **The name is the condition's own.** A tagging whose condition is
    called like an Action or a Record already on the Agent, like a
    member the host class defines, or like a value the Agent already
@@ -56,8 +63,10 @@ back the Agent member."
 6. **Sticky.** A condition that outlived its Tag (STEP-SPEC-12) still
    reads by name until the author ends it.
 7. **Spelling.** `agent.Has_Book` joins §0.8 beside `Contract.Status`.
-   `hasattr(agent, "Has_Book")` is True for a condition on the Agent; a
-   name that is no condition is the ordinary attribute miss.
+   `hasattr(agent, "Has_Book")` is True for a condition on the Agent that
+   returns a boolean; for one that returns a non-boolean, `hasattr` and
+   `getattr(agent, "Has_Book", None)` raise the Contract Failure, as the
+   read does. A name that is no condition is the ordinary attribute miss.
 
 ## Rationale
 
@@ -72,7 +81,12 @@ would hide.
 
 A program that used a Record, an Action or a host member with the same
 name as one of its conditions now fails at the door where before the
-condition was simply unreadable by name. No other program changes.
+condition was simply unreadable by name.
+
+`hasattr(agent, "Has_Book")` and `getattr(agent, "Has_Book", None)` gave
+False and None in 0.2.0a3. Now they give True and the value for a
+condition on the Agent, and raise the Contract Failure when it returns a
+non-boolean.
 
 ## Alternatives considered
 
@@ -98,3 +112,9 @@ every transition and compares it with `Contract.Status`.
 > *Drafted for the Director's confirmation:* Cleared on 2026-09-21, per
 > the Director's review of the archived features: "Bring back the Agent
 > member."
+>
+> *Added 2026-09-29:* two points of wording, ruled by the Director. A
+> condition that returns a non-boolean: "Keep raising, fix the words"
+> (Summary, items 3 and 7, Backwards compatibility). A gate that uses the
+> tagging's inputs reads False afterwards: "Keep it, write it down"
+> (item 1).

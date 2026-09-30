@@ -2829,12 +2829,13 @@ class ConditionMemberTests(unittest.TestCase):
         ari.book = None
         self.assertIs(ari.Has_Book, False)
         self.assertFalse(ari)
-        self.assertNotIn("Has_Book", Contract.Status(ari) and vars(ari))
+        self.assertNotIn("Has_Book", vars(ari))
+        self.assertIs(Contract.Status(ari)["Has_Book"], False)
 
         with self.assertRaises(AttributeError):
             ari.Has_Sword                                             # no such condition
 
-    def test_a_raising_condition_reads_false_and_a_non_bool_is_refused(self) -> None:
+    def test_a_raising_condition_reads_false_and_a_non_bool_raises_on_the_member(self) -> None:
         class Loud(Tag):
             @Post
             def Ready(agent):
@@ -2853,6 +2854,28 @@ class ConditionMemberTests(unittest.TestCase):
         ari.count = 0
         with self.assertRaises(TagContractError):
             ari.Count
+
+        with self.assertRaises(TagContractError):
+            hasattr(ari, "Count")                                     # 0.2.0a3 gave False
+
+        with self.assertRaises(TagContractError):
+            getattr(ari, "Count", None)                               # 0.2.0a3 gave None
+
+        self.assertIs(Contract.Status(ari)["Count"], False)          # the status counts it
+        self.assertFalse(ari)
+
+    def test_a_gate_is_read_without_the_taggings_inputs(self) -> None:
+        class Coded(Tag):
+            @Pre
+            def Has_Code(agent, code=None):
+                return code == "007"
+
+        bond = Agent()
+        Coded(bond, code="007")                                       # the gate passed, with its input
+
+        self.assertIs(bond.Has_Code, False)                           # read now, with no code to give it
+        self.assertEqual(Contract.Status(bond), {"Has_Code": False})
+        self.assertTrue(bond)                                         # a gate is no promise
 
     def test_a_pinned_tags_condition_reads_on_the_tag(self) -> None:
         class Wizard(Tag):

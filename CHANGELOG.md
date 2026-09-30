@@ -42,7 +42,11 @@
   `agent.Has_Book` is a plain boolean computed on read, never stored,
   never a proxy. A condition's name is refused to Actions, Records, host
   members and values the Agent already holds. Back from the 0.2-alpha
-  line in the form the Director chose.
+  line in the form the Director chose. A condition that returns a
+  non-boolean raises the Contract Failure on read, and so do `hasattr`
+  and `getattr` with a default (0.2.0a3 gave False and None), while
+  `Contract.Status` and `bool(agent)` read it as False. A gate is read
+  without the tagging's inputs.
 - **A Scope Rips the Tags it applied, and only those** (§3.2; STEP-SPEC-6
   amended 2026-09-29). Two differences from 0.2.0a3: a Tag the Agent
   already carried at entry is no longer Ripped on exit (the Scope adds

@@ -292,7 +292,9 @@ door follows the empty-seat rule: a host with its own formatting keeps it.
 
 Queries that need a name are functions (`Form`, `Tags`, `Keyword`,
 `Apply`, `Outline`, `Contract`, `Scope`), never members of the Tag or of
-the Agent.
+the Agent, with one exception: a condition is read by its own name, on
+the Agent (`agent.Has_Book`) and on a pinned Tag (`Wizard.Has_Members`),
+§2.5.
 Another language profile chooses its own native spellings; the acts and
 their distinctions are what must survive.
 
@@ -1073,15 +1075,20 @@ for u in (Wizard[:] | Fighter[:]) - Sworn:   # anyone with a role who has not sw
 `agent.Has_Book` is `True` while the promise called `Has_Book` holds and
 `False` when it does not: the language's boolean, computed on read, never
 stored, never callable. A Postcondition answers before a Precondition of
-the same name; a condition that raises reads `False`; a non-boolean is a
-Contract Failure on read, as always. Because the name is read on the
-Agent, a condition may not share its name with an Action, a Record, a
-member the host defines or a value the Agent already holds: the tagging
-is refused at the door with a Composition Failure, and so is an Action or
-a Record laid over a condition's name. Nothing is silently shadowed. A
+the same name; a condition that raises reads `False`. A condition that
+returns anything but `True`, `False` or `None` (a `0`, say) raises the
+Contract Failure on read, and so do `hasattr(agent, "Has_Book")` and
+`getattr(agent, "Has_Book", None)`; `Contract.Status` and `bool(agent)`
+read it as `False`. Because the name is read on the Agent, a condition
+may not share its name with an Action, a Record, a member the host
+defines or a value the Agent already holds: the tagging is refused at
+the door with a Composition Failure, and so is an Action or a Record
+laid over a condition's name. Nothing is silently shadowed. A
 pinned Tag reads its own conditions the same way (`Wizard.Has_Members`).
 A condition that outlived its Tag (§0.7) still reads by name until the
-author ends it.
+author ends it. A gate is read now, without the tagging's inputs:
+`@Pre def Has_Code(agent, code=None)` reads `False` on the Agent once
+the call is over, because a later read has no `code` to give it.
 
 Truthiness on a plain object is vacuously true, so this fills an empty
 seat. A host that defines its own `__bool__` or `__len__` keeps it until a
@@ -1328,7 +1335,7 @@ types but must keep these distinct.
 | **Tag Precondition Failure** | A gate refused the incoming Agent. | call rolled back |
 | **Tag Imprint Failure** | An Imprint failed after commit. | Tags stay |
 | **Tag Postcondition Failure** | The finished Agent breaks a promise. | Tags stay, Agent defective |
-| **Tag Contract Failure** | A condition returned a non-boolean. | call rolled back |
+| **Tag Contract Failure** | A condition returned a non-boolean. | call rolled back; on a read by name, raised (§2.5) |
 | **Overwrite Warning** | An independent Tag replaced a visible Action or Record without an Underlay. | diagnostic |
 | **Contract Warning** | A Shape weakened a Base Postcondition. | diagnostic |
 

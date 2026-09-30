@@ -488,7 +488,11 @@ lives. There is no automatic law: a condition stays until you end it.
 `Contract.Status` reads the whole contract. Often you want one line of it,
 in the middle of an `if`. Every condition is readable on the Agent by its
 own name, as a plain `True` or `False` computed on read: nothing is
-stored, nothing is a proxy, and the member and the status always agree.
+stored and nothing is a proxy. The member and the status give the same
+answer. The one exception is a condition that returns something other
+than `True`, `False` or `None`: the member raises the Contract Failure
+(and so do `hasattr` and `getattr` with a default), where the status
+reads `False`.
 
 ```python
 worf.infected = True                    # Healthy's promise breaks
@@ -503,7 +507,8 @@ assert worf.Not_Infected
 assert not hasattr(worf, "Has_Sword")   # no such promise: the ordinary miss
 ```
 
-A gate reads the same way, and a `@Requirement` answers as one:
+A gate reads the same way, now and without the tagging's inputs, and a
+`@Requirement` answers as one:
 
 ```python
 dax = Crew("Dax")

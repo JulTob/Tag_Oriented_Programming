@@ -366,7 +366,9 @@ seat empty: `def code(agent, *, code)` says "agent, nothing stored, then
 `code` from the call". If you wrote `def code(agent, code)`, Python would
 put `code` in the stored seat, and TopKit refuses that at tagging time
 and prints the spelling above. Preconditions and Imprints have no stored
-seat, so there `def Has_A_Code(agent, code)` is enough.
+seat, so there `def Has_A_Code(agent, code)` is enough. A gate read
+later, `bond.Has_A_Code`, is read now, without the tagging's inputs: it
+reads `False` once the call is over.
 
 **Watch out.** A gate must answer `True`, `False`, or nothing at all.
 Do not return a number and hope: a count of `0` is not `False` to TopKit,
