@@ -14,9 +14,12 @@ own; and what happens at interpreter exit.
 
 A Flag is part of the Tag's declaration (STEP-SPEC-17, 2026-09-29): the
 kit refuses a mark on a Tag that has members, or whose Shapes have. So a
-Flag marked while the program runs lands only on a Tag nobody carries;
-where Agents carry it, the step writes "carried by N" and marks nothing.
-The refusal itself is pinned by the unit tests.
+Flag marked while the program runs lands only on a Tag nobody carries.
+Where Agents carry it, the step expects the refusal, with the Tag's name
+and the count, and the Tag's words unchanged; it writes "carried by N".
+A kit from before the refusal takes the mark, and the step takes it back,
+so both kits go on alike. A kit that stopped refusing would read the same
+here; the unit tests pin the refusal.
 
 Every step writes what it observed: a value, or an exception's type,
 message and cause. A step that changes a Target is often followed by a
@@ -290,17 +293,10 @@ def Look(
 def Carried(
         tag,
         ):
-    """How many live members the Tag and its Shapes have, each counted once."""
+    """How many live members the Tag has. A Shape's members are its Base's
+    too (§0.3)."""
 
-    members = set()
-    tags = [tag]
-
-    while tags:
-        current = tags.pop()
-        tags.extend(type.__subclasses__(current))
-        members.update(id(member) for member in current[:])
-
-    return len(members)
+    return len({id(member) for member in tag[:]})
 
 
 def Late_Flag(
@@ -308,18 +304,39 @@ def Late_Flag(
         mark,
         ):
     """A Flag marked while the program runs. A Flag is part of the Tag's
-    declaration (STEP-SPEC-17, 2026-09-29), so a Tag that has members
-    refuses it: the mark is made only on a Tag nobody carries, and a kit
-    from before the refusal reads the same."""
+    declaration (STEP-SPEC-17, 2026-09-29): a Tag that has members refuses
+    the mark, names itself and the count, and keeps its words. A kit from
+    before the refusal took the mark; here it is taken back, so both kits
+    go on alike."""
 
     carried = Carried(tag)
 
-    if carried:
-        return "carried by " + str(carried)
+    if not carried:
+        mark(tag)
 
-    mark(tag)
+        return "marked"
 
-    return "marked"
+    missing = object()
+    before = vars(tag).get("__topkit_flag__", missing)
+
+    try:
+        mark(tag)
+
+    except Exception as error:
+        if (
+                type(error).__name__ != "TagDeclarationError"
+                or not str(error).startswith(f"{tag.__name__} is carried by {carried} ")
+                or vars(tag).get("__topkit_flag__", missing) is not before
+                ):
+            raise
+
+    else:   # a kit from before the refusal
+        if before is missing:
+            delattr(tag, "__topkit_flag__")
+        else:
+            setattr(tag, "__topkit_flag__", before)
+
+    return "carried by " + str(carried)
 
 
 class Host:
@@ -1698,7 +1715,8 @@ def Flagging(
         ) -> list[str]:
     """A Flag marked while the program runs. On a Tag nobody carries, and
     none of its Shapes, the mark takes, and the Agents tagged after it
-    answer its words. On a Tag that has members nothing is marked."""
+    answer its words. On a Tag that has members it is refused, and
+    nothing is marked."""
 
     randomizer = plan.randomizer
     tag = Any_Tag(plan)

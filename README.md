@@ -66,8 +66,8 @@ pip install topkit
 
 TopKit is in alpha. While no final release exists, a plain
 `pip install topkit` installs the newest alpha. Once a final release is
-out, it installs that, and `pip install --pre topkit` asks for the newest
-alpha.
+out, a plain pip installs the newest final release, and
+`pip install --pre topkit` takes an alpha when an alpha is the newest.
 
 ## This repository
 
@@ -89,8 +89,6 @@ must perform as the Specification describes; any gap in TopKit is TopKit's
 to fix, not a change to TOP.
 
 ## Using TopKit from a checkout
-
-From a checkout of this repository:
 
 ```
 pip install .                         # or: PYTHONPATH=. python3 ...

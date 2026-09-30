@@ -66,7 +66,8 @@ is the variant: a word with no Field behind it.
 8. Words are non-empty strings, each kept as its plain text when the Tag
    is declared, and a probe is read as its text. Anything else among
    the words, including a class beside them (`@Flag(Beast, "Wolf")`), is
-   a Declaration Failure at the decorator; nothing is marked. A lone class is the bare form applied to that class:
+   a Declaration Failure at the decorator; nothing is marked. A lone
+   class is the bare form applied to that class:
    `@Flag(Beast)` over another class marks `Beast` itself and then
    applies `Beast` to the new class. No kit can tell that from `Flag(Beast)`
    called on its own, so the Guide says it: a word is the string
@@ -177,4 +178,6 @@ now survives any rebuild; `RestoredNameTests` covers it.
 > list/set of strings with names inside ... Flag strings do not need to be
 > registered first." So `@Flag`, bare or with words, is part of the Tag's
 > declaration, and a mark on a Tag that Agents carry, or its Shapes'
-> Agents, is a Declaration Failure (item 11).
+> Agents, is a Declaration Failure (item 11). Item 8's lone-class form
+> (`@Flag(Beast)` over another class) is unchanged here; whether it
+> stands beside these words is open for the Director.

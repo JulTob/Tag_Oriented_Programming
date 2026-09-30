@@ -1086,9 +1086,10 @@ the door with a Composition Failure, and so is an Action or a Record
 laid over a condition's name. Nothing is silently shadowed. A
 pinned Tag reads its own conditions the same way (`Wizard.Has_Members`).
 A condition that outlived its Tag (§0.7) still reads by name until the
-author ends it. A gate is read now, without the tagging's inputs:
-`@Pre def Has_Code(agent, code=None)` reads `False` on the Agent once
-the call is over, because a later read has no `code` to give it.
+author ends it. A gate is read now, without the tagging's inputs: a
+later read calls it with its defaults, so `@Pre def Has_Code(agent,
+code=None): return code == "007"` reads `False` on the Agent once the
+call is over, and a gate that requires an input reads `False`.
 
 Truthiness on a plain object is vacuously true, so this fills an empty
 seat. A host that defines its own `__bool__` or `__len__` keeps it until a
@@ -1287,8 +1288,8 @@ amended 2026-09-29). A Tag the Agent already carries at entry is the
 Agent's: the Scope adds nothing and takes nothing away, and the block
 still runs. A Base the Scope pulls in with a Shape stays. A Tag that
 applied and then failed at the door, through its Postcondition or its
-Imprint, stays applied (§0.6), so the Scope Rips it on exit with the
-rest; the block does not run.
+Imprint, stays applied (§0.6), so the Scope Rips it, and the Tags it
+applied before it, as the failure leaves; the block does not run.
 
 ```python
 with Scope(agent, Sentry):
@@ -1328,7 +1329,7 @@ types but must keep these distinct.
 
 | Failure | Meaning | Effect |
 | --- | --- | --- |
-| **Tag Declaration Failure** | A Tag is written wrong: illegal mark combination, `@Underlay` without a parameter to receive it. | at class use |
+| **Tag Declaration Failure** | A Tag is written wrong: illegal mark combination, `@Underlay` without a parameter to receive it, a Flag marked on a Tag that already has members. | at class use |
 | **Tag Composition Failure** | Contributions cannot form the Overlay: cross-kind collision, Record over a host descriptor, a Record builder or teardown that failed, a Target that cannot carry state, a Base still required. | call rolled back (or Rip refused) |
 | **Tag Resolution Failure** | A required Underlay, view, or membership is unavailable. | call rolled back |
 | **Tag Rogue Access Failure** | A Rogue Agent reached a published member of a Tag it has left. A Resolution Failure, and a TOP failure only: never dressed as a host-language attribute failure. | use refused |

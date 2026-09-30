@@ -76,4 +76,6 @@ While no final release exists, a plain `pip install topkit` installs the
 newest alpha: pip follows PEP 440 and takes a pre-release when no final
 release matches. Once a final release is on PyPI, a plain pip installs
 that, and users who want an alpha say `pip install --pre topkit`.
-`pip index versions topkit` hides alphas unless given `--pre`.
+`pip index versions topkit` hides alphas unless given `--pre`: while
+only alphas exist it answers `No matching distribution found`, so check
+an upload with `pip index versions --pre topkit`.

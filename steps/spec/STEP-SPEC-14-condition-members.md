@@ -43,8 +43,10 @@ back the Agent member."
    read, under the same re-entrancy guard as `bool(agent)`. A
    Postcondition is looked up before a Precondition of the same name
    (a `@Requirement` is one function; both answer the same). A gate is
-   read now, without the tagging's inputs: `@Pre def Has_Code(agent,
-   code=None)` reads False once the call is over.
+   read now, without the tagging's inputs: a later read calls it with its
+   defaults, so `@Pre def Has_Code(agent, code=None): return code ==
+   "007"` reads False once the call is over, and a gate that requires an
+   input reads False.
 2. **Plain.** The value is the language's boolean and nothing else. It is
    not stored on the Agent, cannot be assigned, and is not callable.
 3. **A condition that raises reads False.** A condition that returns
@@ -64,9 +66,10 @@ back the Agent member."
    reads by name until the author ends it.
 7. **Spelling.** `agent.Has_Book` joins §0.8 beside `Contract.Status`.
    `hasattr(agent, "Has_Book")` is True for a condition on the Agent that
-   returns a boolean; for one that returns a non-boolean, `hasattr` and
-   `getattr(agent, "Has_Book", None)` raise the Contract Failure, as the
-   read does. A name that is no condition is the ordinary attribute miss.
+   returns True, False or None; for one that returns anything else,
+   `hasattr` and `getattr(agent, "Has_Book", None)` raise the Contract
+   Failure, as the read does. A name that is no condition is the
+   ordinary attribute miss.
 
 ## Rationale
 

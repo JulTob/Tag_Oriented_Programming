@@ -2873,9 +2873,23 @@ class ConditionMemberTests(unittest.TestCase):
         bond = Agent()
         Coded(bond, code="007")                                       # the gate passed, with its input
 
-        self.assertIs(bond.Has_Code, False)                           # read now, with no code to give it
+        self.assertIs(bond.Has_Code, False)                           # read now, with its default
         self.assertEqual(Contract.Status(bond), {"Has_Code": False})
         self.assertTrue(bond)                                         # a gate is no promise
+
+        class Cleared(Tag):
+            @Pre
+            def Has_Clearance(agent, code=None):
+                return code != "forbidden"
+
+            @Pre
+            def Has_Badge(agent, badge):
+                return badge == "gold"
+
+        Cleared(bond, code="x", badge="gold")
+
+        self.assertIs(bond.Has_Clearance, True)                       # the default decides, not the tagging's input
+        self.assertIs(bond.Has_Badge, False)                          # a gate that requires an input reads False
 
     def test_a_pinned_tags_condition_reads_on_the_tag(self) -> None:
         class Wizard(Tag):

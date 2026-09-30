@@ -58,16 +58,16 @@ or the Agent-bound view.
 Found by the oracle in PR #17 (2026-09-21); §0.7 of the Specification
 carried the rule from then, and this records it where the tiers were
 decided, beside `Scope` in §3.2. Item 2 above carries the amended text.
-Under the original rule a Scope Ripped every Tag it named: a Tag the
-Agent carried before the block lost it on exit, and a Tag that broke its
-promise at the door was left on the Agent. One gap stayed after PR #17:
-a Tag whose Imprint failed at the door stayed applied (§0.6) and was not
-Ripped.
+Under the original rule a Scope Ripped every Tag it named whose tagging
+returned without error: a Tag the Agent carried before the block lost it
+on exit, and a Tag that broke its promise at the door was left on the
+Agent. One gap stayed after PR #17: a Tag whose Imprint failed at the
+door stayed applied (§0.6) and was not Ripped.
 
 | Question | The Director's decision |
 | --- | --- |
 | A Tag the Agent already carries | The Scope adds nothing and takes nothing away; the block still runs: "if hero is in Wizard then the with is skipped. makes sense? with is for trial runs or temporary." |
-| A Tag that applied and then failed at the door (its Postcondition, or its Imprint) | Ripped on exit: the Scope applied it |
+| A Tag that applied and then failed at the door (its Postcondition, or its Imprint) | Ripped as the failure leaves the Scope, with the Tags applied before it: the Scope applied it; the block does not run |
 | A Base the Scope pulled in with a Shape | Stays: the Scope Rips the Tags it names that it applied, and only those. The words were fixed, not the kit |
 | When, and the spelling | "Rule now, spelling this release, but add Wizard[h, **inputs] to the rule if possible"; `with Wizard[h]:` goes to a STEP of its own |
 

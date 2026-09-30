@@ -404,21 +404,11 @@ def _mark_flag(
 def _carried_by(
         tag: type,
         ) -> int:
-    """How many live members the Tag and its Shapes have, each counted
-    once. A defective member counts: it carries the Tag."""
+    """How many live members the Tag has. Membership is closed upward
+    (§0.3), so a Shape's members are in its Base's Field too, and a
+    defective member counts: it carries the Tag."""
 
-    members: set[int] = set()
-    tags = [tag]
-
-    while tags:
-        current = tags.pop()
-        tags.extend(type.__subclasses__(current))
-        field = current.__dict__.get("_topkit_field")
-
-        if field is not None:
-            members.update(id(member) for member in field)
-
-    return len(members)
+    return sum(1 for _ in tag.__dict__["_topkit_field"])
 
 
 class _Words(NamedTuple):
