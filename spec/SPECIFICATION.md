@@ -596,9 +596,9 @@ published member **answers members only, and only sound ones**
 (STEP-SPEC-10). At every use, an Operation's call or a Report's read, TOP
 checks that the Agent still belongs to the publishing Tag and that every
 promise on the Agent holds, whichever Tag made it: the same soundness
-`if agent:`, the loop and `agent in Tag` ask about (`if agent:` unless a
-Tag gives the Agent its own `__bool__`). A Rogue Agent (it left) gets a
-**Rogue Access Failure**, a Resolution Failure; a stale
+`if agent:`, the loop and `agent in Tag` ask about (`if agent:` unless
+the host or a Tag gives the Agent its own `__bool__`). A Rogue Agent (it
+left) gets a **Rogue Access Failure**, a Resolution Failure; a stale
 `send = agent.dispatch` captured before Rip fails the same way. A
 defective Agent (a promise broke) gets the **broken promise by name**,
 `except Postcondition.Has_Homeland`, so it can repair what the failure
@@ -1063,6 +1063,18 @@ it is empty. `agent in Wizard` answers for that same population
 defective product is off the line. `isinstance` and `del Wizard[agent]`
 are unchanged: a defective member has been one, and can be Ripped.
 
+Inside a check TOP runs on an Agent (a Postcondition, the tagging's
+quality check, a condition read by name, a published member's gate, a
+`Contract` read), the Agent under check counts as sound: `agent in
+Wizard` reads membership, `agent in ~Wizard` is False and `bool(agent)`
+is True. A promise never reads the contract it is part of; every other
+Agent answers by its own contract. A Precondition at the tagging's gate,
+an Imprint and a `@Rip` protocol run outside that rule and read the
+populations as code outside does, so an Imprint that asks `agent in
+Other` while the promise it is about to keep is visible reads False, as
+`bool(agent)` does there. A guard that means membership is spelled
+`agent in Wizard[:]`, which reads the same everywhere.
+
 **Populations combine** (STEP-SPEC-13). `|` is either, `&` is both, `-`
 is the left without the right, on any population: a whole Field, the
 sound view, the defective view, or a combination. A Tag in an operator
@@ -1074,8 +1086,8 @@ truth and iteration, and has no complement (`~` on a union has no
 universe). A Tag with anything that is not a population keeps the
 language's own class union (`Wizard | None`). A population is not a
 type: `isinstance(x, Wizard | Fighter)`, `Wizard | Fighter | None` and
-`None | (Wizard | Fighter)` are refused, and the refusal names the
-rewrite, `isinstance(x, (Wizard, Fighter))` and
+`None | (Wizard | Fighter)` are refused, and for a union of Tags the
+refusal names the rewrite, `isinstance(x, (Wizard, Fighter))` and
 `typing.Optional[typing.Union[Wizard, Fighter]]`. A Pin's population
 holds Tags and a Tag's holds objects; the two never combine, and the
 refusal names both sides.
@@ -1101,10 +1113,10 @@ A condition that outlived its Tag (§0.7) still reads by name until the
 author ends it.
 
 Truthiness on a plain object is vacuously true, so this fills an empty
-seat. A host that defines its own `__bool__` or `__len__` keeps it until a
-Postcondition becomes visible on that Agent. A Tag that contributes
-`__bool__` takes the seat: `bool(agent)` is then that Action, while
-`agent in Tag`, the loop and `~Tag` still follow the contract.
+seat. A host that defines its own `__bool__` keeps it; a host's `__len__`
+is kept until a Postcondition becomes visible on that Agent. A host's or
+a Tag's own `__bool__` takes the seat: `bool(agent)` is then that method,
+while `agent in Tag`, the loop and `~Tag` still follow the contract.
 
 ## 2.6 Naming the culprit
 
@@ -1385,10 +1397,6 @@ A conforming implementation provides, ring by ring:
 - published members answering members only, and only sound ones: a Rogue
   Access Failure on a Rogue Agent, the broken promise by name on a
   defective one, open again on membership or repair;
-- `@Pre` and `@Post` stacked on one function as one condition, spelled
-  `@Requirement` in one word;
-- every condition read on the Agent by its name as a plain boolean, with
-  a condition's name refused to Actions, Records and host members;
 - Delete; the three access forms, with Agent-bound views as read-only
   snapshots requiring active membership.
 
@@ -1401,6 +1409,10 @@ A conforming implementation provides, ring by ring:
 - defective Agents: contract truthiness; the plain loop and `in` as the
   sound population, `~Tag` the defective one, `Tag[:]` everyone; a
   namespace that names the culprit;
+- `@Pre` and `@Post` stacked on one function as one condition, spelled
+  `@Requirement` in one word;
+- every condition read on the Agent by its name as a plain boolean, with
+  a condition's name refused to Actions, Records and host members;
 - populations combined with `|`, `&` and `-` at every level, lazily, a
   Tag in an operator seat meaning its sound population, a Pin's
   population never combined with a Tag's, and no population a type.

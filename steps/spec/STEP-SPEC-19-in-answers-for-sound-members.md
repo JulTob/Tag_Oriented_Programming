@@ -20,11 +20,12 @@ what `in` answered before. `agent in ~Tag` is True for a defective
 member. Combined populations answer `in` from their sides, as sets do.
 Nothing else moves: `isinstance`, Rip, views, Flags, published members
 and `bool(agent)` keep their rules, and a Pin follows this one with the
-Tag as the Agent. Only Agents that carry a
-Postcondition are affected, whichever Tag made it; a Tag whose members
-carry none changes nothing, so Ring 0's `in` stays membership, and Ring
-2 narrows it to the sound. This STEP amends STEP-SPEC-4 item 6 and Ring
-2's "membership unchanged".
+Tag as the Agent. Only Agents that carry a Postcondition are affected,
+whichever Tag made it; a Tag whose members carry none changes nothing,
+so Ring 0's `in` stays membership, and Ring 2 narrows it to the sound.
+This STEP amends STEP-SPEC-4 item 6, STEP-SPEC-9's `in` spelling (the
+table and the `x in Wizard` bullet), STEP-SPEC-12's guard (its Summary,
+item 2 and item 3) and Ring 2's "membership unchanged".
 
 ## Motivation
 
@@ -38,7 +39,15 @@ defective product is off the line." STEP-SPEC-4 item 6 said the same,
 Neither sentence was the Director's. Both were written by Claude in
 commit d258d3b (2026-09-04) and approved in bulk with PR #3; STEP-4's
 Decision quotes the Director on defective products and on the
-spellings, not on `in`. Asked on 2026-09-29, the Director ruled:
+spellings, not on `in`. Asked on 2026-09-29 whether a broken Cal should
+answer `cal in Fighter` True and `cal in (Fighter | Wizard)` False, the
+Director answered:
+
+> "cal in Fighter should raise false if broken fighter, and cal in
+> Fighter[:] should return true. Extend that behaviour to operations in
+> the same way as sets."
+
+Then, on the sentence the Specification carried:
 
 > "'membership and iteration should disagree for defective members'
 > that's not the director's ruling. An agent sneaked it in, probably.
@@ -57,16 +66,18 @@ repair queue, `~Wizard`.
    Agent is a member of the Tag (membership closed upward through
    Shapes, as today) whose contract holds: every visible Postcondition on
    the Agent is true (`Contract.Holds(agent)`; also what `bool(agent)`
-   answers, unless a Tag gives the Agent its own `__bool__`). It is the
-   same population that `for a in Tag`, `len(Tag)` and `if Tag:` see.
+   answers, unless the host or a Tag gives the Agent its own `__bool__`).
+   It is the same population that `for a in Tag`, `len(Tag)` and `if
+   Tag:` see.
    Soundness is the Agent's, whichever Tag made the promise: a member of
    two Tags with one broken promise is `in` neither.
 2. **`agent in Tag[:]` is membership**: every member, sound or defective,
    what `in` was before this STEP. `agent in ~Tag` is True for a
    defective member and False for a sound one or a non-member.
 3. **Combined populations** (§2.5) answer `in` from their sides as sets
-   do: `Wizard | Fighter` holds the sound members of either, `Wizard[:]
-   | Fighter[:]` everyone of either, `Wizard[:] - Sworn` the members of
+   do (the Director: "in the same way as sets"): `Wizard | Fighter`
+   holds the sound members of either, `Wizard[:] | Fighter[:]` everyone
+   of either, `Wizard[:] - Sworn` the members of
    `Wizard` who are not sound in `Sworn`, and so on. On every
    population, `in` and the loop agree, except at interpreter teardown,
    when the weakly held Field is already empty while the Agent's own
@@ -93,13 +104,17 @@ repair queue, `~Wizard`.
    own contract. A promise never reads the contract it is part of. The
    checks the kit runs that way are a Postcondition, the tagging's
    quality check, a condition read by name, a published member's gate,
-   and `Contract.Holds`, `Preconditions`, `Postconditions` and `Status`.
-   A Precondition at the tagging's gate runs outside that guard and
-   reads the sound and defective populations as code outside does, so
-   one Pre can refuse at the gate and read True under `Contract.Status`.
-   A guard that means membership is spelled `agent in Tag[:]`, which
-   reads the same on every path; `agent in ~Tag` is no guard inside a
-   promise.
+   and every `Contract` read (`Holds`, `Preconditions`,
+   `Postconditions`, `Conditions`, `Status`, `Display`, and
+   `f"{agent:contract}"`). A Precondition at the tagging's gate runs
+   outside that guard and reads the sound and defective populations as
+   code outside does, so one Pre can refuse at the gate and read True
+   under `Contract.Status`. An Imprint and a `@Rip` protocol run outside
+   it too: mid-tagging the promise an Imprint is about to keep is
+   already visible, so `agent in Other` reads False there, as
+   `bool(agent)` does, even when `Other` makes no promise. A guard that
+   means membership is spelled `agent in Tag[:]`, which reads the same
+   on every path; `agent in ~Tag` is no guard inside a promise.
 6. **Conformance text.** The Ring 0 line becomes "membership and Base
    membership (`agent in Tag[:]`, and `agent in Tag` where no contract
    narrows it), closed upward, with a has-been check that survives
@@ -109,7 +124,10 @@ repair queue, `~Wizard`.
    say the same.
 7. **Amendments.** STEP-SPEC-4 item 6 carries an amendment note under
    STEP-4 (the model of STEP-SPEC-7's Amendment table) quoting the
-   ruling above and pointing here. The Specification's sentence
+   rulings above and pointing here. STEP-SPEC-9's table and its `x in
+   Wizard` bullet, and STEP-SPEC-12's guard (its Summary, item 2 and
+   item 3), carry amendment marks. STEP-SPEC-4 item 5 is corrected to
+   what the kit does with a host's own `__bool__`. The Specification's sentence
    "Membership and the loop deliberately disagree for it" goes; its
    example `assert broken in Wizard` becomes `assert broken in
    Wizard[:]`, with its comment; every document that said a defective
@@ -165,8 +183,16 @@ A guard on the defective view, `if agent in ~Other: return True`, let a
 Postcondition pass at tagging before, because the tagging's quality
 check ran outside the guard and the view read a nested run of the
 contract; now that check runs under the guard, the Agent under check
-is never in `~Other` from inside, and the promise is read. Spell it `Other[:]`, or read the
-promise by name.
+is never in `~Other` from inside, and the promise is read. Spell it
+`Other[:]`, or read the promise by name.
+
+An Imprint or a `@Rip` protocol that asks `agent in Other` now reads
+soundness, as code outside does. Mid-tagging the promises of the Tag
+being applied are already visible, so a Knight's Imprint that asks
+`agent in Wizard` before it keeps the Knight's promise reads False, even
+though Wizard makes no promise; in 0.2.0a3 it read True. Spell it
+`agent in Wizard[:]`. Whether Imprints and `@Rip` protocols should run
+under the guard instead is the Director's call (see the Decision).
 
 The oracle model asserts membership, sound membership and defective
 membership apart. The tests that asserted a defective member `in` its
@@ -192,8 +218,10 @@ Rip, with the has-been check and the view's requirement; a Tag whose
 members carry no Postcondition unchanged, and one that follows its
 Agents' promises from another Tag; a Pin with the Tag as the Agent;
 Flags in the Agent's seat; `in` and `~Tag` inside a promise; a gate
-reading another Tag, and the same Pre under `Contract.Status`; a Scope
-over a defective Tag the Agent carried. The tests of STEP-SPEC-4,
+reading another Tag, and the same Pre under `Contract.Status`; a promise
+that tags its own Agent and still reads membership after the nested
+check; an Imprint that reads as outside code does; a Scope over a
+defective Tag the Agent carried. The tests of STEP-SPEC-4,
 -9 and -10 that asserted a defective member `in` its Tag now assert the
 new answers. The oracle (`tests/oracle_topkit.py`, `Assert_Target`)
 checks membership, sound membership and defective membership on every
@@ -205,13 +233,38 @@ transition. The guides' blocks and the Specification's examples run.
 
 > Status set to **____** on YYYY-MM-DD, because ____.
 >
-> *Drafted for the Director's confirmation:* Cleared on 2026-09-29, per
-> the Director's ruling on the sentence "Membership and the loop
+> *Drafted for the Director's confirmation:* Status set to **Deployed**
+> on <the day the Director confirms>, because the rule is reflected in
+> `spec/SPECIFICATION.md` and covered by the tests; cleared per the
+> Director's words of 2026-09-29. First, asked whether a broken Cal
+> answers `cal in Fighter` True and `cal in (Fighter | Wizard)` False:
+> "cal in Fighter should raise false if broken fighter, and cal in
+> Fighter[:] should return true. Extend that behaviour to operations in
+> the same way as sets." Then, on the sentence "Membership and the loop
 > deliberately disagree for it" and on STEP-SPEC-4 item 6: "'membership
 > and iteration should disagree for defective members' that's not the
 > director's ruling. An agent sneaked it in, probably. Correct that.
 > Make in consistent with for/len/if. Fighter[:] provides the behaviour
 > we need." Recorded as a new STEP, shipped in 0.2.0a4 with the Field
-> algebra, amending STEP-SPEC-4 item 6 and Ring 2's "membership
-> unchanged"; Ring 0 keeps `in` as membership, because Ring 0 has no
-> contracts and there every member is sound.
+> algebra, amending STEP-SPEC-4 item 6, STEP-SPEC-9's `in` spelling,
+> STEP-SPEC-12's guard and Ring 2's "membership unchanged"; Ring 0 keeps
+> `in` as membership, because Ring 0 has no contracts and there every
+> member is sound.
+>
+> *Open for the Director's ruling* (the draft above describes the kit
+> as it is):
+>
+> 1. **The gate.** A Precondition at the tagging's gate reads `agent in
+>    Wizard` as outside code does, so it refuses a defective Wizard; the
+>    same Pre read later under `Contract.Status` reads membership and
+>    answers True. Keep, or run the gate under the guard as well?
+> 2. **Imprints and `@Rip` protocols.** They read as outside code does:
+>    a Knight's Imprint that asks `agent in Wizard` before it keeps the
+>    Knight's promise reads False. Keep (the author writes
+>    `agent in Wizard[:]`), or run them under the guard, where `agent
+>    in Wizard` would read membership and `bool(agent)` True?
+> 3. **A host's own `__bool__`.** It keeps the seat after a
+>    Postcondition is visible, so `bool(agent)` can be True while
+>    `agent in Wizard` is False. Keep, or let the contract take the
+>    seat once a Postcondition is visible, as it does for a host's
+>    `__len__`?

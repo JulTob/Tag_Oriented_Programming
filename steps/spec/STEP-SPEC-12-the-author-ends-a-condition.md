@@ -19,9 +19,10 @@ fails loud, never silently. When a condition should end, **the author
 ends it**, in one of two visible ways:
 
 - a **guard in the condition**, one line of flow control that says which
-  membership the condition follows: `if agent not in Wizard: return
-  True`. It can follow any membership at all: the Tag's own, another
-  Tag's, a keyword on a Tag, or the Tag under an Underlay;
+  membership the condition follows: `if agent not in Wizard[:]: return
+  True` *(amended 2026-09-29, STEP-SPEC-19)*. It can follow any
+  membership at all: the Tag's own, another Tag's, a keyword on a Tag,
+  or the Tag under an Underlay;
 - an **explicit deletion from the Tag's own `@Rip` protocol**,
   `Contract.Delete(agent, "Has_Book")`, one deliberate name at a time. A
   name that is not a condition on the Agent is a Resolution Failure.
@@ -69,8 +70,9 @@ deletion on rip protocol or a field check in the condition?"
    it specially.
 3. **The guarded Underlay.** An `@Underlay` condition that should skip a
    Tag the Agent has left calls `base()` only while that Tag is active:
-   `underneath = base() if agent in Alive else True`. The chain is never
-   rebuilt by the kernel.
+   `underneath = base() if agent in Alive[:] else True` *(amended
+   2026-09-29, STEP-SPEC-19)*. The chain is never rebuilt by the
+   kernel.
 4. **Explicit deletion.** `Contract.Delete(agent, *names)` ends the named
    conditions on the Agent (Preconditions and Postconditions alike, so a
    `@Requirement` ends whole). A name that is not a condition on the

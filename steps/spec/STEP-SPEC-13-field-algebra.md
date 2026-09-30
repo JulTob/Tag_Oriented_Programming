@@ -57,15 +57,19 @@ accepted by the Director on 2026-09-21: "Bring it back, both levels."
    `isinstance(x, Wizard | Fighter)`, `Wizard | Fighter | None` and
    `None | (Wizard | Fighter)` are refused with a `TypeError` naming the
    rewrite, `isinstance(x, (Wizard, Fighter))` and
-   `typing.Optional[typing.Union[Wizard, Fighter]]`. Python 3.10 to
-   3.13 evaluate `x: Wizard | Fighter | None` at definition, so it fails
-   there; 3.14 when the annotations are read. The Director, 2026-09-29:
-   "Wizard | Fighter should mean a valid fighter OR a valid Wizard, so
-   it is present. A simple isinstance(wizard) or isinstance(fighter)
-   can satisfy the other cases, which are rare and not good practice.
-   Wizard[:] | Fighter[:] would mean broken wizards or good wizards or
-   broken fighters or good fighters, all active agency, all members in
-   the sets (broken or not)."
+   `typing.Optional[typing.Union[Wizard, Fighter]]`. The rewrite is
+   named for a union of Tags (`|` only, no `~`); for `&`, `-` or `~` no
+   tuple of Tags means the population, and the refusal says that
+   `isinstance` or a hint takes Tags. Before Python 3.14 `x: Wizard |
+   Fighter | None` is evaluated at definition, so it fails there, unless
+   the module has `from __future__ import annotations`; 3.14, and that
+   import, defer it until the annotations are read. The Director,
+   2026-09-29: "Wizard | Fighter should mean a valid fighter OR a valid
+   Wizard, so it is present. A simple isinstance(wizard) or
+   isinstance(fighter) can satisfy the other cases, which are rare and
+   not good practice. Wizard[:] | Fighter[:] would mean broken wizards
+   or good wizards or broken fighters or good fighters, all active
+   agency, all members in the sets (broken or not)."
 6. Pins are Tags, so a Pin's populations combine the same way over Tags.
    Among themselves: a Pin's population holds Tags and a Tag's holds
    objects, and combining the two in `|`, `&` or `-`, in either order
@@ -94,7 +98,9 @@ is a population. `isinstance(x, Wizard | Fighter)`, `issubclass` over
 it, and `|` between it and `None`, a class, a union or a `typing` form
 are refused with the one-line rewrite in the message: `isinstance(x,
 (Wizard, Fighter))`, and for a hint `x: Wizard | Fighter | None`,
-`typing.Optional[typing.Union[Wizard, Fighter]]`. A plain hint `x:
+`typing.Optional[typing.Union[Wizard, Fighter]]`. `Rare | Wizard`, a
+Pin with a Tag, was a class union in 0.2.0a3 as well; it is now refused,
+naming both sides. A plain hint `x:
 Wizard | Fighter` is not refused: it now holds a population, and code
 that reads it as a type (`typing.get_type_hints` and then
 `isinstance`, or a runtime validator) fails there; write
@@ -111,6 +117,7 @@ answers from the sides, as a set does, and agrees with the loop.
 
 | Alternative | Verdict |
 | --- | --- |
+| `Wizard \| Fighter` stays Python's class union; the population is `Wizard[:] \| Fighter[:]` | Rejected by the Director: "Wizard \| Fighter should mean a valid fighter OR a valid Wizard, so it is present. A simple isinstance(wizard) or isinstance(fighter) can satisfy the other cases, which are rare and not good practice." |
 | Union only | Set aside: `-` is the roster-of-the-missing case, `&` costs nothing more |
 | Each level only with its own kind | Rejected: a population is a population; refusing `Wizard[:] - Sworn` would need a rule nobody can guess |
 | Eager results (a list) | Rejected: a Field is live; a snapshot would disagree with the next `in` |
@@ -128,8 +135,10 @@ refusals: a Pin's population with a Tag's in both orders, the three
 operators, on Tags, `[:]`, `~` and nested combinations, the message
 naming both sides, and a combination taking its kind from its other
 side when one side's Tag is gone; `isinstance` and `|` with `None`, a
-class, a union, `list[int]` or a `typing` form, in either order, naming
-the rewrite, and a hint in a signature where Python evaluates it; a
+class, a union, `list[int]`, a `typing` form or a `ForwardRef`, in
+either order, naming the rewrite for a union of Tags (one Tag spelled
+alone) and none for `&`, `-`, `~` or a Twin that shares both names with
+its Tag, and a hint in a signature where Python evaluates it; a
 plain hint and a union built first holding a population until
 `isinstance` reaches it; a class with its own `_sound` giving the class
 union, and a Tag declaring `_sound` still iterating. The fuzzer asks
@@ -141,15 +150,17 @@ the refusals too.
 
 > Status set to **____** on YYYY-MM-DD, because ____.
 >
-> *Drafted for the Director's confirmation:* Cleared on 2026-09-29. The
-> origin is the Director's review of the archived features on
-> 2026-09-21: "Bring it back, both levels." On 2026-09-29 the Director
-> ruled on `|`: "Wizard | Fighter should mean a valid fighter OR a valid
-> Wizard, so it is present. A simple isinstance(wizard) or
-> isinstance(fighter) can satisfy the other cases, which are rare and
-> not good practice. Wizard[:] | Fighter[:] would mean broken wizards or
-> good wizards or broken fighters or good fighters, all active agency,
-> all members in the sets (broken or not)." And on mixing a Pin's
-> population with a Tag's: "Refuse". `in` on populations was made
-> consistent with the loop by STEP-SPEC-19, shipped with this STEP in
-> 0.2.0a4.
+> *Drafted for the Director's confirmation:* Status set to **Deployed**
+> on <the day the Director confirms>, because the rule is reflected in
+> `spec/SPECIFICATION.md` and covered by the tests; cleared per the
+> Director's words. The origin is the Director's review of the archived
+> features on 2026-09-21: "Bring it back, both levels." On 2026-09-29
+> the Director ruled on `|`: "Wizard | Fighter should mean a valid
+> fighter OR a valid Wizard, so it is present. A simple
+> isinstance(wizard) or isinstance(fighter) can satisfy the other cases,
+> which are rare and not good practice. Wizard[:] | Fighter[:] would
+> mean broken wizards or good wizards or broken fighters or good
+> fighters, all active agency, all members in the sets (broken or not)."
+> And on mixing a Pin's population with a Tag's: "Refuse". `in` on
+> populations was made consistent with the loop by STEP-SPEC-19, shipped
+> with this STEP in 0.2.0a4.
