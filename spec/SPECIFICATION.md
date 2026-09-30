@@ -292,8 +292,9 @@ door follows the empty-seat rule: a host with its own formatting keeps it.
 
 Queries that need a name are functions (`Form`, `Tags`, `Keyword`,
 `Apply`, `Outline`, `Contract`, `Scope`), never members of the Tag or of
-the Agent, with one exception: a condition is read by its own name, on
-the Agent (`agent.Has_Book`) and on a pinned Tag (`Wizard.Has_Members`),
+the Agent, with two exceptions: the Agent-bound view by the Tag's name
+(`agent.Paladin`, §1.7), and a condition read by its own name, on the
+Agent (`agent.Has_Book`) and on a pinned Tag (`Wizard.Has_Members`),
 §2.5.
 Another language profile chooses its own native spellings; the acts and
 their distinctions are what must survive.
@@ -1087,10 +1088,13 @@ Failure, and so is an Action or a Record laid over a condition's name.
 Nothing is shadowed. A pinned Tag reads its own conditions the same way
 (`Wizard.Has_Members`). A condition that outlived its Tag (§0.7) still
 reads by name until the author ends it. A gate is read now, without the
-tagging's inputs: a later read calls it with its defaults, so `@Pre def
-Has_Code(agent, code=None): return code == "007"` reads `False` on the
-Agent once the call is over, and a gate that requires an input reads
-`False`.
+tagging's inputs: a later read binds each parameter as a call with no
+inputs does (§2.2), to its default, or to `None` when it has none. So
+`@Pre def Has_Code(agent, code=None): return code == "007"` reads
+`False` on the Agent once the call is over, `@Pre def Has_Code(agent,
+code): return code is not None` reads `False` because `code` is `None`,
+and `@Pre def Has_No_Badge(agent, badge): return badge is None` reads
+`True`.
 
 Truthiness on a plain object is vacuously true, so this fills an empty
 seat. A host that defines its own `__bool__` or `__len__` keeps it until a
@@ -1389,8 +1393,10 @@ A conforming implementation provides, ring by ring:
   `@Requirement` in one word;
 - populations combined with `|`, `&` and `-` at every level, lazily, a
   Tag in an operator seat meaning its sound population;
-- every condition read on the Agent by its name as a plain boolean, with
-  a condition's name refused to Actions, Records and host members;
+- every condition read on the Agent by its name as a plain boolean, a
+  non-boolean raising the Contract Failure and a gate read without the
+  tagging's inputs, with a condition's name refused to Actions, Records,
+  host members and values the Agent holds;
 - Delete; the three access forms, with Agent-bound views as read-only
   snapshots requiring active membership.
 

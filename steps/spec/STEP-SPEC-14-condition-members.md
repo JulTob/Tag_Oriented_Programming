@@ -43,10 +43,13 @@ back the Agent member."
    read, under the same re-entrancy guard as `bool(agent)`. A
    Postcondition is looked up before a Precondition of the same name
    (a `@Requirement` is one function; both answer the same). A gate is
-   read now, without the tagging's inputs: a later read calls it with its
-   defaults, so `@Pre def Has_Code(agent, code=None): return code ==
-   "007"` reads False once the call is over, and a gate that requires an
-   input reads False.
+   read now, without the tagging's inputs: a later read binds each
+   parameter as a call with no inputs does (§2.2), to its default, or to
+   `None` when it has none. So `@Pre def Has_Code(agent, code=None):
+   return code == "007"` reads False once the call is over, `def
+   Has_Code(agent, code): return code is not None` reads False because
+   `code` is `None`, and `def Has_No_Badge(agent, badge): return badge is
+   None` reads True.
 2. **Plain.** The value is the language's boolean and nothing else. It is
    not stored on the Agent, cannot be assigned, and is not callable.
 3. **A condition that raises reads False; a non-boolean raises.** A
@@ -60,7 +63,7 @@ back the Agent member."
    member the host class defines, or like a value the Agent already
    holds, is refused with a Composition Failure at the door; so is an
    Action or a Record laid over an existing condition's name. Nothing is
-   silently shadowed.
+   shadowed.
 5. **Pins.** A pinned Tag reads its own conditions the same way:
    `Wizard.Has_Members`.
 6. **Sticky.** A condition that outlived its Tag (STEP-SPEC-12) still
@@ -99,7 +102,9 @@ non-boolean.
 | `Contract.Check(agent, "Has_Book")` | Set aside by the Director: the member reads best |
 | A callable member (`agent.Has_Book()`) as well | Rejected with uniform access: needs a proxy |
 | Land the member as a descriptor on the runtime type | Rejected: per-Agent runtime types, or a shared type that lies for Agents without the condition |
-| Let a Record shadow a condition of the same name silently | Rejected: a silent shadow is the thing the read is for |
+| Let a Record hide a condition of the same name, without a word | Rejected: the collision rule is there so that no Record hides a promise |
+| A non-boolean reads False on the member, as the status does | Rejected by the Director: "Keep raising, fix the words"; the member names the defect, the status counts it |
+| Keep the tagging's inputs and read a gate with them later, or refuse a gate's name | Rejected by the Director: "Keep it, write it down"; a gate is read now, each parameter bound as a call with no inputs binds it |
 
 ## Acceptance requirements
 
@@ -120,5 +125,5 @@ every transition and compares it with `Contract.Status`.
 > *Added 2026-09-29:* two points of wording, ruled by the Director. A
 > condition that returns a non-boolean: "Keep raising, fix the words"
 > (Summary, items 3 and 7, Backwards compatibility). A gate that uses the
-> tagging's inputs is read afterwards without them, with its defaults:
-> "Keep it, write it down" (item 1).
+> tagging's inputs is read afterwards without them, each parameter at its
+> default or `None`: "Keep it, write it down" (item 1, Alternatives).

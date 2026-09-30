@@ -2919,10 +2919,22 @@ class ConditionMemberTests(unittest.TestCase):
             def Has_Badge(agent, badge):
                 return badge == "gold"
 
+        class Visitor(Tag):
+            @Pre
+            def Has_No_Badge(agent, badge):
+                return badge is None
+
+            @Pre
+            def Has_No_Pass(agent, *, badge):
+                return badge is None
+
         Cleared(bond, code="x", badge="gold")
+        Visitor(bond)
 
         self.assertIs(bond.Has_Clearance, True)                       # the default decides, not the tagging's input
-        self.assertIs(bond.Has_Badge, False)                          # a gate that requires an input reads False
+        self.assertIs(bond.Has_Badge, False)                          # no default: bound to None, and None == "gold" is False
+        self.assertIs(bond.Has_No_Badge, True)                        # bound to None as at the door (§2.2), so True
+        self.assertIs(bond.Has_No_Pass, True)                         # keyword-only: the same binding
 
     def test_a_pinned_tags_condition_reads_on_the_tag(self) -> None:
         class Wizard(Tag):
