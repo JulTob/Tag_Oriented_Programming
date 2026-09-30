@@ -98,9 +98,11 @@ rollback target.
   answering False. It answers the name, a listed word, or the class of an
   active Flag and nothing else. The mark is the frozenset of the Tag's
   words, each stored as its plain text (`str.__str__`), in its own
-  `__dict__` (empty for bare `@Flag`); the name is read
-  live from `__name__`, and the words are never inherited by Shapes.
-  Each Agent keeps its active Flags and their aliases in `state.words`
+  `__dict__` (empty for bare `@Flag`); the name is read live from
+  `__name__`, and the words are never inherited by Shapes. `Flag`
+  refuses a Tag whose Field, or a Shape's, has a live member
+  (`TagDeclarationError`, with the count), so a mark never lands under an
+  Agent that carries the Tag. Each Agent keeps its active Flags and their aliases in `state.words`
   until its Tags change or any `@Flag` is declared (counted in
   `declarations._flags_declared`). A string probe of a `str` subclass is
   read as its plain text, so matching stays exact and never hashes an

@@ -522,7 +522,9 @@ it, a word is enough.
 answers to its name: `"Wizard" in agent` says nothing about being a
 Wizard, and is `True` only while an active Flag is named Wizard or lists
 the word. Words are strings, `@Flag("Beast")`; `@Flag(Beast)` is the bare
-form applied to the class `Beast`, not a word.
+form applied to the class `Beast`, not a word. `@Flag` belongs on the
+class line, where the Tag is declared: TopKit refuses a mark on a Tag
+that already has members, or whose Shapes have.
 
 **One seat, one meaning.** A Flag cannot join an object that already
 answers `in`: a list, a party that iterates its members (`__iter__`), or

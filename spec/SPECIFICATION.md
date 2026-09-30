@@ -751,7 +751,10 @@ word; it answers while any of them is active. The words are the Tag's
 own: a Shape answers its Base's words because the Base is active (§0.3),
 never by inheriting them. Bare `@Flag` is the name alone. Words are
 non-empty strings, kept as their plain text, and match exactly, like
-names.
+names. A Flag, bare or with words, is part of the Tag's declaration:
+marking a Tag that already has members, or whose Shapes have, is a
+Declaration Failure that names the Tag and how many carry it, and
+nothing is marked.
 
 A Flag needs the Agent's `in`, and one seat holds one meaning. Something
 else may already answer it: the host, through its own `__contains__` or
@@ -1353,8 +1356,9 @@ A conforming implementation provides, ring by ring:
   Reports as read-only live names and `Public` Operations as Actions with
   the Agent as second input; illegal marks rejected at declaration;
 - Flags: opt-in keyword Tags searchable from the Agent's side by name, by
-  the words they list, and by class, a word never standing for
-  membership, colliding in either order with a host or a Tag's Action
+  the words they list, and by class, marked when the Tag is declared (a
+  mark on a Tag that already has members refused), a word never standing
+  for membership, colliding in either order with a host or a Tag's Action
   that already answers `in`, never matched for ordinary Tags;
 - Pins: opt-in Tags whose Targets are Tags, the pinned Tag as Agent under
   every Ring 0 act, the receiver rule (Records as Reports, Actions as

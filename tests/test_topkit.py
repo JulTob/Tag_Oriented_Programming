@@ -3189,6 +3189,101 @@ class FlagWordTests(unittest.TestCase):
         for tag in (Werewolf, Lycan):
             self.assertEqual({type(word) for word in vars(tag)["__topkit_flag__"]}, {str})
 
+    def test_a_flag_on_a_tag_with_members_is_refused(self) -> None:
+        """A Flag is part of the Tag's declaration (STEP-SPEC-17, 2026-09-29)."""
+
+        class Wolf(Tag):
+            pass
+
+        class Dire(Wolf):
+            pass
+
+        ari, bo = Agent(), Agent()
+        Wolf(ari)
+        self.assertFalse(Keyword(ari, "Howler"))          # the words are gathered here
+        Dire(bo)                                          # a Shape's member carries the Base
+
+        for mark in (Flag("Howler"), Flag):
+            with self.assertRaises(TagDeclarationError) as refused:
+                mark(Wolf)
+
+            self.assertEqual(
+                    str(refused.exception),
+                    "Wolf is carried by 2 Agents; a Flag is part of the Tag's declaration",
+                    )
+
+        self.assertNotIn("__topkit_flag__", vars(Wolf))  # nothing was marked
+        self.assertFalse(Keyword(ari, "Howler"))
+        self.assertFalse(Keyword(bo, "Wolf"))
+
+    def test_a_base_whose_shape_has_members_is_refused(self) -> None:
+        class Wolf(Tag):
+            pass
+
+        class Dire(Wolf):
+            pass
+
+        class Howling(Tag):
+            @Post
+            def Is_Loud(agent):
+                return agent.loud
+
+        bo = Agent()
+        Dire(bo)
+
+        with self.assertRaisesRegex(TagDeclarationError, "^Wolf is carried by 1 Agent;"):
+            Flag("Howler")(Wolf)
+
+        ari = Agent()
+        ari.loud = False
+
+        with self.assertRaises(TagPostconditionError):
+            Howling(ari)                                  # a defective member still carries it
+
+        with self.assertRaisesRegex(TagDeclarationError, "^Howling is carried by 1 Agent;"):
+            Flag(Howling)
+
+    def test_a_flag_is_taken_once_nobody_carries_the_tag(self) -> None:
+        class Wolf(Tag):
+            pass
+
+        class Dire(Wolf):
+            pass
+
+        ari, bo = Agent(), Agent()
+        Wolf(ari)
+        Wolf(bo)
+
+        del Wolf[ari]                                     # Ripped
+        del bo                                            # gone
+        gc.collect()
+
+        Flag("Howler")(Dire)                              # a Shape nobody carries
+        Flag("Hunter")(Wolf)
+
+        Dire(ari)
+
+        self.assertTrue(Keyword(ari, "Wolf", "Hunter", "Dire", "Howler"))
+        self.assertIn("Hunter", ari)
+
+    def test_a_flag_on_a_pin_that_pinned_a_tag_is_refused(self) -> None:
+        @Pin
+        class Deprecated(Tag):
+            pass
+
+        class Wizard(Tag):
+            pass
+
+        Deprecated(Wizard)
+
+        with self.assertRaisesRegex(
+                TagDeclarationError,
+                "^Deprecated is carried by 1 Tag; a Flag is part of the Tag's declaration$",
+                ):
+            Flag("Obsolete")(Deprecated)
+
+        self.assertNotIn("Obsolete", Wizard)
+
     def test_a_flag_that_lands_after_another_tag_takes_the_seat(self) -> None:
         @Flag("Wolf")
         class Werewolf(Tag):
@@ -3876,18 +3971,6 @@ class EfficiencyTests(unittest.TestCase):
 
         self.assertIs(Elf(ari), ari)
         self.assertEqual((type(ari), dict(vars(ari))), before)
-
-    def test_words_follow_a_flag_declared_after_use(self) -> None:
-        class Wolfish(Tag):
-            pass
-
-        ari = Agent()
-        Wolfish(ari)
-        self.assertFalse(Keyword(ari, "Wolf"))   # the words are gathered here
-
-        Flag("Wolf")(Wolfish)
-
-        self.assertTrue(Keyword(ari, "Wolf"))    # and gathered again, not stale
 
     def test_at_exit_runs_every_registration_in_order(self) -> None:
         lines, stderr = Run_Program(

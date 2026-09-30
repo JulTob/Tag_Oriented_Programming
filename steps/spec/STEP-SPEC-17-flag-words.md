@@ -76,6 +76,11 @@ is the variant: a word with no Field behind it.
    holds, by the rule of §1.9.
 10. Every other rule of §1.8 stands: Flags are opt-in, ordinary Tags are
     never found by name, and a Flag on a host that owns `in` is refused.
+11. **A Flag is part of the Tag's declaration.** `@Flag`, bare or with
+    words, marks a Tag nobody carries yet. A mark on a Tag that already
+    has members, or whose Shapes have, is a Declaration Failure that
+    names the Tag and the count (`Wolf is carried by 2 Agents; a Flag is
+    part of the Tag's declaration`). Nothing is marked.
 
 ```python
 @Flag("Wolf", "Lycanthrope")
@@ -117,8 +122,12 @@ writes each variant the rules may use.
 
 ## Backwards compatibility
 
-None broken. Bare `@Flag` means what it meant. `Flag("Wolf")` was a
-Declaration Failure before and is a decorator now.
+Bare `@Flag` means what it meant. `Flag("Wolf")` was a Declaration
+Failure before and is a decorator now.
+
+One program breaks. A Flag marked on a Tag that already had members was
+accepted and left a half state: `Keyword` answered the new word and the
+Agent's `in` did not. It is now refused (item 11), bare or with words.
 
 ## Alternatives considered
 
@@ -160,3 +169,12 @@ now survives any rebuild; `RestoredNameTests` covers it.
 > Let's apply that." A word that names another Tag is accepted as the
 > alias behaviour; the Tag's name always flags; Flag Pins answer their
 > words on the Tag.
+>
+> *Added 2026-09-29:* the Director, on a Flag marked after its Tag has
+> members: "a @Flag(items: str or list of str) declares the aliases for
+> the tag the flag is modifying, allowing for aliases. Flag(Wolf) means
+> nothing, and @Flag(Wolf) only makes sense if Wolf is a string or a
+> list/set of strings with names inside ... Flag strings do not need to be
+> registered first." So `@Flag`, bare or with words, is part of the Tag's
+> declaration, and a mark on a Tag that Agents carry, or its Shapes'
+> Agents, is a Declaration Failure (item 11).

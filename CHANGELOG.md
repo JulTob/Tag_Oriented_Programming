@@ -60,7 +60,11 @@
   makes a Tag answer to those words as well as to its name, `"Wolf" in
   howler`. A word is a keyword, never membership; many Tags may share
   one; a Shape answers its Base's words through the Base. Bare `@Flag` is
-  unchanged.
+  unchanged. A Flag, bare or with words, is part of the Tag's
+  declaration: a mark on a Tag that already has members, or whose Shapes
+  have, is a Declaration Failure that names the Tag and the count. Before,
+  it was accepted halfway: `Keyword` answered the new word and the
+  Agent's `in` did not.
 
 ### TopKit
 

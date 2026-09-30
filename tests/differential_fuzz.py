@@ -6,11 +6,17 @@ Tag families with Bases, Shapes and diamonds; Records with a stored seat
 and inputs; Actions with and without @Underlay, special methods among
 them; gates, promises and Requirements; Imprints, Rips, Deletes, Secrets,
 published Reports and Operations, Flags with words, Pins; Scope, Apply,
-applying, re-applying and Ripping; Flags declared and Tags renamed while
+applying, re-applying and Ripping; Flags marked and Tags renamed while
 the program runs, and Tags declared in a function; broken promises and
 the Fields that sort them; views, queries and keywords; At_Exit, deleted
 Agents and collected cycles; hosts and Tags with finalizers of their
 own; and what happens at interpreter exit.
+
+A Flag is part of the Tag's declaration (STEP-SPEC-17, 2026-09-29): the
+kit refuses a mark on a Tag that has members, or whose Shapes have. So a
+Flag marked while the program runs lands only on a Tag nobody carries;
+where Agents carry it, the step writes "carried by N" and marks nothing.
+The refusal itself is pinned by the unit tests.
 
 Every step writes what it observed: a value, or an exception's type,
 message and cause. A step that changes a Target is often followed by a
@@ -279,6 +285,41 @@ def Look(
             [word for word in KNOWN_WORDS if Keyword(target, word)],
             sorted(vars(target)),
             )
+
+
+def Carried(
+        tag,
+        ):
+    """How many live members the Tag and its Shapes have, each counted once."""
+
+    members = set()
+    tags = [tag]
+
+    while tags:
+        current = tags.pop()
+        tags.extend(type.__subclasses__(current))
+        members.update(id(member) for member in current[:])
+
+    return len(members)
+
+
+def Late_Flag(
+        tag,
+        mark,
+        ):
+    """A Flag marked while the program runs. A Flag is part of the Tag's
+    declaration (STEP-SPEC-17, 2026-09-29), so a Tag that has members
+    refuses it: the mark is made only on a Tag nobody carries, and a kit
+    from before the refusal reads the same."""
+
+    carried = Carried(tag)
+
+    if carried:
+        return "carried by " + str(carried)
+
+    mark(tag)
+
+    return "marked"
 
 
 class Host:
@@ -823,7 +864,7 @@ PIN_MEMBERS = (
 
 
 WORDS = ("Kin", "Beast", "Undead", "Loner", "Wolf")
-LATE_WORD = "Late"   # no Tag answers to it until a Flag declared while the program runs gives it
+LATE_WORD = "Late"   # no Tag answers to it until a Flag marked while the program runs, on a Tag nobody carries yet, gives it
 PIN_WORDS = ("Deprecated", "Homebrew", "Legacy")
 HOSTS = (
         ("Host", 5),
@@ -1655,8 +1696,9 @@ def Flagging(
         plan: Plan,
         step: str,
         ) -> list[str]:
-    """A Flag declared while the program runs: every Agent's words must
-    follow it."""
+    """A Flag marked while the program runs. On a Tag nobody carries, and
+    none of its Shapes, the mark takes, and the Agents tagged after it
+    answer its words. On a Tag that has members nothing is marked."""
 
     randomizer = plan.randomizer
     tag = Any_Tag(plan)
@@ -1671,7 +1713,7 @@ def Flagging(
             plan,
             step,
             randomizer.choice(given or plan.agents),
-            [Do_Line(step, randomizer.choice((f'Flag("{word}")({tag.name})', f"Flag({tag.name})")))],
+            [Do_Line(step, f"Late_Flag({tag.name}, {randomizer.choice((f'Flag({word!r})', 'Flag'))})")],
             )
 
 

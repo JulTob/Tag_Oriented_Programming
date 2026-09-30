@@ -377,6 +377,17 @@ def _mark_flag(
                     " too; a Flag cannot hold both"
                     )
 
+    carried = _carried_by(tag)
+
+    if carried:
+        member = "Tag" if _is_pin(tag) else "Agent"   # a Pin's members are Tags
+
+        raise TagDeclarationError(
+                f"{tag.__name__} is carried by {carried}"
+                f" {member}{'' if carried == 1 else 's'}; a Flag is part of"
+                " the Tag's declaration"
+                )
+
     global _flags_declared
 
     setattr(
@@ -387,6 +398,26 @@ def _mark_flag(
     _flags_declared += 1
 
     return tag
+
+
+def _carried_by(
+        tag: type,
+        ) -> int:
+    """How many live members the Tag and its Shapes have, each counted
+    once. A defective member counts: it carries the Tag."""
+
+    members: set[int] = set()
+    tags = [tag]
+
+    while tags:
+        current = tags.pop()
+        tags.extend(type.__subclasses__(current))
+        field = current.__dict__.get("_topkit_field")
+
+        if field is not None:
+            members.update(id(member) for member in field)
+
+    return len(members)
 
 
 class _Words(NamedTuple):
