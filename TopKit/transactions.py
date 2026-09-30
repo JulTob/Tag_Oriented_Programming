@@ -301,9 +301,10 @@ def _inspect(
         ) -> None:
     """Quality check of the finished product: every visible Postcondition.
 
-    Runs under ``checking``, as every other run of the contract does, so a
-    Postcondition that reads ``agent in Tag`` or ``bool(agent)`` reads
-    membership and True, never the contract it is part of.
+    Runs under ``checking``, as ``Contract.Status`` and a condition read
+    by name do (the gate does not), so a Postcondition that reads ``agent
+    in Tag`` or ``bool(agent)`` on the Agent under check reads membership
+    and True, never the contract it is part of.
     """
 
     state = _state_of(agent)
