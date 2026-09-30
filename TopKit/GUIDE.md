@@ -860,7 +860,7 @@ class Rare(Tag):
 
 Rare(Wizard)                                # pin the Tag
 
-assert Wizard in Rare                       # membership, from the Pin's side
+assert Wizard in Rare                       # a sound member, from the Pin's side
 assert list(Rare) == [Wizard]               # a Field of Tags
 assert Wizard.rarity == "rare"              # one value, held on the Tag
 assert Wizard.Describe() == "Wizard is rare"
@@ -962,7 +962,7 @@ the architecture, with a Field to walk and a history that stays.
 | Either, both, without? | `Wizard \| Fighter`, `Wizard & Fighter`, `Wizard - Sworn` (the Fields Guide) |
 | What applies with it? | `Form(Wizard)`, `f"{Wizard:form}"` |
 | Take it away | `del Wizard[agent]` |
-| Which Pins does it carry? | `Wizard in Rare`, `f"{Wizard:pins}"` |
+| Which Pins does it carry? | `Wizard in Rare[:]`, `f"{Wizard:pins}"` |
 
 Nothing TOP-level lives at `Wizard.something`. That namespace is yours: put
 your Reports and Operations there.

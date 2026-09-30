@@ -12,19 +12,26 @@
   carry the Tag?" is now `agent in Tag[:]`. Only Agents that carry a
   Postcondition are affected, whichever Tag made it; a Tag whose
   members carry none changes nothing, and Ring 0's `in` stays
-  membership. Amends STEP-SPEC-4 item 6 and Ring 2's "membership
-  unchanged". Guards in conditions read `Tag[:]`; the tagging's quality
-  check now runs under the re-entrancy guard, as `Contract.Status` and a
-  condition read by name already did (the gate does not), so inside a
+  membership. Amends STEP-SPEC-4 item 6, STEP-SPEC-9's `in` spelling
+  (the table and the `x in Wizard` bullet), STEP-SPEC-12's guard and
+  Ring 2's "membership unchanged". Guards in conditions read `Tag[:]`;
+  the tagging's quality check now runs under the re-entrancy guard, as
+  `Contract.Status` and a condition read by name already did (the gate,
+  Imprints and `@Rip` protocols do not), so inside a
   Postcondition `in` reads membership and `agent in ~Tag` is False: a
   Postcondition guarded by `if agent in ~Other: return True` passed at
   tagging before and now fails, because the guard no longer reads a
   nested run of the contract. A Precondition at the gate reads the
   sound population: `return agent in Wizard` refuses a defective Wizard
   where before the Tag applied and the tagging reported the defect
-  (`Contract.Status` of that Pre still reads membership). Fixed with it:
-  `Scope` decides what the Agent already carried by membership, not
-  soundness.
+  (`Contract.Status` of that Pre still reads membership). An Imprint
+  that asks `agent in Other` reads soundness too, and mid-tagging the
+  promise it is about to keep is already visible, so it reads False
+  where it read True. Fixed with it: `Scope` decides what the Agent
+  already carried by membership, not soundness. Corrected with it:
+  STEP-SPEC-4 item 5 and §2.5 said a host's own `__bool__` gives way
+  once a Postcondition is visible; the kit keeps it, as 0.2.0a3 did,
+  and only a host's `__len__` gives way.
 - **Deletion in Layers** (STEP-SPEC-18, §3.2): an Agent's `__del__` is a
   member of its Overlay. The host's own is the first Layer; a Tag's
   `__del__` replaces or, with `@Underlay`, extends it; `@Delete` removes
@@ -62,19 +69,23 @@
   `isinstance(x, Wizard | Fighter)` is refused, write `isinstance(x,
   (Wizard, Fighter))`; a hint `Wizard | Fighter | None` is refused,
   write `typing.Optional[typing.Union[Wizard, Fighter]]`; each refusal
-  names its rewrite, and so does `|` with a class, a union, `list[int]`
-  or a `typing` form. A plain hint `x: Wizard | Fighter` is not refused:
+  of a union of Tags names its rewrite, and so does `|` with a class, a
+  union, `list[int]` or a `typing` form (`&`, `-` and `~` get none: no
+  tuple of Tags says what they mean). A plain hint `x: Wizard | Fighter` is not refused:
   it now holds a population, and code that reads it as a type
   (`typing.get_type_hints` and then `isinstance`, or a runtime
   validator) fails there; write `typing.Union[Wizard, Fighter]`.
   `Wizard | None` is unchanged. A Pin's population
   (Tags) never combines with a Tag's (objects): refused, naming both
-  sides. Tag-ness in an operator seat is decided by the metaclass, never
+  sides; `Rare | Wizard` was a class union in 0.2.0a3 as well. Tag-ness in an operator seat is decided by the metaclass, never
   by an attribute named `_sound`, so a class with its own `_sound` gives
   a class union and a Tag declaring `_sound` still iterates. Back from
   the 0.2-alpha line, reviewed and accepted by the Director; combining
   two different Tags, and `&`, are new (the archived line combined only
   views of one Field and had no `&`).
+- The Specification's ring list puts populations combined with `|`, `&`
+  and `-`, `@Requirement`, and a condition read on the Agent by its
+  name in Ring 2, as `CONFORMANCE.md` does.
 - **A condition is read on the Agent by its name** (STEP-SPEC-14, §2.5):
   `agent.Has_Book` is a plain boolean computed on read, never stored,
   never a proxy. A condition's name is refused to Actions, Records, host
@@ -101,6 +112,10 @@
 
 ### TopKit
 
+- `agent in Tag` runs the Agent's contract once a Postcondition is
+  visible (STEP-SPEC-19): about 360 ns against 125 ns without one on
+  CPython 3.14, the cost of `bool(agent)`; `agent in Tag[:]` is the
+  membership read, about 140 ns.
 - **Performance** (`PERFORMANCE-2026-09-24.md`; figures from an Apple
   M5 with CPython 3.14, and other machines differ: on Linux with CPython
   3.13 a reviewer measured the passing-state misuse at 248 to 363 times a

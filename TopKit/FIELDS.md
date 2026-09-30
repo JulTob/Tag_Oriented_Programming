@@ -225,12 +225,17 @@ Pins combine with Pins only (§5).
   `isinstance(x, Wizard | Fighter)` and `Wizard | Fighter | None` are
   refused, and the refusal names the rewrite, `isinstance(x, (Wizard,
   Fighter))` and `typing.Optional[typing.Union[Wizard, Fighter]]`.
-  Python 3.10 to 3.13 evaluate an annotation where it is written, so
+  Before Python 3.14 an annotation is evaluated where it is written
+  (unless the module has `from __future__ import annotations`), so
   `x: Wizard | Fighter | None` fails at definition. `|` with a class, a
   union, `list[int]` or a `typing` form is refused the same way; a
-  string (a forward reference) gets Python's own error. The rewrite
-  names the Tags by `__name__`, so a Tag you renamed, or a Twin made
-  under another Tag's title, may go by another name in your program.
+  string (a forward reference) gets Python's own error. The rewrite is
+  named only for a union of Tags: `Wizard - Fighter`, `Wizard & Fighter`
+  and `~Wizard` mean something no tuple of Tags says, so their refusal
+  says that `isinstance` or a hint takes Tags. The rewrite names the
+  Tags by `__name__` (by `__qualname__` where two share one), so a Tag
+  you renamed may go by another name in your program; a Twin that
+  shares both names with its Tag gets no rewrite.
 - **Some hints are not refused where they are written.** A plain hint
   `x: Wizard | Fighter` holds a population, and so does a union built
   first that takes one in: `typing.Optional[Wizard | Fighter]`,
@@ -238,8 +243,9 @@ Pins combine with Pins only (§5).
   str) | (Wizard | Fighter)`. Nothing fails until
   something reads the hint as a type: `typing.get_type_hints` and then
   `isinstance`, or a runtime validator, and `isinstance` only once it
-  reaches the population (`isinstance(1, int | str | (Wizard |
-  Fighter))` is True). Write the Tags themselves:
+  reaches the population (on Python 3.14 `isinstance(1, int | str |
+  (Wizard | Fighter))` is True; 3.12 refuses `int | str | (Wizard |
+  Fighter)` where it is written). Write the Tags themselves:
   `typing.Union[Wizard, Fighter]`.
 - **No Tags with objects.** A Pin's population holds Tags, a Tag's holds
   objects; `Rare | Wizard` is refused and the refusal names both.

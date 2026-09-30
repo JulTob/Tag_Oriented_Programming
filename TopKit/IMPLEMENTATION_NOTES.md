@@ -51,8 +51,9 @@ Actions; Agents are built once and play for a long time. So:
 
 Measured on Python 3.11 (`benchmarks/bench.py`), nanoseconds per
 operation: plain attribute read 42, Agent host-attribute read 65, Record
-read 64, plain method call 86, Action call 295, `agent in Tag[:]` 291,
-`bool(agent)` with one Post about 1900. Tagging a Record-plus-Post Shape
+read 64, plain method call 86, Action call 295, `agent in Tag` 291
+(membership then; since STEP-SPEC-19 it runs the contract once a
+Postcondition is visible), `bool(agent)` with one Post about 1900. Tagging a Record-plus-Post Shape
 over a Base costs about 60 µs per Agent; an empty Tag about 22 µs. Peak
 memory about 6 KB per Agent with two Tags.
 
@@ -84,9 +85,10 @@ rollback target.
   100). Inside a Postcondition it answers membership for the Agent under
   check, since `_holds` answers True under `state.checking`, which the
   tagging's quality check (`_inspect`) now sets too, and `agent in ~Tag`
-  is False there; the gate does not, so a Precondition reads the true
-  sound population (while `Contract.Status` of that same Pre, run under
-  the guard, reads membership). `isinstance` is the has-been check and
+  is False there; the gate, Imprints and `@Rip` protocols do not, so a
+  Precondition reads the true sound population (while `Contract.Status`
+  of that same Pre, run under the guard, reads membership), and an
+  Imprint reads the promise it is about to keep as already broken. `isinstance` is the has-been check and
   stays true after Rip. Kept because it is a dependable signal for
   spotting Rogue Agents. A rolled-back call also rolls the ever-set
   back. `Tag[:]` is the Field, held weakly: once the interpreter tears
@@ -207,7 +209,8 @@ rollback target.
   Field at commit (`_publish_to_field`, dry run on copies first) and
   emitted by the Tag's scan for future Agents, so the scan cache is
   dropped at pinning. `_state_of` reads the dictionary directly, which
-  is why `agent in Tag[:]` got faster rather than slower.
+  is why `agent in Tag` (`MetaTag.__contains__`) got faster rather than
+  slower.
 - **Originals for un-patching.** When a Pin overlays a Tag's own
   Operation, Report or plain value, `_refuse_tag_member` records the
   declared object in `state.originals` (first patch wins). `_call_teardown`
@@ -245,7 +248,9 @@ rollback target.
   None` stays a typing union; a population is not a type: its class's
   `__instancecheck__` and `__subclasscheck__`, and `|` with `None`, a
   class, a union, a generic alias or a `typing` form in either order,
-  raise `TypeError` naming the rewrite. A union built first can still
+  raise `TypeError`, naming the rewrite for a union of Tags (`|` only,
+  no `~`: `_Population._either`); `&`, `-` and `~` get none, since no
+  tuple of Tags says what they mean. A union built first can still
   take a population in, since its own `__or__` runs before the
   population's `__ror__`: `typing.Optional[Wizard | Fighter]` and
   `typing.List[int] | (Wizard | Fighter)` on every version, `(int |
@@ -253,8 +258,10 @@ rollback target.
   `__ror__`, which refuses); `isinstance` refuses once it reaches the
   population. The rewrite names Tags by
   `__name__` (by `__qualname__` where two share one), which a renamed
-  Tag, or a Twin made under another Tag's title, may not answer to in
-  the program's own namespace. No kernel state changes.
+  Tag may not answer to in the program's own namespace; a Twin that
+  shares both names with its Tag gets no rewrite (`_rewrite_names`).
+  `|` with a `ForwardRef` is refused on every version: 3.14 moved it to
+  `annotationlib`. No kernel state changes.
 - **Condition members** (STEP-SPEC-14): `_agent_getattr` answers a
   condition by name on the miss path, after Tag views and before the
   host's own `__getattr__`, through `contracts._condition_member`, which

@@ -302,9 +302,11 @@ def _inspect(
     """Quality check of the finished product: every visible Postcondition.
 
     Runs under ``checking``, as ``Contract.Status`` and a condition read
-    by name do (the gate does not), so a Postcondition that reads ``agent
-    in Tag`` or ``bool(agent)`` on the Agent under check reads membership
-    and True, never the contract it is part of.
+    by name do (the gate, Imprints and ``@Rip`` protocols do not), so a
+    Postcondition that reads ``agent in Tag`` or ``bool(agent)`` on the
+    Agent under check reads membership and True, never the contract it
+    is part of. The flag is restored, not cleared: a check that tags its
+    own Agent keeps the guard for the rest of that check.
     """
 
     state = _state_of(agent)

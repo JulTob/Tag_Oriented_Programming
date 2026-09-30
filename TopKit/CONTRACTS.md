@@ -302,9 +302,13 @@ own is a mistake, and the refusal tells you which of the two you meant.
 
 ## 7. Quarantine: a gate that reads another Tag's defect
 
-Conditions can ask about other Tags, including whether an Agent is
-defective under them. Sickbay quarantines exactly the crew who are
-infected, which is a broken promise of `Healthy`.
+A gate can ask about other Tags, including whether the incoming Agent is
+defective under them: a Precondition at the gate reads the populations
+as code outside does. Sickbay quarantines exactly the crew who are
+infected, which is a broken promise of `Healthy`. Inside a promise, and
+when `Contract.Status` or `worf.Is_A_Case` reads this gate back later,
+the Agent under check is never in `~Healthy`, so the gate reads False
+there once worf is in.
 
 ```python
 class Healthy(Tag):
@@ -346,6 +350,7 @@ except Postcondition.Not_Infected:
 
 assert worf in Quarantined[:]           # a member, and a defective one
 assert worf.bay == "isolation ward 2"
+assert not worf.Is_A_Case               # read back by name, the gate is under check: never in ~Healthy
 
 worf.infected = False                   # treated
 assert worf in list(Healthy)
