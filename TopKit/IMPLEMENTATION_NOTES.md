@@ -35,12 +35,15 @@ Actions; Agents are built once and play for a long time. So:
 - **Bound Actions hold the Agent weakly.** No reference cycle, so Fields
   (which hold Agents weakly) stay honest and finalizers run promptly. A
   handle whose Agent died raises `ReferenceError`. In a reference cycle
-  (every tagged object still held in a module variable at exit is in
-  one, through its Tag's functions' `__globals__`) Python clears those
-  weak references before the finalizer runs, so `_agent_del` ties the
-  Agent's Actions to it again first (`_retie_actions`: a fresh weak
-  reference on each `_Bound` in the Agent's dictionary, never a strong
-  one, so nothing is resurrected and the Agent is still freed).
+  (every tagged object still held at exit by a module that defines a
+  function is in one: the function's `__globals__` is that module's
+  namespace) Python clears those weak references before the finalizer
+  runs, so `_agent_del` ties the Agent's Actions to it again first
+  (`_retie_actions`: a fresh weak reference on each `_Bound` in the
+  Agent's dictionary, never a strong one, so nothing is resurrected and
+  the Agent is still freed). Once the Layers ran it puts the old dead
+  references back: code run after the finalizer, when the collection may
+  already have cleared the Agent, meets `ReferenceError` as before.
 - **The runtime type is neutral.** It is `(Host, Tagged)`, host first, so
   every special method of the host keeps working. Its name is the host's
   name. It carries only what Python requires on a type: special-method
@@ -132,9 +135,12 @@ rollback target.
   Actions to it again, runs the teardowns (skipped when
   `sys.is_finalizing()`: at exit they are `At_Exit`'s), then the visible
   `__del__`: the top Layer, nothing if deleted, else the host's own; then
-  it reports each teardown that failed through `sys.unraisablehook`, one
-  `UnraisableHookArgs` each, naming the Agent and the teardown
-  (`_report_failures`; `_run_exit_protocols` reports the same way).
+  it unties the Actions and reports each teardown that failed through
+  `sys.unraisablehook`, one `UnraisableHookArgs` each, naming the Agent
+  and the teardown (`_report_failures`). `_run_exit_protocols` reports
+  the same way once each Agent's teardowns in the pass ran, before an
+  interruption leaves the pass, with "in the At_Exit pass of" for
+  "deleting".
   Python does not export that type, so `lifecycle.py` catches it once at
   import, under a temporary hook, from a weak reference whose callback
   raises. `_host_finalizer` finds the host's own by walking the MRO

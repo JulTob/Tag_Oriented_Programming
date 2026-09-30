@@ -1255,11 +1255,12 @@ as Python does for a collected cycle. A `__del__` never stops a teardown:
 replacing the Layers replaces only them, and an interrupted teardown
 does not skip them. At interpreter exit only the Layers run; teardowns
 at exit are `At_Exit`'s. An error raised by a `__del__` Layer is reported
-as the language reports any finalizer's. The teardowns stay best effort,
-and a teardown that fails at deletion, or in the `At_Exit` pass, is
-reported the same way, after every teardown and every Layer has run,
-naming the Agent and the teardown; nothing else is stopped by it, and
-the teardown still runs at most once. `@Rip` on a `__del__` is a
+as the language reports any finalizer's. The teardowns stay best effort.
+A teardown that fails at deletion is reported the same way, after every
+teardown and every Layer has run; one that fails in the `At_Exit` pass
+is reported once that Agent's teardowns in the pass have run. Each
+report names the Agent and the teardown; nothing else is stopped by it,
+and the teardown still runs at most once. `@Rip` on a `__del__` is a
 Declaration Failure: a `__del__` Layer already runs at deletion. The
 language calls `__del__`, not the program: in Python, `agent.__del__`
 reads the kit's finalizer, and calling it by hand runs the whole
@@ -1398,11 +1399,12 @@ A conforming implementation provides, ring by ring:
   unchanged; a namespace that names the culprit.
 
 **Ring 3**
-- `@Rip` protocols run once, composed, failures reported: after
-  membership ends on a Rip, and while the Agent is still a member at
-  deletion and in the `At_Exit` pass; the three deletion tiers; the
-  Agent's `__del__` as Layers of its Overlay, run after the teardowns,
-  and alone at interpreter exit.
+- `@Rip` protocols run once, composed: after membership ends on a Rip,
+  and while the Agent is still a member at deletion and in the `At_Exit`
+  pass; their failures reported, as a Composition Failure on a Rip and
+  as a finalizer's error at deletion and in the `At_Exit` pass; the
+  three deletion tiers; the Agent's `__del__` as Layers of its Overlay,
+  run after the teardowns, and alone at interpreter exit.
 
 **Everywhere**
 - the failure types above, distinct and named.

@@ -12,17 +12,18 @@
   run; `@Rip` on `__del__` is refused. Before, a tagged object's own
   `__del__` did not run at exit unless a Tag's `@Underlay __del__` sat
   over it, a host's `__del__` error was swallowed, and a Tag's `__del__`
-  (or `@Delete` of it) silently stopped the teardowns. Teardowns of Agents
+  (or `@Delete` of it) stopped the teardowns, with nothing reported. Teardowns of Agents
   collected as cyclic garbage at exit no longer run; `At_Exit` runs them.
   Amended on 2026-09-29 by the Director's rulings: a teardown or a
   `__del__` Layer may call the Agent's own Actions at deletion, in a
   collected cycle and at program end too (before: `ReferenceError`, since
   Python had cleared their weak references; the finalizer ties them again
-  first, and the Agent is still freed); a teardown that fails at deletion
-  or in the `At_Exit` pass is reported on stderr through
-  `sys.unraisablehook`, after every teardown and Layer ran, naming the
-  Agent and the teardown (before: dropped); the reported failures are
-  then let go, since a traceback's frames hold the Agent.
+  for its own work, and the Agent is still freed); a teardown that fails
+  at deletion is reported on stderr through `sys.unraisablehook` after
+  every teardown and Layer ran, and one that fails in the `At_Exit` pass
+  after that Agent's teardowns in the pass, naming the Agent and the
+  teardown (before: dropped); the reported failures are then let go,
+  since a traceback's frames hold the Agent.
 - **Fixed with it:** an object built from an Agent's runtime type
   (`dataclasses.replace`, `type(self)(...)`) is tagged as a plain host
   (a `__del__` Layer used to recurse, and type-level gates of the other

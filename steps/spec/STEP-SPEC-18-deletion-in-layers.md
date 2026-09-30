@@ -18,9 +18,8 @@ Layers beneath it, or with `@Underlay` extends them, and `@Delete`
 removes them. When an Agent is deleted, every `@Rip` teardown still due
 runs, while the Agent is still a member of its Tags, then its `__del__`
 runs as the Overlay shows it. When nothing is stated, that is the host's
-own `__del__`. At interpreter
-exit only the `__del__` Layers run; teardowns there stay opt-in through
-`At_Exit`.
+own `__del__`. At interpreter exit only the `__del__` Layers run;
+teardowns there stay opt-in through `At_Exit`.
 
 ## Motivation
 
@@ -81,8 +80,10 @@ call to the underlaying del."
    published member does, since published members answer members only.
    The Agent's own Actions are tied to it again first, so a teardown and
    a Layer call them as anywhere (`agent.Ring()`), in a collected cycle
-   and at program end too, where the language had cleared them; the
-   Agent is still freed afterwards.
+   and at program end too, where the language had cleared them. The tie
+   ends with the finalizer: an Action kept past it (by an object a
+   teardown built) meets `ReferenceError`, as before, and the Agent is
+   still freed afterwards.
 5. **A `__del__` never stops a teardown,** and a teardown never stops the
    Layers. Replacing the `__del__` Layers replaces only them; running the
    teardowns is a protocol of its own (§3.2), so no Tag can skip another
@@ -90,24 +91,28 @@ call to the underlaying del."
    teardowns nor the Layers; it is reported after them (item 7). A
    teardown interrupted by the language (a `Ctrl-C`) does not skip the
    Layers; the interruption is reported after them, and after the
-   reports of the teardowns that failed before it. (The interrupted
-   Tag's remaining teardowns do not run: they were taken with it.)
+   reports of the teardowns that failed before it. (The teardowns not
+   yet run then do not run: the interrupted Tag's were taken with it,
+   and the other Tags' are not reached.)
 6. **At interpreter exit** only the `__del__` Layers run. Teardowns at
    exit stay opt-in: `At_Exit` runs them while the interpreter is still
    whole and the Agent is still a member (a walk finds it there); a
-   teardown that fails in that pass is reported as at deletion (item 7).
+   teardown that fails in that pass is reported as at deletion (item 7),
+   before an interruption that stops the pass.
    Every teardown still runs at most once, whichever tier reaches it
    first.
 7. **A `__del__` Layer's own error** is reported the way the language
    reports any finalizer's error (in Python, through
    `sys.unraisablehook`). The kit no longer swallows it. A teardown that
-   fails at deletion, or in the `At_Exit` pass, is reported the same
-   way, after every teardown and every Layer has run: one report each,
-   on stderr, naming the Agent and the teardown (`Exception ignored in
-   teardown Hold of Stubborn, deleting Bell`). Nothing else is stopped by
-   it, and a teardown still runs at most once: one that already failed on
-   a Rip, reported there as a Composition Failure, leaves nothing to
-   report at deletion.
+   fails at deletion is reported the same way, after every teardown and
+   every Layer has run; one that fails in the `At_Exit` pass, once that
+   Agent's teardowns in the pass have run (its Layers run later, when it
+   is deleted). One report each, on stderr, naming the Agent and the
+   teardown (`Exception ignored in teardown Hold of Stubborn, deleting
+   Bell`; in the pass, `..., in the At_Exit pass of Bell`). Nothing else
+   is stopped by it, and a teardown still runs at most once: one that
+   already failed on a Rip, reported there as a Composition Failure,
+   leaves nothing to report at deletion.
 8. **`@Rip` on `__del__` is a Declaration Failure.** A `__del__` Layer
    already runs at deletion; as a teardown too it would run twice.
 9. **The language calls `__del__`, not the program.** In Python the
@@ -184,11 +189,12 @@ already offers them, at a safer moment.
 - A teardown or a `__del__` Layer that calls one of the Agent's own
   Actions no longer raises `ReferenceError` when the Agent was collected
   in a cycle or is cleared at program end. Every tagged object still held
-  in a module variable whose Tag's Actions live in that module is in such
-  a cycle, through the functions' `__globals__`, so a Layer that called
-  an Action there failed at every program end. Once the Agent's finalizer
-  has run, its Actions answer the other finalizers of the same collection
-  too (an object that holds the Agent and asks it from its own `__del__`).
+  at program end by a module that defines a function (a Tag's Actions, a
+  method, any `def`) is in such a cycle, because that function's
+  `__globals__` is the module's namespace; so a Layer that called an
+  Action there failed at every program end. Code that runs after the
+  finalizer (another finalizer of the same collection, an object a
+  teardown built) still meets `ReferenceError`, as before.
 - Teardowns of Agents collected as cyclic garbage during interpreter exit
   no longer run (before, they ran when that collection came while the
   kit's modules were still loaded); `At_Exit` runs them, while the
@@ -233,38 +239,48 @@ fixes; each is fixed here and pinned by a test, and every mutation that
 undid a fix now fails a test. The amendment below adds its own tests to
 the same class: the Agent's Actions answer a teardown and a Layer in a
 collected cycle, at a plain `del`, at program end and in the `At_Exit`
-pass, and the Agent is freed afterwards; a failed teardown is reported
-after the Layers, naming the Agent and the teardown, once each, in the
-`At_Exit` pass too, and before an interruption; a teardown reported on a
-Rip has nothing left to report; and membership is visible inside a
-teardown at deletion. Each fails when its fix is undone. The
+pass, and the Agent is freed afterwards; an Action kept past the
+finalizer meets `ReferenceError`; a failed teardown is reported after
+the Layers, naming the Agent and the teardown, once each, in the
+`At_Exit` pass too, and before an interruption, at deletion and in the
+pass; a teardown reported on a Rip has nothing left to report; and
+membership is visible inside a teardown at deletion, as the words now
+say. Each test of a fix fails when its fix is undone. The
 differential fuzz against the base (300 seeds, and 100 heavy) found one
 defect in the first draft of the reports: a failure's traceback held the
 frames that held the Agent, through the list that held the failure, so a
 reported teardown resurrected the Agent until the next collection, and a
 walk of its Fields still found it; the failures are dropped once
 reported, and a test pins the Agent freed at once with the collector
-off. Every remaining difference is a report block, or an Action that
-answers where it raised `ReferenceError`.
+off. A review of the amendment found two more: the re-tie outlived the
+finalizer, so an Action kept past it answered an Agent the collection
+had already cleared (or, with `@Secret` members, failed inside the kit);
+and the `At_Exit` pass dropped a failure gathered before an
+interruption. Both are fixed and pinned. Every remaining difference is a
+report block, or an Action that answers a teardown or a Layer where it
+raised `ReferenceError`.
 
 ---
 
 ## Amendment, 2026-09-29
 
-Found after the merge, in the review of the fixes. Items 4, 5, 6, 7, 9
-and 10 above carry the amended text. The words said the Agent "leaves
-its Tags" at deletion, but the kit runs the teardowns while it is still
-a member (in the Tag, found by a walk), unlike after a Rip; a teardown or
-a `__del__` Layer that called one of the Agent's own Actions raised
-`ReferenceError` in a collected cycle, which includes every tagged object
-still held in a module variable at program end, because Python clears
-the Actions' weak references before the finalizer runs; and a teardown
-that failed at deletion, or in the `At_Exit` pass, was dropped.
+Found after the merge, in the review of the fixes. The Summary, items 4,
+5, 6, 7, 9 and 10, the Rationale, the Alternatives, Backwards
+compatibility and the Acceptance requirements above carry the amended
+text. The words said the Agent "leaves its Tags" at deletion, but the
+kit runs the teardowns while it is still a member (in the Tag, and found
+by a walk unless Python collected it in a cycle), unlike after a Rip; a
+teardown or a `__del__` Layer that called one of the Agent's own Actions
+raised `ReferenceError` in a collected cycle, which includes a tagged
+object still held at program end by a module that defines a function,
+because Python clears the Actions' weak references before the finalizer
+runs; and a teardown that failed at deletion, or in the `At_Exit` pass,
+was dropped.
 
 | Question | The Director's decision |
 | --- | --- |
 | Membership during deletion: end it first, as after a Rip, or keep the teardowns running while the Agent is still a member, as today and in 0.2.0a3 | "Fix the words now, STEP later": no behaviour change; the STEP, §3.1, §3.2, CONFORMANCE and the Guide say the teardowns at deletion and in the `At_Exit` pass run while the Agent is still a member; a later STEP may end membership first |
-| Actions at deletion: a teardown or a `__del__` Layer cannot call the Agent's own Actions where Python cleared their weak references | "Fix it now": the finalizer ties the Actions to the Agent again before the teardowns and the Layers run, with weak references, so `agent.Ring()` works there as anywhere and the Agent is still freed |
+| Actions at deletion: a teardown or a `__del__` Layer cannot call the Agent's own Actions where Python cleared their weak references | "Fix it now": the finalizer ties the Actions to the Agent again before the teardowns and the Layers run, with weak references, until the finalizer is done, so `agent.Ring()` works there as anywhere and the Agent is still freed |
 | Teardown failures at deletion (`del`, a collection, program end, the `At_Exit` pass): swallowed or printed | "Print them": after every teardown and every Layer has run, each failed teardown is reported through `sys.unraisablehook`, naming the Agent and the teardown; nothing else is stopped; a teardown still runs at most once |
 
 Covered by `tests/test_topkit.py::LayeredDeletionTests`.
