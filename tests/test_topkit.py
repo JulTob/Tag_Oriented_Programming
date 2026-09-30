@@ -1075,6 +1075,26 @@ class PublicationTests(unittest.TestCase):
         with self.assertRaises(TagDeclarationError):
             Report(8)                                 # a builder, not a value
 
+    def test_a_builder_that_reads_another_report_leaves_each_built_once(self) -> None:
+        calls: list[str] = []
+
+        class Fen(Tag):
+            @Report
+            def depth(tag) -> int:
+                calls.append("depth")
+                return 1
+
+            @Report
+            def reach(tag) -> int:
+                calls.append("reach")
+                return tag.depth + 1                  # another Report of Fen, read first here
+
+        self.assertEqual(Fen.reach, 2)
+        self.assertEqual(Fen.depth, 1)
+        self.assertEqual(Fen.depth, 1)
+        self.assertEqual(Fen.reach, 2)
+        self.assertEqual(calls, ["reach", "depth"])   # each built once
+
     def test_a_report_read_at_exit_gives_the_value_the_tag_kept(self) -> None:
         """The Tag keeps its value, so a finalizer at interpreter exit
         reads the value built before, not a new one."""
