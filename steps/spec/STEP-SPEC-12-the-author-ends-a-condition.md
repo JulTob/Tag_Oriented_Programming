@@ -60,11 +60,12 @@ deletion on rip protocol or a field check in the condition?"
 2. **The guard.** A condition may read any membership and decide for
    itself whether it applies: `agent in Tag[:]`, `"Keyword" in Tag`
    *(amended 2026-09-29, STEP-SPEC-19: a guard reads membership,
-   `agent in Tag[:]`; inside a condition `agent in Tag` reads the same
-   and `agent in ~Tag` is False for every member, so `~Tag` is a
-   spelling for outside a condition only)*. Returning `True` when it
-   does not apply is the
-   idiom. This is ordinary flow control; nothing in the kernel treats
+   `agent in Tag[:]`; inside a Postcondition, a condition read by name
+   or a `Contract` read, `agent in Tag` reads the same and `agent in
+   ~Tag` is False for the Agent under check; a Precondition at the gate
+   reads both as outside code does, so `Tag[:]` is the one guard that
+   reads the same everywhere)*. Returning `True` when it does not apply
+   is the idiom. This is ordinary flow control; nothing in the kernel treats
    it specially.
 3. **The guarded Underlay.** An `@Underlay` condition that should skip a
    Tag the Agent has left calls `base()` only while that Tag is active:

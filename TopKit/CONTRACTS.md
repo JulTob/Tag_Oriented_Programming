@@ -622,8 +622,9 @@ assert Bridge in Certified
   of use** with autofix. Both are ordinary Python.
 - **End a condition yourself.** Rip never does. A guard in the promise,
   `if agent not in Bridge[:]: return True`, lets it follow any membership
-  (inside a condition `in` reads membership, never the contract it is
-  part of, so `~Tag` is empty there and no guard);
+  (inside a promise `in` reads membership, never the contract it is
+  part of, so the Agent under check is never in `~Tag` there, and
+  `~Tag` is no guard);
   `Contract.Delete(agent, "Has_Oath")` in the role's `@Rip` protocol
   ends it when the role leaves. One visible line beats a law that
   guesses.

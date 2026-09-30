@@ -1718,11 +1718,11 @@ class SoundMembershipTests(unittest.TestCase):
         self.assertFalse(ari in Undead)                               # the Tag's seat: the sound population
         self.assertTrue(ari in Undead[:])
 
-    def test_inside_a_condition_in_reads_membership(self) -> None:
+    def test_inside_a_promise_in_reads_membership(self) -> None:
         class Sworn(Tag):
             @Post
             def Has_Oath(agent):
-                if agent not in Sworn:                                # inside a check: membership, as bool(agent) is True
+                if agent not in Sworn:                                # inside a promise: membership, as bool(agent) is True
                     return True
                 return agent.oath is not None
 
@@ -1736,7 +1736,7 @@ class SoundMembershipTests(unittest.TestCase):
         self.assertNotIn(ari, Sworn)
         self.assertIn(ari, Sworn[:])
 
-    def test_inside_a_condition_the_defective_view_is_empty(self) -> None:
+    def test_inside_a_promise_the_agent_is_never_in_the_defective_view(self) -> None:
         class Repairing(Tag):
             @Post
             def Is_Fine(agent):
@@ -1745,7 +1745,7 @@ class SoundMembershipTests(unittest.TestCase):
         class Watch(Tag):
             @Post
             def Sees_Defect(agent):
-                if agent in ~Repairing:                               # inside a check nobody is defective: no guard
+                if agent in ~Repairing:                               # inside a promise the Agent is never defective: no guard
                     return True
                 return agent.ok
 
@@ -1764,7 +1764,44 @@ class SoundMembershipTests(unittest.TestCase):
         cal.fine = False                                              # defective under Repairing too
 
         self.assertIn(cal, ~Repairing)
-        self.assertFalse(cal.Sees_Defect)                             # read by name: still no guard, ~Repairing is empty from inside
+        self.assertFalse(cal.Sees_Defect)                             # read by name: still no guard, the Agent is not in ~Repairing from inside
+
+    def test_inside_a_promise_other_members_answer_by_their_own_contract(self) -> None:
+        Wizard = self.Wizard
+        seen = []
+
+        class Watcher(Tag):
+            @Post
+            def Counts(agent):
+                seen.append((
+                        list(Wizard),
+                        list(~Wizard),
+                        agent in Wizard,
+                        agent in ~Wizard,
+                        ))
+                return True
+
+        ari, bea, cy = Agent(), Agent(), Agent()
+
+        for wizard in (ari, bea, cy):
+            wizard.book = True
+            Wizard(wizard)
+
+        ari.book = False
+        bea.book = False
+        Watcher(cy)                                                   # the tagging's quality check, on a sound cy
+
+        self.assertEqual(seen[-1], ([cy], [ari, bea], True, False))  # ari and bea answer by their own contract
+
+        cy.book = False                                               # now cy is defective as well
+        seen.clear()
+        Contract.Status(cy)                                           # the same promise, read under the guard
+
+        self.assertEqual(                                             # cy counts as sound under its own check; ari and bea do not
+                seen[-1],
+                ([cy], [ari, bea], True, False),
+                )
+        self.assertEqual(list(~Wizard), [ari, bea, cy])               # outside, all three are defective
 
     def test_a_gate_reading_another_tag_asks_for_a_sound_one(self) -> None:
         Wizard, ari = self.Wizard, self.ari

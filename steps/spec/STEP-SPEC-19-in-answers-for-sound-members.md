@@ -18,8 +18,9 @@ loop walks, `len(Tag)` counts and `if Tag:` asks about, so the four
 spellings agree. `agent in Tag[:]` is membership, sound or defective:
 what `in` answered before. `agent in ~Tag` is True for a defective
 member. Combined populations answer `in` from their sides, as sets do.
-Nothing else moves: `isinstance`, Rip, views, Flags, published members,
-`bool(agent)` and Pins keep their rules. Only Agents that carry a
+Nothing else moves: `isinstance`, Rip, views, Flags, published members
+and `bool(agent)` keep their rules, and a Pin follows this one with the
+Tag as the Agent. Only Agents that carry a
 Postcondition are affected, whichever Tag made it; a Tag whose members
 carry none changes nothing, so Ring 0's `in` stays membership, and Ring
 2 narrows it to the sound. This STEP amends STEP-SPEC-4 item 6 and Ring
@@ -55,8 +56,9 @@ repair queue, `~Wizard`.
 1. **`agent in Tag` is sound membership.** It is True exactly when the
    Agent is a member of the Tag (membership closed upward through
    Shapes, as today) whose contract holds: every visible Postcondition on
-   the Agent is true, the same truth as `bool(agent)`. It is the same
-   population that `for a in Tag`, `len(Tag)` and `if Tag:` see.
+   the Agent is true (`Contract.Holds(agent)`; also what `bool(agent)`
+   answers, unless a Tag gives the Agent its own `__bool__`). It is the
+   same population that `for a in Tag`, `len(Tag)` and `if Tag:` see.
    Soundness is the Agent's, whichever Tag made the promise: a member of
    two Tags with one broken promise is `in` neither.
 2. **`agent in Tag[:]` is membership**: every member, sound or defective,
@@ -66,7 +68,9 @@ repair queue, `~Wizard`.
    do: `Wizard | Fighter` holds the sound members of either, `Wizard[:]
    | Fighter[:]` everyone of either, `Wizard[:] - Sworn` the members of
    `Wizard` who are not sound in `Sworn`, and so on. On every
-   population, `in` and the loop agree.
+   population, `in` and the loop agree, except at interpreter teardown,
+   when the weakly held Field is already empty while the Agent's own
+   state still answers `in`.
 4. **Unchanged.** `isinstance(agent, Tag)`, the has-been check.
    `del Tag[agent]` Rips any member, defective too. The Agent-bound view
    `Tag[agent]` (and `agent.Tag`) keeps its requirement, active
@@ -82,18 +86,20 @@ repair queue, `~Wizard`.
    sound.** Soundness is the Agent's (item 1), so a Tag whose members
    carry no promise, from it or from any other Tag, changes nothing:
    `in` is membership there. Ring 0's `in` is membership; Ring 2 narrows
-   it to the sound. Inside a check the kit runs, `agent in Tag` reads
-   membership and `agent in ~Tag` is False for every member, exactly as
-   `bool(agent)` answers True there and the loop yields every member: a
-   promise never reads the contract it is part of. The checks the kit
-   runs that way are a Postcondition, the tagging's quality check, a
-   condition read by name, a published member's gate, and
-   `Contract.Holds`, `Preconditions`, `Postconditions` and `Status`. A
-   Precondition at the tagging's gate runs outside that guard and reads
-   the sound population, so one Pre can refuse at the gate and read True
-   under `Contract.Status`. A guard that means membership is spelled
-   `agent in Tag[:]`, which reads as it works on every path; `agent in
-   ~Tag` is no guard inside a check.
+   it to the sound. Inside a check the kit runs on an Agent, `agent in
+   Tag` reads membership and `agent in ~Tag` is False for that Agent,
+   exactly as `bool(agent)` answers True there, and the loop counts the
+   Agent under check among the sound; every other member answers by its
+   own contract. A promise never reads the contract it is part of. The
+   checks the kit runs that way are a Postcondition, the tagging's
+   quality check, a condition read by name, a published member's gate,
+   and `Contract.Holds`, `Preconditions`, `Postconditions` and `Status`.
+   A Precondition at the tagging's gate runs outside that guard and
+   reads the sound and defective populations as code outside does, so
+   one Pre can refuse at the gate and read True under `Contract.Status`.
+   A guard that means membership is spelled `agent in Tag[:]`, which
+   reads the same on every path; `agent in ~Tag` is no guard inside a
+   promise.
 6. **Conformance text.** The Ring 0 line becomes "membership and Base
    membership (`agent in Tag[:]`, and `agent in Tag` where no contract
    narrows it), closed upward, with a has-been check that survives
@@ -117,10 +123,10 @@ with one; `agent in Tag[:]` about 140 ns; `isinstance` about 100 ns.
 ## Rationale
 
 One truth, four spellings. Soundness is already one thing in the kit:
-`bool(agent)`, the sound population, a published member's gate and a
-condition read by name all ask "does every visible promise hold". `in`
-was the one spelling that asked something else, and it is the spelling
-a program reaches for first. The Director's rule, "consistent with
+`bool(agent)`, the sound population and a published member's gate all
+ask "does every visible promise hold". `in` was the one spelling that
+asked something else, and it is the spelling a program reaches for
+first. The Director's rule, "consistent with
 for/len/if", makes the plain Tag mean one population everywhere.
 
 The roster keeps a spelling. `Tag[:]` already meant everyone in the
@@ -150,14 +156,16 @@ membership, so they can answer True for an Agent the gate refused. That
 the gate runs outside the guard is older than this STEP; whether it
 should join the others is the Director's call.
 
-A guard inside a condition, `if agent not in Sworn: return True`,
-works as it did, because inside a check `in` reads membership (item 5).
-The documents spell such guards `Sworn[:]`, which says what they read.
+A guard inside a Postcondition, `if agent not in Sworn: return True`,
+works as it did, because there `in` reads membership (item 5). A guard
+in a Precondition at the gate reads the sound population, so it now
+skips a defective member where before it read on; spell it `Sworn[:]`.
+The documents spell every guard `Sworn[:]`, which says what it reads.
 A guard on the defective view, `if agent in ~Other: return True`, let a
 Postcondition pass at tagging before, because the tagging's quality
 check ran outside the guard and the view read a nested run of the
-contract; now that check runs under the guard, `~Other` is empty from
-inside, and the promise is read. Spell it `Other[:]`, or read the
+contract; now that check runs under the guard, the Agent under check
+is never in `~Other` from inside, and the promise is read. Spell it `Other[:]`, or read the
 promise by name.
 
 The oracle model asserts membership, sound membership and defective
@@ -168,12 +176,12 @@ Tag now assert `in Tag[:]` and `not in Tag`.
 
 | Alternative | Verdict |
 | --- | --- |
-| Keep the disagreement: `in` membership, the loop sound | Rejected by the Director: "that's not the director's ruling ... Make in consistent with for/len/if" |
+| Keep the disagreement: `in` membership, the loop sound | Rejected by the Director: "that's not the director's ruling. [...] Make in consistent with for/len/if." |
 | The loop walks everyone, `in` and the loop agree on membership | Rejected when STEP-SPEC-4 was cleared: the loop is the working population |
 | A Tag in an operator seat means everyone in its Field, so `Wizard \| Fighter` reads as `Wizard[:] \| Fighter[:]` | Set aside by the Director: "Wizard \| Fighter should mean a valid fighter OR a valid Wizard, so it is present. A simple isinstance(wizard) or isinstance(fighter) can satisfy the other cases, which are rare and not good practice. Wizard[:] \| Fighter[:] would mean broken wizards or good wizards or broken fighters or good fighters, all active agency, all members in the sets (broken or not)." The sound population in every seat, `in` included (item 3) |
 | `in` raises for a defective member | Rejected: a question, not a failure; `~Tag` and `Tag[:]` say the other populations |
 | A fourth spelling for sound membership (`agent in +Wizard`) | Rejected: `Tag[:]` already exists; the Director: "Fighter[:] provides the behaviour we need" |
-| `in` inside a condition reads soundness too | Rejected: a promise would read the contract it is part of; `bool(agent)` already answers True there |
+| `in` inside a Postcondition, or any check run under the guard, reads soundness too | Rejected: a promise would read the contract it is part of; `bool(agent)` already answers True there |
 
 ## Acceptance requirements
 
@@ -183,7 +191,7 @@ combined population, where `in` and the loop agree; after repair; after
 Rip, with the has-been check and the view's requirement; a Tag whose
 members carry no Postcondition unchanged, and one that follows its
 Agents' promises from another Tag; a Pin with the Tag as the Agent;
-Flags in the Agent's seat; `in` and `~Tag` inside a condition; a gate
+Flags in the Agent's seat; `in` and `~Tag` inside a promise; a gate
 reading another Tag, and the same Pre under `Contract.Status`; a Scope
 over a defective Tag the Agent carried. The tests of STEP-SPEC-4,
 -9 and -10 that asserted a defective member `in` its Tag now assert the

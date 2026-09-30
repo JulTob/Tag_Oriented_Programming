@@ -90,7 +90,7 @@ class Wizard(Tag):
 
 Wizard(charlie)
 
-assert charlie in Wizard            # membership: a sound member, once a contract narrows it (§2.5)
+assert charlie in Wizard            # a member; once a contract is visible, a sound one (§2.5)
 for wizard in Wizard:               # the Field (its sound members, §2.5)
     Observe(wizard)
 ```
@@ -596,7 +596,8 @@ published member **answers members only, and only sound ones**
 (STEP-SPEC-10). At every use, an Operation's call or a Report's read, TOP
 checks that the Agent still belongs to the publishing Tag and that every
 promise on the Agent holds, whichever Tag made it: the same soundness
-`if agent:`, the loop and `agent in Tag` ask about. A Rogue Agent (it left) gets a
+`if agent:`, the loop and `agent in Tag` ask about (`if agent:` unless a
+Tag gives the Agent its own `__bool__`). A Rogue Agent (it left) gets a
 **Rogue Access Failure**, a Resolution Failure; a stale
 `send = agent.dispatch` captured before Rip fails the same way. A
 defective Agent (a promise broke) gets the **broken promise by name**,
@@ -717,7 +718,7 @@ Undead(ghoul)
 assert "Undead" in ghoul             # by name
 assert Undead in ghoul               # by class
 assert Keyword(ghoul, "Undead")      # the function form, works on any object
-assert ghoul in Undead               # membership, as for every Tag
+assert ghoul in Undead               # a sound member, as for every Tag
 ```
 
 This is what lets rules live as data. A table entry `"Undead-Flying"`
@@ -859,7 +860,8 @@ special-method Actions on a Pin are Declaration Failures.
 member, so on a Tag a string in the `in` seat asks for a keyword:
 `"Deprecated" in Wizard` is True while the Flag Pin `Deprecated` is
 active on it, and so is each word it lists; objects and classes in that
-seat ask membership.
+seat ask for a sound member, as for every Tag (§2.5; `Wizard[:]` for
+membership).
 `Keyword(Wizard, "Deprecated")` and `Keyword(Wizard, Deprecated)` answer
 the same. A word like *Deprecated* is a Pin and not a Report for the
 reason `Undead` is a Tag and not `asleep = True`: a Report is a value,
@@ -1100,7 +1102,9 @@ author ends it.
 
 Truthiness on a plain object is vacuously true, so this fills an empty
 seat. A host that defines its own `__bool__` or `__len__` keeps it until a
-Postcondition becomes visible on that Agent.
+Postcondition becomes visible on that Agent. A Tag that contributes
+`__bool__` takes the seat: `bool(agent)` is then that Action, while
+`agent in Tag`, the loop and `~Tag` still follow the contract.
 
 ## 2.6 Naming the culprit
 

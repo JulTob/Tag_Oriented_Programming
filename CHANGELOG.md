@@ -14,16 +14,17 @@
   members carry none changes nothing, and Ring 0's `in` stays
   membership. Amends STEP-SPEC-4 item 6 and Ring 2's "membership
   unchanged". Guards in conditions read `Tag[:]`; the tagging's quality
-  check runs under the same re-entrancy guard as every other run of the
-  contract, so inside a condition `in` reads membership and `agent in
-  ~Tag` is False: a Postcondition guarded by `if agent in ~Other:
-  return True` passed at tagging before and now fails, because the
-  guard no longer reads a nested run of the contract. A Precondition at
-  the gate reads the sound population: `return agent in Wizard` refuses
-  a defective Wizard where before the Tag applied and the tagging
-  reported the defect (`Contract.Status` of that Pre still reads
-  membership). Fixed with it: `Scope` decides what the Agent already
-  carried by membership, not soundness.
+  check now runs under the re-entrancy guard, as `Contract.Status` and a
+  condition read by name already did (the gate does not), so inside a
+  Postcondition `in` reads membership and `agent in ~Tag` is False: a
+  Postcondition guarded by `if agent in ~Other: return True` passed at
+  tagging before and now fails, because the guard no longer reads a
+  nested run of the contract. A Precondition at the gate reads the
+  sound population: `return agent in Wizard` refuses a defective Wizard
+  where before the Tag applied and the tagging reported the defect
+  (`Contract.Status` of that Pre still reads membership). Fixed with it:
+  `Scope` decides what the Agent already carried by membership, not
+  soundness.
 - **Deletion in Layers** (STEP-SPEC-18, §3.2): an Agent's `__del__` is a
   member of its Overlay. The host's own is the first Layer; a Tag's
   `__del__` replaces or, with `@Underlay`, extends it; `@Delete` removes

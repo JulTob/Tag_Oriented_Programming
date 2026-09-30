@@ -80,17 +80,18 @@ rollback target.
   `MetaTag.__contains__` reads `state.active` and then the same `_holds`
   as `bool(agent)`, so it costs a `bool(agent)` once a Postcondition is
   visible and one dictionary read otherwise (on CPython 3.14 about 125
-  and 360 ns; `isinstance` about 100). Inside a condition it answers
-  membership, since `_holds` answers True under `state.checking`, which
-  the tagging's quality check (`_inspect`) now sets too, and `agent in
-  ~Tag` is False there; the gate does not, so a Precondition reads the
-  true sound population (while `Contract.Status` of that same Pre, run
-  under the guard, reads membership). `isinstance` is the has-been
-  check and stays true after Rip. `Tag[:]` is the Field, held weakly:
-  once the interpreter tears the module down it is empty, while `agent
-  in Tag` and `Tags(agent)` read the Agent's own state and outlive it. Kept because it is a
-  dependable signal for spotting Rogue Agents. A rolled-back call also
-  rolls the ever-set back.
+  ns without a Postcondition and 360 ns with one; `isinstance` about
+  100). Inside a Postcondition it answers membership for the Agent under
+  check, since `_holds` answers True under `state.checking`, which the
+  tagging's quality check (`_inspect`) now sets too, and `agent in ~Tag`
+  is False there; the gate does not, so a Precondition reads the true
+  sound population (while `Contract.Status` of that same Pre, run under
+  the guard, reads membership). `isinstance` is the has-been check and
+  stays true after Rip. Kept because it is a dependable signal for
+  spotting Rogue Agents. A rolled-back call also rolls the ever-set
+  back. `Tag[:]` is the Field, held weakly: once the interpreter tears
+  the module down it is empty, while `agent in Tag` and `Tags(agent)`
+  read the Agent's own state and outlive it.
 - **Records over host descriptors** are refused with a Composition Failure
   rather than silently bypassing a property.
 - **The Tag's dotted namespace is the program's.** Every Tag-level act is
