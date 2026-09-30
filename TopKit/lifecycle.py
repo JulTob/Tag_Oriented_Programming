@@ -16,7 +16,6 @@ from .declarations import _parameters_of
 from .declarations import _takes_underlay
 from .errors import TagCompositionError
 from .errors import TagError
-from .errors import TagPostconditionError
 from .errors import TagResolutionError
 from .fields import _Member
 from .geometry import _requiring_shapes
@@ -172,10 +171,11 @@ def Scope(
     """Apply Tags for a block and Rip them, in reverse, on exit, even if
     the block raises. The guaranteed teardown path.
 
-    Only what the Scope itself applied is Ripped: a Tag the Agent already
-    carried at entry is left as it was. A Tag that applied and then
-    reported a broken promise at the door did apply, so it is Ripped on
-    the way out like any other.
+    It Rips the Tags it names that it applied, and only those. A Tag the
+    Agent already carried at entry is left as it was, and the block still
+    runs. A Tag that applied and then failed at the door, through its
+    Postcondition or its Imprint, did apply, so it is Ripped on the way
+    out like any other. A Base pulled in with a Shape stays.
     """
 
     applied: list[type] = []
@@ -190,8 +190,10 @@ def Scope(
                         agent,
                         **inputs,
                         )
-            except TagPostconditionError:
-                applied.append(tag)         # applied, and defective: still the Scope's to Rip
+            except BaseException:
+                if agent in tag:
+                    applied.append(tag)     # applied, then failed at the door: still the Scope's to Rip
+
                 raise
 
             applied.append(tag)

@@ -243,9 +243,11 @@ rollback target.
   over a condition's name, and
   `_refuse_conditions_shadowed_by_the_agent` in `_apply_one` for a value
   the Agent's own namespace already holds.
-- **Scope** (§0.7) skips a Tag the Agent already carries and records a
-  Tag whose tagging raised a Postcondition failure as applied, so the
-  teardown Rips exactly what the Scope applied.
+- **Scope** (§3.2) skips a Tag the Agent already carries. When a
+  tagging raises, it asks whether the Tag is now active (a Postcondition
+  or an Imprint failed after commit) and, if so, records it as applied,
+  so the teardown Rips exactly what the Scope applied. A Base pulled in
+  with a Shape is not recorded.
 - **The oracle** (`tests/oracle_topkit.py`): an independent model of
   the laws driven by a random walk; `tests/test_oracle.py` runs a short
   walk under the suite. Run it at size with `--seeds 50 --steps 1200

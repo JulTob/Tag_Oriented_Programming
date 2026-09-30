@@ -2623,6 +2623,36 @@ class ScopeTests(unittest.TestCase):
         self.assertNotIn(cal, Plain)                                  # Plain was the Scope's: gone
         self.assertNotIn(cal, Gated)
 
+    def test_a_tag_whose_imprint_failed_at_the_door_is_ripped_on_exit(self) -> None:
+        class Cursed(Tag):
+            @Imprint
+            def Mark(agent):
+                raise ValueError("the mark will not take")
+
+        ari = Agent()
+
+        with self.assertRaises(Imprint.Mark):
+            with Scope(ari, Cursed):
+                raise AssertionError("the body must not run")
+
+        self.assertNotIn(ari, Cursed)                                 # applied, failed at the door, and Ripped
+        self.assertTrue(isinstance(ari, Cursed))                      # the history stays
+
+    def test_a_base_the_scope_pulled_in_stays(self) -> None:
+        class Wolf(Tag):
+            pass
+
+        class Dire(Wolf):
+            pass
+
+        bo = Agent()
+
+        with Scope(bo, Dire):
+            self.assertIn(bo, Wolf)
+
+        self.assertNotIn(bo, Dire)                                    # the Tag it named and applied
+        self.assertIn(bo, Wolf)                                       # the Base it pulled in stays
+
 
 class AccessTests(unittest.TestCase):
     def test_views_by_name_and_by_class(self) -> None:

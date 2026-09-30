@@ -22,8 +22,8 @@ said or did:
    The refusal is the law: a Base cannot be Ripped while an active Shape
    requires it.
 2. **Deletion has three tiers.** "Deletion always Rips the Agent" is
-   replaced by finalizer (best effort), `Scope` (guaranteed), `At_Exit`
-   (opt-in).
+   replaced by finalizer (best effort), `Scope` (guaranteed; it Rips the
+   Tags it applied, and only those), `At_Exit` (opt-in).
 3. **Identity is object identity.** `is`, `id`, hash, equality and host
    behaviour are preserved; nominal type may be a runtime subclass with the
    same name.
@@ -53,9 +53,36 @@ or the Agent-bound view.
 
 ---
 
+## Amendment, 2026-09-29
+
+Found by the oracle in PR #17 (2026-09-21); §0.7 of the Specification
+carried the rule from then, and this records it where the tiers were
+decided, beside `Scope` in §3.2. Item 2 above carries the amended text.
+Under the original rule a Scope Ripped every Tag it named: a Tag the
+Agent carried before the block lost it on exit, and a Tag that broke its
+promise at the door was left on the Agent. One gap stayed after PR #17:
+a Tag whose Imprint failed at the door stayed applied (§0.6) and was not
+Ripped.
+
+| Question | The Director's decision |
+| --- | --- |
+| A Tag the Agent already carries | The Scope adds nothing and takes nothing away; the block still runs: "if hero is in Wizard then the with is skipped. makes sense? with is for trial runs or temporary." |
+| A Tag that applied and then failed at the door (its Postcondition, or its Imprint) | Ripped on exit: the Scope applied it |
+| A Base the Scope pulled in with a Shape | Stays: the Scope Rips the Tags it names that it applied, and only those. The words were fixed, not the kit |
+| When, and the spelling | "Rule now, spelling this release, but add Wizard[h, **inputs] to the rule if possible"; `with Wizard[h]:` goes to a STEP of its own |
+
+Covered by `tests/test_topkit.py::ScopeTests` and the oracle
+(`tests/oracle_topkit.py`, `Exercise_Scope`).
+
+---
+
 ### Decision *(filled by the Director)*
 
 > Status set to **Deployed** on 2026-09-05, because the Director approved
 > the whole review in PR #3 ("all changes approved"), the rule is
 > reflected in `spec/SPECIFICATION.md`, and TopKit 0.2.0a2 covers it in
 > `tests/test_topkit.py`. Cleared on 2026-09-05.
+>
+> Amended on 2026-09-29 (the Amendment above), per the Director: "Rule
+> now, spelling this release, but add Wizard[h, **inputs] to the rule if
+> possible".

@@ -245,10 +245,6 @@ Rip is the only exit from a Field, and it obeys three laws:
   is a Resolution Failure.
 - **Reapplying a Ripped Tag is a fresh Tagging.** Imprints run again;
   Records are rebuilt.
-- **A Scope Rips what it applied, and only that.** A Tag the Agent
-  already carried at entry is left as it was on exit; a Tag that applied
-  and reported a broken promise at the Scope's door did apply, and is
-  Ripped on the way out with the rest.
 
 ## 0.8 Spellings
 
@@ -1233,7 +1229,7 @@ An implementation provides three tiers and says which is which:
 | Tier | Guarantee |
 | --- | --- |
 | **Finalizer** (`__del__`) | best effort: when the Agent is collected, its teardowns run, then its `__del__` Layers; at interpreter exit only the `__del__` Layers run; the language may not run finalizers at shutdown or inside reference cycles |
-| **`Scope(agent, *tags)`** | guaranteed: Tags apply on entry and Rip, in reverse, on exit, even if the block raises |
+| **`Scope(agent, *tags)`** | guaranteed: the Tags it names apply on entry, and those it applied Rip, in reverse, on exit, even if the block raises |
 | **`At_Exit(agent)`** | opt-in: teardowns also run at normal interpreter exit; registration is weak |
 
 Every teardown runs at most once, whichever tier reaches it first.
@@ -1278,6 +1274,14 @@ Enchanted(lamp)
 del lamp
 assert log == ["put down", "spell fades", "wick out"]
 ```
+
+**A Scope Rips the Tags it applied, and only those** (STEP-SPEC-6,
+amended 2026-09-29). A Tag the Agent already carries at entry is the
+Agent's: the Scope adds nothing and takes nothing away, and the block
+still runs. A Base the Scope pulls in with a Shape stays. A Tag that
+applied and then failed at the door, through its Postcondition or its
+Imprint, stays applied (§0.6), so the Scope Rips it on exit with the
+rest; the block does not run.
 
 ```python
 with Scope(agent, Sentry):
@@ -1391,8 +1395,9 @@ A conforming implementation provides, ring by ring:
 
 **Ring 3**
 - `@Rip` protocols run after membership ends, once, composed, failures
-  reported; the three deletion tiers; the Agent's `__del__` as Layers of
-  its Overlay, run after the teardowns, and alone at interpreter exit.
+  reported; the three deletion tiers, a Scope Ripping the Tags it
+  applied and only those; the Agent's `__del__` as Layers of its
+  Overlay, run after the teardowns, and alone at interpreter exit.
 
 **Everywhere**
 - the failure types above, distinct and named.

@@ -43,9 +43,13 @@
   never a proxy. A condition's name is refused to Actions, Records, host
   members and values the Agent already holds. Back from the 0.2-alpha
   line in the form the Director chose.
-- **Scope Rips what it applied, and only that** (§0.7): a Tag the Agent
-  already carried survives a Scope; a Tag that broke its promise at the
-  Scope's door is Ripped on exit. Both found by the oracle.
+- **A Scope Rips the Tags it applied, and only those** (§3.2; STEP-SPEC-6
+  amended 2026-09-29). Two differences from 0.2.0a3: a Tag the Agent
+  already carried at entry is no longer Ripped on exit (the Scope adds
+  nothing, and the block still runs); a Tag that applied and then failed
+  at the door, through its Postcondition or its Imprint, is now Ripped on
+  exit. A Base the Scope pulled in with a Shape stays. Found by the
+  oracle.
 - STEP-SPEC-15 (Trials, the recoverable phase the archived checkpoints
   were) and STEP-SPEC-16 (uniform access) opened at Brief with the full
   case for the Director's review.

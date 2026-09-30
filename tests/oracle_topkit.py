@@ -616,7 +616,8 @@ def Run_Seed(
             candidates = list(model.active) or list(family)
             Rip_It(target, randomizer.choice(candidates), model, context)
         elif choice in (5, 6):
-            Exercise_Scope(target, model, family, randomizer, context, fail=choice == 6)
+            slip = not use_pins and randomizer.random() < 0.25   # a Tag whose Imprint fails at the Scope's door
+            Exercise_Scope(target, model, family, randomizer, context, fail=choice == 6, slip=slip)
         elif choice == 7 and not use_pins:
             Tag_It(target, randomizer.choice(FEATURE_TAGS), model, context)
         elif choice == 8 and not use_pins:
@@ -664,12 +665,19 @@ def Exercise_Scope(
         randomizer: random.Random,
         context: str,
         fail: bool,
+        slip: bool = False,
         ) -> None:
     """Scope applies, runs the block, and rips what it applied in reverse
     on exit, even when the block raises. Bases a Shape brought in stay;
-    a Rip refused for a required Base is swallowed and the Tag stays."""
+    a Rip refused for a required Base is swallowed and the Tag stays. A
+    Tag that failed at the door, its promise or its Imprint, stays
+    applied, so the Scope Rips it with the rest."""
 
     scoped = tuple(randomizer.choice(family) for _ in range(1 + randomizer.randrange(3)))
+
+    if slip:
+        scoped = (*scoped[:1], Slipping, *scoped[1:])
+
     entry = model.Copy()
     inside = model.Copy()
     joined_by_scope: list[type] = []
@@ -679,14 +687,19 @@ def Exercise_Scope(
             Model_Apply(inside, tag)
             joined_by_scope.append(tag)
 
+            if tag is Slipping:
+                break                                                 # applied, then its Imprint failed before any promise was read
+
             if not inside.Sound():
                 break                                                 # the first tagging on a defective Agent reports; the body never runs
 
-    defective = bool(joined_by_scope) and not inside.Sound()      # only a tagging re-checks; a skipped Tag does not
+    slipped = bool(joined_by_scope) and joined_by_scope[-1] is Slipping
+    defective = bool(joined_by_scope) and not slipped and not inside.Sound()   # only a tagging re-checks; a skipped Tag does not
 
     try:
         with Scope(target, *scoped):
             assert not defective, (context, "a defective tagging let the Scope body run")
+            assert not slipped, (context, "a failed Imprint let the Scope body run")
             Assert_Target(target, inside, family, context + " inside")
 
             if fail:
@@ -696,6 +709,9 @@ def Exercise_Scope(
             raise
     except TagPostconditionError:
         if not defective:
+            raise
+    except TagImprintError:
+        if not slipped:
             raise
 
     after = inside
