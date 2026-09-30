@@ -321,6 +321,7 @@ def Flag(
         return _mark_flag(
                 words[0],
                 frozenset(),
+                lone=True,
                 )
 
     texts: list[str] = []
@@ -352,6 +353,7 @@ def Flag(
 def _mark_flag(
         tag: type,
         aliases: frozenset[str],
+        lone: bool = False,
         ) -> type:
     if not isinstance(tag, type) or not hasattr(tag, "_topkit_field"):
         raise TagDeclarationError(
@@ -382,11 +384,16 @@ def _mark_flag(
 
     if carried:
         member = "Tag" if _is_pin(tag) else "Agent"   # a Pin's members are Tags
+        hint = (
+                f"; a word is written as a string, @Flag({tag.__name__!r})"
+                if lone
+                else ""
+                )   # `@Flag(Beast)` over another class reaches here too (STEP-SPEC-17, item 8)
 
         raise TagDeclarationError(
                 f"{tag.__name__} is carried by {carried}"
                 f" {member}{'' if carried == 1 else 's'}; a Flag is part of"
-                " the Tag's declaration"
+                f" the Tag's declaration{hint}"
                 )
 
     global _flags_declared

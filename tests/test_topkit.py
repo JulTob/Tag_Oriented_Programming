@@ -1095,6 +1095,23 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(Fen.reach, 2)
         self.assertEqual(calls, ["reach", "depth"])   # each built once
 
+    def test_a_builder_that_reads_its_own_report_keeps_the_first_value(self) -> None:
+        calls: list[str] = []
+
+        class Echo(Tag):
+            @Report
+            def sound(tag) -> str:
+                calls.append("sound")
+
+                if len(calls) == 1:
+                    return "outer, after " + tag.sound        # its own Report, read while it builds
+
+                return "inner"
+
+        self.assertEqual(Echo.sound, "inner")                 # the value kept first wins, for the outer read too
+        self.assertEqual(Echo.sound, "inner")
+        self.assertEqual(calls, ["sound", "sound"])           # built twice, kept once
+
     def test_a_report_read_at_exit_gives_the_value_the_tag_kept(self) -> None:
         """The Tag keeps its value, so a finalizer at interpreter exit
         reads the value built before, not a new one."""
@@ -3410,13 +3427,16 @@ class FlagWordTests(unittest.TestCase):
         self.assertFalse(Keyword(ari, "Howler"))          # the words are gathered here
         Dire(bo)                                          # a Shape's member carries the Base
 
-        for mark in (Flag("Howler"), Flag):
+        for mark, hint in (
+                (Flag("Howler"), ""),
+                (Flag, "; a word is written as a string, @Flag('Wolf')"),   # a lone class may be a word meant
+                ):
             with self.assertRaises(TagDeclarationError) as refused:
                 mark(Wolf)
 
             self.assertEqual(
                     str(refused.exception),
-                    "Wolf is carried by 2 Agents; a Flag is part of the Tag's declaration",
+                    "Wolf is carried by 2 Agents; a Flag is part of the Tag's declaration" + hint,
                     )
 
         self.assertNotIn("__topkit_flag__", vars(Wolf))  # nothing was marked

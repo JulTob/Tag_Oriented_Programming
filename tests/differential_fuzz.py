@@ -19,7 +19,10 @@ Where Agents carry it, the step expects the refusal, with the Tag's name
 and the count, and the Tag's words unchanged; it writes "carried by N".
 A kit from before the refusal takes the mark, and the step takes it back,
 so both kits go on alike. A kit that stopped refusing would read the same
-here; the unit tests pin the refusal.
+here; the unit tests pin the refusal. Every word the programs give a Flag
+is a plain string literal, so a word kept as its plain text (a `str`
+subclass matched by its text) reads the same on both sides too;
+`tests/test_topkit.py` alone covers it.
 
 Every step writes what it observed: a value, or an exception's type,
 message and cause. A step that changes a Target is often followed by a

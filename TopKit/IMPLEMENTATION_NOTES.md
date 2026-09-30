@@ -102,7 +102,8 @@ rollback target.
   `__name__`, and the words are never inherited by Shapes. `Flag`
   refuses a Tag whose Field has a live member (`TagDeclarationError`,
   with the count; a Shape's members are in its Base's Field too), so a
-  mark never lands under an Agent that carries the Tag. Each Agent keeps
+  mark never lands under an Agent that carries the Tag. A lone class
+  refused this way adds that a word is written as a string. Each Agent keeps
   its active Flags and their aliases in `state.words` until its Tags
   change or any `@Flag` is declared (counted in
   `declarations._flags_declared`). A string probe of a `str` subclass is
@@ -169,7 +170,9 @@ rollback target.
   `owner.__dict__` and never through inheritance. So the value lives and
   dies with the Tag, a Shape and its Base keep separate values, and a
   finalizer at exit reads the value built before (a weak cache could be
-  cleared there first). `Tag.r += 1` replaces the descriptor with a
+  cleared there first). The value is kept with `setdefault`, so a builder
+  that reads its own Report while it builds leaves the value kept first,
+  and the outer read returns that one too. `Tag.r += 1` replaces the descriptor with a
   plain value on that class, which is the documented counter pattern.
   Views snapshot the computed value; a published Report reads live.
 - **Failures name their check.** `TagPreconditionError`,

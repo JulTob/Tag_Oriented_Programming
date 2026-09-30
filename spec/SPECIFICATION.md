@@ -563,8 +563,10 @@ you, so field economy (one value, one body on the Tag) needs no hand-written
 adapter:
 
 - A **published Report** appears on the Agent as a **read-only name** that
-  reads the Tag's current value. One copy lives on the Tag; the Agent does
-  not carry it.
+  reads the current value of the Tag that published it. One copy lives on
+  the Tag; the Agent does not carry it. An Agent of a Shape reads the
+  Base's value, though the Shape holds its own (§1.4), unless the Shape
+  publishes the Report again.
 - A **published Operation** appears on the Agent as an **Action** that
   forwards to the Operation with **the Agent as its second input**, after
   the Tag.
