@@ -31,6 +31,7 @@ _SECRET = "__topkit_secret__"
 _PUBLIC = "__topkit_public__"
 _FLAG = "__topkit_flag__"
 _PIN = "__topkit_pin__"
+_REPORTS = "_topkit_reports"   # a Tag's Report values, kept on the Tag: they live and die with it
 
 STATE = "_TOPKIT_STATE"
 
@@ -549,10 +550,11 @@ class Report:
         def hit_die(tag):
             return 8
 
-    The builder receives the Tag and runs once per Tag, on first read. A
-    second positional parameter receives the value the Tag's Bases give
-    that name, or None, so a Shape can extend a Base's Report the way a
-    Record extends what is stored.
+    The builder receives the Tag and runs once per Tag, on first read. The
+    value is kept on that Tag, so it lives and dies with the Tag, and a
+    Shape keeps its own. A second positional parameter receives the value
+    the Tag's Bases give that name, or None, so a Shape can extend a Base's
+    Report the way a Record extends what is stored.
     """
 
     def __init__(
@@ -569,7 +571,6 @@ class Report:
         report.__name__ = builder.__name__
         report.__doc__ = builder.__doc__
         report._name = builder.__name__
-        report._values: "WeakKeyDictionary[type, Any]" = WeakKeyDictionary()
 
     def __set_name__(
             report,
@@ -586,15 +587,19 @@ class Report:
         if owner is None:
             owner = type(instance)
 
-        try:
-            return report._values[owner]
-        except KeyError:
-            pass
+        kept = owner.__dict__.get(_REPORTS)   # the owner's own: a Shape never reads its Base's values
+
+        if kept is not None and report in kept:
+            return kept[report]
 
         value = report._build(owner)
-        report._values[owner] = value
+        kept = owner.__dict__.get(_REPORTS)   # read again: the builder may have read another Report
 
-        return value
+        if kept is None:
+            kept = {}
+            type.__setattr__(owner, _REPORTS, kept)
+
+        return kept.setdefault(report, value)
 
     def _build(
             report,

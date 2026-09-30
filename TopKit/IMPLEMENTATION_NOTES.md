@@ -162,8 +162,13 @@ rollback target.
   harmless for the stored Layer and it keeps a host property of that name
   hidden. A type rebuilt later for another reason keeps it.
 - **Reports are builders.** `@Report def r(tag[, inherited])` is a
-  descriptor that runs its builder once per Tag on first read and caches
-  the value per Tag (weakly). `Tag.r += 1` replaces the descriptor with a
+  descriptor that runs its builder once per Tag on first read and keeps
+  the value on that Tag: in a dict under `_topkit_reports` in the Tag
+  class's own `__dict__`, keyed by the Report, read from
+  `owner.__dict__` and never through inheritance. So the value lives and
+  dies with the Tag, a Shape and its Base keep separate values, and a
+  finalizer at exit reads the value built before (a weak cache could be
+  cleared there first). `Tag.r += 1` replaces the descriptor with a
   plain value on that class, which is the documented counter pattern.
   Views snapshot the computed value; a published Report reads live.
 - **Failures name their check.** `TagPreconditionError`,

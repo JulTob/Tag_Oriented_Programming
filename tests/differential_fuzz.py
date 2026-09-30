@@ -283,7 +283,7 @@ def Look(
             bool(target),
             Contract.Status(target),
             [word for word in KNOWN_WORDS if Keyword(target, word)],
-            sorted(vars(target)),
+            sorted(name for name in vars(target) if name != "_topkit_reports"),   # a Tag keeps its Report values there
             )
 
 

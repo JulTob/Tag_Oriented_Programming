@@ -1057,15 +1057,74 @@ class PublicationTests(unittest.TestCase):
             def traits(tag, inherited) -> list[str]:
                 return inherited + ["armoured"]
 
+        class Rogue(Class_):                          # a Shape that does not override
+            pass
+
         self.assertEqual(Class_.hit_die, 8)
         self.assertEqual(Class_.hit_die, 8)
         self.assertEqual(calls, ["Class_"])           # built once
         self.assertEqual(Fighter.hit_die, 10)
         self.assertEqual(Fighter.traits, ["mortal", "armoured"])
         self.assertEqual(Class_.traits, ["mortal"])
+        self.assertEqual(Rogue.hit_die, 8)
+        self.assertEqual(Rogue.hit_die, 8)
+        self.assertEqual(calls, ["Class_", "Rogue"])  # once per Tag: the Shape keeps its own
+        self.assertEqual(Class_.hit_die, 8)
+        self.assertEqual(calls, ["Class_", "Rogue"])
 
         with self.assertRaises(TagDeclarationError):
             Report(8)                                 # a builder, not a value
+
+    def test_a_report_read_at_exit_gives_the_value_the_tag_kept(self) -> None:
+        """The Tag keeps its value, so a finalizer at interpreter exit
+        reads the value built before, not a new one."""
+
+        lines, stderr = Run_Program(
+                """
+from TopKit import Tag, Report, Public
+
+class Wolf(Tag):
+    @Public
+    @Report
+    def motto(tag):
+        return tag.__name__ + " howls"
+
+class Howler:
+    def __del__(self):
+        print("exit", self.motto)
+
+pack = Howler()
+Wolf(pack)
+print(pack.motto)
+Wolf.__name__ = "Renamed"
+""",
+                )
+
+        self.assertEqual(stderr, "")
+        self.assertEqual(lines, ["Wolf howls", "exit Wolf howls"])
+
+    def test_a_dropped_shape_is_freed_after_its_base_report_was_read(self) -> None:
+        """The value lives on the Tag it was built for, so a Report whose
+        value holds that Tag does not keep it alive."""
+
+        class Kin(Tag):
+            @Report
+            def me(tag):
+                return tag
+
+        def Make() -> weakref.ref:
+            class Temporary(Kin):
+                pass
+
+            self.assertIs(Temporary.me, Temporary)
+
+            return weakref.ref(Temporary)
+
+        reference = Make()
+        gc.collect()
+
+        self.assertIsNone(reference())
+        self.assertIs(Kin.me, Kin)
 
     def test_reports_operations_and_their_deletion_follow_the_tag_view(self) -> None:
         ari = Agent()

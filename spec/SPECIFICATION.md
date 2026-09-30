@@ -491,9 +491,10 @@ Community.Greet("Ari")      # "Community:Ari"
 ```
 
 A Report builder runs once per Tag, on first read, and its value is held
-on the Tag: one copy for the whole Field. Like a Record, it may declare a
-second parameter, which receives the value the Tag's Bases give that name,
-or `None`, so a Shape can extend a Base's Report rather than replace it.
+on the Tag for as long as the Tag lives: one copy for the whole Field,
+and a Shape holds its own. Like a Record, it may declare a second
+parameter, which receives the value the Tag's Bases give that name, or
+`None`, so a Shape can extend a Base's Report rather than replace it.
 
 Reports and Operations are **not visible on the Agent**. `ari.colour` does
 not exist after `Community(ari)`, and neither does `ari.Greet`. Projecting

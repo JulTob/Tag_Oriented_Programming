@@ -88,7 +88,12 @@
   `Keyword`, a condition by name, a published Report) now answer instead of
   raising `ImportError`. (A published Report read for the first time at
   shutdown still raised it until the review follow-up: `overlay` now hands
-  its membership check to `state` when it loads.)
+  its membership check to `state` when it loads.) A Report's value is kept
+  on its Tag, so a Report read from a finalizer at exit answers the value
+  it gave before. It used to be built again there, after the language had
+  cleared the weak cache: a renamed Tag gave a new value at exit. The weak
+  cache also kept a Shape alive forever when its Base's Report value held
+  the Shape.
 - Review follow-up: tests for the two deliberate differences that had
   none (per-thread warning silencing, queries at shutdown); tests that
   read the kit's internals now test what a program can observe; the
