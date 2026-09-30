@@ -3080,6 +3080,30 @@ class FieldAlgebraTests(unittest.TestCase):
 
         self.assertIn("typing.Union[Wizard, Fighter, int | str]", str(caught.exception))
 
+        for other, spelled, orders in (
+                (list[int], "list[int]", 2),                              # a generic alias
+                (typing.Any, "typing.Any", 2),                            # typing's own forms
+                (typing.List[int], "typing.List[int]", 1),                # on the left its own | runs first
+                ):
+            for text, build in (
+                    (f"(Wizard | Fighter) | {spelled}", lambda: (Wizard | Fighter) | other),
+                    (f"{spelled} | (Wizard | Fighter)", lambda: other | (Wizard | Fighter)),
+                    )[:orders]:
+                with self.subTest(expression=text):
+                    with self.assertRaises(TypeError) as caught:
+                        build()
+
+                    self.assertEqual(
+                            str(caught.exception),
+                            f"{text}: a population is not a type;"
+                            f" write typing.Union[Wizard, Fighter, {spelled}]",
+                            )
+
+        with self.assertRaises(TypeError) as caught:
+            (Wizard | Fighter) | "Wizard"                                 # a string is no hint material for |
+
+        self.assertNotIn("a population", str(caught.exception))       # Python's own error
+
         union = Wizard | None                                             # a Tag with a non-population: Python's own union
         self.assertTrue(isinstance(None, union))
         self.assertTrue(isinstance(self.ari, union))
@@ -3178,6 +3202,47 @@ class FieldAlgebraTests(unittest.TestCase):
                 self.assertEqual(list(tag | self.Wizard), [dee, self.ari, self.bo])
                 self.assertEqual(list(self.Wizard[:] - tag), [self.ari, self.bo])
 
+    def test_a_plain_hint_holds_a_population_until_read_as_a_type(self) -> None:
+        """Not every hint is refused where it is written: a plain
+        `x: Wizard | Fighter`, and a union built first that takes a
+        population in, hold it; `isinstance` refuses once it reaches it."""
+
+        Wizard, Fighter = self.Wizard, self.Fighter
+
+        def f(x: Wizard | Fighter) -> None:
+            pass
+
+        hint = typing.get_type_hints(f, localns={"Wizard": Wizard, "Fighter": Fighter})["x"]
+
+        self.assertEqual(repr(hint), "<sound | sound Field>")         # a population, not a type
+
+        with self.assertRaises(TypeError) as caught:
+            isinstance(self.ari, hint)                                # refused where it is read as a type
+
+        self.assertIn("isinstance(x, (Wizard, Fighter))", str(caught.exception))
+
+        optional = typing.Optional[Wizard | Fighter]                  # typing takes it in, on every version
+
+        with self.assertRaises(TypeError) as caught:
+            isinstance(self.ari, optional)
+
+        self.assertIn("isinstance(x, (Wizard, Fighter))", str(caught.exception))
+        self.assertIn(                                                # so does a typing form's own | on the left
+                "<sound | sound Field>",
+                repr(typing.List[int] | (Wizard | Fighter)),
+                )
+
+        if sys.version_info >= (3, 14):
+            union = (int | str) | (Wizard | Fighter)                  # the union's own | runs first
+
+            self.assertTrue(isinstance(1, union))                     # isinstance stops before the population
+            with self.assertRaises(TypeError):
+                isinstance(1.0, union)                                # and refuses once it reaches it
+        else:
+            with self.assertRaises(TypeError) as caught:
+                (int | str) | (Wizard | Fighter)                      # 3.12 hands it to the population
+
+            self.assertIn("typing.Union[Wizard, Fighter, int | str]", str(caught.exception))
 
     def test_a_pins_population_never_combines_with_a_tags(self) -> None:
         import operator as operators
@@ -3239,6 +3304,39 @@ class FieldAlgebraTests(unittest.TestCase):
         self.assertEqual(list(Rare | Meta), [Wizard, Fighter])           # two Pins still combine
         self.assertEqual(list(Rare[:] - Meta), [Wizard])
         self.assertEqual(list(Wizard[:] | Fighter), [self.ari, self.bo]) # two Tags still combine
+
+    def test_a_combination_takes_its_kind_from_either_side(self) -> None:
+        """A Field whose Tag is gone has no kind of its own; a combination
+        with it takes the kind of its other side."""
+
+        @Pin
+        class Rare(Tag):
+            pass
+
+        def Pin_That_Goes():
+            @Pin
+            class Gone(Tag):
+                pass
+
+            return Gone[:], weakref.ref(Gone)
+
+        gone, owner = Pin_That_Goes()
+        gc.collect()
+
+        self.assertIsNone(owner())                                    # the Tag is gone; its Field remains
+
+        with self.assertRaises(TypeError) as caught:
+            (gone | Rare) | self.Wizard
+
+        message = str(caught.exception)
+
+        self.assertIn("<a Tag that is gone>[:] | Rare", message)
+        self.assertIn("holds Tags and Wizard holds objects", message)
+
+        with self.assertRaises(TypeError):
+            self.Wizard - (gone | Rare)                               # the other order too
+
+        self.assertEqual(list(gone | Rare), [])                       # with another Pin it still combines
 
 
 class ConditionMemberTests(unittest.TestCase):

@@ -1387,9 +1387,6 @@ A conforming implementation provides, ring by ring:
   defective one, open again on membership or repair;
 - `@Pre` and `@Post` stacked on one function as one condition, spelled
   `@Requirement` in one word;
-- populations combined with `|`, `&` and `-` at every level, lazily, a
-  Tag in an operator seat meaning its sound population, a Pin's
-  population never combined with a Tag's, and no population a type;
 - every condition read on the Agent by its name as a plain boolean, with
   a condition's name refused to Actions, Records and host members;
 - Delete; the three access forms, with Agent-bound views as read-only
@@ -1403,7 +1400,10 @@ A conforming implementation provides, ring by ring:
 - the contract direction, with weakened Postconditions diagnosed;
 - defective Agents: contract truthiness; the plain loop and `in` as the
   sound population, `~Tag` the defective one, `Tag[:]` everyone; a
-  namespace that names the culprit.
+  namespace that names the culprit;
+- populations combined with `|`, `&` and `-` at every level, lazily, a
+  Tag in an operator seat meaning its sound population, a Pin's
+  population never combined with a Tag's, and no population a type.
 
 **Ring 3**
 - `@Rip` protocols run after membership ends, once, composed, failures

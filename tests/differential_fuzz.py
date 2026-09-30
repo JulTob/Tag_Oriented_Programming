@@ -352,6 +352,17 @@ class Ledger(Host):
         return host.name + "[" + str(key) + "]"
 
 
+class Soundly:
+    """A plain class with a `_sound` of its own: never a Tag in an
+    operator seat, so `T | Soundly` is the language's class union."""
+
+    @classmethod
+    def _sound(
+            cls,
+            ):
+        return "not a population"
+
+
 class Keepsake:
     """Held only by a Tag declared in a function: freed when the Tag is."""
 
@@ -749,6 +760,9 @@ AGENT_MEMBERS = (
             @Operation
             def Census(tag, agent):
                 return (len(tag[:]), len(tag))
+            """),
+        Member("own sound", "_sound", 1, """
+            _sound = "{tag} keeps a member of its own called _sound"
             """),
         )
 
@@ -1534,6 +1548,11 @@ def Fielding(
                 f"isinstance({agent}, {tag} | {other})",
                 f"({tag} | {other}) | None",
                 f"None | ({tag} | {other})",
+                f"({tag} | {other}) | int",
+                f"issubclass(Host, {tag} | {other})",
+                f"isinstance({agent}, {tag}[:] | ~{other})",
+                f"{tag} | Soundly",
+                f"isinstance({agent}, {tag} | Soundly)",
                 )
             )
 
@@ -1593,6 +1612,7 @@ def Pinning(
     randomizer = plan.randomizer
     pin = randomizer.choice(plan.pins)
     tag = Any_Tag(plan).name
+    other = Any_Tag(plan).name
     agent = Any_Agent(plan)
     tag_reads = Names_Of(plan.pins, "record", "patch", "secret record") or ["rarity"]
     tag_calls = Names_Of(plan.pins, "action", "rip") or ["Describe"]
@@ -1630,6 +1650,8 @@ def Pinning(
                 f"{tag} in {pin.name}",
                 f"list({pin.name})",
                 f"list({pin.name} | {tag})",
+                f"list({tag} | {pin.name})",
+                f"list(({tag} | {other}) & {pin.name}[:])",
                 f"list({tag}[:] - {pin.name})",
                 f"list(~{pin.name} & ~{tag})",
                 f"list(~{pin.name})",

@@ -208,8 +208,7 @@ Deprecated(Fighter)
 assert list(Combat - Deprecated) == [Wizard]        # combat Tags still in use
 ```
 
-Among themselves only. A Pin's population holds Tags and a Tag's holds
-objects; `Combat | Wizard` is refused, and the error names both sides.
+Pins combine with Pins only (§5).
 
 ---
 
@@ -227,9 +226,21 @@ objects; `Combat | Wizard` is refused, and the error names both sides.
   refused, and the refusal names the rewrite, `isinstance(x, (Wizard,
   Fighter))` and `typing.Optional[typing.Union[Wizard, Fighter]]`.
   Python 3.10 to 3.13 evaluate an annotation where it is written, so
-  `x: Wizard | Fighter | None` fails at definition. The rewrite names
-  the Tags by `__name__`, so a Tag you renamed, or a Twin made under
-  another Tag's title, may go by another name in your program.
+  `x: Wizard | Fighter | None` fails at definition. `|` with a class, a
+  union, `list[int]` or a `typing` form is refused the same way; a
+  string (a forward reference) gets Python's own error. The rewrite
+  names the Tags by `__name__`, so a Tag you renamed, or a Twin made
+  under another Tag's title, may go by another name in your program.
+- **Some hints are not refused where they are written.** A plain hint
+  `x: Wizard | Fighter` holds a population, and so does a union built
+  first that takes one in: `typing.Optional[Wizard | Fighter]`,
+  `typing.List[int] | (Wizard | Fighter)`, or on Python 3.14 `(int |
+  str) | (Wizard | Fighter)`. Nothing fails until
+  something reads the hint as a type: `typing.get_type_hints` and then
+  `isinstance`, or a runtime validator, and `isinstance` only once it
+  reaches the population (`isinstance(1, int | str | (Wizard |
+  Fighter))` is True). Write the Tags themselves:
+  `typing.Union[Wizard, Fighter]`.
 - **No Tags with objects.** A Pin's population holds Tags, a Tag's holds
   objects; `Rare | Wizard` is refused and the refusal names both.
 

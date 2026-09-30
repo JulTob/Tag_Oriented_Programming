@@ -243,8 +243,15 @@ rollback target.
   population with a Tag's, naming both. `MetaTag.__or__` falls back to
   `type.__or__` when the other side is not a population, so `Wizard |
   None` stays a typing union; a population is not a type: its class's
-  `__instancecheck__`, and `|` with `None` or a class in either order,
-  raise `TypeError` naming the rewrite. The rewrite names Tags by
+  `__instancecheck__` and `__subclasscheck__`, and `|` with `None`, a
+  class, a union, a generic alias or a `typing` form in either order,
+  raise `TypeError` naming the rewrite. A union built first can still
+  take a population in, since its own `__or__` runs before the
+  population's `__ror__`: `typing.Optional[Wizard | Fighter]` and
+  `typing.List[int] | (Wizard | Fighter)` on every version, `(int |
+  str) | (Wizard | Fighter)` on 3.14 (3.12 hands it to
+  `__ror__`, which refuses); `isinstance` refuses once it reaches the
+  population. The rewrite names Tags by
   `__name__` (by `__qualname__` where two share one), which a renamed
   Tag, or a Twin made under another Tag's title, may not answer to in
   the program's own namespace. No kernel state changes.

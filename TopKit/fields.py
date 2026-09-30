@@ -242,11 +242,14 @@ def _population_of(
 def _is_type_material(
         value: Any,
         ) -> bool:
-    """What ``|`` joins into a type hint: ``None``, a class, a union."""
+    """What ``|`` joins into a type hint: ``None``, a class, a union, a
+    generic alias (``list[int]``) or a ``typing`` form (``typing.Any``,
+    ``typing.List[int]``)."""
 
     return (
             value is None
-            or isinstance(value, (type, types.UnionType))
+            or isinstance(value, (type, types.UnionType, types.GenericAlias))
+            or type(value).__module__ == "typing"
             )
 
 
@@ -328,9 +331,12 @@ def _spell_operand(
         return "None"
 
     if isinstance(value, type):
+        if value.__module__ == "typing":
+            return f"typing.{value.__qualname__}"
+
         return value.__name__
 
-    return repr(value)   # a union spells itself: int | str
+    return repr(value)   # a union or an alias spells itself: int | str, list[int]
 
 
 class _Combined(_Population):

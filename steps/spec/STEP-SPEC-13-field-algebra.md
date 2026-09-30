@@ -90,15 +90,22 @@ different truth a moment later.
 
 One spelling changes meaning. In 0.2.0a3 `Wizard | Fighter` was
 Python's class union, usable in `isinstance` and in annotations; now it
-is a population, and those uses are refused with the one-line rewrite
-in the message: `isinstance(x, Wizard | Fighter)` becomes
-`isinstance(x, (Wizard, Fighter))`; a hint `x: Wizard | Fighter |
-None` becomes `typing.Optional[typing.Union[Wizard, Fighter]]`.
-`Wizard | None` is unchanged. `|`, `&` and `-` on Fields and views were
-errors before. Combining two different Tags, and `&`, are new: the
-archived 0.2-alpha line combined only views of one Field and had no
-`&`. `in` on a combined view follows STEP-SPEC-19: it answers from the
-sides, as a set does, and agrees with the loop.
+is a population. `isinstance(x, Wizard | Fighter)`, `issubclass` over
+it, and `|` between it and `None`, a class, a union or a `typing` form
+are refused with the one-line rewrite in the message: `isinstance(x,
+(Wizard, Fighter))`, and for a hint `x: Wizard | Fighter | None`,
+`typing.Optional[typing.Union[Wizard, Fighter]]`. A plain hint `x:
+Wizard | Fighter` is not refused: it now holds a population, and code
+that reads it as a type (`typing.get_type_hints` and then
+`isinstance`, or a runtime validator) fails there; write
+`typing.Union[Wizard, Fighter]`. The same holds for a union built first
+that takes the population in: `typing.Optional[Wizard | Fighter]`, a
+`typing` form's own `|`, or on Python 3.14 `(int | str) | (Wizard |
+Fighter)`. `Wizard | None` is unchanged. `|`, `&` and `-` on Fields
+and views were errors before. Combining two different Tags, and `&`,
+are new: the archived 0.2-alpha line combined only views of one Field
+and had no `&`. `in` on a combined view follows STEP-SPEC-19: it
+answers from the sides, as a set does, and agrees with the loop.
 
 ## Alternatives considered
 
@@ -119,10 +126,14 @@ Covered by `tests/test_topkit.py::FieldAlgebraTests` and by the oracle
 operators against its model after every seventeenth transition. The
 refusals: a Pin's population with a Tag's in both orders, the three
 operators, on Tags, `[:]`, `~` and nested combinations, the message
-naming both sides; `isinstance` and `| None` in either order naming the
-rewrite, and a hint in a signature where Python evaluates it; a class
-with its own `_sound` giving the class union, and a Tag declaring
-`_sound` still iterating. The fuzzer asks the refusals too.
+naming both sides, and a combination taking its kind from its other
+side when one side's Tag is gone; `isinstance` and `|` with `None`, a
+class, a union, `list[int]` or a `typing` form, in either order, naming
+the rewrite, and a hint in a signature where Python evaluates it; a
+plain hint and a union built first holding a population until
+`isinstance` reaches it; a class with its own `_sound` giving the class
+union, and a Tag declaring `_sound` still iterating. The fuzzer asks
+the refusals too.
 
 ---
 

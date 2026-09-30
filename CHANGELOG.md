@@ -62,7 +62,12 @@
   `isinstance(x, Wizard | Fighter)` is refused, write `isinstance(x,
   (Wizard, Fighter))`; a hint `Wizard | Fighter | None` is refused,
   write `typing.Optional[typing.Union[Wizard, Fighter]]`; each refusal
-  names its rewrite. `Wizard | None` is unchanged. A Pin's population
+  names its rewrite, and so does `|` with a class, a union, `list[int]`
+  or a `typing` form. A plain hint `x: Wizard | Fighter` is not refused:
+  it now holds a population, and code that reads it as a type
+  (`typing.get_type_hints` and then `isinstance`, or a runtime
+  validator) fails there; write `typing.Union[Wizard, Fighter]`.
+  `Wizard | None` is unchanged. A Pin's population
   (Tags) never combines with a Tag's (objects): refused, naming both
   sides. Tag-ness in an operator seat is decided by the metaclass, never
   by an attribute named `_sound`, so a class with its own `_sound` gives
