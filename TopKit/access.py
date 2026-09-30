@@ -341,11 +341,12 @@ def _agent_del(
         state_key: str = STATE,
         host_finalizer: Callable[[object], None] = _host_finalizer,
         read: Callable[[object, str], Any] = object.__getattribute__,
-        retie: Callable[..., None] = _retie_actions,
+        retie: Callable[..., list] = _retie_actions,
         ) -> None:
     """Deletion (§3.2, STEP-SPEC-18). The Agent's Actions are tied to it
     again first, so a teardown and a Layer call them as anywhere (in a
-    collected cycle Python has cleared their weak references). Then the
+    collected cycle Python has cleared their weak references); once the
+    Layers ran, the old dead references are put back. Then the
     teardowns still due run, best effort; then the Agent's ``__del__``
     runs as its Overlay shows it: the top Layer, which reaches the host's
     own through ``@Underlay``, or the host's own when no Tag declares one.
@@ -366,7 +367,7 @@ def _agent_del(
         host_finalizer(agent)   # built from an Agent's runtime type, never tagged: a plain host
         return
 
-    retie(
+    retied = retie(
             agent,
             state,
             namespace,
@@ -399,6 +400,9 @@ def _agent_del(
         elif "__del__" not in state.deleted:
             host_finalizer(agent)
     finally:
+        for bound, reference in retied:
+            bound._reference = reference   # the re-tie was for this finalizer only: code run after it meets a dead Agent
+
         if failures:
             _report_failures(
                     agent,

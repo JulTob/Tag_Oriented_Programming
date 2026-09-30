@@ -184,10 +184,12 @@ _Unraisable = _unraisable_type()
 def _report_failures(
         agent: object,
         failures: list[_Failure],
+        occasion: str = "deleting",
         ) -> None:
     """Each failed teardown, reported as Python reports a finalizer's
-    error: through ``sys.unraisablehook``, naming the Agent and the
-    teardown. Nothing is stopped by it. The failures are dropped once
+    error: through ``sys.unraisablehook``, naming the teardown, its Tag
+    and the Agent, with the ``occasion`` (``deleting``, or ``in the
+    At_Exit pass of``). Nothing is stopped by it. The failures are dropped once
     reported: an error's traceback holds ``_teardown_all``'s frame, which
     holds the list that holds the error, a cycle whose frames hold the
     Agent; kept, it would resurrect the Agent until a collection."""
@@ -199,6 +201,7 @@ def _report_failures(
                     tag,
                     teardown,
                     error,
+                    occasion,
                     )
     finally:
         failures.clear()
@@ -209,10 +212,11 @@ def _report_failure(
         tag: type,
         teardown: Any,
         error: Exception,
+        occasion: str,
         ) -> None:
     message = (
             f"Exception ignored in teardown {teardown.__name__} of"
-            f" {tag.__name__}, deleting {_name_of(agent)}"
+            f" {tag.__name__}, {occasion} {_name_of(agent)}"
             )
 
     if _Unraisable is None:   # a Python whose report type the probe did not catch
@@ -354,10 +358,19 @@ def _run_exit_protocols() -> None:
             agent = reference()
 
             if agent is not None:
-                _report_failures(
-                        agent,
-                        _teardown_all(agent),
-                        )   # a failure in the pass is reported as at deletion
+                failures: list[_Failure] = []
+
+                try:
+                    _teardown_all(
+                            agent,
+                            failures,
+                            )   # the list is ours: an interruption leaves it filled
+                finally:
+                    _report_failures(
+                            agent,
+                            failures,
+                            "in the At_Exit pass of",
+                            )   # once this Agent's teardowns in the pass ran; its Layers run later, when it is deleted
 
 
 atexit.register(_run_exit_protocols)

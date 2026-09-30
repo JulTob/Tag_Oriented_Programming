@@ -4740,6 +4740,54 @@ print("end", "Deprecated" in Archmage)
 
         self.assertEqual(log, ["teardown hush hush", "layer hush"])
 
+    def test_the_re_tie_ends_with_the_finalizer(self) -> None:
+        log = self.log
+
+        class Keeper:
+            """Holds an Action taken in a teardown; freed with the Agent,
+            once the collection clears it, after its finalizer ran."""
+
+            def __init__(self, action) -> None:
+                self.action = action
+
+            def __del__(self) -> None:
+                try:
+                    log.append(("answered", self.action()))
+                except ReferenceError:
+                    log.append("ReferenceError")
+
+        class Rung(Tag):
+            def Ring(agent) -> str:
+                return "ring"
+
+            @Rip
+            def Leave(agent) -> None:
+                agent.keeper = Keeper(agent.Ring)
+
+        class Hushed(Tag):
+            @Secret
+            def Hush(agent) -> str:
+                return "hush"
+
+            def Ring(agent) -> str:
+                return agent.Hush()
+
+            @Rip
+            def Leave(agent) -> None:
+                agent.keeper = Keeper(agent.Ring)
+
+        for kind in (Rung, Hushed):                  # a plain binding, and a composing one
+            def Make() -> None:
+                bell = self.Door()
+                kind(bell)
+                bell.me = bell
+
+            log.clear()
+            Make()
+            gc.collect()
+
+            self.assertEqual(log, ["host", "ReferenceError"], kind.__name__)   # the Agent is gone, as before the re-tie
+
     def test_a_layer_calls_an_action_at_a_plain_del_and_the_agent_is_freed(self) -> None:
         log = self.log
 
@@ -4944,9 +4992,39 @@ print("end", flush=True)
         lines, stderr = Run_Program(program)
 
         self.assertEqual(lines, ["end", "first hold", "second teardown as a member"])   # once, and on
-        self.assertIn("Exception ignored in teardown Hold of Stubborn, deleting Door", stderr)
+        self.assertIn("Exception ignored in teardown Hold of Stubborn, in the At_Exit pass of Door", stderr)
         self.assertIn("RuntimeError: first will not let go", stderr)
         self.assertEqual(stderr.count("Exception ignored"), 1)
+
+    def test_a_failure_in_the_exit_pass_is_reported_before_an_interruption(self) -> None:
+        program = """
+from TopKit import Tag, Rip, At_Exit
+
+class Door:
+    def __init__(self, name): self.name = name
+
+class Halting(Tag):
+    @Rip
+    def Halt(agent):
+        print(agent.name, "halt", flush=True)
+        raise KeyboardInterrupt
+
+class Stubborn(Tag):
+    @Rip
+    def Hold(agent):
+        print(agent.name, "hold", flush=True)
+        raise RuntimeError(agent.name + " will not let go")
+
+door = Door("door"); Halting(door); Stubborn(door); At_Exit(door)   # reverse order: Hold first
+print("end", flush=True)
+"""
+        lines, stderr = Run_Program(program)
+        report = stderr.find("Exception ignored in teardown Hold of Stubborn, in the At_Exit pass of Door")
+
+        self.assertEqual(lines, ["end", "door hold", "door halt"])
+        self.assertNotEqual(report, -1)
+        self.assertIn("RuntimeError: door will not let go", stderr)
+        self.assertLess(report, stderr.index("KeyboardInterrupt"))   # the failure first, then the interruption
 
     def test_actions_answer_a_layer_and_the_exit_pass_at_program_end(self) -> None:
         program = """

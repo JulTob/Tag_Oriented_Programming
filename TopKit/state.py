@@ -610,16 +610,21 @@ def _retie_actions(
         check: Callable[..., bool] = isinstance,
         bound_type: type = _Bound,
         ref: Callable[[object], Any] = weakref.ref,
-        ) -> None:
+        ) -> list[tuple[_Bound, Any]]:
     """Tie the Agent's bound Actions to it again, with fresh weak
     references, where Python cleared them (STEP-SPEC-18, amended).
 
     In a reference cycle Python clears every weak reference to the Agent
     before its finalizers run, so ``agent.Ring()`` from a teardown or a
     ``__del__`` Layer would raise ReferenceError. A new weak reference can
-    still be made there, and it answers the Agent until it is freed; it
-    is weak, so nothing is resurrected. Bound as defaults: this runs late
-    in interpreter exit too, when this module's globals may be gone."""
+    still be made there; it is weak, so nothing is resurrected. What was
+    changed is returned, each with its old reference, and the finalizer
+    puts the old ones back once its Layers ran: the re-tie serves the
+    finalizer's own work, never code that runs after it, when the Agent
+    may already be cleared. Bound as defaults: this runs late in
+    interpreter exit too, when this module's globals may be gone."""
+
+    retied = []
 
     for name, function in state.actions.items():
         value = namespace.get(name)
@@ -629,7 +634,15 @@ def _retie_actions(
                 and value._function is function
                 and value._reference() is None
                 ):
+            retied.append(
+                    (
+                        value,
+                        value._reference,
+                        )
+                    )
             value._reference = ref(agent)
+
+    return retied
 
 
 def _rebind_all(
