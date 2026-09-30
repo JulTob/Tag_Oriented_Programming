@@ -410,7 +410,10 @@ def _agent_del(
                     )   # after every teardown and every Layer: one report each
 
         if interrupted is not None:
-            raise interrupted   # reported after the Layers, whatever they raised
+            try:
+                raise interrupted   # reported after the Layers, whatever they raised
+            finally:
+                interrupted = None   # its traceback holds this frame: kept, the Agent would wait for a collection
 
 
 def _agent_copy(

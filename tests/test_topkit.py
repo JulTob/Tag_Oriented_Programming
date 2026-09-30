@@ -4031,6 +4031,13 @@ class LayeredDeletionTests(unittest.TestCase):
 
         return caught
 
+    def alive(self) -> list:
+        """The Doors still on the heap. In a collected cycle Python clears
+        weak references before any finalizer runs, so only the heap can
+        tell a freed Agent from a resurrected one."""
+
+        return [kept for kept in gc.get_objects() if isinstance(kept, self.Door)]
+
     def test_with_nothing_stated_the_host_finalizer_is_the_layer(self) -> None:
         self.assertEqual(self.delete(self.Guard), ["teardown", "host"])
 
@@ -4708,9 +4715,10 @@ print("end", "Deprecated" in Archmage)
         gc.collect()
 
         self.assertEqual(log, ["teardown ring", "layer ring", "host"])
-        self.assertEqual(freed, [True])        # tied again with weak references: nothing resurrected
+        self.assertEqual(freed, [True])
         self.assertIsNone(reference())
         self.assertEqual(gc.garbage, [])
+        self.assertEqual(self.alive(), [])     # Python cleared the weak reference first: asked of the heap, nothing was resurrected
 
     def test_a_secret_action_is_callable_from_a_teardown_in_a_cycle(self) -> None:
         log = self.log
@@ -4739,6 +4747,7 @@ print("end", "Deprecated" in Archmage)
         gc.collect()
 
         self.assertEqual(log, ["teardown hush hush", "layer hush"])
+        self.assertEqual(self.alive(), [])     # the composing binding resurrects nothing either
 
     def test_the_re_tie_ends_with_the_finalizer(self) -> None:
         log = self.log
@@ -4923,6 +4932,72 @@ print("end", "Deprecated" in Archmage)
         finally:
             gc.enable()
 
+    def test_an_interrupted_teardown_does_not_keep_the_agent_alive(self) -> None:
+        class Impatient(Tag):
+            @Rip
+            def Leave(agent) -> None:
+                raise KeyboardInterrupt
+
+        door = self.Door()
+        Impatient(door)
+        reference = weakref.ref(door)
+        gc.disable()   # a refcount death must free it at once: no collection may help
+
+        try:
+            def Delete() -> None:
+                nonlocal door
+                del door
+
+            self.assertEqual(self.reported(Delete), ["KeyboardInterrupt"])
+            self.assertIsNone(reference())          # the interruption's traceback held the finalizer's frame
+            self.assertEqual(self.log, ["host"])
+        finally:
+            gc.enable()
+
+    def test_a_hook_that_raises_stops_no_report_and_no_interruption(self) -> None:
+        import contextlib
+        import io
+        import sys
+
+        log = self.log
+
+        class Impatient(Tag):
+            @Rip
+            def Leave(agent) -> None:
+                log.append("impatient")
+                raise KeyboardInterrupt
+
+        class Stubborn(Tag):
+            @Rip
+            def Hold(agent) -> None:
+                log.append("hold")
+                raise RuntimeError("will not let go")
+
+            @Rip
+            def Cling(agent) -> None:
+                log.append("cling")
+                raise ValueError("clings")
+
+        def Strict(raised) -> None:
+            log.append("reported " + type(raised.exc_value).__name__)
+            raise RuntimeError("strict hook")
+
+        hook = sys.unraisablehook
+        sys.unraisablehook = Strict
+        printed = io.StringIO()
+
+        try:
+            with contextlib.redirect_stderr(printed):
+                self.delete(Impatient, Stubborn)   # reverse order: Stubborn's first
+        finally:
+            sys.unraisablehook = hook
+
+        self.assertEqual(log, [
+                "hold", "cling", "impatient", "host",
+                "reported RuntimeError", "reported ValueError", "reported KeyboardInterrupt",
+                ])                                   # each report made, the interruption last
+        self.assertEqual(printed.getvalue().count("Exception ignored in sys.unraisablehook"), 3)
+
     def test_a_teardown_reported_on_a_rip_has_nothing_left_to_report_at_deletion(self) -> None:
         log = self.log
 
@@ -4995,6 +5070,38 @@ print("end", flush=True)
         self.assertIn("Exception ignored in teardown Hold of Stubborn, in the At_Exit pass of Door", stderr)
         self.assertIn("RuntimeError: first will not let go", stderr)
         self.assertEqual(stderr.count("Exception ignored"), 1)
+
+    def test_a_hook_that_raises_stops_nothing_in_the_exit_pass(self) -> None:
+        program = """
+import sys
+from TopKit import Tag, Rip, At_Exit
+
+class Door:
+    def __init__(self, name): self.name = name
+
+class Stubborn(Tag):
+    @Rip
+    def Hold(agent):
+        print(agent.name, "hold", flush=True)
+        raise RuntimeError(agent.name + " will not let go")
+
+class Guard(Tag):
+    @Rip
+    def Leave(agent): print(agent.name, "teardown", flush=True)
+
+def Strict(report): raise RuntimeError("strict hook")
+
+sys.unraisablehook = Strict
+first = Door("first"); Guard(first); At_Exit(first)
+second = Door("second"); Stubborn(second); At_Exit(second)
+third = Door("third"); Guard(third); At_Exit(third)
+print("end", flush=True)
+"""
+        lines, stderr = Run_Program(program)
+
+        self.assertEqual(lines, ["end", "first teardown", "second hold", "third teardown"])   # the pass goes on
+        self.assertIn("Exception ignored in sys.unraisablehook", stderr)   # as Python reports a hook's own error
+        self.assertIn("RuntimeError: strict hook", stderr)
 
     def test_a_failure_in_the_exit_pass_is_reported_before_an_interruption(self) -> None:
         program = """
@@ -5102,6 +5209,15 @@ class Warded(Tag):
         write(1, (agent.name + " warded\\n").encode())
         underlay()
 
+class Rung(Tag):
+    def Ring(agent): return agent.name + " rings"
+
+    @Underlay
+    def __del__(agent, underlay, write=os.write, base=BaseException):
+        try: write(1, ("layer: " + agent.Ring() + "\\n").encode())
+        except base: write(1, b"layer FAILED\\n")
+        underlay()
+
 import TopKit.access, TopKit.lifecycle, TopKit.overlay, TopKit.state
 
 KIT = (TopKit.access, TopKit.lifecycle, TopKit.overlay, TopKit.state)
@@ -5120,6 +5236,7 @@ class Called:
 guarded = Door("guarded"); Guard(guarded)
 warded = Door("warded"); Guard(warded); Warded(warded)
 called = Called(); Guard(called)
+rung = Door("rung"); Rung(rung)       # in a cycle through Rung's functions: freed late, by a collection
 plain = type(guarded).__new__(type(guarded))   # built from an Agent's runtime type, never tagged
 plain.name = "plain"
 print("end")
@@ -5141,6 +5258,8 @@ print("end")
         self.assertIn("plain host", lines)                    # an untagged object of a runtime type, too
         self.assertLess(lines.index("warded warded"), lines.index("warded host"))
         self.assertNotIn("guarded teardown", lines)
+        self.assertIn("layer: rung rings", lines)             # a plain Action answers there too
+        self.assertLess(lines.index("layer: rung rings"), lines.index("rung host"))
 
 
 class DeliberateDifferenceTests(unittest.TestCase):

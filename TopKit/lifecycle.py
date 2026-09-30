@@ -226,17 +226,35 @@ def _report_failure(
         traceback.print_exception(error, file=sys.stderr)
         return
 
-    sys.unraisablehook(
-            _Unraisable(
-                (
-                    type(error),
-                    error,
-                    error.__traceback__,
-                    message,
-                    teardown,
+    hook = sys.unraisablehook
+
+    try:
+        hook(
+                _Unraisable(
+                    (
+                        type(error),
+                        error,
+                        error.__traceback__,
+                        message,
+                        teardown,
+                        )
                     )
                 )
-            )
+    except BaseException as failed:   # a hook that raises stops nothing: Python reports it as its own
+        try:
+            sys.__unraisablehook__(
+                    _Unraisable(
+                        (
+                            type(failed),
+                            failed,
+                            failed.__traceback__,
+                            "Exception ignored in sys.unraisablehook",
+                            hook,
+                            )
+                        )
+                    )
+        except BaseException:
+            pass   # as Python does: the default hook's own failure is dropped
 
 
 def _call_teardown(
