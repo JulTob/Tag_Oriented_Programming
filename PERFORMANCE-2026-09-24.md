@@ -2,7 +2,9 @@
 
 - **Date:** 2026-09-24
 - **Measured:** TopKit on `main` after PR #20, against the same behaviour
-  written as idiomatic Python classes, on CPython 3.14.3 (Apple silicon).
+  written as idiomatic Python classes, on one machine: an Apple M5 with
+  macOS 26.4 and CPython 3.14.3. Other machines give other figures; §9
+  has a second one.
 - **Why:** users reported that TopKit is slow. The Director suspected they
   kept passing states as Tags, and asked whether TOP only moves a budget
   between time and memory instead of saving it.
@@ -23,8 +25,10 @@
 1. **Tags used as Records.** A passing state (Asleep, Poisoned, Stunned)
    applied and Ripped as a Tag every turn costs **2.9 to 4.3 us per turn,
    280 to 420 times a plain attribute**, and 285 to 430 ms per 100,000
-   agent-turns. Kept as a Record, as the Guide says, the same state costs
-   **24 to 42 ns, 2.4 to 3 times a plain attribute**. No kit can close the
+   agent-turns (Apple M5, CPython 3.14; 248 to 363 times on a Linux
+   machine with CPython 3.13, §9). Kept as a Record, as the Guide says,
+   the same state costs **24 to 42 ns, 2.4 to 3 times a plain attribute**
+   (1.4 to 1.6 times on that Linux machine). No kit can close the
    first gap: a tagging is a transaction (gate, contributions, promise,
    rollback), and its floor is about 1 us. The remedy is the paradigm's own
    rule, *a Tag is what something is; a Record is what it is right now*.
@@ -44,9 +48,11 @@ work moves about 45 ns into each Rip to free about 2 KB per Ripped Tag.
 layout, the tagging path and the hot path. Memory per character falls 19
 to 34 per cent; keywords, `bool(agent)` and walking a Field run 53 to 75
 per cent faster; re-applying an active Form 74 per cent; tagging 12 per
-cent. A differential fuzzer ran 300 random programs (560,000 transcript
-lines) on both kits with no difference; targeted probes found four, all
-deliberate, and each fixes a defect (§4.2).
+cent. Targeted probes found four differences in behaviour, all
+deliberate, and each fixes a defect (§4.2). The differential fuzzer
+committed in the review follow-up ran 400 random programs on both kits.
+It can reach three of the four (the fourth needs threads), and it found
+no other change in behaviour (§4.1).
 
 **What is left** (§5) is structural. Sharing one Overlay per composition
 instead of one per Agent would cut tagging by a further 34 to 56 per cent
@@ -58,7 +64,8 @@ are the Director's to decide as STEPs (§6).
 
 ## 2. What the users hit: a passing state kept as a Tag
 
-1,000 creatures, 100 turns, one state flipped every turn:
+1,000 creatures, 100 turns, one state flipped every turn (Apple M5,
+CPython 3.14):
 
 | State | Kept as | Per loop | Per turn | vs OOP |
 | --- | --- | --- | --- | --- |
@@ -139,9 +146,27 @@ whole program, not only TOP's.
 ### 4.1 The fourteen changes
 
 Checked by the spec, 216 tests (13 of them the opt-in budgets), the oracle over 60,000 transitions, the
-examples, and a differential fuzzer: 300 random programs run on the old
-and the new kit, transcripts compared line by line (values, errors,
-warnings with file and line, output at exit), with no difference.
+examples, and a differential fuzzer. The fuzzer runs the same random
+programs on two versions of the kit and compares the transcripts line by
+line: values, errors, warnings with file and line, the questions a
+finalizer asks at exit, and what is freed. The first one, a one-off
+script, reported no difference in 300 programs; it did not reach the
+deliberate differences. The one committed in the review follow-up
+(`tests/differential_fuzz.py`, §Reproducing) does. Old kit against new,
+300 programs of 300 steps and 100 heavy programs of 800 steps (490,000
+transcript lines), with CPython 3.14.3 on the M5: 397 programs differ.
+The differences are three of the four of §4.2: a warning shown once
+where the old kit repeated it (139 programs); a dropped Tag class freed
+(381: in 357 the objects it held are freed at a different step, in 24
+only earlier at exit, because the new kit frees them in an earlier
+shutdown collection, before a host's `__del__` or a finalizer's
+questions); a finalizer's question answered at exit where the old kit
+raised `ImportError` (365; 2,459 answers). Per-thread silencing needs
+threads, which the programs do not start; its test covers it. The
+interpreter matters: with CPython 3.12 on the same M5, 389 programs
+differ (139, 383 and none), because finalizers there ask the kit nothing
+at exit; a reviewer's run on Linux with CPython 3.13 gives 395, with the
+same counts for each kind.
 
 | # | Change | Effect (alternating runs, before -> after) |
 | --- | --- | --- |
@@ -168,21 +193,32 @@ Form-of-6 character's memory 61x -> 40x.
 
 ### 4.2 The four deliberate differences
 
-Each fixes a defect of the old kit; each has a test.
+Each fixes a defect of the old kit. Each has a test: the first and third
+in `EfficiencyTests`, the second and fourth in `DeliberateDifferenceTests`
+(added after review; before them, the second and fourth were shown only
+by one-off scripts).
 
 - **A warning given once is not repeated.** The gate used
   `warnings.catch_warnings()` for its scratch pass, which resets every
   warning registry, so a once-per-place warning (the default) printed at
   every gated tagging.
 - **Silencing is per thread.** Under `catch_warnings()`, a gate in one
-  thread dropped the kit's warnings in another (about 15 per cent of them
-  in the verification run).
+  thread dropped the kit's warnings in another: the old kit delivered
+  2,602 of 3,000 in the test (a reviewer saw 2,383 of 3,000); the new one
+  delivers all of them.
 - **A dropped Tag class is freed** (the leak of §3).
 - **Queries asked from a finalizer at interpreter shutdown answer.**
   `bool(agent)`, `Keyword`, a condition read by name, a published Report:
   the old kit raised `ImportError` there, because they imported at call
-  time. The finalizer itself still imports at call time, so teardowns at
-  shutdown behave exactly as before (see §5.6).
+  time. A published Report read for the first time at shutdown still
+  raised it after this PR; the review follow-up closed that too. The
+  finalizer itself still imports at call time, so teardowns at shutdown
+  behave exactly as before (see §5.6). One consequence the fuzzer
+  showed: at exit the language clears weak references before finalizers
+  run, so a Report's per-Tag cache may be empty there and the Report is
+  computed again. A Report that depends on something that changed since
+  its first read (the Tag's `__name__`, say) answers with the new value
+  at exit and with the cached one before it.
 
 ### 4.3 Tried and taken back
 
@@ -339,6 +375,24 @@ cent of a cycle, not worth a STEP.
 
 ---
 
+## 9. Other machines
+
+Every figure above is from one machine (Apple M5, macOS 26.4, CPython
+3.14.3). A reviewer re-ran `benchmarks/compare.py` on Linux with CPython
+3.13 and measured:
+
+| Figure | Apple M5, CPython 3.14 | Linux, CPython 3.13 |
+| --- | --- | --- |
+| A passing state kept as a Tag, vs a plain attribute | 280 to 420x | 248 to 363x |
+| The same state kept as a Record, vs a plain attribute | 2.4 to 3x | 1.4 to 1.6x |
+
+The conclusions hold on both: the misuse costs two orders of magnitude,
+and a Record costs a small multiple of an attribute. The multiples depend
+on the interpreter's attribute fast paths, which differ between 3.13 and
+3.14. Run `benchmarks/compare.py` on the machine that matters to you.
+
+---
+
 ## Reproducing
 
 - `PYTHONPATH=. python3 benchmarks/compare.py`: every scenario written as
@@ -349,3 +403,8 @@ cent of a cycle, not worth a STEP.
   machine).
 - `PYTHONPATH=. python3 benchmarks/bench.py`: the kit's own hot path and
   population figures.
+- `PYTHONPATH=. python3 tests/differential_fuzz.py --base 1cedd77 --new
+  b819b0a --seeds 300 --steps 300` (and `--seeds 100 --steps 800
+  --heavy`): the same random programs on the kit before and after this
+  PR, transcripts compared; `--keep DIR` keeps every program and both
+  transcripts. Its smoke test runs with the suite.

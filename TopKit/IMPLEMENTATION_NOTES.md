@@ -100,10 +100,10 @@ rollback target.
   words in its own `__dict__` (empty for bare `@Flag`); the name is read
   live from `__name__`, and the words are never inherited by Shapes.
   Each Agent keeps its active Flags and their aliases in `state.words`
-  until its Tags change or any `@Flag` is declared (the Flag generation).
-  A
-  string probe of a `str` subclass is read as its plain text, so matching
-  stays exact and never hashes an unhashable subclass. `Keyword()` is the
+  until its Tags change or any `@Flag` is declared (counted in
+  `declarations._flags_declared`). A string probe of a `str` subclass is
+  read as its plain text, so matching stays exact and never hashes an
+  unhashable subclass. `Keyword()` is the
   function form and works on any object.
 - **One seat, one meaning.** `access._host_in_seat` reads the host's `in`
   as Python does: `__contains__`, then `__iter__`; for each, the first

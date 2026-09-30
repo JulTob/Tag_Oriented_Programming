@@ -21,6 +21,7 @@ import weakref
 
 from .declarations import STATE
 from .declarations import _MISSING
+from .declarations import _Words
 from .declarations import _is_dunder
 from .declarations import _is_flag
 from .errors import TagCompositionError
@@ -67,7 +68,7 @@ class _State:
     originals: dict[str, Any] = field(default_factory=dict)       # what a Pin patched, as declared
     composing: int = 0
     checking: bool = False
-    words: tuple[int, tuple[type, ...], frozenset[str]] | None = None   # (Flag generation, Flags, aliases); None after the Tags change
+    words: _Words | None = None   # what its Flags answer to; None after its Tags change
 
     def Restore(
             state,
@@ -734,7 +735,9 @@ class _Secret_Gate:
                 )
 
 
-_require_membership: list[Callable[..., None]] = []
+_require_membership: Callable[..., None] | None = None
+# overlay's membership check for published members. overlay imports this
+# module, so it hands the check over when it loads (see overlay.py).
 
 
 class _Published:
@@ -756,14 +759,9 @@ class _Published:
         if agent is None:
             return gate
 
-        if not _require_membership:
-            from .overlay import _require_membership as require   # overlay imports this module
-
-            _require_membership.append(require)
-
         state = _namespace_of(agent)[STATE]
         origin, _declared = state.reports[gate.name]
-        _require_membership[0](
+        _require_membership(
                 agent,
                 origin,
                 gate.name,

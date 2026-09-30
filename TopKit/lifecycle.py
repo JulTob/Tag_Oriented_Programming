@@ -209,7 +209,7 @@ def Scope(
 
 
 _exit_registry: dict[int, _Member] = {}   # by registration number; an entry leaves when its Agent dies
-_exit_count = [0]
+_exit_count = 0   # registrations so far; each one's number is its key
 
 
 def _forget_exit(
@@ -227,13 +227,15 @@ def At_Exit(
     the registry when the Agent dies.
     """
 
+    global _exit_count
+
     reference = _Member(
             agent,
             _forget_exit,
             )
-    reference.key = _exit_count[0]
+    reference.key = _exit_count
     _exit_registry[reference.key] = reference
-    _exit_count[0] += 1
+    _exit_count += 1
 
     return agent
 
@@ -241,7 +243,7 @@ def At_Exit(
 def _run_exit_protocols() -> None:
     number = 0
 
-    while number < _exit_count[0]:   # registrations made during the pass are reached too
+    while number < _exit_count:   # registrations made during the pass are reached too
         reference = _exit_registry.get(number)
         number += 1
 

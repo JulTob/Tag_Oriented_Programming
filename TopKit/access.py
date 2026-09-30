@@ -14,6 +14,7 @@ from typing import Any
 from typing import Callable
 import sys
 
+from . import declarations
 from .contracts import _condition_member
 from .contracts import _holds
 from .errors import TagCompositionError
@@ -21,7 +22,6 @@ from .errors import TagResolutionError
 from .declarations import STATE
 from .declarations import _MISSING
 from .declarations import _is_flag
-from .declarations import _flag_generation
 from .declarations import _words_of
 from .lifecycle import _teardown_all
 from .state import _Bound
@@ -264,16 +264,18 @@ def _keyword(
 
         words = state.words
 
-        if words is None or words[0] != _flag_generation[0]:
-            words = state.words = (
-                    _flag_generation[0],
-                    *_words_of(state.active),
+        if words is None or words.flags_declared != declarations._flags_declared:
+            # Read the count before gathering: a @Flag declared meanwhile then
+            # marks these words stale, instead of letting them pass for new.
+            words = state.words = _words_of(
+                    state.active,
+                    declarations._flags_declared,
                     )
 
-        if probe in words[2]:
+        if probe in words.aliases:
             return True
 
-        for tag in words[1]:
+        for tag in words.flags:
             if tag.__name__ == probe:
                 return True
 

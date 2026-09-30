@@ -15,6 +15,7 @@ from inspect import Parameter
 from inspect import signature
 from typing import Any
 from typing import Callable
+from typing import NamedTuple
 from weakref import WeakKeyDictionary
 
 from .errors import TagDeclarationError
@@ -29,10 +30,11 @@ _RIP = "__topkit_rip__"
 _SECRET = "__topkit_secret__"
 _PUBLIC = "__topkit_public__"
 _FLAG = "__topkit_flag__"
-_flag_generation = [0]   # bumped by every @Flag, so no Agent keeps stale words
 _PIN = "__topkit_pin__"
 
 STATE = "_TOPKIT_STATE"
+
+_flags_declared = 0   # counts every @Flag, so an Agent's gathered words know when they are stale
 
 _MISSING = object()
 
@@ -369,21 +371,33 @@ def _mark_flag(
                     " too; a Flag cannot hold both"
                     )
 
+    global _flags_declared
+
     setattr(
             tag,
             _FLAG,
             tag.__dict__.get(_FLAG, frozenset()) | aliases,
             )
-    _flag_generation[0] += 1
+    _flags_declared += 1
 
     return tag
 
 
+class _Words(NamedTuple):
+    """What an Agent's Flags answer to, gathered once until its Tags change."""
+
+    flags_declared: int          # the count of @Flag marks when these were gathered
+    flags: tuple[type, ...]      # the active Flags; their names are read live
+    aliases: frozenset[str]      # every word they list
+
+
 def _words_of(
         active: list[type],
-        ) -> tuple[tuple[type, ...], frozenset[str]]:
-    """The active Flags, and every alias they list. Their names are read
-    live at each question, so a renamed Tag answers to its new name."""
+        flags_declared: int,
+        ) -> _Words:
+    """The active Flags and every alias they list. Their names are not
+    kept: they are read at each question, so a renamed Tag answers to its
+    new name."""
 
     flags = []
     aliases: set[str] = set()
@@ -395,7 +409,8 @@ def _words_of(
             flags.append(tag)
             aliases.update(listed)
 
-    return (
+    return _Words(
+            flags_declared,
             tuple(flags),
             frozenset(aliases),
             )

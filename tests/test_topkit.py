@@ -52,7 +52,29 @@ from TopKit import TagRogueAccessError
 from TopKit import TagResolutionError
 from TopKit import Tags
 from TopKit import Underlay
-import TopKit.lifecycle as lifecycle
+
+
+def Run_Program(
+        source: str,
+        ) -> tuple[list[str], str]:
+    """Run ``source`` in a fresh interpreter with this TopKit; return its
+    output lines and its stderr. What a program does at exit is observable
+    only there."""
+
+    import pathlib
+    import subprocess
+    import sys
+
+    root = pathlib.Path(__file__).resolve().parent.parent
+    result = subprocess.run(
+            [sys.executable, "-E", "-c", source],   # -E: the caller's PYTHON* settings stay out;
+            cwd=root,                               # -c puts this checkout, the cwd, first on the path
+            capture_output=True,
+            text=True,
+            timeout=60,                             # a hang at exit fails the test, not the run
+            )
+
+    return result.stdout.splitlines(), result.stderr
 
 
 # ==================================================================
@@ -2469,12 +2491,22 @@ class ExitProtocolTests(unittest.TestCase):
         del ari
         gc.collect()
 
-        self.assertIsNone(reference())
+        self.assertIsNone(reference())                 # weak: it never kept the Agent
 
-        bea = Agent()
-        At_Exit(bea)
+        import tracemalloc
 
-        self.assertTrue(all(r() is not None for r in lifecycle._exit_registry.values()))
+        gc.collect()
+        tracemalloc.start()
+        before, _peak = tracemalloc.get_traced_memory()
+
+        for _ in range(2000):
+            At_Exit(Agent())                           # each registration dies with its Agent
+
+        gc.collect()
+        after, _peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+
+        self.assertLess((after - before) / 2000, 16)   # nothing kept per dead registration
 
 
 # ==================================================================
@@ -3669,18 +3701,28 @@ class EfficiencyTests(unittest.TestCase):
         self.assertIsNone(reference())
 
     def test_a_ripped_tag_leaves_no_view_behind(self) -> None:
-        from TopKit.state import _state_of
+        class Payload:
+            pass
+
+        class Carrier(Tag):
+            @Record
+            def payload(agent) -> Payload:
+                return Payload()
 
         ari = Agent()
-        Elf(ari)
-        del Elf[ari]
+        Carrier(ari)
+        first = weakref.ref(ari.payload)
+        ari.payload = None                             # the Agent lets go of it
 
-        self.assertNotIn(Elf, _state_of(ari).snapshots)
-        self.assertIn(Person, _state_of(ari).snapshots)
+        self.assertIs(ari.Carrier.payload, first())    # the view still shows it
 
-        Elf(ari)
-        self.assertIn(Elf, _state_of(ari).snapshots)                    # a fresh view
-        self.assertEqual(ari.Elf.Attack(), ari.Attack())
+        del Carrier[ari]
+        gc.collect()
+
+        self.assertIsNone(first())                     # the view left with the membership
+
+        Carrier(ari)
+        self.assertIs(ari.Carrier.payload, ari.payload)   # a fresh view, taken now
 
     def test_a_gate_does_not_repeat_a_warning_once_given(self) -> None:
         class Base(Tag):
@@ -3767,17 +3809,18 @@ class EfficiencyTests(unittest.TestCase):
 
     def test_leaves_are_the_tags_nothing_active_specializes(self) -> None:
         import random
-        from TopKit.geometry import _form_of
-        from TopKit.geometry import _leaves
 
         family = (Root, Left, Right, Bridge, Person, Elf, Combatant)
         chance = random.Random(1701)
 
         for _ in range(300):
+            agent = Agent()
             active: list[type] = []
 
             for tag in chance.sample(family, chance.randint(1, len(family))):
-                for member in _form_of(tag):
+                tag(agent)
+
+                for member in Form(tag):
                     if member not in active:
                         active.append(member)
 
@@ -3790,7 +3833,7 @@ class EfficiencyTests(unittest.TestCase):
                             )
                     )
 
-            self.assertEqual(_leaves(active), pairwise)
+            self.assertEqual(Tags(agent), pairwise)
 
     def test_reapplying_an_active_form_changes_nothing(self) -> None:
         ari = Agent()
@@ -3813,42 +3856,38 @@ class EfficiencyTests(unittest.TestCase):
         self.assertTrue(Keyword(ari, "Wolf"))    # and gathered again, not stale
 
     def test_at_exit_runs_every_registration_in_order(self) -> None:
-        log: list[str] = []
-        saved = dict(lifecycle._exit_registry)
-        lifecycle._exit_registry.clear()
+        lines, stderr = Run_Program(
+                """
+from TopKit import Tag, Rip, At_Exit
 
-        class Second(Tag):
-            @Rip
-            def Down(agent) -> None:
-                log.append("second")
+class Door:
+    def __init__(self, name): self.name = name
 
-        class First(Tag):
-            @Rip
-            def Down(agent) -> None:
-                log.append("first")
-                late = Agent()
-                Second(late)
-                keep.append(late)
-                At_Exit(late)              # registered while the exit pass runs
+class Second(Tag):
+    @Rip
+    def Stand_Down(agent): print(agent.name, "second")
 
-        keep: list[object] = []
-        ari = Agent()
-        First(ari)
-        At_Exit(ari)
-        At_Exit(ari)                       # a second registration is its own entry
+class First(Tag):
+    @Rip
+    def Down(agent):
+        print(agent.name, "first")
+        Second(agent)                         # leaving, it takes another Tag
+        late = Door("late"); Second(late); keep.append(late)
+        At_Exit(late)                         # registered while the exit pass runs
 
-        try:
-            self.assertEqual(
-                    sum(1 for r in lifecycle._exit_registry.values() if r() is ari),
-                    2,
-                    )
+keep = []
+ari = Door("ari"); First(ari)
+At_Exit(ari)
+At_Exit(ari)                                  # a second registration is its own pass
+print("end")
+""",
+                )
 
-            lifecycle._run_exit_protocols()
-
-            self.assertEqual(log, ["first", "second"])   # the late one is reached
-        finally:
-            lifecycle._exit_registry.clear()
-            lifecycle._exit_registry.update(saved)
+        self.assertEqual(
+                lines,
+                ["end", "ari first", "ari second", "late second"],
+                )
+        self.assertEqual(stderr, "")
 
     def test_an_underlay_is_the_same_callable_with_or_without_arguments(self) -> None:
         seen: list[str] = []
@@ -4242,10 +4281,6 @@ class LayeredDeletionTests(unittest.TestCase):
         self.assertEqual(reported, [])
 
     def test_a_pinned_shape_with_a_flag_pin_ends_quietly(self) -> None:
-        import pathlib
-        import subprocess
-        import sys
-
         program = """
 from TopKit import Tag, Pin, Flag, Record
 
@@ -4267,17 +4302,10 @@ class Archmage(Wizard): pass     # its metaclass is Wizard's runtime type
 Deprecated(Archmage)
 print("end", "Deprecated" in Archmage)
 """
-        root = pathlib.Path(__file__).resolve().parent.parent
-        result = subprocess.run(
-                [sys.executable, "-c", program],
-                cwd=root,
-                capture_output=True,
-                text=True,
-                env={"PYTHONPATH": str(root)},
-                )
+        lines, stderr = Run_Program(program)
 
-        self.assertEqual(result.stdout.splitlines(), ["end True"])
-        self.assertEqual(result.stderr, "")                   # no finalizer recursed at exit
+        self.assertEqual(lines, ["end True"])
+        self.assertEqual(stderr, "")                   # no finalizer recursed at exit
 
     def test_an_interruption_is_reported_even_when_a_layer_raises(self) -> None:
         import sys
@@ -4649,10 +4677,6 @@ print("end", "Deprecated" in Archmage)
         self.assertIs(type(first), type(third))
 
     def test_at_exit_only_the_layers_run(self) -> None:
-        import pathlib
-        import subprocess
-        import sys
-
         program = """
 from TopKit import Tag, Rip, At_Exit, Underlay
 
@@ -4693,8 +4717,6 @@ class Warded(Tag):
         write(1, (agent.name + " warded\\n").encode())
         underlay()
 
-def Hook(kind, value, trace): sys.__excepthook__(kind, value, trace)
-
 import TopKit.access, TopKit.lifecycle, TopKit.overlay, TopKit.state
 
 KIT = (TopKit.access, TopKit.lifecycle, TopKit.overlay, TopKit.state)
@@ -4713,39 +4735,135 @@ class Called:
 guarded = Door("guarded"); Guard(guarded)
 warded = Door("warded"); Guard(warded); Warded(warded)
 called = Called(); Guard(called)
+plain = type(guarded).__new__(type(guarded))   # built from an Agent's runtime type, never tagged
+plain.name = "plain"
 print("end")
 """
-        root = pathlib.Path(__file__).resolve().parent.parent
-        result = subprocess.run(
-                [sys.executable, "-c", program],
-                cwd=root,
-                capture_output=True,
-                text=True,
-                env={"PYTHONPATH": str(root)},
-                )
-        lines = result.stdout.splitlines()
+        lines, stderr = Run_Program(program)
 
         self.assertEqual(lines[0], "end")
         self.assertEqual(lines.index("listed teardown"), 1)   # At_Exit: while Python is whole
         self.assertNotIn("alive teardown", lines)             # teardowns at exit are opt-in
         self.assertLess(lines.index("alive warded"), lines.index("alive host"))
         self.assertIn("listed host", lines)
-        self.assertEqual(result.stderr, "")
+        self.assertEqual(stderr, "")
 
-        result = subprocess.run(
-                [sys.executable, "-c", late],
-                cwd=root,
-                capture_output=True,
-                text=True,
-                env={"PYTHONPATH": str(root)},
-                )
-        lines = result.stdout.splitlines()
+        lines, stderr = Run_Program(late)
 
         self.assertEqual(lines[0], "end")
         self.assertIn("guarded host", lines)                  # even after the kit's modules are gone
         self.assertIn("closer host", lines)
+        self.assertIn("plain host", lines)                    # an untagged object of a runtime type, too
         self.assertLess(lines.index("warded warded"), lines.index("warded host"))
         self.assertNotIn("guarded teardown", lines)
+
+
+class DeliberateDifferenceTests(unittest.TestCase):
+    """Two fixes of the performance work (PERFORMANCE-2026-09-24.md, 4.2)
+    that change what a program can observe, each shown here."""
+
+    def test_a_gate_in_one_thread_silences_no_warning_in_another(self) -> None:
+        import sys
+        import threading
+
+        class Base(Tag):
+            def Attack(agent) -> str:
+                return "base"
+
+        class Rival(Tag):
+            def Attack(agent) -> str:   # replaces an independent Tag's Action: warns
+                return "rival"
+
+        class Gated(Tag):
+            @Pre
+            def Ready(agent) -> bool:
+                return True
+
+        rounds = 3000
+        heard: list[int] = []
+        warner: list[int] = []
+
+        def Show(message, category, filename, lineno, file=None, line=None) -> None:
+            if issubclass(category, TagOverwriteWarning) and threading.get_ident() in warner:
+                heard.append(1)
+
+        def Warn() -> None:
+            warner.append(threading.get_ident())
+
+            for _ in range(rounds):
+                hero = Agent()
+                Base(hero)
+                Rival(hero)
+
+        def Gate() -> None:
+            while not done.is_set():
+                Gated(Agent())                 # its scratch pass is silenced
+
+        done = threading.Event()
+        interval = sys.getswitchinterval()
+        shown = warnings.showwarning
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            warnings.showwarning = Show
+            sys.setswitchinterval(1e-6)
+
+            try:
+                gate = threading.Thread(target=Gate)
+                gate.start()
+                warn = threading.Thread(target=Warn)
+                warn.start()
+                warn.join()
+                done.set()
+                gate.join()
+            finally:
+                sys.setswitchinterval(interval)
+                warnings.showwarning = shown
+
+        self.assertEqual(len(heard), rounds)   # the old kit delivered about four in five
+
+    def test_queries_from_a_finalizer_answer_at_shutdown(self) -> None:
+        lines, stderr = Run_Program(
+                """
+from TopKit import Tag, Flag, Keyword, Post, Public, Report
+
+class Host:
+    alive = True
+
+@Flag("Wolf")
+class Werewolf(Tag):
+    @Post
+    def Fed(agent): return agent.alive
+
+    @Public
+    @Report
+    def pack(tag): return "north"
+
+class Witness:                        # an untagged object whose finalizer asks
+    def __init__(self, agent): self.agent = agent
+    def __del__(self):
+        for label, ask in (
+                ("bool", lambda: bool(self.agent)),
+                ("keyword", lambda: Keyword(self.agent, "Wolf")),
+                ("condition", lambda: self.agent.Fed),
+                ("report", lambda: self.agent.pack),
+                ):
+            try:
+                print(label, ask())
+            except Exception as error:
+                print(label, type(error).__name__)
+
+ari = Host()
+Werewolf(ari)
+witness = Witness(ari)
+print("end")
+""",
+                )
+
+        self.assertEqual(
+                lines,
+                ["end", "bool True", "keyword True", "condition True", "report north"],
+                )
 
 
 if __name__ == "__main__":
