@@ -45,15 +45,16 @@
   line in the form the Director chose. A condition that returns a
   non-boolean raises the Contract Failure on read, and so do `hasattr`
   and `getattr` with a default (0.2.0a3 gave False and None), while
-  `Contract.Status` and `bool(agent)` read it as False. A gate is read
-  without the tagging's inputs.
+  `Contract.Status` reads it as False, and so does `bool(agent)` for a
+  Postcondition. A gate is read without the tagging's inputs.
 - **A Scope Rips the Tags it applied, and only those** (§3.2; STEP-SPEC-6
   amended 2026-09-29). Two differences from 0.2.0a3: a Tag the Agent
-  already carried at entry is no longer Ripped on exit (the Scope adds
-  nothing, and the block still runs); a Tag that applied and then failed
-  at the door, through its Postcondition or its Imprint, is now Ripped as
-  the failure leaves the Scope. A Base the Scope pulled in with a Shape
-  stays. Found by the oracle.
+  already carries when the Scope reaches it is no longer Ripped on exit
+  (the Scope adds nothing, and the block still runs); a Tag that applied
+  and then failed at the door, through its Postcondition or its Imprint,
+  is now Ripped as the failure leaves the Scope. A Base the Scope pulled
+  in with a Shape stays, even when the Scope names it after that Shape.
+  Found by the oracle.
 - STEP-SPEC-15 (Trials, the recoverable phase the archived checkpoints
   were) and STEP-SPEC-16 (uniform access) opened at Brief with the full
   case for the Director's review.
@@ -100,8 +101,8 @@
   on its Tag, so a Report read from a finalizer at exit answers the value
   it gave before. It used to be built again there, after the language had
   cleared the weak cache: a renamed Tag gave a new value at exit. The weak
-  cache also kept a Shape alive forever when its Base's Report value held
-  the Shape.
+  cache also kept a Shape alive forever when the value a Base's Report
+  built for the Shape held the Shape.
 - Review follow-up: tests for the two deliberate differences that had
   none (per-thread warning silencing, queries at shutdown); tests that
   read the kit's internals now test what a program can observe; the

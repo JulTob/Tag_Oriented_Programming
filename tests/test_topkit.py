@@ -2673,6 +2673,19 @@ class ScopeTests(unittest.TestCase):
         self.assertNotIn(bo, Dire)                                    # the Tag it named and applied
         self.assertIn(bo, Wolf)                                       # the Base it pulled in stays
 
+        cy, di = Agent(), Agent()
+
+        with Scope(cy, Dire, Wolf):                                   # Wolf is carried by its turn
+            pass
+
+        with Scope(di, Wolf, Dire):                                   # Wolf is the Scope's own
+            pass
+
+        self.assertIn(cy, Wolf)
+        self.assertNotIn(cy, Dire)
+        self.assertNotIn(di, Wolf)
+        self.assertNotIn(di, Dire)
+
 
 class AccessTests(unittest.TestCase):
     def test_views_by_name_and_by_class(self) -> None:

@@ -172,10 +172,12 @@ def Scope(
     the block raises. The guaranteed teardown path.
 
     It Rips the Tags it names that it applied, and only those. A Tag the
-    Agent already carried at entry is left as it was, and the block still
-    runs. A Tag that applied and then failed at the door, through its
-    Postcondition or its Imprint, did apply, so it is Ripped on the way
-    out like any other. A Base pulled in with a Shape stays.
+    Agent already carries when the Scope reaches it is left as it was,
+    and the block still runs. A Tag that applied and then failed at the
+    door, through its Postcondition or its Imprint, did apply, so it is
+    Ripped on the way out like any other. A Base pulled in with a Shape
+    stays, even when the Scope names it after that Shape: the Agent
+    already carries it by then.
     """
 
     applied: list[type] = []

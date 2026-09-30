@@ -1078,18 +1078,19 @@ stored, never callable. A Postcondition answers before a Precondition of
 the same name; a condition that raises reads `False`. A condition that
 returns anything but `True`, `False` or `None` (a `0`, say) raises the
 Contract Failure on read, and so do `hasattr(agent, "Has_Book")` and
-`getattr(agent, "Has_Book", None)`; `Contract.Status` and `bool(agent)`
-read it as `False`. Because the name is read on the Agent, a condition
-may not share its name with an Action, a Record, a member the host
-defines or a value the Agent already holds: the tagging is refused at
-the door with a Composition Failure, and so is an Action or a Record
-laid over a condition's name. Nothing is silently shadowed. A
-pinned Tag reads its own conditions the same way (`Wizard.Has_Members`).
-A condition that outlived its Tag (§0.7) still reads by name until the
-author ends it. A gate is read now, without the tagging's inputs: a
-later read calls it with its defaults, so `@Pre def Has_Code(agent,
-code=None): return code == "007"` reads `False` on the Agent once the
-call is over, and a gate that requires an input reads `False`.
+`getattr(agent, "Has_Book", None)`; `Contract.Status` reads it as
+`False`, and so does `bool(agent)` when it is a Postcondition. Because
+the name is read on the Agent, a condition may not share its name with
+an Action, a Record, a member the host defines or a value the Agent
+already holds: the tagging is refused at the door with a Composition
+Failure, and so is an Action or a Record laid over a condition's name.
+Nothing is shadowed. A pinned Tag reads its own conditions the same way
+(`Wizard.Has_Members`). A condition that outlived its Tag (§0.7) still
+reads by name until the author ends it. A gate is read now, without the
+tagging's inputs: a later read calls it with its defaults, so `@Pre def
+Has_Code(agent, code=None): return code == "007"` reads `False` on the
+Agent once the call is over, and a gate that requires an input reads
+`False`.
 
 Truthiness on a plain object is vacuously true, so this fills an empty
 seat. A host that defines its own `__bool__` or `__len__` keeps it until a
@@ -1284,17 +1285,19 @@ assert log == ["put down", "spell fades", "wick out"]
 ```
 
 **A Scope Rips the Tags it applied, and only those** (STEP-SPEC-6,
-amended 2026-09-29). A Tag the Agent already carries at entry is the
-Agent's: the Scope adds nothing and takes nothing away, and the block
-still runs. A Base the Scope pulls in with a Shape stays. A Tag that
-applied and then failed at the door, through its Postcondition or its
-Imprint, stays applied (§0.6), so the Scope Rips it, and the Tags it
-applied before it, as the failure leaves; the block does not run.
+amended 2026-09-29). A Tag the Agent already carries when the Scope
+reaches it is the Agent's: the Scope adds nothing and takes nothing
+away, and the block still runs. A Base the Scope pulls in with a Shape
+stays, and so does a Base the Scope names after that Shape, because the
+Agent already carries it by then. A Tag that applied and then failed at
+the door, through its Postcondition or its Imprint, stays applied
+(§0.6), so the Scope Rips it, and the Tags it applied before it, as the
+failure leaves; the block does not run.
 
 ```python
 with Scope(agent, Sentry):
     guard_the_gate(agent)
-# Sentry's teardown has run here, exception or not
+# Sentry's teardown has run here, exception or not, if the Scope applied it
 ```
 
 ---

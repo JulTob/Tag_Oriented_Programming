@@ -673,8 +673,9 @@ are constructor and destructor, `__enter__` and `__exit__`.
 
 A Scope takes away only what it gave. If the guard is already a Sentry,
 the block runs and he stays one. A Base the Scope pulled in with a Shape
-stays too. A Sentry whose `post` fails at the door is still Ripped on
-exit, because the Scope applied it.
+stays too, even if the Scope names it after the Shape. A Sentry whose
+`post` fails at the door is Ripped as the error leaves the `with`, and
+the block does not run: the Scope applied it.
 
 A role's conditions do **not** leave with it on their own. What the
 Agent *became* stays (pattern 1's Rogue Agent), and so does what the role

@@ -66,9 +66,9 @@ door stayed applied (§0.6) and was not Ripped.
 
 | Question | The Director's decision |
 | --- | --- |
-| A Tag the Agent already carries | The Scope adds nothing and takes nothing away; the block still runs: "if hero is in Wizard then the with is skipped. makes sense? with is for trial runs or temporary." |
+| A Tag the Agent already carries | The Scope adds nothing and takes nothing away: "if hero is in Wizard then the with is skipped. makes sense? with is for trial runs or temporary." What is skipped is the Scope's tagging and its Rip; the block still runs |
 | A Tag that applied and then failed at the door (its Postcondition, or its Imprint) | Ripped as the failure leaves the Scope, with the Tags applied before it: the Scope applied it; the block does not run |
-| A Base the Scope pulled in with a Shape | Stays: the Scope Rips the Tags it names that it applied, and only those. The words were fixed, not the kit |
+| A Base the Scope pulled in with a Shape | Stays: the Scope Rips the Tags it names that it applied, and only those. The words were fixed, not the kit. A Base the Scope names after its Shape is already carried when the Scope reaches it, so it stays too |
 | When, and the spelling | "Rule now, spelling this release, but add Wizard[h, **inputs] to the rule if possible"; `with Wizard[h]:` goes to a STEP of its own |
 
 Covered by `tests/test_topkit.py::ScopeTests` and the oracle

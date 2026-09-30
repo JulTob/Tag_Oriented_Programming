@@ -15,15 +15,15 @@
 Every condition on an Agent can be read on the Agent by its own name, as
 a plain boolean computed on read: `agent.Has_Book` is True while the
 promise called `Has_Book` holds and False when it does not. Nothing lands
-on the Agent: the name answers on the miss path, so no value is stored,
-no proxy stands in for the boolean. The member and
+on the Agent: the name answers on the miss path, so no value is stored
+and no proxy stands in for the boolean. The member and
 `Contract.Status(agent)` give the same True or False. A condition that
-returns anything else raises the Contract Failure on the member, while
-the status and `bool(agent)` read it as False. Because the name is read
-on the Agent, **a
-condition may not share its name** with an Action, a Record, a member
-the host defines, or a value the Agent already holds; the tagging is
-refused at the door.
+returns anything but True, False or None raises the Contract Failure on
+the member, while the status reads it as False, and so does
+`bool(agent)` for a Postcondition. Because the name is read on the
+Agent, **a condition may not share its name** with an Action, a Record,
+a member the host defines, or a value the Agent already holds; the
+tagging is refused at the door.
 
 ## Motivation
 
@@ -49,11 +49,12 @@ back the Agent member."
    input reads False.
 2. **Plain.** The value is the language's boolean and nothing else. It is
    not stored on the Agent, cannot be assigned, and is not callable.
-3. **A condition that raises reads False.** A condition that returns
-   something other than True, False or None (0, say) raises the Contract
-   Failure on read. `Contract.Status(agent)` and `bool(agent)` read it as
-   False, and the Agent waits in `~Tag`: the member names the defect, the
-   status counts it.
+3. **A condition that raises reads False; a non-boolean raises.** A
+   condition that returns something other than True, False or None (0,
+   say) raises the Contract Failure on read. `Contract.Status(agent)`
+   reads it as False. For a Postcondition, `bool(agent)` reads False too
+   and the Agent waits in `~Tag`: the member names the defect, the status
+   counts it. A gate is not part of `bool(agent)`.
 4. **The name is the condition's own.** A tagging whose condition is
    called like an Action or a Record already on the Agent, like a
    member the host class defines, or like a value the Agent already
@@ -119,5 +120,5 @@ every transition and compares it with `Contract.Status`.
 > *Added 2026-09-29:* two points of wording, ruled by the Director. A
 > condition that returns a non-boolean: "Keep raising, fix the words"
 > (Summary, items 3 and 7, Backwards compatibility). A gate that uses the
-> tagging's inputs reads False afterwards: "Keep it, write it down"
-> (item 1).
+> tagging's inputs is read afterwards without them, with its defaults:
+> "Keep it, write it down" (item 1).
