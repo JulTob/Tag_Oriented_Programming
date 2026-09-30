@@ -120,3 +120,6 @@ Covered by `tests/test_topkit.py::InSeatTests`.
 > `tests/test_topkit.py`. Cleared on 2026-09-05, per the
 > Director's direction in review ("I confirm the if and in with the
 > @Flag"; `Keyword` as the function's name).
+>
+> Amended on 2026-09-24 (the Amendment above), with the Director's
+> approval: "Yeah, we can ammend the spec 7. We moved along already."
