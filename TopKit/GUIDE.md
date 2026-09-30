@@ -665,8 +665,8 @@ assert guard not in Sentry
 ```
 
 `@Imprint` runs after the Tag applies; `@Rip` runs after it leaves, or when
-the object is deleted (see below). They
-are constructor and destructor, `__enter__` and `__exit__`.
+the object is deleted (see below). They are constructor and destructor,
+`__enter__` and `__exit__`.
 
 A role's conditions do **not** leave with it on their own. What the
 Agent *became* stays (pattern 1's Rogue Agent), and so does what the role
@@ -749,11 +749,11 @@ still a member of its Tags: `lamp in Carried` answers yes, and a walk of
 `Carried[:]` finds it, unless it was collected in a cycle (Python has
 cleared the Field's weak references by then). After `del Carried[lamp]`
 they run once it has left. A teardown and a `__del__` may call the
-object's Actions at deletion, in a collected cycle too. At interpreter
-exit only the `__del__` Layers run. To have teardowns run at exit too,
-register the Agent with `At_Exit(agent)`: the pass runs them while the
-object is still a member, and one that fails there is printed on stderr
-the same way.
+object's Actions at deletion, in a collected cycle too. When the
+interpreter shuts down, after the `atexit` functions, only the `__del__`
+Layers run. To have teardowns run at exit too, register the Agent with
+`At_Exit(agent)`: the pass runs them while the object is still a
+member, and one that fails there is printed on stderr the same way.
 
 ### Pattern 10 · Build the sheet from pieces
 

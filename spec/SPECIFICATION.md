@@ -1254,8 +1254,10 @@ after a Rip: `agent in Tag` answers yes, and a walk of the Field finds
 it, unless the language has already cleared the Field's weak references,
 as Python does for a collected cycle. A `__del__` never stops a teardown:
 replacing the Layers replaces only them, and an interrupted teardown
-does not skip them. At interpreter exit only the Layers run; teardowns
-at exit are `At_Exit`'s. An error raised by a `__del__` Layer is reported
+does not skip them. Once the interpreter is finalizing at exit (in
+Python, after the `atexit` functions ran), only the Layers run; a
+deletion before that is an ordinary one, and teardowns at exit are
+`At_Exit`'s. An error raised by a `__del__` Layer is reported
 as the language reports any finalizer's. The teardowns stay best effort.
 A teardown that fails at deletion is reported the same way, after every
 teardown and every Layer has run; one that fails in the `At_Exit` pass
@@ -1329,7 +1331,7 @@ types but must keep these distinct.
 | Failure | Meaning | Effect |
 | --- | --- | --- |
 | **Tag Declaration Failure** | A Tag is written wrong: illegal mark combination, `@Underlay` without a parameter to receive it. | at class use |
-| **Tag Composition Failure** | Contributions cannot form the Overlay: cross-kind collision, Record over a host descriptor, a Record builder or teardown that failed, a Target that cannot carry state, a Base still required. | call rolled back (or Rip refused) |
+| **Tag Composition Failure** | Contributions cannot form the Overlay: cross-kind collision, Record over a host descriptor, a Record builder that failed, a teardown that failed on a Rip (at deletion, a finalizer's error, §3.2), a Target that cannot carry state, a Base still required. | call rolled back (or Rip refused) |
 | **Tag Resolution Failure** | A required Underlay, view, or membership is unavailable. | call rolled back |
 | **Tag Rogue Access Failure** | A Rogue Agent reached a published member of a Tag it has left. A Resolution Failure, and a TOP failure only: never dressed as a host-language attribute failure. | use refused |
 | **Tag Precondition Failure** | A gate refused the incoming Agent. | call rolled back |
@@ -1405,7 +1407,8 @@ A conforming implementation provides, ring by ring:
   pass; their failures reported, as a Composition Failure on a Rip and
   as a finalizer's error at deletion and in the `At_Exit` pass; the
   three deletion tiers; the Agent's `__del__` as Layers of its Overlay,
-  run after the teardowns, and alone at interpreter exit.
+  run after the teardowns, and alone at interpreter exit; the Agent's
+  own Actions answer its teardowns and its `__del__` Layers at deletion.
 
 **Everywhere**
 - the failure types above, distinct and named.
