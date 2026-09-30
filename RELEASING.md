@@ -46,6 +46,8 @@ PYTHONPATH=. python3 -m unittest discover -s tests -t .
   marked unreleased.
 - `pyproject.toml`'s `version` matches that entry and is higher than the
   last one on PyPI.
+- The README's links are absolute GitHub links: PyPI shows the README,
+  and a relative link is broken there.
 
 Build, check, upload:
 
@@ -68,5 +70,10 @@ of the same number is refused.
 
 `0.2.0aN` while the Specification is still moving. The version rises
 when a STEP is Deployed, not when the code changes: the kit tracks the
-paradigm, not the other way round. An alpha is not installed by a plain
-`pip install topkit`; users who want it say `pip install --pre topkit`.
+paradigm, not the other way round.
+
+While no final release exists, a plain `pip install topkit` installs the
+newest alpha: pip follows PEP 440 and takes a pre-release when no final
+release matches. Once a final release is on PyPI, a plain pip installs
+that, and users who want an alpha say `pip install --pre topkit`.
+`pip index versions topkit` hides alphas unless given `--pre`.
