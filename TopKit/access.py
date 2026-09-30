@@ -13,6 +13,7 @@ from functools import partial
 from typing import Any
 from typing import Callable
 import sys
+import weakref
 
 from . import declarations
 from .contracts import _condition_member
@@ -24,6 +25,7 @@ from .declarations import _MISSING
 from .declarations import _is_flag
 from .declarations import _words_of
 from .lifecycle import _report_failures
+from .lifecycle import _report_layer_failure
 from .lifecycle import _teardown_all
 from .state import _Bound
 from .state import _Pinned_Operation
@@ -32,6 +34,8 @@ from .state import _State
 from .state import _name_of
 from .state import _retie_actions
 from .state import _state_of
+from .state import _ties_cleared
+from .state import _untie_actions
 
 
 # ------------------------------------------------------------------
@@ -341,19 +345,24 @@ def _agent_del(
         state_key: str = STATE,
         host_finalizer: Callable[[object], None] = _host_finalizer,
         read: Callable[[object, str], Any] = object.__getattribute__,
+        weak_count: Callable[[object], int] = weakref.getweakrefcount,
+        ties_cleared: Callable[..., bool] = _ties_cleared,
         retie: Callable[..., list] = _retie_actions,
+        untie: Callable[..., None] = _untie_actions,
+        caught: type = BaseException,
         ) -> None:
-    """Deletion (§3.2, STEP-SPEC-18). The Agent's Actions are tied to it
-    again first, so a teardown and a Layer call them as anywhere (in a
-    collected cycle Python has cleared their weak references); once the
-    Layers ran, the old dead references are put back. Then the
-    teardowns still due run, best effort; then the Agent's ``__del__``
-    runs as its Overlay shows it: the top Layer, which reaches the host's
-    own through ``@Underlay``, or the host's own when no Tag declares one.
-    At interpreter exit only the ``__del__`` Layers run: teardowns there
-    are At_Exit's, and opt-in. A ``__del__`` Layer's own error is reported
-    as Python reports any finalizer's; so is each teardown that failed,
-    after every teardown and every Layer has run.
+    """Deletion (§3.2, STEP-SPEC-18). In a collected cycle the Agent's
+    Actions are tied to it again first, so a teardown and a Layer call
+    them as anywhere (Python has cleared their weak references); once the
+    Layers ran, they are untied, so code run after the finalizer meets a
+    dead Agent. Then the teardowns still due run, best effort; then the
+    Agent's ``__del__`` runs as its Overlay shows it: the top Layer, which
+    reaches the host's own through ``@Underlay``, or the host's own when
+    no Tag declares one. Once the interpreter is finalizing only the
+    ``__del__`` Layers run: teardowns there are At_Exit's, and opt-in. A
+    ``__del__`` Layer's own error is reported as Python reports any
+    finalizer's; so is each teardown that failed, after every teardown
+    and every Layer has run, and an interruption last.
 
     At exit this module's globals, and even the builtins, may already be
     gone. So the exit path uses neither: what it needs is bound here as a
@@ -367,13 +376,18 @@ def _agent_del(
         host_finalizer(agent)   # built from an Agent's runtime type, never tagged: a plain host
         return
 
+    cleared = (
+            not weak_count(agent)   # a collected cycle: Python cleared every weak reference to it
+            or ties_cleared(state, namespace)   # cleared, and another finalizer of the collection made one since
+            )
     retied = retie(
             agent,
             state,
             namespace,
-            )   # in a cycle Python cleared the Actions' weak references: agent.Ring() works again
+            ) if cleared else None   # agent.Ring() works again; at a plain del it always did
 
     interrupted = None
+    broken = None   # a Layer's own error, when an interruption must be raised after it
     failures: list = []
 
     if not finalizing():
@@ -387,9 +401,9 @@ def _agent_del(
         except BaseException as error:
             interrupted = error   # Ctrl-C in a teardown: the __del__ Layers still run
 
-    try:
-        layer = state.actions.get("__del__")
+    layer = state.actions.get("__del__")
 
+    try:
         if layer is not None:
             state.composing += 1   # a Tag's Layer runs inside the composition door (§1.5)
 
@@ -399,15 +413,34 @@ def _agent_del(
                 state.composing -= 1
         elif "__del__" not in state.deleted:
             host_finalizer(agent)
+    except caught as error:
+        if interrupted is None:
+            raise   # Python reports it, as any finalizer's error
+
+        broken = error   # raising the interruption would hide it: reported below
     finally:
-        for bound, reference in retied:
-            bound._reference = reference   # the re-tie was for this finalizer only: code run after it meets a dead Agent
+        if cleared:
+            untie(
+                    agent,
+                    namespace,
+                    retied,
+                    )   # the re-tie was for this finalizer only: code run after it meets a dead Agent
 
         if failures:
             _report_failures(
                     agent,
                     failures,
                     )   # after every teardown and every Layer: one report each
+
+        if broken is not None:
+            try:
+                _report_layer_failure(
+                        agent,
+                        broken,
+                        layer,
+                        )
+            finally:
+                broken = None   # its traceback holds this frame, which holds the Agent
 
         if interrupted is not None:
             try:

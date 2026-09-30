@@ -113,21 +113,18 @@ _Failure = tuple[type, Any, Exception]   # the Tag, the teardown, its error
 
 def _teardown_all(
         agent: object,
-        failures: list[_Failure] | None = None,
-        ) -> list[_Failure]:
+        failures: list[_Failure],
+        ) -> None:
     """Best-effort teardown of every still-active Tag (finalizer, exit):
     every teardown still due runs, once, while the Agent is still a
-    member. The failures are returned, for the caller to report once
-    everything else has run (STEP-SPEC-18, amended). A caller that passes
-    its own list keeps what an interruption leaves in it."""
+    member. Each failure is added to ``failures``, the caller's list, for
+    the caller to report once everything else has run (STEP-SPEC-18,
+    amended); an interruption leaves what was gathered there."""
 
     state = _state_of(agent)
 
-    if failures is None:
-        failures = []
-
     if state is None:
-        return failures
+        return
 
     state.composing += 1   # teardowns run inside the composition door, as on a Rip
 
@@ -151,10 +148,8 @@ def _teardown_all(
     finally:
         state.composing -= 1
 
-    return failures
 
-
-def _unraisable_type() -> type | None:
+def _unraisable_type() -> type:
     """The type ``sys.unraisablehook`` receives (``UnraisableHookArgs``).
     Python does not export it, so one report is provoked under a hook
     that keeps its type: a weak reference whose callback raises."""
@@ -175,7 +170,7 @@ def _unraisable_type() -> type | None:
     finally:
         sys.unraisablehook = hook
 
-    return kinds[0] if kinds else None
+    return kinds[0]   # CPython 3.12 and later always report it
 
 
 _Unraisable = _unraisable_type()
@@ -214,19 +209,42 @@ def _report_failure(
         error: Exception,
         occasion: str,
         ) -> None:
-    message = (
+    _report_error(
+            error,
             f"Exception ignored in teardown {teardown.__name__} of"
-            f" {tag.__name__}, {occasion} {_name_of(agent)}"
+            f" {tag.__name__}, {occasion} {_name_of(agent)}",
+            teardown,
             )
 
-    if _Unraisable is None:   # a Python whose report type the probe did not catch
-        import traceback
 
-        print(f"{message}: {teardown!r}", file=sys.stderr)
-        traceback.print_exception(error, file=sys.stderr)
-        return
+def _report_layer_failure(
+        agent: object,
+        error: BaseException,
+        layer: Any,
+        ) -> None:
+    """A ``__del__`` Layer's own error, when an interrupted teardown must
+    be raised after it: raising the interruption would hide it, so the
+    kit reports it as Python would have (STEP-SPEC-18, item 7)."""
 
-    hook = sys.unraisablehook
+    _report_error(
+            error,
+            f"Exception ignored in __del__, deleting {_name_of(agent)}",
+            layer,
+            )
+
+
+def _report_error(
+        error: BaseException,
+        message: str,
+        source: Any,
+        ) -> None:
+    """``error`` reported as Python reports a finalizer's: through
+    ``sys.unraisablehook``, or Python's default hook where it is ``None``
+    or missing, as Python does. A hook that raises stops nothing: its own
+    error goes to the default hook, as Python reports it, and a failure
+    there is dropped, as Python drops it."""
+
+    hook = getattr(sys, "unraisablehook", None) or sys.__unraisablehook__
 
     try:
         hook(
@@ -236,7 +254,7 @@ def _report_failure(
                         error,
                         error.__traceback__,
                         message,
-                        teardown,
+                        source,
                         )
                     )
                 )
@@ -346,7 +364,10 @@ def _forget_exit(
 def At_Exit(
         agent: object,
         ) -> object:
-    """Also run the Agent's teardowns at normal interpreter exit.
+    """Also run the Agent's teardowns at normal interpreter exit, while it
+    is still a member. A teardown that fails there is reported through
+    ``sys.unraisablehook`` once that Agent's teardowns in the pass have
+    run.
 
     Registration is weak: it never keeps the Agent alive, and it leaves
     the registry when the Agent dies.

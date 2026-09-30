@@ -4333,15 +4333,16 @@ print("end", "Deprecated" in Archmage)
                 raise ValueError("cracked")
 
         hook = sys.unraisablehook
-        sys.unraisablehook = lambda raised: caught.append(raised.exc_value)
+        sys.unraisablehook = lambda raised: caught.append((raised.err_msg, raised.exc_value))
 
         try:
             self.delete(Impatient, Cracked)
         finally:
             sys.unraisablehook = hook
 
-        self.assertEqual([type(error) for error in caught], [KeyboardInterrupt])
-        self.assertIsInstance(caught[0].__context__, ValueError)   # the Layer's error, kept
+        self.assertEqual([type(error) for _, error in caught], [ValueError, KeyboardInterrupt])
+        self.assertEqual(caught[0][0], "Exception ignored in __del__, deleting Door")   # the Layer's own
+        self.assertEqual(str(caught[0][1]), "cracked")                                   # error, reported
 
     def test_a_proxy_host_is_finalized_as_python_finalizes_it(self) -> None:
         log = self.log
@@ -4797,6 +4798,153 @@ print("end", "Deprecated" in Archmage)
 
             self.assertEqual(log, ["host", "ReferenceError"], kind.__name__)   # the Agent is gone, as before the re-tie
 
+    def test_an_action_bound_during_the_finalizer_ends_with_it(self) -> None:
+        log = self.log
+
+        class Keeper:
+            def __init__(self, action) -> None:
+                self.action = action
+
+            def __del__(self) -> None:
+                try:
+                    log.append(("answered", self.action()))
+                except ReferenceError:
+                    log.append("ReferenceError")
+
+        class Later(Tag):
+            def Ping(agent) -> str:
+                return "ping"
+
+        class Hush(Tag):
+            @Secret
+            def Quiet(agent) -> str:
+                return "quiet"
+
+        def Tagged_Then_Kept(agent) -> None:     # a fresh binding
+            Later(agent)
+            agent.keeper = Keeper(agent.Ping)
+
+        def Hushed_Then_Kept(agent) -> None:     # every Action bound again, composing
+            Hush(agent)
+            agent.keeper = Keeper(agent.Ring)
+
+        def Kept_Then_Hushed(agent) -> None:     # a re-tied binding, then replaced
+            agent.keeper = Keeper(agent.Ring)
+            Hush(agent)
+
+        for then in (Tagged_Then_Kept, Hushed_Then_Kept, Kept_Then_Hushed):
+            class Rung(Tag):
+                def Ring(agent) -> str:
+                    return "ring"
+
+                @Rip
+                def Leave(agent) -> None:
+                    then(agent)
+
+            def Make() -> None:
+                bell = self.Door()
+                Rung(bell)
+                bell.me = bell
+
+            log.clear()
+            Make()
+            gc.collect()
+
+            self.assertEqual(log, ["host", "ReferenceError"], then.__name__)   # not an Agent the collection cleared
+            self.assertEqual(self.alive(), [], then.__name__)
+
+        class Sealed(Tag):                        # no bound Action at all: only a Layer
+            @Underlay
+            def __del__(agent, underlay) -> None:
+                Tagged_Then_Kept(agent)
+                underlay()
+
+        def Make() -> None:
+            bell = self.Door()
+            Sealed(bell)
+            bell.me = bell
+
+        log.clear()
+        Make()
+        gc.collect()
+
+        self.assertEqual(log, ["host", "ReferenceError"], "a Layer")
+        self.assertEqual(self.alive(), [], "a Layer")
+
+    def test_actions_answer_in_a_cycle_where_another_finalizer_made_a_weak_reference(self) -> None:
+        log = self.log
+        references: list = []
+
+        class Watcher:
+            def __del__(self) -> None:
+                references.append(weakref.ref(self.bell))   # the bell has a weak reference again
+
+        class Rung(Tag):
+            def Ring(agent) -> str:
+                return "ring"
+
+            @Rip
+            def Leave(agent) -> None:
+                try:
+                    log.append(agent.Ring())
+                except ReferenceError:
+                    log.append("ReferenceError")
+
+        for watcher_first in (False, True):   # the collection finalizes in no promised order: try both
+            def Make() -> None:
+                if watcher_first:
+                    watcher = Watcher()
+                    bell = self.Door()
+                else:
+                    bell = self.Door()
+                    watcher = Watcher()
+
+                Rung(bell)
+                watcher.bell = bell
+                bell.watcher = watcher
+
+            log.clear()
+            Make()
+            gc.collect()
+
+            self.assertEqual(log, ["ring", "host"], watcher_first)
+            self.assertEqual(self.alive(), [], watcher_first)
+
+    def test_another_agents_action_stored_under_an_actions_name_is_not_re_tied(self) -> None:
+        log = self.log
+
+        class Chimed(Tag):
+            def Chime(agent) -> str:
+                return "chime of " + agent.name
+
+        class Rung(Tag):
+            def Ring(agent) -> str:
+                return "ring of " + agent.name
+
+            @Rip
+            def Leave(agent) -> None:
+                try:
+                    log.append(agent.Ring())
+                except ReferenceError:
+                    log.append("ReferenceError")
+
+        def Make() -> None:
+            bell = self.Door()
+            bell.name = "bell"
+            Rung(bell)
+            other = self.Door()
+            other.name = "other"
+            Chimed(other)
+            bell.Ring = other.Chime            # the program's choice: another Agent's Action
+            bell.other = other
+            other.bell = bell                  # both in one cycle
+
+        Make()
+        gc.collect()
+
+        self.assertIn("ReferenceError", log)   # its Agent is gone: never run on the bell
+        self.assertNotIn("chime of bell", log)
+
     def test_a_layer_calls_an_action_at_a_plain_del_and_the_agent_is_freed(self) -> None:
         log = self.log
 
@@ -4938,21 +5086,35 @@ print("end", "Deprecated" in Archmage)
             def Leave(agent) -> None:
                 raise KeyboardInterrupt
 
-        door = self.Door()
-        Impatient(door)
-        reference = weakref.ref(door)
-        gc.disable()   # a refcount death must free it at once: no collection may help
+        class Cracked(Tag):
+            @Underlay
+            def __del__(agent, underlay) -> None:
+                underlay()
+                raise ValueError("cracked")
 
-        try:
-            def Delete() -> None:
-                nonlocal door
-                del door
+        for tags, reports in (
+                ((Impatient,), ["KeyboardInterrupt"]),
+                ((Impatient, Cracked), ["ValueError", "KeyboardInterrupt"]),   # the Layer's error too
+                ):
+            self.log.clear()
+            door = self.Door()
 
-            self.assertEqual(self.reported(Delete), ["KeyboardInterrupt"])
-            self.assertIsNone(reference())          # the interruption's traceback held the finalizer's frame
-            self.assertEqual(self.log, ["host"])
-        finally:
-            gc.enable()
+            for tag in tags:
+                tag(door)
+
+            reference = weakref.ref(door)
+            gc.disable()   # a refcount death must free it at once: no collection may help
+
+            try:
+                def Delete() -> None:
+                    nonlocal door
+                    del door
+
+                self.assertEqual(self.reported(Delete), reports)
+                self.assertIsNone(reference())      # each traceback held the finalizer's frame
+                self.assertEqual(self.log, ["host"])
+            finally:
+                gc.enable()
 
     def test_a_hook_that_raises_stops_no_report_and_no_interruption(self) -> None:
         import contextlib
@@ -4997,6 +5159,109 @@ print("end", "Deprecated" in Archmage)
                 "reported RuntimeError", "reported ValueError", "reported KeyboardInterrupt",
                 ])                                   # each report made, the interruption last
         self.assertEqual(printed.getvalue().count("Exception ignored in sys.unraisablehook"), 3)
+
+    def test_a_hook_that_raises_an_interruption_stops_no_report(self) -> None:
+        import contextlib
+        import io
+        import sys
+
+        log = self.log
+
+        class Stubborn(Tag):
+            @Rip
+            def Hold(agent) -> None:
+                raise RuntimeError("will not let go")
+
+            @Rip
+            def Cling(agent) -> None:
+                raise ValueError("clings")
+
+        def Strict(raised) -> None:
+            log.append("reported " + type(raised.exc_value).__name__)
+            raise KeyboardInterrupt            # an interruption from the hook itself
+
+        class Broken:
+            def write(self, text: str) -> None:
+                raise OSError("stderr is gone")
+
+            def flush(self) -> None:
+                raise OSError("stderr is gone")
+
+        for stderr in (io.StringIO(), Broken()):   # Python's default hook reports it, or fails too
+            log.clear()
+            hook = sys.unraisablehook
+            sys.unraisablehook = Strict
+
+            try:
+                with contextlib.redirect_stderr(stderr):
+                    self.delete(Stubborn)
+            finally:
+                sys.unraisablehook = hook
+
+            self.assertEqual(log, ["host", "reported RuntimeError", "reported ValueError"], type(stderr).__name__)
+
+    def test_with_no_hook_set_python_s_default_reports(self) -> None:
+        import contextlib
+        import io
+        import sys
+
+        class Stubborn(Tag):
+            @Rip
+            def Hold(agent) -> None:
+                raise RuntimeError("will not let go")
+
+            @Rip
+            def Cling(agent) -> None:
+                raise ValueError("clings")
+
+        hook = sys.unraisablehook
+
+        for unset in ("None", "deleted"):
+            printed = io.StringIO()
+
+            try:
+                if unset == "None":
+                    sys.unraisablehook = None  # Python's own reports go to its default hook then
+                else:
+                    del sys.unraisablehook
+
+                with contextlib.redirect_stderr(printed):
+                    self.delete(Stubborn)
+            finally:
+                sys.unraisablehook = hook
+
+            self.assertIn("Exception ignored in teardown Hold of Stubborn, deleting Door", printed.getvalue(), unset)
+            self.assertIn("Exception ignored in teardown Cling of Stubborn, deleting Door", printed.getvalue(), unset)
+            self.assertNotIn("sys.unraisablehook", printed.getvalue(), unset)
+
+    def test_a_deletion_before_the_interpreter_finalizes_is_an_ordinary_one(self) -> None:
+        program = """
+import atexit, sys
+registry = []
+
+def Release():                     # registered before TopKit: runs after the At_Exit pass
+    print("finalizing", sys.is_finalizing(), flush=True)
+    registry.clear()
+
+atexit.register(Release)
+
+from TopKit import Tag, Rip
+
+class Door: pass
+
+class Stubborn(Tag):
+    @Rip
+    def Hold(agent):
+        print("hold", flush=True)
+        raise RuntimeError("will not let go")
+
+door = Door(); Stubborn(door); registry.append(door); del door
+print("end", flush=True)
+"""
+        lines, stderr = Run_Program(program)
+
+        self.assertEqual(lines, ["end", "finalizing False", "hold"])   # its teardowns run, as at any del
+        self.assertIn("Exception ignored in teardown Hold of Stubborn, deleting Door", stderr)
 
     def test_a_teardown_reported_on_a_rip_has_nothing_left_to_report_at_deletion(self) -> None:
         log = self.log
