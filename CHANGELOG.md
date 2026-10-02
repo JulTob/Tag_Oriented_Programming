@@ -32,16 +32,14 @@
   Wizard[h]:`, with inputs as `with Wizard[h](code="007"):`
   (STEP-SPEC-21).
 - **A Rip the Scope cannot make is reported** (§3.2; STEP-SPEC-6, rows 4
-  and 5, drafted for the Director's confirmation). The Director,
-  2026-10-02: "deletion should be blocked, yeah, and an error raised".
-  A Rip refused because a Shape that arrived in the block still
-  requires the Tag leaves that Tag, and a teardown that fails ends the
-  membership, as before; the Scope now Rips the rest, then raises the
-  Composition Failure, as `del Tag[agent]` does, with any others as its
-  notes. When the block raised, its own exception leaves, with each
-  failure as a note. 0.2.0a4 dropped both. Whether a teardown that
-  fails should leave the Agent in the Tag, for every Rip, stays open
-  (STEP-SPEC-6, with the Director's suggestion of 2026-10-02).
+  and 5, drafted for the Director's confirmation). A Rip refused because
+  a Shape that arrived in the block still requires the Tag leaves that
+  Tag, and a teardown that fails ends the membership, as before; the
+  Scope now Rips the rest, then raises the Composition Failure, as `del
+  Tag[agent]` does, with any others as its notes. When the block raised,
+  its own exception leaves, with each failure as a note. 0.2.0a4 dropped
+  both. The Director ruled on 2026-10-02 that a failed Rip blocks the
+  Agent's expulsion, for every Rip; that comes with STEP-SPEC-18.
 - **STEP-SPEC-14's words follow the kit** (the Director's rulings of
   2026-09-29). A condition that returns a non-boolean raises the
   Contract Failure when read on the Agent, and so do `hasattr` and

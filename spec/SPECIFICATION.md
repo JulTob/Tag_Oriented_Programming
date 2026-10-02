@@ -1319,8 +1319,9 @@ Either way the Scope goes on Ripping the rest, then reports the failure
 as `del Tag[agent]` would: when the block ended without an exception,
 the first Composition Failure leaves the `with`, with any others as its
 notes; when the block raised, its own exception leaves, with each
-failure as a note. Whether a teardown that fails should leave the Agent
-in the Tag instead, for every Rip, is open in STEP-SPEC-6.
+failure as a note. The Director ruled on 2026-10-02 that a failed Rip
+blocks the Agent's expulsion, for every Rip; STEP-SPEC-18 brings that
+rule.
 
 ```python
 with Scope(agent, Sentry):

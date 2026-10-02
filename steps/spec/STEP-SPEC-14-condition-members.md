@@ -103,8 +103,8 @@ non-boolean.
 | A callable member (`agent.Has_Book()`) as well | Rejected with uniform access: needs a proxy |
 | Land the member as a descriptor on the runtime type | Rejected: per-Agent runtime types, or a shared type that lies for Agents without the condition |
 | Let a Record hide a condition of the same name, without a word | Rejected: the collision rule is there so that no Record hides a promise |
-| A non-boolean reads False on the member, as the status does | Rejected by the Director: "Keep raising, fix the words"; the member names the defect, the status counts it |
-| Keep the tagging's inputs and read a gate with them later, or refuse a gate's name | Rejected by the Director: "Keep it, write it down"; a gate is read now, each parameter bound as a call with no inputs binds it |
+| A non-boolean reads False on the member, as the status does | Rejected: the Director chose "Keep raising, fix the words"; the member names the defect, the status counts it |
+| Keep the tagging's inputs and read a gate with them later, or refuse a gate's name | Rejected: the Director chose "Keep it, write it down"; a gate is read now, each parameter bound as a call with no inputs binds it |
 
 ## Acceptance requirements
 
@@ -122,8 +122,9 @@ every transition and compares it with `Contract.Status`.
 > the Director's review of the archived features: "Bring back the Agent
 > member."
 >
-> *Added 2026-09-29:* two points of wording, ruled by the Director. A
-> condition that returns a non-boolean: "Keep raising, fix the words"
-> (Summary, items 3 and 7, Backwards compatibility). A gate that uses the
-> tagging's inputs is read afterwards without them, each parameter at its
-> default or `None`: "Keep it, write it down" (item 1, Alternatives).
+> *Added 2026-09-29, drafted for the Director's confirmation:* two points
+> of wording, ruled by the Director. A condition that returns a
+> non-boolean: he chose "Keep raising, fix the words" (Summary, items 3
+> and 7, Backwards compatibility). A gate that uses the tagging's inputs
+> is read afterwards without them, each parameter at its default or
+> `None`: he chose "Keep it, write it down" (item 1, Alternatives).
