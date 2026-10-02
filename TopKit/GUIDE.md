@@ -5,7 +5,7 @@
 This guide teaches TOP by building one thing: a character sheet the way a
 tabletop game builds it. Species, class, background and feats are separate
 choices, and the sheet is what they compose. Every code block runs, in
-order, on Python 3.10 or later, with nothing installed but TopKit.
+order, on Python 3.12 or later, with nothing installed but TopKit.
 
 If you want the laws, read [the Specification](../spec/SPECIFICATION.md).
 If you want to see the whole thing at once, run

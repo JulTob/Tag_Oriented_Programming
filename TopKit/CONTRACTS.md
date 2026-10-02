@@ -7,7 +7,7 @@ time. This guide goes deeper into one ring of it: **contracts**, and the
 error control they give you. Contract programming is not widespread and
 error control is often an afterthought, so this guide is a little more
 serious, with the same rule: every code block below runs, in order, on
-Python 3.10 or later, with nothing installed but TopKit.
+Python 3.12 or later, with nothing installed but TopKit.
 
 The setting is a starship. Accidents happen to the ship, access is
 controlled among the crew, and sickbay has protocols. Every one of those

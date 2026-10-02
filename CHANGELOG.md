@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0a4 — unreleased
+## 0.2.0a4 — 2026-10-02
 
 ### Specification
 
@@ -125,8 +125,18 @@
 
 ### Project
 
+- **TopKit needs Python 3.12 or later** (0.2.0a3 said 3.10). This release
+  was checked on CPython 3.12 and 3.14; 3.10 and 3.11 were never run.
+- STEP-SPEC-13, 14, 17 and 18 ship at Vetting, as STEP-SPEC-12 did with
+  0.2.0a3. The Director's rulings of 29 September on them (a Tag answers
+  `in` for its sound members, names on an Agent change kind freely, the
+  deletion amendments, the Flag fixes) come in a later release.
 - `RELEASING.md` now records the whole path to PyPI, from the account
   and the token to the virtual environment, as the first release ran it.
+- The README, which is the PyPI page, starts with `pip install topkit`
+  and links to GitHub with absolute links, so they work on PyPI; a plain
+  `pip install topkit` installs the newest alpha while no final release
+  exists.
 
 ## 0.2.0a3 — 2026-09-06
 
