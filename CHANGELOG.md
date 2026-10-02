@@ -9,7 +9,8 @@
   3.14, the oracle at its audited size, a check that the tag names
   `pyproject.toml`'s version and the changelog has it, the build and
   `twine check`; the upload then waits for the Director's approval.
-  PyPI trusts the workflow, so no token exists. `RELEASING.md` gives the
+  PyPI trusts the workflow, so there is no token to keep or leak: each
+  run gets one that expires within minutes. `RELEASING.md` gives the
   steps, and keeps the upload by hand for when GitHub cannot do it.
 
 ## 0.2.0a4 — 2026-10-02

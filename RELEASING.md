@@ -6,8 +6,9 @@ https://pypi.org/project/topkit/. The name was claimed with `0.2.0a3` on
 
 Releases go out through **Trusted Publishing**: PyPI trusts one workflow
 in this repository, `.github/workflows/release.yml`, and GitHub proves to
-PyPI, for each run, that an upload comes from it. So there is no token to
-keep, lose or leak. The workflow runs when the Director publishes a
+PyPI, for each run, that an upload comes from it. PyPI then grants that
+run a token that expires within minutes, so there is no token to keep,
+lose or leak. The workflow runs when the Director publishes a
 GitHub Release, and it uploads only after the Director approves it.
 
 ## Once: connect PyPI to this repository
@@ -20,12 +21,21 @@ GitHub Release, and it uploads only after the Director approves it.
    - Repository name: `Tag_Oriented_Programming`
    - Workflow name: `release.yml`
    - Environment name: `pypi`
+
+   Then Add.
 3. **The environment, on GitHub.** The repository's Settings →
-   Environments → New environment, named `pypi`:
-   - Required reviewers: `JulTob`. Leave "Prevent self-review" off: the
-     Director approves his own releases.
-   - Deployment branches and tags: Selected branches and tags → add a tag
-     rule `v*`.
+   Environments → New environment named `pypi` → Configure environment
+   (or open `pypi` if it already exists):
+   - Required reviewers: tick it and add `JulTob`. Leave "Prevent
+     self-review" off: the Director approves his own releases. Untick
+     "Allow administrators to bypass configured protection rules", so
+     that every upload waits for the approval. Save protection rules.
+   - Deployment branches: choose "Selected branches and tags" → Add
+     deployment branch or tag rule → set Ref type to **Tag** (as a branch
+     rule it would refuse the release) → pattern `v*` → Add rule.
+
+   These rules hold while the repository is public; on GitHub's free
+   plan a private repository ignores them.
 4. **Old tokens.** Once a release has gone through this way, delete the
    API tokens under PyPI's Account settings → API tokens. Nothing needs
    them any more.
@@ -39,10 +49,10 @@ GitHub Release, and it uploads only after the Director approves it.
    - The README's links are absolute GitHub links: PyPI shows the
      README, and a relative link is broken there.
 2. **Publish a GitHub Release.** Releases → Draft a new release:
-   - Choose a tag: type `v` and the version, for example `v0.2.0a5`, and
-     create it on publish, from `main`.
+   - Choose a tag: type `v` and the version, for example `v0.2.0a5`,
+     then Create new tag. Target: `main`.
    - Title `TopKit 0.2.0a5`; for the notes, paste the changelog entry.
-   - Tick "Set as a pre-release" for an alpha.
+   - Tick the pre-release box for an alpha.
    - Publish release.
 3. **The workflow checks everything.** Under Actions, "Release to PyPI"
    runs:
@@ -59,7 +69,13 @@ GitHub Release, and it uploads only after the Director approves it.
 
 If a check fails before the upload, the version number is still free:
 fix it in a pull request, delete the GitHub Release and its tag, and
-publish the release again.
+publish the release again. If the failure had nothing to do with the
+code (a runner hiccup, a typo in PyPI's publisher form), fix that and use
+Re-run failed jobs instead.
+
+A version uploaded by hand never gets a GitHub Release afterwards: the
+workflow would run and stop at the upload, because PyPI refuses a second
+upload of the same number.
 
 ## By hand, if GitHub cannot do it
 
@@ -81,13 +97,14 @@ python3 -m pip install --upgrade pip build twine
 PYTHONPATH=. python3 -m unittest discover -s tests -t .
 PYTHONPATH=. python3 tests/oracle_topkit.py --seeds 50 --steps 1200 --population 18
 python3 -m build                    # writes dist/
-python3 -m twine check dist/*       # both files must say PASSED
+python3 -m twine check --strict dist/*   # both files must say PASSED
 python3 -m twine upload -u __token__ dist/*
 ```
 
 `__token__` is typed as it stands: it is PyPI's user name for token
-logins. Twine then asks for a password: paste the token there, where it
-is not shown and not kept. Never put the token on the command line,
+logins. Twine first warns that this machine is not set up for trusted
+publishing, which is expected, and then asks "Enter your API token:".
+Paste the token there, where it is not shown and not kept. Never put the token on the command line,
 where the shell history would keep it. Twine prints the release page
 when it succeeds. Then `deactivate`, delete the clone, and delete the
 token on PyPI.

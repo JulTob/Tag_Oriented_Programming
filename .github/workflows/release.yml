@@ -1,8 +1,9 @@
 # Publishes TopKit to PyPI when the Director publishes a GitHub Release.
 #
-# PyPI trusts this file through Trusted Publishing, so there is no token
-# anywhere: GitHub proves to PyPI, for one run, that the upload comes from
-# this workflow in this repository. The publish job runs in the `pypi`
+# PyPI trusts this file through Trusted Publishing, so there is no token to
+# keep or leak: GitHub proves to PyPI, for one run, that the upload comes
+# from this workflow in this repository, and PyPI grants a token that
+# expires within minutes. The publish job runs in the `pypi`
 # environment, which waits for the Director's approval. The steps are in
 # RELEASING.md.
 
@@ -19,6 +20,7 @@ jobs:
   test:
     name: Test on Python ${{ matrix.python }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: true
       matrix:
@@ -39,6 +41,7 @@ jobs:
     name: Build and check
     needs: test
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -55,17 +58,16 @@ jobs:
             echo "::error::The release tag is $TAG, but pyproject.toml says $version: tag the release v$version."
             exit 1
           fi
-          heading=$(grep -m 1 "^## $version " CHANGELOG.md || true)
+          # the heading is found by its literal text, so a "." in the version matches only a "."
+          heading=$(awk -v start="## $version " 'index($0, start) == 1 { print; exit }' CHANGELOG.md)
           if [ -z "$heading" ]; then
-            echo "::error::CHANGELOG.md has no heading for $version."
+            echo "::error::CHANGELOG.md has no heading for $version: write '## $version — YYYY-MM-DD'."
             exit 1
           fi
-          case "$heading" in
-            *unreleased*)
-              echo "::error::CHANGELOG.md still marks $version unreleased."
-              exit 1
-              ;;
-          esac
+          if ! printf '%s\n' "$heading" | grep -Eq '^## [^ ]+ — [0-9]{4}-[0-9]{2}-[0-9]{2}$'; then
+            echo "::error::CHANGELOG.md's heading for $version is not dated: '$heading'. Write '## $version — YYYY-MM-DD'."
+            exit 1
+          fi
       - name: Build
         run: |
           python -m pip install --upgrade build twine
@@ -81,6 +83,7 @@ jobs:
     name: Publish to PyPI
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment:
       name: pypi
       url: https://pypi.org/project/topkit/
