@@ -22,9 +22,9 @@ so both kits go on alike. A kit that stopped refusing would read the same
 here; the unit tests pin the refusal. Every word the programs give a Flag
 is a plain string literal, given one by one, so a word kept as its plain
 text (a `str` subclass matched by its text) reads the same on both sides
-too, and so do words given as a list, a tuple or a set (2026-10-02),
-which a kit from before refuses; `tests/test_topkit.py` alone covers
-both.
+too, and so do words given as a list, a tuple, a set or a frozenset
+(2026-10-02), which a kit from before refuses; `tests/test_topkit.py`
+alone covers both.
 
 A Scope reports a Rip it cannot make, refused or with a teardown that
 fails (STEP-SPEC-6, drafted 2026-10-02): the Composition Failure leaves
@@ -34,7 +34,7 @@ its Report values under `_topkit_reports` in its own `__dict__`; the
 look at a Tag leaves that name out, so kits before and after compare.
 
 Every step writes what it observed: a value, or an exception's type,
-message and cause. A step that changes a Target is often followed by a
+message, cause and notes. A step that changes a Target is often followed by a
 look at it: its Tags, soundness, contract, words, and the names it holds.
 Warnings (category, message, file:line), finalizers, teardowns and
 Imprints are written as events of the step that caused them. An
@@ -210,6 +210,9 @@ class Log:
 
         if cause is not None:
             text += " (from " + type(cause).__qualname__ + ": " + str(cause) + ")"
+
+        for note in getattr(error, "__notes__", ()):
+            text += " [note: " + str(note) + "]"
 
         return text
 
@@ -1370,11 +1373,14 @@ def Scoping(
         plan: Plan,
         step: str,
         ) -> list[str]:
-    """A block with Tags for its duration; sometimes it fails."""
+    """A block with Tags for its duration; sometimes it fails, and
+    sometimes it Rips one of the Scope's own Tags, which the Scope then
+    leaves alone."""
 
     randomizer = plan.randomizer
     agent = Any_Agent(plan)
-    tags = ", ".join(Any_Tag(plan).name for _ in range(randomizer.randint(1, 3)))
+    named = [Any_Tag(plan).name for _ in range(randomizer.randint(1, 3))]
+    tags = ", ".join(named)
     head = f"Scope({agent}, {tags}{Inputs(plan)})"
     lines = [
             "",
@@ -1384,16 +1390,18 @@ def Scoping(
             ]
 
     for _ in range(randomizer.randint(1, 3)):
-        expression = randomizer.choice(
+        own = randomizer.choice(named)
+        expression, label = randomizer.choice(
                 (
-                    f"Tags({agent})",
-                    f"bool({agent})",
-                    f'f"{{{agent}:contract}}"',
-                    Member_Read(plan, agent),
-                    f"{Any_Tag(plan).name}({agent})",
+                    (f"Tags({agent})", None),
+                    (f"bool({agent})", None),
+                    (f'f"{{{agent}:contract}}"', None),
+                    (Member_Read(plan, agent), None),
+                    (f"{Any_Tag(plan).name}({agent})", None),
+                    (f"Rip_Of({own}, {agent})", f"del {own}[{agent}]"),
                     )
                 )
-        lines.append("        " + Do_Line(step, expression, f"inside: {expression}"))
+        lines.append("        " + Do_Line(step, expression, f"inside: {label or expression}"))
 
     if randomizer.random() < 0.3:
         lines.append(f'        raise LookupError("the block of {step} fails")')

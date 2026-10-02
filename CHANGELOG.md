@@ -4,14 +4,15 @@
 
 ### Specification
 
-- **A Flag's words may come as a list, a tuple or a set** (STEP-SPEC-17,
-  item 8; §1.8). The Director, 2026-10-02: "The flags as text or a list
-  of texts makes sense". `@Flag(["Wolf", "Beast"])` and `@Flag("Wolf",
-  {"Lycan", "Lupus"})` say what the words given one by one say; the words
-  are flattened, and a word given twice counts once. An empty
-  collection, a non-string in one or a collection inside one is a
-  Declaration Failure that names the item. 0.2.0a4 refused every list,
-  tuple and set.
+- **A Flag's words may come as a list, a tuple, a set or a frozenset**
+  (STEP-SPEC-17, item 8; §1.8). The Director, 2026-10-02: "The flags as
+  text or a list of texts makes sense". `@Flag(["Wolf", "Beast"])` and
+  `@Flag("Wolf", {"Lycan", "Lupus"})` say what the words given one by one
+  say; the words are flattened, and a word given twice counts once. An
+  empty collection, a non-string in one, a collection inside one or a
+  `str` subclass that does not hash is a Declaration Failure that names
+  the item. 0.2.0a4 refused every list, tuple and set, and raised
+  `TypeError` for a `str` subclass that does not hash.
 - **A Flag is part of the Tag's declaration** (STEP-SPEC-17, item 11;
   §1.8). `@Flag`, bare or with words, on a Tag that already has members,
   or whose Shapes have, is a Declaration Failure that names the Tag and
@@ -67,19 +68,24 @@
   has from its declaration, so `vars(SomeTag)` shows it (the
   differential fuzzer leaves it out when it compares); a Pin's tagging
   that rolls back keeps a value its gate built. An Agent never shows
-  it.
+  it. A Tag body that defines `_topkit_reports` itself is refused
+  (`TagDeclarationError`); in 0.2.0a4 it was a plain attribute.
 - A word given to `@Flag` is kept as its plain text, as a probe is: a
-  case-insensitive `str` subclass matches its own word, and an unhashable
-  one no longer raises `TypeError` at declaration.
+  case-insensitive `str` subclass matches its own word exactly. One that
+  does not hash is refused by name (`TagDeclarationError`), where
+  0.2.0a4 raised `TypeError` at declaration.
 - `ScopeTests` covers the Imprint failure at the door, a Base pulled in
   or named after its Shape, a Base whose Imprint fails under its Shape,
   the Rip refused for a required Base and the teardown that fails, each
   reported, with the rest Ripped first and the block's own exception
-  keeping its place, and a Tag the block Ripped itself; the oracle's
-  `Exercise_Scope` puts a Tag whose Imprint fails in some Scopes, and
-  in some has the block apply a Tag of its own, so a refused Rip is
-  raised or noted as the model predicts; the differential fuzzer tries a
-  late Flag on a carried Tag and expects the refusal.
+  keeping its place, a Tag the block Ripped itself, and an Agent freed
+  without the collector after a Scope reported a refused Rip; the
+  oracle's `Exercise_Scope` puts a Tag whose Imprint fails in some
+  Scopes, and in some has the block apply a Tag of its own, so a
+  refused Rip is raised or noted as the model predicts; the differential
+  fuzzer tries a late Flag on a carried Tag and expects the refusal,
+  writes an exception's notes, and has some Scope blocks Rip one of the
+  Scope's own Tags.
 
 ### Project
 

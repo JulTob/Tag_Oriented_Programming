@@ -102,7 +102,9 @@ rollback target.
   `__name__`, and the words are never inherited by Shapes.
   `_flag_words` flattens the arguments: a string is a word (a `str`
   subclass too, never a collection), a list, tuple, set or frozenset
-  gives its strings, one level deep. `Flag`
+  gives its strings, one level deep. A word that does not hash, a `str`
+  subclass with `__hash__ = None`, is refused by name: a word must be
+  able to stand in a set of words. `Flag`
   refuses a Tag whose Field has a live member (`TagDeclarationError`,
   with the count; a Shape's members are in its Base's Field too), so a
   mark never lands under an Agent that carries the Tag. A lone class
@@ -171,9 +173,12 @@ rollback target.
   the value on that Tag: in a dict under `_topkit_reports` in the Tag
   class's own `__dict__`, keyed by the Report, read from
   `owner.__dict__` and never through inheritance. `MetaTag` puts the
-  dict in the namespace when the Tag is declared, so a Pin's tagging
-  that rolls back, which puts the pinned Tag's namespace back as it
-  was, keeps the same dict and the values built during it. So the value lives and
+  dict in the namespace when the Tag is declared (a Tag body that
+  defines `_topkit_reports` itself is refused), so a Pin's tagging that
+  rolls back, which puts the pinned Tag's namespace back as it was,
+  keeps the same dict and the values built during it. A plain class
+  that holds a Report gets its own dict at its first build, read again
+  after the builder runs. So the value lives and
   dies with the Tag, a Shape and its Base keep separate values, and a
   finalizer at exit reads the value built before (a weak cache could be
   cleared there first). The value is kept with `setdefault`, so a builder
@@ -265,9 +270,12 @@ rollback target.
   required Base leaves the Tag, and a failed teardown has already ended
   the membership. `_report` then raises the first, with the others as
   `add_note` notes, or, when an exception is leaving the block, adds
-  each as a note on it. Every frame that holds a caught exception drops
-  it before it leaves, so the exception's traceback never keeps the
-  Agent in a cycle.
+  each as a note on it. Every frame of the Scope's that holds a caught
+  exception drops it before it leaves, so the Scope adds no cycle of its
+  own (`ScopeTests` checks it with the collector off). A teardown that
+  fails still holds one, through `_teardown`'s list of failures, on any
+  Rip, as before this change: the Agent is then freed by the collector,
+  not by its count.
 - **The oracle** (`tests/oracle_topkit.py`): an independent model of
   the laws driven by a random walk; `tests/test_oracle.py` runs a short
   walk under the suite. Run it at size with `--seeds 50 --steps 1200

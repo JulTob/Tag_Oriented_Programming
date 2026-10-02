@@ -1095,6 +1095,44 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(Fen.reach, 2)
         self.assertEqual(calls, ["reach", "depth"])   # each built once
 
+    def test_a_tag_body_cannot_use_the_name_of_its_report_values(self) -> None:
+        with self.assertRaises(TagDeclarationError) as refused:
+            class Mine(Tag):
+                _topkit_reports = "mine"
+
+                @Report
+                def depth(tag) -> int:
+                    return 1
+
+        self.assertIn("Mine defines _topkit_reports", str(refused.exception))
+
+    def test_a_report_on_a_plain_class_is_built_once_and_a_subclass_builds_its_own(self) -> None:
+        calls: list[str] = []
+
+        class Ledger:
+            @Report
+            def depth(owner) -> int:
+                calls.append("depth of " + owner.__name__)
+                return len(owner.__name__)
+
+            @Report
+            def reach(owner) -> int:
+                calls.append("reach of " + owner.__name__)
+                return owner.depth + 1                # another Report, read first here
+
+        class Journal(Ledger):
+            pass
+
+        self.assertEqual(Ledger.reach, 7)
+        self.assertEqual(Ledger.depth, 6)
+        self.assertEqual(Ledger.reach, 7)
+        self.assertEqual(Journal.depth, 7)            # its own value, not its parent's
+        self.assertEqual(Journal.depth, 7)
+        self.assertEqual(
+                calls,
+                ["reach of Ledger", "depth of Ledger", "depth of Journal"],   # each built once per class
+                )
+
     def test_a_builder_that_reads_its_own_report_keeps_the_first_value(self) -> None:
         calls: list[str] = []
 
@@ -2870,6 +2908,42 @@ class ScopeTests(unittest.TestCase):
 
         self.assertNotIn(fay, Wizard)
 
+    def test_a_scope_that_reports_a_refused_rip_keeps_no_cycle(self) -> None:
+        """The Agent dies with its last reference, gc or not, after a
+        Scope raised the refusal, or noted it on the block's exception."""
+
+        class Wolf(Tag):
+            pass
+
+        class Dire(Wolf):
+            pass
+
+        for block_fails in (False, True):
+            with self.subTest(block_fails=block_fails):
+                gc.collect()
+                gc.disable()
+
+                try:
+                    gus = Agent()
+                    reference = weakref.ref(gus)
+
+                    try:
+                        with Scope(gus, Wolf):
+                            Dire(gus)                                 # Wolf's Rip will be refused
+
+                            if block_fails:
+                                raise ValueError("the block fails")
+                    except (TagCompositionError, ValueError) as error:
+                        caught = type(error)
+
+                    self.assertIs(caught, ValueError if block_fails else TagCompositionError)
+
+                    del gus
+
+                    self.assertIsNone(reference())                    # freed by its count: no cycle held it
+                finally:
+                    gc.enable()
+
 
 class AccessTests(unittest.TestCase):
     def test_views_by_name_and_by_class(self) -> None:
@@ -3513,9 +3587,6 @@ class FlagWordTests(unittest.TestCase):
     def test_a_flag_word_is_kept_as_its_plain_text(self) -> None:
         """A str subclass given to @Flag is kept as its text, as a probe is."""
 
-        class Unhashable(str):
-            __hash__ = None
-
         class Folded(str):
             def __eq__(self, other):
                 return isinstance(other, str) and self.lower() == other.lower()
@@ -3523,26 +3594,56 @@ class FlagWordTests(unittest.TestCase):
             def __hash__(self):
                 return hash(self.lower())
 
-        @Flag(Unhashable("Wolf"))                         # no TypeError at declaration
-        class Werewolf(Tag):
-            pass
-
         @Flag(Folded("Wolf"))
         class Lycan(Tag):
             pass
 
-        howler, moon = Agent(), Agent()
-        Werewolf(howler)
-        Lycan(moon)
+        @Flag([Folded("Beast")])
+        class Warg(Tag):
+            pass
 
-        self.assertIn("Wolf", howler)
+        moon, fang = Agent(), Agent()
+        Lycan(moon)
+        Warg(fang)
+
         self.assertIn("Wolf", moon)                       # its own word matches
         self.assertNotIn("wolf", moon)                    # exact, whatever the subclass says
         self.assertTrue(Keyword(moon, "Wolf"))
         self.assertFalse(Keyword(moon, "wolf"))
+        self.assertIn("Beast", fang)
+        self.assertNotIn("beast", fang)
 
-        for tag in (Werewolf, Lycan):
+        for tag in (Lycan, Warg):
             self.assertEqual({type(word) for word in vars(tag)["__topkit_flag__"]}, {str})
+
+    def test_an_unhashable_word_is_refused_by_name(self) -> None:
+        """A str subclass that does not hash is no word for a set of words."""
+
+        class Unhashable(str):
+            __hash__ = None
+
+            def __eq__(self, other):
+                return True
+
+        class Werewolf(Tag):
+            pass
+
+        for words, named in (
+                ((Unhashable("Wolf"),), "got 'Wolf'; a Unhashable does not hash"),
+                (([Unhashable("Wolf"), "Beast"],), "got 'Wolf' in ['Wolf', 'Beast']; a Unhashable does not hash"),
+                (("Beast", (Unhashable("Wolf"),)), "got 'Wolf' in ('Wolf',); a Unhashable does not hash"),
+                ):
+            with self.subTest(words=words):
+                with self.assertRaises(TagDeclarationError) as caught:
+                    Flag(*words)
+
+                self.assertIn(named, str(caught.exception))   # the message names the item
+
+        howler = Agent()
+        Werewolf(howler)
+
+        self.assertFalse(Keyword(howler, "Werewolf"))     # nothing was marked
+        self.assertFalse(Keyword(howler, "Wolf"))
 
     def test_a_flag_takes_its_words_as_a_list_a_tuple_or_a_set(self) -> None:
         """The Director, 2026-10-02: "The flags as text or a list of texts
@@ -3591,20 +3692,6 @@ class FlagWordTests(unittest.TestCase):
                 vars(Werewolf)["__topkit_flag__"],
                 frozenset({"Wolf", "Beast", "Howler", "Lycan"}),
                 )
-
-    def test_a_word_in_a_list_is_kept_as_its_plain_text(self) -> None:
-        class Unhashable(str):
-            __hash__ = None
-
-        @Flag([Unhashable("Wolf"), "Beast"])              # no TypeError at declaration
-        class Werewolf(Tag):
-            pass
-
-        howler = Agent()
-        Werewolf(howler)
-
-        self.assertTrue(Keyword(howler, "Wolf", "Beast"))
-        self.assertEqual({type(word) for word in vars(Werewolf)["__topkit_flag__"]}, {str})
 
     def test_a_collection_of_words_holds_non_empty_strings_one_level_deep(self) -> None:
         class Beast(Tag):

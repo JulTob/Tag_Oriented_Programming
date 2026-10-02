@@ -37,6 +37,7 @@ from .declarations import _check_pin_bases
 from .declarations import _is_pin
 from .declarations import _name_checks
 from .errors import TagCompositionError
+from .errors import TagDeclarationError
 from .fields import _Field
 from .fields import _Partition
 from .fields import _population_of
@@ -63,10 +64,13 @@ class MetaTag(type):
                 "_topkit_field",
                 _Field(),
                 )
-        namespace.setdefault(
-                _REPORTS,
-                {},
-                )   # made with the Tag, so a rolled-back Pin keeps the values built during it
+        if _REPORTS in namespace:
+            raise TagDeclarationError(
+                    f"{name} defines {_REPORTS}, the name under which TopKit"
+                    " keeps a Tag's Report values; a Tag's body cannot use it"
+                    )
+
+        namespace[_REPORTS] = {}   # made with the Tag, so a rolled-back Pin keeps the values built during it
         _name_checks(namespace)
 
         tag = super().__new__(

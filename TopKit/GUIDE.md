@@ -514,8 +514,8 @@ HUNTED = ["Beast", "Fiend"]             # the table never imports Werewolf
 assert any(word in howler for word in HUNTED)
 ```
 
-Words kept as data may come whole, as a list, a tuple or a set, beside
-single words or alone:
+Words kept as data may come whole, as a list, a tuple, a set or a
+frozenset, beside single words or alone:
 
 ```python
 MOON_WORDS = {"Lycan", "Lupus"}         # read from a table, say

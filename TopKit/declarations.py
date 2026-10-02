@@ -312,8 +312,8 @@ def Flag(
         @Flag("Wolf", "Lycanthrope")
         class Werewolf(Tag): ...
 
-    A list, tuple or set of words says the same, ``@Flag(["Wolf",
-    "Lycanthrope"])``, and may sit beside single words.
+    A list, tuple, set or frozenset of words says the same,
+    ``@Flag(["Wolf", "Lycanthrope"])``, and may sit beside single words.
 
     The Tag's own name is always a word. An alias is only a word: it
     answers ``"Wolf" in agent``, never membership. Applying a Flag to a
@@ -347,10 +347,10 @@ def _flag_words(
         words: tuple[Any, ...],
         ) -> dict[str, None]:
     """The words given to ``@Flag``, flattened in the order given, each as
-    its plain text (exact, and hashable), a word given twice kept once.
-    A word is a non-empty string; a list, tuple or set of them stands for
-    its words (the Director, 2026-10-02: "The flags as text or a list of
-    texts makes sense")."""
+    its plain text (exact), a word given twice kept once. A word is a
+    non-empty string that hashes, as a word of a set does; a list, tuple,
+    set or frozenset of them stands for its words (the Director,
+    2026-10-02: "The flags as text or a list of texts makes sense")."""
 
     texts: dict[str, None] = {}
 
@@ -370,8 +370,8 @@ def _flag_words(
         else:
             raise TagDeclarationError(
                     "@Flag marks a Tag class, or takes the words it also"
-                    " answers to: non-empty strings, or lists, tuples or"
-                    f" sets of them; got {word!r}"
+                    " answers to: non-empty strings, or lists, tuples,"
+                    f" sets or frozensets of them; got {word!r}"
                     )
 
         for item in items:
@@ -380,10 +380,20 @@ def _flag_words(
             if not text:
                 raise TagDeclarationError(
                         "@Flag takes the words it also answers to as"
-                        " non-empty strings, alone or in a list, tuple or"
-                        f" set one level deep; got {item!r}"
+                        " non-empty strings, alone or in a list, tuple, set"
+                        f" or frozenset one level deep; got {item!r}"
                         + (f" in {within!r}" if within is not None else "")
                         )
+
+            try:
+                hash(item)
+            except TypeError:
+                raise TagDeclarationError(
+                        "@Flag takes the words it also answers to as"
+                        f" strings that hash; got {item!r}"
+                        + (f" in {within!r}" if within is not None else "")
+                        + f"; a {type(item).__name__} does not hash"
+                        ) from None
 
             texts[text] = None
 

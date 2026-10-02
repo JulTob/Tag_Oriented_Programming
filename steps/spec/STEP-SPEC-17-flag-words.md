@@ -66,19 +66,19 @@ is the variant: a word with no Field behind it.
    A Shape that is a Flag itself adds its own.
 7. Stacked `@Flag` marks add their words together.
 8. Words are non-empty strings, each kept as its plain text when the Tag
-   is declared, and a probe is read as its text. A list, tuple or set of
-   strings stands for its words, alone or beside single words:
-   `@Flag(["Wolf", "Beast"])`, `@Flag("Wolf", {"Lycan", "Lupus"})`. The
-   words are flattened, and a word given twice counts once. Anything else
-   among the words, including a class beside them (`@Flag(Beast,
-   "Wolf")`), an empty collection, or a collection that holds anything
-   but non-empty strings (another collection included), is a Declaration
-   Failure at the decorator that names the item; nothing is marked. A lone
-   class is the bare form applied to that class:
-   `@Flag(Beast)` over another class marks `Beast` itself and then
-   applies `Beast` to the new class. No kit can tell that from `Flag(Beast)`
-   called on its own, so the Guide says it: a word is the string
-   `"Beast"`, never the class.
+   is declared, and a probe is read as its text. A list, tuple, set or
+   frozenset of strings stands for its words, alone or beside single
+   words: `@Flag(["Wolf", "Beast"])`, `@Flag("Wolf", {"Lycan", "Lupus"})`.
+   The words are flattened, and a word given twice counts once. Anything
+   else among the words, including a class beside them (`@Flag(Beast,
+   "Wolf")`), an empty collection, a collection that holds anything but
+   non-empty strings (another collection included), or a `str` subclass
+   that does not hash, is a Declaration Failure at the decorator that
+   names the item; nothing is marked. A lone class is the bare form
+   applied to that class: `@Flag(Beast)` over another class marks
+   `Beast` itself and then applies `Beast` to the new class. No kit can
+   tell that from `Flag(Beast)` called on its own, so the Guide says it:
+   a word is the string `"Beast"`, never the class.
 9. **Flag Pins** answer their words on the Tag: `@Pin @Flag("Obsolete")
    class Deprecated` gives `"Obsolete" in Wizard` while `Deprecated(Wizard)`
    holds, by the rule of §1.9.
@@ -135,7 +135,9 @@ writes each variant the rules may use.
 
 Bare `@Flag` on a Tag nobody carries means what it meant. `Flag("Wolf")`
 was a Declaration Failure before and is a decorator now. `Flag(["Wolf"])`
-was a Declaration Failure in 0.2.0a4 and is a decorator now too.
+was a Declaration Failure in 0.2.0a4 and is a decorator now too. A
+`str` subclass that does not hash raised `TypeError` in 0.2.0a4 and is
+a Declaration Failure now.
 
 One program breaks. A Flag marked on a Tag that already had members was
 accepted and left a half state: `Keyword` answered the new word and the
@@ -185,8 +187,9 @@ now survives any rebuild; `RestoredNameTests` covers it.
 > words on the Tag.
 >
 > *Added 2026-09-29, drafted for the Director's confirmation:* the
-> Director, on a Flag marked after its Tag has members: "a @Flag(items: str or list of str) declares the aliases for
-> the tag the flag is modifying, allowing for aliases. Flag(Wolf) means
+> Director, on a Flag marked after its Tag has members: "a
+> '@Flag(items: str or list of str)' declares the aliases for the tag
+> the flag is modifying, allowing for aliases. Flag(Wolf) means
 > nothing, and @Flag(Wolf) only makes sense if Wolf is a string or a
 > list/set of strings with names inside ... Flag strings do not need to be
 > registered first." So `@Flag`, bare or with words, is part of the Tag's
@@ -200,11 +203,13 @@ now survives any rebuild; `RestoredNameTests` covers it.
 >
 > *Added 2026-10-02, drafted for the Director's confirmation:* the
 > Director: "The flags as text or a list of texts makes sense". So
-> `@Flag` also takes a list, tuple or set of strings, alone or beside
-> single words, as in `@Flag(["Wolf", "Beast"])` and `@Flag({"Lycan",
-> "Lupus"})`. The words are flattened, each kept as its plain text, and a
-> word given twice is kept once. An empty collection, a non-string in a
-> collection, or a collection inside one is a Declaration Failure that
-> names the item (item 8). An unhashable `str` subclass is kept as its
-> plain text, like any word, not refused; the Director's words do not
-> say, so this stays open for the Director.
+> `@Flag` also takes a list, tuple, set or frozenset of strings, alone or
+> beside single words, as in `@Flag(["Wolf", "Beast"])` and
+> `@Flag({"Lycan", "Lupus"})`. The words are flattened, each kept as its
+> plain text, and a word given twice is kept once. An empty collection, a
+> non-string in a collection, a collection inside one, or a `str`
+> subclass that does not hash is a Declaration Failure that names the
+> item (item 8). A word is kept as its plain text, so a `str` subclass
+> that hashes matches its own word exactly; one that does not hash could
+> not stand in a set of words, and is refused where 0.2.0a4 raised
+> `TypeError`.
