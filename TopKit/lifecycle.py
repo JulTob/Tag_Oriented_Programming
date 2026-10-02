@@ -177,7 +177,8 @@ def Scope(
     door, through its Postcondition or its Imprint, did apply, so it is
     Ripped on the way out like any other. A Base pulled in with a Shape
     stays, even when the Scope names it after that Shape: the Agent
-    already carries it by then.
+    already carries it by then. Whether the Scope should Rip such a Base
+    is open in STEP-SPEC-6.
 
     On the way out, a Rip refused because a Shape that arrived in the
     block requires the Tag leaves that Tag, and a teardown that fails is
@@ -188,7 +189,7 @@ def Scope(
 
     try:
         for tag in tags:
-            if agent in tag:
+            if _carries(agent, tag):
                 continue                    # already the Agent's: not the Scope's to take away
 
             try:
@@ -197,7 +198,7 @@ def Scope(
                         **inputs,
                         )
             except BaseException:
-                if agent in tag:
+                if _carries(agent, tag):
                     applied.append(tag)     # applied, then failed at the door: still the Scope's to Rip
 
                 raise
@@ -214,6 +215,19 @@ def Scope(
                         )
             except TagError:
                 pass
+
+
+def _carries(
+        agent: object,
+        tag: type,
+        ) -> bool:
+    """Whether the Tag is active on the Agent, sound or defective: what a
+    Rip asks, never a population. A Tag whose promise broke at the door
+    is still active (§0.6)."""
+
+    state = _state_of(agent)
+
+    return state is not None and tag in state.active
 
 
 _exit_registry: dict[int, _Member] = {}   # by registration number; an entry leaves when its Agent dies

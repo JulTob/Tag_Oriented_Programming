@@ -2611,8 +2611,8 @@ class ExitProtocolTests(unittest.TestCase):
 
 
 class ScopeTests(unittest.TestCase):
-    """Scope Rips only what it applied: everything it applied, except a
-    Tag a Shape that arrived in the block still requires."""
+    """A Scope Rips the Tags it names that it applied, and only those,
+    except one that a Shape which arrived in the block still requires."""
 
     def test_a_tag_the_agent_already_had_survives_the_scope(self) -> None:
         class Wizard(Tag):

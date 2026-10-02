@@ -20,9 +20,11 @@ and the count, and the Tag's words unchanged; it writes "carried by N".
 A kit from before the refusal takes the mark, and the step takes it back,
 so both kits go on alike. A kit that stopped refusing would read the same
 here; the unit tests pin the refusal. Every word the programs give a Flag
-is a plain string literal, so a word kept as its plain text (a `str`
-subclass matched by its text) reads the same on both sides too;
-`tests/test_topkit.py` alone covers it.
+is a plain string literal, given one by one, so a word kept as its plain
+text (a `str` subclass matched by its text) reads the same on both sides
+too, and so do words given as a list, a tuple or a set (2026-10-02),
+which a kit from before refuses; `tests/test_topkit.py` alone covers
+both.
 
 Every step writes what it observed: a value, or an exception's type,
 message and cause. A step that changes a Target is often followed by a
