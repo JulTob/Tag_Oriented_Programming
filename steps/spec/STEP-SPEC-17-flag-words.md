@@ -114,9 +114,9 @@ class next to its name. A Record would make them per-Agent state that
 flips without a tagging or a Rip, which is what §1.9 argues a keyword
 must not do ("a value implies it may be flipped back"). A Report would
 work, but runs lazily and can be reassigned, and adds nothing: decorator
-arguments are ordinary expressions, so `@Flag(*Load_Words("werewolf"))`
-still reads a vocabulary from data, and Shapes already answer their
-Bases' words through the Form.
+arguments are ordinary expressions, so `@Flag(Load_Words("werewolf"))`
+reads a vocabulary from data as a list or a set (item 8), and Shapes
+already answer their Bases' words through the Form.
 
 **The secret identity.** A word answering where membership does not is
 the feature, not a leak. The word is the public name the Agent goes by in
@@ -192,9 +192,9 @@ now survives any rebuild; `RestoredNameTests` covers it.
 > registered first." So `@Flag`, bare or with words, is part of the Tag's
 > declaration, and a mark on a Tag that Agents carry, or its Shapes'
 > Agents, is a Declaration Failure (item 11). Item 8's lone-class form
-> (`@Flag(Beast)` over another class) is unchanged here, and so was item
-> 8's refusal of a list or a set. The Director's words take "str or list
-> of str" and "a list/set of strings"; whether either form stands beside
+> (`@Flag(Beast)` over another class) and its refusal of a list or a set
+> were left as they were here. The Director's words take "str or list of
+> str" and "a list/set of strings", so whether either could stand beside
 > them was left open for the Director. The list or set form is ruled
 > below; the lone-class form stays open.
 >
@@ -205,4 +205,6 @@ now survives any rebuild; `RestoredNameTests` covers it.
 > "Lupus"})`. The words are flattened, each kept as its plain text, and a
 > word given twice is kept once. An empty collection, a non-string in a
 > collection, or a collection inside one is a Declaration Failure that
-> names the item (item 8).
+> names the item (item 8). An unhashable `str` subclass is kept as its
+> plain text, like any word, not refused; the Director's words do not
+> say, so this stays open for the Director.
