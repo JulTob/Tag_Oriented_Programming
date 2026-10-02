@@ -16,7 +16,8 @@
 "Lycanthrope")` over `class Werewolf` makes `"Wolf" in howler` and
 `Keyword(howler, "Lycanthrope")` True while Werewolf is active, beside its
 own name. A word is only a word: it answers `in` and `Keyword`, never
-membership. Bare `@Flag` is unchanged.
+membership. Bare `@Flag` means what it meant, marked where the Tag is
+declared (item 11).
 
 ## Motivation
 
@@ -63,10 +64,11 @@ is the variant: a word with no Field behind it.
    or its words; it answers its Base's words because the Base is active.
    A Shape that is a Flag itself adds its own.
 7. Stacked `@Flag` marks add their words together.
-8. Words are non-empty strings, and a probe is read as its text. Anything
-   else among the words, including a class beside them (`@Flag(Beast,
-   "Wolf")`), is a Declaration Failure at the decorator; nothing is
-   marked. A lone class is the bare form applied to that class:
+8. Words are non-empty strings, each kept as its plain text when the Tag
+   is declared, and a probe is read as its text. Anything else among
+   the words, including a class beside them (`@Flag(Beast, "Wolf")`), is
+   a Declaration Failure at the decorator; nothing is marked. A lone
+   class is the bare form applied to that class:
    `@Flag(Beast)` over another class marks `Beast` itself and then
    applies `Beast` to the new class. No kit can tell that from `Flag(Beast)`
    called on its own, so the Guide says it: a word is the string
@@ -76,6 +78,14 @@ is the variant: a word with no Field behind it.
    holds, by the rule of §1.9.
 10. Every other rule of §1.8 stands: Flags are opt-in, ordinary Tags are
     never found by name, and a Flag on a host that owns `in` is refused.
+11. **A Flag is part of the Tag's declaration.** `@Flag`, bare or with
+    words, marks a Tag nobody carries yet. A mark on a Tag that already
+    has members, or whose Shapes have, is a Declaration Failure that
+    names the Tag and the count (`Wolf is carried by 2 Agents; a Flag is
+    part of the Tag's declaration`; a Pin counts the Tags it is pinned
+    to). A lone class refused this way (`@Flag(Beast)`, or `Flag(Beast)`)
+    adds that a word is written as a string, `@Flag('Beast')`, since it
+    may be a word meant. Nothing is marked.
 
 ```python
 @Flag("Wolf", "Lycanthrope")
@@ -117,8 +127,12 @@ writes each variant the rules may use.
 
 ## Backwards compatibility
 
-None broken. Bare `@Flag` means what it meant. `Flag("Wolf")` was a
-Declaration Failure before and is a decorator now.
+Bare `@Flag` on a Tag nobody carries means what it meant. `Flag("Wolf")`
+was a Declaration Failure before and is a decorator now.
+
+One program breaks. A Flag marked on a Tag that already had members was
+accepted and left a half state: `Keyword` answered the new word and the
+Agent's `in` did not. It is now refused (item 11), bare or with words.
 
 ## Alternatives considered
 
@@ -130,6 +144,7 @@ Declaration Failure before and is a decorator now.
 | Refuse a word that names another Flag | Rejected by the Director: "a reasonable and expected behaviour. We should accept the risk, and let the programmers use their heads a little bit" |
 | A spelling that drops the Tag's name | Rejected by the Director: "The tag name always flags. It makes no sense to use Flag otherwise" |
 | Shapes inherit their Base's words | Unnecessary: the Base is active and answers them; inheriting would also make every Shape of a Flag a Flag, which STEP-SPEC-7 does not do |
+| Accept a late mark (item 11) and rebuild every carrier's type, so `in` answers the new words | Set aside for this draft: a Flag is what the Tag is called, fixed when it is declared; open for the Director |
 
 ## Acceptance requirements
 
@@ -160,3 +175,17 @@ now survives any rebuild; `RestoredNameTests` covers it.
 > Let's apply that." A word that names another Tag is accepted as the
 > alias behaviour; the Tag's name always flags; Flag Pins answer their
 > words on the Tag.
+>
+> *Added 2026-09-29, drafted for the Director's confirmation:* the
+> Director, on a Flag marked after its Tag has members: "a @Flag(items: str or list of str) declares the aliases for
+> the tag the flag is modifying, allowing for aliases. Flag(Wolf) means
+> nothing, and @Flag(Wolf) only makes sense if Wolf is a string or a
+> list/set of strings with names inside ... Flag strings do not need to be
+> registered first." So `@Flag`, bare or with words, is part of the Tag's
+> declaration, and a mark on a Tag that Agents carry, or its Shapes'
+> Agents, is a Declaration Failure (item 11). Item 8's lone-class form
+> (`@Flag(Beast)` over another class) is unchanged here, and so is item
+> 8's refusal of a list or a set: `@Flag(["Wolf", "Lycan"])` is a
+> Declaration Failure, and `@Flag(*words)` spreads one. The Director's
+> words take "str or list of str" and "a list/set of strings"; whether
+> either form stands beside them is open for the Director.

@@ -218,7 +218,9 @@ by one-off scripts).
   run, so a Report's per-Tag cache may be empty there and the Report is
   computed again. A Report that depends on something that changed since
   its first read (the Tag's `__name__`, say) answers with the new value
-  at exit and with the cached one before it.
+  at exit and with the cached one before it. (After 0.2.0a4 a
+  Report's value is kept on its Tag, so a finalizer at exit reads the
+  value built before; see the CHANGELOG, under Unreleased.)
 
 ### 4.3 Tried and taken back
 

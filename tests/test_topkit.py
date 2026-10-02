@@ -1057,15 +1057,111 @@ class PublicationTests(unittest.TestCase):
             def traits(tag, inherited) -> list[str]:
                 return inherited + ["armoured"]
 
+        class Rogue(Class_):                          # a Shape that does not override
+            pass
+
         self.assertEqual(Class_.hit_die, 8)
         self.assertEqual(Class_.hit_die, 8)
         self.assertEqual(calls, ["Class_"])           # built once
         self.assertEqual(Fighter.hit_die, 10)
         self.assertEqual(Fighter.traits, ["mortal", "armoured"])
         self.assertEqual(Class_.traits, ["mortal"])
+        self.assertEqual(Rogue.hit_die, 8)
+        self.assertEqual(Rogue.hit_die, 8)
+        self.assertEqual(calls, ["Class_", "Rogue"])  # once per Tag: the Shape keeps its own
+        self.assertEqual(Class_.hit_die, 8)
+        self.assertEqual(calls, ["Class_", "Rogue"])
 
         with self.assertRaises(TagDeclarationError):
             Report(8)                                 # a builder, not a value
+
+    def test_a_builder_that_reads_another_report_leaves_each_built_once(self) -> None:
+        calls: list[str] = []
+
+        class Fen(Tag):
+            @Report
+            def depth(tag) -> int:
+                calls.append("depth")
+                return 1
+
+            @Report
+            def reach(tag) -> int:
+                calls.append("reach")
+                return tag.depth + 1                  # another Report of Fen, read first here
+
+        self.assertEqual(Fen.reach, 2)
+        self.assertEqual(Fen.depth, 1)
+        self.assertEqual(Fen.depth, 1)
+        self.assertEqual(Fen.reach, 2)
+        self.assertEqual(calls, ["reach", "depth"])   # each built once
+
+    def test_a_builder_that_reads_its_own_report_keeps_the_first_value(self) -> None:
+        calls: list[str] = []
+
+        class Echo(Tag):
+            @Report
+            def sound(tag) -> str:
+                calls.append("sound")
+
+                if len(calls) == 1:
+                    return "outer, after " + tag.sound        # its own Report, read while it builds
+
+                return "inner"
+
+        self.assertEqual(Echo.sound, "inner")                 # the value kept first wins, for the outer read too
+        self.assertEqual(Echo.sound, "inner")
+        self.assertEqual(calls, ["sound", "sound"])           # built twice, kept once
+
+    def test_a_report_read_at_exit_gives_the_value_the_tag_kept(self) -> None:
+        """The Tag keeps its value, so a finalizer at interpreter exit
+        reads the value built before, not a new one."""
+
+        lines, stderr = Run_Program(
+                """
+from TopKit import Tag, Report, Public
+
+class Wolf(Tag):
+    @Public
+    @Report
+    def motto(tag):
+        return tag.__name__ + " howls"
+
+class Howler:
+    def __del__(self):
+        print("exit", self.motto)
+
+pack = Howler()
+Wolf(pack)
+print(pack.motto)
+Wolf.__name__ = "Renamed"
+""",
+                )
+
+        self.assertEqual(stderr, "")
+        self.assertEqual(lines, ["Wolf howls", "exit Wolf howls"])
+
+    def test_a_dropped_shape_is_freed_after_its_base_report_was_read(self) -> None:
+        """The value lives on the Tag it was built for, so a Report whose
+        value holds that Tag does not keep it alive."""
+
+        class Kin(Tag):
+            @Report
+            def me(tag):
+                return tag
+
+        def Make() -> weakref.ref:
+            class Temporary(Kin):
+                pass
+
+            self.assertIs(Temporary.me, Temporary)
+
+            return weakref.ref(Temporary)
+
+        reference = Make()
+        gc.collect()
+
+        self.assertIsNone(reference())
+        self.assertIs(Kin.me, Kin)
 
     def test_reports_operations_and_their_deletion_follow_the_tag_view(self) -> None:
         ari = Agent()
@@ -2515,7 +2611,8 @@ class ExitProtocolTests(unittest.TestCase):
 
 
 class ScopeTests(unittest.TestCase):
-    """Scope Rips only what it applied, and everything it applied."""
+    """Scope Rips only what it applied: everything it applied, except a
+    Tag a Shape that arrived in the block still requires."""
 
     def test_a_tag_the_agent_already_had_survives_the_scope(self) -> None:
         class Wizard(Tag):
@@ -2563,6 +2660,84 @@ class ScopeTests(unittest.TestCase):
 
         self.assertNotIn(cal, Plain)                                  # Plain was the Scope's: gone
         self.assertNotIn(cal, Gated)
+
+    def test_a_tag_whose_imprint_failed_at_the_door_is_ripped_on_exit(self) -> None:
+        class Cursed(Tag):
+            @Imprint
+            def Mark(agent):
+                raise ValueError("the mark will not take")
+
+        ari = Agent()
+
+        with self.assertRaises(Imprint.Mark):
+            with Scope(ari, Cursed):
+                raise AssertionError("the body must not run")
+
+        self.assertNotIn(ari, Cursed)                                 # applied, failed at the door, and Ripped
+        self.assertTrue(isinstance(ari, Cursed))                      # the history stays
+
+    def test_a_base_the_scope_pulled_in_stays(self) -> None:
+        class Wolf(Tag):
+            pass
+
+        class Dire(Wolf):
+            pass
+
+        bo = Agent()
+
+        with Scope(bo, Dire):
+            self.assertIn(bo, Wolf)
+
+        self.assertNotIn(bo, Dire)                                    # the Tag it named and applied
+        self.assertIn(bo, Wolf)                                       # the Base it pulled in stays
+
+        cy, di = Agent(), Agent()
+
+        with Scope(cy, Dire, Wolf):                                   # Wolf is carried by its turn
+            pass
+
+        with Scope(di, Wolf, Dire):                                   # Wolf is the Scope's own
+            pass
+
+        self.assertIn(cy, Wolf)
+        self.assertNotIn(cy, Dire)
+        self.assertNotIn(di, Wolf)
+        self.assertNotIn(di, Dire)
+
+    def test_a_tag_a_shape_still_requires_stays_after_the_scope(self) -> None:
+        class Wolf(Tag):
+            pass
+
+        class Dire(Wolf):
+            pass
+
+        bo = Agent()
+
+        with Scope(bo, Wolf):
+            Dire(bo)                                                  # the block brings a Shape that requires Wolf
+
+        self.assertIn(bo, Dire)
+        self.assertIn(bo, Wolf)                                       # the Rip was refused, and the Scope went on
+
+    def test_a_teardown_that_fails_in_a_scope_still_rips_the_tag(self) -> None:
+        class Sentry(Tag):
+            @Rip
+            def Stand_Down(agent):
+                raise ValueError("the post will not be left")
+
+        guard, other = Agent(), Agent()
+
+        with Scope(guard, Sentry):                                    # not reported, as the kit stands (STEP-SPEC-6: open)
+            pass
+
+        self.assertNotIn(guard, Sentry)                               # the membership ended all the same
+
+        Sentry(other)
+
+        with self.assertRaises(TagCompositionError):                  # a plain Rip reports it
+            del Sentry[other]
+
+        self.assertNotIn(other, Sentry)
 
 
 class AccessTests(unittest.TestCase):
@@ -2740,12 +2915,13 @@ class ConditionMemberTests(unittest.TestCase):
         ari.book = None
         self.assertIs(ari.Has_Book, False)
         self.assertFalse(ari)
-        self.assertNotIn("Has_Book", Contract.Status(ari) and vars(ari))
+        self.assertNotIn("Has_Book", vars(ari))
+        self.assertIs(Contract.Status(ari)["Has_Book"], False)
 
         with self.assertRaises(AttributeError):
             ari.Has_Sword                                             # no such condition
 
-    def test_a_raising_condition_reads_false_and_a_non_bool_is_refused(self) -> None:
+    def test_a_raising_condition_reads_false_and_a_non_bool_raises_on_the_member(self) -> None:
         class Loud(Tag):
             @Post
             def Ready(agent):
@@ -2764,6 +2940,54 @@ class ConditionMemberTests(unittest.TestCase):
         ari.count = 0
         with self.assertRaises(TagContractError):
             ari.Count
+
+        with self.assertRaises(TagContractError):
+            hasattr(ari, "Count")                                     # 0.2.0a3 gave False
+
+        with self.assertRaises(TagContractError):
+            getattr(ari, "Count", None)                               # 0.2.0a3 gave None
+
+        self.assertIs(Contract.Status(ari)["Count"], False)          # the status counts it
+        self.assertFalse(ari)
+
+    def test_a_gate_is_read_without_the_taggings_inputs(self) -> None:
+        class Coded(Tag):
+            @Pre
+            def Has_Code(agent, code=None):
+                return code == "007"
+
+        bond = Agent()
+        Coded(bond, code="007")                                       # the gate passed, with its input
+
+        self.assertIs(bond.Has_Code, False)                           # read now, with its default
+        self.assertEqual(Contract.Status(bond), {"Has_Code": False})
+        self.assertTrue(bond)                                         # a gate is no promise
+
+        class Cleared(Tag):
+            @Pre
+            def Has_Clearance(agent, code=None):
+                return code != "forbidden"
+
+            @Pre
+            def Has_Badge(agent, badge):
+                return badge == "gold"
+
+        class Visitor(Tag):
+            @Pre
+            def Has_No_Badge(agent, badge):
+                return badge is None
+
+            @Pre
+            def Has_No_Pass(agent, *, badge):
+                return badge is None
+
+        Cleared(bond, code="x", badge="gold")
+        Visitor(bond)
+
+        self.assertIs(bond.Has_Clearance, True)                       # the default decides, not the tagging's input
+        self.assertIs(bond.Has_Badge, False)                          # no default: bound to None, and None == "gold" is False
+        self.assertIs(bond.Has_No_Badge, True)                        # bound to None as at the door (§2.2), so True
+        self.assertIs(bond.Has_No_Pass, True)                         # keyword-only: the same binding
 
     def test_a_pinned_tags_condition_reads_on_the_tag(self) -> None:
         class Wizard(Tag):
@@ -3154,6 +3378,138 @@ class FlagWordTests(unittest.TestCase):
         self.assertNotIn(Loose("werewolf"), howler)
         self.assertNotIn(Loose("Fiend"), howler)          # no TypeError from an unhashable word
         self.assertFalse(Keyword(howler, Loose("Fiend")))
+
+    def test_a_flag_word_is_kept_as_its_plain_text(self) -> None:
+        """A str subclass given to @Flag is kept as its text, as a probe is."""
+
+        class Unhashable(str):
+            __hash__ = None
+
+        class Folded(str):
+            def __eq__(self, other):
+                return isinstance(other, str) and self.lower() == other.lower()
+
+            def __hash__(self):
+                return hash(self.lower())
+
+        @Flag(Unhashable("Wolf"))                         # no TypeError at declaration
+        class Werewolf(Tag):
+            pass
+
+        @Flag(Folded("Wolf"))
+        class Lycan(Tag):
+            pass
+
+        howler, moon = Agent(), Agent()
+        Werewolf(howler)
+        Lycan(moon)
+
+        self.assertIn("Wolf", howler)
+        self.assertIn("Wolf", moon)                       # its own word matches
+        self.assertNotIn("wolf", moon)                    # exact, whatever the subclass says
+        self.assertTrue(Keyword(moon, "Wolf"))
+        self.assertFalse(Keyword(moon, "wolf"))
+
+        for tag in (Werewolf, Lycan):
+            self.assertEqual({type(word) for word in vars(tag)["__topkit_flag__"]}, {str})
+
+    def test_a_flag_on_a_tag_with_members_is_refused(self) -> None:
+        """A Flag is part of the Tag's declaration (STEP-SPEC-17, 2026-09-29)."""
+
+        class Wolf(Tag):
+            pass
+
+        class Dire(Wolf):
+            pass
+
+        ari, bo = Agent(), Agent()
+        Wolf(ari)
+        self.assertFalse(Keyword(ari, "Howler"))          # the words are gathered here
+        Dire(bo)                                          # a Shape's member carries the Base
+
+        for mark, hint in (
+                (Flag("Howler"), ""),
+                (Flag, "; a word is written as a string, @Flag('Wolf')"),   # a lone class may be a word meant
+                ):
+            with self.assertRaises(TagDeclarationError) as refused:
+                mark(Wolf)
+
+            self.assertEqual(
+                    str(refused.exception),
+                    "Wolf is carried by 2 Agents; a Flag is part of the Tag's declaration" + hint,
+                    )
+
+        self.assertNotIn("__topkit_flag__", vars(Wolf))  # nothing was marked
+        self.assertFalse(Keyword(ari, "Howler"))
+        self.assertFalse(Keyword(bo, "Wolf"))
+
+    def test_a_base_whose_shape_has_members_is_refused(self) -> None:
+        class Wolf(Tag):
+            pass
+
+        class Dire(Wolf):
+            pass
+
+        class Howling(Tag):
+            @Post
+            def Is_Loud(agent):
+                return agent.loud
+
+        bo = Agent()
+        Dire(bo)
+
+        with self.assertRaisesRegex(TagDeclarationError, "^Wolf is carried by 1 Agent;"):
+            Flag("Howler")(Wolf)
+
+        ari = Agent()
+        ari.loud = False
+
+        with self.assertRaises(TagPostconditionError):
+            Howling(ari)                                  # a defective member still carries it
+
+        with self.assertRaisesRegex(TagDeclarationError, "^Howling is carried by 1 Agent;"):
+            Flag(Howling)
+
+    def test_a_flag_is_taken_once_nobody_carries_the_tag(self) -> None:
+        class Wolf(Tag):
+            pass
+
+        class Dire(Wolf):
+            pass
+
+        ari, bo = Agent(), Agent()
+        Wolf(ari)
+        Wolf(bo)
+
+        del Wolf[ari]                                     # Ripped
+        del bo                                            # gone
+        gc.collect()
+
+        Flag("Howler")(Dire)                              # a Shape nobody carries
+        Flag("Hunter")(Wolf)
+
+        Dire(ari)
+
+        self.assertTrue(Keyword(ari, "Wolf", "Hunter", "Dire", "Howler"))
+        self.assertIn("Hunter", ari)
+
+    def test_a_flag_on_a_pin_that_pinned_a_tag_is_refused(self) -> None:
+        @Pin
+        class Deprecated(Tag):
+            pass
+
+        class Wizard(Tag):
+            pass
+
+        Deprecated(Wizard)
+
+        with self.assertRaisesRegex(
+                TagDeclarationError,
+                "^Deprecated is carried by 1 Tag; a Flag is part of the Tag's declaration$",
+                ):
+            Flag("Obsolete")(Deprecated)
+
+        self.assertNotIn("Obsolete", Wizard)
 
     def test_a_flag_that_lands_after_another_tag_takes_the_seat(self) -> None:
         @Flag("Wolf")
@@ -3842,18 +4198,6 @@ class EfficiencyTests(unittest.TestCase):
 
         self.assertIs(Elf(ari), ari)
         self.assertEqual((type(ari), dict(vars(ari))), before)
-
-    def test_words_follow_a_flag_declared_after_use(self) -> None:
-        class Wolfish(Tag):
-            pass
-
-        ari = Agent()
-        Wolfish(ari)
-        self.assertFalse(Keyword(ari, "Wolf"))   # the words are gathered here
-
-        Flag("Wolf")(Wolfish)
-
-        self.assertTrue(Keyword(ari, "Wolf"))    # and gathered again, not stale
 
     def test_at_exit_runs_every_registration_in_order(self) -> None:
         lines, stderr = Run_Program(

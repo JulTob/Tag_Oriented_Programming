@@ -245,10 +245,6 @@ Rip is the only exit from a Field, and it obeys three laws:
   is a Resolution Failure.
 - **Reapplying a Ripped Tag is a fresh Tagging.** Imprints run again;
   Records are rebuilt.
-- **A Scope Rips what it applied, and only that.** A Tag the Agent
-  already carried at entry is left as it was on exit; a Tag that applied
-  and reported a broken promise at the Scope's door did apply, and is
-  Ripped on the way out with the rest.
 
 ## 0.8 Spellings
 
@@ -296,7 +292,10 @@ door follows the empty-seat rule: a host with its own formatting keeps it.
 
 Queries that need a name are functions (`Form`, `Tags`, `Keyword`,
 `Apply`, `Outline`, `Contract`, `Scope`), never members of the Tag or of
-the Agent.
+the Agent, with two exceptions: the Agent-bound view by the Tag's name
+(`agent.Paladin`, §1.7), and a condition read by its own name, on the
+Agent (`agent.Has_Book`) and on a pinned Tag (`Wizard.Has_Members`),
+§2.5.
 Another language profile chooses its own native spellings; the acts and
 their distinctions are what must survive.
 
@@ -491,9 +490,10 @@ Community.Greet("Ari")      # "Community:Ari"
 ```
 
 A Report builder runs once per Tag, on first read, and its value is held
-on the Tag: one copy for the whole Field. Like a Record, it may declare a
-second parameter, which receives the value the Tag's Bases give that name,
-or `None`, so a Shape can extend a Base's Report rather than replace it.
+on the Tag for as long as the Tag lives: one copy for the whole Field,
+and a Shape holds its own. Like a Record, it may declare a second
+parameter, which receives the value the Tag's Bases give that name, or
+`None`, so a Shape can extend a Base's Report rather than replace it.
 
 Reports and Operations are **not visible on the Agent**. `ari.colour` does
 not exist after `Community(ari)`, and neither does `ari.Greet`. Projecting
@@ -563,8 +563,10 @@ you, so field economy (one value, one body on the Tag) needs no hand-written
 adapter:
 
 - A **published Report** appears on the Agent as a **read-only name** that
-  reads the Tag's current value. One copy lives on the Tag; the Agent does
-  not carry it.
+  reads the current value of the Tag that published it. One copy lives on
+  the Tag; the Agent does not carry it. An Agent of a Shape reads the
+  Base's value, though the Shape holds its own (§1.4), unless the Shape
+  publishes the Report again.
 - A **published Operation** appears on the Agent as an **Action** that
   forwards to the Operation with **the Agent as its second input**, after
   the Tag.
@@ -750,7 +752,11 @@ accepted, and says nothing about that Tag's Field. Many Tags may share a
 word; it answers while any of them is active. The words are the Tag's
 own: a Shape answers its Base's words because the Base is active (§0.3),
 never by inheriting them. Bare `@Flag` is the name alone. Words are
-non-empty strings and match exactly, like names.
+non-empty strings, kept as their plain text, and match exactly, like
+names. A Flag, bare or with words, is part of the Tag's declaration:
+marking a Tag that already has members, or whose Shapes have, is a
+Declaration Failure that names the Tag and how many carry it, and
+nothing is marked.
 
 A Flag needs the Agent's `in`, and one seat holds one meaning. Something
 else may already answer it: the host, through its own `__contains__` or
@@ -1072,15 +1078,25 @@ for u in (Wizard[:] | Fighter[:]) - Sworn:   # anyone with a role who has not sw
 `agent.Has_Book` is `True` while the promise called `Has_Book` holds and
 `False` when it does not: the language's boolean, computed on read, never
 stored, never callable. A Postcondition answers before a Precondition of
-the same name; a condition that raises reads `False`; a non-boolean is a
-Contract Failure on read, as always. Because the name is read on the
-Agent, a condition may not share its name with an Action, a Record, a
-member the host defines or a value the Agent already holds: the tagging
-is refused at the door with a Composition Failure, and so is an Action or
-a Record laid over a condition's name. Nothing is silently shadowed. A
-pinned Tag reads its own conditions the same way (`Wizard.Has_Members`).
-A condition that outlived its Tag (§0.7) still reads by name until the
-author ends it.
+the same name; a condition that raises reads `False`. A condition that
+returns anything but `True`, `False` or `None` (a `0`, say) raises the
+Contract Failure on read, and so do `hasattr(agent, "Has_Book")` and
+`getattr(agent, "Has_Book", None)`; `Contract.Status` reads it as
+`False`, and so does `bool(agent)` when it is a Postcondition. Because
+the name is read on the Agent, a condition may not share its name with
+an Action, a Record, a member the host defines or a value the Agent
+already holds: the tagging is refused at the door with a Composition
+Failure, and so is an Action or a Record laid over a condition's name.
+Nothing is shadowed. A pinned Tag reads its own conditions the same way
+(`Wizard.Has_Members`). A condition that outlived its Tag (§0.7) still
+reads by name until the author ends it. A gate is read now, without the
+tagging's inputs: a later read binds each parameter as a call with no
+inputs does (§2.2), to its default, or to `None` when it has none. So
+`@Pre def Has_Code(agent, code=None): return code == "007"` reads
+`False` on the Agent once the call is over, `@Pre def Has_Code(agent,
+code): return code is not None` reads `False` because `code` is `None`,
+and `@Pre def Has_No_Badge(agent, badge): return badge is None` reads
+`True`.
 
 Truthiness on a plain object is vacuously true, so this fills an empty
 seat. A host that defines its own `__bool__` or `__len__` keeps it until a
@@ -1228,7 +1244,7 @@ An implementation provides three tiers and says which is which:
 | Tier | Guarantee |
 | --- | --- |
 | **Finalizer** (`__del__`) | best effort: when the Agent is collected, its teardowns run, then its `__del__` Layers; at interpreter exit only the `__del__` Layers run; the language may not run finalizers at shutdown or inside reference cycles |
-| **`Scope(agent, *tags)`** | guaranteed: Tags apply on entry and Rip, in reverse, on exit, even if the block raises |
+| **`Scope(agent, *tags)`** | guaranteed: the Tags it names apply on entry, and those it applied Rip, in reverse, on exit, even if the block raises; a Rip refused because a Shape that arrived in the block still requires the Tag leaves that Tag on the Agent |
 | **`At_Exit(agent)`** | opt-in: teardowns also run at normal interpreter exit; registration is weak |
 
 Every teardown runs at most once, whichever tier reaches it first.
@@ -1274,10 +1290,26 @@ del lamp
 assert log == ["put down", "spell fades", "wick out"]
 ```
 
+**A Scope Rips the Tags it applied, and only those** (STEP-SPEC-6,
+amended 2026-09-29). A Tag the Agent already carries when the Scope
+reaches it is the Agent's: the Scope adds nothing and takes nothing
+away, and the block still runs. A Base the Scope pulls in with a Shape
+stays, and so does a Base the Scope names after that Shape, because the
+Agent already carries it by then. A Tag that applied and then failed at
+the door, through its Postcondition or its Imprint, stays applied
+(§0.6), so the Scope Rips it, and the Tags it applied before it, as the
+failure leaves; the block does not run. A Rip the Scope cannot make,
+because a Shape that arrived in the block still requires the Tag, is
+refused as any such Rip is (§0.7); the Tag stays, and the Scope goes on
+Ripping the rest. A teardown that fails as the Scope Rips its Tag ends
+the membership as on any Rip, but the Scope does not report the failure:
+whether it should, once the block is over, is open in STEP-SPEC-6.
+
 ```python
 with Scope(agent, Sentry):
     guard_the_gate(agent)
-# Sentry's teardown has run here, exception or not
+# Sentry's teardown has run here, exception or not, if the Scope applied it
+# (and no Shape that arrived in the block still requires Sentry)
 ```
 
 ---
@@ -1312,14 +1344,14 @@ types but must keep these distinct.
 
 | Failure | Meaning | Effect |
 | --- | --- | --- |
-| **Tag Declaration Failure** | A Tag is written wrong: illegal mark combination, `@Underlay` without a parameter to receive it. | at class use |
+| **Tag Declaration Failure** | A Tag is written wrong: illegal mark combination, `@Underlay` without a parameter to receive it, a Flag marked on a Tag that already has members. | at class use |
 | **Tag Composition Failure** | Contributions cannot form the Overlay: cross-kind collision, Record over a host descriptor, a Record builder or teardown that failed, a Target that cannot carry state, a Base still required. | call rolled back (or Rip refused) |
 | **Tag Resolution Failure** | A required Underlay, view, or membership is unavailable. | call rolled back |
 | **Tag Rogue Access Failure** | A Rogue Agent reached a published member of a Tag it has left. A Resolution Failure, and a TOP failure only: never dressed as a host-language attribute failure. | use refused |
 | **Tag Precondition Failure** | A gate refused the incoming Agent. | call rolled back |
 | **Tag Imprint Failure** | An Imprint failed after commit. | Tags stay |
 | **Tag Postcondition Failure** | The finished Agent breaks a promise. | Tags stay, Agent defective |
-| **Tag Contract Failure** | A condition returned a non-boolean. | call rolled back |
+| **Tag Contract Failure** | A condition returned a non-boolean. | call rolled back; on a read by name, raised (§2.5) |
 | **Overwrite Warning** | An independent Tag replaced a visible Action or Record without an Underlay. | diagnostic |
 | **Contract Warning** | A Shape weakened a Base Postcondition. | diagnostic |
 
@@ -1352,8 +1384,9 @@ A conforming implementation provides, ring by ring:
   Reports as read-only live names and `Public` Operations as Actions with
   the Agent as second input; illegal marks rejected at declaration;
 - Flags: opt-in keyword Tags searchable from the Agent's side by name, by
-  the words they list, and by class, a word never standing for
-  membership, colliding in either order with a host or a Tag's Action
+  the words they list, and by class, marked when the Tag is declared (a
+  mark on a Tag that already has members refused), a word never standing
+  for membership, colliding in either order with a host or a Tag's Action
   that already answers `in`, never matched for ordinary Tags;
 - Pins: opt-in Tags whose Targets are Tags, the pinned Tag as Agent under
   every Ring 0 act, the receiver rule (Records as Reports, Actions as
@@ -1368,8 +1401,10 @@ A conforming implementation provides, ring by ring:
   `@Requirement` in one word;
 - populations combined with `|`, `&` and `-` at every level, lazily, a
   Tag in an operator seat meaning its sound population;
-- every condition read on the Agent by its name as a plain boolean, with
-  a condition's name refused to Actions, Records and host members;
+- every condition read on the Agent by its name as a plain boolean, a
+  non-boolean raising the Contract Failure and a gate read without the
+  tagging's inputs, with a condition's name refused to Actions, Records,
+  host members and values the Agent holds;
 - Delete; the three access forms, with Agent-bound views as read-only
   snapshots requiring active membership.
 
@@ -1385,8 +1420,10 @@ A conforming implementation provides, ring by ring:
 
 **Ring 3**
 - `@Rip` protocols run after membership ends, once, composed, failures
-  reported; the three deletion tiers; the Agent's `__del__` as Layers of
-  its Overlay, run after the teardowns, and alone at interpreter exit.
+  reported by the Rip; the three deletion tiers, a Scope Ripping the
+  Tags it applied and only those, leaving one a Shape still requires;
+  the Agent's `__del__` as Layers of its Overlay, run after the
+  teardowns, and alone at interpreter exit.
 
 **Everywhere**
 - the failure types above, distinct and named.

@@ -2,6 +2,58 @@
 
 ## Unreleased
 
+### Specification
+
+- **A Flag is part of the Tag's declaration** (STEP-SPEC-17, item 11;
+  §1.8). `@Flag`, bare or with words, on a Tag that already has members,
+  or whose Shapes have, is a Declaration Failure that names the Tag and
+  the count, and nothing is marked. 0.2.0a4 took such a mark halfway:
+  `Keyword` answered the new word and the Agent's `in` did not. Bare
+  `@Flag` on a new Tag is unchanged. A lone class refused this way,
+  `Flag(Beast)`, adds that a word is written as a string.
+- **A Scope Rips the Tags it applied, and only those** (§3.2; STEP-SPEC-6
+  amended 2026-09-29). The rule moves from §0.7 to §3.2, beside the
+  Scope's tier. One difference from 0.2.0a4: a Tag whose Imprint failed
+  at the Scope's door stays applied (§0.6), and is now Ripped as the
+  failure leaves the Scope, as a Tag whose Postcondition failed already
+  was. Unchanged since 0.1, and now written down: a Rip the Scope cannot
+  make, because a Shape that arrived in the block still requires the
+  Tag, leaves that Tag; a teardown that fails as the Scope Rips is not
+  reported (open for the Director in STEP-SPEC-6). Still owed for this
+  release: the spelling `with Wizard[h]:`, with inputs as `with
+  Wizard[h](code="007"):` (STEP-SPEC-21).
+- **STEP-SPEC-14's words follow the kit** (the Director's rulings of
+  2026-09-29). A condition that returns a non-boolean raises the
+  Contract Failure when read on the Agent, and so do `hasattr` and
+  `getattr` with a default, while `Contract.Status` reads it as False,
+  and so does `bool(agent)` for a Postcondition. 0.2.0a4 already did this
+  (0.2.0a3 gave False and None), and its entry did not say so. A gate
+  read later binds each parameter as a call with no inputs does, to its
+  default or to `None` (§2.2). §0.8 names its two exceptions to "never
+  members": the Agent-bound view by the Tag's name and a condition read
+  by its own name.
+- A Report's value is held on the Tag for as long as the Tag lives, and
+  a Shape holds its own (§1.4); a published Report gives a Shape's Agent
+  the value of the Tag that published it (§1.5).
+- STEP-SPEC-7's Decision records its amendment of 2026-09-24.
+
+### TopKit
+
+- **A Report's value is kept on its Tag**, as the Director ruled on
+  2026-09-29: the Tag keeps the value it built, strongly. In 0.2.0a4 a
+  Report read from a finalizer at exit was built again, after the
+  language had cleared the weak cache, so a renamed Tag gave a new value
+  there. The weak cache also kept a Shape alive forever when the value a
+  Base's Report built for the Shape held the Shape.
+- A word given to `@Flag` is kept as its plain text, as a probe is: a
+  case-insensitive `str` subclass matches its own word, and an unhashable
+  one no longer raises `TypeError` at declaration.
+- `ScopeTests` covers the Imprint failure at the door, a Base pulled in
+  or named after its Shape, the Rip refused for a required Base and the
+  teardown that fails; the oracle's `Exercise_Scope` puts a Tag whose
+  Imprint fails in some Scopes; the differential fuzzer tries a late
+  Flag on a carried Tag and expects the refusal.
+
 ### Project
 
 - **Releases go out through Trusted Publishing.** A GitHub Release runs

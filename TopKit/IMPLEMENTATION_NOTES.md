@@ -97,10 +97,15 @@ rollback target.
   After the last Flag is Ripped it stays until the type is next rebuilt,
   answering False. It answers the name, a listed word, or the class of an
   active Flag and nothing else. The mark is the frozenset of the Tag's
-  words in its own `__dict__` (empty for bare `@Flag`); the name is read
-  live from `__name__`, and the words are never inherited by Shapes.
-  Each Agent keeps its active Flags and their aliases in `state.words`
-  until its Tags change or any `@Flag` is declared (counted in
+  words, each stored as its plain text (`str.__str__`), in its own
+  `__dict__` (empty for bare `@Flag`); the name is read live from
+  `__name__`, and the words are never inherited by Shapes. `Flag`
+  refuses a Tag whose Field has a live member (`TagDeclarationError`,
+  with the count; a Shape's members are in its Base's Field too), so a
+  mark never lands under an Agent that carries the Tag. A lone class
+  refused this way adds that a word is written as a string. Each Agent keeps
+  its active Flags and their aliases in `state.words` until its Tags
+  change or any `@Flag` is declared (counted in
   `declarations._flags_declared`). A string probe of a `str` subclass is
   read as its plain text, so matching stays exact and never hashes an
   unhashable subclass. `Keyword()` is the
@@ -159,8 +164,15 @@ rollback target.
   harmless for the stored Layer and it keeps a host property of that name
   hidden. A type rebuilt later for another reason keeps it.
 - **Reports are builders.** `@Report def r(tag[, inherited])` is a
-  descriptor that runs its builder once per Tag on first read and caches
-  the value per Tag (weakly). `Tag.r += 1` replaces the descriptor with a
+  descriptor that runs its builder once per Tag on first read and keeps
+  the value on that Tag: in a dict under `_topkit_reports` in the Tag
+  class's own `__dict__`, keyed by the Report, read from
+  `owner.__dict__` and never through inheritance. So the value lives and
+  dies with the Tag, a Shape and its Base keep separate values, and a
+  finalizer at exit reads the value built before (a weak cache could be
+  cleared there first). The value is kept with `setdefault`, so a builder
+  that reads its own Report while it builds leaves the value kept first,
+  and the outer read returns that one too. `Tag.r += 1` replaces the descriptor with a
   plain value on that class, which is the documented counter pattern.
   Views snapshot the computed value; a published Report reads live.
 - **Failures name their check.** `TagPreconditionError`,
@@ -235,9 +247,15 @@ rollback target.
   over a condition's name, and
   `_refuse_conditions_shadowed_by_the_agent` in `_apply_one` for a value
   the Agent's own namespace already holds.
-- **Scope** (§0.7) skips a Tag the Agent already carries and records a
-  Tag whose tagging raised a Postcondition failure as applied, so the
-  teardown Rips exactly what the Scope applied.
+- **Scope** (§3.2) skips a Tag the Agent already carries when its turn
+  comes, so a Base named after its Shape is skipped too. When a
+  tagging raises, it asks whether the Tag is now active (a Postcondition
+  or an Imprint failed after commit) and, if so, records it as applied,
+  so the teardown Rips what the Scope applied. A Base pulled in with a
+  Shape is not recorded. Each Rip on the way out is wrapped in `except
+  TagError: pass`: a Rip refused for a required Base leaves the Tag, and
+  a failed teardown (the Tag already Ripped) is dropped, where `_rip`
+  would raise it. STEP-SPEC-6 leaves the second open for the Director.
 - **The oracle** (`tests/oracle_topkit.py`): an independent model of
   the laws driven by a random walk; `tests/test_oracle.py` runs a short
   walk under the suite. Run it at size with `--seeds 50 --steps 1200

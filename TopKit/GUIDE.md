@@ -366,7 +366,10 @@ seat empty: `def code(agent, *, code)` says "agent, nothing stored, then
 `code` from the call". If you wrote `def code(agent, code)`, Python would
 put `code` in the stored seat, and TopKit refuses that at tagging time
 and prints the spelling above. Preconditions and Imprints have no stored
-seat, so there `def Has_A_Code(agent, code)` is enough.
+seat, so there `def Has_A_Code(agent, code)` is enough. A gate read
+later, `bond.Has_A_Code`, is read now, without the tagging's inputs:
+`code` is `None`, as in a call that gives no `code`, so it reads `False`
+once the call is over.
 
 **Watch out.** A gate must answer `True`, `False`, or nothing at all.
 Do not return a number and hope: a count of `0` is not `False` to TopKit,
@@ -522,7 +525,9 @@ it, a word is enough.
 answers to its name: `"Wizard" in agent` says nothing about being a
 Wizard, and is `True` only while an active Flag is named Wizard or lists
 the word. Words are strings, `@Flag("Beast")`; `@Flag(Beast)` is the bare
-form applied to the class `Beast`, not a word.
+form applied to the class `Beast`, not a word. `@Flag` belongs on the
+class line, where the Tag is declared: TopKit refuses a mark on a Tag
+that already has members, or whose Shapes have.
 
 **One seat, one meaning.** A Flag cannot join an object that already
 answers `in`: a list, a party that iterates its members (`__iter__`), or
@@ -666,6 +671,16 @@ assert guard not in Sentry
 
 `@Imprint` runs after the Tag applies; `@Rip` runs after it leaves. They
 are constructor and destructor, `__enter__` and `__exit__`.
+
+A Scope takes away only what it gave. If the guard is already a Sentry,
+the block runs and he stays one. A Base the Scope pulled in with a Shape
+stays too, even if the Scope names it after the Shape. A Sentry whose
+`post` fails at the door is Ripped as the error leaves the `with`, and
+the block does not run: the Scope applied it. Two things the Scope does
+not do on the way out. If the block made the guard a Shape of Sentry,
+the Shape still requires Sentry, so Sentry stays. And if Sentry's `@Rip`
+protocol fails there, the guard has left Sentry, but the Scope does not
+raise the failure, where `del Sentry[guard]` would.
 
 A role's conditions do **not** leave with it on their own. What the
 Agent *became* stays (pattern 1's Rogue Agent), and so does what the role

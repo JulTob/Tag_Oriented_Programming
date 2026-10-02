@@ -6,11 +6,23 @@ Tag families with Bases, Shapes and diamonds; Records with a stored seat
 and inputs; Actions with and without @Underlay, special methods among
 them; gates, promises and Requirements; Imprints, Rips, Deletes, Secrets,
 published Reports and Operations, Flags with words, Pins; Scope, Apply,
-applying, re-applying and Ripping; Flags declared and Tags renamed while
+applying, re-applying and Ripping; Flags marked and Tags renamed while
 the program runs, and Tags declared in a function; broken promises and
 the Fields that sort them; views, queries and keywords; At_Exit, deleted
 Agents and collected cycles; hosts and Tags with finalizers of their
 own; and what happens at interpreter exit.
+
+A Flag is part of the Tag's declaration (STEP-SPEC-17, 2026-09-29): the
+kit refuses a mark on a Tag that has members, or whose Shapes have. So a
+Flag marked while the program runs lands only on a Tag nobody carries.
+Where Agents carry it, the step expects the refusal, with the Tag's name
+and the count, and the Tag's words unchanged; it writes "carried by N".
+A kit from before the refusal takes the mark, and the step takes it back,
+so both kits go on alike. A kit that stopped refusing would read the same
+here; the unit tests pin the refusal. Every word the programs give a Flag
+is a plain string literal, so a word kept as its plain text (a `str`
+subclass matched by its text) reads the same on both sides too;
+`tests/test_topkit.py` alone covers it.
 
 Every step writes what it observed: a value, or an exception's type,
 message and cause. A step that changes a Target is often followed by a
@@ -277,8 +289,57 @@ def Look(
             bool(target),
             Contract.Status(target),
             [word for word in KNOWN_WORDS if Keyword(target, word)],
-            sorted(vars(target)),
+            sorted(name for name in vars(target) if name != "_topkit_reports"),   # a Tag keeps its Report values there
             )
+
+
+def Carried(
+        tag,
+        ):
+    """How many live members the Tag has. A Shape's members are its Base's
+    too (§0.3)."""
+
+    return len({id(member) for member in tag[:]})
+
+
+def Late_Flag(
+        tag,
+        mark,
+        ):
+    """A Flag marked while the program runs. A Flag is part of the Tag's
+    declaration (STEP-SPEC-17, 2026-09-29): a Tag that has members refuses
+    the mark, names itself and the count, and keeps its words. A kit from
+    before the refusal took the mark; here it is taken back, so both kits
+    go on alike."""
+
+    carried = Carried(tag)
+
+    if not carried:
+        mark(tag)
+
+        return "marked"
+
+    missing = object()
+    before = vars(tag).get("__topkit_flag__", missing)
+
+    try:
+        mark(tag)
+
+    except Exception as error:
+        if (
+                type(error).__name__ != "TagDeclarationError"
+                or not str(error).startswith(f"{tag.__name__} is carried by {carried} ")
+                or vars(tag).get("__topkit_flag__", missing) is not before
+                ):
+            raise
+
+    else:   # a kit from before the refusal
+        if before is missing:
+            delattr(tag, "__topkit_flag__")
+        else:
+            setattr(tag, "__topkit_flag__", before)
+
+    return "carried by " + str(carried)
 
 
 class Host:
@@ -823,7 +884,7 @@ PIN_MEMBERS = (
 
 
 WORDS = ("Kin", "Beast", "Undead", "Loner", "Wolf")
-LATE_WORD = "Late"   # no Tag answers to it until a Flag declared while the program runs gives it
+LATE_WORD = "Late"   # no Tag answers to it until a Flag marked while the program runs, on a Tag nobody carries yet, gives it
 PIN_WORDS = ("Deprecated", "Homebrew", "Legacy")
 HOSTS = (
         ("Host", 5),
@@ -1655,8 +1716,10 @@ def Flagging(
         plan: Plan,
         step: str,
         ) -> list[str]:
-    """A Flag declared while the program runs: every Agent's words must
-    follow it."""
+    """A Flag marked while the program runs. On a Tag nobody carries, and
+    none of its Shapes, the mark takes, and the Agents tagged after it
+    answer its words. On a Tag that has members it is refused, and
+    nothing is marked."""
 
     randomizer = plan.randomizer
     tag = Any_Tag(plan)
@@ -1671,7 +1734,7 @@ def Flagging(
             plan,
             step,
             randomizer.choice(given or plan.agents),
-            [Do_Line(step, randomizer.choice((f'Flag("{word}")({tag.name})', f"Flag({tag.name})")))],
+            [Do_Line(step, f"Late_Flag({tag.name}, {randomizer.choice((f'Flag({word!r})', 'Flag'))})")],
             )
 
 
