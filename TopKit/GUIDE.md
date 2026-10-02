@@ -704,13 +704,51 @@ well: the Shape never lands, and the Base stays after the Scope raises.
 A Sentry whose `post` fails at the door is Ripped as the error leaves
 the `with`, and the block does not run: the Scope applied it.
 
+A Rip that fails is refused and rolled back: a failed Rip blocks the
+expulsion. The `@Rip` protocol runs once the Agent has left, as always;
+when it raises, the Agent is a member again, as it was before the Rip,
+and what the protocol changed on it is undone. The Composition Failure
+says so, with the protocol's own error as its cause. Repair what it
+names and Rip again: every teardown is due again.
+
+```python
+class Locker(Tag):
+
+    @Rip
+    def empty(agent):
+        agent.locked = False
+        if agent.contents:
+            raise ValueError("the locker is not empty")
+
+
+box = Character("Box")
+box.contents = ["coat"]
+box.locked = True
+Locker(box)
+
+try:
+    del Locker[box]
+except TagCompositionError:
+    pass
+
+assert box in Locker                    # the Rip was refused
+assert box.locked                       # and rolled back
+
+box.contents.clear()                    # repaired
+del Locker[box]
+assert box not in Locker and not box.locked
+```
+
+The rollback gives the Agent back, not the world: a file a teardown had
+already deleted stays deleted.
+
 A Rip the Scope cannot make on the way out is reported, as
 `del Sentry[guard]` reports it. If the block made the guard a Shape of
 Sentry, the Shape still requires Sentry, so Sentry stays. If Sentry's
-`@Rip` protocol fails, the guard has left Sentry all the same. Either
-way the Scope Rips the rest first, then raises the Composition Failure;
-if the block itself raised, its exception leaves instead, with the
-failure as a note:
+`@Rip` protocol fails, the Rip is refused and rolled back, so Sentry
+stays too. Either way the Scope Rips the rest first, then raises the
+Composition Failure; if the block itself raised, its exception leaves
+instead, with the failure as a note:
 
 ```python
 class Veteran(Sentry):

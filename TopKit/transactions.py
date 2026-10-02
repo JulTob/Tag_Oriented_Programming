@@ -47,7 +47,7 @@ from .state import _bind_to
 from .state import _name_of
 from .state import _namespace_of
 from .state import _rebind_all
-from .state import _restore_namespace
+from .state import _rollback
 from .state import _runtime_type_for
 from .state import _state_for
 from .state import _state_of
@@ -120,43 +120,6 @@ def _apply(
         raise
 
     return agent
-
-
-def _rollback(
-        agent: object,
-        entry_namespace: dict[str, Any],
-        entry_copy: _State | None,
-        entry_tags: tuple[type, ...],
-        entry_class: type,
-        ) -> None:
-    current = _state_of(agent)
-
-    if current is not None:
-        for tag in current.active:
-            if tag not in entry_tags:
-                tag._topkit_field.Remove(agent)
-
-    _restore_namespace(
-            agent,
-            entry_namespace,
-            )
-    namespace = _namespace_of(agent)
-
-    if namespace is None:
-        return
-
-    if entry_copy is not None:
-        live = namespace.get(STATE)
-
-        if live is None:
-            namespace[STATE] = entry_copy
-        else:
-            live.Restore(entry_copy)   # in place: a door opened before this call closes on it
-    else:
-        namespace.pop(STATE, None)
-
-    if type(agent) is not entry_class:
-        agent.__class__ = entry_class
 
 
 def _gate(

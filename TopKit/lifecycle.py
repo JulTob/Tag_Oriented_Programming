@@ -3,6 +3,8 @@
 Rip ends active membership. Contributions are sticky: Actions and Records
 stay on the Agent (a Rogue Agent) unless the Tag's @Rip teardowns change
 them. Ripping a Base is refused while an active Shape still requires it.
+A Rip whose teardown fails is refused and rolled back: a failed Rip
+blocks the Agent's expulsion (STEP-SPEC-18, amendment D).
 """
 
 from __future__ import annotations
@@ -23,6 +25,8 @@ from .fields import _Member
 from .geometry import _requiring_shapes
 from .state import _Originals
 from .state import _State
+from .state import _entry_of
+from .state import _give_back
 from .state import _name_of
 from .state import _state_of
 
@@ -53,16 +57,28 @@ def _rip(
                 f"{tag.__name__} is required by active Shape(s): {names}"
                 )
 
+    entry = _entry_of(agent, state) if state.rips.get(tag) else None   # with no teardown due, nothing can fail
     state.active.remove(tag)
     state.words = None
     state.snapshots.pop(tag, None)   # a view needs membership: never read again
     tag._topkit_field.Remove(agent)
 
-    _teardown(
-            agent,
-            state,
-            tag,
-            )
+    try:
+        _teardown(
+                agent,
+                state,
+                tag,
+                )
+    except BaseException:
+        if entry is not None:
+            _give_back(
+                    agent,
+                    entry,
+                    )   # a failed Rip blocks the expulsion: the Agent is as it was
+
+        raise
+    finally:
+        entry = None   # a failure's traceback holds this frame
 
     return agent
 
@@ -72,7 +88,8 @@ def _teardown(
         state: _State,
         tag: type,
         ) -> None:
-    """Run every @Rip teardown of ``tag`` once, then report failures."""
+    """Run every @Rip teardown of ``tag`` once, then report failures: the
+    caller, ``_rip``, refuses the Rip and rolls it back."""
 
     teardowns = state.rips.pop(tag, ())
     failures: list[tuple[str, Exception]] = []
@@ -103,7 +120,9 @@ def _teardown(
                 )
 
         raise TagCompositionError(
-                f"{tag.__name__} teardown failed in: {names}"
+                f"{tag.__name__} teardown failed in: {names}; the Rip is"
+                f" refused and rolled back: {_name_of(agent)} is still a"
+                f" member of {tag.__name__}"
                 ) from failures[0][1]
 
 
@@ -331,13 +350,13 @@ def Scope(
     itself Ripped is not Ripped again.
 
     On the way out, a Rip the Scope cannot make is reported as a Rip
-    reports it, once every Rip is done: a Rip refused because a Shape
-    that arrived in the block requires the Tag leaves that Tag, and a
-    teardown that fails ends the membership all the same. When the block
-    ended without an exception, the first such Composition Failure
-    leaves the ``with``, with the others as its notes; when it raised,
-    its own exception leaves, with each failure as a note (STEP-SPEC-6,
-    drafted for the Director's confirmation).
+    reports it, once every Rip is done, and leaves its Tag: a Rip refused
+    because a Shape that arrived in the block requires the Tag, and one
+    whose teardown fails, which is refused and rolled back (STEP-SPEC-18,
+    amendment D). When the block ended without an exception, the first
+    such Composition Failure leaves the ``with``, with the others as its
+    notes; when it raised, its own exception leaves, with each failure as
+    a note (STEP-SPEC-6, drafted for the Director's confirmation).
     """
 
     applied: list[type] = []
@@ -458,7 +477,8 @@ def At_Exit(
     """Also run the Agent's teardowns at normal interpreter exit, while it
     is still a member. A teardown that fails there is reported through
     ``sys.unraisablehook`` once that Agent's teardowns in the pass have
-    run.
+    run, and what that Agent's teardowns changed on it in the pass is
+    rolled back, as for a failed Rip; the pass goes on for the others.
 
     Registration is weak: it never keeps the Agent alive, and it leaves
     the registry when the Agent dies.
@@ -489,6 +509,8 @@ def _run_exit_protocols() -> None:
 
             if agent is not None:
                 failures: list[_Failure] = []
+                state = _state_of(agent)
+                entry = _entry_of(agent, state) if state is not None and state.rips else None
 
                 try:
                     _teardown_all(
@@ -496,6 +518,13 @@ def _run_exit_protocols() -> None:
                             failures,
                             )   # the list is ours: an interruption leaves it filled
                 finally:
+                    if failures and entry is not None:
+                        _give_back(
+                                agent,
+                                entry,
+                                )   # a failed teardown blocks it here too: the Agent's state as before the pass
+
+                    entry = None
                     _report_failures(
                             agent,
                             failures,

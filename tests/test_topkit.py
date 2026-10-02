@@ -2371,19 +2371,181 @@ class RipTests(unittest.TestCase):
 
         self.assertEqual(log, ["base", "elite"])
 
-    def test_teardown_failure_is_reported_after_membership_ends(self) -> None:
+    def test_a_failed_teardown_refuses_the_rip_and_rolls_it_back(self) -> None:
+        log: list[str] = []
+
         class Fragile(Tag):
+            @Record
+            def charge(agent) -> int:
+                return 3
+
+            def Spark(agent) -> str:
+                return "spark"
+
             @Rip
             def boom(agent) -> None:
+                log.append(("in", agent in Fragile))                 # it runs after membership ended
+                agent.charge = 0
                 raise RuntimeError("x")
 
-        ari = Agent()
+        ari, bea = Agent(), Agent()
         Fragile(ari)
+        Fragile(bea)
+        view = Fragile[ari]
 
-        with self.assertRaises(TagCompositionError):
+        with self.assertRaises(TagCompositionError) as raised:
             del Fragile[ari]
 
-        self.assertNotIn(ari, Fragile)
+        self.assertIsInstance(raised.exception.__cause__, RuntimeError)
+        self.assertIn("the Rip is refused and rolled back", str(raised.exception))
+        self.assertEqual(log, [("in", False)])
+        self.assertIn(ari, Fragile)                                    # the Agent stays a member
+        self.assertEqual(list(Fragile[:]), [ari, bea])                 # in its place in the Field
+        self.assertEqual(ari.charge, 3)                                # as before the Rip
+        self.assertEqual(ari.Spark(), "spark")
+        self.assertEqual(Fragile[ari].charge, view.charge)
+        self.assertEqual(Tags(ari), (Fragile,))
+
+    def test_a_later_failing_teardown_undoes_the_earlier_ones(self) -> None:
+        class Knight(Tag):
+            @Post
+            def Has_Sword(agent) -> bool:
+                return agent.sword is not None
+
+            @Record
+            def rank(agent) -> str:
+                return "knight"
+
+            @Rip
+            def Undub(agent) -> None:
+                Contract.Delete(agent, "Has_Sword")                  # ends the promise ...
+                agent.rank = "squire"
+                del agent.sword
+
+            @Rip
+            def Return_Horse(agent) -> None:
+                raise LookupError("the horse is gone")               # ... and then the Rip fails
+
+        lance = Agent()
+        lance.sword = "Excalibur"
+        Knight(lance)
+        before = dict(Contract.Status(lance))
+
+        with self.assertRaises(TagCompositionError) as raised:
+            del Knight[lance]
+
+        self.assertIn("Return_Horse", str(raised.exception))
+        self.assertIn(lance, Knight)
+        self.assertEqual(Contract.Status(lance), before)               # the deleted promise is back
+        self.assertEqual((lance.rank, lance.sword), ("knight", "Excalibur"))
+
+        lance.sword = None
+        self.assertFalse(lance)                                        # and it binds again
+
+    def test_a_rip_retried_after_repair_succeeds(self) -> None:
+        log: list[str] = []
+        stuck = [True]
+
+        class Sentry(Tag):
+            @Rip
+            def Stand_Down(agent) -> None:
+                log.append("stand down")
+
+            @Rip
+            def Hand_Over(agent) -> None:
+                if stuck[0]:
+                    raise ValueError("nobody to hand over to")
+
+                log.append("handed over")
+
+        guard = Agent()
+        Sentry(guard)
+
+        with self.assertRaises(TagCompositionError):
+            del Sentry[guard]
+
+        stuck[0] = False                                               # repaired
+        del Sentry[guard]                                              # every teardown is due again
+
+        self.assertNotIn(guard, Sentry)
+        self.assertEqual(log, ["stand down", "stand down", "handed over"])
+        self.assertTrue(isinstance(guard, Sentry))
+
+    def test_a_shapes_failed_rip_leaves_its_base_alone(self) -> None:
+        class Beast(Tag):
+            @Rip
+            def Calm(agent) -> None:
+                agent.events.append("calm")
+
+        class Wolf(Beast):
+            @Rip
+            def Howl(agent) -> None:
+                raise RuntimeError("will not be quiet")
+
+        rex = Agent()
+        Wolf(rex)
+
+        with self.assertRaises(TagCompositionError):
+            del Wolf[rex]
+
+        self.assertTrue(rex in Wolf and rex in Beast)                 # nothing cascades, as before
+        self.assertNotIn("calm", rex.events)
+
+    def test_a_rip_made_inside_a_failed_teardown_is_rolled_back_too(self) -> None:
+        class Badge(Tag):
+            pass
+
+        class Sworn(Tag):
+            @Rip
+            def Unswear(agent) -> None:
+                del Badge[agent]                                       # a Rip of its own, which succeeds
+                raise RuntimeError("the oath holds")
+
+        ari, bea = Agent(), Agent()
+        Badge(ari)
+        Badge(bea)
+        Sworn(ari)
+
+        with self.assertRaises(TagCompositionError):
+            del Sworn[ari]
+
+        self.assertEqual(Tags(ari), (Badge, Sworn))
+        self.assertEqual(list(Badge[:]), [ari, bea])                   # back in its place
+
+    def test_an_interrupted_rip_is_rolled_back_and_the_interruption_leaves(self) -> None:
+        class Sentry(Tag):
+            @Rip
+            def Stand_Down(agent) -> None:
+                agent.on_duty = False
+                raise KeyboardInterrupt
+
+        guard = Agent()
+        guard.on_duty = True
+        Sentry(guard)
+
+        with self.assertRaises(KeyboardInterrupt):
+            del Sentry[guard]
+
+        self.assertIn(guard, Sentry)                                   # the Rip never finished
+        self.assertTrue(guard.on_duty)
+
+    def test_what_a_failed_teardown_did_outside_the_agent_stays_done(self) -> None:
+        outside: list[str] = []
+
+        class Clerk(Tag):
+            @Rip
+            def Shred(agent) -> None:
+                outside.append("shredded")                            # the world, not the Agent
+                raise RuntimeError("the shredder jams")
+
+        ari = Agent()
+        Clerk(ari)
+
+        with self.assertRaises(TagCompositionError):
+            del Clerk[ari]
+
+        self.assertEqual(outside, ["shredded"])
+        self.assertIn(ari, Clerk)
 
     def test_ripping_a_required_base_is_refused(self) -> None:
         ari = Agent()
@@ -2847,31 +3009,53 @@ class ScopeTests(unittest.TestCase):
                 )
         self.assertIn(di, Wolf)
 
-    def test_a_teardown_that_fails_in_a_scope_is_reported_and_still_rips_the_tag(self) -> None:
+    def test_a_teardown_that_fails_in_a_scope_refuses_the_rip_and_the_tag_stays(self) -> None:
         class Sentry(Tag):
+            @Imprint
+            def Post(agent):
+                agent.on_duty = True
+
             @Rip
             def Stand_Down(agent):
+                agent.on_duty = False
                 raise ValueError("the post will not be left")
 
         class Watch(Tag):
             pass
 
-        guard, other = Agent(), Agent()
+        guard = Agent()
 
-        with self.assertRaises(TagCompositionError) as raised:        # reported, as a plain Rip reports it
+        with self.assertRaises(TagCompositionError) as raised:        # raised at the exit, as a plain Rip raises it
             with Scope(guard, Sentry, Watch):
                 pass
 
-        self.assertEqual(str(raised.exception), "Sentry teardown failed in: Stand_Down")
+        self.assertEqual(
+                str(raised.exception),
+                "Sentry teardown failed in: Stand_Down; the Rip is refused and rolled back:"
+                " Agent is still a member of Sentry",
+                )
         self.assertIsInstance(raised.exception.__cause__, ValueError)
-        self.assertEqual(Tags(guard), ())                             # the membership ended all the same
+        self.assertEqual(Tags(guard), (Sentry,))                      # a failed Rip blocks the expulsion; Watch was Ripped
+        self.assertTrue(guard.on_duty)                                # what the teardown changed is undone
 
-        Sentry(other)
+    def test_a_teardown_that_fails_as_the_block_raises_is_a_note_and_the_tag_stays(self) -> None:
+        class Sentry(Tag):
+            @Rip
+            def Stand_Down(agent):
+                raise ValueError("the post will not be left")
 
-        with self.assertRaises(TagCompositionError):
-            del Sentry[other]
+        guard = Agent()
 
-        self.assertNotIn(other, Sentry)
+        with self.assertRaises(LookupError) as raised:                # the block's own exception keeps its place
+            with Scope(guard, Sentry):
+                raise LookupError("the block fails")
+
+        self.assertEqual(
+                raised.exception.__notes__,
+                ["On leaving the Scope: TagCompositionError: Sentry teardown failed in: Stand_Down;"
+                 " the Rip is refused and rolled back: Agent is still a member of Sentry"],
+                )
+        self.assertIn(guard, Sentry)
 
     def test_every_failed_rip_after_the_first_is_a_note(self) -> None:
         class Wolf(Tag):
@@ -2891,7 +3075,7 @@ class ScopeTests(unittest.TestCase):
             with Scope(ed, Wolf, Sentry):
                 Dire(ed)
 
-        self.assertEqual(str(raised.exception), "Sentry teardown failed in: Stand_Down")   # the last named is Ripped first
+        self.assertTrue(str(raised.exception).startswith("Sentry teardown failed in: Stand_Down;"))   # the last named is Ripped first
         self.assertEqual(
                 raised.exception.__notes__,
                 ["On leaving the Scope: TagCompositionError: Wolf is required by active Shape(s): Dire"],
@@ -6023,20 +6207,17 @@ print("end", flush=True)
         self.assertEqual(lines, ["end", "finalizing False", "hold"])   # its teardowns run, as at any del
         self.assertIn("Exception ignored in teardown Hold of Stubborn, deleting Door", stderr)
 
-    def test_a_teardown_reported_on_a_rip_has_nothing_left_to_report_at_deletion(self) -> None:
+    def test_a_teardown_that_ran_on_a_rip_has_nothing_left_to_report_at_deletion(self) -> None:
         log = self.log
 
         class Stubborn(Tag):
             @Rip
             def Hold(agent) -> None:
                 log.append("hold")
-                raise RuntimeError("will not let go")
 
         door = self.Door()
         Stubborn(door)
-
-        with self.assertRaises(TagCompositionError):   # the Rip reports it as a Composition Failure
-            del Stubborn[door]
+        del Stubborn[door]
 
         def Delete() -> None:
             nonlocal door
@@ -6094,6 +6275,40 @@ print("end", flush=True)
         self.assertEqual(lines, ["end", "first hold", "second teardown as a member"])   # once, and on
         self.assertIn("Exception ignored in teardown Hold of Stubborn, in the At_Exit pass of Door", stderr)
         self.assertIn("RuntimeError: first will not let go", stderr)
+        self.assertEqual(stderr.count("Exception ignored"), 1)
+
+    def test_a_failed_teardown_in_the_exit_pass_rolls_that_agent_back(self) -> None:
+        program = """
+import atexit
+
+def After():                       # registered before TopKit: runs after the At_Exit pass
+    print("first", first.on_duty, first in Guard, first in Stubborn, flush=True)
+    print("second", second.on_duty, flush=True)
+
+atexit.register(After)
+
+from TopKit import Tag, Rip, At_Exit
+
+class Door:
+    def __init__(self, name): self.name = name; self.on_duty = True
+
+class Guard(Tag):
+    @Rip
+    def Leave(agent):
+        agent.on_duty = False
+
+class Stubborn(Tag):
+    @Rip
+    def Hold(agent):
+        raise RuntimeError(agent.name + " will not let go")
+
+first = Door("first"); Guard(first); Stubborn(first); At_Exit(first)
+second = Door("second"); Guard(second); At_Exit(second)
+"""
+        lines, stderr = Run_Program(program)
+
+        self.assertEqual(lines, ["first True True True", "second False"])   # rolled back; the pass went on
+        self.assertIn("Exception ignored in teardown Hold of Stubborn, in the At_Exit pass of Door", stderr)
         self.assertEqual(stderr.count("Exception ignored"), 1)
 
     def test_a_hook_that_raises_stops_nothing_in_the_exit_pass(self) -> None:

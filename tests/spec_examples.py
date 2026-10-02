@@ -184,6 +184,25 @@ def Run() -> None:
         warnings.simplefilter("always"); Berserk(b)
     assert any(issubclass(x.category, TagContractWarning) for x in caught)
 
+    # 3.1 a failed Rip blocks the expulsion
+    class Locker(Tag):
+        @Rip
+        def Empty(agent):
+            agent.locked = False
+            if agent.contents:
+                raise ValueError("the locker is not empty")
+    box = Character("Box")
+    box.contents, box.locked = ["coat"], True
+    Locker(box)
+    try:
+        del Locker[box]
+        raise SystemExit("expected failure")
+    except TagCompositionError: pass
+    assert box in Locker and box.locked    # refused, and rolled back
+    box.contents = []
+    del Locker[box]                        # repaired: the Rip goes through
+    assert box not in Locker and not box.locked
+
     # 3.2 scope
     log = []
     class Sentry(Tag):

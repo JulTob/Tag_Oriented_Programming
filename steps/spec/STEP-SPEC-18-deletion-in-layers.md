@@ -159,6 +159,30 @@ call to the underlaying del."
     its own, not even one bound during the finalizer: the untie cannot
     tell it from a freed one. At a plain `del` such an Agent keeps every
     Action, since nothing was tied there.
+11. **A failed Rip blocks the expulsion** (amendment D, 2026-10-02). An
+    explicit Rip (`del Tag[agent]`, a Scope's exit) whose teardown fails
+    is refused and rolled back. The teardowns run as before, after
+    membership has ended; when one fails, membership comes back: the
+    Agent is a member of the Tag again, in its place in the Field, with
+    its Form, Overlay and views as before the Rip, and every change the
+    Rip and its teardowns made to its TOP state and its attributes is
+    undone, the way a failed tagging's rollback undoes its changes
+    (§0.6), a Rip one of them made included. Then the Composition Failure
+    is raised, saying the Rip was refused and rolled back, with the first
+    failed teardown's own error as its cause. Every teardown of the Tag
+    is due again, so a Rip made again once the cause is repaired runs
+    them all. The rollback restores the Agent's TOP state and its
+    attributes, not the outside world: a file a teardown already deleted
+    stays deleted, and a value the Agent held and a teardown changed in
+    place stays changed (Ring 4). A Shape's Rip that fails leaves its
+    Base alone: nothing cascades, as before. A Rip the language
+    interrupts in a teardown (a `Ctrl-C`) is rolled back the same way,
+    and the interruption leaves. In the `At_Exit` pass, a teardown that
+    fails rolls back what that Agent's teardowns changed on it in the
+    pass, and is reported (item 7); the pass goes on for the others.
+    What a teardown sees is what it saw before this amendment: on a Rip
+    it runs once membership has ended, and membership comes back only
+    if one fails. Nothing had to change for the rollback to be clean.
 
 ```python
 class Lantern:
@@ -359,6 +383,7 @@ was dropped.
 | Membership during deletion: end it first, as after a Rip, or keep the teardowns running while the Agent is still a member, as today and in 0.2.0a3 | "Fix the words now, STEP later": no behaviour change; the STEP, §3.1, §3.2, CONFORMANCE and the Guide say the teardowns at deletion and in the `At_Exit` pass run while the Agent is still a member; a later STEP may end membership first |
 | Actions at deletion: a teardown or a `__del__` Layer cannot call the Agent's own Actions where Python cleared their weak references | "Fix it now": the finalizer ties the Actions to the Agent again before the teardowns and the Layers run, with weak references, until the finalizer is done, so `agent.Ring()` works there as anywhere and the Agent is still freed |
 | Teardown failures at deletion (`del`, a collection, program end, the `At_Exit` pass): swallowed or printed | "Print them": each failed teardown is reported through `sys.unraisablehook`, naming the Agent and the teardown: at deletion, after every teardown and every Layer has run; in the `At_Exit` pass, once that Agent's teardowns in the pass have run, since its Layers run only when it is deleted; nothing else is stopped; a teardown still runs at most once |
+| (D), 2026-10-02. An explicit Rip whose teardown fails: what should happen? | The Director chose "Refuse and roll back", and then said: "I was gonna suggest to just ammend the rule to a failed rip blocks an agent's expulsion". Item 11: the Rip (`del Tag[agent]`, a Scope's exit) is refused and rolled back, and the Composition Failure is raised with the teardown's own error chained; the `At_Exit` pass rolls that Agent back too |
 
 Covered by `tests/test_topkit.py::LayeredDeletionTests`.
 

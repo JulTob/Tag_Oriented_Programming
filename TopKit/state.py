@@ -256,6 +256,99 @@ def _restore_namespace(
             namespace[name] = value
 
 
+def _rollback(
+        agent: object,
+        entry_namespace: dict[str, Any],
+        entry_copy: _State | None,
+        entry_tags: tuple[type, ...],
+        entry_class: type,
+        ) -> None:
+    """Give the Agent back what it held at the entry of a call that
+    failed: its namespace, its TOP state (in place), its runtime type, and
+    no membership of a Tag it did not carry then."""
+
+    current = _state_of(agent)
+
+    if current is not None:
+        for tag in current.active:
+            if tag not in entry_tags:
+                tag._topkit_field.Remove(agent)
+
+    _restore_namespace(
+            agent,
+            entry_namespace,
+            )
+    namespace = _namespace_of(agent)
+
+    if namespace is None:
+        return
+
+    if entry_copy is not None:
+        live = namespace.get(STATE)
+
+        if live is None:
+            namespace[STATE] = entry_copy
+        else:
+            live.Restore(entry_copy)   # in place: a door opened before this call closes on it
+    else:
+        namespace.pop(STATE, None)
+
+    if type(agent) is not entry_class:
+        agent.__class__ = entry_class
+
+
+_Entry = tuple   # (namespace, state copy, Tags, their Fields' members, runtime type)
+
+
+def _entry_of(
+        agent: object,
+        state: _State,
+        ) -> _Entry:
+    """What a Rip, a deletion or the At_Exit pass gives back when a
+    teardown fails (STEP-SPEC-18, amendments D and E): the Agent's
+    attributes and TOP state, its Tags with their places in their Fields,
+    and its runtime type, as they are now."""
+
+    tags = tuple(state.active)
+    key = id(agent)
+
+    return (
+            dict(_namespace_of(agent) or {}),
+            state.Copy(),
+            tags,
+            tuple(
+                    tag._topkit_field._members.get(key)
+                    for tag in tags
+                    ),
+            type(agent),
+            )
+
+
+def _give_back(
+        agent: object,
+        entry: _Entry,
+        ) -> None:
+    """Roll the Agent back to ``entry``, as a failed tagging is rolled
+    back: what the teardowns changed on it is undone, and it is a member
+    of every Tag it carried then, in its place in each Field. What a
+    teardown did outside the Agent's TOP state and attributes stays done."""
+
+    namespace, copy, tags, members, klass = entry
+    _rollback(
+            agent,
+            namespace,
+            copy,
+            tags,
+            klass,
+            )
+
+    for tag, member in zip(tags, members):
+        tag._topkit_field.Rejoin(
+                agent,
+                member,
+                )
+
+
 def _name_of(
         agent: object,
         ) -> str:

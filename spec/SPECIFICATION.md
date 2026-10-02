@@ -231,7 +231,9 @@ Rip is the only exit from a Field, and it obeys three laws:
   useful.
 - **Rip is refused while a Shape needs the Base.** `del Beast[wolf]` fails
   while `Wolf` is active. Deform the Shape first. Rip never cascades: TOP
-  does not run other Tags' protocols behind your back.
+  does not run other Tags' protocols behind your back. A Rip whose own
+  teardown fails is refused too, and rolled back (§3.1): a failed Rip
+  blocks the expulsion.
 - **Conditions are sticky too** (STEP-SPEC-12). Rip does not touch a
   Tag's Preconditions or Postconditions: a promise that outlives its
   Tag fails loud, never silently. Rip does one thing, and it is the one
@@ -1244,6 +1246,42 @@ its Tags (§3.2); a failed one is reported there as the language reports
 a finalizer's error. A `@Rip` Action with an `@Underlay` runs composed,
 like any Action.
 
+**A failed Rip blocks the expulsion** (STEP-SPEC-18, amendment D). When a
+teardown of an explicit Rip (`del Tag[agent]`, a Scope's exit) fails,
+the Rip is refused and rolled back, as a failed tagging is (§0.6): the
+Agent is a member of the Tag again, in its place in the Field, with its
+Form, Overlay and views as before the Rip, and every change the Rip and
+its teardowns made to its TOP state and its attributes is undone, a Rip
+one of them made included. The Composition Failure names the Tag and the
+teardowns that failed, with the first one's own error as its cause.
+Every teardown of the Tag is due again, so the Rip can be made again
+once the cause is repaired. The rollback gives the Agent back, not the
+world: a file a teardown already deleted stays deleted (Ring 4, raw side
+effects). A teardown still runs after membership has ended; membership
+comes back only if one fails. A Rip the language interrupts in a
+teardown is rolled back the same way, and the interruption leaves. In
+the `At_Exit` pass, a teardown that fails rolls back what that Agent's
+teardowns changed on it in the pass, and is reported; the pass goes on.
+
+```python
+class Locker(Tag):
+    @Rip
+    def Empty(agent):
+        agent.locked = False
+        if agent.contents:
+            raise ValueError("the locker is not empty")
+
+box.contents, box.locked = ["coat"], True
+Locker(box)
+try:
+    del Locker[box]
+except TagCompositionError:
+    pass
+assert box in Locker and box.locked    # refused, and rolled back
+box.contents = []
+del Locker[box]                        # repaired: the Rip goes through
+```
+
 Ripping a Tag may apply another Tag, even itself. That is outside good TOP
 use: it could keep an Agent from ever leaving a Field.
 
@@ -1257,7 +1295,7 @@ says which is which:
 | Tier | Guarantee |
 | --- | --- |
 | **Finalizer** (`__del__`) | best effort: when the Agent is collected, its teardowns run, while it is still a member, then its `__del__` Layers; a teardown that fails is reported as the language reports a finalizer's error, and still runs at most once; once the interpreter is finalizing at exit, only the `__del__` Layers run; the language may not run finalizers at shutdown, and may not run them inside reference cycles |
-| **`Scope(agent, *tags)`** | guaranteed: the Tags it names apply on entry, and those it applied Rip, in reverse, on exit, even if the block raises; a Rip it cannot make is reported once every Rip is done, and a Rip refused because a Shape that arrived in the block still requires the Tag leaves that Tag on the Agent |
+| **`Scope(agent, *tags)`** | guaranteed: the Tags it names apply on entry, and those it applied Rip, in reverse, on exit, even if the block raises; a Rip it cannot make is reported once every Rip is done, and leaves its Tag on the Agent, whether a Shape that arrived in the block still requires the Tag or a teardown failed |
 | **`At_Exit(agent)`** | opt-in: teardowns also run at normal interpreter exit, while the Agent is still a member, a failed one reported as at deletion; registration is weak |
 
 Every teardown runs at most once, whichever tier reaches it first.
@@ -1332,21 +1370,20 @@ block Ripped itself is not Ripped again.
 **A Rip the Scope cannot make is reported** (STEP-SPEC-6, drafted
 2026-10-02). A Rip refused because a Shape that arrived in the block
 still requires the Tag is refused as any such Rip is (§0.7), and the Tag
-stays. A teardown that fails ends the membership as on any Rip (§3.1).
-Either way the Scope goes on Ripping the rest, then reports the failure
-as `del Tag[agent]` would: when the block ended without an exception,
-the first Composition Failure leaves the `with`, with any others as its
-notes; when the block raised, its own exception leaves, with each
-failure as a note. The Director ruled on 2026-10-02 that a failed Rip
-blocks the Agent's expulsion, for every Rip; STEP-SPEC-18 brings that
-rule.
+stays. A teardown that fails refuses the Rip and rolls it back, as on
+any Rip (§3.1), and the Tag stays too. Either way the Scope goes on
+Ripping the rest, then reports the failure as `del Tag[agent]` would:
+when the block ended without an exception, the first Composition Failure
+leaves the `with`, with any others as its notes; when the block raised,
+its own exception leaves, with each failure as a note.
 
 ```python
 with Scope(agent, Sentry):
     guard_the_gate(agent)
 # Sentry's teardown has run here, exception or not, if the Scope applied it;
-# had a Shape that arrived in the block still required Sentry, Sentry would
-# stay and the Scope would have raised the Composition Failure
+# had a Shape that arrived in the block still required Sentry, or had the
+# teardown failed, Sentry would stay and the Scope would have raised the
+# Composition Failure
 ```
 
 ---
@@ -1458,8 +1495,10 @@ A conforming implementation provides, ring by ring:
 **Ring 3**
 - `@Rip` protocols run once, composed: after membership ends on a Rip,
   and while the Agent is still a member at deletion and in the `At_Exit`
-  pass; their failures reported, as a Composition Failure on a Rip and
-  as a finalizer's error at deletion and in the `At_Exit` pass; the
+  pass; a failed teardown on an explicit Rip refuses the Rip and rolls
+  it back, raising the Composition Failure; in the `At_Exit` pass it
+  rolls that Agent back and is reported, and at deletion it is reported,
+  as a finalizer's error; the
   three deletion tiers, a Scope Ripping the Tags it applied and only
   those, leaving one a Shape still requires, and reporting a Rip it
   cannot make; the Agent's `__del__` as Layers of its Overlay, run after

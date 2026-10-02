@@ -184,6 +184,18 @@ rollback target.
   through the host's own. An object without TOP state whose class is a
   runtime type is reset to its host class when its state is attached;
   if it is never tagged, the finalizer runs its host's `__del__`.
+- **A failed Rip is rolled back** (STEP-SPEC-18, amendment D). Before a
+  Rip whose Tag has a teardown due, `_rip` takes `state._entry_of`: a
+  copy of the Agent's dictionary and of its state, its Tags, its
+  `_Member` in each of their Fields, and its runtime type. When a
+  teardown raises, `state._give_back` restores them as a failed tagging
+  is restored (`_rollback`, now in `state.py`), then puts the Agent back
+  in each Field in its place: every `_Member` carries its `order`, the
+  count of members the Field had when it joined, and `_Field.Rejoin`
+  puts the old `_Member` back before the ones that joined after it. A
+  Rip with no teardown due takes no copy: nothing there can fail, so
+  `del Tag[agent]` costs what it did. The `At_Exit` pass takes the same
+  copy before each Agent's teardowns and gives it back when one fails.
 - **A rollback restores the state in place** (`_State.Restore`), keeping
   `composing` and `checking`: a door or a check opened before the call
   that is rolled back closes on the same object. (A copy put in its place

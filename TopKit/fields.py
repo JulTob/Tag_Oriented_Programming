@@ -227,9 +227,13 @@ class _Combined(_Population):
 
 
 class _Member(weakref.ref):
-    """A Field's weak reference to one Agent, carrying its identity key."""
+    """A Field's weak reference to one Agent, carrying its identity key
+    and its place in the Field's order."""
 
-    __slots__ = ("key",)
+    __slots__ = (
+            "key",
+            "order",
+            )
 
 
 class _Field(_Population):
@@ -242,6 +246,7 @@ class _Field(_Population):
             ) -> None:
         field._members: dict[int, _Member] = {}
         field._expire = field._Forget   # one callback for every member
+        field._joined = 0               # members so far: each one's place in the order
 
     def Add(
             field,
@@ -263,6 +268,8 @@ class _Field(_Population):
                     ) from error
 
         reference.key = key
+        reference.order = field._joined
+        field._joined += 1
         field._members[key] = reference
 
     def Remove(
@@ -270,6 +277,41 @@ class _Field(_Population):
             agent: object,
             ) -> None:
         field._members.pop(id(agent), None)
+
+    def Rejoin(
+            field,
+            agent: object,
+            member: _Member | None,
+            ) -> None:
+        """Put the Agent back as ``member`` had it, in its place in the
+        order: a rolled-back Rip or deletion gives the Field back as it
+        was. Where Python already cleared ``member`` (a collected cycle),
+        or there was none, the Agent joins at the end."""
+
+        members = field._members
+        key = id(agent)
+
+        if member is None or member() is not agent:
+            if members.get(key) is None:
+                field.Add(agent)
+
+            return
+
+        if members.get(key) is member:
+            return
+
+        members.pop(key, None)
+        later = [
+                (other, reference)
+                for other, reference in members.items()
+                if reference.order > member.order
+                ]
+
+        for other, _reference in later:
+            del members[other]
+
+        members[key] = member
+        members.update(later)
 
     def _Forget(
             field,

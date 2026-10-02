@@ -4,6 +4,20 @@
 
 ### Specification
 
+- **Breaking: a failed Rip no longer removes the Tag** (STEP-SPEC-18,
+  amendment D; §0.7, §3.1). The Director, 2026-10-02, chose "Refuse and
+  roll back" for an explicit Rip whose teardown fails, and said: "I was
+  gonna suggest to just ammend the rule to a failed rip blocks an
+  agent's expulsion". `del Tag[agent]` and a Scope's exit whose teardown
+  fails are refused and rolled back, as a failed tagging is: the Agent is
+  a member again, in its place in the Field, its state and attributes as
+  before the Rip, and the Composition Failure, now saying the Rip was
+  refused and rolled back, carries the teardown's own error as its
+  cause. Every teardown is due again, so the Rip can be made again once
+  repaired. A Rip interrupted in a teardown is rolled back too. In the
+  `At_Exit` pass, a failed teardown rolls that Agent back as well. What a
+  teardown did outside the Agent stays done. 0.2.0a4 ended the
+  membership and kept whatever the teardowns had changed.
 - **A Flag's words may come as a list, a tuple, a set or a frozenset**
   (STEP-SPEC-17, item 8; §1.8). The Director, 2026-10-02: "The flags as
   text or a list of texts makes sense". `@Flag(["Wolf", "Beast"])` and
@@ -35,12 +49,11 @@
 - **A Rip the Scope cannot make is reported** (§3.2; STEP-SPEC-6, rows 4
   and 5, drafted for the Director's confirmation). A Rip refused because
   a Shape that arrived in the block still requires the Tag leaves that
-  Tag, and a teardown that fails ends the membership, as before; the
-  Scope now Rips the rest, then raises the Composition Failure, as `del
-  Tag[agent]` does, with any others as its notes. When the block raised,
-  its own exception leaves, with each failure as a note. 0.2.0a4 dropped
-  both. The Director ruled on 2026-10-02 that a failed Rip blocks the
-  Agent's expulsion, for every Rip; that comes with STEP-SPEC-18.
+  Tag, and so does a teardown that fails, which now refuses the Rip (see
+  below); the Scope Rips the rest, then raises the Composition Failure,
+  as `del Tag[agent]` does, with any others as its notes. When the block
+  raised, its own exception leaves, with each failure as a note.
+  0.2.0a4 dropped both.
 - **STEP-SPEC-14's words follow the kit** (the Director's rulings of
   2026-09-29). A condition that returns a non-boolean raises the
   Contract Failure when read on the Agent, and so do `hasattr` and
