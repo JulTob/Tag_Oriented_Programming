@@ -13,8 +13,10 @@ Tag's dotted namespace to the program:
     if Wizard                     is there a sound Wizard at all?
     for w in ~Wizard              the defective population
     Wizard[:]                     everyone: the whole Field
+    Wizard[...]                   the safehouse: Agents kept at a failed deletion
     Wizard[charlie]               the Agent-bound view
     del Wizard[charlie]           leave the Field (Rip)
+    del Wizard[...]               triage: let go of what the safehouse keeps
     Form(Wizard)                  the Base-first closure, as Tags
     f"{Wizard:form}"              the same, as text
 
@@ -43,7 +45,9 @@ from .fields import _Partition
 from .fields import _population_of
 from .geometry import _form_of
 from .geometry import _is_tag
+from .lifecycle import _Safehouse
 from .lifecycle import _rip
+from .lifecycle import _triage
 from .state import Tagged
 from .state import _name_of
 from .state import _state_of
@@ -222,6 +226,9 @@ class MetaTag(type):
             tag,
             key: Any,
             ) -> Any:
+        if key is Ellipsis:
+            return _Safehouse(tag)   # Tag[...]: kept by this Tag or by a Shape over it
+
         if isinstance(key, slice):
             if key != slice(None):
                 raise TypeError(
@@ -240,6 +247,10 @@ class MetaTag(type):
             tag,
             agent: object,
             ) -> None:
+        if agent is Ellipsis:
+            _triage(tag)   # del Tag[...]: let go of what the safehouse keeps
+            return
+
         _rip(
                 agent,
                 tag,

@@ -155,35 +155,36 @@ rollback target.
   Actions' weak references, it ties them to the Agent again; it runs the
   teardowns (skipped when `sys.is_finalizing()`: at exit they are
   `At_Exit`'s), then the visible `__del__`: the top Layer, nothing if
-  deleted, else the host's own; then it unties what it tied and reports
-  each teardown that failed through `sys.unraisablehook`, one
+  deleted, else the host's own; then it unties what it tied. When a
+  teardown failed, it reports each one through `sys.unraisablehook`, one
   `UnraisableHookArgs` each, naming the Agent and the teardown
-  (`_report_failures`). `_run_exit_protocols` reports the same way once
-  each Agent's teardowns in the pass ran, before an interruption leaves
-  the pass, with "in the At_Exit pass of" for "deleting". A hook that
-  raises stops nothing: its error goes to `sys.__unraisablehook__`, as
-  Python does for its own reports; a hook set to `None`, or removed,
-  means the default one, as for Python. When a teardown was interrupted
-  and a Layer then raises, the kit reports the Layer's error itself
-  (`_report_layer_failure`), since raising the interruption would hide
-  it, and drops it, since its traceback holds the finalizer's frame.
-  Python does not export `UnraisableHookArgs`, so `lifecycle.py` catches
-  it once at import, under a temporary hook, from a weak reference whose
-  callback raises, and leaves the hook as it found it, removed included.
+  (`_report_failures`), keeps the Agent (the safehouse, below) and raises,
+  before any Layer. `_run_exit_protocols` reports the same way once each
+  Agent's teardowns in the pass ran, before an interruption leaves the
+  pass, with "in the At_Exit pass of" for "deleting". A hook that raises
+  stops nothing: its error goes to `sys.__unraisablehook__`, as Python
+  does for its own reports; a hook set to `None`, or removed, means the
+  default one, as for Python. When a teardown was interrupted and a Layer
+  then raises, the kit reports the Layer's error itself
+  (`_report_layer_failure`), since raising the interruption would hide it,
+  and drops it, since its traceback holds the finalizer's frame. Python
+  does not export `UnraisableHookArgs`, so `lifecycle.py` catches it once
+  at import, under a temporary hook, from a weak reference whose callback
+  raises, and leaves the hook as it found it, removed included.
   `_host_finalizer` finds the host's own by walking the MRO past the
-  runtime type, as Python does (first definer decides, `None` means
-  none, descriptors are bound). The exit path uses no module global and
-  no builtin: what it needs is bound as a default argument, because late
-  in exit both may be gone. The Layer's errors propagate, so Python
-  reports them as unraisable, unless an interruption is pending. The
-  first `__del__` Layer's Underlay is `_host_finalizer`, or a do-nothing
-  Layer after `@Delete`. The host's own is found through
-  `type(agent).__mro__`, skipping every class that holds
-  `_TOPKIT_HOST_TYPE` (a runtime type, even one a user built on); the
-  Agent's `__dict__` is read with `object.__getattribute__`, never
-  through the host's own. An object without TOP state whose class is a
-  runtime type is reset to its host class when its state is attached;
-  if it is never tagged, the finalizer runs its host's `__del__`.
+  runtime type, as Python does (first definer decides, `None` means none,
+  descriptors are bound). The exit path uses no module global and no
+  builtin: what it needs is bound as a default argument, because late in
+  exit both may be gone. The Layer's errors propagate, so Python reports
+  them as unraisable, unless an interruption is pending. The first
+  `__del__` Layer's Underlay is `_host_finalizer`, or a do-nothing Layer
+  after `@Delete`. The host's own is found through `type(agent).__mro__`,
+  skipping every class that holds `_TOPKIT_HOST_TYPE` (a runtime type,
+  even one a user built on); the Agent's `__dict__` is read with
+  `object.__getattribute__`, never through the host's own. An object
+  without TOP state whose class is a runtime type is reset to its host
+  class when its state is attached; if it is never tagged, the finalizer
+  runs its host's `__del__`.
 - **A failed Rip is rolled back** (STEP-SPEC-18, amendment D). Before a
   Rip whose Tag has a teardown due, `_rip` takes `state._entry_of`: a
   copy of the Agent's dictionary and of its state, its Tags, its
@@ -196,6 +197,27 @@ rollback target.
   Rip with no teardown due takes no copy: nothing there can fail, so
   `del Tag[agent]` costs what it did. The `At_Exit` pass takes the same
   copy before each Agent's teardowns and gives it back when one fails.
+- **The safehouse** (STEP-SPEC-18, amendments E and F). `_agent_del`
+  takes the same copy before the deletion's teardowns, when one is due.
+  When one fails, `lifecycle._kept_at_deletion` gives the copy back,
+  reports each failure, and puts the Agent in `lifecycle._safehouse`, a
+  dict by `id` holding the Agent strongly with the Tags whose teardown
+  failed; the finalizer then raises the Composition Failure without
+  running a Layer or untying the Actions, so Python reports it and the
+  Agent lives on, resurrected by that strong reference. In a collected
+  cycle Python has already cleared the Agent's weak references, its
+  Fields' among them, so `Rejoin` adds it at the end of each Field; the
+  re-tie keeps its Actions answering. Python marks the object finalized,
+  and never calls `__del__` on it again. `MetaTag.__getitem__` answers
+  `Ellipsis` with a `_Safehouse` population: its walk keeps every kept
+  Agent with a keeper that `issubclass` of the Tag, so `Tag[...]` lists
+  them all. A Rip that goes through calls `_release`, which drops that
+  Tag from the keepers, and the Agent with the last; an empty safehouse
+  costs a Rip one truth test. `MetaTag.__delitem__` answers `Ellipsis`
+  with `_triage`: it Rips each listed Agent from every Tag, clears its
+  due teardowns unrun, drops it from the safehouse and lets go of every
+  local reference, then warns, once per Agent, so a warning made an
+  error still finds the work done.
 - **A rollback restores the state in place** (`_State.Restore`), keeping
   `composing` and `checking`: a door or a check opened before the call
   that is rolled back closes on the same object. (A copy put in its place

@@ -29,6 +29,7 @@ from .errors import TagPostconditionError
 from .errors import TagPreconditionError
 from .errors import TagResolutionError
 from .errors import TagRogueAccessError
+from .errors import TagTriageWarning
 from .lifecycle import At_Exit
 from .lifecycle import Scope
 from .queries import Apply
@@ -76,6 +77,7 @@ __all__ = [
         "TagPreconditionError",
         "TagResolutionError",
         "TagRogueAccessError",
+        "TagTriageWarning",
         "Tagged",
         "Tags",
         "Underlay",

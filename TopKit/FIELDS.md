@@ -77,6 +77,10 @@ The plain loop, `for f in Fighter`, is the working population. `~Fighter`
 is the repair queue. `Fighter[:]` is the roster. `if Fighter:` asks
 whether anyone is fit; `len(Fighter[:])` counts everyone.
 
+One more population sits beside them: `Fighter[...]`, the safehouse, the
+Agents TopKit kept because a Fighter's teardown failed at their deletion
+(the Guide, pattern 9). It walks, counts and combines like the others.
+
 ---
 
 ## 2. The algebra: either, both, without
@@ -224,7 +228,7 @@ assert list(Combat - Deprecated) == [Wizard]        # combat Tags still in use
 ## 6. The checklist
 
 - **Walk a Tag** for the sound population, `~Tag` for the repair queue,
-  `Tag[:]` for everyone.
+  `Tag[:]` for everyone, `Tag[...]` for the safehouse.
 - **Combine with `|`, `&`, `-`.** A Tag in an operator seat is its sound
   population; `Tag[:]` and `~Tag` say the other levels.
 - **Keep views, not lists.** A view is alive; a list is a moment.

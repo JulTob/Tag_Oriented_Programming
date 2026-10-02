@@ -49,6 +49,7 @@ from TopKit import TagOverwriteWarning
 from TopKit import TagPostconditionError
 from TopKit import TagPreconditionError
 from TopKit import TagRogueAccessError
+from TopKit import TagTriageWarning
 from TopKit import TagResolutionError
 from TopKit import Tags
 from TopKit import Underlay
@@ -2373,6 +2374,7 @@ class RipTests(unittest.TestCase):
 
     def test_a_failed_teardown_refuses_the_rip_and_rolls_it_back(self) -> None:
         log: list[str] = []
+        stuck = [True]
 
         class Fragile(Tag):
             @Record
@@ -2386,7 +2388,9 @@ class RipTests(unittest.TestCase):
             def boom(agent) -> None:
                 log.append(("in", agent in Fragile))                 # it runs after membership ended
                 agent.charge = 0
-                raise RuntimeError("x")
+
+                if stuck:
+                    raise RuntimeError("x")
 
         ari, bea = Agent(), Agent()
         Fragile(ari)
@@ -2406,7 +2410,11 @@ class RipTests(unittest.TestCase):
         self.assertEqual(Fragile[ari].charge, view.charge)
         self.assertEqual(Tags(ari), (Fragile,))
 
+        stuck.clear()                                                  # repaired: the Agent ends quietly
+
     def test_a_later_failing_teardown_undoes_the_earlier_ones(self) -> None:
+        stuck = [True]
+
         class Knight(Tag):
             @Post
             def Has_Sword(agent) -> bool:
@@ -2424,7 +2432,8 @@ class RipTests(unittest.TestCase):
 
             @Rip
             def Return_Horse(agent) -> None:
-                raise LookupError("the horse is gone")               # ... and then the Rip fails
+                if stuck:
+                    raise LookupError("the horse is gone")           # ... and then the Rip fails
 
         lance = Agent()
         lance.sword = "Excalibur"
@@ -2441,6 +2450,9 @@ class RipTests(unittest.TestCase):
 
         lance.sword = None
         self.assertFalse(lance)                                        # and it binds again
+
+        lance.sword = "Excalibur"
+        stuck.clear()                                                  # repaired: the Agent ends quietly
 
     def test_a_rip_retried_after_repair_succeeds(self) -> None:
         log: list[str] = []
@@ -2472,6 +2484,8 @@ class RipTests(unittest.TestCase):
         self.assertTrue(isinstance(guard, Sentry))
 
     def test_a_shapes_failed_rip_leaves_its_base_alone(self) -> None:
+        stuck = [True]
+
         class Beast(Tag):
             @Rip
             def Calm(agent) -> None:
@@ -2480,7 +2494,8 @@ class RipTests(unittest.TestCase):
         class Wolf(Beast):
             @Rip
             def Howl(agent) -> None:
-                raise RuntimeError("will not be quiet")
+                if stuck:
+                    raise RuntimeError("will not be quiet")
 
         rex = Agent()
         Wolf(rex)
@@ -2491,7 +2506,11 @@ class RipTests(unittest.TestCase):
         self.assertTrue(rex in Wolf and rex in Beast)                 # nothing cascades, as before
         self.assertNotIn("calm", rex.events)
 
+        stuck.clear()                                                  # repaired: the Agent ends quietly
+
     def test_a_rip_made_inside_a_failed_teardown_is_rolled_back_too(self) -> None:
+        stuck = [True]
+
         class Badge(Tag):
             pass
 
@@ -2499,7 +2518,9 @@ class RipTests(unittest.TestCase):
             @Rip
             def Unswear(agent) -> None:
                 del Badge[agent]                                       # a Rip of its own, which succeeds
-                raise RuntimeError("the oath holds")
+
+                if stuck:
+                    raise RuntimeError("the oath holds")
 
         ari, bea = Agent(), Agent()
         Badge(ari)
@@ -2512,12 +2533,18 @@ class RipTests(unittest.TestCase):
         self.assertEqual(Tags(ari), (Badge, Sworn))
         self.assertEqual(list(Badge[:]), [ari, bea])                   # back in its place
 
+        stuck.clear()                                                  # repaired: the Agent ends quietly
+
     def test_an_interrupted_rip_is_rolled_back_and_the_interruption_leaves(self) -> None:
+        stuck = [True]
+
         class Sentry(Tag):
             @Rip
             def Stand_Down(agent) -> None:
                 agent.on_duty = False
-                raise KeyboardInterrupt
+
+                if stuck:
+                    raise KeyboardInterrupt
 
         guard = Agent()
         guard.on_duty = True
@@ -2529,14 +2556,19 @@ class RipTests(unittest.TestCase):
         self.assertIn(guard, Sentry)                                   # the Rip never finished
         self.assertTrue(guard.on_duty)
 
+        stuck.clear()                                                  # repaired: the Agent ends quietly
+
     def test_what_a_failed_teardown_did_outside_the_agent_stays_done(self) -> None:
         outside: list[str] = []
+        stuck = [True]
 
         class Clerk(Tag):
             @Rip
             def Shred(agent) -> None:
                 outside.append("shredded")                            # the world, not the Agent
-                raise RuntimeError("the shredder jams")
+
+                if stuck:
+                    raise RuntimeError("the shredder jams")
 
         ari = Agent()
         Clerk(ari)
@@ -2546,6 +2578,8 @@ class RipTests(unittest.TestCase):
 
         self.assertEqual(outside, ["shredded"])
         self.assertIn(ari, Clerk)
+
+        stuck.clear()                                                  # repaired: the Agent ends quietly
 
     def test_ripping_a_required_base_is_refused(self) -> None:
         ari = Agent()
@@ -3010,6 +3044,8 @@ class ScopeTests(unittest.TestCase):
         self.assertIn(di, Wolf)
 
     def test_a_teardown_that_fails_in_a_scope_refuses_the_rip_and_the_tag_stays(self) -> None:
+        stuck = [True]
+
         class Sentry(Tag):
             @Imprint
             def Post(agent):
@@ -3018,7 +3054,8 @@ class ScopeTests(unittest.TestCase):
             @Rip
             def Stand_Down(agent):
                 agent.on_duty = False
-                raise ValueError("the post will not be left")
+                if stuck:
+                    raise ValueError("the post will not be left")
 
         class Watch(Tag):
             pass
@@ -3038,11 +3075,16 @@ class ScopeTests(unittest.TestCase):
         self.assertEqual(Tags(guard), (Sentry,))                      # a failed Rip blocks the expulsion; Watch was Ripped
         self.assertTrue(guard.on_duty)                                # what the teardown changed is undone
 
+        stuck.clear()                                                  # repaired: the Agent ends quietly
+
     def test_a_teardown_that_fails_as_the_block_raises_is_a_note_and_the_tag_stays(self) -> None:
+        stuck = [True]
+
         class Sentry(Tag):
             @Rip
             def Stand_Down(agent):
-                raise ValueError("the post will not be left")
+                if stuck:
+                    raise ValueError("the post will not be left")
 
         guard = Agent()
 
@@ -3057,7 +3099,11 @@ class ScopeTests(unittest.TestCase):
                 )
         self.assertIn(guard, Sentry)
 
+        stuck.clear()                                                  # repaired: the Agent ends quietly
+
     def test_every_failed_rip_after_the_first_is_a_note(self) -> None:
+        stuck = [True]
+
         class Wolf(Tag):
             pass
 
@@ -3067,7 +3113,8 @@ class ScopeTests(unittest.TestCase):
         class Sentry(Tag):
             @Rip
             def Stand_Down(agent):
-                raise ValueError("the post will not be left")
+                if stuck:
+                    raise ValueError("the post will not be left")
 
         ed = Agent()
 
@@ -3080,6 +3127,8 @@ class ScopeTests(unittest.TestCase):
                 raised.exception.__notes__,
                 ["On leaving the Scope: TagCompositionError: Wolf is required by active Shape(s): Dire"],
                 )
+
+        stuck.clear()                                                  # repaired: the Agent ends quietly
 
     def test_a_tag_the_block_ripped_is_not_ripped_again(self) -> None:
         class Wizard(Tag):
@@ -4817,6 +4866,14 @@ print("end")
         self.assertTrue(answer)            # b was a member when the question began
 
 
+def Triage() -> None:
+    """Let go of whatever a test left in the safehouse, quietly."""
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        del Tag[...]
+
+
 class LayeredDeletionTests(unittest.TestCase):
     """STEP-SPEC-18: deletion in layers. Every teardown runs first, while
     the Agent is still a member of its Tags, then its own __del__ runs as
@@ -4840,6 +4897,7 @@ class LayeredDeletionTests(unittest.TestCase):
                 log.append("teardown")
 
         self.Door, self.Guard = Door, Guard
+        self.addCleanup(Triage)
 
     def delete(self, *tags: type, host: type | None = None) -> list[str]:
         door = (host or self.Door)()
@@ -5934,7 +5992,7 @@ print("end", "Deprecated" in Archmage)
                                                                          # but Python cleared the Field's weak
         self.assertEqual(log, [("in", True, "walked", False), "host"])  # reference before the finalizer
 
-    def test_a_failed_teardown_is_reported_after_the_layers_ran(self) -> None:
+    def test_a_failed_teardown_at_deletion_keeps_the_agent_and_is_reported(self) -> None:
         log = self.log
 
         class Stubborn(Tag):
@@ -5952,17 +6010,24 @@ print("end", "Deprecated" in Archmage)
         def Keep(raised) -> tuple:
             log.append("reported")
 
-            return raised.err_msg, raised.object.__name__, raised.exc_value
+            return type(raised.exc_value), str(raised.exc_value), type(raised.exc_value.__cause__)
 
         reports = self.reported(lambda: self.delete(self.Guard, Stubborn, Warded), Keep)
 
-        self.assertEqual(log, ["hold", "teardown", "layer", "host", "reported"])
-        self.assertEqual(len(reports), 1)
-        self.assertEqual(reports[0][0], "Exception ignored in teardown Hold of Stubborn, deleting Door")
-        self.assertEqual(reports[0][1], "Hold")
-        self.assertIsInstance(reports[0][2], RuntimeError)
+        self.assertEqual(log, ["hold", "teardown", "reported", "reported"])   # every teardown ran; no Layer
+        self.assertEqual(reports, [
+                (RuntimeError, "will not let go", type(None)),               # the teardown, as ruling (C) reports it
+                (TagCompositionError,                                        # then the Agent kept, as (E) rules
+                 "teardown failed at the deletion of Door: Hold of Stubborn; Door was kept,"
+                 " still a member of its Tags, in the safehouse, Stubborn[...]",
+                 RuntimeError),
+                ])
+        kept = list(Tag[...])
 
-    def test_every_failed_teardown_is_reported_once(self) -> None:
+        self.assertEqual(len(kept), 1)
+        self.assertTrue(kept[0] in self.Guard and kept[0] in Stubborn and kept[0] in Warded)
+
+    def test_every_failed_teardown_is_named_in_one_report(self) -> None:
         log = self.log
 
         class Stubborn(Tag):
@@ -5982,14 +6047,20 @@ print("end", "Deprecated" in Archmage)
 
         reports = self.reported(
                 lambda: self.delete(Stubborn, Sealed),
-                lambda raised: raised.object.__name__,
+                lambda raised: raised.err_msg if type(raised.exc_value) is not TagCompositionError
+                else str(raised.exc_value),
                 )
         gc.collect()
 
-        self.assertEqual(log, ["hold", "cling", "sealed"])   # every teardown ran, once
-        self.assertEqual(reports, ["Hold", "Cling"])        # one report each
+        self.assertEqual(log, ["hold", "cling"])               # every teardown ran, once; no Layer
+        self.assertEqual(reports, [
+                "Exception ignored in teardown Hold of Stubborn, deleting Door",
+                "Exception ignored in teardown Cling of Stubborn, deleting Door",
+                "teardown failed at the deletion of Door: Hold of Stubborn, Cling of Stubborn;"
+                " Door was kept, still a member of its Tags, in the safehouse, Stubborn[...]",
+                ])
 
-    def test_a_reported_teardown_does_not_keep_the_agent_alive(self) -> None:
+    def test_a_kept_agent_is_freed_at_once_when_triage_lets_it_go(self) -> None:
         class Stubborn(Tag):
             @Rip
             def Hold(agent) -> None:
@@ -6005,12 +6076,18 @@ print("end", "Deprecated" in Archmage)
                 nonlocal door
                 del door
 
-            reports = self.reported(Delete, lambda raised: raised.object.__name__)
+            reports = self.reported(Delete)
 
-            self.assertEqual(reports, ["Hold"])
-            self.assertIsNone(reference())          # the error's traceback held its frames, and the Agent
-            self.assertEqual(list(Stubborn[:]), [])   # gone from its Field with it
-            self.assertEqual(self.log, ["host"])
+            self.assertEqual(reports, ["RuntimeError", "TagCompositionError"])
+            self.assertIs(reference(), list(Stubborn[...])[0])   # kept, and only by the safehouse:
+
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                del Tag[...]
+
+            self.assertIsNone(reference())                       # no report's traceback held it
+            self.assertEqual(list(Stubborn[:]), [])
+            self.assertEqual(self.log, [])                       # its finalizer ran once, and kept it
         finally:
             gc.enable()
 
@@ -6089,10 +6166,11 @@ print("end", "Deprecated" in Archmage)
             sys.unraisablehook = hook
 
         self.assertEqual(log, [
-                "hold", "cling", "impatient", "host",
-                "reported RuntimeError", "reported ValueError", "reported KeyboardInterrupt",
-                ])                                   # each report made, the interruption last
-        self.assertEqual(printed.getvalue().count("Exception ignored in sys.unraisablehook"), 3)
+                "hold", "cling", "impatient",
+                "reported RuntimeError", "reported ValueError",
+                "reported TagCompositionError", "reported KeyboardInterrupt",
+                ])                                   # each report made, the Agent kept, the interruption last
+        self.assertEqual(printed.getvalue().count("Exception ignored in sys.unraisablehook"), 4)
 
     def test_a_hook_that_raises_an_interruption_stops_no_report(self) -> None:
         import contextlib
@@ -6101,14 +6179,15 @@ print("end", "Deprecated" in Archmage)
 
         log = self.log
 
+        class Impatient(Tag):
+            @Rip
+            def Leave(agent) -> None:
+                raise KeyboardInterrupt
+
         class Stubborn(Tag):
             @Rip
             def Hold(agent) -> None:
                 raise RuntimeError("will not let go")
-
-            @Rip
-            def Cling(agent) -> None:
-                raise ValueError("clings")
 
         def Strict(raised) -> None:
             log.append("reported " + type(raised.exc_value).__name__)
@@ -6128,11 +6207,15 @@ print("end", "Deprecated" in Archmage)
 
             try:
                 with contextlib.redirect_stderr(stderr):
-                    self.delete(Stubborn)
+                    self.delete(Impatient, Stubborn)
             finally:
                 sys.unraisablehook = hook
 
-            self.assertEqual(log, ["host", "reported RuntimeError", "reported ValueError"], type(stderr).__name__)
+            self.assertEqual(
+                    log,
+                    ["reported RuntimeError", "reported TagCompositionError", "reported KeyboardInterrupt"],
+                    type(stderr).__name__,
+                    )
 
     def test_the_kit_imports_with_no_hook_set_and_leaves_it_unset(self) -> None:
         lines, stderr = Run_Program("""
@@ -6154,29 +6237,40 @@ print("imported", hasattr(sys, "unraisablehook"))
             def Hold(agent) -> None:
                 raise RuntimeError("will not let go")
 
+        class Impatient(Tag):
             @Rip
-            def Cling(agent) -> None:
-                raise ValueError("clings")
+            def Leave(agent) -> None:
+                raise KeyboardInterrupt
 
         hook = sys.unraisablehook
 
         for unset in ("None", "deleted"):
-            printed = io.StringIO()
+            for tags, said in (
+                    ((Stubborn,), "Exception ignored"),                        # raised: Python reports it
+                    ((Impatient, Stubborn), "Exception ignored deleting Door"),  # the kit reports it, then the interruption
+                    ):
+                printed = io.StringIO()
 
-            try:
-                if unset == "None":
-                    sys.unraisablehook = None  # Python's own reports go to its default hook then
-                else:
-                    del sys.unraisablehook
+                try:
+                    if unset == "None":
+                        sys.unraisablehook = None  # Python's own reports go to its default hook then
+                    else:
+                        del sys.unraisablehook
 
-                with contextlib.redirect_stderr(printed):
-                    self.delete(Stubborn)
-            finally:
-                sys.unraisablehook = hook
+                    with contextlib.redirect_stderr(printed):
+                        self.delete(*tags)
+                finally:
+                    sys.unraisablehook = hook
 
-            self.assertIn("Exception ignored in teardown Hold of Stubborn, deleting Door", printed.getvalue(), unset)
-            self.assertIn("Exception ignored in teardown Cling of Stubborn, deleting Door", printed.getvalue(), unset)
-            self.assertNotIn("sys.unraisablehook", printed.getvalue(), unset)
+                self.assertIn(said, printed.getvalue(), unset)
+                self.assertIn("Exception ignored in teardown Hold of Stubborn, deleting Door", printed.getvalue(), unset)
+                self.assertIn(
+                        "TagCompositionError: teardown failed at the deletion of Door: Hold of Stubborn;",
+                        printed.getvalue(),
+                        unset,
+                        )
+                self.assertIn("RuntimeError: will not let go", printed.getvalue(), unset)
+                self.assertNotIn("sys.unraisablehook", printed.getvalue(), unset)
 
     def test_a_deletion_before_the_interpreter_finalizes_is_an_ordinary_one(self) -> None:
         program = """
@@ -6205,7 +6299,7 @@ print("end", flush=True)
         lines, stderr = Run_Program(program)
 
         self.assertEqual(lines, ["end", "finalizing False", "hold"])   # its teardowns run, as at any del
-        self.assertIn("Exception ignored in teardown Hold of Stubborn, deleting Door", stderr)
+        self.assertIn("teardown failed at the deletion of Door: Hold of Stubborn; Door was kept", stderr)
 
     def test_a_teardown_that_ran_on_a_rip_has_nothing_left_to_report_at_deletion(self) -> None:
         log = self.log
@@ -6244,8 +6338,9 @@ print("end", flush=True)
 
         reported = self.reported(lambda: self.delete(Impatient, Stubborn))   # reverse order: Hold first
 
-        self.assertEqual(log, ["hold", "impatient", "host"])
-        self.assertEqual(reported, ["RuntimeError", "KeyboardInterrupt"])
+        self.assertEqual(log, ["hold", "impatient"])                         # kept: no Layer
+        self.assertEqual(reported, ["RuntimeError", "TagCompositionError", "KeyboardInterrupt"])
+        self.assertEqual(len(Stubborn[...]), 1)
 
     def test_a_failed_teardown_in_the_exit_pass_is_reported(self) -> None:
         program = """
@@ -6500,6 +6595,458 @@ print("end")
         self.assertNotIn("guarded teardown", lines)
         self.assertIn("layer: rung rings", lines)             # a plain Action answers there too
         self.assertLess(lines.index("layer: rung rings"), lines.index("rung host"))
+
+
+class SafehouseTests(unittest.TestCase):
+    """STEP-SPEC-18, amendment E: a teardown that fails at deletion blocks
+    the deletion. The Agent is rolled back to what it was before the
+    deletion's teardowns, still a member of its Tags, and kept in the
+    safehouse, ``Tag[...]``, by the Tags whose teardown failed; the
+    finalizer raises the Composition Failure, which Python reports."""
+
+    def setUp(self) -> None:
+        import sys
+
+        self.log: list[str] = []
+        self.reports: list = []
+        self.stuck = [True]
+        log, stuck = self.log, self.stuck
+        hook = sys.unraisablehook
+        sys.unraisablehook = lambda raised: self.reports.append((type(raised.exc_value), str(raised.exc_value)))
+        self.addCleanup(setattr, sys, "unraisablehook", hook)
+        self.addCleanup(Triage)
+
+        class Door:
+            def __init__(self, name: str = "door") -> None:
+                self.name = name
+
+            def __del__(self) -> None:
+                log.append("host " + self.name)
+
+        class Guard(Tag):
+            def Ping(agent) -> str:
+                return "ping " + agent.name
+
+            @Rip
+            def Leave(agent) -> None:
+                log.append("leave " + agent.name)
+                agent.left = True
+
+        class Cached(Tag):
+            @Rip
+            def Clear(agent) -> None:
+                log.append("clear " + agent.name)
+
+                if stuck:
+                    raise RuntimeError("the cache will not clear")
+
+        class Hot(Cached):                 # a Shape: one of Cached's departments
+            pass
+
+        class Other(Tag):
+            @Rip
+            def Close(agent) -> None:
+                if stuck:
+                    raise OSError("will not close")
+
+        self.Door, self.Guard, self.Cached, self.Hot, self.Other = Door, Guard, Cached, Hot, Other
+
+    def test_a_plain_del_whose_teardown_fails_keeps_the_agent(self) -> None:
+        door = self.Door("d")
+        bystander = self.Door("b")
+        self.Guard(door)
+        self.Guard(bystander)
+        self.Cached(door)
+        reference = weakref.ref(door)
+        del door
+
+        kept = reference()
+
+        self.assertIsNotNone(kept)                                       # not destroyed
+        self.assertEqual(self.log, ["clear d", "leave d"])               # every teardown ran; no Layer
+        self.assertIn(kept, self.Cached[...])
+        self.assertIn(kept, Tag[...])
+        self.assertTrue(kept in self.Cached and kept in self.Guard)       # still a member
+        self.assertEqual(list(self.Guard[:]), [kept, bystander])          # in its place in the Field
+        self.assertFalse(hasattr(kept, "left"))                           # what the teardowns did is undone
+        self.assertEqual(kept.Ping(), "ping d")
+        self.assertEqual(
+                [kind for kind, _message in self.reports],
+                [RuntimeError, TagCompositionError],
+                )
+        self.assertEqual(
+                self.reports[1][1],
+                "teardown failed at the deletion of Door: Clear of Cached; Door was kept,"
+                " still a member of its Tags, in the safehouse, Cached[...]",
+                )
+
+    def test_a_collected_cycle_whose_teardown_fails_is_kept(self) -> None:
+        def Make() -> None:
+            door = self.Door("c")
+            self.Guard(door)
+            self.Cached(door)
+            door.me = door                                               # a cycle
+
+        Make()
+        gc.collect()
+
+        kept = list(Tag[...])
+
+        self.assertEqual(len(kept), 1)
+        self.assertTrue(kept[0] in self.Cached and kept[0] in self.Guard)
+        self.assertEqual(list(self.Guard[:]), kept)                      # back in its Field
+        self.assertEqual(kept[0].Ping(), "ping c")                       # its Actions answer the live Agent
+        self.assertEqual(self.reports[-1][0], TagCompositionError)
+        self.assertNotIn("host c", self.log)
+
+    def test_repaired_and_ripped_a_kept_agent_leaves_and_is_freed(self) -> None:
+        door = self.Door("d")
+        self.Cached(door)
+        reference = weakref.ref(door)
+        del door
+
+        self.assertEqual(len(self.Cached[...]), 1)
+
+        kept = reference()
+        self.stuck.clear()                                               # repaired
+        del self.Cached[kept]
+
+        self.assertNotIn(kept, Tag[...])                                 # out of the safehouse
+        self.assertEqual(self.log, ["clear d", "clear d"])
+
+        del kept
+        gc.collect()
+
+        self.assertIsNone(reference())                                   # let go
+        self.assertNotIn("host d", self.log)                            # Python runs a finalizer once per object
+
+    def test_a_kept_agent_from_a_cycle_is_freed_after_its_rip(self) -> None:
+        def Make() -> None:
+            door = self.Door("c")
+            self.Cached(door)
+            door.me = door
+
+        Make()
+        gc.collect()
+        kept = list(self.Cached[...])[0]
+        reference = weakref.ref(kept)
+        self.stuck.clear()
+        del self.Cached[kept]
+        del kept
+        gc.collect()
+
+        self.assertIsNone(reference())
+
+    def test_a_teardown_that_keeps_failing_on_the_explicit_rip_stays_refused(self) -> None:
+        door = self.Door("d")
+        self.Cached(door)
+        reference = weakref.ref(door)
+        del door
+        kept = reference()
+
+        with self.assertRaises(TagCompositionError):
+            del self.Cached[kept]
+
+        self.assertIn(kept, self.Cached)
+        self.assertIn(kept, self.Cached[...])                            # still kept
+
+    def test_a_rip_of_another_tag_leaves_the_agent_kept(self) -> None:
+        door = self.Door("d")
+        self.Guard(door)
+        self.Cached(door)
+        reference = weakref.ref(door)
+        del door
+        kept = reference()
+        del self.Guard[kept]                                             # not the Tag that keeps it
+
+        self.assertIn(kept, Tag[...])
+
+    def test_the_safehouse_is_organized_by_department(self) -> None:
+        def Kept(*tags: type) -> object:
+            door = self.Door("/".join(tag.__name__ for tag in tags))
+
+            for tag in tags:
+                tag(door)
+
+            reference = weakref.ref(door)
+            del door
+
+            return reference()
+
+        by_base = Kept(self.Cached)
+        by_shape = Kept(self.Hot)                                        # Cached's teardown, on a Hot Agent
+        by_other = Kept(self.Other)
+        by_both = Kept(self.Cached, self.Other)
+
+        class Hotter(self.Hot):
+            @Rip
+            def Melt(agent) -> None:
+                raise RuntimeError("too hot")
+
+        by_shape_only = Kept(Hotter)                                     # its own and its Base's teardowns fail
+
+        self.assertEqual(list(Tag[...]), [by_base, by_shape, by_other, by_both, by_shape_only])
+        self.assertEqual(list(self.Cached[...]), [by_base, by_shape, by_both, by_shape_only])
+        self.assertEqual(list(self.Hot[...]), [by_shape_only])           # a branch lists its sub-branches only
+        self.assertEqual(list(Hotter[...]), [by_shape_only])
+        self.assertEqual(list(self.Other[...]), [by_other, by_both])
+        self.assertEqual(list(self.Guard[...]), [])
+
+    def test_the_safehouse_is_a_population_like_the_others(self) -> None:
+        def Kept(*tags: type) -> object:
+            door = self.Door("/".join(tag.__name__ for tag in tags))
+
+            for tag in tags:
+                tag(door)
+
+            reference = weakref.ref(door)
+            del door
+
+            return reference()
+
+        cached = Kept(self.Guard, self.Cached)
+        other = Kept(self.Other)
+
+        self.assertEqual(len(Tag[...]), 2)
+        self.assertTrue(Tag[...])
+        self.assertFalse(self.Guard[...])
+        self.assertEqual(list(self.Cached[...] | self.Other[...]), [cached, other])
+        self.assertEqual(list(Tag[...] - self.Cached[...]), [other])
+        self.assertEqual(list(Tag[...] & self.Guard[:]), [cached])
+        self.assertEqual(list(Tag[...] & self.Guard), [cached])          # a Tag in a seat: its sound population
+        self.assertIn(cached, self.Guard)                                # and in its Tags' populations too
+        self.assertIn(cached, list(self.Guard))
+        self.assertNotIn(self.Door(), Tag[...])
+        self.assertEqual(repr(self.Cached[...]), "<safehouse of Cached>")
+
+    def test_the_other_keys_keep_their_meaning(self) -> None:
+        door = self.Door()
+        self.Guard(door)
+
+        self.assertEqual(self.Guard[door].Ping(), "ping door")           # the view
+        self.assertEqual(list(self.Guard[:]), [door])                    # the whole Field
+
+        with self.assertRaises(TypeError):
+            self.Guard[1:]
+
+    def test_an_interrupted_deletion_whose_teardown_failed_is_kept_and_reported_first(self) -> None:
+        import sys
+
+        caught: list = []
+
+        class Impatient(Tag):
+            @Rip
+            def Halt(agent) -> None:
+                if self.stuck:
+                    raise KeyboardInterrupt
+
+        sys.unraisablehook = lambda raised: caught.append((raised.err_msg, type(raised.exc_value)))
+        door = self.Door("d")
+        Impatient(door)
+        self.Cached(door)                                                # reverse order: Clear first
+        reference = weakref.ref(door)
+        del door
+
+        self.assertEqual(caught, [
+                ("Exception ignored in teardown Clear of Cached, deleting Door", RuntimeError),
+                ("Exception ignored deleting Door", TagCompositionError),
+                (caught[2][0], KeyboardInterrupt),                       # Python's own report, last
+                ])
+        self.assertIn(reference(), Tag[...])
+
+    def test_a_finalizer_called_by_hand_raises_to_its_caller_and_keeps(self) -> None:
+        door = self.Door("d")
+        self.Cached(door)
+
+        with self.assertRaises(TagCompositionError) as raised:
+            door.__del__()
+
+        self.assertIsInstance(raised.exception.__cause__, RuntimeError)
+        self.assertIn(door, self.Cached[...])
+        self.assertIn(door, self.Cached)
+
+    def test_every_teardown_succeeding_keeps_nothing(self) -> None:
+        self.stuck.clear()
+        door = self.Door("d")
+        self.Guard(door)
+        self.Cached(door)
+        reference = weakref.ref(door)
+        del door
+
+        def Make() -> None:
+            other = self.Door("c")
+            self.Cached(other)
+            other.me = other
+
+        Make()
+        gc.collect()
+
+        self.assertIsNone(reference())
+        self.assertFalse(Tag[...])
+        self.assertEqual([kept for kept in gc.get_objects() if isinstance(kept, self.Door)], [])   # the heap agrees
+        self.assertEqual(self.reports, [])
+
+    def test_at_program_end_nothing_is_kept_and_the_failure_is_reported(self) -> None:
+        program = """
+import atexit
+
+def After():                       # registered before TopKit: runs after the At_Exit pass
+    from TopKit import Tag
+    print("kept", len(Tag[...]), "member", door in Stubborn, flush=True)
+
+atexit.register(After)
+
+from TopKit import Tag, Rip, At_Exit
+
+class Door: pass
+
+class Stubborn(Tag):
+    @Rip
+    def Hold(agent):
+        raise RuntimeError("will not let go")
+
+class Late(Tag):
+    @Rip
+    def Hold(agent):
+        print("never at program end", flush=True)
+        raise RuntimeError("never run")
+
+door = Door(); Stubborn(door); At_Exit(door)
+late = Door(); Late(late)           # left to program end: its teardowns do not run there
+"""
+        lines, stderr = Run_Program(program)
+
+        self.assertEqual(lines, ["kept 0 member True"])
+        self.assertIn("Exception ignored in teardown Hold of Stubborn, in the At_Exit pass of Door", stderr)
+        self.assertNotIn("kept, still a member", stderr)
+        self.assertEqual(stderr.count("Exception ignored"), 1)
+
+
+class TriageTests(unittest.TestCase):
+    """STEP-SPEC-18, amendment F: ``del Tag[...]`` is the last resort. Each
+    Agent ``Tag[...]`` lists is Ripped from every Tag it carries, without
+    running a teardown again, taken out of the safehouse and let go, with
+    one TagTriageWarning naming it and the teardowns that never finished."""
+
+    def setUp(self) -> None:
+        import sys
+
+        self.log: list[str] = []
+        log = self.log
+        hook = sys.unraisablehook
+        sys.unraisablehook = lambda raised: None
+        self.addCleanup(setattr, sys, "unraisablehook", hook)
+        self.addCleanup(Triage)
+
+        class Door:
+            def __init__(self, name: str) -> None:
+                self.name = name
+
+        class Guard(Tag):
+            @Rip
+            def Leave(agent) -> None:
+                log.append("leave " + agent.name)
+
+        class Cached(Tag):
+            @Rip
+            def Clear(agent) -> None:
+                log.append("clear " + agent.name)
+                raise RuntimeError("the cache will not clear")
+
+        class Hot(Cached):
+            pass
+
+        class Other(Tag):
+            @Rip
+            def Close(agent) -> None:
+                log.append("close " + agent.name)
+                raise OSError("will not close")
+
+        self.Door, self.Guard, self.Cached, self.Hot, self.Other = Door, Guard, Cached, Hot, Other
+
+    def kept(self, name: str, *tags: type) -> weakref.ref:
+        door = self.Door(name)
+
+        for tag in tags:
+            tag(door)
+
+        reference = weakref.ref(door)
+        del door
+
+        return reference
+
+    def triage(self, house) -> list[str]:
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            del house[...]
+
+        self.assertTrue(all(warning.category is TagTriageWarning for warning in caught))
+
+        return [str(warning.message) for warning in caught]
+
+    def test_triage_of_the_root_empties_the_safehouse_and_frees_its_agents(self) -> None:
+        first = self.kept("first", self.Guard, self.Cached)
+        second = self.kept("second", self.Other)
+        self.log.clear()
+
+        warned = self.triage(Tag)
+        gc.collect()
+
+        self.assertFalse(Tag[...])
+        self.assertIsNone(first())
+        self.assertIsNone(second())
+        self.assertEqual(self.log, [])                                   # no teardown ran again
+        self.assertEqual(len(warned), 2)                                 # one per Agent
+        self.assertRegex(warned[0], r"^triage let go of Door \(id 0x[0-9a-f]+\) without its teardowns:")
+        self.assertTrue(warned[0].endswith(": Leave of Guard, Clear of Cached"))   # every one that never finished
+        self.assertTrue(warned[1].endswith(": Close of Other"))
+
+    def test_triage_of_a_tag_takes_its_whole_tree_and_nothing_else(self) -> None:
+        by_base = self.kept("base", self.Cached)
+        by_shape = self.kept("shape", self.Hot)
+        by_other = self.kept("other", self.Other)
+
+        warned = self.triage(self.Cached)
+        gc.collect()
+
+        self.assertEqual(len(warned), 2)
+        self.assertIsNone(by_base())
+        self.assertIsNone(by_shape())
+        self.assertEqual(list(Tag[...]), [by_other()])                   # the other department stays
+
+    def test_an_agent_the_program_still_holds_lives_on_carrying_no_tag(self) -> None:
+        self.kept("held", self.Guard, self.Hot)
+        door = list(self.Cached[...])[0]                                 # the program holds it again
+        self.log.clear()
+
+        self.triage(Tag)
+
+        self.assertEqual(Tags(door), ())                                 # no longer an Agent
+        self.assertNotIn(door, self.Hot)
+        self.assertNotIn(door, self.Cached)
+        self.assertEqual(list(self.Guard[:]), [])                        # in no Field
+        self.assertNotIn(door, Tag[...])
+        self.assertTrue(isinstance(door, self.Hot) and isinstance(door, self.Guard))   # has been, as after any Rip
+        self.assertEqual(self.log, [])
+
+    def test_an_empty_safehouse_makes_triage_do_nothing(self) -> None:
+        door = self.Door("free")
+        self.Guard(door)
+
+        self.assertEqual(self.triage(Tag), [])
+        self.assertIn(door, self.Guard)
+
+    def test_triage_is_done_before_a_warning_can_raise(self) -> None:
+        self.kept("first", self.Cached)
+        self.kept("second", self.Cached)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+
+            with self.assertRaises(TagTriageWarning):
+                del Tag[...]
+
+        self.assertFalse(Tag[...])                                       # every Agent let go first
 
 
 class DeliberateDifferenceTests(unittest.TestCase):

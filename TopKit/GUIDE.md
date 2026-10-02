@@ -32,7 +32,7 @@ from TopKit import (
         Record, Report, Requirement, Rip, Scope, Secret, Tag, Tags,
         Underlay,
         TagCompositionError, TagPostconditionError, TagPreconditionError,
-        TagResolutionError,
+        TagResolutionError, TagTriageWarning,
         )
 
 
@@ -805,8 +805,8 @@ Contracts Guide shows both.
 **Watch out.** Python does not promise to run finalizers at shutdown, so
 `del agent` is best-effort. `Scope` is the guaranteed path. A teardown
 that fails at `del agent` is printed on stderr, as Python prints an error
-in a `__del__`, naming the object and the teardown; nothing else is
-stopped by it.
+in a `__del__`, naming the object and the teardown, and it blocks the
+deletion: the object is kept in the safehouse (below).
 
 **An object's own `__del__` is a Layer.** It keeps running when the object
 is tagged. A Tag may replace it, or wrap it with `@Underlay`; the Tags'
@@ -851,7 +851,51 @@ object's Actions at deletion, in a collected cycle too. When the
 interpreter shuts down, after the `atexit` functions, only the `__del__`
 Layers run. To have teardowns run at exit too, register the Agent with
 `At_Exit(agent)`: the pass runs them while the object is still a
-member, and one that fails there is printed on stderr the same way.
+member, and one that fails there is printed on stderr the same way, and
+rolls that object back.
+
+**The safehouse.** Deleting an object whose teardown failed would leave
+it half cleaned up, so TopKit keeps it instead. It is rolled back, still
+a member of its Tags, and kept in the safehouse, `Tag[...]`, by the Tag
+whose teardown failed; its `__del__` Layers do not run. `Cache[...]` is
+everyone kept by `Cache` or by any Shape of it; `Tag[...]` is everyone
+kept. Repair what failed and Rip the Tag: the object leaves the
+safehouse, and goes when you drop it. Python runs a finalizer once per
+object, so it will not run again: Rip every Tag you want torn down.
+
+```python
+class Cache(Tag):
+
+    @Rip
+    def flush(agent):
+        if agent.dirty:
+            raise OSError("the disk is full")
+
+
+notes = Character("Notes")
+notes.dirty = True
+Cache(notes)
+
+import sys
+
+heard = sys.unraisablehook
+sys.unraisablehook = lambda report: None   # quiet, for this example
+del notes                               # flush fails: the deletion is blocked
+sys.unraisablehook = heard
+
+kept, = Cache[...]                      # kept, and still a member
+assert kept in Cache and kept in Tag[...]
+
+kept.dirty = False                      # repaired
+del Cache[kept]                         # out of the safehouse
+assert not Tag[...]
+```
+
+When nothing can be repaired, triage is the last resort. `del Cache[...]`
+Rips each object `Cache[...]` lists from every Tag it carries, runs no
+teardown, takes it out of the safehouse and lets it go, with one
+`TagTriageWarning` each naming the teardowns that never finished.
+`del Tag[...]` clears the whole safehouse.
 
 ### Pattern 10 · Build the sheet from pieces
 
@@ -1064,9 +1108,11 @@ the architecture, with a Field to walk and a history that stays.
 | Who is one, and sound? | `for a in Wizard`, `len(Wizard)`, `if Wizard:` |
 | Who is one, and broken? | `for a in ~Wizard`, `if ~Wizard:` |
 | Everyone? | `Wizard[:]` |
+| Who was kept at a failed deletion? | `Wizard[...]`, everyone kept: `Tag[...]` |
 | Either, both, without? | `Wizard \| Fighter`, `Wizard & Fighter`, `Wizard - Sworn` (the Fields Guide) |
 | What applies with it? | `Form(Wizard)`, `f"{Wizard:form}"` |
 | Take it away | `del Wizard[agent]` |
+| Give up on the kept ones | `del Wizard[...]` (triage) |
 | Which Pins does it carry? | `Wizard in Rare`, `f"{Wizard:pins}"` |
 
 Nothing TOP-level lives at `Wizard.something`. That namespace is yours: put

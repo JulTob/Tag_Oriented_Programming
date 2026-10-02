@@ -26,7 +26,7 @@ ring it claims. Examples are in Python; the laws are language-neutral.
 | **0 · Kernel** | identity, membership, Geometry, the tagging sequence, Rip |
 | **1 · Contributions** | Actions, Records, Operations, Reports, Overlay and Underlay, publication, access |
 | **2 · Contracts** | Preconditions, Imprints, Postconditions, defective Agents |
-| **3 · Lifecycle** | teardown protocols, Scope, deletion |
+| **3 · Lifecycle** | teardown protocols, Scope, deletion, the safehouse |
 | **4 · Edges** | what TOP does not promise, and why |
 
 The last sections give the failure model, the conformance obligations, and
@@ -74,6 +74,7 @@ Ring 4.
 | **Underlay** | The prior visible contribution of a name, captured for a later Layer to extend. |
 | **Pin** | A Tag marked `@Pin`, whose Targets are Tags (§1.9). |
 | **Pinning** | Applying a Pin to a Tag: `Rare(Wizard)`. The pinned Tag is the Pin's Agent. |
+| **Safehouse** | Where Agents are kept whose deletion a failed teardown blocked (§3.2): `Wizard[...]`, kept by Wizard or a Shape of it. |
 
 TOP uses **Base** and **Shape**, never *parent* and *child*: the words
 describe a different model. A Tag may be both: `Person` is a Shape of
@@ -265,10 +266,12 @@ language, not a library's naming.
 | the sound population | `for w in Wizard`, `len(Wizard)`, `if Wizard:` |
 | the defective population | `for w in ~Wizard`, `if ~Wizard:` |
 | everyone in the Field | `Wizard[:]`, `if Wizard[:]:` |
-| populations combined (§2.5) | `Wizard \| Fighter`, `Wizard & Fighter`, `Wizard - Sworn`; the same on `Wizard[:]` and `~Wizard` |
+| the safehouse: kept at a failed deletion (§3.2) | `Wizard[...]`, `if Wizard[...]:`; every kept Agent, `Tag[...]` |
+| populations combined (§2.5) | `Wizard \| Fighter`, `Wizard & Fighter`, `Wizard - Sworn`; the same on `Wizard[:]`, `~Wizard` and `Wizard[...]` |
 | one condition, read on the Agent (§2.5) | `agent.Has_Book` |
 | the Agent-bound view | `Wizard[agent]` |
 | leave the Field (Rip) | `del Wizard[agent]` |
+| triage: let go of the safehouse (§3.2) | `del Wizard[...]`; all of it, `del Tag[...]` |
 | the Form, as Tags | `Form(Wizard)` |
 | the Form, as text | `f"{Wizard:form}"` |
 | an Agent's Tags, Outline, contract, as text | `f"{agent:tags}"`, `f"{agent:outline}"`, `f"{agent:contract}"` |
@@ -1058,6 +1061,7 @@ Fields partition accordingly:
 for wizard in Wizard:        # the sound population: the ones fit to play
 for broken in ~Wizard:       # the defective population: repair them
 for anyone in Wizard[:]:     # everyone, sound or defective
+for kept in Wizard[...]:     # the safehouse: kept at a failed deletion (§3.2)
 assert broken in Wizard      # a defective Agent is still a member
 ```
 
@@ -1294,11 +1298,13 @@ says which is which:
 
 | Tier | Guarantee |
 | --- | --- |
-| **Finalizer** (`__del__`) | best effort: when the Agent is collected, its teardowns run, while it is still a member, then its `__del__` Layers; a teardown that fails is reported as the language reports a finalizer's error, and still runs at most once; once the interpreter is finalizing at exit, only the `__del__` Layers run; the language may not run finalizers at shutdown, and may not run them inside reference cycles |
+| **Finalizer** (`__del__`) | best effort: when the Agent is collected, its teardowns run, while it is still a member, then its `__del__` Layers; a teardown that fails blocks the deletion: the Agent is rolled back, kept in the safehouse, and the failure reported as the language reports a finalizer's error; once the interpreter is finalizing at exit, only the `__del__` Layers run; the language may not run finalizers at shutdown, and may not run them inside reference cycles |
 | **`Scope(agent, *tags)`** | guaranteed: the Tags it names apply on entry, and those it applied Rip, in reverse, on exit, even if the block raises; a Rip it cannot make is reported once every Rip is done, and leaves its Tag on the Agent, whether a Shape that arrived in the block still requires the Tag or a teardown failed |
-| **`At_Exit(agent)`** | opt-in: teardowns also run at normal interpreter exit, while the Agent is still a member, a failed one reported as at deletion; registration is weak |
+| **`At_Exit(agent)`** | opt-in: teardowns also run at normal interpreter exit, while the Agent is still a member, a failed one rolling that Agent back and reported as at deletion; registration is weak |
 
-Every teardown runs at most once, whichever tier reaches it first.
+A Rip or a deletion whose teardowns all succeed runs each of them once,
+whichever tier reaches it first. One where a teardown fails is rolled
+back, and its teardowns are due again.
 
 **The Agent's own finalizer is a member in Layers** (STEP-SPEC-18). The
 host's `__del__` is its first Layer, found as the language finds it. A
@@ -1319,15 +1325,74 @@ Python, after the `atexit` functions ran), only the Layers run; a
 deletion before that is an ordinary one, and teardowns at exit are
 `At_Exit`'s. An error raised by a `__del__` Layer is reported
 as the language reports any finalizer's. The teardowns stay best effort.
-A teardown that fails at deletion is reported the same way, after every
-teardown and every Layer has run; one that fails in the `At_Exit` pass
-is reported once that Agent's teardowns in the pass have run. Each
-report names the Agent and the teardown; nothing else is stopped by it,
-and the teardown still runs at most once. `@Rip` on a `__del__` is a
+A teardown that fails at deletion is reported the same way, once every
+teardown has run, and blocks the deletion (below); one that fails in the
+`At_Exit` pass is reported once that Agent's teardowns in the pass have
+run, and rolls that Agent back. Each report names the Agent and the
+teardown, and stops no other teardown. `@Rip` on a `__del__` is a
 Declaration Failure: a `__del__` Layer already runs at deletion. The
 language calls `__del__`, not the program: in Python, `agent.__del__`
 reads the kit's finalizer, and calling it by hand runs the whole
 deletion, teardowns included, on a live Agent the program still holds.
+
+**A failed teardown blocks the deletion: the safehouse** (STEP-SPEC-18,
+amendment E). Deleting an Agent whose teardown failed would leave it in
+an uncertain state, so it is kept instead. The finalizer rolls it back,
+as a failed Rip is rolled back (§3.1): still a member of its Tags, with
+its state as before the deletion's teardowns; puts it in the
+**safehouse**, held by the implementation; and raises the Composition
+Failure, saying the teardown failed at the deletion of that Agent and
+that it was kept, with the teardown's own error as its cause, which the
+language reports as a finalizer's error. Its `__del__` Layers do not
+run: it is not destroyed. A kept Agent is kept by the Tags whose
+teardown failed. `Wizard[...]` is the safehouse seen from Wizard: the
+Agents kept by Wizard or by any Tag in the tree of Shapes over it, at
+any depth; `Tag[...]`, from the root, is every kept Agent. It is a
+population like the others: walked, counted, asked with `in` and for
+truth, and combined with `|`, `&` and `-`. A kept Agent stays a member of
+its Tags as usual, and is in their other populations too. An explicit
+Rip of a Tag that keeps it, once it goes through, takes it out of that
+Tag's keeping; with nothing keeping it, it leaves the safehouse, and
+dropping the last reference then lets it go. The language runs a
+finalizer once per object (Python does), so the finalizer of a kept
+Agent never runs again: neither its other Tags' teardowns nor its
+`__del__` Layers run when it is let go. A kept Agent is ended with
+explicit Rips. Once the interpreter is finalizing at exit nothing can be
+kept, and no teardown runs there; a failure in the `At_Exit` pass is
+reported and rolled back, not kept. A kept Agent holds its memory until
+the program deals with it, and one kept from a collected cycle keeps
+what it references alive.
+
+```python
+class Cached(Tag):
+    @Rip
+    def Clear(agent):
+        agent.cache.clear()              # a cache that cannot clear raises here
+
+page = Page()
+Cached(page)
+del page                                 # Clear fails: the deletion is blocked
+kept, = Cached[...]                      # in the safehouse, still a member
+assert kept in Cached and kept in Tag[...]
+```
+
+**Triage** (STEP-SPEC-18, amendment F). `del Wizard[...]` is the last
+resort: every Agent `Wizard[...]` lists is Ripped from every Tag it
+carries, without running any teardown again, taken out of the
+safehouse, and let go. The language frees it, unless the program still
+holds it; then it lives on as a plain object of its host class that
+carries no Tag (no longer an Agent, in no Field), with what its Tags
+left on it and its has-been check, as after any Rip. `del Tag[...]` is
+the whole safehouse; with nothing kept it does nothing. Triage is the
+author's deliberate act: it is never refused, never rolled back, and
+never raises for a teardown. It is the one way to end an Agent without
+its teardowns. One Triage Warning per Agent names it and the teardowns
+that never finished.
+
+```python
+del Cached[...]                          # triage: the kept page is let go
+assert not Tag[...]
+```
 
 ```python
 class Lantern:
@@ -1419,7 +1484,7 @@ types but must keep these distinct.
 | Failure | Meaning | Effect |
 | --- | --- | --- |
 | **Tag Declaration Failure** | A Tag is written wrong: illegal mark combination, `@Underlay` without a parameter to receive it, a Flag marked on a Tag that already has members. | at class use |
-| **Tag Composition Failure** | Contributions cannot form the Overlay: cross-kind collision, Record over a host descriptor, a Record builder that failed, a teardown that failed on a Rip (at deletion and in the `At_Exit` pass, a finalizer's error, §3.2), a Target that cannot carry state, a Base still required. | call rolled back (or Rip refused) |
+| **Tag Composition Failure** | Contributions cannot form the Overlay: cross-kind collision, Record over a host descriptor, a Record builder that failed, a teardown that failed (on a Rip, the Rip refused; at deletion, the Agent kept, a finalizer's error, §3.2), a Target that cannot carry state, a Base still required. | call rolled back (or Rip refused, or Agent kept) |
 | **Tag Resolution Failure** | A required Underlay, view, or membership is unavailable. | call rolled back |
 | **Tag Rogue Access Failure** | A Rogue Agent reached a published member of a Tag it has left. A Resolution Failure, and a TOP failure only: never dressed as a host-language attribute failure. | use refused |
 | **Tag Precondition Failure** | A gate refused the incoming Agent. | call rolled back |
@@ -1428,6 +1493,7 @@ types but must keep these distinct.
 | **Tag Contract Failure** | A condition returned a non-boolean. | call rolled back; on a read by name, raised (§2.5) |
 | **Overwrite Warning** | An independent Tag replaced a visible Action or Record without an Underlay. | diagnostic |
 | **Contract Warning** | A Shape weakened a Base Postcondition. | diagnostic |
+| **Triage Warning** | `del Tag[...]` let go of a kept Agent: its teardowns never finished. | diagnostic |
 
 ---
 
@@ -1497,8 +1563,12 @@ A conforming implementation provides, ring by ring:
   and while the Agent is still a member at deletion and in the `At_Exit`
   pass; a failed teardown on an explicit Rip refuses the Rip and rolls
   it back, raising the Composition Failure; in the `At_Exit` pass it
-  rolls that Agent back and is reported, and at deletion it is reported,
-  as a finalizer's error; the
+  rolls that Agent back and is reported, as a finalizer's error; at
+  deletion it is reported, and blocks the deletion: the Agent rolled
+  back and kept in the safehouse, `Tag[...]`, by the Tags whose teardown
+  failed, a population over each Tag's tree of Shapes, left by an
+  explicit Rip of each, and let go by triage, `del Tag[...]`, which runs
+  no teardown and warns once per Agent; the
   three deletion tiers, a Scope Ripping the Tags it applied and only
   those, leaving one a Shape still requires, and reporting a Rip it
   cannot make; the Agent's `__del__` as Layers of its Overlay, run after

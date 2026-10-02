@@ -24,13 +24,15 @@ from .declarations import STATE
 from .declarations import _MISSING
 from .declarations import _is_flag
 from .declarations import _words_of
-from .lifecycle import _report_failures
+from .lifecycle import _kept_at_deletion
+from .lifecycle import _report_error
 from .lifecycle import _report_layer_failure
 from .lifecycle import _teardown_all
 from .state import _Bound
 from .state import _Pinned_Operation
 from .state import _Snapshot
 from .state import _State
+from .state import _entry_of
 from .state import _name_of
 from .state import _retie_actions
 from .state import _state_of
@@ -361,8 +363,14 @@ def _agent_del(
     no Tag declares one. Once the interpreter is finalizing only the
     ``__del__`` Layers run: teardowns there are At_Exit's, and opt-in. A
     ``__del__`` Layer's own error is reported as Python reports any
-    finalizer's; so is each teardown that failed, after every teardown
-    and every Layer has run, and an interruption last.
+    finalizer's, and an interruption last.
+
+    A teardown that fails blocks the deletion (amendment E): the Agent is
+    rolled back to what it was before the teardowns, still a member of
+    its Tags, its Actions tied to it, and kept in the safehouse; its
+    Layers do not run, and the Composition Failure raised here is
+    reported by Python as a finalizer's error. Python runs a finalizer
+    once per object, so this one never runs again for it.
 
     At exit this module's globals, and even the builtins, may already be
     gone. So the exit path uses neither: what it needs is bound here as a
@@ -388,9 +396,12 @@ def _agent_del(
 
     interrupted = None
     broken = None   # a Layer's own error, when an interruption must be raised after it
-    failures: list = []
+    kept = None     # the Composition Failure, when a failed teardown keeps the Agent
 
     if not finalizing():
+        failures: list = []
+        entry = _entry_of(agent, state) if state.rips else None   # what a failed teardown gives back
+
         try:
             _teardown_all(
                     agent,
@@ -400,6 +411,30 @@ def _agent_del(
             pass   # best effort (§3.2)
         except BaseException as error:
             interrupted = error   # Ctrl-C in a teardown: the __del__ Layers still run
+
+        if failures:
+            kept = _kept_at_deletion(
+                    agent,
+                    entry,
+                    failures,
+                    )   # rolled back, a member still, in the safehouse
+
+        entry = failures = None
+
+    if kept is not None:
+        try:
+            if interrupted is None:
+                raise kept   # Python reports it, as any finalizer's error; the Layers never ran
+
+            _report_error(
+                    kept,
+                    f"Exception ignored deleting {_name_of(agent)}",
+                    None,
+                    )   # raising the interruption would hide it
+
+            raise interrupted
+        finally:
+            kept = interrupted = None   # the Agent is kept: its Actions stay tied to it
 
     layer = state.actions.get("__del__")
 
@@ -425,12 +460,6 @@ def _agent_del(
                     namespace,
                     retied,
                     )   # the re-tie was for this finalizer only: code run after it meets a dead Agent
-
-        if failures:
-            _report_failures(
-                    agent,
-                    failures,
-                    )   # after every teardown and every Layer: one report each
 
         if broken is not None:
             try:

@@ -4,7 +4,9 @@ Rip ends active membership. Contributions are sticky: Actions and Records
 stay on the Agent (a Rogue Agent) unless the Tag's @Rip teardowns change
 them. Ripping a Base is refused while an active Shape still requires it.
 A Rip whose teardown fails is refused and rolled back: a failed Rip
-blocks the Agent's expulsion (STEP-SPEC-18, amendment D).
+blocks the Agent's expulsion (STEP-SPEC-18, amendment D). An Agent whose
+teardown fails at deletion is rolled back too, and kept in the
+safehouse, ``Tag[...]``, instead of being destroyed (amendment E).
 """
 
 from __future__ import annotations
@@ -14,6 +16,7 @@ from typing import Any
 from typing import Iterator
 import atexit
 import sys
+import warnings
 import weakref
 
 from .declarations import _parameters_of
@@ -21,7 +24,9 @@ from .declarations import _takes_underlay
 from .errors import TagCompositionError
 from .errors import TagError
 from .errors import TagResolutionError
+from .errors import TagTriageWarning
 from .fields import _Member
+from .fields import _Population
 from .geometry import _requiring_shapes
 from .state import _Originals
 from .state import _State
@@ -79,6 +84,12 @@ def _rip(
         raise
     finally:
         entry = None   # a failure's traceback holds this frame
+
+    if _safehouse:
+        _release(
+                agent,
+                tag,
+                )
 
     return agent
 
@@ -295,6 +306,190 @@ def _report_error(
                     )
         except BaseException:
             pass   # as Python does: the default hook's own failure is dropped
+
+
+# ------------------------------------------------------------------
+# The safehouse: Agents kept at a deletion whose teardown failed
+# ------------------------------------------------------------------
+
+
+_safehouse: dict[int, tuple[object, list[type]]] = {}
+# every kept Agent, held strongly, by identity, with the Tags that keep it:
+# those whose teardown failed at its deletion (STEP-SPEC-18, amendment E)
+
+
+class _Safehouse(_Population):
+    """``Tag[...]``: the Agents kept by ``tag``, or by any Tag in the
+    tree of Shapes over it, at any depth. The root Tag's is every kept
+    Agent. A population like the others: walk, ``in``, ``len``, truth,
+    and the algebra."""
+
+    _label = "safehouse"
+
+    def __init__(
+            house,
+            tag: type,
+            ) -> None:
+        house._tag = tag
+
+    def __iter__(
+            house,
+            ) -> Iterator[object]:
+        tag = house._tag
+
+        return iter([
+                agent
+                for agent, keepers in list(_safehouse.values())
+                if any(issubclass(keeper, tag) for keeper in keepers)
+                ])
+
+    def __contains__(
+            house,
+            agent: object,
+            ) -> bool:
+        kept = _safehouse.get(id(agent))
+
+        return (
+                kept is not None
+                and kept[0] is agent
+                and any(issubclass(keeper, house._tag) for keeper in kept[1])
+                )
+
+    def __repr__(
+            house,
+            ) -> str:
+        return f"<safehouse of {house._tag.__name__}>"
+
+
+def _keep(
+        agent: object,
+        tags: list[type],
+        ) -> None:
+    """Into the safehouse, kept by ``tags``: held strongly until an
+    explicit Rip of each of them succeeds, or triage lets it go."""
+
+    kept = _safehouse.get(id(agent))
+
+    if kept is None or kept[0] is not agent:
+        kept = _safehouse[id(agent)] = (agent, [])
+
+    for tag in tags:
+        if tag not in kept[1]:
+            kept[1].append(tag)
+
+
+def _release(
+        agent: object,
+        tag: type,
+        ) -> None:
+    """A Rip of ``tag`` went through: the Agent is no longer kept by it,
+    and leaves the safehouse once nothing keeps it."""
+
+    kept = _safehouse.get(id(agent))
+
+    if kept is not None and kept[0] is agent and tag in kept[1]:
+        kept[1].remove(tag)
+
+        if not kept[1]:
+            del _safehouse[id(agent)]
+
+
+def _triage(
+        tag: type,
+        ) -> None:
+    """``del Tag[...]``: the last resort (STEP-SPEC-18, amendment F). Every
+    Agent ``Tag[...]`` lists is Ripped from every Tag it carries, without
+    running any teardown again, taken out of the safehouse, and let go:
+    Python frees it, unless the program still holds it, and then it lives
+    on carrying no Tag. Never refused, never raising for a teardown; one
+    ``TagTriageWarning`` per Agent names it and the teardowns that never
+    finished, once all of them are let go."""
+
+    given_up: list[str] = []
+
+    for agent in list(_Safehouse(tag)):
+        state = _state_of(agent)
+        unfinished = ", ".join(
+                f"{teardown.__name__} of {owner.__name__}"
+                for owner, teardowns in state.rips.items()
+                for teardown in teardowns
+                ) if state is not None else ""
+
+        if state is not None:
+            for carried in reversed(list(state.active)):   # Shapes first: nothing is refused
+                carried._topkit_field.Remove(agent)
+                state.snapshots.pop(carried, None)
+
+            state.active.clear()
+            state.words = None
+            state.rips.clear()   # given up: they never run
+
+        _safehouse.pop(id(agent), None)
+        given_up.append(
+                f"triage let go of {_name_of(agent)} (id {id(agent):#x})"
+                f" without its teardowns: {unfinished or 'none was due'}"
+                )
+
+    agent = state = None   # let go: nothing here holds an Agent any more
+
+    for message in given_up:
+        warnings.warn(
+                message,
+                TagTriageWarning,
+                stacklevel=3,
+                )
+
+
+def _kept_at_deletion(
+        agent: object,
+        entry: tuple,
+        failures: list[_Failure],
+        ) -> TagCompositionError:
+    """A teardown failed at the deletion of ``agent``: deleting it now
+    would leave it in an uncertain state, so it is rolled back to what
+    it was before the deletion's teardowns, still a member of its Tags,
+    and kept in the safehouse by the Tags whose teardown failed. Each
+    failed teardown is reported first, as ruling (C) has it, with its own
+    traceback; then the Composition Failure the finalizer raises is
+    returned, naming them all, the first one's error as its cause."""
+
+    _give_back(
+            agent,
+            entry,
+            )
+    _report_failures(
+            agent,
+            failures[:],
+            )
+
+    keepers: list[type] = []
+
+    for tag, _teardown, _error in failures:
+        if tag not in keepers:
+            keepers.append(tag)
+
+    _keep(
+            agent,
+            keepers,
+            )
+    name = _name_of(agent)
+    failed = ", ".join(
+            f"{teardown.__name__} of {tag.__name__}"
+            for tag, teardown, _error in failures
+            )
+    houses = ", ".join(
+            f"{tag.__name__}[...]"
+            for tag in keepers
+            )
+    error = TagCompositionError(
+            f"teardown failed at the deletion of {name}: {failed}; {name}"
+            f" was kept, still a member of its Tags, in the safehouse,"
+            f" {houses}"
+            )
+    error.__cause__ = failures[0][2]
+    failures.clear()
+
+    return error
 
 
 def _call_teardown(

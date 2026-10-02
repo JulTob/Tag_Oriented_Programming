@@ -136,3 +136,8 @@ class TagOverwriteWarning(UserWarning):
 
 class TagContractWarning(UserWarning):
     """A Shape weakened a Base Postcondition without @Underlay."""
+
+
+class TagTriageWarning(UserWarning):
+    """Triage (``del Tag[...]``) let go of a kept Agent: it was Ripped from
+    every Tag it carried, and its teardowns never finished."""

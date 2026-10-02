@@ -18,6 +18,32 @@
   `At_Exit` pass, a failed teardown rolls that Agent back as well. What a
   teardown did outside the Agent stays done. 0.2.0a4 ended the
   membership and kept whatever the teardowns had changed.
+- **Breaking: an Agent whose teardown fails at deletion is now kept in
+  the safehouse, `Tag[...]`, rather than destroyed** (STEP-SPEC-18,
+  amendment E; §3.2). The Director, 2026-10-02: "deletion should be
+  blocked, yeah, and an error raised the good contract thing to do,
+  because deleting to uncertain states can be problematic." At a `del`
+  or a collection, a teardown that fails is reported, as ruling (C) has
+  it (below), and then the Agent is rolled back, still a member of its
+  Tags, and kept, held by the kit, by the Tags whose teardown failed;
+  its `__del__` Layers do not run, and the finalizer raises the
+  Composition Failure, which Python reports. `Wizard[...]` lists the
+  Agents kept by Wizard or by any Shape of it, at any depth, and
+  `Tag[...]` every kept Agent: a population like the others. An explicit
+  Rip of each Tag that keeps it, once it goes through, takes it out;
+  dropped then, it is freed, without its finalizer, which Python runs
+  once per object. Nothing is kept once the interpreter is finalizing.
+  0.2.0a4 dropped the failure and destroyed the Agent; `Tag[...]` raised
+  `TagResolutionError`.
+- **Triage: `del Tag[...]`** (STEP-SPEC-18, amendment F; §3.2). The
+  Director asked for "a full destruction button ... to blow up the
+  safehouse and all the kept agent objects ... a last resource recovery
+  system. Triage. This for myTag[...] too", and chose "End it, then let
+  it go". `del Wizard[...]` Rips each Agent `Wizard[...]` lists from
+  every Tag it carries, runs no teardown, takes it out of the safehouse
+  and lets it go, with one `TagTriageWarning` each naming it and the
+  teardowns that never finished. It is never refused and never raises
+  for a teardown.
 - **A Flag's words may come as a list, a tuple, a set or a frozenset**
   (STEP-SPEC-17, item 8; §1.8). The Director, 2026-10-02: "The flags as
   text or a list of texts makes sense". `@Flag(["Wolf", "Beast"])` and
@@ -70,33 +96,38 @@
 - STEP-SPEC-7's Decision records its amendment of 2026-09-24.
 - **Deletion in Layers, amended** (STEP-SPEC-18, the Amendment of
   2026-09-29, with the Director's three rulings; §3.1, §3.2): the words
-  now say that at deletion and in the `At_Exit` pass the teardowns run while the
-  Agent is still a member of its Tags (§3.1 and §3.2 said deletion Rips
-  it; the kit never ended membership there, and still does not); a
-  teardown or a `__del__` Layer may call the Agent's own Actions at
-  deletion, in a collected cycle too, and a `__del__` Layer at program
-  end (before: `ReferenceError`, since Python had cleared their weak
-  references; the finalizer ties them again for its own work, and the
-  Agent is still freed), while an Action kept past the finalizer meets
-  `ReferenceError`, one a teardown bound by tagging the Agent again
-  included (not one taken through a view there, or bound there and then
-  replaced: STEP-SPEC-18, item 10); once the interpreter is finalizing
-  at exit, only the Layers run, and a deletion before that, even one
-  made by an `atexit` function after the `At_Exit` pass, is an ordinary
-  one; a teardown that fails at deletion is reported on stderr
-  through `sys.unraisablehook` after every teardown and Layer ran, and
-  one that fails in the `At_Exit` pass after that Agent's teardowns in
-  the pass, naming the Agent and the teardown (before: dropped); a
-  `sys.unraisablehook` that raises stops nothing, and one set to `None`,
-  or removed, leaves the reports to Python's default hook; a `__del__` Layer that
-  raises after an interrupted teardown is reported before the
-  interruption (before: only its context); the reported failures are
-  then let go, since a traceback's frames hold the Agent, and for the
-  same reason an interrupted teardown no longer keeps the Agent until
-  the next collection.
+  now say that at deletion and in the `At_Exit` pass the teardowns run
+  while the Agent is still a member of its Tags (§3.1 and §3.2 said
+  deletion Rips it; the kit never ended membership there, and still does
+  not); a teardown or a `__del__` Layer may call the Agent's own Actions
+  at deletion, in a collected cycle too, and a `__del__` Layer at
+  program end (before: `ReferenceError`, since Python had cleared their
+  weak references; the finalizer ties them again for its own work, and
+  the Agent is still freed), while an Action kept past the finalizer
+  meets `ReferenceError`, one a teardown bound by tagging the Agent
+  again included (not one taken through a view there, or bound there
+  and then replaced: STEP-SPEC-18, item 10); once the interpreter is
+  finalizing at exit, only the Layers run, and a deletion before that,
+  even one made by an `atexit` function after the `At_Exit` pass, is an
+  ordinary one; a teardown that fails at deletion is reported on stderr
+  through `sys.unraisablehook` once every teardown ran (and then the
+  Agent is kept, above), and one that fails in the `At_Exit` pass after
+  that Agent's teardowns in the pass, naming the Agent and the teardown
+  (before: dropped); a `sys.unraisablehook` that raises stops nothing,
+  and one set to `None`, or removed, leaves the reports to Python's
+  default hook; a `__del__` Layer that raises after an interrupted
+  teardown is reported before the interruption (before: only its
+  context); an interrupted teardown no longer keeps the Agent until the
+  next collection, since the kit lets go of the interruption's
+  traceback, whose frames hold the Agent.
 
 ### TopKit
 
+- `TagTriageWarning` is new, beside `TagOverwriteWarning` and
+  `TagContractWarning`. A `_Bound` now holds the state of the Agent it
+  was bound for, so the finalizer knows the Agent's own Actions; a
+  Field's members carry their place in its order, so a rolled-back Rip
+  puts the Agent back where it was.
 - **A Report's value is kept on its Tag**, as the Director ruled on
   2026-09-29: the Tag keeps the value it built, strongly. In 0.2.0a4 a
   Report read from a finalizer at exit was built again, after the

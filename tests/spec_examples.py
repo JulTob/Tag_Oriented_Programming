@@ -231,6 +231,33 @@ def Run() -> None:
     lamp = Lantern(); Carried(lamp); Enchanted(lamp); del lamp
     assert log == ["put down", "spell fades", "wick out"]
 
+    # 3.2 the safehouse, and triage
+    import sys
+    class Stuck_Cache(dict):
+        def clear(self): raise OSError("the cache is locked")
+    class Page:
+        def __init__(self): self.cache = Stuck_Cache()
+    class Cached(Tag):
+        @Rip
+        def Clear(agent):
+            agent.cache.clear()              # a cache that cannot clear raises here
+    hook, reports = sys.unraisablehook, []
+    sys.unraisablehook = reports.append      # the finalizer's error, reported
+    try:
+        page = Page()
+        Cached(page)
+        del page                             # Clear fails: the deletion is blocked
+    finally:
+        sys.unraisablehook = hook
+    kept, = Cached[...]                      # in the safehouse, still a member
+    assert kept in Cached and kept in Tag[...]
+    assert isinstance(reports[-1].exc_value, TagCompositionError)
+    del kept, reports
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        del Cached[...]                      # triage: the kept page is let go
+    assert not Tag[...]
+
     # 1.8 Flags, and their words
     @Flag
     class Undead(Tag): pass
