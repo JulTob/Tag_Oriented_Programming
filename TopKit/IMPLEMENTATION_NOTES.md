@@ -40,9 +40,11 @@ Actions; Agents are built once and play for a long time. So:
   namespace) Python clears those weak references before the finalizer
   runs, so `_agent_del` ties the Agent's Actions to it again first
   (`_retie_actions`: a fresh weak reference on each `_Bound` in the
-  Agent's dictionary, never a strong one, so nothing is resurrected and
-  the Agent is still freed). It does so only when the Agent has no weak
-  reference left, or its first bound Action's is dead
+  Agent's dictionary that the kit made for it, its `_owner` being the
+  Agent's state, never a strong one, so nothing is resurrected and the
+  Agent is still freed; another Agent's binding stored there keeps its
+  dead reference). It does so only when the Agent has no weak reference
+  left, or the first of its own bound Actions has a dead one
   (`_ties_cleared`): at a plain `del` the weak references are intact,
   so the finalizer never walks every Action there. Once the Layers ran,
   `_untie_actions` points every `_Bound` it tied, and every one in the
@@ -147,36 +149,38 @@ rollback target.
   overwrite the Flag's hook. Pins are exempt: on a Tag, TOP owns `in`.
 - **Deletion in Layers** (STEP-SPEC-18). The runtime type's `__del__` is
   always the kit's finalizer, never a Tag's: a Tag's `__del__` is an
-  ordinary Action in `state.actions`, never bound on the Agent, left out of
-  the type-level dunders and of the type key (deleted or not). So
-  `agent.__del__` always reads the finalizer. It ties the Agent's
-  Actions to it again, runs the teardowns (skipped when
-  `sys.is_finalizing()`: at exit they are `At_Exit`'s), then the visible
-  `__del__`: the top Layer, nothing if deleted, else the host's own; then
-  it unties the Actions and reports each teardown that failed through
-  `sys.unraisablehook`, one `UnraisableHookArgs` each, naming the Agent
-  and the teardown (`_report_failures`). `_run_exit_protocols` reports
-  the same way once each Agent's teardowns in the pass ran, before an
-  interruption leaves the pass, with "in the At_Exit pass of" for
-  "deleting". A hook that raises stops nothing: its error goes to
-  `sys.__unraisablehook__`, as Python does for its own reports; a hook
-  set to `None`, or removed, means the default one, as for Python. When
-  a teardown was interrupted and a Layer then raises, the kit reports
-  the Layer's error itself (`_report_layer_failure`), since raising the
-  interruption would hide it, and drops it, since its traceback holds
-  the finalizer's frame. Python
-  does not export `UnraisableHookArgs`, so `lifecycle.py` catches it once
-  at import, under a temporary hook, from a weak reference whose callback
-  raises. `_host_finalizer` finds the host's own by walking the MRO
-  past the runtime type, as Python does (first definer decides, `None`
-  means none, descriptors are bound). The exit path uses no module global
-  and no builtin: what it needs is bound as a default argument, because
-  late in exit both may be gone. The Layer's errors propagate, so Python
-  reports them as unraisable, unless an interruption is pending. The first `__del__` Layer's Underlay is
-  `_host_finalizer`, or a do-nothing Layer after `@Delete`. The host's
-  own is found through `type(agent).__mro__`, skipping every class that
-  holds `_TOPKIT_HOST_TYPE` (a runtime type, even one a user built on);
-  the Agent's `__dict__` is read with `object.__getattribute__`, never
+  ordinary Action in `state.actions`, never bound on the Agent, left out
+  of the type-level dunders and of the type key (deleted or not). So
+  `agent.__del__` always reads the finalizer. Where Python cleared the
+  Actions' weak references, it ties them to the Agent again; it runs the
+  teardowns (skipped when `sys.is_finalizing()`: at exit they are
+  `At_Exit`'s), then the visible `__del__`: the top Layer, nothing if
+  deleted, else the host's own; then it unties what it tied and reports
+  each teardown that failed through `sys.unraisablehook`, one
+  `UnraisableHookArgs` each, naming the Agent and the teardown
+  (`_report_failures`). `_run_exit_protocols` reports the same way once
+  each Agent's teardowns in the pass ran, before an interruption leaves
+  the pass, with "in the At_Exit pass of" for "deleting". A hook that
+  raises stops nothing: its error goes to `sys.__unraisablehook__`, as
+  Python does for its own reports; a hook set to `None`, or removed,
+  means the default one, as for Python. When a teardown was interrupted
+  and a Layer then raises, the kit reports the Layer's error itself
+  (`_report_layer_failure`), since raising the interruption would hide
+  it, and drops it, since its traceback holds the finalizer's frame.
+  Python does not export `UnraisableHookArgs`, so `lifecycle.py` catches
+  it once at import, under a temporary hook, from a weak reference whose
+  callback raises, and leaves the hook as it found it, removed included.
+  `_host_finalizer` finds the host's own by walking the MRO past the
+  runtime type, as Python does (first definer decides, `None` means
+  none, descriptors are bound). The exit path uses no module global and
+  no builtin: what it needs is bound as a default argument, because late
+  in exit both may be gone. The Layer's errors propagate, so Python
+  reports them as unraisable, unless an interruption is pending. The
+  first `__del__` Layer's Underlay is `_host_finalizer`, or a do-nothing
+  Layer after `@Delete`. The host's own is found through
+  `type(agent).__mro__`, skipping every class that holds
+  `_TOPKIT_HOST_TYPE` (a runtime type, even one a user built on); the
+  Agent's `__dict__` is read with `object.__getattribute__`, never
   through the host's own. An object without TOP state whose class is a
   runtime type is reset to its host class when its state is attached;
   if it is never tagged, the finalizer runs its host's `__del__`.

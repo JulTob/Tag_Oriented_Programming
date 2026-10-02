@@ -1256,7 +1256,7 @@ says which is which:
 
 | Tier | Guarantee |
 | --- | --- |
-| **Finalizer** (`__del__`) | best effort: when the Agent is collected, its teardowns run, while it is still a member, then its `__del__` Layers; a teardown that fails is reported as the language reports a finalizer's error, and still runs at most once; at interpreter exit only the `__del__` Layers run; the language may not run finalizers at shutdown, and may not run them inside reference cycles |
+| **Finalizer** (`__del__`) | best effort: when the Agent is collected, its teardowns run, while it is still a member, then its `__del__` Layers; a teardown that fails is reported as the language reports a finalizer's error, and still runs at most once; once the interpreter is finalizing at exit, only the `__del__` Layers run; the language may not run finalizers at shutdown, and may not run them inside reference cycles |
 | **`Scope(agent, *tags)`** | guaranteed: the Tags it names apply on entry, and those it applied Rip, in reverse, on exit, even if the block raises; a Rip it cannot make is reported once every Rip is done, and a Rip refused because a Shape that arrived in the block still requires the Tag leaves that Tag on the Agent |
 | **`At_Exit(agent)`** | opt-in: teardowns also run at normal interpreter exit, while the Agent is still a member, a failed one reported as at deletion; registration is weak |
 
@@ -1382,7 +1382,7 @@ types but must keep these distinct.
 | Failure | Meaning | Effect |
 | --- | --- | --- |
 | **Tag Declaration Failure** | A Tag is written wrong: illegal mark combination, `@Underlay` without a parameter to receive it, a Flag marked on a Tag that already has members. | at class use |
-| **Tag Composition Failure** | Contributions cannot form the Overlay: cross-kind collision, Record over a host descriptor, a Record builder that failed, a teardown that failed on a Rip (at deletion, a finalizer's error, §3.2), a Target that cannot carry state, a Base still required. | call rolled back (or Rip refused) |
+| **Tag Composition Failure** | Contributions cannot form the Overlay: cross-kind collision, Record over a host descriptor, a Record builder that failed, a teardown that failed on a Rip (at deletion and in the `At_Exit` pass, a finalizer's error, §3.2), a Target that cannot carry state, a Base still required. | call rolled back (or Rip refused) |
 | **Tag Resolution Failure** | A required Underlay, view, or membership is unavailable. | call rolled back |
 | **Tag Rogue Access Failure** | A Rogue Agent reached a published member of a Tag it has left. A Resolution Failure, and a TOP failure only: never dressed as a host-language attribute failure. | use refused |
 | **Tag Precondition Failure** | A gate refused the incoming Agent. | call rolled back |
@@ -1463,8 +1463,9 @@ A conforming implementation provides, ring by ring:
   three deletion tiers, a Scope Ripping the Tags it applied and only
   those, leaving one a Shape still requires, and reporting a Rip it
   cannot make; the Agent's `__del__` as Layers of its Overlay, run after
-  the teardowns, and alone at interpreter exit; the Agent's own Actions
-  answer its teardowns and its `__del__` Layers at deletion.
+  the teardowns, and alone once the interpreter is finalizing at exit;
+  the Agent's own Actions answer its teardowns and its `__del__` Layers
+  at deletion.
 
 **Everywhere**
 - the failure types above, distinct and named.

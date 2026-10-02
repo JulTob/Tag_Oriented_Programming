@@ -66,12 +66,16 @@
   references; the finalizer ties them again for its own work, and the
   Agent is still freed), while an Action kept past the finalizer meets
   `ReferenceError`, one a teardown bound by tagging the Agent again
-  included; a teardown that fails at deletion is reported on stderr
+  included (not one taken through a view there, or bound there and then
+  replaced: STEP-SPEC-18, item 10); once the interpreter is finalizing
+  at exit, only the Layers run, and a deletion before that, even one
+  made by an `atexit` function after the `At_Exit` pass, is an ordinary
+  one; a teardown that fails at deletion is reported on stderr
   through `sys.unraisablehook` after every teardown and Layer ran, and
   one that fails in the `At_Exit` pass after that Agent's teardowns in
   the pass, naming the Agent and the teardown (before: dropped); a
-  `sys.unraisablehook` that raises stops nothing, and one set to `None`
-  leaves the reports to Python's default hook; a `__del__` Layer that
+  `sys.unraisablehook` that raises stops nothing, and one set to `None`,
+  or removed, leaves the reports to Python's default hook; a `__del__` Layer that
   raises after an interrupted teardown is reported before the
   interruption (before: only its context); the reported failures are
   then let go, since a traceback's frames hold the Agent, and for the

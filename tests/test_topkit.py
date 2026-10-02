@@ -5600,6 +5600,101 @@ print("end", "Deprecated" in Archmage)
         self.assertIn("ReferenceError", log)   # its Agent is gone: never run on the bell
         self.assertNotIn("chime of bell", log)
 
+    def test_another_agents_binding_of_the_same_action_is_not_re_tied(self) -> None:
+        log = self.log
+
+        class Rung(Tag):
+            def Ring(agent) -> str:
+                return "ring of " + agent.name
+
+            def Chime(agent) -> str:
+                return "chime of " + agent.name
+
+            @Rip
+            def Hush(agent) -> None:
+                try:
+                    log.append((agent.name, agent.Ring()))
+                except ReferenceError:
+                    log.append((agent.name, "ReferenceError"))
+
+        def Pair(cycle: bool) -> tuple:
+            bell, other = self.Door(), self.Door()
+            bell.name, other.name = "bell", "other"
+            Rung(bell)
+            Rung(other)
+            bell.Ring = other.Ring             # the same Action, bound to the other Agent
+
+            if cycle:
+                bell.other = other
+                other.bell = bell
+
+            return bell, other
+
+        for cycle in (False, True):
+            log.clear()
+            bell, other = Pair(cycle)
+
+            if cycle:
+                del bell, other
+                gc.collect()
+            else:
+                del other                      # its binding on the bell now answers nobody
+                del bell
+
+            self.assertIn(("bell", "ReferenceError"), log, cycle)   # never the bell's own Ring
+            self.assertNotIn(("bell", "ring of bell"), log, cycle)
+
+    def test_another_agents_binding_does_not_untie_a_kept_agent_s_actions(self) -> None:
+        saved: list = []
+
+        class Rung(Tag):
+            def Ring(agent) -> str:
+                return "ring of " + agent.name
+
+            def Chime(agent) -> str:
+                return "chime of " + agent.name
+
+        class Kept(Tag):
+            @Rip
+            def Save(agent) -> None:
+                saved.append(agent)            # the program keeps the Agent past its deletion
+
+        bell, other = self.Door(), self.Door()
+        bell.name, other.name = "bell", "other"
+        Rung(bell)
+        Rung(other)
+        Kept(bell)
+        bell.Ring = other.Ring
+        del other
+        del bell
+
+        self.assertEqual(saved[0].Chime(), "chime of bell")   # its own Actions still answer it
+        saved.clear()
+
+    def test_an_agent_its_teardown_keeps_and_tags_again_keeps_every_action(self) -> None:
+        saved: list = []
+
+        class Later(Tag):
+            def Ping(agent) -> str:
+                return "ping"
+
+        class Saver(Tag):
+            def Ring(agent) -> str:
+                return "ring"
+
+            @Rip
+            def Save(agent) -> None:
+                saved.append(agent)            # kept by the program, at a plain del
+                Later(agent)
+
+        door = self.Door()
+        Saver(door)
+        del door
+        kept = saved.pop()
+
+        self.assertEqual((kept.Ring(), kept.Ping()), ("ring", "ping"))
+        self.assertIn(kept, Later)
+
     def test_a_layer_calls_an_action_at_a_plain_del_and_the_agent_is_freed(self) -> None:
         log = self.log
 
@@ -5854,6 +5949,16 @@ print("end", "Deprecated" in Archmage)
                 sys.unraisablehook = hook
 
             self.assertEqual(log, ["host", "reported RuntimeError", "reported ValueError"], type(stderr).__name__)
+
+    def test_the_kit_imports_with_no_hook_set_and_leaves_it_unset(self) -> None:
+        lines, stderr = Run_Program("""
+import sys
+del sys.unraisablehook
+import TopKit
+print("imported", hasattr(sys, "unraisablehook"))
+""")
+
+        self.assertEqual(lines, ["imported False"], stderr)
 
     def test_with_no_hook_set_python_s_default_reports(self) -> None:
         import contextlib

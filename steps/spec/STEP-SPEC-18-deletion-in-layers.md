@@ -86,12 +86,15 @@ call to the underlaying del."
    Actions' weak references (Python does in a collected cycle, and so
    for a Layer at program end), the Agent's own Actions are tied to it
    again before the teardowns run, so a teardown and a Layer call them
-   as anywhere (`agent.Ring()`). The tie ends with the finalizer: every
+   as anywhere (`agent.Ring()`). Only the Agent's own Actions are tied,
+   the ones the kit bound for it: another Agent's Action that the
+   program stored under one of its names is not, even when it is the
+   same Action of the same Tag. The tie ends with the finalizer: every
    Action it tied, and every Action the Agent holds then (one a
    teardown bound by tagging the Agent again, say), is pointed at the
    gone Agent, so an Action kept past the finalizer (by an object a
-   teardown built) meets `ReferenceError`, and the Agent is still freed
-   afterwards.
+   teardown built) meets `ReferenceError` (item 10 names the two it does
+   not reach), and the Agent is still freed afterwards.
 5. **A `__del__` never stops a teardown,** and a teardown never stops the
    Layers. Replacing the `__del__` Layers replaces only them; running the
    teardowns is a protocol of its own (§3.2), so no Tag can skip another
@@ -148,10 +151,14 @@ call to the underlaying del."
     (`Tag[agent].Ring`), or bound there and then replaced by a later
     tagging there, is not pointed at the gone Agent: kept past the
     finalizer, it answers the Agent, which the collection may already have
-    cleared, until Python frees it, as before this STEP. And where another
+    cleared, until Python frees it, as before this STEP. Where another
     finalizer of the same collection tagged the Agent again before its own
     ran, some of its Actions may still raise `ReferenceError` there, as
-    before.
+    before. And an Agent that its own teardown or Layer keeps alive in a
+    collected cycle (by storing it somewhere) keeps no working Action of
+    its own, not even one bound during the finalizer: the untie cannot
+    tell it from a freed one. At a plain `del` such an Agent keeps every
+    Action, since nothing was tied there.
 
 ```python
 class Lantern:
@@ -305,14 +312,23 @@ references before the finalizer runs; the hook's error now goes to
 Python's default hook, and the tests ask the heap. It also found, from
 before this STEP, that an interrupted teardown kept the Agent until the
 next collection, through the interruption's traceback; the finalizer now
-lets go of it. A third review found five more: an Action a teardown
+lets go of it. A third review found six more: an Action a teardown
 bound by tagging the Agent again outlived the finalizer, as before this
 STEP; a `__del__` Layer's own error was hidden when an interruption
 followed it; a `sys.unraisablehook` set to `None` or removed dropped
 every report; the re-tie walked every Action at a plain `del`, where
-none needs it; and two of the second round's protections (a hook that
-raises an interruption, a default hook that fails) had no test. Each is
-fixed, and each but the cost is pinned by a test. It also found that the
+none needs it; two of the second round's protections (a hook that
+raises an interruption, a default hook that fails) had no test; and the
+words said no teardown runs at program end outside the `At_Exit` pass,
+though one an `atexit` function releases after the pass does, and is
+reported. Each is fixed, and each but the cost is pinned by a test. A
+fourth review found that the re-tie knew the Agent's own Actions by
+their function, so another Agent's binding of the same Action, stored
+under its name, was tied to the dying Agent (and, at a plain `del`, made
+the finalizer untie the Agent's own); that importing the kit failed
+where `sys.unraisablehook` was removed; and that the guards keeping a
+plain `del` from untying had no test. Each is fixed and pinned: the kit
+now knows its own bindings by identity. It also found that the
 fuzzer saw almost nothing of program end on Python 3.12, where
 `sys.stdout` is closed and the builtins cleared before the last
 finalizers run; the fuzzer now writes the exit events to the file

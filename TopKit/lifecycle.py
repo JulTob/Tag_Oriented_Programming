@@ -154,7 +154,8 @@ def _unraisable_type() -> type:
     that keeps its type: a weak reference whose callback raises."""
 
     kinds: list[type] = []
-    hook = sys.unraisablehook
+    missing = object()
+    hook = getattr(sys, "unraisablehook", missing)   # a program may have removed it: Python's default then
     sys.unraisablehook = lambda report: kinds.append(type(report))
 
     try:
@@ -167,7 +168,10 @@ def _unraisable_type() -> type:
         reference = weakref.ref(probe, Raise)
         del probe
     finally:
-        sys.unraisablehook = hook
+        if hook is missing:
+            del sys.unraisablehook   # left as it was found
+        else:
+            sys.unraisablehook = hook
 
     return kinds[0]   # CPython 3.12 and later always report it
 

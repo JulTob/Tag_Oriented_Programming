@@ -333,20 +333,26 @@ class _Bound:
     """An Action bound to one Agent, stored in the Agent's dictionary.
 
     Holds the Agent weakly so the Field's weak references stay honest.
+    ``_owner`` is the state of the Agent the kit bound it for (None for a
+    view's): the finalizer knows the Agent's own bindings by it, whatever
+    name the program stores another Agent's under (STEP-SPEC-18).
     """
 
     __slots__ = (
             "_function",
             "_reference",
+            "_owner",
             )
 
     def __init__(
             bound,
             function: Function,
             agent: object,
+            owner: "_State | None" = None,
             ) -> None:
         bound._function = function
         bound._reference = weakref.ref(agent)
+        bound._owner = owner
 
     def __call__(
             bound,
@@ -575,9 +581,9 @@ def _bind_to(
         return
 
     if state.secrets:
-        bound: _Bound = _Composing_Bound(function, agent)
+        bound: _Bound = _Composing_Bound(function, agent, state)
     else:
-        bound = _Bound(function, agent)
+        bound = _Bound(function, agent, state)
 
     _namespace_of(agent)[name] = bound
 
@@ -620,16 +626,17 @@ def _ties_cleared(
         bound_type: type = _Bound,
         ) -> bool:
     """Whether Python cleared the weak references of the Agent's bound
-    Actions: the first one found tells, since they are cleared together.
-    The finalizer asks only when the Agent still has weak references (a
-    plain ``del``, where the answer is no, unless another finalizer of
-    the same collection made one); so a plain ``del`` never walks every
-    Action."""
+    Actions: the first of its own found tells, since they are cleared
+    together. A binding of another Agent's that the program stored under
+    one of its names says nothing about this one. The finalizer asks only
+    when the Agent still has weak references (a plain ``del``, where the
+    answer is no, unless another finalizer of the same collection made
+    one); so a plain ``del`` never walks every Action."""
 
     for name in state.actions:
         value = namespace.get(name)
 
-        if check(value, bound_type):
+        if check(value, bound_type) and value._owner is state:
             return value._reference() is None
 
     return False
@@ -642,6 +649,7 @@ def _retie_actions(
         check: Callable[..., bool] = isinstance,
         bound_type: type = _Bound,
         ref: Callable[[object], Any] = weakref.ref,
+        listed: Callable[..., list] = list,
         ) -> list[_Bound]:
     """Tie the Agent's bound Actions to it again, with fresh weak
     references, where Python cleared them (STEP-SPEC-18, amended).
@@ -650,20 +658,19 @@ def _retie_actions(
     before its finalizers run, so ``agent.Ring()`` from a teardown or a
     ``__del__`` Layer would raise ReferenceError. A new weak reference can
     still be made there; it is weak, so nothing is resurrected. Only the
-    Agent's own binding of each name is tied: a binding of another
-    Action stored under the name (another Agent's, set by the program)
-    keeps its dead reference. What was tied is returned, for
-    ``_untie_actions``. Bound as defaults: this runs late in interpreter
-    exit too, when this module's globals may be gone."""
+    Agent's own bindings are tied, the ones the kit made for it, under
+    whatever name they are stored: a binding of another Agent's that the
+    program stored under one of its names keeps its dead reference. What
+    was tied is returned, for ``_untie_actions``. Bound as defaults: this
+    runs late in interpreter exit too, when this module's globals may be
+    gone."""
 
     retied = []
 
-    for name, function in state.actions.items():
-        value = namespace.get(name)
-
+    for value in listed(namespace.values()):
         if (
                 check(value, bound_type)
-                and value._function is function
+                and value._owner is state
                 and value._reference() is None
                 ):
             value._reference = ref(agent)
