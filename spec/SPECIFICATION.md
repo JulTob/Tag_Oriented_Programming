@@ -1300,11 +1300,13 @@ assert log == ["put down", "spell fades", "wick out"]
 amended 2026-09-29). A Tag the Agent already carries when the Scope
 reaches it is the Agent's: the Scope adds nothing and takes nothing
 away, and the block still runs. A Base the Scope pulls in with a Shape
-stays, and so does a Base the Scope names after that Shape, because the
-Agent already carries it by then. A Tag that applied and then failed at
-the door, through its Postcondition or its Imprint, stays applied
-(§0.6), so the Scope Rips it, and the Tags it applied before it, as the
-failure leaves; the block does not run. A Rip the Scope cannot make,
+applies first, with the Shape, and applying it again adds nothing
+(§0.5), so a Base the Scope names after that Shape is already carried
+and stays. The Base the Shape pulled in stays on the Agent too; whether
+the Scope should Rip it is open in STEP-SPEC-6. A Tag that applied and
+then failed at the door, through its Postcondition or its Imprint, stays
+applied (§0.6), so the Scope Rips it, and the Tags it applied before it,
+as the failure leaves; the block does not run. A Rip the Scope cannot make,
 because a Shape that arrived in the block still requires the Tag, is
 refused as any such Rip is (§0.7); the Tag stays, and the Scope goes on
 Ripping the rest. A teardown that fails as the Scope Rips its Tag ends

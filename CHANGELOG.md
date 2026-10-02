@@ -27,7 +27,9 @@
   was. Unchanged since 0.1, and now written down: a Rip the Scope cannot
   make, because a Shape that arrived in the block still requires the
   Tag, leaves that Tag; a teardown that fails as the Scope Rips is not
-  reported (open for the Director in STEP-SPEC-6). Still owed for this
+  reported (open for the Director in STEP-SPEC-6); a Base the Scope
+  pulled in with a Shape stays (open too, with the Director's words of
+  2026-10-01 on how the Shape and its Base apply). Still owed for this
   release: the spelling `with Wizard[h]:`, with inputs as `with
   Wizard[h](code="007"):` (STEP-SPEC-21).
 - **STEP-SPEC-14's words follow the kit** (the Director's rulings of

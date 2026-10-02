@@ -694,11 +694,13 @@ assert guard not in Sentry
 `@Imprint` runs after the Tag applies; `@Rip` runs after it leaves. They
 are constructor and destructor, `__enter__` and `__exit__`.
 
-A Scope takes away only what it gave. If the guard is already a Sentry,
-the block runs and he stays one. A Base the Scope pulled in with a Shape
-stays too, even if the Scope names it after the Shape. A Sentry whose
-`post` fails at the door is Ripped as the error leaves the `with`, and
-the block does not run: the Scope applied it. Two things the Scope does
+A Scope takes away only the Tags it names and applied. If the guard is
+already a Sentry, the block runs and he stays one. A Base the Scope
+pulled in with a Shape stays too, even if the Scope names it after the
+Shape; whether it should is still a question for the Director
+(STEP-SPEC-6). A Sentry whose `post` fails at the door is Ripped as the
+error leaves the `with`, and the block does not run: the Scope applied
+it. Two things the Scope does
 not do on the way out. If the block made the guard a Shape of Sentry,
 the Shape still requires Sentry, so Sentry stays. And if Sentry's `@Rip`
 protocol fails there, the guard has left Sentry, but the Scope does not
