@@ -4,6 +4,14 @@
 
 ### Specification
 
+- **A Flag's words may come as a list, a tuple or a set** (STEP-SPEC-17,
+  item 8; §1.8). The Director, 2026-10-02: "The flags as text or a list
+  of texts makes sense". `@Flag(["Wolf", "Beast"])` and `@Flag("Wolf",
+  {"Lycan", "Lupus"})` say what the words given one by one say; the words
+  are flattened, and a word given twice counts once. An empty
+  collection, a non-string in one or a collection inside one is a
+  Declaration Failure that names the item. 0.2.0a4 refused every list
+  and set.
 - **A Flag is part of the Tag's declaration** (STEP-SPEC-17, item 11;
   §1.8). `@Flag`, bare or with words, on a Tag that already has members,
   or whose Shapes have, is a Declaration Failure that names the Tag and

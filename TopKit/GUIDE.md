@@ -514,6 +514,28 @@ HUNTED = ["Beast", "Fiend"]             # the table never imports Werewolf
 assert any(word in howler for word in HUNTED)
 ```
 
+Words kept as data may come whole, as a list, a tuple or a set, beside
+single words or alone:
+
+```python
+MOON_WORDS = {"Lycan", "Lupus"}         # read from a table, say
+
+
+@Flag("Wolf", MOON_WORDS)
+class Moonborn(Tag):
+    pass
+
+
+moon = Character("Moon")
+Moonborn(moon)
+
+assert Keyword(moon, "Moonborn", "Wolf", "Lycan", "Lupus")
+```
+
+A collection holds strings and nothing else: an empty one, a number in
+it or a list inside it is refused when the class is declared, and the
+error names the item.
+
 A word is a public name, not a membership: if there is also a `Beast`
 Tag, `"Beast" in howler` is `True` while `howler in Beast` is `False`.
 That is the point, a secret identity with a public face, but it is yours

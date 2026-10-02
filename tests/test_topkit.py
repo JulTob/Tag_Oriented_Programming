@@ -3413,6 +3413,99 @@ class FlagWordTests(unittest.TestCase):
         for tag in (Werewolf, Lycan):
             self.assertEqual({type(word) for word in vars(tag)["__topkit_flag__"]}, {str})
 
+    def test_a_flag_takes_its_words_as_a_list_a_tuple_or_a_set(self) -> None:
+        """The Director, 2026-10-02: "The flags as text or a list of texts
+        makes sense"."""
+
+        @Flag(["Wolf", "Beast"])
+        class Werewolf(Tag):
+            pass
+
+        @Flag(("Wolf", "Beast"))
+        class Warg(Tag):
+            pass
+
+        @Flag({"Lycan", "Lupus"})
+        class Lycanthrope(Tag):
+            pass
+
+        @Flag(frozenset({"Lycan", "Lupus"}))
+        class Lupine(Tag):
+            pass
+
+        for tag, words in (
+                (Werewolf, ("Wolf", "Beast")),
+                (Warg, ("Wolf", "Beast")),
+                (Lycanthrope, ("Lycan", "Lupus")),
+                (Lupine, ("Lycan", "Lupus")),
+                ):
+            agent = Agent()
+            tag(agent)
+
+            self.assertTrue(Keyword(agent, tag.__name__, *words))   # the name always flags
+            self.assertIn(words[0], agent)
+            self.assertIn(words[1], agent)
+            self.assertEqual(vars(tag)["__topkit_flag__"], frozenset(words))
+
+    def test_words_and_collections_of_words_mix(self) -> None:
+        @Flag("Wolf", ["Beast", "Howler"], {"Lycan"}, ("Wolf", "Beast"))
+        class Werewolf(Tag):
+            pass
+
+        howler = Agent()
+        Werewolf(howler)
+
+        self.assertTrue(Keyword(howler, "Werewolf", "Wolf", "Beast", "Howler", "Lycan"))
+        self.assertEqual(                                 # flattened, a word given twice kept once
+                vars(Werewolf)["__topkit_flag__"],
+                frozenset({"Wolf", "Beast", "Howler", "Lycan"}),
+                )
+
+    def test_a_word_in_a_list_is_kept_as_its_plain_text(self) -> None:
+        class Unhashable(str):
+            __hash__ = None
+
+        @Flag([Unhashable("Wolf"), "Beast"])              # no TypeError at declaration
+        class Werewolf(Tag):
+            pass
+
+        howler = Agent()
+        Werewolf(howler)
+
+        self.assertTrue(Keyword(howler, "Wolf", "Beast"))
+        self.assertEqual({type(word) for word in vars(Werewolf)["__topkit_flag__"]}, {str})
+
+    def test_a_collection_of_words_holds_non_empty_strings_one_level_deep(self) -> None:
+        class Beast(Tag):
+            pass
+
+        for words, named in (
+                ([], "[]"),
+                ((), "()"),
+                (set(), "set()"),
+                (frozenset(), "frozenset()"),
+                (["Wolf", 3], "got 3 in ['Wolf', 3]"),
+                (["Wolf", ""], "got '' in ['Wolf', '']"),
+                (["Wolf", ["Beast"]], "got ['Beast'] in ['Wolf', ['Beast']]"),
+                (("Wolf", {"Beast"}), "got {'Beast'} in ('Wolf', {'Beast'})"),
+                ([Beast], "got <class"),
+                ({"Wolf": "Beast"}, "got {'Wolf': 'Beast'}"),
+                ):
+            with self.subTest(words=words):
+                with self.assertRaises(TagDeclarationError) as caught:
+                    Flag(words)
+
+                self.assertIn(named, str(caught.exception))   # the message names the item
+
+        with self.assertRaises(TagDeclarationError):
+            Flag("Wolf", [])                              # beside a word, too
+
+        howler = Agent()
+        Beast(howler)
+
+        self.assertFalse(Keyword(howler, "Beast"))        # nothing was marked
+        self.assertFalse(Keyword(howler, "Wolf"))
+
     def test_a_flag_on_a_tag_with_members_is_refused(self) -> None:
         """A Flag is part of the Tag's declaration (STEP-SPEC-17, 2026-09-29)."""
 

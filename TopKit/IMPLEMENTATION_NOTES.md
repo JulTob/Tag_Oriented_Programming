@@ -99,7 +99,10 @@ rollback target.
   active Flag and nothing else. The mark is the frozenset of the Tag's
   words, each stored as its plain text (`str.__str__`), in its own
   `__dict__` (empty for bare `@Flag`); the name is read live from
-  `__name__`, and the words are never inherited by Shapes. `Flag`
+  `__name__`, and the words are never inherited by Shapes.
+  `_flag_words` flattens the arguments: a string is a word (a `str`
+  subclass too, never a collection), a list, tuple, set or frozenset
+  gives its strings, one level deep. `Flag`
   refuses a Tag whose Field has a live member (`TagDeclarationError`,
   with the count; a Shape's members are in its Base's Field too), so a
   mark never lands under an Agent that carries the Tag. A lone class

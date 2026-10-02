@@ -302,7 +302,7 @@ def Public(
 
 
 def Flag(
-        *words: type | str,
+        *words: type | str | list[str] | tuple[str, ...] | set[str] | frozenset[str],
         ) -> Any:
     """Mark a Tag as a keyword: searchable from the Agent's side by name
     or by class, ``"Undead" in ghoul`` and ``Undead in ghoul``.
@@ -311,6 +311,9 @@ def Flag(
 
         @Flag("Wolf", "Lycanthrope")
         class Werewolf(Tag): ...
+
+    A list, tuple or set of words says the same, ``@Flag(["Wolf",
+    "Lycanthrope"])``, and may sit beside single words.
 
     The Tag's own name is always a word. An alias is only a word: it
     answers ``"Wolf" in agent``, never membership. Applying a Flag to a
@@ -324,20 +327,7 @@ def Flag(
                 lone=True,
                 )
 
-    texts: list[str] = []
-
-    for word in words:
-        text = str.__str__(word) if isinstance(word, str) else ""   # its text: exact, and hashable
-
-        if not text:
-            raise TagDeclarationError(
-                    "@Flag marks a Tag class, or takes the words it also"
-                    f" answers to as non-empty strings; got {word!r}"
-                    )
-
-        texts.append(text)
-
-    aliases = frozenset(texts)
+    aliases = frozenset(_flag_words(words))
 
     def Flag_With_Words(
             tag: type,
@@ -348,6 +338,56 @@ def Flag(
                 )
 
     return Flag_With_Words
+
+
+_WORD_LISTS = (list, tuple, set, frozenset)   # a collection of words, one level deep
+
+
+def _flag_words(
+        words: tuple[Any, ...],
+        ) -> dict[str, None]:
+    """The words given to ``@Flag``, flattened in the order given, each as
+    its plain text (exact, and hashable), a word given twice kept once.
+    A word is a non-empty string; a list, tuple or set of them stands for
+    its words (the Director, 2026-10-02: "The flags as text or a list of
+    texts makes sense")."""
+
+    texts: dict[str, None] = {}
+
+    for word in words:
+        if isinstance(word, str):   # a str subclass is a word, never a collection
+            items: Any = (word,)
+            within = None
+        elif isinstance(word, _WORD_LISTS):
+            items = word
+            within = word
+
+            if not word:
+                raise TagDeclarationError(
+                        f"@Flag got an empty {type(word).__name__},"
+                        f" {word!r}; a collection of words needs at least one"
+                        )
+        else:
+            raise TagDeclarationError(
+                    "@Flag marks a Tag class, or takes the words it also"
+                    " answers to: non-empty strings, or lists, tuples or"
+                    f" sets of them; got {word!r}"
+                    )
+
+        for item in items:
+            text = str.__str__(item) if isinstance(item, str) else ""   # its text: exact, and hashable
+
+            if not text:
+                raise TagDeclarationError(
+                        "@Flag takes the words it also answers to as"
+                        " non-empty strings, alone or in a list, tuple or"
+                        f" set one level deep; got {item!r}"
+                        + (f" in {within!r}" if within is not None else "")
+                        )
+
+            texts[text] = None
+
+    return texts
 
 
 def _mark_flag(

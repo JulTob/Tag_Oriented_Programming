@@ -753,7 +753,13 @@ word; it answers while any of them is active. The words are the Tag's
 own: a Shape answers its Base's words because the Base is active (§0.3),
 never by inheriting them. Bare `@Flag` is the name alone. Words are
 non-empty strings, kept as their plain text, and match exactly, like
-names. A Flag, bare or with words, is part of the Tag's declaration:
+names. They may come one by one or as a list, tuple or set of strings,
+and both may mix: `@Flag(["Wolf", "Lycanthrope"])` and `@Flag("Wolf",
+{"Lycanthrope"})` say what `@Flag("Wolf", "Lycanthrope")` says. The words
+are flattened, and a word given twice counts once. An empty collection,
+or one that holds anything but non-empty strings (another collection
+included), is a Declaration Failure that names the item. A Flag, bare or
+with words, is part of the Tag's declaration:
 marking a Tag that already has members, or whose Shapes have, is a
 Declaration Failure that names the Tag and how many carry it, and
 nothing is marked.

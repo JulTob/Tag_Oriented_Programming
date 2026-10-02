@@ -47,8 +47,9 @@ is the variant: a word with no Field behind it.
 
 ## Specification
 
-1. `@Flag` takes zero or more words: `@Flag("Wolf", "Lycanthrope")`. Bare
-   `@Flag` and `@Flag()` mark the Tag with its name alone.
+1. `@Flag` takes zero or more words: `@Flag("Wolf", "Lycanthrope")`, or
+   `@Flag(["Wolf", "Lycanthrope"])` (item 8). Bare `@Flag` and `@Flag()`
+   mark the Tag with its name alone.
 2. **The name always flags.** A Flag answers to its own name and to every
    word it lists. There is no spelling that leaves the name out.
 3. While an Agent carries an active Tag that is a Flag listing a word,
@@ -65,9 +66,14 @@ is the variant: a word with no Field behind it.
    A Shape that is a Flag itself adds its own.
 7. Stacked `@Flag` marks add their words together.
 8. Words are non-empty strings, each kept as its plain text when the Tag
-   is declared, and a probe is read as its text. Anything else among
-   the words, including a class beside them (`@Flag(Beast, "Wolf")`), is
-   a Declaration Failure at the decorator; nothing is marked. A lone
+   is declared, and a probe is read as its text. A list, tuple or set of
+   strings stands for its words, alone or beside single words:
+   `@Flag(["Wolf", "Beast"])`, `@Flag("Wolf", {"Lycan", "Lupus"})`. The
+   words are flattened, and a word given twice counts once. Anything else
+   among the words, including a class beside them (`@Flag(Beast,
+   "Wolf")`), an empty collection, or a collection that holds anything
+   but non-empty strings (another collection included), is a Declaration
+   Failure at the decorator that names the item; nothing is marked. A lone
    class is the bare form applied to that class:
    `@Flag(Beast)` over another class marks `Beast` itself and then
    applies `Beast` to the new class. No kit can tell that from `Flag(Beast)`
@@ -128,7 +134,8 @@ writes each variant the rules may use.
 ## Backwards compatibility
 
 Bare `@Flag` on a Tag nobody carries means what it meant. `Flag("Wolf")`
-was a Declaration Failure before and is a decorator now.
+was a Declaration Failure before and is a decorator now. `Flag(["Wolf"])`
+was a Declaration Failure in 0.2.0a4 and is a decorator now too.
 
 One program breaks. A Flag marked on a Tag that already had members was
 accepted and left a half state: `Keyword` answered the new word and the
@@ -145,6 +152,7 @@ Agent's `in` did not. It is now refused (item 11), bare or with words.
 | A spelling that drops the Tag's name | Rejected by the Director: "The tag name always flags. It makes no sense to use Flag otherwise" |
 | Shapes inherit their Base's words | Unnecessary: the Base is active and answers them; inheriting would also make every Shape of a Flag a Flag, which STEP-SPEC-7 does not do |
 | Accept a late mark (item 11) and rebuild every carrier's type, so `in` answers the new words | Set aside for this draft: a Flag is what the Tag is called, fixed when it is declared; open for the Director |
+| Refuse a list or a set of words, and let `@Flag(*words)` spread one | Rejected by the Director on 2026-10-02: "The flags as text or a list of texts makes sense" |
 
 ## Acceptance requirements
 
@@ -184,8 +192,17 @@ now survives any rebuild; `RestoredNameTests` covers it.
 > registered first." So `@Flag`, bare or with words, is part of the Tag's
 > declaration, and a mark on a Tag that Agents carry, or its Shapes'
 > Agents, is a Declaration Failure (item 11). Item 8's lone-class form
-> (`@Flag(Beast)` over another class) is unchanged here, and so is item
-> 8's refusal of a list or a set: `@Flag(["Wolf", "Lycan"])` is a
-> Declaration Failure, and `@Flag(*words)` spreads one. The Director's
-> words take "str or list of str" and "a list/set of strings"; whether
-> either form stands beside them is open for the Director.
+> (`@Flag(Beast)` over another class) is unchanged here, and so was item
+> 8's refusal of a list or a set. The Director's words take "str or list
+> of str" and "a list/set of strings"; whether either form stands beside
+> them was left open for the Director. The list or set form is ruled
+> below; the lone-class form stays open.
+>
+> *Added 2026-10-02, drafted for the Director's confirmation:* the
+> Director: "The flags as text or a list of texts makes sense". So
+> `@Flag` also takes a list, tuple or set of strings, alone or beside
+> single words, as in `@Flag(["Wolf", "Beast"])` and `@Flag({"Lycan",
+> "Lupus"})`. The words are flattened, each kept as its plain text, and a
+> word given twice is kept once. An empty collection, a non-string in a
+> collection, or a collection inside one is a Declaration Failure that
+> names the item (item 8).
