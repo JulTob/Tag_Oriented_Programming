@@ -668,17 +668,21 @@ def Exercise_Scope(
         slip: bool = False,
         ) -> None:
     """Scope applies, runs the block, and rips what it applied in reverse
-    on exit, even when the block raises. Bases a Shape brought in stay;
-    a Rip refused for a required Base is swallowed and the Tag stays. A
+    on exit, even when the block raises. Bases a Shape brought in stay. A
     Tag that failed at the door, its promise or its Imprint, stays
-    applied, so the Scope Rips it with the rest."""
+    applied, so the Scope Rips it with the rest. Sometimes the block
+    applies a Tag of its own: a Shape that arrives there and requires a
+    Tag the Scope applied refuses that Rip, the Tag stays, and the Scope
+    reports the refusal once every Rip is done, raising it when the
+    block ended cleanly and noting it on the block's exception when it
+    did not."""
 
     scoped = tuple(randomizer.choice(family) for _ in range(1 + randomizer.randrange(3)))
+    arriving = randomizer.choice(family) if randomizer.random() < 0.3 else None
 
     if slip:
         scoped = (*scoped[:1], Slipping, *scoped[1:])
 
-    entry = model.Copy()
     inside = model.Copy()
     joined_by_scope: list[type] = []
 
@@ -695,6 +699,23 @@ def Exercise_Scope(
 
     slipped = bool(joined_by_scope) and joined_by_scope[-1] is Slipping
     defective = bool(joined_by_scope) and not slipped and not inside.Sound()   # only a tagging re-checks; a skipped Tag does not
+    raised = fail or defective or slipped                             # an exception leaves the block
+    reported: BaseException | None = None
+
+    def Refused() -> list[type]:
+        """The Rips the model refuses on the way out, in the Scope's order."""
+
+        probe = inside.Copy()
+        refused = []
+
+        for tag in reversed(joined_by_scope):
+            if tag in probe.active:
+                if Rip_Refused(probe, tag):
+                    refused.append(tag)
+                else:
+                    Model_Rip(probe, tag)
+
+        return refused
 
     try:
         with Scope(target, *scoped):
@@ -702,17 +723,38 @@ def Exercise_Scope(
             assert not slipped, (context, "a failed Imprint let the Scope body run")
             Assert_Target(target, inside, family, context + " inside")
 
+            if arriving is not None:
+                Tag_It(target, arriving, inside, context + " inside")   # the block brings a Tag of its own
+
             if fail:
                 raise LookupError("deliberate")
-    except LookupError:
+    except LookupError as error:
         if not fail:
             raise
-    except TagPostconditionError:
+
+        reported = error
+    except TagPostconditionError as error:
         if not defective:
             raise
-    except TagImprintError:
+
+        reported = error
+    except TagImprintError as error:
         if not slipped:
             raise
+
+        reported = error
+    except TagCompositionError as error:
+        refused = Refused()
+        assert not raised and refused, (context, "a Scope reported a Rip the model makes", str(error))
+        assert str(error).startswith(f"{refused[0].__name__} is required"), (context, "the first refusal leaves", str(error))
+        assert len(getattr(error, "__notes__", ())) == len(refused) - 1, (context, "the other refusals are notes")
+    else:
+        assert not raised, (context, "a Scope swallowed the block's exception")
+        assert not Refused(), (context, "a Scope did not report a refused Rip")
+
+    if reported is not None:
+        assert len(getattr(reported, "__notes__", ())) == len(Refused()), (context, "each refusal is a note on the block's exception")
+        reported = None                                               # its traceback holds this frame, and so the Target
 
     after = inside
 

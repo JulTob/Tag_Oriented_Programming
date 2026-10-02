@@ -177,15 +177,24 @@ def Scope(
     door, through its Postcondition or its Imprint, did apply, so it is
     Ripped on the way out like any other. A Base pulled in with a Shape
     stays, even when the Scope names it after that Shape: the Agent
-    already carries it by then. Whether the Scope should Rip such a Base
-    is open in STEP-SPEC-6.
+    already carries it by then. When a Shape the Scope names fails at
+    the door through its Base's Imprint, the Shape never lands, and the
+    Base it pulled in stays after the Scope raises. Whether the Scope
+    should Rip such a Base is open in STEP-SPEC-6. A Tag the block
+    itself Ripped is not Ripped again.
 
-    On the way out, a Rip refused because a Shape that arrived in the
-    block requires the Tag leaves that Tag, and a teardown that fails is
-    not reported (the Tag is Ripped); STEP-SPEC-6 leaves the second open.
+    On the way out, a Rip the Scope cannot make is reported as a Rip
+    reports it, once every Rip is done: a Rip refused because a Shape
+    that arrived in the block requires the Tag leaves that Tag, and a
+    teardown that fails ends the membership all the same. When the block
+    ended without an exception, the first such Composition Failure
+    leaves the ``with``, with the others as its notes; when it raised,
+    its own exception leaves, with each failure as a note (STEP-SPEC-6,
+    drafted for the Director's confirmation).
     """
 
     applied: list[type] = []
+    leaving: BaseException | None = None
 
     try:
         for tag in tags:
@@ -206,15 +215,71 @@ def Scope(
             applied.append(tag)
 
         yield agent
+    except BaseException as error:
+        leaving = error
+        raise
     finally:
-        for tag in reversed(applied):
-            try:
-                _rip(
-                        agent,
-                        tag,
+        refused = _rip_all(
+                agent,
+                applied,
+                )
+
+        try:
+            if refused:
+                _report(
+                        refused,
+                        leaving,
                         )
-            except TagError:
-                pass
+        finally:
+            refused = leaving = None        # an exception held by its own frame would keep the Agent in a cycle
+
+
+def _rip_all(
+        agent: object,
+        applied: list[type],
+        ) -> list[TagError]:
+    """Rip what a Scope applied, in reverse, each one tried whatever the
+    others do; return the Rips that failed, as a Rip reports them."""
+
+    refused: list[TagError] = []
+
+    for tag in reversed(applied):
+        if not _carries(agent, tag):
+            continue                        # the block Ripped it: nothing left to take away
+
+        try:
+            _rip(
+                    agent,
+                    tag,
+                    )
+        except TagError as failure:
+            refused.append(failure)
+
+    try:
+        return refused
+    finally:
+        del refused                         # the failures' tracebacks hold this frame
+
+
+def _report(
+        refused: list[TagError],
+        leaving: BaseException | None,
+        ) -> None:
+    """Report the Rips a Scope could not make: as notes on the exception
+    leaving the block, or, when the block ended without one, by raising
+    the first, with the others as its notes."""
+
+    first = leaving if leaving is not None else refused[0]
+
+    try:
+        for failure in refused:
+            if failure is not first:
+                first.add_note(f"On leaving the Scope: {type(failure).__name__}: {failure}")
+
+        if leaving is None:
+            raise first
+    finally:
+        first = failure = refused = leaving = None   # the raised failure's traceback holds this frame
 
 
 def _carries(

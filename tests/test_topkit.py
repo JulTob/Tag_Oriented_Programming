@@ -1163,6 +1163,32 @@ Wolf.__name__ = "Renamed"
         self.assertIsNone(reference())
         self.assertIs(Kin.me, Kin)
 
+    def test_a_pin_that_rolls_back_leaves_the_report_it_read_built_once(self) -> None:
+        """A Tag has its Report values from its declaration, so a Pin's
+        tagging that rolls back keeps the value its gate built."""
+
+        calls: list[str] = []
+
+        class Wizard(Tag):
+            @Report
+            def roster(tag) -> list[str]:
+                calls.append(tag.__name__)
+                return []
+
+        @Pin
+        class Audited(Tag):
+            @Pre
+            def Has_A_Roster(tag):
+                return tag.roster == ["nobody"]               # reads the pinned Tag's Report, and refuses
+
+        with self.assertRaises(TagPreconditionError):
+            Audited(Wizard)
+
+        self.assertEqual(Wizard.roster, [])
+        self.assertIs(Wizard.roster, Wizard.roster)
+        self.assertEqual(calls, ["Wizard"])                   # built once, by the gate
+        self.assertNotIn(Wizard, Audited)
+
     def test_reports_operations_and_their_deletion_follow_the_tag_view(self) -> None:
         ari = Agent()
 
@@ -2611,8 +2637,9 @@ class ExitProtocolTests(unittest.TestCase):
 
 
 class ScopeTests(unittest.TestCase):
-    """A Scope Rips the Tags it names that it applied, and only those,
-    except one that a Shape which arrived in the block still requires."""
+    """A Scope Rips the Tags it names that it applied, and only those. A
+    Rip it cannot make is reported, as a Rip reports it, once every Rip
+    is done."""
 
     def test_a_tag_the_agent_already_had_survives_the_scope(self) -> None:
         class Wizard(Tag):
@@ -2704,7 +2731,25 @@ class ScopeTests(unittest.TestCase):
         self.assertNotIn(di, Wolf)
         self.assertNotIn(di, Dire)
 
-    def test_a_tag_a_shape_still_requires_stays_after_the_scope(self) -> None:
+    def test_a_base_whose_imprint_fails_under_a_shape_stays_after_the_scope(self) -> None:
+        class Wolf(Tag):
+            @Imprint
+            def Enter(agent):
+                raise ValueError("the wolf will not come")
+
+        class Dire(Wolf):
+            pass
+
+        bo = Agent()
+
+        with self.assertRaises(Imprint.Enter):
+            with Scope(bo, Dire):
+                raise AssertionError("the body must not run")
+
+        self.assertEqual(Tags(bo), (Wolf,))                           # the Base the Shape pulled in stays (STEP-SPEC-6: open)
+        self.assertNotIn(bo, Dire)                                    # the Shape never landed
+
+    def test_a_tag_a_shape_still_requires_stays_and_the_scope_raises(self) -> None:
         class Wolf(Tag):
             pass
 
@@ -2713,31 +2758,117 @@ class ScopeTests(unittest.TestCase):
 
         bo = Agent()
 
-        with Scope(bo, Wolf):
-            Dire(bo)                                                  # the block brings a Shape that requires Wolf
+        with self.assertRaises(TagCompositionError) as raised:
+            with Scope(bo, Wolf):
+                Dire(bo)                                              # the block brings a Shape that requires Wolf
 
+        self.assertIn("Wolf is required by active Shape(s): Dire", str(raised.exception))
         self.assertIn(bo, Dire)
-        self.assertIn(bo, Wolf)                                       # the Rip was refused, and the Scope went on
+        self.assertIn(bo, Wolf)                                       # the Rip was refused, as `del Wolf[bo]` is
 
-    def test_a_teardown_that_fails_in_a_scope_still_rips_the_tag(self) -> None:
+    def test_the_scope_rips_the_rest_before_it_reports_a_refusal(self) -> None:
+        class Wolf(Tag):
+            pass
+
+        class Dire(Wolf):
+            pass
+
+        class Hunting(Tag):
+            pass
+
+        class Howling(Tag):
+            pass
+
+        cy = Agent()
+
+        with self.assertRaises(TagCompositionError) as raised:
+            with Scope(cy, Wolf, Hunting, Howling):
+                Dire(cy)
+
+        self.assertEqual(Tags(cy), (Dire,))                           # Howling and Hunting were Ripped all the same
+        self.assertIn(cy, Wolf)
+        self.assertFalse(getattr(raised.exception, "__notes__", None))
+
+    def test_a_refusal_is_a_note_on_the_exception_that_leaves_the_block(self) -> None:
+        class Wolf(Tag):
+            pass
+
+        class Dire(Wolf):
+            pass
+
+        di = Agent()
+
+        with self.assertRaises(LookupError) as raised:
+            with Scope(di, Wolf):
+                Dire(di)
+                raise LookupError("the block fails")
+
+        self.assertEqual(
+                raised.exception.__notes__,
+                ["On leaving the Scope: TagCompositionError: Wolf is required by active Shape(s): Dire"],
+                )
+        self.assertIn(di, Wolf)
+
+    def test_a_teardown_that_fails_in_a_scope_is_reported_and_still_rips_the_tag(self) -> None:
         class Sentry(Tag):
             @Rip
             def Stand_Down(agent):
                 raise ValueError("the post will not be left")
 
-        guard, other = Agent(), Agent()
-
-        with Scope(guard, Sentry):                                    # not reported, as the kit stands (STEP-SPEC-6: open)
+        class Watch(Tag):
             pass
 
-        self.assertNotIn(guard, Sentry)                               # the membership ended all the same
+        guard, other = Agent(), Agent()
+
+        with self.assertRaises(TagCompositionError) as raised:        # reported, as a plain Rip reports it
+            with Scope(guard, Sentry, Watch):
+                pass
+
+        self.assertEqual(str(raised.exception), "Sentry teardown failed in: Stand_Down")
+        self.assertIsInstance(raised.exception.__cause__, ValueError)
+        self.assertEqual(Tags(guard), ())                             # the membership ended all the same
 
         Sentry(other)
 
-        with self.assertRaises(TagCompositionError):                  # a plain Rip reports it
+        with self.assertRaises(TagCompositionError):
             del Sentry[other]
 
         self.assertNotIn(other, Sentry)
+
+    def test_every_failed_rip_after_the_first_is_a_note(self) -> None:
+        class Wolf(Tag):
+            pass
+
+        class Dire(Wolf):
+            pass
+
+        class Sentry(Tag):
+            @Rip
+            def Stand_Down(agent):
+                raise ValueError("the post will not be left")
+
+        ed = Agent()
+
+        with self.assertRaises(TagCompositionError) as raised:
+            with Scope(ed, Wolf, Sentry):
+                Dire(ed)
+
+        self.assertEqual(str(raised.exception), "Sentry teardown failed in: Stand_Down")   # the last named is Ripped first
+        self.assertEqual(
+                raised.exception.__notes__,
+                ["On leaving the Scope: TagCompositionError: Wolf is required by active Shape(s): Dire"],
+                )
+
+    def test_a_tag_the_block_ripped_is_not_ripped_again(self) -> None:
+        class Wizard(Tag):
+            pass
+
+        fay = Agent()
+
+        with Scope(fay, Wizard):
+            del Wizard[fay]                                           # the block takes it away itself
+
+        self.assertNotIn(fay, Wizard)
 
 
 class AccessTests(unittest.TestCase):

@@ -191,6 +191,13 @@ def Run() -> None:
         def stand_down(agent): log.append("down")
     with Scope(Character(), Sentry) as s: assert s in Sentry
     assert log == ["down"]
+    class Veteran(Sentry): pass
+    recruit = Character()
+    try:
+        with Scope(recruit, Sentry): Veteran(recruit)   # a Shape that still requires Sentry
+        raise SystemExit("expected failure")
+    except TagCompositionError: pass
+    assert recruit in Sentry and log == ["down"]        # refused, and reported
 
     # 3.2 deletion in layers
     log = []

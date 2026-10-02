@@ -632,7 +632,7 @@ class Report:
         value = report._build(owner)
         kept = owner.__dict__.get(_REPORTS)   # read again: the builder may have read another Report
 
-        if kept is None:
+        if kept is None:                      # a Tag has it from its declaration; any other owner gets it here
             kept = {}
             type.__setattr__(owner, _REPORTS, kept)
 

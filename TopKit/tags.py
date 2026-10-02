@@ -32,6 +32,7 @@ from .access import _keyword
 from .access import _view_of
 from .contracts import _holds
 from .declarations import _MISSING
+from .declarations import _REPORTS
 from .declarations import _check_pin_bases
 from .declarations import _is_pin
 from .declarations import _name_checks
@@ -62,6 +63,10 @@ class MetaTag(type):
                 "_topkit_field",
                 _Field(),
                 )
+        namespace.setdefault(
+                _REPORTS,
+                {},
+                )   # made with the Tag, so a rolled-back Pin keeps the values built during it
         _name_checks(namespace)
 
         tag = super().__new__(

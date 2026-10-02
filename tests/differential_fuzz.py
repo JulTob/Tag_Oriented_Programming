@@ -26,6 +26,13 @@ too, and so do words given as a list, a tuple or a set (2026-10-02),
 which a kit from before refuses; `tests/test_topkit.py` alone covers
 both.
 
+A Scope reports a Rip it cannot make, refused or with a teardown that
+fails (STEP-SPEC-6, drafted 2026-10-02): the Composition Failure leaves
+the `with`, or is a note on the block's own exception. A kit from before
+dropped it, so such a step reads differently against one. A Tag keeps
+its Report values under `_topkit_reports` in its own `__dict__`; the
+look at a Tag leaves that name out, so kits before and after compare.
+
 Every step writes what it observed: a value, or an exception's type,
 message and cause. A step that changes a Target is often followed by a
 look at it: its Tags, soundness, contract, words, and the names it holds.

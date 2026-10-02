@@ -698,13 +698,34 @@ A Scope takes away only the Tags it names and applied. If the guard is
 already a Sentry, the block runs and he stays one. A Base the Scope
 pulled in with a Shape stays too, even if the Scope names it after the
 Shape; whether it should is still a question for the Director
-(STEP-SPEC-6). A Sentry whose `post` fails at the door is Ripped as the
-error leaves the `with`, and the block does not run: the Scope applied
-it. Two things the Scope does
-not do on the way out. If the block made the guard a Shape of Sentry,
-the Shape still requires Sentry, so Sentry stays. And if Sentry's `@Rip`
-protocol fails there, the guard has left Sentry, but the Scope does not
-raise the failure, where `del Sentry[guard]` would.
+(STEP-SPEC-6). That holds when the Base's Imprint fails at the door as
+well: the Shape never lands, and the Base stays after the Scope raises.
+A Sentry whose `post` fails at the door is Ripped as the error leaves
+the `with`, and the block does not run: the Scope applied it.
+
+A Rip the Scope cannot make on the way out is reported, as
+`del Sentry[guard]` reports it. If the block made the guard a Shape of
+Sentry, the Shape still requires Sentry, so Sentry stays. If Sentry's
+`@Rip` protocol fails, the guard has left Sentry all the same. Either
+way the Scope Rips the rest first, then raises the Composition Failure;
+if the block itself raised, its exception leaves instead, with the
+failure as a note:
+
+```python
+class Veteran(Sentry):
+    pass
+
+
+recruit = Character("Recruit")
+
+try:
+    with Scope(recruit, Sentry):
+        Veteran(recruit)                # a Shape that still requires Sentry
+except TagCompositionError:
+    pass
+
+assert recruit in Sentry                # the Rip was refused, and said so
+```
 
 A role's conditions do **not** leave with it on their own. What the
 Agent *became* stays (pattern 1's Rogue Agent), and so does what the role

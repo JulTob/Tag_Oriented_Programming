@@ -170,7 +170,10 @@ rollback target.
   descriptor that runs its builder once per Tag on first read and keeps
   the value on that Tag: in a dict under `_topkit_reports` in the Tag
   class's own `__dict__`, keyed by the Report, read from
-  `owner.__dict__` and never through inheritance. So the value lives and
+  `owner.__dict__` and never through inheritance. `MetaTag` puts the
+  dict in the namespace when the Tag is declared, so a Pin's tagging
+  that rolls back, which puts the pinned Tag's namespace back as it
+  was, keeps the same dict and the values built during it. So the value lives and
   dies with the Tag, a Shape and its Base keep separate values, and a
   finalizer at exit reads the value built before (a weak cache could be
   cleared there first). The value is kept with `setdefault`, so a builder
@@ -255,11 +258,16 @@ rollback target.
   tagging raises, it asks whether the Tag is now active (a Postcondition
   or an Imprint failed after commit) and, if so, records it as applied,
   so the teardown Rips what the Scope applied. A Base pulled in with a
-  Shape is not recorded (whether it should be is open in STEP-SPEC-6).
-  Each Rip on the way out is wrapped in `except TagError: pass`: a Rip
-  refused for a required Base leaves the Tag, and a failed teardown (the
-  Tag already Ripped) is dropped, where `_rip` would raise it.
-  STEP-SPEC-6 leaves the second open for the Director.
+  Shape is not recorded (whether it should be is open in STEP-SPEC-6),
+  nor is one whose Imprint failed under its Shape. On the way out,
+  `_rip_all` skips a Tag the Agent no longer carries (the block Ripped
+  it) and collects each `TagError` a Rip raises: a Rip refused for a
+  required Base leaves the Tag, and a failed teardown has already ended
+  the membership. `_report` then raises the first, with the others as
+  `add_note` notes, or, when an exception is leaving the block, adds
+  each as a note on it. Every frame that holds a caught exception drops
+  it before it leaves, so the exception's traceback never keeps the
+  Agent in a cycle.
 - **The oracle** (`tests/oracle_topkit.py`): an independent model of
   the laws driven by a random walk; `tests/test_oracle.py` runs a short
   walk under the suite. Run it at size with `--seeds 50 --steps 1200

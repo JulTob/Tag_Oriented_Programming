@@ -10,8 +10,8 @@
   {"Lycan", "Lupus"})` say what the words given one by one say; the words
   are flattened, and a word given twice counts once. An empty
   collection, a non-string in one or a collection inside one is a
-  Declaration Failure that names the item. 0.2.0a4 refused every list
-  and set.
+  Declaration Failure that names the item. 0.2.0a4 refused every list,
+  tuple and set.
 - **A Flag is part of the Tag's declaration** (STEP-SPEC-17, item 11;
   §1.8). `@Flag`, bare or with words, on a Tag that already has members,
   or whose Shapes have, is a Declaration Failure that names the Tag and
@@ -24,14 +24,24 @@
   Scope's tier. One difference from 0.2.0a4: a Tag whose Imprint failed
   at the Scope's door stays applied (§0.6), and is now Ripped as the
   failure leaves the Scope, as a Tag whose Postcondition failed already
-  was. Unchanged since 0.1, and now written down: a Rip the Scope cannot
-  make, because a Shape that arrived in the block still requires the
-  Tag, leaves that Tag; a teardown that fails as the Scope Rips is not
-  reported (open for the Director in STEP-SPEC-6); a Base the Scope
-  pulled in with a Shape stays (open too, with the Director's words of
-  2026-10-01 on how the Shape and its Base apply). Still owed for this
-  release: the spelling `with Wizard[h]:`, with inputs as `with
-  Wizard[h](code="007"):` (STEP-SPEC-21).
+  was. Unchanged since 0.1, and now written down: a Base the Scope
+  pulled in with a Shape stays (open for the Director in STEP-SPEC-6,
+  with his words of 2026-10-01 on how the Shape and its Base apply),
+  and so does one whose Imprint failed at the door under its Shape,
+  which never landed. Still owed for this release: the spelling `with
+  Wizard[h]:`, with inputs as `with Wizard[h](code="007"):`
+  (STEP-SPEC-21).
+- **A Rip the Scope cannot make is reported** (§3.2; STEP-SPEC-6, rows 4
+  and 5, drafted for the Director's confirmation). The Director,
+  2026-10-02: "deletion should be blocked, yeah, and an error raised".
+  A Rip refused because a Shape that arrived in the block still
+  requires the Tag leaves that Tag, and a teardown that fails ends the
+  membership, as before; the Scope now Rips the rest, then raises the
+  Composition Failure, as `del Tag[agent]` does, with any others as its
+  notes. When the block raised, its own exception leaves, with each
+  failure as a note. 0.2.0a4 dropped both. Whether a teardown that
+  fails should leave the Agent in the Tag, for every Rip, stays open
+  (STEP-SPEC-6, with the Director's suggestion of 2026-10-02).
 - **STEP-SPEC-14's words follow the kit** (the Director's rulings of
   2026-09-29). A condition that returns a non-boolean raises the
   Contract Failure when read on the Agent, and so do `hasattr` and
@@ -54,15 +64,24 @@
   Report read from a finalizer at exit was built again, after the
   language had cleared the weak cache, so a renamed Tag gave a new value
   there. The weak cache also kept a Shape alive forever when the value a
-  Base's Report built for the Shape held the Shape.
+  Base's Report built for the Shape held the Shape. The values sit in
+  the Tag's own `__dict__`, under `_topkit_reports`, which every Tag now
+  has from its declaration, so `vars(SomeTag)` shows it (the
+  differential fuzzer leaves it out when it compares); a Pin's tagging
+  that rolls back keeps a value its gate built. An Agent never shows
+  it.
 - A word given to `@Flag` is kept as its plain text, as a probe is: a
   case-insensitive `str` subclass matches its own word, and an unhashable
   one no longer raises `TypeError` at declaration.
 - `ScopeTests` covers the Imprint failure at the door, a Base pulled in
-  or named after its Shape, the Rip refused for a required Base and the
-  teardown that fails; the oracle's `Exercise_Scope` puts a Tag whose
-  Imprint fails in some Scopes; the differential fuzzer tries a late
-  Flag on a carried Tag and expects the refusal.
+  or named after its Shape, a Base whose Imprint fails under its Shape,
+  the Rip refused for a required Base and the teardown that fails, each
+  reported, with the rest Ripped first and the block's own exception
+  keeping its place, and a Tag the block Ripped itself; the oracle's
+  `Exercise_Scope` puts a Tag whose Imprint fails in some Scopes, and
+  in some has the block apply a Tag of its own, so a refused Rip is
+  raised or noted as the model predicts; the differential fuzzer tries a
+  late Flag on a carried Tag and expects the refusal.
 
 ### Project
 
