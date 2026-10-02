@@ -98,7 +98,7 @@ PYTHONPATH=. python3 -m unittest discover -s tests -t .
 PYTHONPATH=. python3 benchmarks/bench.py
 ```
 
-Python 3.10 or later, no dependencies. TopKit is built so that an Agent's
+Python 3.12 or later, no dependencies. TopKit is built so that an Agent's
 attribute reads and Action calls cost what they cost on a plain object;
 tagging is the slower, rarer act.
 
