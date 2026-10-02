@@ -11,6 +11,8 @@ from contextlib import contextmanager
 from typing import Any
 from typing import Iterator
 import atexit
+import sys
+import weakref
 
 from .declarations import _parameters_of
 from .declarations import _takes_underlay
@@ -21,6 +23,7 @@ from .fields import _Member
 from .geometry import _requiring_shapes
 from .state import _Originals
 from .state import _State
+from .state import _name_of
 from .state import _state_of
 
 
@@ -104,10 +107,18 @@ def _teardown(
                 ) from failures[0][1]
 
 
+_Failure = tuple[type, Any, Exception]   # the Tag, the teardown, its error
+
+
 def _teardown_all(
         agent: object,
+        failures: list[_Failure],
         ) -> None:
-    """Best-effort teardown of every still-active Tag (finalizer, exit)."""
+    """Best-effort teardown of every still-active Tag (finalizer, exit):
+    every teardown still due runs, once, while the Agent is still a
+    member. Each failure is added to ``failures``, the caller's list, for
+    the caller to report once everything else has run (STEP-SPEC-18,
+    amended); an interruption leaves what was gathered there."""
 
     state = _state_of(agent)
 
@@ -125,10 +136,142 @@ def _teardown_all(
                             agent,
                             state,
                             )
-                except Exception:
-                    pass
+                except Exception as error:
+                    failures.append(
+                            (
+                                tag,
+                                teardown,
+                                error,
+                                )
+                            )
     finally:
         state.composing -= 1
+
+
+def _unraisable_type() -> type:
+    """The type ``sys.unraisablehook`` receives (``UnraisableHookArgs``).
+    Python does not export it, so one report is provoked under a hook
+    that keeps its type: a weak reference whose callback raises."""
+
+    kinds: list[type] = []
+    hook = sys.unraisablehook
+    sys.unraisablehook = lambda report: kinds.append(type(report))
+
+    try:
+        def Raise(
+                reference: object,
+                ) -> None:
+            raise RuntimeError("probe")
+
+        probe: set[int] = set()
+        reference = weakref.ref(probe, Raise)
+        del probe
+    finally:
+        sys.unraisablehook = hook
+
+    return kinds[0]   # CPython 3.12 and later always report it
+
+
+_Unraisable = _unraisable_type()
+
+
+def _report_failures(
+        agent: object,
+        failures: list[_Failure],
+        occasion: str = "deleting",
+        ) -> None:
+    """Each failed teardown, reported as Python reports a finalizer's
+    error: through ``sys.unraisablehook``, naming the teardown, its Tag
+    and the Agent, with the ``occasion`` (``deleting``, or ``in the
+    At_Exit pass of``). Nothing is stopped by it. The failures are dropped once
+    reported: an error's traceback holds ``_teardown_all``'s frame, which
+    holds the list that holds the error, a cycle whose frames hold the
+    Agent; kept, it would resurrect the Agent until a collection."""
+
+    try:
+        for tag, teardown, error in failures:
+            _report_failure(
+                    agent,
+                    tag,
+                    teardown,
+                    error,
+                    occasion,
+                    )
+    finally:
+        failures.clear()
+
+
+def _report_failure(
+        agent: object,
+        tag: type,
+        teardown: Any,
+        error: Exception,
+        occasion: str,
+        ) -> None:
+    _report_error(
+            error,
+            f"Exception ignored in teardown {teardown.__name__} of"
+            f" {tag.__name__}, {occasion} {_name_of(agent)}",
+            teardown,
+            )
+
+
+def _report_layer_failure(
+        agent: object,
+        error: BaseException,
+        layer: Any,
+        ) -> None:
+    """A ``__del__`` Layer's own error, when an interrupted teardown must
+    be raised after it: raising the interruption would hide it, so the
+    kit reports it as Python would have (STEP-SPEC-18, item 7)."""
+
+    _report_error(
+            error,
+            f"Exception ignored in __del__, deleting {_name_of(agent)}",
+            layer,
+            )
+
+
+def _report_error(
+        error: BaseException,
+        message: str,
+        source: Any,
+        ) -> None:
+    """``error`` reported as Python reports a finalizer's: through
+    ``sys.unraisablehook``, or Python's default hook where it is ``None``
+    or missing, as Python does. A hook that raises stops nothing: its own
+    error goes to the default hook, as Python reports it, and a failure
+    there is dropped, as Python drops it."""
+
+    hook = getattr(sys, "unraisablehook", None) or sys.__unraisablehook__
+
+    try:
+        hook(
+                _Unraisable(
+                    (
+                        type(error),
+                        error,
+                        error.__traceback__,
+                        message,
+                        source,
+                        )
+                    )
+                )
+    except BaseException as failed:   # a hook that raises stops nothing: Python reports it as its own
+        try:
+            sys.__unraisablehook__(
+                    _Unraisable(
+                        (
+                            type(failed),
+                            failed,
+                            failed.__traceback__,
+                            "Exception ignored in sys.unraisablehook",
+                            hook,
+                            )
+                        )
+                    )
+        except BaseException:
+            pass   # as Python does: the default hook's own failure is dropped
 
 
 def _call_teardown(
@@ -308,7 +451,10 @@ def _forget_exit(
 def At_Exit(
         agent: object,
         ) -> object:
-    """Also run the Agent's teardowns at normal interpreter exit.
+    """Also run the Agent's teardowns at normal interpreter exit, while it
+    is still a member. A teardown that fails there is reported through
+    ``sys.unraisablehook`` once that Agent's teardowns in the pass have
+    run.
 
     Registration is weak: it never keeps the Agent alive, and it leaves
     the registry when the Agent dies.
@@ -338,7 +484,19 @@ def _run_exit_protocols() -> None:
             agent = reference()
 
             if agent is not None:
-                _teardown_all(agent)
+                failures: list[_Failure] = []
+
+                try:
+                    _teardown_all(
+                            agent,
+                            failures,
+                            )   # the list is ours: an interruption leaves it filled
+                finally:
+                    _report_failures(
+                            agent,
+                            failures,
+                            "in the At_Exit pass of",
+                            )   # once this Agent's teardowns in the pass ran; its Layers run later, when it is deleted
 
 
 atexit.register(_run_exit_protocols)

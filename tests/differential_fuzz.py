@@ -102,6 +102,7 @@ DIFF_LINES_SHOWN = 40           # per differing seed
 PRELUDE = r'''
 import copy
 import gc
+import os
 import sys
 import warnings
 
@@ -137,7 +138,9 @@ class Log:
     """The transcript, on standard output. Events wait for the end of
     their step; after "=== exit ===" they are written as they happen.
     A finalizer reaches the Log through a default argument, because the
-    module's names may be gone when it runs."""
+    module's names may be gone when it runs; and what the Log uses from
+    the builtins is bound the same way, because on Python 3.12 the
+    builtins are cleared before this module's names are."""
 
     def __init__(
             log,
@@ -162,6 +165,18 @@ class Log:
         else:
             log.events.append(text)
 
+    def Exiting(
+            log,
+            write=os.write,
+            ):
+        """From here on, events are written as they happen, straight to
+        standard output's file descriptor: on Python 3.12 ``sys.stdout``
+        is closed before the last finalizers run."""
+
+        sys.stdout.flush()
+        log.exiting = True
+        log.write = lambda text: write(1, text.encode("utf-8"))
+
     def Flush(
             log,
             step,
@@ -176,6 +191,19 @@ class Log:
     def Show(
             log,
             value,
+            *,
+            isinstance=isinstance,
+            bool=bool,
+            int=int,
+            float=float,
+            str=str,
+            type=type,
+            tuple=tuple,
+            list=list,
+            dict=dict,
+            repr=repr,
+            object=object,
+            AttributeError=AttributeError,
             ):
         if value is None or isinstance(value, (bool, int, float, str)):
             return repr(value)
@@ -204,6 +232,9 @@ class Log:
     def Failure(
             log,
             error,
+            *,
+            type=type,
+            str=str,
             ):
         text = type(error).__qualname__ + ": " + str(error)
         cause = error.__cause__
@@ -367,6 +398,8 @@ class Host:
 
     def describe(
             host,
+            *,
+            str=str,                        # a Layer may ask at program end, when 3.12 has no builtins
             ):
         return host.name + " at level " + str(host.level)
 
@@ -465,6 +498,8 @@ class Witness:
             Keyword=Keyword,
             Tags=Tags,
             Contract=Contract,
+            bool=bool,
+            Exception=Exception,
             ):
         agent = witness.agent
         questions = (
@@ -630,6 +665,15 @@ AGENT_MEMBERS = (
             def Leave(agent):
                 raise RuntimeError("{tag} will not let go")
             """),
+        Member("rip", "Leave", 1, """
+            @Rip
+            def Leave(agent, *, log=LOG, str=str, Exception=Exception):
+                try:
+                    answer = agent.describe()   # an Action, at deletion: in a cycle too
+                except Exception as error:
+                    answer = log.Failure(error)
+                log.Event("{tag}.Leave " + agent.name + " hears " + str(answer))
+            """),
         Member("rip", "Retire", 3, """
             @Rip
             def Retire(agent, *, log=LOG):
@@ -674,6 +718,14 @@ AGENT_MEMBERS = (
         Member("finalizer", "__del__", 1, """
             def __del__(agent, *, log=LOG):
                 log.Event("{tag}.__del__ " + agent.name)
+            """),
+        Member("finalizer", "__del__", 1, """
+            def __del__(agent, *, log=LOG, str=str, Exception=Exception):
+                try:
+                    answer = agent.describe()   # an Action, from a Layer: at program end too
+                except Exception as error:
+                    answer = log.Failure(error)
+                log.Event("{tag}.__del__ " + agent.name + " hears " + str(answer))
             """),
         Member("finalizer", "__del__", 1, """
             @Action
@@ -1988,7 +2040,7 @@ def Write_Exit(
             plan.lines.append(Do_Line("end", f"{witness}.Ask()", f"{witness} asks before exit"))
 
     plan.lines.append('LOG.Say("=== exit ===")')
-    plan.lines.append("LOG.exiting = True")
+    plan.lines.append("LOG.Exiting()")
 
 
 # ------------------------------------------------------------------

@@ -55,6 +55,28 @@
   a Shape holds its own (§1.4); a published Report gives a Shape's Agent
   the value of the Tag that published it (§1.5).
 - STEP-SPEC-7's Decision records its amendment of 2026-09-24.
+- **Deletion in Layers, amended** (STEP-SPEC-18, the Amendment of
+  2026-09-29, with the Director's three rulings; §3.1, §3.2): the words
+  now say that at deletion and in the `At_Exit` pass the teardowns run while the
+  Agent is still a member of its Tags (§3.1 and §3.2 said deletion Rips
+  it; the kit never ended membership there, and still does not); a
+  teardown or a `__del__` Layer may call the Agent's own Actions at
+  deletion, in a collected cycle too, and a `__del__` Layer at program
+  end (before: `ReferenceError`, since Python had cleared their weak
+  references; the finalizer ties them again for its own work, and the
+  Agent is still freed), while an Action kept past the finalizer meets
+  `ReferenceError`, one a teardown bound by tagging the Agent again
+  included; a teardown that fails at deletion is reported on stderr
+  through `sys.unraisablehook` after every teardown and Layer ran, and
+  one that fails in the `At_Exit` pass after that Agent's teardowns in
+  the pass, naming the Agent and the teardown (before: dropped); a
+  `sys.unraisablehook` that raises stops nothing, and one set to `None`
+  leaves the reports to Python's default hook; a `__del__` Layer that
+  raises after an interrupted teardown is reported before the
+  interruption (before: only its context); the reported failures are
+  then let go, since a traceback's frames hold the Agent, and for the
+  same reason an interrupted teardown no longer keeps the Agent until
+  the next collection.
 
 ### TopKit
 

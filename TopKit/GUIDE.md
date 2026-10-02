@@ -691,8 +691,9 @@ assert not guard.on_duty                # Ripped on exit, even on error
 assert guard not in Sentry
 ```
 
-`@Imprint` runs after the Tag applies; `@Rip` runs after it leaves. They
-are constructor and destructor, `__enter__` and `__exit__`.
+`@Imprint` runs after the Tag applies; `@Rip` runs after it leaves, or when
+the object is deleted (see below). They are constructor and destructor,
+`__enter__` and `__exit__`.
 
 A Scope takes away only the Tags it names and applied. If the guard is
 already a Sentry, the block runs and he stays one. A Base the Scope
@@ -764,7 +765,10 @@ return True`, which lets the promise follow any membership you like; the
 Contracts Guide shows both.
 
 **Watch out.** Python does not promise to run finalizers at shutdown, so
-`del agent` is best-effort. `Scope` is the guaranteed path.
+`del agent` is best-effort. `Scope` is the guaranteed path. A teardown
+that fails at `del agent` is printed on stderr, as Python prints an error
+in a `__del__`, naming the object and the teardown; nothing else is
+stopped by it.
 
 **An object's own `__del__` is a Layer.** It keeps running when the object
 is tagged. A Tag may replace it, or wrap it with `@Underlay`; the Tags'
@@ -800,8 +804,16 @@ del lamp
 assert farewells == ["put down", "spell fades", "wick out"]
 ```
 
-At interpreter exit only the `__del__` Layers run. To have teardowns run
-at exit too, register the Agent with `At_Exit(agent)`.
+When the object is deleted (`del lamp` here), the teardowns run while it is
+still a member of its Tags: `lamp in Carried` answers yes, and a walk of
+`Carried[:]` finds it, unless it was collected in a cycle (Python has
+cleared the Field's weak references by then). After `del Carried[lamp]`
+they run once it has left. A teardown and a `__del__` may call the
+object's Actions at deletion, in a collected cycle too. When the
+interpreter shuts down, after the `atexit` functions, only the `__del__`
+Layers run. To have teardowns run at exit too, register the Agent with
+`At_Exit(agent)`: the pass runs them while the object is still a
+member, and one that fails there is printed on stderr the same way.
 
 ### Pattern 10 · Build the sheet from pieces
 

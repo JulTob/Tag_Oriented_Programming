@@ -603,6 +603,101 @@ def _bind_pinned(
         _namespace_of(tag)[name] = bound
 
 
+class _Gone:
+    """Stands in for an Agent a finalizer let go of: nothing refers to
+    one, so a weak reference to it is dead from the start."""
+
+    __slots__ = ("__weakref__",)
+
+
+_GONE = weakref.ref(_Gone())   # dead at once: an Action pointed here meets ReferenceError
+
+
+def _ties_cleared(
+        state: _State,
+        namespace: Any,
+        check: Callable[..., bool] = isinstance,
+        bound_type: type = _Bound,
+        ) -> bool:
+    """Whether Python cleared the weak references of the Agent's bound
+    Actions: the first one found tells, since they are cleared together.
+    The finalizer asks only when the Agent still has weak references (a
+    plain ``del``, where the answer is no, unless another finalizer of
+    the same collection made one); so a plain ``del`` never walks every
+    Action."""
+
+    for name in state.actions:
+        value = namespace.get(name)
+
+        if check(value, bound_type):
+            return value._reference() is None
+
+    return False
+
+
+def _retie_actions(
+        agent: object,
+        state: _State,
+        namespace: Any,
+        check: Callable[..., bool] = isinstance,
+        bound_type: type = _Bound,
+        ref: Callable[[object], Any] = weakref.ref,
+        ) -> list[_Bound]:
+    """Tie the Agent's bound Actions to it again, with fresh weak
+    references, where Python cleared them (STEP-SPEC-18, amended).
+
+    In a reference cycle Python clears every weak reference to the Agent
+    before its finalizers run, so ``agent.Ring()`` from a teardown or a
+    ``__del__`` Layer would raise ReferenceError. A new weak reference can
+    still be made there; it is weak, so nothing is resurrected. Only the
+    Agent's own binding of each name is tied: a binding of another
+    Action stored under the name (another Agent's, set by the program)
+    keeps its dead reference. What was tied is returned, for
+    ``_untie_actions``. Bound as defaults: this runs late in interpreter
+    exit too, when this module's globals may be gone."""
+
+    retied = []
+
+    for name, function in state.actions.items():
+        value = namespace.get(name)
+
+        if (
+                check(value, bound_type)
+                and value._function is function
+                and value._reference() is None
+                ):
+            value._reference = ref(agent)
+            retied.append(value)
+
+    return retied
+
+
+def _untie_actions(
+        agent: object,
+        namespace: Any,
+        retied: list[_Bound],
+        check: Callable[..., bool] = isinstance,
+        bound_type: type = _Bound,
+        gone: Any = _GONE,
+        listed: Callable[..., list] = list,
+        ) -> None:
+    """End the re-tie with the finalizer: every Action it tied, and every
+    Action the Agent holds that answers it (bound again by a Tag applied
+    during the finalizer), is pointed at a dead reference. Code that runs
+    after the finalizer, when the collection may already have cleared
+    the Agent, meets ReferenceError. Not reached: an Action taken
+    through a view during the finalizer, or one bound there and then
+    replaced by a later tagging there (STEP-SPEC-18, item 10). Bound as
+    defaults, as ``_retie_actions``."""
+
+    for bound in retied:
+        bound._reference = gone
+
+    for value in listed(namespace.values()):
+        if check(value, bound_type) and value._reference() is agent:
+            value._reference = gone
+
+
 def _rebind_all(
         agent: object,
         state: _State,
