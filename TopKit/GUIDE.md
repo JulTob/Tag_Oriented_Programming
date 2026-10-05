@@ -532,9 +532,9 @@ Moonborn(moon)
 assert Keyword(moon, "Moonborn", "Wolf", "Lycan", "Lupus")
 ```
 
-A collection holds strings and nothing else: an empty one, a number in
-it or a list inside it is refused when the class is declared, and the
-error names the item.
+A collection holds non-empty strings and nothing else: an empty one, or
+an empty string, a number or a list inside one, is refused when the
+class is declared, and the error names the item.
 
 A word is a public name, not a membership: if there is also a `Beast`
 Tag, `"Beast" in howler` is `True` while `howler in Beast` is `False`.

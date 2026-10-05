@@ -103,7 +103,8 @@ rollback target.
   `_flag_words` flattens the arguments: a string is a word (a `str`
   subclass too, never a collection), a list, tuple, set or frozenset
   gives its strings, one level deep. A word that does not hash, a `str`
-  subclass with `__hash__ = None`, is refused by name: a word must be
+  subclass with `__hash__ = None` or whose `__hash__` raises, is refused
+  by name: a word must be
   able to stand in a set of words. `Flag`
   refuses a Tag whose Field has a live member (`TagDeclarationError`,
   with the count; a Shape's members are in its Base's Field too), so a

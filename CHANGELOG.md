@@ -12,7 +12,7 @@
   empty collection, a non-string in one, a collection inside one or a
   `str` subclass that does not hash is a Declaration Failure that names
   the item. 0.2.0a4 refused every list, tuple, set and frozenset, and
-  raised `TypeError` for a `str` subclass that does not hash.
+  let a `str` subclass that does not hash raise its hash's own error.
 - **A Flag is part of the Tag's declaration** (STEP-SPEC-17, item 11;
   §1.8). `@Flag`, bare or with words, on a Tag that already has members,
   or whose Shapes have, is a Declaration Failure that names the Tag and

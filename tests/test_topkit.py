@@ -3682,6 +3682,10 @@ class FlagWordTests(unittest.TestCase):
             def __eq__(self, other):
                 return True
 
+        class BadHash(str):
+            def __hash__(self):
+                raise ValueError("no hash today")
+
         class Werewolf(Tag):
             pass
 
@@ -3689,6 +3693,8 @@ class FlagWordTests(unittest.TestCase):
                 ((Unhashable("Wolf"),), "got 'Wolf'; its type, Unhashable, does not hash"),
                 (([Unhashable("Wolf"), "Beast"],), "got 'Wolf' in ['Wolf', 'Beast']; its type, Unhashable, does not hash"),
                 (("Beast", (Unhashable("Wolf"),)), "got 'Wolf' in ('Wolf',); its type, Unhashable, does not hash"),
+                ((BadHash("Wolf"),), "got 'Wolf'; its type, BadHash, does not hash"),
+                ((["Beast", BadHash("Wolf")],), "got 'Wolf' in ['Beast', 'Wolf']; its type, BadHash, does not hash"),
                 ):
             with self.subTest(words=words):
                 with self.assertRaises(TagDeclarationError) as caught:

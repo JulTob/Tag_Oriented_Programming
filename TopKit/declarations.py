@@ -387,7 +387,7 @@ def _flag_words(
 
             try:
                 hash(item)
-            except TypeError:
+            except Exception:
                 raise TagDeclarationError(
                         "@Flag takes the words it also answers to as"
                         f" strings that hash; got {item!r}"

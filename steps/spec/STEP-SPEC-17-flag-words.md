@@ -136,8 +136,9 @@ writes each variant the rules may use.
 Bare `@Flag` on a Tag nobody carries means what it meant. `Flag("Wolf")`
 was a Declaration Failure before and is a decorator now. `Flag(["Wolf"])`
 was a Declaration Failure in 0.2.0a4 and is a decorator now too. A
-`str` subclass that does not hash raised `TypeError` in 0.2.0a4 and is
-a Declaration Failure now.
+`str` subclass that does not hash raised its hash's own error in
+0.2.0a4 (`TypeError` when it sets `__hash__` to `None`) and is a
+Declaration Failure now.
 
 Two programs break. A Flag marked on a Tag that already had members was
 accepted and left a half state: `Keyword` answered the new word and the

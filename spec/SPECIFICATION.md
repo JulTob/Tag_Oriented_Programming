@@ -222,7 +222,7 @@ assert bond not in MI6
 assert isinstance(bond, MI6)      # once an agent, always an agent
 ```
 
-Rip is the only exit from a Field, and it obeys three laws:
+Rip is the only exit from a Field, and it obeys four laws:
 
 - **Contributions are sticky.** Actions and Records stay on the Agent after
   Rip unless a `@Rip` protocol (§3.1) changes them. The result is a **Rogue
@@ -1330,7 +1330,8 @@ with Scope(agent, Sentry):
     guard_the_gate(agent)
 # Sentry's teardown has run here, exception or not, if the Scope applied it;
 # had a Shape that arrived in the block still required Sentry, Sentry would
-# stay and the Scope would have raised the Composition Failure
+# stay, and the Scope would report it: the Composition Failure, or a note
+# on the block's own exception
 ```
 
 ---
