@@ -11,8 +11,8 @@
   say; the words are flattened, and a word given twice counts once. An
   empty collection, a non-string in one, a collection inside one or a
   `str` subclass that does not hash is a Declaration Failure that names
-  the item. 0.2.0a4 refused every list, tuple and set, and raised
-  `TypeError` for a `str` subclass that does not hash.
+  the item. 0.2.0a4 refused every list, tuple, set and frozenset, and
+  raised `TypeError` for a `str` subclass that does not hash.
 - **A Flag is part of the Tag's declaration** (STEP-SPEC-17, item 11;
   §1.8). `@Flag`, bare or with words, on a Tag that already has members,
   or whose Shapes have, is a Declaration Failure that names the Tag and
@@ -22,16 +22,20 @@
   `Flag(Beast)`, adds that a word is written as a string.
 - **A Scope Rips the Tags it applied, and only those** (§3.2; STEP-SPEC-6
   amended 2026-09-29). The rule moves from §0.7 to §3.2, beside the
-  Scope's tier. One difference from 0.2.0a4: a Tag whose Imprint failed
-  at the Scope's door stays applied (§0.6), and is now Ripped as the
-  failure leaves the Scope, as a Tag whose Postcondition failed already
-  was. Unchanged since 0.1, and now written down: a Base the Scope
-  pulled in with a Shape stays (open for the Director in STEP-SPEC-6,
-  with his words of 2026-10-01 on how the Shape and its Base apply),
-  and so does one whose Imprint failed at the door under its Shape,
-  which never landed. Still owed for this release: the spelling `with
-  Wizard[h]:`, with inputs as `with Wizard[h](code="007"):`
-  (STEP-SPEC-21).
+  Scope's tier. Three differences from 0.2.0a4. A Tag whose Imprint
+  failed at the Scope's door stays applied (§0.6), and is now Ripped as
+  the failure leaves the Scope, as a Tag whose Postcondition failed
+  already was. A Tag the block Ripped and then applied again, itself or
+  through a Shape that pulls it in as a Base, is the block's, and stays;
+  0.2.0a4 Ripped it again, or dropped the refusal when the Shape
+  required it. A Tag a `str` Agent already carries is left as it was;
+  0.2.0a4 Ripped it, since `in` on a Tag reads a string as a word.
+  Unchanged since 0.1, and now written down: a Base the Scope pulled in
+  with a Shape stays (open for the Director in STEP-SPEC-6, with his
+  words of 2026-10-01 on how the Shape and its Base apply), and so does
+  one whose Imprint failed at the door under its Shape, which never
+  landed. Still owed for this release: the spelling `with Wizard[h]:`,
+  with inputs as `with Wizard[h](code="007"):` (STEP-SPEC-21).
 - **A Rip the Scope cannot make is reported** (§3.2; STEP-SPEC-6, rows 4
   and 5, drafted for the Director's confirmation). A Rip refused because
   a Shape that arrived in the block still requires the Tag leaves that
@@ -40,7 +44,8 @@
   Tag[agent]` does, with any others as its notes. When the block raised,
   its own exception leaves, with each failure as a note. 0.2.0a4 dropped
   both. The Director ruled on 2026-10-02 that a failed Rip blocks the
-  Agent's expulsion, for every Rip; that comes with STEP-SPEC-18.
+  Agent's expulsion, for every Rip. That is STEP-SPEC-18's amendment
+  (D), to be built with STEP-SPEC-18; it is not part of this change.
 - **STEP-SPEC-14's words follow the kit** (the Director's rulings of
   2026-09-29). A condition that returns a non-boolean raises the
   Contract Failure when read on the Agent, and so do `hasattr` and
@@ -71,21 +76,26 @@
   it. A Tag body that defines `_topkit_reports` itself is refused
   (`TagDeclarationError`); in 0.2.0a4 it was a plain attribute.
 - A word given to `@Flag` is kept as its plain text, as a probe is: a
-  case-insensitive `str` subclass matches its own word exactly. One that
-  does not hash is refused by name (`TagDeclarationError`), where
-  0.2.0a4 raised `TypeError` at declaration.
+  case-insensitive `str` subclass matches its own word exactly. 0.2.0a4
+  kept the subclass, so a case-folding `Folded("Wolf")` answered
+  `"wolf"` and missed `"Wolf"`. One that does not hash is refused by
+  name (`TagDeclarationError`), where 0.2.0a4 raised `TypeError` at
+  declaration.
 - `ScopeTests` covers the Imprint failure at the door, a Base pulled in
   or named after its Shape, a Base whose Imprint fails under its Shape,
   the Rip refused for a required Base and the teardown that fails, each
   reported, with the rest Ripped first and the block's own exception
-  keeping its place, a Tag the block Ripped itself, and an Agent freed
-  without the collector after a Scope reported a refused Rip; the
-  oracle's `Exercise_Scope` puts a Tag whose Imprint fails in some
-  Scopes, and in some has the block apply a Tag of its own, so a
-  refused Rip is raised or noted as the model predicts; the differential
-  fuzzer tries a late Flag on a carried Tag and expects the refusal,
-  writes an exception's notes, and has some Scope blocks Rip one of the
-  Scope's own Tags.
+  keeping its place, a Tag the block Ripped itself, one it Ripped and
+  applied again, directly or through a Shape, a Tag a `str` Agent
+  already carries, and an Agent freed without the collector after a
+  Scope reported a refused Rip. The oracle's `Exercise_Scope` puts a Tag
+  whose Imprint fails in some Scopes; in some it has the block apply a
+  Tag of its own, so a refused Rip is raised or noted as the model
+  predicts, and in some it has the block Rip one of the Scope's Tags,
+  then often apply it again or a Shape of it. The differential fuzzer
+  tries a late Flag on a carried Tag and expects the refusal, writes an
+  exception's notes, and has some Scope blocks Rip one of the Scope's
+  own Tags and apply one again.
 
 ### Project
 

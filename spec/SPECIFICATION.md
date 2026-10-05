@@ -1309,7 +1309,9 @@ applied (§0.6), so the Scope Rips it, and the Tags it applied before it,
 as the failure leaves; the block does not run. When a Shape the Scope
 names fails at the door through its Base's Imprint, the Shape never
 lands, and the Base it pulled in stays after the Scope raises. A Tag the
-block Ripped itself is not Ripped again.
+block Ripped itself is not Ripped again, and one the block applies
+again, itself or through a Shape that pulls it in as a Base, is the
+block's, and stays.
 
 **A Rip the Scope cannot make is reported** (STEP-SPEC-6, drafted
 2026-10-02). A Rip refused because a Shape that arrived in the block

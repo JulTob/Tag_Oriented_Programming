@@ -2908,6 +2908,63 @@ class ScopeTests(unittest.TestCase):
 
         self.assertNotIn(fay, Wizard)
 
+    def test_a_tag_the_block_ripped_and_applied_again_is_the_blocks(self) -> None:
+        """A Scope Rips what it applied, and only that: the application the
+        block made is the block's, and stays."""
+
+        ripped = []
+
+        class Wizard(Tag):
+            @Rip
+            def Leave(agent):
+                ripped.append(agent)
+
+        fay = Agent()
+
+        with Scope(fay, Wizard):
+            del Wizard[fay]                                           # the Scope's Wizard ends here
+            Wizard(fay)                                               # and the block's begins
+
+        self.assertIn(fay, Wizard)
+        self.assertEqual(len(ripped), 1)                              # the block's Rip, and no other
+
+    def test_a_tag_the_block_ripped_and_a_shape_pulled_in_again_is_the_blocks(self) -> None:
+        """A Base the block's Shape pulls in is the block's: the Scope
+        leaves it, and has no Rip to report."""
+
+        class Wolf(Tag):
+            pass
+
+        class Dire(Wolf):
+            pass
+
+        bo = Agent()
+
+        with Scope(bo, Wolf):
+            del Wolf[bo]
+            Dire(bo)                                                  # Wolf comes back as Dire's Base
+
+        self.assertEqual(Tags(bo), (Dire,))
+        self.assertIn(bo, Wolf)
+
+    def test_a_scope_leaves_a_tag_a_string_agent_already_carries(self) -> None:
+        """The Scope asks whether the Agent carries the Tag, not whether
+        the Agent, read as a word, is one of its keywords."""
+
+        class Name(str):
+            pass
+
+        class Wolf(Tag):
+            pass
+
+        rex = Name("rex")
+        Wolf(rex)
+
+        with Scope(rex, Wolf):
+            pass
+
+        self.assertEqual(Tags(rex), (Wolf,))                          # it was Rex's, not the Scope's
+
     def test_a_scope_that_reports_a_refused_rip_keeps_no_cycle(self) -> None:
         """The Agent dies with its last reference, gc or not, after a
         Scope raised the refusal, or noted it on the block's exception."""
@@ -3629,9 +3686,9 @@ class FlagWordTests(unittest.TestCase):
             pass
 
         for words, named in (
-                ((Unhashable("Wolf"),), "got 'Wolf'; a Unhashable does not hash"),
-                (([Unhashable("Wolf"), "Beast"],), "got 'Wolf' in ['Wolf', 'Beast']; a Unhashable does not hash"),
-                (("Beast", (Unhashable("Wolf"),)), "got 'Wolf' in ('Wolf',); a Unhashable does not hash"),
+                ((Unhashable("Wolf"),), "got 'Wolf'; its type, Unhashable, does not hash"),
+                (([Unhashable("Wolf"), "Beast"],), "got 'Wolf' in ['Wolf', 'Beast']; its type, Unhashable, does not hash"),
+                (("Beast", (Unhashable("Wolf"),)), "got 'Wolf' in ('Wolf',); its type, Unhashable, does not hash"),
                 ):
             with self.subTest(words=words):
                 with self.assertRaises(TagDeclarationError) as caught:
@@ -3706,6 +3763,8 @@ class FlagWordTests(unittest.TestCase):
                 (["Wolf", ""], "got '' in ['Wolf', '']"),
                 (["Wolf", ["Beast"]], "got ['Beast'] in ['Wolf', ['Beast']]"),
                 (("Wolf", {"Beast"}), "got {'Beast'} in ('Wolf', {'Beast'})"),
+                (["Wolf", ("Beast",)], "got ('Beast',) in ['Wolf', ('Beast',)]"),   # one that hashes, too
+                (("Wolf", frozenset({"Beast"})), "got frozenset({'Beast'}) in ('Wolf', frozenset({'Beast'}))"),
                 ([Beast], "got <class"),
                 ({"Wolf": "Beast"}, "got {'Wolf': 'Beast'}"),
                 ):

@@ -701,7 +701,10 @@ Shape; whether it should is still a question for the Director
 (STEP-SPEC-6). That holds when the Base's Imprint fails at the door as
 well: the Shape never lands, and the Base stays after the Scope raises.
 A Sentry whose `post` fails at the door is Ripped as the error leaves
-the `with`, and the block does not run: the Scope applied it.
+the `with`, and the block does not run: the Scope applied it. A Sentry
+the block Rips itself is not Ripped again, and one the block then
+applies again, itself or through a Shape of Sentry, is the block's: the
+Scope leaves it.
 
 A Rip the Scope cannot make on the way out is reported, as
 `del Sentry[guard]` reports it. If the block made the guard a Shape of
@@ -717,14 +720,15 @@ class Veteran(Sentry):
 
 
 recruit = Character("Recruit")
+reported = False
 
 try:
     with Scope(recruit, Sentry):
         Veteran(recruit)                # a Shape that still requires Sentry
 except TagCompositionError:
-    pass
+    reported = True
 
-assert recruit in Sentry                # the Rip was refused, and said so
+assert reported and recruit in Sentry   # the Rip was refused, and said so
 ```
 
 A role's conditions do **not** leave with it on their own. What the
