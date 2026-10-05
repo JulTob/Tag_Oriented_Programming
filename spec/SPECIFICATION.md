@@ -91,7 +91,7 @@ class Wizard(Tag):
 
 Wizard(charlie)
 
-assert charlie in Wizard            # active membership
+assert charlie in Wizard            # a member; once a contract is visible, a sound one (§2.5)
 for wizard in Wizard:               # the Field (its sound members, §2.5)
     Observe(wizard)
 ```
@@ -112,8 +112,10 @@ assert charlie in Mortal
 Membership is **monotonic by design**. Only Rip (§0.7) ends it, and Rip
 does not erase history: an Agent that has ever been a member of a Tag
 remains *an instance* of that Tag. In Python, `isinstance(agent, Tag)` is
-that has-been check and stays true after Rip. `agent in Tag` is the is-now
-check.
+that has-been check and stays true after Rip. `agent in Tag[:]` is the
+is-now check; `agent in Tag` is the is-now-and-sound check (§2.5), the
+same population the loop walks. Where no Postcondition is visible the
+two agree, so in Ring 0 `in` is membership.
 
 A Field **never keeps an Agent alive**. When an Agent ceases to exist it
 vanishes from every Field. Fields are indexed by identity: two equal but
@@ -203,7 +205,7 @@ Broken_Wizard(ari)                Form: Person, Broken_Wizard
     Person     parts, commit, write
     Wizard     parts, commit, write
     check      Has_Spellbook FAILS
-→ TagPostconditionError; ari in Person and ari in Wizard; bool(ari) == False
+→ TagPostconditionError; ari in Person[:] and ari in Wizard[:]; ari not in Wizard; bool(ari) == False
 ```
 
 Tagging is otherwise side-effect free: TOP-managed state is restored on
@@ -240,7 +242,7 @@ Rip is the only exit from a Field, and it obeys four laws:
   Tag fails loud, never silently. Rip does one thing, and it is the one
   act nothing can roll back, so it is not the place for a second rule.
   **The author ends a condition**, in one of two visible ways: a **guard
-  in the condition** (`if agent not in Wizard: return True`), which can
+  in the condition** (`if agent not in Wizard[:]: return True`), which can
   follow any membership at all, another Tag's, a keyword on a Tag, the
   Tag under an Underlay; or an **explicit deletion from the Tag's own
   `@Rip` protocol**, `Contract.Delete(agent, "Has_Book")`, one
@@ -260,14 +262,15 @@ language, not a library's naming.
 | Act | Python spelling |
 | --- | --- |
 | apply | `Wizard(agent, **inputs)` |
-| active member? | `agent in Wizard` |
+| a sound member? (§2.5) | `agent in Wizard` |
+| a member, sound or defective? | `agent in Wizard[:]` |
 | carries a keyword? (Flags, §1.8) | `"Undead" in ghoul`, `Undead in ghoul`, `Keyword(ghoul, "Undead")`; a Flag's words the same, `"Wolf" in howler` |
 | ever a member? | `isinstance(agent, Wizard)` |
 | the sound population | `for w in Wizard`, `len(Wizard)`, `if Wizard:` |
 | the defective population | `for w in ~Wizard`, `if ~Wizard:` |
-| everyone in the Field | `Wizard[:]`, `if Wizard[:]:` |
+| everyone in the Field | `Wizard[:]`, `if Wizard[:]:`, `agent in Wizard[:]` |
 | the safehouse: kept at a failed deletion (§3.2) | `Wizard[...]`, `if Wizard[...]:`; every kept Agent, `Tag[...]` |
-| populations combined (§2.5) | `Wizard \| Fighter`, `Wizard & Fighter`, `Wizard - Sworn`; the same on `Wizard[:]`, `~Wizard` and `Wizard[...]` |
+| populations combined (§2.5) | `Wizard \| Fighter`, `Wizard & Fighter`, `Wizard - Sworn`; the same on `Wizard[:]`, `~Wizard` and `Wizard[...]`; never a Pin's population with a Tag's |
 | one condition, read on the Agent (§2.5) | `agent.Has_Book` |
 | the Agent-bound view | `Wizard[agent]` |
 | leave the Field (Rip) | `del Wizard[agent]` |
@@ -600,8 +603,9 @@ published member **answers members only, and only sound ones**
 (STEP-SPEC-10). At every use, an Operation's call or a Report's read, TOP
 checks that the Agent still belongs to the publishing Tag and that every
 promise on the Agent holds, whichever Tag made it: the same soundness
-`if agent:` and the loop ask about. A Rogue Agent (it left) gets a
-**Rogue Access Failure**, a Resolution Failure; a stale
+`if agent:`, the loop and `agent in Tag` ask about (`if agent:` unless
+the host or a Tag gives the Agent its own `__bool__`). A Rogue Agent (it
+left) gets a **Rogue Access Failure**, a Resolution Failure; a stale
 `send = agent.dispatch` captured before Rip fails the same way. A
 defective Agent (a promise broke) gets the **broken promise by name**,
 `except Postcondition.Has_Homeland`, so it can repair what the failure
@@ -721,7 +725,7 @@ Undead(ghoul)
 assert "Undead" in ghoul             # by name
 assert Undead in ghoul               # by class
 assert Keyword(ghoul, "Undead")      # the function form, works on any object
-assert ghoul in Undead               # membership, as for every Tag
+assert ghoul in Undead               # a sound member, as for every Tag
 ```
 
 This is what lets rules live as data. A table entry `"Undead-Flying"`
@@ -811,7 +815,7 @@ class Rare(Tag):
 
 Rare(Wizard)
 
-assert Wizard in Rare                    # active membership, from the Pin's side
+assert Wizard in Rare                    # a sound member, from the Pin's side
 assert list(Rare) == [Wizard]            # a Field of Tags
 assert Wizard.rarity == "rare"           # one value, held on the Tag
 assert Wizard.Describe() == "Wizard is rare"
@@ -823,7 +827,9 @@ fails with a Composition Failure. An ordinary Tag applies to objects only;
 on a class it is refused, as before. A Pin may not pin itself or any Tag
 of its own Form. A Shape of a Pin is a Pin, and one Form is all Pins or
 no Pins: mixing them is a Declaration Failure. Fields therefore never mix
-Agents and Tags.
+Agents and Tags, and a Pin's population never combines with a Tag's in
+`|`, `&` or `-`: the operator refuses, naming both sides, one holding
+Tags and the other objects (§2.5).
 
 **The receiver rule** (§1.1). The first parameter of a Pin's Agent-scope
 member is the pinned Tag; write it `tag`. A Pin's Record lands as a
@@ -871,7 +877,8 @@ special-method Actions on a Pin are Declaration Failures.
 member, so on a Tag a string in the `in` seat asks for a keyword:
 `"Deprecated" in Wizard` is True while the Flag Pin `Deprecated` is
 active on it, and so is each word it lists; objects and classes in that
-seat ask membership.
+seat ask for a sound member, as for every Tag (§2.5; `Wizard[:]` for
+membership).
 `Keyword(Wizard, "Deprecated")` and `Keyword(Wizard, Deprecated)` answer
 the same. A word like *Deprecated* is a Pin and not a Report for the
 reason `Undead` is a Tag and not `asleep = True`: a Report is a value,
@@ -1062,13 +1069,29 @@ for wizard in Wizard:        # the sound population: the ones fit to play
 for broken in ~Wizard:       # the defective population: repair them
 for anyone in Wizard[:]:     # everyone, sound or defective
 for kept in Wizard[...]:     # the safehouse: kept at a failed deletion (§3.2)
-assert broken in Wizard      # a defective Agent is still a member
+assert broken in Wizard[:]   # a defective Agent is still a member
+assert broken not in Wizard  # and not a sound one: in agrees with the loop
 ```
 
 The plain loop is the working population, and `if Wizard:` asks whether
-it is empty. A broken Agent does not stop being a member (`in`), does not
-leave `Wizard[:]`, and waits in `~Wizard` for repair or Rip. Membership and the loop deliberately disagree for it:
-the loop is the line, and a defective product is off the line.
+it is empty. `agent in Wizard` answers for that same population
+(STEP-SPEC-19): a broken Agent is not `in Wizard`, does not leave
+`Wizard[:]`, and waits in `~Wizard` for repair or Rip. `in`, the loop,
+`len` and `if` agree on every population; the loop is the line, and a
+defective product is off the line. `isinstance` and `del Wizard[agent]`
+are unchanged: a defective member has been one, and can be Ripped.
+
+Inside a check TOP runs on an Agent (a Postcondition, the tagging's
+quality check, a condition read by name, a published member's gate, a
+`Contract` read), the Agent under check counts as sound: `agent in
+Wizard` reads membership, `agent in ~Wizard` is False and `bool(agent)`
+is True. A promise never reads the contract it is part of; every other
+Agent answers by its own contract. A Precondition at the tagging's gate,
+an Imprint and a `@Rip` protocol run outside that rule and read the
+populations as code outside does, so an Imprint that asks `agent in
+Other` while the promise it is about to keep is visible reads False, as
+`bool(agent)` does there. A guard that means membership is spelled
+`agent in Wizard[:]`, which reads the same everywhere.
 
 **Populations combine** (STEP-SPEC-13). `|` is either, `&` is both, `-`
 is the left without the right, on any population: a whole Field, the
@@ -1076,10 +1099,16 @@ sound view, the defective view, the safehouse (§3.2), or a combination.
 A Tag in an operator seat is its sound population, as it is in the loop;
 `Wizard[:] | Fighter[:]` is everyone who is either; the levels mix. The
 result is a lazy view that reads its Fields when walked, keeps
-application order within each side, answers `in`, `len`, truth and
-iteration, and has no complement (`~` on a union has no universe). A Tag
-with anything that is not a population keeps the language's own class
-union (`Wizard | None`).
+application order within each side, answers `in` from its sides as a
+set does, `len`, truth and iteration, and has no complement (`~` on a
+union has no universe). A Tag with anything that is not a population
+keeps the language's own class union (`Wizard | None`). A population is
+not a type: `isinstance(x, Wizard | Fighter)`, `Wizard | Fighter | None`
+and `None | (Wizard | Fighter)` are refused, and for a union of Tags the
+refusal names the rewrite, `isinstance(x, (Wizard, Fighter))` and
+`typing.Optional[typing.Union[Wizard, Fighter]]`. A Pin's population
+holds Tags and a Tag's holds objects; the two never combine, and the
+refusal names both sides.
 
 ```python
 for c in Wizard | Fighter:            # sound in either, each once
@@ -1112,8 +1141,10 @@ and `@Pre def Has_No_Badge(agent, badge): return badge is None` reads
 `True`.
 
 Truthiness on a plain object is vacuously true, so this fills an empty
-seat. A host that defines its own `__bool__` or `__len__` keeps it until a
-Postcondition becomes visible on that Agent.
+seat. A host that defines its own `__bool__` keeps it; a host's `__len__`
+is kept until a Postcondition becomes visible on that Agent. A host's or
+a Tag's own `__bool__` takes the seat: `bool(agent)` is then that method,
+while `agent in Tag`, the loop and `~Tag` still follow the contract.
 
 ## 2.6 Naming the culprit
 
@@ -1319,7 +1350,7 @@ Deletion runs in that order: every teardown still due runs, then the
 `__del__` runs as the Overlay shows it, top Layer first; both run inside
 the composition door (§1.5), and both may call the Agent's own Actions.
 The teardowns run while the Agent is still a member of its Tags, unlike
-after a Rip: `agent in Tag` answers yes, and a walk of the Field finds
+after a Rip: `agent in Tag[:]` answers yes, and a walk of the Field finds
 it, unless the language has already cleared the Field's weak references,
 as Python does for a collected cycle. A `__del__` never stops a teardown:
 replacing the Layers replaces only them, and an interrupted teardown
@@ -1508,8 +1539,9 @@ A conforming implementation provides, ring by ring:
 
 **Ring 0**
 - stable object identity under tagging, and preserved host behaviour;
-- membership and Base membership (`agent in Tag`), closed upward, with a
-  has-been check that survives Rip;
+- membership and Base membership (`agent in Tag[:]`, and `agent in Tag`
+  where no contract narrows it), closed upward, with a has-been check
+  that survives Rip;
 - non-owning, identity-indexed, iterable Fields;
 - Base-first Form application, each Base once, active reapply a no-op;
 - the five-step tagging sequence with the call boundary: rollback on gate
@@ -1542,14 +1574,6 @@ A conforming implementation provides, ring by ring:
 - published members answering members only, and only sound ones: a Rogue
   Access Failure on a Rogue Agent, the broken promise by name on a
   defective one, open again on membership or repair;
-- `@Pre` and `@Post` stacked on one function as one condition, spelled
-  `@Requirement` in one word;
-- populations combined with `|`, `&` and `-` at every level, lazily, a
-  Tag in an operator seat meaning its sound population;
-- every condition read on the Agent by its name as a plain boolean, a
-  non-boolean raising the Contract Failure and a gate read without the
-  tagging's inputs, with a condition's name refused to Actions, Records,
-  host members and values the Agent holds;
 - Delete; the three access forms, with Agent-bound views as read-only
   snapshots requiring active membership.
 
@@ -1559,9 +1583,18 @@ A conforming implementation provides, ring by ring:
   call after the whole Form, re-checked at every later boundary, without
   inputs;
 - the contract direction, with weakened Postconditions diagnosed;
-- defective Agents: contract truthiness; the plain loop as the sound
-  population, `~Tag` the defective one, `Tag[:]` everyone, membership
-  unchanged; a namespace that names the culprit.
+- defective Agents: contract truthiness; the plain loop and `in` as the
+  sound population, `~Tag` the defective one, `Tag[:]` everyone; a
+  namespace that names the culprit;
+- `@Pre` and `@Post` stacked on one function as one condition, spelled
+  `@Requirement` in one word;
+- every condition read on the Agent by its name as a plain boolean, a
+  non-boolean raising the Contract Failure and a gate read without the
+  tagging's inputs, with a condition's name refused to Actions, Records,
+  host members and values the Agent holds;
+- populations combined with `|`, `&` and `-` at every level, lazily, a
+  Tag in an operator seat meaning its sound population, a Pin's
+  population never combined with a Tag's, and no population a type.
 
 **Ring 3**
 - `@Rip` protocols run once, composed: after membership ends on a Rip,

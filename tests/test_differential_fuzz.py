@@ -32,7 +32,7 @@ class DifferentialFuzzTests(unittest.TestCase):
                     root / "new",
                     )
 
-            for seed, heavy in ((24, False), (10, True)):   # both show an address and a kit path
+            for seed, heavy in ((26, False), (51, True)):   # both show an address and a kit path
                 outcome = differential_fuzz.Run_Seed(
                         seed,
                         60,
@@ -44,6 +44,11 @@ class DifferentialFuzzTests(unittest.TestCase):
                         )
 
                 self.assertEqual(outcome.base, outcome.new)
+                self.assertTrue(                                   # what the normalizer must hide
+                        any("0x?" in line for line in outcome.new)
+                        and any("@ TopKit/" in line for line in outcome.new),
+                        (seed, heavy),
+                        )
                 self.assertIn("=== exit ===", outcome.new)       # the program ran to its end
                 self.assertEqual(outcome.new[-1], "exit status 0")
 

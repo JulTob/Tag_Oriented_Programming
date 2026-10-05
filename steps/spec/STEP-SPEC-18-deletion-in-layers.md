@@ -79,7 +79,7 @@ call to the underlaying del."
    shows it, top Layer first. Both run inside the composition door
    (§1.5), so a Tag's teardown and Layer read its own `@Secret` members.
    The teardowns run while the Agent is still a member of its Tags,
-   unlike after a Rip: `agent in Tag` answers yes, and a walk of the
+   unlike after a Rip: `agent in Tag[:]` answers yes, and a walk of the
    Field (`Tag[:]`, and `for a in Tag` while it is sound) finds it,
    except where the language has already cleared the Field's weak
    references, as Python does for a collected cycle. A later STEP may
@@ -155,7 +155,7 @@ call to the underlaying del."
     own `__del__`, and a plain Action call still answers; but a Layer that
     reads a member the kit gates (a `@Secret`, a view or a condition by
     name, a published member, `bool(agent)`, a keyword) or asks for
-    membership (`agent in Tag`, a walk of a Field) fails there, and so
+    membership (`agent in Tag[:]`, a walk of a Field) fails there, and so
     does any Action of an Agent that has `@Secret` members. In a collected
     cycle, an Action taken through a view during the finalizer
     (`Tag[agent].Ring`), or bound there and then replaced by a later

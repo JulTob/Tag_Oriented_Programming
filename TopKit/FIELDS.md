@@ -69,13 +69,14 @@ assert list(~Wizard) == []                  # the defective ones: a promise is b
 cal.alive = False                           # Cal breaks Officer's promise
 assert list(Fighter) == [bo]                # off the line
 assert list(~Fighter) == [cal]              # waiting for repair
-assert cal in Fighter                       # still a member
+assert cal not in Fighter                   # off the line: not a sound member
 assert cal in Fighter[:]                    # still in the Field
 ```
 
 The plain loop, `for f in Fighter`, is the working population. `~Fighter`
 is the repair queue. `Fighter[:]` is the roster. `if Fighter:` asks
-whether anyone is fit; `len(Fighter[:])` counts everyone.
+whether anyone is fit; `len(Fighter[:])` counts everyone. `cal in
+Fighter` asks the working population, `cal in Fighter[:]` the roster.
 
 One more population sits beside them: `Fighter[...]`, the safehouse, the
 Agents TopKit kept because a Fighter's teardown failed at their deletion
@@ -211,6 +212,8 @@ Deprecated(Fighter)
 assert list(Combat - Deprecated) == [Wizard]        # combat Tags still in use
 ```
 
+Pins combine with Pins only (§5).
+
 ---
 
 ## 5. What the algebra does not do
@@ -221,14 +224,42 @@ assert list(Combat - Deprecated) == [Wizard]        # combat Tags still in use
   right; it does not interleave by join time.
 - **No copies.** A view reads the Fields it was made from. If you need a
   frozen moment, say so: `list(Wizard | Fighter)`.
-- **Type unions still work.** `Wizard | None` is the language's own class
-  union, untouched; only a Tag or a population on the other side makes
-  the operator a Field operator.
+- **A population is not a type.** `Wizard | None` is still the language's
+  own class union, but `Wizard | Fighter` is a population:
+  `isinstance(x, Wizard | Fighter)` and `Wizard | Fighter | None` are
+  refused, and the refusal names the rewrite, `isinstance(x, (Wizard,
+  Fighter))` and `typing.Optional[typing.Union[Wizard, Fighter]]`.
+  Before Python 3.14 an annotation is evaluated where it is written
+  (unless the module has `from __future__ import annotations`), so
+  `x: Wizard | Fighter | None` fails at definition. `|` with a class, a
+  union, `list[int]` or a `typing` form is refused the same way; a
+  string (a forward reference) gets Python's own error. The rewrite is
+  named only for a union of Tags: `Wizard - Fighter`, `Wizard & Fighter`
+  and `~Wizard` mean something no tuple of Tags says, so their refusal
+  says that `isinstance` or a hint takes Tags. The rewrite names the
+  Tags by `__name__` (by `__qualname__` where two share one), so a Tag
+  you renamed may go by another name in your program; a Twin that
+  shares both names with its Tag gets no rewrite.
+- **Some hints are not refused where they are written.** A plain hint
+  `x: Wizard | Fighter` holds a population, and so does a union built
+  first that takes one in: `typing.Optional[Wizard | Fighter]`,
+  `typing.List[int] | (Wizard | Fighter)`, or on Python 3.14 `(int |
+  str) | (Wizard | Fighter)`. Nothing fails until
+  something reads the hint as a type: `typing.get_type_hints` and then
+  `isinstance`, or a runtime validator, and `isinstance` only once it
+  reaches the population (on Python 3.14 `isinstance(1, int | str |
+  (Wizard | Fighter))` is True; 3.12 refuses `int | str | (Wizard |
+  Fighter)` where it is written). Write the Tags themselves:
+  `typing.Union[Wizard, Fighter]`.
+- **No Tags with objects.** A Pin's population holds Tags, a Tag's holds
+  objects; `Rare | Wizard` is refused and the refusal names both.
 
 ## 6. The checklist
 
 - **Walk a Tag** for the sound population, `~Tag` for the repair queue,
   `Tag[:]` for everyone, `Tag[...]` for the safehouse.
+- **`in` follows the population.** `agent in Tag` is the sound one,
+  `agent in Tag[:]` everyone, `agent in ~Tag` the repair queue.
 - **Combine with `|`, `&`, `-`.** A Tag in an operator seat is its sound
   population; `Tag[:]`, `~Tag` and `Tag[...]` say the others.
 - **Keep views, not lists.** A view is alive; a list is a moment.

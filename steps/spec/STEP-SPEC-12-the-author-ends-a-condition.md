@@ -19,9 +19,10 @@ fails loud, never silently. When a condition should end, **the author
 ends it**, in one of two visible ways:
 
 - a **guard in the condition**, one line of flow control that says which
-  membership the condition follows: `if agent not in Wizard: return
-  True`. It can follow any membership at all: the Tag's own, another
-  Tag's, a keyword on a Tag, or the Tag under an Underlay;
+  membership the condition follows: `if agent not in Wizard[:]: return
+  True` *(amended 2026-09-29, STEP-SPEC-19)*. It can follow any
+  membership at all: the Tag's own, another Tag's, a keyword on a Tag,
+  or the Tag under an Underlay;
 - an **explicit deletion from the Tag's own `@Rip` protocol**,
   `Contract.Delete(agent, "Has_Book")`, one deliberate name at a time. A
   name that is not a condition on the Agent is a Resolution Failure.
@@ -58,14 +59,20 @@ deletion on rip protocol or a field check in the condition?"
    protocols. It does not remove, restore or rebind any Precondition or
    Postcondition. §0.7 says so beside "contributions are sticky".
 2. **The guard.** A condition may read any membership and decide for
-   itself whether it applies: `agent in Tag`, `"Keyword" in Tag`,
-   `agent in ~Tag`. Returning `True` when it does not apply is the
-   idiom. This is ordinary flow control; nothing in the kernel treats
+   itself whether it applies: `agent in Tag[:]`, `"Keyword" in Tag`
+   *(amended 2026-09-29, STEP-SPEC-19: a guard reads membership,
+   `agent in Tag[:]`; inside a Postcondition, a condition read by name
+   or a `Contract` read, `agent in Tag` reads the same and `agent in
+   ~Tag` is False for the Agent under check; a Precondition at the gate
+   reads both as outside code does, so `Tag[:]` is the one guard that
+   reads the same everywhere)*. Returning `True` when it does not apply
+   is the idiom. This is ordinary flow control; nothing in the kernel treats
    it specially.
 3. **The guarded Underlay.** An `@Underlay` condition that should skip a
    Tag the Agent has left calls `base()` only while that Tag is active:
-   `underneath = base() if agent in Alive else True`. The chain is never
-   rebuilt by the kernel.
+   `underneath = base() if agent in Alive[:] else True` *(amended
+   2026-09-29, STEP-SPEC-19)*. The chain is never rebuilt by the
+   kernel.
 4. **Explicit deletion.** `Contract.Delete(agent, *names)` ends the named
    conditions on the Agent (Preconditions and Postconditions alike, so a
    `@Requirement` ends whole). A name that is not a condition on the

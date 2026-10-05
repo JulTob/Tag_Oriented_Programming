@@ -20,7 +20,8 @@ Record failures still roll the whole call back.
 
 Fields partition into the **sound** population (`for a in Tag`) and the
 **defective** one (`for a in ~Tag`); `Tag[:]` is everyone. Membership
-(`agent in Tag`) is unchanged by defect.
+(`agent in Tag[:]`) is unchanged by defect; `agent in Tag` answers for
+the sound population *(amended 2026-09-29, STEP-SPEC-19)*.
 
 ## Motivation
 
@@ -47,9 +48,14 @@ nobody disappears from a plain loop silently.
    stay; the Agent is defective while any visible Postcondition fails.
 5. `bool(agent)` is true exactly when every visible Postcondition holds.
    A host's own truthiness is kept until a Postcondition is visible.
+   *(Corrected 2026-09-30: a host's own `__len__` is kept until a
+   Postcondition is visible; a host's own `__bool__` is kept after, and
+   `bool(agent)` is then the host's answer. See the Amendment below.)*
 6. Iterating the Tag gives the sound population and `len(Tag)` counts
    it; `~Tag` is the defective population; `Tag[:]` is the whole Field.
-   `agent in Tag` stays true for a defective member.
+   *(Amended 2026-09-29 by STEP-SPEC-19.)* `agent in Tag[:]` stays true
+   for a defective member; `agent in Tag` answers for the sound
+   population, as the loop does.
 7. Postconditions take no application inputs.
 
 ## Rationale
@@ -60,8 +66,9 @@ per Tag would refuse every such Base at its own step.
 
 The plain loop is the working population: gameplay iterates the Agents
 fit to play, repair iterates `~Wizard`, and `Wizard[:]` is there when a
-program wants everyone. A defective Agent never loses membership, so
-guards on `in` keep working while it waits for repair. The spellings
+program wants everyone. A defective Agent never loses membership
+(`Tag[:]`), so guards on `in Tag[:]` keep working while it waits for
+repair *(amended 2026-09-29, STEP-SPEC-19)*. The spellings
 follow the Director's rule that Tag-level acts use language syntax and
 leave `Tag.name` to the program (Specification §0.8).
 
@@ -85,6 +92,36 @@ and parts are atomic; write and quality check are not.
 ## Acceptance requirements
 
 Covered by `tests/test_topkit.py::DefectiveTaggingTests`.
+
+---
+
+## Amendment, 2026-09-29
+
+Item 6 above carries the amended text. Its last sentence, "`agent in
+Tag` stays true for a defective member", and the Specification's
+"Membership and the loop deliberately disagree for it" were written by
+Claude in commit d258d3b (2026-09-04) and approved in bulk with PR #3.
+The Decision below quotes the Director on defective products and on the
+spellings, not on `in`. Asked on 2026-09-29, the Director ruled:
+
+| Question | The Director's decision |
+| --- | --- |
+| Cal is a broken Fighter: `cal in Fighter` is True, `cal in (Fighter \| Wizard)` False. Keep that? | "cal in Fighter should raise false if broken fighter, and cal in Fighter[:] should return true. Extend that behaviour to operations in the same way as sets." |
+| Does a defective member answer `agent in Tag` True while the loop skips it? | "'membership and iteration should disagree for defective members' that's not the director's ruling. An agent sneaked it in, probably. Correct that. Make in consistent with for/len/if. Fighter[:] provides the behaviour we need." |
+
+STEP-SPEC-19 carries the rule: `agent in Tag` is True for a sound
+member, the population the loop, `len` and `if` see; `agent in Tag[:]`
+is membership, sound or defective; `agent in ~Tag` the defective.
+
+Covered by `tests/test_topkit.py::SoundMembershipTests`.
+
+Item 5 is corrected, not ruled: its sentence "A host's own truthiness
+is kept until a Postcondition is visible" holds for a host's `__len__`
+and not for a host's own `__bool__`, which the kit keeps after a
+Postcondition is visible, in 0.2.0a3 as now. `bool(agent)` is then the
+host's answer, while `agent in Tag`, the loop and `~Tag` follow the
+contract. Whether the contract should take that seat too is left to the
+Director (STEP-SPEC-19's Decision).
 
 ---
 

@@ -354,6 +354,26 @@ class _Safehouse(_Population):
                 and any(issubclass(keeper, house._tag) for keeper in kept[1])
                 )
 
+    def _tags(
+            house,
+            ) -> list[Any]:
+        return [house._tag]
+
+    def _spell(
+            house,
+            ) -> str:
+        return house._names()[0] + "[...]"
+
+    def _kind(
+            house,
+            ) -> str | None:
+        return house._tag._topkit_field._kind()   # what its Field holds: Tags for a Pin, objects otherwise
+
+    def _either(
+            house,
+            ) -> bool:
+        return False   # the kept ones are no tuple of Tags: isinstance asks something else
+
     def __repr__(
             house,
             ) -> str:
@@ -561,7 +581,7 @@ def Scope(
     try:
         for tag in tags:
             if _carries(agent, tag):
-                continue                    # already the Agent's: not the Scope's to take away
+                continue                    # already the Agent's, sound or not: not the Scope's to take away
 
             try:
                 tag(

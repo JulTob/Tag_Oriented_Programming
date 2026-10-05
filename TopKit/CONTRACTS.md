@@ -116,7 +116,8 @@ assert enterprise                       # every promise holds
 enterprise.core_temperature = 1400      # an accident, during play
 
 assert not enterprise                   # a promise is broken
-assert enterprise in Warp_Core          # still a Warp_Core ship
+assert enterprise in Warp_Core[:]       # still a Warp_Core ship
+assert enterprise not in Warp_Core      # off the line
 assert enterprise in ~Warp_Core         # waiting in the repair queue
 ```
 
@@ -301,9 +302,13 @@ own is a mistake, and the refusal tells you which of the two you meant.
 
 ## 7. Quarantine: a gate that reads another Tag's defect
 
-Conditions can ask about other Tags, including whether an Agent is
-defective under them. Sickbay quarantines exactly the crew who are
-infected, which is a broken promise of `Healthy`.
+A gate can ask about other Tags, including whether the incoming Agent is
+defective under them: a Precondition at the gate reads the populations
+as code outside does. Sickbay quarantines exactly the crew who are
+infected, which is a broken promise of `Healthy`. Inside a promise, and
+when `Contract.Status` or `worf.Is_A_Case` reads this gate back later,
+the Agent under check is never in `~Healthy`, so the gate reads False
+there once worf is in.
 
 ```python
 class Healthy(Tag):
@@ -343,8 +348,9 @@ try:
 except Postcondition.Not_Infected:
     pass                                # applied; and the tagging reports the standing defect
 
-assert worf in Quarantined
+assert worf in Quarantined[:]           # a member, and a defective one
 assert worf.bay == "isolation ward 2"
+assert not worf.Is_A_Case               # read back by name, the gate is under check: never in ~Healthy
 
 worf.infected = False                   # treated
 assert worf in list(Healthy)
@@ -376,7 +382,7 @@ class Armed(Tag):
 
     @Post
     def Weapons_Locked(agent):
-        if agent not in Bridge:         # not on duty: nothing to lock
+        if agent not in Bridge[:]:      # not on duty: nothing to lock
             return True
         return agent.safety_on
 
@@ -435,7 +441,7 @@ class Veteran(Tag):
     @Post
     @Underlay
     def Alive(agent, base):
-        underneath = base() if agent in Crew_Member else True
+        underneath = base() if agent in Crew_Member[:] else True
         return underneath and agent.decorated
 
 
@@ -625,7 +631,10 @@ assert Bridge in Certified
 - **Repair from the outside** with `for broken in ~Tag`, or **at the point
   of use** with autofix. Both are ordinary Python.
 - **End a condition yourself.** Rip never does. A guard in the promise,
-  `if agent not in Bridge: return True`, lets it follow any membership;
+  `if agent not in Bridge[:]: return True`, lets it follow any membership
+  (inside a promise `in` reads membership, never the contract it is
+  part of, so the Agent under check is never in `~Tag` there, and
+  `~Tag` is no guard);
   `Contract.Delete(agent, "Has_Oath")` in the role's `@Rip` protocol
   ends it when the role leaves. One visible line beats a law that
   guesses.

@@ -36,7 +36,7 @@ class Rare(Tag):
 
 Rare(Wizard)
 
-assert Wizard in Rare                    # active membership, from the Pin's side
+assert Wizard in Rare                    # a sound member, from the Pin's side
 assert list(Rare) == [Wizard]            # the Field of Tags
 assert Wizard.rarity == "rare"           # Tag scope: shared by the whole Field
 assert Wizard.Describe() == "Wizard is rare"
@@ -175,7 +175,8 @@ Every Tag-level act of §0.8 applies, with a Tag in the Agent's seat:
 | Act | Spelling |
 | --- | --- |
 | pin | `Rare(Wizard, **inputs)` |
-| active member? | `Wizard in Rare` |
+| a sound member? *(amended 2026-09-29, STEP-SPEC-19)* | `Wizard in Rare` |
+| a member, sound or defective? | `Wizard in Rare[:]` |
 | ever a member? | `isinstance(Wizard, Rare)` |
 | the sound population | `for tag in Rare`, `len(Rare)`, `if Rare:` |
 | the defective population | `for tag in ~Rare` |
@@ -189,8 +190,10 @@ Two seats are already taken on a Tag and stay as they are:
 
 - `bool(Wizard)` remains "is anyone a sound Wizard" (§0.8). A pinned Tag's
   own promises are read from the Pin's side: `Wizard in ~Rare`.
-- `x in Wizard` remains membership for objects and classes. A **string**
-  can never be a member, so on a Tag a string asks for a **keyword**:
+- `x in Wizard` remains a Field question for objects and classes
+  *(amended 2026-09-29: a sound member; `x in Wizard[:]` is membership,
+  STEP-SPEC-19)*. A **string** can never be a member, so on a Tag a
+  string asks for a **keyword**:
   `"Deprecated" in Wizard` is True when the Flag Pin `Deprecated` is
   active on Wizard. A Pin may be a Flag. `Keyword(Wizard, "Deprecated")`
   and `Keyword(Wizard, Deprecated)` answer the same; the class form in

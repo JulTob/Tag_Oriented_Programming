@@ -128,6 +128,67 @@
   next collection, since the kit lets go of the interruption's
   traceback, whose frames hold the Agent.
 
+- **Breaking: a Tag answers `in` for its sound members** (STEP-SPEC-19,
+  §0.3, §2.5). `agent in Tag` is True for a sound member only, the
+  population the loop, `len` and `if` see; `agent in Tag[:]` is
+  membership, sound or defective; `agent in ~Tag` the defective. In
+  0.2.0a4 a defective member answered `agent in Tag` True; "does it
+  carry the Tag?" is now `agent in Tag[:]`. Only Agents that carry a
+  Postcondition are affected, whichever Tag made it; a Tag whose members
+  carry none changes nothing, and Ring 0's `in` stays membership.
+  Combined populations answer `in` from their sides, as sets do. Amends
+  STEP-SPEC-4 item 6, STEP-SPEC-9's `in` spelling (the table and the
+  `x in Wizard` bullet), STEP-SPEC-12's guard and Ring 2's "membership
+  unchanged". Guards in conditions read `Tag[:]`.
+- **The tagging's quality check runs under the re-entrancy guard**
+  (STEP-SPEC-19, §2.5), as `Contract.Status` and a condition read by
+  name already did; the gate, Imprints and `@Rip` protocols do not.
+  Inside a Postcondition at tagging the Agent under check now counts as
+  sound: `agent in Tag` reads membership, `agent in ~Tag` is False, the
+  loop counts the Agent, and `bool(agent)` is True unless the host or a
+  Tag gives the Agent its own `__bool__`. Before, each read a nested run
+  of the contract. So a Postcondition guarded by `if agent in ~Other:
+  return True` passed at tagging and now fails, and one that reads
+  `bool(agent)` no longer fails there: the tagging names the promise
+  that broke. A Precondition at the gate reads the sound population:
+  `return agent in Wizard` refuses a defective Wizard where before the
+  Tag applied and the tagging reported the defect (`Contract.Status` of
+  that Pre still reads membership). An Imprint that asks `agent in
+  Other` reads soundness too, and mid-tagging the promise it is about to
+  keep is already visible, so it reads False where it read True.
+- **Corrected: a host's own `__bool__` keeps its seat** (STEP-SPEC-4
+  item 5, §0.1, §2.5). The words said it gives way once a Postcondition
+  is visible; the kit keeps it, as 0.2.0a3 and 0.2.0a4 did. Only the
+  truthiness a host takes from its `__len__` gives way, and `len(agent)`
+  stays the host's.
+- **A population is not a type** (STEP-SPEC-13, §2.5).
+  `isinstance(x, Wizard | Fighter)` is refused and the refusal names
+  the rewrite, `isinstance(x, (Wizard, Fighter))`; a hint
+  `Wizard | Fighter | None` or `None | (Wizard | Fighter)` is refused,
+  naming `typing.Optional[typing.Union[Wizard, Fighter]]`. With the
+  population on the left, `|` with a class, a union, `list[int]` or a
+  `typing` form is refused too. A refusal names a rewrite only for a
+  union of Tags: `&`, `-` and `~` get none, since no tuple of Tags says
+  what they mean. 0.2.0a4 raised Python's own `TypeError` for most of
+  these and named no rewrite; it built a union for `typing.List[int]`
+  and for `int | str`. A union that begins with `None` or a class,
+  `None | Wizard | Fighter`, is still Python's class union: Python joins
+  it left to right before a population forms. A plain hint
+  `x: Wizard | Fighter` is not refused: it holds a population, as in
+  0.2.0a4. That was a breaking change from 0.2.0a3, where
+  `Wizard | Fighter` was Python's class union, and 0.2.0a4 did not say
+  so: code that reads such a hint as a type (`typing.get_type_hints`
+  and then `isinstance`, or a runtime validator) fails there; write
+  `typing.Union[Wizard, Fighter]`. `Wizard | None` is unchanged.
+- **Breaking: a Pin's population never combines with a Tag's**
+  (STEP-SPEC-13, §2.5). A Pin's population holds Tags and a Tag's holds
+  objects. `Rare | Wizard` is refused, naming both sides; in 0.2.0a4 it
+  was a population of Tags and objects together, and in 0.2.0a3 a class
+  union.
+- The Specification's ring list puts populations combined with `|`, `&`
+  and `-`, `@Requirement`, and a condition read on the Agent by its name
+  in Ring 2, as `CONFORMANCE.md` does.
+
 ### TopKit
 
 - `TagTriageWarning` is new, beside `TagOverwriteWarning` and
@@ -177,6 +238,20 @@
   asked with `in` and for truth, combined), Rips what it keeps, once
   repaired too, or triages it; one of its teardowns fails only while the
   Agent is not ok, so a kept Agent can be repaired.
+
+- `agent in Tag` runs the Agent's contract once a Postcondition is
+  visible (STEP-SPEC-19): about 360 ns against 125 ns without one on
+  CPython 3.14, the cost of `bool(agent)`; `agent in Tag[:]` is the
+  membership read, about 140 ns.
+- Tag-ness in an operator seat is decided by the metaclass, never by an
+  attribute named `_sound` (STEP-SPEC-13). A class with its own `_sound`
+  gives a class union, as in 0.2.0a4. A Tag that declares `_sound` now
+  iterates and combines; in 0.2.0a4 its loop raised `TypeError` and
+  `Wizard | Weird` was a class union.
+- `SoundMembershipTests` and `FieldAlgebraTests` cover `in` on every population
+  and the refusals; the differential fuzzer asks `in` of combined
+  populations and of a Pin's other populations, and writes the refused
+  unions.
 
 ### Project
 

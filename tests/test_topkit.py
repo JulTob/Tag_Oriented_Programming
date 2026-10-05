@@ -12,6 +12,9 @@ from __future__ import annotations
 import collections.abc
 import copy
 import gc
+import sys
+import types
+import typing
 import unittest
 import warnings
 import weakref
@@ -1335,7 +1338,8 @@ class RogueAccessTests(unittest.TestCase):
             ari.colour
 
         self.assertEqual(ari.Own(), "mine")                           # her own Action still works
-        self.assertIn(ari, Agency)                                    # still a member, just defective
+        self.assertIn(ari, Agency[:])                                 # still a member, just defective
+        self.assertNotIn(ari, Agency)                                 # not a sound one: off the line
 
         ari.homeland = "Rivendell"                                    # repaired
         self.assertEqual(ari.Dispatch("go"), "Agency:go")
@@ -1572,8 +1576,8 @@ class DefectiveTaggingTests(unittest.TestCase):
         with self.assertRaises(TagPostconditionError):
             Candidate_Record(ari)
 
-        self.assertIn(ari, Candidate_Record)          # still a member
-        self.assertIn(ari, Candidate_Record[:])       # everyone
+        self.assertNotIn(ari, Candidate_Record)       # not a sound member: in agrees with the loop
+        self.assertIn(ari, Candidate_Record[:])       # everyone: still a member
         self.assertEqual(ari.token, "prepared")
         self.assertFalse(bool(ari))
         self.assertNotIn(ari, list(Candidate_Record)) # not in the sound loop
@@ -1624,7 +1628,8 @@ class DefectiveTaggingTests(unittest.TestCase):
         with self.assertRaises(TagPostconditionError):
             Advanced(bea)
 
-        self.assertIn(bea, Advanced)
+        self.assertNotIn(bea, Advanced)
+        self.assertIn(bea, Advanced[:])
         self.assertIn(bea, ~Advanced)
 
     def test_imprint_failure_keeps_the_tag_and_its_raw_effects(self) -> None:
@@ -1703,6 +1708,358 @@ class DefectiveTaggingTests(unittest.TestCase):
     def test_pre_and_post_are_aliases(self) -> None:
         self.assertIs(Pre, Precondition)
         self.assertIs(Post, Postcondition)
+
+
+class SoundMembershipTests(unittest.TestCase):
+    """STEP-SPEC-19: `agent in Tag` answers for the sound members, the
+    population the loop, `len` and `if` see. `agent in Tag[:]` is
+    membership; `agent in ~Tag` the defective ones. The Director: "Make in
+    consistent with for/len/if. Fighter[:] provides the behaviour we need."
+    """
+
+    def setUp(self) -> None:
+        class Wizard(Tag):
+            @Post
+            def Has_Book(agent):
+                return agent.book
+
+        class War_Caster(Wizard):
+            pass
+
+        class Fighter(Tag):
+            pass
+
+        self.Wizard, self.War_Caster, self.Fighter = Wizard, War_Caster, Fighter
+        self.ari = Agent()
+        self.ari.book = True
+
+    def test_a_broken_member_is_not_in_the_tag_but_in_its_field(self) -> None:
+        Wizard, ari = self.Wizard, self.ari
+        Wizard(ari)
+
+        self.assertIn(ari, Wizard)                                    # sound: in
+        self.assertIn(ari, Wizard[:])
+        self.assertNotIn(ari, ~Wizard)
+
+        ari.book = False                                              # the promise breaks
+
+        self.assertNotIn(ari, Wizard)                                 # off the line
+        self.assertIn(ari, Wizard[:])                                 # still a member
+        self.assertIn(ari, ~Wizard)                                   # in the repair queue
+        self.assertEqual(list(Wizard), [])                            # in agrees with the loop
+        self.assertEqual(len(Wizard), 0)
+        self.assertFalse(Wizard)
+
+    def test_the_same_through_a_shape(self) -> None:
+        Wizard, War_Caster, ari = self.Wizard, self.War_Caster, self.ari
+        War_Caster(ari)
+        ari.book = False
+
+        self.assertNotIn(ari, Wizard)                                 # membership is closed upward,
+        self.assertNotIn(ari, War_Caster)                             # and so is soundness
+        self.assertIn(ari, Wizard[:])
+        self.assertIn(ari, War_Caster[:])
+        self.assertIn(ari, ~Wizard)
+        self.assertIn(ari, ~War_Caster)
+
+    def test_combined_populations_answer_in_from_their_sides(self) -> None:
+        Wizard, Fighter, ari = self.Wizard, self.Fighter, self.ari
+        bo = Agent()
+        Wizard(ari)
+        Fighter(bo)
+        ari.book = False
+
+        everyone = list(Wizard[:] | Fighter[:])
+
+        for population in (
+                Wizard | Fighter,
+                Wizard[:] | Fighter[:],
+                ~Wizard | Fighter,
+                Wizard[:] - Fighter,
+                Wizard & Fighter[:],
+                (Wizard[:] | Fighter[:]) - Wizard,
+                ):
+            with self.subTest(population=repr(population)):
+                self.assertEqual(                                     # in and the loop agree on every population
+                        [agent for agent in everyone if agent in population],
+                        list(population),
+                        )
+
+        self.assertNotIn(ari, Wizard | Fighter)                       # the sound of either: not ari
+        self.assertIn(ari, Wizard[:] | Fighter[:])                    # everyone of either
+        self.assertIn(ari, ~Wizard | Fighter)
+        self.assertIn(ari, Wizard[:] - Fighter)
+        self.assertIn(bo, Wizard | Fighter)
+
+    def test_repair_puts_the_member_back(self) -> None:
+        Wizard, ari = self.Wizard, self.ari
+        Wizard(ari)
+        ari.book = False
+        self.assertNotIn(ari, Wizard)
+
+        ari.book = True                                               # repaired
+
+        self.assertIn(ari, Wizard)
+        self.assertNotIn(ari, ~Wizard)
+        self.assertEqual(list(Wizard), [ari])
+
+    def test_rip_takes_a_defective_member_and_ends_both_answers(self) -> None:
+        Wizard, ari = self.Wizard, self.ari
+        Wizard(ari)
+        ari.book = False
+
+        self.assertIsNotNone(Wizard[ari])                             # the view needs membership only, defective or sound
+        del Wizard[ari]                                               # Rip takes any member, defective too
+
+        self.assertNotIn(ari, Wizard)
+        self.assertNotIn(ari, Wizard[:])
+        self.assertNotIn(ari, ~Wizard)
+        self.assertTrue(isinstance(ari, Wizard))                      # the has-been check survives
+
+        with self.assertRaises(TagResolutionError):
+            Wizard[ari]
+
+    def test_a_tag_whose_members_carry_no_postcondition_is_unchanged(self) -> None:
+        Fighter = self.Fighter
+        bo = Agent()
+        bo.book = True
+        Fighter(bo)
+
+        self.assertIn(bo, Fighter)                                    # no promise on the Agent: every member is sound
+        self.assertIn(bo, Fighter[:])
+        self.assertEqual(Contract.Status(bo), {})
+
+    def test_a_tag_without_postconditions_follows_its_agents_promises(self) -> None:
+        Fighter = self.Fighter
+        bo = Agent()
+        bo.book = True
+        Fighter(bo)
+        self.Wizard(bo)                                               # a promise from another Tag
+
+        bo.book = False
+
+        self.assertNotIn(bo, Fighter)                                 # soundness is the Agent's, whichever Tag promised
+        self.assertIn(bo, Fighter[:])
+        self.assertIn(bo, ~Fighter)
+        self.assertEqual(list(Fighter), [])                           # as the loop already answered
+
+    def test_a_pin_follows_the_rule_with_the_tag_as_the_agent(self) -> None:
+        Wizard = self.Wizard
+
+        @Pin
+        class Promised(Tag):
+            @Post
+            def Has_Members(tag):
+                return bool(tag[:])
+
+        with self.assertRaises(Postcondition.Has_Members):
+            Promised(Wizard)
+
+        self.assertNotIn(Wizard, Promised)                            # pinned, and defective
+        self.assertIn(Wizard, Promised[:])
+        self.assertIn(Wizard, ~Promised)
+
+        Wizard(self.ari)                                              # repaired
+
+        self.assertIn(Wizard, Promised)
+
+    def test_flags_in_the_agents_seat_stay_keywords(self) -> None:
+        Wizard, ari = self.Wizard, self.ari
+
+        @Flag
+        class Undead(Tag):
+            pass
+
+        Wizard(ari)
+        Undead(ari)
+        ari.book = False
+
+        self.assertTrue(Undead in ari)                                # a keyword: membership, not soundness
+        self.assertTrue("Undead" in ari)
+        self.assertFalse(ari in Undead)                               # the Tag's seat: the sound population
+        self.assertTrue(ari in Undead[:])
+
+    def test_inside_a_promise_in_reads_membership(self) -> None:
+        class Sworn(Tag):
+            @Post
+            def Has_Oath(agent):
+                if agent not in Sworn:                                # inside a promise: membership, as bool(agent) is True
+                    return True
+                return agent.oath is not None
+
+        ari = Agent()
+        ari.oath = None
+
+        with self.assertRaises(Postcondition.Has_Oath):
+            Sworn(ari)                                                # the guard sees a member: the promise bites
+
+        self.assertFalse(Contract.Holds(ari))
+        self.assertNotIn(ari, Sworn)
+        self.assertIn(ari, Sworn[:])
+
+    def test_inside_a_promise_the_agent_is_never_in_the_defective_view(self) -> None:
+        class Repairing(Tag):
+            @Post
+            def Is_Fine(agent):
+                return agent.fine
+
+        class Watch(Tag):
+            @Post
+            def Sees_Defect(agent):
+                if agent in ~Repairing:                               # inside a promise the Agent is never defective: no guard
+                    return True
+                return agent.ok
+
+        cal = Agent()
+        cal.fine = True
+        cal.ok = False
+        Repairing(cal)
+
+        with self.assertRaises(Postcondition.Sees_Defect):
+            Watch(cal)                                                # the guard never fires; the promise is read
+
+        self.assertIn(cal, Watch[:])                                  # applied, and defective
+        self.assertNotIn(cal, Watch)
+        self.assertIn(cal, ~Repairing)                                # outside, the repair queue answers
+
+        cal.fine = False                                              # defective under Repairing too
+
+        self.assertIn(cal, ~Repairing)
+        self.assertFalse(cal.Sees_Defect)                             # read by name: still no guard, the Agent is not in ~Repairing from inside
+
+    def test_inside_a_promise_other_members_answer_by_their_own_contract(self) -> None:
+        Wizard = self.Wizard
+        seen = []
+
+        class Watcher(Tag):
+            @Post
+            def Counts(agent):
+                seen.append((
+                        list(Wizard),
+                        list(~Wizard),
+                        agent in Wizard,
+                        agent in ~Wizard,
+                        ))
+                return True
+
+        ari, bea, cy = Agent(), Agent(), Agent()
+
+        for wizard in (ari, bea, cy):
+            wizard.book = True
+            Wizard(wizard)
+
+        ari.book = False
+        bea.book = False
+        Watcher(cy)                                                   # the tagging's quality check, on a sound cy
+
+        self.assertEqual(seen[-1], ([cy], [ari, bea], True, False))  # ari and bea answer by their own contract
+
+        cy.book = False                                               # now cy is defective as well
+        seen.clear()
+        Contract.Status(cy)                                           # the same promise, read under the guard
+
+        self.assertEqual(                                             # cy counts as sound under its own check; ari and bea do not
+                seen[-1],
+                ([cy], [ari, bea], True, False),
+                )
+        self.assertEqual(list(~Wizard), [ari, bea, cy])               # outside, all three are defective
+
+    def test_a_gate_reading_another_tag_asks_for_a_sound_one(self) -> None:
+        Wizard, ari = self.Wizard, self.ari
+
+        class War_Caster(Tag):
+            @Pre
+            def Is_A_Caster(agent):
+                return agent in Wizard
+
+        class Any_Caster(Tag):
+            @Pre
+            def Is_A_Caster(agent):
+                return agent in Wizard[:]
+
+        Wizard(ari)
+        ari.book = False
+
+        with self.assertRaises(Precondition.Is_A_Caster):
+            War_Caster(ari)                                           # a defective Wizard is no caster at this gate
+
+        with self.assertRaises(Postcondition.Has_Book):
+            Any_Caster(ari)                                           # membership alone: the gate opens, and the tagging reports the standing defect
+
+        self.assertIn(ari, Any_Caster[:])
+
+        ari.book = True
+        War_Caster(ari)                                               # sound: through the gate
+        ari.book = False
+
+        self.assertEqual(                                             # the same Pre, read back under the re-entrancy guard, reads membership
+                Contract.Status(ari),
+                {"Is_A_Caster": True, "Has_Book": False},
+                )
+        self.assertTrue(Contract.Preconditions(ari))                  # where the gate refused
+
+    def test_a_promise_that_tags_its_own_agent_still_reads_membership_after(self) -> None:
+        seen = []
+
+        class Nested(Tag):
+            pass
+
+        class Keeper(Tag):
+            @Post
+            def Keeps(agent):
+                if agent.go:
+                    agent.go, agent.ok = False, True
+                    Nested(agent)                                     # a tagging inside the check: its quality check nests
+                    agent.ok = False
+                    seen.append((bool(agent), agent in Keeper, agent in ~Keeper))
+                    return True
+                return agent.ok
+
+        dee = Agent()
+        dee.go, dee.ok = False, True
+        Keeper(dee)
+        dee.go, dee.ok = True, False                                  # defective outside
+
+        self.assertEqual(Contract.Status(dee), {"Keeps": True})
+        self.assertEqual(seen, [(True, True, False)])                 # the nested check gave the guard back
+        self.assertIn(dee, Nested[:])
+        self.assertNotIn(dee, Keeper)                                 # outside again: the contract answers
+
+    def test_an_imprint_reads_the_populations_as_outside_code_does(self) -> None:
+        """An Imprint runs outside the guard: the promise it is about to
+        keep is already visible, so the Agent is not `in` another Tag
+        there, as `bool(agent)` is False there. `Tag[:]` reads membership."""
+
+        Fighter = self.Fighter                                        # a Tag that makes no promise
+        seen = []
+
+        class Knight(Tag):
+            @Imprint
+            def Swear(agent):
+                seen.append((agent in Fighter, agent in Fighter[:], bool(agent)))
+                agent.oath = "kept"
+
+            @Post
+            def Sworn(agent):
+                return agent.oath is not None
+
+        ari = Agent()
+        ari.oath = None
+        Fighter(ari)
+        Knight(ari)
+
+        self.assertEqual(seen, [(False, True, False)])
+        self.assertIn(ari, Fighter)                                   # the promise kept: sound again
+
+    def test_a_scope_leaves_a_defective_tag_the_agent_carried(self) -> None:
+        Wizard, ari = self.Wizard, self.ari
+        Wizard(ari)
+        ari.book = False
+
+        with Scope(ari, Wizard):
+            pass
+
+        self.assertIn(ari, Wizard[:])                                 # carried at entry: not the Scope's to Rip
 
 
 class ContractNamespaceTests(unittest.TestCase):
@@ -2026,7 +2383,8 @@ class PinTests(unittest.TestCase):
         with self.assertRaises(Postcondition.Has_Members):
             Promised(Wizard)
 
-        self.assertIn(Wizard, Promised)
+        self.assertNotIn(Wizard, Promised)                            # the Tag is the Agent: the same rule
+        self.assertIn(Wizard, Promised[:])
         self.assertIn(Wizard, ~Promised)
         self.assertEqual(list(Promised), [])
 
@@ -2156,7 +2514,7 @@ class PinTests(unittest.TestCase):
 
         self.assertTrue("Deprecated" in Wizard)                       # a string asks for a keyword
         self.assertFalse("Rare" in Wizard)                            # only Flags are words
-        self.assertTrue(ari in Wizard)                                # an object asks membership
+        self.assertTrue(ari in Wizard)                                # an object asks sound membership
         self.assertFalse(Deprecated in Wizard)                        # a class asks membership too
         self.assertTrue(Keyword(Wizard, "Deprecated"))
         self.assertTrue(Keyword(Wizard, Deprecated))
@@ -2755,7 +3113,7 @@ class StickyConditionTests(unittest.TestCase):
         class Sworn(Tag):
             @Post
             def Has_Oath(agent):
-                if agent not in Sworn:                                # the guard, in the author's words
+                if agent not in Sworn[:]:                             # the guard, in the author's words
                     return True
                 return agent.oath is not None
 
@@ -3489,6 +3847,362 @@ class FieldAlgebraTests(unittest.TestCase):
 
         with self.assertRaises(TypeError):
             self.Wizard & 3
+
+    def test_a_population_is_not_a_type_for_isinstance(self) -> None:
+        Wizard, Fighter = self.Wizard, self.Fighter
+
+        for population, rewrite in (
+                (Wizard | Fighter, "write isinstance(x, (Wizard, Fighter))"),
+                (Wizard[:] | Fighter[:], "write isinstance(x, (Wizard, Fighter))"),
+                (Wizard[:], "write isinstance(x, Wizard)"),
+                (Wizard[:] | ~Fighter, "isinstance takes Tags"),           # only a union of members has a tuple
+                ((Wizard | Fighter) - Wizard, "isinstance takes Tags"),
+                (Wizard & Fighter, "isinstance takes Tags"),
+                (~Fighter, "isinstance takes Tags"),
+                ):
+            with self.subTest(population=repr(population)):
+                with self.assertRaises(TypeError) as caught:
+                    isinstance(self.ari, population)
+
+                self.assertIn("a population is not a type", str(caught.exception))
+                self.assertTrue(str(caught.exception).endswith(rewrite), str(caught.exception))
+
+        with self.assertRaises(TypeError):
+            isinstance(Agent(), (Wizard, Wizard | Fighter))             # inside a tuple too
+
+        with self.assertRaises(TypeError) as caught:
+            issubclass(Agent, Wizard | Fighter)
+
+        self.assertIn("issubclass(x, (Wizard, Fighter))", str(caught.exception))
+        self.assertTrue(isinstance(self.ari, (Wizard, Fighter)))        # the rewrite
+        self.assertFalse(isinstance(Agent(), (Wizard, Fighter)))
+
+    def test_a_hint_over_a_population_is_refused_naming_the_rewrite(self) -> None:
+        Wizard, Fighter = self.Wizard, self.Fighter
+        rewrite = "typing.Optional[typing.Union[Wizard, Fighter]]"
+
+        with self.assertRaises(TypeError) as caught:
+            (Wizard | Fighter) | None
+
+        self.assertEqual(
+                str(caught.exception),
+                f"(Wizard | Fighter) | None: a population is not a type; write {rewrite}",
+                )
+
+        with self.assertRaises(TypeError) as caught:
+            None | (Wizard | Fighter)
+
+        self.assertEqual(
+                str(caught.exception),
+                f"None | (Wizard | Fighter): a population is not a type; write {rewrite}",
+                )
+
+        with self.assertRaises(TypeError) as caught:
+            Wizard | Fighter | None                                       # as a hint is written
+
+        self.assertIn(rewrite, str(caught.exception))
+
+        with self.assertRaises(TypeError) as caught:
+            (Wizard[:] | Fighter[:]) | int                                # a class on the other side
+
+        self.assertIn("typing.Union[Wizard, Fighter, int]", str(caught.exception))
+
+        for population, ending in (
+                (Wizard[:], "write typing.Optional[Wizard]"),                 # one Tag: no Union of one
+                (Wizard - Fighter, "a hint takes Tags"),                      # no list of Tags means "not a Fighter"
+                (Wizard & Fighter, "a hint takes Tags"),
+                (~Wizard, "a hint takes Tags"),
+                ):
+            with self.subTest(hint=repr(population)):
+                with self.assertRaises(TypeError) as caught:
+                    population | None
+
+                self.assertTrue(str(caught.exception).endswith(ending), str(caught.exception))
+
+        with self.assertRaises(TypeError) as caught:
+            (Wizard | Fighter) | (int | str)                              # a union on the other side
+
+        self.assertIn("typing.Union[Wizard, Fighter, int | str]", str(caught.exception))
+
+        for other, spelled, orders in (
+                (list[int], "list[int]", 2),                              # a generic alias
+                (typing.Any, "typing.Any", 2),                            # typing's own forms
+                (typing.List[int], "typing.List[int]", 1),                # on the left its own | runs first
+                ):
+            for text, build in (
+                    (f"(Wizard | Fighter) | {spelled}", lambda: (Wizard | Fighter) | other),
+                    (f"{spelled} | (Wizard | Fighter)", lambda: other | (Wizard | Fighter)),
+                    )[:orders]:
+                with self.subTest(expression=text):
+                    with self.assertRaises(TypeError) as caught:
+                        build()
+
+                    self.assertEqual(
+                            str(caught.exception),
+                            f"{text}: a population is not a type;"
+                            f" write typing.Union[Wizard, Fighter, {spelled}]",
+                            )
+
+        with self.assertRaises(TypeError) as caught:
+            (Wizard | Fighter) | typing.ForwardRef("Knight")              # typing's on 3.12, annotationlib's on 3.14
+
+        self.assertIn("write typing.Union[Wizard, Fighter, ", str(caught.exception))
+
+        with self.assertRaises(TypeError) as caught:
+            (Wizard | Fighter) | "Wizard"                                 # a string is no hint material for |
+
+        self.assertNotIn("a population", str(caught.exception))       # Python's own error
+
+        union = Wizard | None                                             # a Tag with a non-population: Python's own union
+        self.assertTrue(isinstance(None, union))
+        self.assertTrue(isinstance(self.ari, union))
+        self.assertIsNotNone(typing.Optional[typing.Union[Wizard, Fighter]])   # the rewrite
+
+    def test_a_hint_in_a_signature_is_refused_where_python_evaluates_it(self) -> None:
+        """Before 3.14 Python evaluates a signature's hints at definition
+        (unless the module has `from __future__ import annotations`); 3.14
+        when the annotations are read. Either way, the refusal names the
+        rewrite."""
+
+        lines, stderr = Run_Program(
+                "from TopKit import Tag\n"
+                "class Wizard(Tag): pass\n"
+                "class Fighter(Tag): pass\n"
+                "try:\n"
+                "    def f(x: Wizard | Fighter | None): pass\n"
+                "except TypeError as error:\n"
+                "    print('at definition:', error)\n"
+                "else:\n"
+                "    try:\n"
+                "        f.__annotations__\n"
+                "    except TypeError as error:\n"
+                "        print('when read:', error)\n"
+                "    else:\n"
+                "        print('accepted')\n"
+                )
+
+        self.assertEqual(stderr, "")
+        self.assertEqual(len(lines), 1, lines)
+        self.assertIn("typing.Optional[typing.Union[Wizard, Fighter]]", lines[0])
+        self.assertTrue(
+                lines[0].startswith("at definition:" if sys.version_info < (3, 14) else "when read:"),
+                lines[0],
+                )
+
+    def test_a_class_with_its_own_sound_is_not_a_tag_in_an_operator_seat(self) -> None:
+        class Impostor:
+            @classmethod
+            def _sound(cls):
+                return "not a population"
+
+        Wizard = self.Wizard
+
+        for union in (Wizard | Impostor, Impostor | Wizard):
+            with self.subTest(union=repr(union)):
+                self.assertIsInstance(union, types.UnionType)              # Python's own class union
+                self.assertTrue(isinstance(self.ari, union))
+                self.assertTrue(isinstance(Impostor(), union))
+
+    def test_a_rewrite_tells_two_tags_of_one_name_apart(self) -> None:
+        def Elsewhere():
+            class Wizard(Tag):
+                pass
+
+            return Wizard
+
+        Other = Elsewhere()
+
+        with self.assertRaises(TypeError) as caught:
+            isinstance(self.ari, self.Wizard | Other)
+
+        both = f"{self.Wizard.__qualname__}, {Other.__qualname__}"    # by __qualname__ where two Tags share a __name__
+
+        self.assertIn(f"isinstance(x, ({both}))", str(caught.exception))
+        self.assertIn("Elsewhere.<locals>.Wizard", both)
+
+        with self.assertRaises(TypeError) as caught:
+            (self.Wizard | Other) | None
+
+        self.assertIn(f"typing.Optional[typing.Union[{both}]]", str(caught.exception))
+
+        with self.assertRaises(TypeError) as caught:
+            isinstance(self.ari, self.Wizard | self.Wizard[:])        # one Tag twice: named once
+
+        self.assertIn("write isinstance(x, Wizard)", str(caught.exception))
+
+        Twin = type(                                                  # a Twin that shares __name__ and __qualname__
+                "Wizard",
+                (self.Wizard,),
+                {"__qualname__": self.Wizard.__qualname__},
+                )
+
+        for build in (
+                lambda: isinstance(self.ari, self.Wizard | Twin),
+                lambda: issubclass(Agent, self.Wizard | Twin),
+                lambda: (self.Wizard | Twin) | None,
+                ):
+            with self.assertRaises(TypeError) as caught:
+                build()
+
+            self.assertNotIn("write", str(caught.exception))           # no rewrite that names one Tag twice
+
+    def test_a_tag_declaring_a_member_named_sound_still_iterates(self) -> None:
+        class Odd(Tag):
+            @Action
+            def _sound(agent):
+                return "a member, not the population"
+
+        class Odder(Tag):
+            _sound = 5
+
+        for tag in (Odd, Odder):
+            with self.subTest(tag=tag.__name__):
+                dee = Agent()
+                tag(dee)
+
+                self.assertEqual(list(tag), [dee])
+                self.assertEqual(len(tag), 1)
+                self.assertTrue(tag)
+                self.assertEqual(list(~tag), [])
+                self.assertIn(dee, tag)
+                self.assertEqual(list(tag | self.Wizard), [dee, self.ari, self.bo])
+                self.assertEqual(list(self.Wizard[:] - tag), [self.ari, self.bo])
+
+    def test_a_plain_hint_holds_a_population_until_read_as_a_type(self) -> None:
+        """Not every hint is refused where it is written: a plain
+        `x: Wizard | Fighter`, and a union built first that takes a
+        population in, hold it; `isinstance` refuses once it reaches it."""
+
+        Wizard, Fighter = self.Wizard, self.Fighter
+
+        def f(x: Wizard | Fighter) -> None:
+            pass
+
+        hint = typing.get_type_hints(f, localns={"Wizard": Wizard, "Fighter": Fighter})["x"]
+
+        self.assertEqual(repr(hint), "<sound | sound Field>")         # a population, not a type
+
+        with self.assertRaises(TypeError) as caught:
+            isinstance(self.ari, hint)                                # refused where it is read as a type
+
+        self.assertIn("isinstance(x, (Wizard, Fighter))", str(caught.exception))
+
+        optional = typing.Optional[Wizard | Fighter]                  # typing takes it in, on every version
+
+        with self.assertRaises(TypeError) as caught:
+            isinstance(self.ari, optional)
+
+        self.assertIn("isinstance(x, (Wizard, Fighter))", str(caught.exception))
+        self.assertIn(                                                # so does a typing form's own | on the left
+                "<sound | sound Field>",
+                repr(typing.List[int] | (Wizard | Fighter)),
+                )
+
+        if sys.version_info >= (3, 14):
+            union = (int | str) | (Wizard | Fighter)                  # the union's own | runs first
+
+            self.assertTrue(isinstance(1, union))                     # isinstance stops before the population
+            with self.assertRaises(TypeError):
+                isinstance(1.0, union)                                # and refuses once it reaches it
+        else:
+            with self.assertRaises(TypeError) as caught:
+                (int | str) | (Wizard | Fighter)                      # 3.12 hands it to the population
+
+            self.assertIn("typing.Union[Wizard, Fighter, int | str]", str(caught.exception))
+
+    def test_a_pins_population_never_combines_with_a_tags(self) -> None:
+        import operator as operators
+
+        Wizard, Fighter = self.Wizard, self.Fighter
+
+        @Pin
+        class Rare(Tag):
+            pass
+
+        @Pin
+        class Meta(Tag):
+            pass
+
+        Rare(Wizard)
+        Meta(Fighter)
+
+        with self.assertRaises(TypeError) as caught:
+            Rare | Wizard
+
+        self.assertEqual(
+                str(caught.exception),
+                "Rare | Wizard: Rare holds Tags and Wizard holds objects;"
+                " a Pin's population and a Tag's do not combine",
+                )
+
+        pin_seats = {
+                "Rare": Rare,
+                "Rare[:]": Rare[:],
+                "~Rare": ~Rare,
+                "(Rare[:] | Meta)": Rare[:] | Meta,
+                }
+        tag_seats = {
+                "Wizard": Wizard,
+                "Wizard[:]": Wizard[:],
+                "~Wizard": ~Wizard,
+                "(Wizard | Fighter[:])": Wizard | Fighter[:],
+                }
+
+        for symbol, combine in (("|", operators.or_), ("&", operators.and_), ("-", operators.sub)):
+            for pin_text, pin_seat in pin_seats.items():
+                for tag_text, tag_seat in tag_seats.items():
+                    for left_text, left, right_text, right in (
+                            (pin_text, pin_seat, tag_text, tag_seat),
+                            (tag_text, tag_seat, pin_text, pin_seat),   # both orders
+                            ):
+                        with self.subTest(expression=f"{left_text} {symbol} {right_text}"):
+                            with self.assertRaises(TypeError) as caught:
+                                combine(left, right)
+
+                            message = str(caught.exception)
+
+                            self.assertIn("Rare", message)               # both sides named
+                            self.assertIn("Wizard", message)
+                            self.assertIn("holds Tags", message)
+                            self.assertIn("holds objects", message)
+                            self.assertTrue(message.startswith(f"{left_text} {symbol} {right_text}:"), message)
+
+        self.assertEqual(list(Rare | Meta), [Wizard, Fighter])           # two Pins still combine
+        self.assertEqual(list(Rare[:] - Meta), [Wizard])
+        self.assertEqual(list(Wizard[:] | Fighter), [self.ari, self.bo]) # two Tags still combine
+
+    def test_a_combination_takes_its_kind_from_either_side(self) -> None:
+        """A Field whose Tag is gone has no kind of its own; a combination
+        with it takes the kind of its other side."""
+
+        @Pin
+        class Rare(Tag):
+            pass
+
+        def Pin_That_Goes():
+            @Pin
+            class Gone(Tag):
+                pass
+
+            return Gone[:], weakref.ref(Gone)
+
+        gone, owner = Pin_That_Goes()
+        gc.collect()
+
+        self.assertIsNone(owner())                                    # the Tag is gone; its Field remains
+
+        with self.assertRaises(TypeError) as caught:
+            (gone | Rare) | self.Wizard
+
+        message = str(caught.exception)
+
+        self.assertIn("<a Tag that is gone>[:] | Rare", message)
+        self.assertIn("holds Tags and Wizard holds objects", message)
+
+        with self.assertRaises(TypeError):
+            self.Wizard - (gone | Rare)                               # the other order too
+
+        self.assertEqual(list(gone | Rare), [])                       # with another Pin it still combines
 
 
 class ConditionMemberTests(unittest.TestCase):
@@ -7020,6 +7734,36 @@ class SafehouseTests(unittest.TestCase):
         self.assertIn(cached, list(self.Guard))
         self.assertNotIn(self.Door(), Tag[...])
         self.assertEqual(repr(self.Cached[...]), "<safehouse of Cached>")
+
+    def test_the_safehouse_answers_in_and_refuses_as_the_other_populations_do(self) -> None:
+        door = self.Door()
+        self.Cached(door)
+        reference = weakref.ref(door)
+        del door
+        kept = reference()
+
+        @Pin
+        class Rare(Tag):
+            pass
+
+        self.assertIn(kept, self.Cached[...])
+        self.assertIn(kept, self.Cached[...] | self.Other)               # as a set does
+        self.assertNotIn(kept, self.Cached[...] - self.Cached[:])
+
+        with self.assertRaises(TypeError) as refused:
+            isinstance(kept, self.Cached[...])
+
+        self.assertTrue(str(refused.exception).endswith("isinstance takes Tags"), refused.exception)
+
+        with self.assertRaises(TypeError) as refused:
+            self.Cached[...] | None
+
+        self.assertTrue(str(refused.exception).endswith("a hint takes Tags"), refused.exception)
+
+        with self.assertRaises(TypeError) as refused:
+            Rare | self.Cached[...]
+
+        self.assertIn("Rare holds Tags and Cached[...] holds objects", str(refused.exception))
 
     def test_the_other_keys_keep_their_meaning(self) -> None:
         door = self.Door()

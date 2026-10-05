@@ -70,8 +70,9 @@ Actions; Agents are built once and play for a long time. So:
 
 Measured on Python 3.11 (`benchmarks/bench.py`), nanoseconds per
 operation: plain attribute read 42, Agent host-attribute read 65, Record
-read 64, plain method call 86, Action call 295, `agent in Tag` 291,
-`bool(agent)` with one Post about 1900. Tagging a Record-plus-Post Shape
+read 64, plain method call 86, Action call 295, `agent in Tag` 291
+(membership then; since STEP-SPEC-19 it runs the contract once a
+Postcondition is visible), `bool(agent)` with one Post about 1900. Tagging a Record-plus-Post Shape
 over a Base costs about 60 µs per Agent; an empty Tag about 22 µs. Peak
 memory about 6 KB per Agent with two Tags.
 
@@ -94,10 +95,24 @@ rollback target.
 
 ## Judgment calls
 
-- **`in` vs `isinstance`.** `agent in Tag` is the is-now check; `isinstance`
-  is the has-been check and stays true after Rip. Kept because it is a
-  dependable signal for spotting Rogue Agents. A rolled-back call also
-  rolls the ever-set back.
+- **`in` vs `isinstance`.** `agent in Tag[:]` is the is-now check;
+  `agent in Tag` is the is-now-and-sound check (STEP-SPEC-19):
+  `MetaTag.__contains__` reads `state.active` and then the same `_holds`
+  as `bool(agent)`, so it costs a `bool(agent)` once a Postcondition is
+  visible and one dictionary read otherwise (on CPython 3.14 about 125
+  ns without a Postcondition and 360 ns with one; `isinstance` about
+  100). Inside a Postcondition it answers membership for the Agent under
+  check, since `_holds` answers True under `state.checking`, which the
+  tagging's quality check (`_inspect`) now sets too, and `agent in ~Tag`
+  is False there; the gate, Imprints and `@Rip` protocols do not, so a
+  Precondition reads the true sound population (while `Contract.Status`
+  of that same Pre, run under the guard, reads membership), and an
+  Imprint reads the promise it is about to keep as already broken. `isinstance` is the has-been check and
+  stays true after Rip. Kept because it is a dependable signal for
+  spotting Rogue Agents. A rolled-back call also rolls the ever-set
+  back. `Tag[:]` is the Field, held weakly: once the interpreter tears
+  the module down it is empty, while `agent in Tag` and `Tags(agent)`
+  read the Agent's own state and outlive it.
 - **Records over host descriptors** are refused with a Composition Failure
   rather than silently bypassing a property.
 - **The Tag's dotted namespace is the program's.** Every Tag-level act is
@@ -294,7 +309,8 @@ rollback target.
   Field at commit (`_publish_to_field`, dry run on copies first) and
   emitted by the Tag's scan for future Agents, so the scan cache is
   dropped at pinning. `_state_of` reads the dictionary directly, which
-  is why `agent in Tag` got faster rather than slower.
+  is why `agent in Tag` (`MetaTag.__contains__`) got faster rather than
+  slower.
 - **Originals for un-patching.** When a Pin overlays a Tag's own
   Operation, Report or plain value, `_refuse_tag_member` records the
   declared object in `state.originals` (first patch wins). `_call_teardown`
@@ -320,10 +336,32 @@ rollback target.
 - **Field algebra** (STEP-SPEC-13): `_Population` in `fields.py` gives
   every population the three operators; `_Combined` holds two sides and
   an operator and walks them lazily (`|` by identity, each once; `&` and
-  `-` by `in` on the right side). `_population_of` turns a Tag into its
-  sound partition; `MetaTag.__or__` falls back to `type.__or__` when the
-  other side is not a population, so `Wizard | None` stays a typing
-  union. No kernel state changes.
+  `-` by `in` on the right side). `_population_of` decides Tag-ness by
+  the metaclass (as `overlay._is_tag_type` does), never by an attribute
+  named `_sound`, and turns a Tag into its sound partition through the
+  module function `_sound_of`, so a Tag declaring a member `_sound`
+  still iterates. A `_Field` holds a weak reference to its Tag, so a
+  refusal can name both sides and read Pin-ness at operator time (a
+  `@Pin` mark lands after the class exists); `_combine` refuses a Pin's
+  population with a Tag's, naming both. `MetaTag.__or__` falls back to
+  `type.__or__` when the other side is not a population, so `Wizard |
+  None` stays a typing union; a population is not a type: its class's
+  `__instancecheck__` and `__subclasscheck__`, and `|` with `None`, a
+  class, a union, a generic alias or a `typing` form in either order,
+  raise `TypeError`, naming the rewrite for a union of Tags (`|` only,
+  no `~`: `_Population._either`); `&`, `-` and `~` get none, since no
+  tuple of Tags says what they mean. A union built first can still
+  take a population in, since its own `__or__` runs before the
+  population's `__ror__`: `typing.Optional[Wizard | Fighter]` and
+  `typing.List[int] | (Wizard | Fighter)` on every version, `(int |
+  str) | (Wizard | Fighter)` on 3.14 (3.12 hands it to
+  `__ror__`, which refuses); `isinstance` refuses once it reaches the
+  population. The rewrite names Tags by
+  `__name__` (by `__qualname__` where two share one), which a renamed
+  Tag may not answer to in the program's own namespace; a Twin that
+  shares both names with its Tag gets no rewrite (`_rewrite_names`).
+  `|` with a `ForwardRef` is refused on every version: 3.14 moved it to
+  `annotationlib`. No kernel state changes.
 - **Condition members** (STEP-SPEC-14): `_agent_getattr` answers a
   condition by name on the miss path, after Tag views and before the
   host's own `__getattr__`, through `contracts._condition_member`, which
@@ -338,7 +376,8 @@ rollback target.
 - **Scope** (§3.2) skips a Tag the Agent already carries when its turn
   comes, so a Base named after its Shape is skipped too. It asks
   `_carries`, which reads the Agent's state: `agent in Tag` would read
-  a `str` Agent as a word. When a
+  a `str` Agent as a word, and would leave out a defective member
+  (STEP-SPEC-19). When a
   tagging raises, it asks whether the Tag is now active (a Postcondition
   or an Imprint failed after commit) and, if so, records it as applied,
   so the teardown Rips what the Scope applied. A Base pulled in with a

@@ -430,7 +430,9 @@ def Assert_Target(
     for tag in family + FEATURE_TAGS:
         active = tag in model.active
 
-        assert (target in tag) is active, (context, "membership", tag.__name__, active)
+        assert (target in tag[:]) is active, (context, "membership", tag.__name__, active)
+        assert (target in tag) is (active and model.Sound()), (context, "sound membership", tag.__name__, active)
+        assert (target in ~tag) is (active and not model.Sound()), (context, "defective membership", tag.__name__, active)
         assert isinstance(target, tag) is (tag in model.ever), (context, "history", tag.__name__)
 
         if active:

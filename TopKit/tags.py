@@ -4,7 +4,8 @@ TOP borrows the language's own syntax for Tag-level acts and leaves the
 Tag's dotted namespace to the program:
 
     Wizard(charlie)               apply (Bases first)
-    charlie in Wizard             active membership, sound or defective
+    charlie in Wizard             a sound member: what the loop sees
+    charlie in Wizard[:]          a member, sound or defective
     "Deprecated" in Wizard        a keyword: the Tag carries the Flag Pin Deprecated
     Wizard in charlie             the same, from the Agent's side
     "Wizard" in charlie           the same, by name
@@ -29,6 +30,7 @@ from __future__ import annotations
 
 from typing import Any
 from typing import Iterator
+import weakref
 
 from .access import _keyword
 from .access import _view_of
@@ -52,6 +54,20 @@ from .state import Tagged
 from .state import _name_of
 from .state import _state_of
 from .transactions import _apply
+
+
+def _sound_of(
+        tag: type,
+        ) -> _Partition:
+    """The sound population of a Tag: the members whose contract holds.
+    A module function, not a member of the metaclass reached through
+    the class, so a Tag declaring its own ``_sound`` is not in the way."""
+
+    return _Partition(
+            tag.__dict__["_topkit_field"],
+            _holds,
+            "sound",
+            )
 
 
 class MetaTag(type):
@@ -85,6 +101,7 @@ class MetaTag(type):
                 **kwargs,
                 )
         _check_pin_bases(tag)
+        tag.__dict__["_topkit_field"]._owner = weakref.ref(tag)   # the Tag holds its Field, never the reverse
 
         return tag
 
@@ -120,8 +137,15 @@ class MetaTag(type):
             tag,
             candidate: object,
             ) -> bool:
-        """``agent in Wizard``: membership. ``"Deprecated" in Wizard``: a
-        keyword among the Tag's Flag Pins; a string is never a member."""
+        """``agent in Wizard``: a sound member, the population the loop
+        sees (STEP-SPEC-19); ``agent in Wizard[:]`` is membership. Inside
+        a check the kit runs under its guard (a Postcondition, the quality
+        check, a condition read by name, a ``Contract`` read) it answers
+        membership for the Agent under check, as ``bool(agent)`` answers
+        True there; a Precondition at the tagging's gate, an Imprint and a
+        ``@Rip`` protocol read the sound population as code outside does.
+        ``"Deprecated" in Wizard``: a keyword among the Tag's Flag Pins; a
+        string is never a member."""
 
         if isinstance(candidate, str):
             return _keyword(
@@ -134,6 +158,11 @@ class MetaTag(type):
         return (
                 state is not None
                 and tag in state.active
+                and (
+                    state.checking                  # asked from inside a check
+                    or not state.postconditions     # nothing promised: every member is sound
+                    or _holds(candidate)
+                    )
                 )
 
     def __instancecheck__(
@@ -147,47 +176,39 @@ class MetaTag(type):
 
         return super().__instancecheck__(candidate)
 
-    def _sound(
-            tag,
-            ) -> _Partition:
-        return _Partition(
-                tag._topkit_field,
-                _holds,
-                "sound",
-                )
-
     def __iter__(
             tag,
             ) -> Iterator[object]:
-        return iter(tag._sound())
+        return iter(_sound_of(tag))
 
     def __len__(
             tag,
             ) -> int:
-        return len(tag._sound())
+        return len(_sound_of(tag))
 
     def __bool__(
             tag,
             ) -> bool:
-        return bool(tag._sound())
+        return bool(_sound_of(tag))
 
     def __invert__(
             tag,
             ) -> _Partition:
-        return ~tag._sound()
+        return ~_sound_of(tag)
 
     def __or__(
             tag,
             other: Any,
             ) -> Any:
         """``Wizard | Fighter``: the sound population of either. A Tag in an
-        operator seat is its sound population; anything that is not a
-        population keeps ``type``'s own meaning (``Wizard | None``)."""
+        operator seat is its sound population, decided by its metaclass;
+        anything that is not a population keeps ``type``'s own meaning
+        (``Wizard | None``)."""
 
         if _population_of(other) is NotImplemented:
             return super().__or__(other)
 
-        return tag._sound() | other
+        return _sound_of(tag) | other
 
     def __ror__(
             tag,
@@ -196,31 +217,31 @@ class MetaTag(type):
         if _population_of(other) is NotImplemented:
             return super().__ror__(other)
 
-        return other | tag._sound()
+        return other | _sound_of(tag)
 
     def __and__(
             tag,
             other: Any,
             ) -> Any:
-        return tag._sound() & other
+        return _sound_of(tag) & other
 
     def __rand__(
             tag,
             other: Any,
             ) -> Any:
-        return other & tag._sound()
+        return other & _sound_of(tag)
 
     def __sub__(
             tag,
             other: Any,
             ) -> Any:
-        return tag._sound() - other
+        return _sound_of(tag) - other
 
     def __rsub__(
             tag,
             other: Any,
             ) -> Any:
-        return other - tag._sound()
+        return other - _sound_of(tag)
 
     def __getitem__(
             tag,

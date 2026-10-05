@@ -47,7 +47,7 @@ class War_Caster(Tag):
 ari = Character("Ari", level=3)
 Elf(ari); Wizard(ari); War_Caster(ari)
 
-assert ari in Wizard                           # active membership
+assert ari in Wizard                           # a sound member
 assert ari.spells == ["Light", "Magic Missile"]
 assert ari.Attack() == "Ari casts Magic Missile while holding a shield"
 assert ari.Wizard.Attack() == "Ari casts Magic Missile"   # the view after Wizard
