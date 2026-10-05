@@ -17,7 +17,9 @@
   repaired. A Rip interrupted in a teardown is rolled back too. In the
   `At_Exit` pass, a failed teardown rolls that Agent back as well. What a
   teardown did outside the Agent stays done. 0.2.0a4 ended the
-  membership and kept whatever the teardowns had changed.
+  membership and kept whatever the teardowns had changed, and the failed
+  teardown's error held the Agent in a cycle until the next collection;
+  it is now freed with its last reference.
 - **Breaking: an Agent whose teardown fails at deletion is now kept in
   the safehouse, `Tag[...]`, rather than destroyed** (STEP-SPEC-18,
   amendment E; §3.2). The Director, 2026-10-02: "deletion should be
@@ -165,6 +167,13 @@
   tries a late Flag on a carried Tag and expects the refusal, writes an
   exception's notes, and has some Scope blocks Rip one of the Scope's
   own Tags and apply one again.
+- `SafehouseTests` and `TriageTests` cover the safehouse and triage, and
+  `RipTests` a failed Rip refused and rolled back. The oracle has a Tag
+  whose teardown fails while the Agent is not ok, and checks the refused
+  Rip against its model: the Tag, the place in each Field, and nothing
+  of what the teardown did. The differential fuzzer has a step that
+  looks at the safehouse from a Tag or from the root, Rips what it
+  keeps, or triages it.
 
 ### Project
 

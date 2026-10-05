@@ -130,11 +130,14 @@ def _teardown(
                 for name, _error in failures
                 )
 
-        raise TagCompositionError(
-                f"{tag.__name__} teardown failed in: {names}; the Rip is"
-                f" refused and rolled back: {_name_of(agent)} is still a"
-                f" member of {tag.__name__}"
-                ) from failures[0][1]
+        try:
+            raise TagCompositionError(
+                    f"{tag.__name__} teardown failed in: {names}; the Rip is"
+                    f" refused and rolled back: {_name_of(agent)} is still a"
+                    f" member of {tag.__name__}"
+                    ) from failures[0][1]
+        finally:
+            failures = None   # each error's traceback holds this frame: kept, the list would hold the Agent in a cycle
 
 
 _Failure = tuple[type, Any, Exception]   # the Tag, the teardown, its error

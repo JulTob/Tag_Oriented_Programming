@@ -368,6 +368,10 @@ give the teardowns up, deliberately and visibly, and let the memory go.
   the safehouse.
 - Amendment F: `del Tag[...]` raised `TagResolutionError`; it is now
   triage. `TagTriageWarning` is new.
+- Fixed with amendment D: an Agent whose Rip failed is freed with its
+  last reference. Before, the failed teardown's error held the frame
+  that held the list of failures, a cycle that kept the Agent until the
+  next collection.
 - A `__del__` Layer that raises after a teardown was interrupted is now
   reported, before the interruption. Before, only the interruption was,
   carrying the Layer's error as its context.
@@ -419,7 +423,7 @@ give the teardowns up, deliberately and visibly, and let the memory go.
 | Teardowns also at interpreter exit, best effort | Rejected by the Director: they stay opt-in through `At_Exit` |
 | An `@Underlay` with nothing beneath is an error, as for other Actions | Set aside: every object can be finalized, so "nothing" is a valid Layer beneath a finalizer |
 | At deletion, end membership before the teardowns, as a Rip does | Deferred by the Director ("Fix the words now, STEP later"): a Rip inside a finalizer would have to skip the refusal that protects a Base a Shape needs, and a `__del__` Layer that reads a published member would fail; a later STEP may take it |
-| Keep a teardown that fails at deletion or in the `At_Exit` pass silent, as §3.2 said | Rejected by the Director ("Print them") |
+| Leave a teardown that fails at deletion or in the `At_Exit` pass unreported, as §3.2 said | Rejected by the Director ("Print them") |
 | Leave the Agent's Actions unanswered in a collected cycle, a known limit | Rejected by the Director ("Fix it now"); the re-tie is weak and ends with the finalizer, so nothing is resurrected |
 | A Rip whose teardown fails ends the membership and reports, as before | Replaced by the Director's ruling of 2026-10-02, "Refuse and roll back" (amendment D) |
 | At deletion, let the Agent go and only report the failure, as ruling (C) first had it | Replaced by the Director's ruling of 2026-10-02 (amendment E): "deletion should be blocked" |
@@ -495,17 +499,29 @@ failed Rip refused and rolled back: one teardown, a later one failing
 after earlier ones changed the Agent, `Contract.Delete` before the
 failure, a Rip made inside a teardown, a Shape's Rip, an interrupted
 Rip, a Scope's exit with and without the block's own exception, a retry
-after repair), by `LayeredDeletionTests` (the `At_Exit` pass rolls that
+after repair, no cycle left behind), by the oracle (`Stubborn`, whose
+teardown fails while the Agent is not ok: the Rip is refused, and the
+Agent keeps the Tag, its place in each Field and none of what the
+teardown did), by `LayeredDeletionTests` (the `At_Exit` pass rolls that
 Agent back and goes on; the reports at deletion, before the Agent is
 kept), by `SafehouseTests` (a plain `del` and a collected cycle keep the
 Agent, a member, rolled back, reported; the departments and the
 population; repair and an explicit Rip free it once dropped; a Rip that
 keeps failing stays refused; program end reports only; nothing kept, and
 nothing left on the heap, when every teardown succeeds) and by
-`TriageTests` (the root and one department, the Agents freed, one still
-held left carrying no Tag, one warning each naming the teardowns that
+`TriageTests` (the root, one department with its Shapes at any depth,
+and a Shape's own branch; the Agents freed, one still held left
+carrying no Tag, one warning each naming the teardowns that
 never finished, no teardown run, an empty safehouse, a warning made an
-error).
+error). The oracle found that a failed Rip left the Agent in a cycle
+until the next collection, through the list of failures its teardowns'
+errors held; it is freed with its last reference now, and a test pins
+it. The differential fuzzer, which now looks at the safehouse, Rips
+what it keeps and triages it, was run against the kit before the
+amendment (300 seeds, and 100 heavy, on Python 3.14 and 3.12). Every
+difference is one this STEP announces: a kit built with none of them
+reads as the base on every program, and each differing line is
+explained by the smallest set of them that reproduces it.
 
 ---
 

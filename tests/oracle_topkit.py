@@ -3,7 +3,8 @@ after every transition.
 
 The model knows the laws of the Specification and nothing of the kernel:
 Base-first Forms, membership and history, Rip refused while a Shape
-requires the Base, Scope as apply-then-rip, the call boundary (a refused
+requires the Base, a Rip whose teardown fails refused and rolled back,
+Scope as apply-then-rip, the call boundary (a refused
 gate rolls back, a broken promise keeps the Tag and marks the Agent
 defective, a failed Imprint keeps the Tag), sticky conditions ended by
 the author, published members answering sound members only, condition
@@ -87,6 +88,7 @@ class Model:
     marked_ever: bool = False               # Marked's promise is sticky: once applied, always read
     gated_ever: bool = False                # Gated's gate is sticky too: it stays on the record
     ok: bool = True                         # the value every promise reads
+    stood_down: bool = False                # a Rip of Stubborn went through: what its teardown left stays
 
     def Copy(
             model,
@@ -98,6 +100,7 @@ class Model:
                 model.marked_ever,
                 model.gated_ever,
                 model.ok,
+                model.stood_down,
                 )
 
     def Has_Promise(
@@ -313,8 +316,22 @@ class Slipping(Tag):
         raise RuntimeError("deliberate")
 
 
+class Stubborn(Tag):
+    """A teardown that fails while the Agent is not ok, after it changed
+    the Agent: the Rip is refused and rolled back (STEP-SPEC-18,
+    amendment D), so the Agent keeps the Tag, its place in the Field,
+    and none of what the teardown did."""
+
+    @Rip
+    def Stand_Down(agent) -> None:
+        agent.stood_down = True
+
+        if not agent.ok:
+            raise RuntimeError("not ok: will not stand down")
+
+
 CONDITION_TAGS = (Promised, Marked)
-FEATURE_TAGS = (Promised, Marked, Guild, Gated)
+FEATURE_TAGS = (Promised, Marked, Guild, Gated, Stubborn)
 
 
 # ------------------------------------------------------------------
@@ -377,8 +394,21 @@ def Rip_It(
 
         raise AssertionError((context, "Rip of a required Base succeeded", tag.__name__))
 
+    if tag is Stubborn and not model.ok:
+        try:
+            del tag[target]
+        except TagCompositionError as error:
+            assert "the Rip is refused and rolled back" in str(error), (context, "a failed Rip said", str(error))
+            assert isinstance(error.__cause__, RuntimeError), (context, "a failed Rip lost its teardown's error")
+            return                                                    # the model is as it was: nothing to change
+
+        raise AssertionError((context, "a Rip whose teardown failed went through", tag.__name__))
+
     del tag[target]
     Model_Rip(model, tag)
+
+    if tag is Stubborn:
+        model.stood_down = True
 
 
 # ------------------------------------------------------------------
@@ -416,6 +446,9 @@ def Assert_Target(
     Assert_Contract(target, model, context)
     Assert_Published(target, model, context)
     Assert_Keywords(target, model, family, context)
+
+    if not isinstance(target, type):
+        assert hasattr(target, "stood_down") is model.stood_down, (context, "a failed Rip rolled back", model.stood_down)
 
 
 def Assert_Keywords(
@@ -623,6 +656,9 @@ def Run_Seed(
         elif choice == 8 and not use_pins:
             target.ok = not target.ok
             model.ok = target.ok
+
+            if Stubborn in model.active and randomizer.random() < 0.5:
+                Rip_It(target, Stubborn, model, context)              # refused and rolled back while not ok
         elif choice == 9 and not use_pins:
             Exercise_Transactions(target, model, context)
         elif choice == 10:
@@ -654,6 +690,9 @@ def Run_Seed(
 
     Assert_Fields(agents, agent_models, agent_family, f"seed={seed} end")
     Assert_Fields(entries, entry_models, pin_family, f"seed={seed} end")
+
+    for target in agents:
+        target.ok = True                                              # Stubborn stands down when they are deleted
 
     return transitions
 

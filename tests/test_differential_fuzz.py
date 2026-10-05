@@ -32,7 +32,7 @@ class DifferentialFuzzTests(unittest.TestCase):
                     root / "new",
                     )
 
-            for seed, heavy in ((58, False), (30, True)):   # both show an address and a kit path
+            for seed, heavy in ((24, False), (30, True)):   # both show an address and a kit path
                 outcome = differential_fuzz.Run_Seed(
                         seed,
                         60,

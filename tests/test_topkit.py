@@ -2581,6 +2581,39 @@ class RipTests(unittest.TestCase):
 
         stuck.clear()                                                  # repaired: the Agent ends quietly
 
+    def test_a_refused_rip_keeps_no_cycle(self) -> None:
+        """Once repaired, the Agent dies with its last reference, gc or
+        not: the failed teardown's error held no frame that held it."""
+
+        stuck = [True]
+
+        class Clerk(Tag):
+            @Rip
+            def Shred(agent) -> None:
+                if stuck:
+                    raise RuntimeError("the shredder jams")
+
+        gc.collect()
+        gc.disable()
+
+        try:
+            ari = Agent()
+            reference = weakref.ref(ari)
+            Clerk(ari)
+
+            try:
+                del Clerk[ari]                                         # not assertRaises: it clears the frames
+            except TagCompositionError as error:
+                caught = type(error)
+
+            self.assertIs(caught, TagCompositionError)
+            stuck.clear()                                              # repaired: its teardown runs at deletion
+            del ari
+
+            self.assertIsNone(reference())                             # freed by its count: no cycle held it
+        finally:
+            gc.enable()
+
     def test_ripping_a_required_base_is_refused(self) -> None:
         ari = Agent()
 
@@ -7070,17 +7103,53 @@ class TriageTests(unittest.TestCase):
         self.assertTrue(warned[1].endswith(": Close of Other"))
 
     def test_triage_of_a_tag_takes_its_whole_tree_and_nothing_else(self) -> None:
+        log = self.log
+
+        class Hotter(self.Hot):                                          # a Shape two levels down
+            @Rip
+            def Melt(agent) -> None:
+                log.append("melt " + agent.name)
+                raise RuntimeError("too hot")
+
+        class Sealed(self.Other):                                        # a Shape of another department
+            pass
+
         by_base = self.kept("base", self.Cached)
         by_shape = self.kept("shape", self.Hot)
+        by_sub_shape = self.kept("sub-shape", Hotter)                   # kept by Hotter and by Cached
         by_other = self.kept("other", self.Other)
+        by_other_shape = self.kept("other shape", Sealed)
+        self.log.clear()
 
         warned = self.triage(self.Cached)
         gc.collect()
 
-        self.assertEqual(len(warned), 2)
+        self.assertEqual(len(warned), 3)
+        self.assertTrue(warned[2].endswith(": Clear of Cached, Melt of Hotter"), warned[2])
         self.assertIsNone(by_base())
         self.assertIsNone(by_shape())
-        self.assertEqual(list(Tag[...]), [by_other()])                   # the other department stays
+        self.assertIsNone(by_sub_shape())
+        self.assertEqual(list(Tag[...]), [by_other(), by_other_shape()])   # the other department stays
+        self.assertEqual(self.log, [])                                   # no teardown ran again
+
+    def test_triage_of_a_shape_takes_only_its_own_branch(self) -> None:
+        log = self.log
+
+        class Hotter(self.Hot):
+            @Rip
+            def Melt(agent) -> None:
+                log.append("melt " + agent.name)
+                raise RuntimeError("too hot")
+
+        by_base = self.kept("base", self.Cached)
+        by_sub_shape = self.kept("sub-shape", Hotter)
+
+        warned = self.triage(self.Hot)                                   # Hot's branch: Hotter's kept Agent
+        gc.collect()
+
+        self.assertEqual(len(warned), 1)
+        self.assertIsNone(by_sub_shape())
+        self.assertEqual(list(Tag[...]), [by_base()])                    # kept by Cached alone: not Hot's
 
     def test_an_agent_the_program_still_holds_lives_on_carrying_no_tag(self) -> None:
         self.kept("held", self.Guard, self.Hot)

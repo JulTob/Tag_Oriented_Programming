@@ -198,6 +198,9 @@ rollback target.
   Rip with no teardown due takes no copy: nothing there can fail, so
   `del Tag[agent]` costs what it did. The `At_Exit` pass takes the same
   copy before each Agent's teardowns and gives it back when one fails.
+  `_teardown` lets go of its list of failures as it raises: each error's
+  traceback holds its frame, so the list would hold the Agent in a cycle
+  until the next collection.
 - **The safehouse** (STEP-SPEC-18, amendments E and F). `_agent_del`
   takes the same copy before the deletion's teardowns, when one is due.
   When one fails, `lifecycle._kept_at_deletion` gives the copy back,

@@ -1570,13 +1570,12 @@ A conforming implementation provides, ring by ring:
   back and kept in the safehouse, `Tag[...]`, by the Tags whose teardown
   failed, a population over each Tag's tree of Shapes, left by an
   explicit Rip of each, and let go by triage, `del Tag[...]`, which runs
-  no teardown and warns once per Agent; the
-  three deletion tiers, a Scope Ripping the Tags it applied and only
-  those, leaving one a Shape still requires, and reporting a Rip it
-  cannot make; the Agent's `__del__` as Layers of its Overlay, run after
-  the teardowns, and alone once the interpreter is finalizing at exit;
-  the Agent's own Actions answer its teardowns and its `__del__` Layers
-  at deletion.
+  no teardown and warns once per Agent; the three deletion tiers, a
+  Scope Ripping the Tags it applied and only those, leaving one a Shape
+  still requires, and reporting a Rip it cannot make; the Agent's
+  `__del__` as Layers of its Overlay, run after the teardowns, and alone
+  once the interpreter is finalizing at exit; the Agent's own Actions
+  answer its teardowns and its `__del__` Layers at deletion.
 
 **Everywhere**
 - the failure types above, distinct and named.

@@ -36,6 +36,14 @@ the refusal when the block's Shape required it. A Tag keeps its Report
 values under `_topkit_reports` in its own `__dict__`; the look at a Tag
 leaves that name out, so kits before and after compare.
 
+A Rip whose teardown fails is refused and rolled back, and a teardown
+that fails at deletion keeps the Agent in the safehouse, `Tag[...]`
+(STEP-SPEC-18, amendments D and E). A kit from before ended the
+membership, and let the Agent go. Some steps look at the safehouse, Rip
+what it keeps, or let it go with triage, `del Tag[...]` (amendment F);
+a kit from before reads `...` as an Agent and refuses both. So such
+steps, and what follows them, read differently against one.
+
 Every step writes what it observed: a value, or an exception's type,
 message, cause and notes. A step that changes a Target is often followed by a
 look at it: its Tags, soundness, contract, words, and the names it holds.
@@ -310,6 +318,29 @@ def Rip_Of(
         target,
         ):
     del tag[target]
+
+
+def Triage_Of(
+        tag,
+        ):
+    del tag[...]
+
+
+def Rip_Kept(
+        tag,
+        ):
+    """An explicit Rip of each Agent the safehouse keeps for this Tag."""
+
+    outcomes = []
+
+    for kept in list(tag[...]):
+        try:
+            del tag[kept]
+            outcomes.append("ripped")
+        except Exception as error:
+            outcomes.append(type(error).__name__ + ": " + str(error))
+
+    return outcomes
 
 
 def Tag_All(
@@ -1672,6 +1703,30 @@ def Fielding(
     return [Do_Line(step, expression)]
 
 
+def Safehousing(
+        plan: Plan,
+        step: str,
+        ) -> list[str]:
+    """The safehouse, where a deletion whose teardown failed keeps the
+    Agent: its population from a Tag or from the root, an explicit Rip
+    of what it keeps, and triage (STEP-SPEC-18, amendments E and F)."""
+
+    tag = plan.randomizer.choice([tag.name for tag in plan.tags] + ["Tag"])
+    other = Any_Tag(plan).name
+    expression, label = plan.randomizer.choice(
+            (
+                (f"list({tag}[...])", None),
+                (f"len({tag}[...])", None),
+                (f"list({tag}[...] | {other}[...])", None),
+                (f"list({tag}[...] & {other})", None),
+                (f"Rip_Kept({tag})", None),
+                (f"Triage_Of({tag})", f"del {tag}[...]"),
+                )
+            )
+
+    return [Do_Line(step, expression, label)]
+
+
 def Specials(
         plan: Plan,
         step: str,
@@ -2003,6 +2058,7 @@ STEPS: tuple[tuple[int, int, Step], ...] = (   # weight in the ordinary mix, in 
         (1, 3, Flagging),
         (1, 1, Renaming),
         (1, 1, Passing),
+        (1, 1, Safehousing),
         )
 
 
