@@ -172,27 +172,29 @@ call to the underlaying del."
 11. **A failed Rip blocks the expulsion** (amendment D, 2026-10-02). An
     explicit Rip (`del Tag[agent]`, a Scope's exit) whose teardown fails
     is refused and rolled back. The teardowns run as before, after
-    membership has ended; when one fails, membership comes back: the
-    Agent is a member of the Tag again, in its place in the Field, with
-    its Form, Overlay and views as before the Rip, and every change the
-    Rip and its teardowns made to its TOP state and its attributes is
-    undone, the way a failed tagging's rollback undoes its changes
-    (§0.6), a Rip one of them made included. Then the Composition Failure
-    is raised, saying the Rip was refused and rolled back, with the first
-    failed teardown's own error as its cause. Every teardown of the Tag
-    is due again, so a Rip made again once the cause is repaired runs
-    them all. The rollback restores the Agent's TOP state and its
-    attributes, not the outside world: a file a teardown already deleted
-    stays deleted, and a value the Agent held and a teardown changed in
-    place stays changed (Ring 4). A Shape's Rip that fails leaves its
-    Base alone: nothing cascades, as before. A Rip the language
-    interrupts in a teardown (a `Ctrl-C`) is rolled back the same way,
-    and the interruption leaves. In the `At_Exit` pass, a teardown that
-    fails rolls back what that Agent's teardowns changed on it in the
-    pass, and is reported (item 7); the pass goes on for the others.
-    What a teardown sees is what it saw before this amendment: on a Rip
-    it runs once membership has ended, and membership comes back only
-    if one fails. Nothing had to change for the rollback to be clean.
+    membership has ended; when one fails, membership comes back: the Agent
+    is a member of the Tag again, in its place in the Field, with its
+    Form, Overlay and views as before the Rip, and every change the Rip
+    and its teardowns made to its TOP state, to the attributes in its
+    `__dict__` and to its keeping in the safehouse (item 12) is undone,
+    the way a failed tagging's rollback undoes its changes (§0.6), a Rip
+    one of them made included. Then the Composition Failure is raised,
+    saying the Rip was refused and rolled back, with the first failed
+    teardown's own error as its cause. Every teardown of the Tag is due
+    again, so a Rip made again once the cause is repaired runs them all.
+    The rollback restores the Agent's TOP state and the attributes in its
+    `__dict__`, not the outside world: a file a teardown already deleted
+    stays deleted, a value the Agent held and a teardown changed in place
+    stays changed (Ring 4), and so does a slot a teardown set, as after a
+    failed tagging. A Shape's Rip that fails leaves its Base alone:
+    nothing cascades, as before. A Rip the language interrupts in a
+    teardown (a `Ctrl-C`) is rolled back the same way, and the
+    interruption leaves. In the `At_Exit` pass, a teardown that fails
+    rolls back what that Agent's teardowns changed on it in the pass, and
+    is reported (item 7); the pass goes on for the others. What a teardown
+    sees is what it saw before this amendment: on a Rip it runs once
+    membership has ended, and membership comes back only if one fails.
+    Nothing had to change for the rollback to be clean.
 12. **A failed teardown blocks the deletion: the safehouse** (amendment
     E, 2026-10-02). At deletion (the last reference gone, or the
     collector), when a teardown fails, the finalizer keeps the Agent
@@ -445,10 +447,10 @@ undid a fix now fails a test. The amendment below adds its own tests to
 the same class: the Agent's Actions answer a teardown and a Layer in a
 collected cycle, at a plain `del`, at program end and in the `At_Exit`
 pass, and the Agent is freed afterwards; an Action kept past the
-finalizer meets `ReferenceError`; a failed teardown is reported after
-the Layers, naming the Agent and the teardown, once each, in the
+finalizer meets `ReferenceError`; a failed teardown is reported once
+every teardown ran, naming the Agent and the teardown, once each, in the
 `At_Exit` pass too, and before an interruption, at deletion and in the
-pass; a teardown reported on a Rip has nothing left to report; and
+pass; one that ran on a Rip has nothing left to report at deletion; and
 membership is visible inside a teardown at deletion, as the words now
 say. Each test of a fix fails when its fix is undone. The differential
 fuzz against the base (300 seeds, and 100 heavy) found one defect in the
@@ -516,12 +518,26 @@ never finished, no teardown run, an empty safehouse, a warning made an
 error). The oracle found that a failed Rip left the Agent in a cycle
 until the next collection, through the list of failures its teardowns'
 errors held; it is freed with its last reference now, and a test pins
-it. The differential fuzzer, which now looks at the safehouse, Rips
-what it keeps and triages it, was run against the kit before the
-amendment (300 seeds, and 100 heavy, on Python 3.14 and 3.12). Every
-difference is one this STEP announces: a kit built with none of them
-reads as the base on every program, and each differing line is
-explained by the smallest set of them that reproduces it.
+it. A review of the three amendments found that a refused Rip did not
+give back the keeping that a Rip inside its teardown had ended, so the
+Agent could then be freed with a teardown that never finished, without
+triage; what a failed teardown gives back now records the Tags that
+keep the Agent, and `SafehouseTests` pins it, with a keeping a
+teardown made undone too. It also found five protections no test
+pinned: the `At_Exit` pass dropping its failures (a cycle until the
+next collection), triage ending the Agent's words, the warning's line
+and its class, an Agent kept once when its finalizer is called twice by
+hand, and a Layer's `SystemExit` reported before an interruption. Each
+is pinned now. And it found that the rollback gives back the
+attributes in the Agent's `__dict__`, not a slot, as a failed tagging
+does; item 11 says so, and a test pins it. The differential fuzzer,
+which now looks at the safehouse (walked, counted, asked with `in` and
+for truth, combined), Rips what it keeps, once repaired too, and
+triages it, was run against the kit before the amendment (300 seeds,
+and 100 heavy, on Python 3.14 and 3.12). Every difference is one this
+STEP announces: a kit built with none of them reads as the base on
+every program, and each differing line is explained by the smallest set
+of them that reproduces it.
 
 ---
 

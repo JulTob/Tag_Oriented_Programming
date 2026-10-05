@@ -297,7 +297,26 @@ def _rollback(
         agent.__class__ = entry_class
 
 
-_Entry = tuple   # (namespace, state copy, Tags, their Fields' members, runtime type)
+_safehouse: dict[int, tuple[object, list[type]]] = {}
+# every kept Agent, held strongly, by identity, with the Tags that keep it:
+# those whose teardown failed at its deletion (STEP-SPEC-18, amendment E).
+# Here, beside the entry, so that a rollback gives the keeping back too.
+
+
+def _keepers_of(
+        agent: object,
+        ) -> tuple[type, ...] | None:
+    """The Tags that keep ``agent`` in the safehouse, or None."""
+
+    kept = _safehouse.get(id(agent))
+
+    if kept is None or kept[0] is not agent:
+        return None
+
+    return tuple(kept[1])
+
+
+_Entry = tuple   # (namespace, state copy, Tags, their Fields' members, runtime type, keepers)
 
 
 def _entry_of(
@@ -307,7 +326,8 @@ def _entry_of(
     """What a Rip, a deletion or the At_Exit pass gives back when a
     teardown fails (STEP-SPEC-18, amendments D and E): the Agent's
     attributes and TOP state, its Tags with their places in their Fields,
-    and its runtime type, as they are now."""
+    its runtime type, and the Tags that keep it in the safehouse, as they
+    are now."""
 
     tags = tuple(state.active)
     key = id(agent)
@@ -321,6 +341,7 @@ def _entry_of(
                     for tag in tags
                     ),
             type(agent),
+            _keepers_of(agent),
             )
 
 
@@ -330,10 +351,13 @@ def _give_back(
         ) -> None:
     """Roll the Agent back to ``entry``, as a failed tagging is rolled
     back: what the teardowns changed on it is undone, and it is a member
-    of every Tag it carried then, in its place in each Field. What a
-    teardown did outside the Agent's TOP state and attributes stays done."""
+    of every Tag it carried then, in its place in each Field, kept in the
+    safehouse by the Tags that kept it then (a Rip a teardown made may
+    have released it). The attributes given back are those in its
+    ``__dict__``, as for a failed tagging: a slot is not. What a teardown
+    did outside the Agent stays done."""
 
-    namespace, copy, tags, members, klass = entry
+    namespace, copy, tags, members, klass, keepers = entry
     _rollback(
             agent,
             namespace,
@@ -347,6 +371,11 @@ def _give_back(
                 agent,
                 member,
                 )
+
+    if keepers is not None:
+        _safehouse[id(agent)] = (agent, list(keepers))
+    elif _keepers_of(agent) is not None:
+        del _safehouse[id(agent)]   # kept by a teardown's own doing: undone too
 
 
 def _name_of(

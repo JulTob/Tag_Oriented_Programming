@@ -230,7 +230,7 @@ assert list(Combat - Deprecated) == [Wizard]        # combat Tags still in use
 - **Walk a Tag** for the sound population, `~Tag` for the repair queue,
   `Tag[:]` for everyone, `Tag[...]` for the safehouse.
 - **Combine with `|`, `&`, `-`.** A Tag in an operator seat is its sound
-  population; `Tag[:]` and `~Tag` say the other levels.
+  population; `Tag[:]`, `~Tag` and `Tag[...]` say the others.
 - **Keep views, not lists.** A view is alive; a list is a moment.
 - **Read a view in a condition** with `in`, and the gate follows the
   population.

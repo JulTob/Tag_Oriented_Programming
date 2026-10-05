@@ -9,17 +9,18 @@
   roll back" for an explicit Rip whose teardown fails, and said: "I was
   gonna suggest to just ammend the rule to a failed rip blocks an
   agent's expulsion". `del Tag[agent]` and a Scope's exit whose teardown
-  fails are refused and rolled back, as a failed tagging is: the Agent is
-  a member again, in its place in the Field, its state and attributes as
-  before the Rip, and the Composition Failure, now saying the Rip was
-  refused and rolled back, carries the teardown's own error as its
-  cause. Every teardown is due again, so the Rip can be made again once
-  repaired. A Rip interrupted in a teardown is rolled back too. In the
-  `At_Exit` pass, a failed teardown rolls that Agent back as well. What a
-  teardown did outside the Agent stays done. 0.2.0a4 ended the
-  membership and kept whatever the teardowns had changed, and the failed
-  teardown's error held the Agent in a cycle until the next collection;
-  it is now freed with its last reference.
+  fails are refused and rolled back, as a failed tagging is: the Agent
+  is a member again, in its place in the Field, its state, its
+  attributes (those in its `__dict__`, as for a failed tagging) and its
+  keeping in the safehouse as before the Rip, and the Composition
+  Failure, now saying the Rip was refused and rolled back, carries the
+  teardown's own error as its cause. Every teardown is due again, so the
+  Rip can be made again once repaired. A Rip interrupted in a teardown
+  is rolled back too. In the `At_Exit` pass, a failed teardown rolls
+  that Agent back as well. What a teardown did outside the Agent stays
+  done. 0.2.0a4 ended the membership and kept whatever the teardowns had
+  changed, and the failed teardown's error held the Agent in a cycle
+  until the next collection; it is now freed with its last reference.
 - **Breaking: an Agent whose teardown fails at deletion is now kept in
   the safehouse, `Tag[...]`, rather than destroyed** (STEP-SPEC-18,
   amendment E; §3.2). The Director, 2026-10-02: "deletion should be
@@ -172,8 +173,10 @@
   whose teardown fails while the Agent is not ok, and checks the refused
   Rip against its model: the Tag, the place in each Field, and nothing
   of what the teardown did. The differential fuzzer has a step that
-  looks at the safehouse from a Tag or from the root, Rips what it
-  keeps, or triages it.
+  looks at the safehouse from a Tag or from the root (walked, counted,
+  asked with `in` and for truth, combined), Rips what it keeps, once
+  repaired too, or triages it; one of its teardowns fails only while the
+  Agent is not ok, so a kept Agent can be repaired.
 
 ### Project
 

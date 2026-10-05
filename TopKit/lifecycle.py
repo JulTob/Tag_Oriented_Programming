@@ -33,6 +33,7 @@ from .state import _State
 from .state import _entry_of
 from .state import _give_back
 from .state import _name_of
+from .state import _safehouse
 from .state import _state_of
 
 
@@ -314,11 +315,6 @@ def _report_error(
 # ------------------------------------------------------------------
 # The safehouse: Agents kept at a deletion whose teardown failed
 # ------------------------------------------------------------------
-
-
-_safehouse: dict[int, tuple[object, list[type]]] = {}
-# every kept Agent, held strongly, by identity, with the Tags that keep it:
-# those whose teardown failed at its deletion (STEP-SPEC-18, amendment E)
 
 
 class _Safehouse(_Population):

@@ -189,22 +189,26 @@ rollback target.
 - **A failed Rip is rolled back** (STEP-SPEC-18, amendment D). Before a
   Rip whose Tag has a teardown due, `_rip` takes `state._entry_of`: a
   copy of the Agent's dictionary and of its state, its Tags, its
-  `_Member` in each of their Fields, and its runtime type. When a
-  teardown raises, `state._give_back` restores them as a failed tagging
-  is restored (`_rollback`, now in `state.py`), then puts the Agent back
-  in each Field in its place: every `_Member` carries its `order`, the
-  count of members the Field had when it joined, and `_Field.Rejoin`
-  puts the old `_Member` back before the ones that joined after it. A
-  Rip with no teardown due takes no copy: nothing there can fail, so
-  `del Tag[agent]` costs what it did. The `At_Exit` pass takes the same
-  copy before each Agent's teardowns and gives it back when one fails.
-  `_teardown` lets go of its list of failures as it raises: each error's
-  traceback holds its frame, so the list would hold the Agent in a cycle
-  until the next collection.
+  `_Member` in each of their Fields, its runtime type, and the Tags that
+  keep it in the safehouse. When a teardown raises, `state._give_back`
+  restores them as a failed tagging is restored (`_rollback`, now in
+  `state.py`), then puts the Agent back in each Field in its place:
+  every `_Member` carries its `order`, the count of members the Field
+  had when it joined, and `_Field.Rejoin` puts the old `_Member` back
+  before the ones that joined after it. It puts the keeping back too: a
+  Rip a teardown made may have released the Agent from a Tag's keeping,
+  and a finalizer a teardown called by hand may have kept it. Like a
+  failed tagging's, the copy is of the Agent's `__dict__`: a slot a
+  teardown set stays set. A Rip with no teardown due takes no copy:
+  nothing there can fail, so `del Tag[agent]` costs what it did. The
+  `At_Exit` pass takes the same copy before each Agent's teardowns and
+  gives it back when one fails. `_teardown` lets go of its list of
+  failures as it raises: each error's traceback holds its frame, so the
+  list would hold the Agent in a cycle until the next collection.
 - **The safehouse** (STEP-SPEC-18, amendments E and F). `_agent_del`
   takes the same copy before the deletion's teardowns, when one is due.
   When one fails, `lifecycle._kept_at_deletion` gives the copy back,
-  reports each failure, and puts the Agent in `lifecycle._safehouse`, a
+  reports each failure, and puts the Agent in `state._safehouse`, a
   dict by `id` holding the Agent strongly with the Tags whose teardown
   failed; the finalizer then raises the Composition Failure without
   running a Layer or untying the Actions, so Python reports it and the
@@ -344,16 +348,16 @@ rollback target.
   out, `_rip_all` skips a Tag whose application is no longer the one the
   Agent carries: the block Ripped it, and left it off or applied it
   again, itself or through a Shape, so it is the block's. It collects
-  each `TagError` a Rip raises: a Rip refused for a
-  required Base leaves the Tag, and a failed teardown has already ended
-  the membership. `_report` then raises the first, with the others as
-  `add_note` notes, or, when an exception is leaving the block, adds
-  each as a note on it. Every frame of the Scope's that holds a caught
-  exception drops it before it leaves, so the Scope adds no cycle of its
-  own (`ScopeTests` checks it with the collector off). A teardown that
-  fails still holds one, through `_teardown`'s list of failures, on any
-  Rip, as before this change: the Agent is then freed by the collector,
-  not by its count.
+  each `TagError` a Rip raises: a Rip refused for a required Base leaves
+  the Tag, and so does one whose teardown failed, refused and rolled
+  back (STEP-SPEC-18, amendment D). `_report` then raises the first,
+  with the others as `add_note` notes, or, when an exception is leaving
+  the block, adds each as a note on it. Every frame of the Scope's that
+  holds a caught exception drops it before it leaves, so the Scope adds
+  no cycle of its own (`ScopeTests` checks it with the collector off). A
+  teardown that fails holds none either: `_teardown` lets go of its list
+  of failures as it raises
+  (`RipTests.test_a_refused_rip_keeps_no_cycle`).
 - **The oracle** (`tests/oracle_topkit.py`): an independent model of
   the laws driven by a random walk; `tests/test_oracle.py` runs a short
   walk under the suite. Run it at size with `--seeds 50 --steps 1200

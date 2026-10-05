@@ -42,7 +42,9 @@ that fails at deletion keeps the Agent in the safehouse, `Tag[...]`
 membership, and let the Agent go. Some steps look at the safehouse, Rip
 what it keeps, or let it go with triage, `del Tag[...]` (amendment F);
 a kit from before reads `...` as an Agent and refuses both. So such
-steps, and what follows them, read differently against one.
+steps, and what follows them, read differently against one. One
+teardown fails only while its Agent is not ok, so a step may repair
+what the safehouse keeps and Rip it, and the Agent goes.
 
 Every step writes what it observed: a value, or an exception's type,
 message, cause and notes. A step that changes a Target is often followed by a
@@ -328,12 +330,18 @@ def Triage_Of(
 
 def Rip_Kept(
         tag,
+        repair=False,
         ):
-    """An explicit Rip of each Agent the safehouse keeps for this Tag."""
+    """An explicit Rip of each Agent the safehouse keeps for this Tag;
+    with ``repair``, each is made ok first, which mends a teardown that
+    fails only while its Agent is not ok."""
 
     outcomes = []
 
     for kept in list(tag[...]):
+        if repair:
+            kept.ok = True
+
         try:
             del tag[kept]
             outcomes.append("ripped")
@@ -341,6 +349,16 @@ def Rip_Kept(
             outcomes.append(type(error).__name__ + ": " + str(error))
 
     return outcomes
+
+
+def Kept_In(
+        tag,
+        other,
+        ):
+    """Whether each Agent the safehouse keeps for one Tag is kept for
+    another: `in` asked of a safehouse with an Agent it may hold."""
+
+    return [kept in other[...] for kept in list(tag[...])]
 
 
 def Tag_All(
@@ -698,6 +716,13 @@ AGENT_MEMBERS = (
             @Rip
             def Leave(agent):
                 raise RuntimeError("{tag} will not let go")
+            """),
+        Member("rip", "Leave", 1, """
+            @Rip
+            def Leave(agent, *, log=LOG):
+                if not agent.ok:
+                    raise RuntimeError("{tag} holds on while " + agent.name + " is not ok")
+                log.Event("{tag}.Leave " + agent.name + " lets go")
             """),
         Member("rip", "Leave", 1, """
             @Rip
@@ -1708,18 +1733,26 @@ def Safehousing(
         step: str,
         ) -> list[str]:
     """The safehouse, where a deletion whose teardown failed keeps the
-    Agent: its population from a Tag or from the root, an explicit Rip
-    of what it keeps, and triage (STEP-SPEC-18, amendments E and F)."""
+    Agent: its population from a Tag or from the root (walked, counted,
+    asked with `in` and for truth, combined), an explicit Rip of what it
+    keeps, repaired first or not, and triage (STEP-SPEC-18, amendments E
+    and F)."""
 
     tag = plan.randomizer.choice([tag.name for tag in plan.tags] + ["Tag"])
     other = Any_Tag(plan).name
+    agent = Any_Agent(plan)
     expression, label = plan.randomizer.choice(
             (
                 (f"list({tag}[...])", None),
                 (f"len({tag}[...])", None),
+                (f"bool({tag}[...])", None),
+                (f"{agent} in {tag}[...]", None),
+                (f"Kept_In({tag}, {other})", f"[kept in {other}[...] for kept in {tag}[...]]"),
                 (f"list({tag}[...] | {other}[...])", None),
                 (f"list({tag}[...] & {other})", None),
+                (f"list({tag}[...] - {other})", None),
                 (f"Rip_Kept({tag})", None),
+                (f"Rip_Kept({tag}, repair=True)", None),
                 (f"Triage_Of({tag})", f"del {tag}[...]"),
                 )
             )

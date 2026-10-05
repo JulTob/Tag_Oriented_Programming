@@ -2614,6 +2614,42 @@ class RipTests(unittest.TestCase):
         finally:
             gc.enable()
 
+    def test_a_refused_rip_gives_back_the_dictionary_not_a_slot(self) -> None:
+        """The rollback gives back the attributes in the Agent's
+        ``__dict__``, as a failed tagging's does: a slot a teardown
+        changed stays changed."""
+
+        class Slotted_Host:
+            __slots__ = ("hp", "__dict__", "__weakref__")
+
+            def __init__(self) -> None:
+                self.hp = 10
+                self.mood = "calm"
+
+        hurting = [True]
+
+        class Hurt(Tag):
+            @Rip
+            def Off(agent) -> None:
+                agent.hp = 0
+                agent.mood = "hurt"
+
+                if hurting:
+                    raise ValueError("it hurts")
+
+        host = Slotted_Host()
+        Hurt(host)
+
+        with self.assertRaises(TagCompositionError):
+            del Hurt[host]
+
+        self.assertIn(host, Hurt)
+        self.assertEqual(host.mood, "calm")                            # in __dict__: given back
+        self.assertEqual(host.hp, 0)                                   # a slot: not
+
+        hurting.clear()
+        del Hurt[host]                                                 # repaired: nothing left to keep
+
     def test_ripping_a_required_base_is_refused(self) -> None:
         ari = Agent()
 
@@ -2896,6 +2932,44 @@ class ExitProtocolTests(unittest.TestCase):
         tracemalloc.stop()
 
         self.assertLess((after - before) / 2000, 16)   # nothing kept per dead registration
+
+    def test_a_failure_in_the_exit_pass_leaves_no_cycle_behind(self) -> None:
+        """The pass drops each failure once reported: an Agent repaired
+        after the pass and let go dies with its last reference."""
+
+        program = """
+import atexit, gc, weakref
+
+def After():                       # registered before TopKit: runs after the At_Exit pass
+    global door
+    gc.disable()
+    stuck.clear()                  # repaired
+    reference = weakref.ref(door)
+    del door
+    print("freed at once", reference() is None, flush=True)
+
+atexit.register(After)
+stuck = [True]
+
+from TopKit import Tag, Rip, At_Exit
+
+class Door:
+    def __del__(self):
+        print("door freed", flush=True)
+
+class Stubborn(Tag):
+    @Rip
+    def Hold(agent):
+        if stuck:
+            raise RuntimeError("will not let go")
+
+door = Door(); Stubborn(door); At_Exit(door)
+"""
+        lines, stderr = Run_Program(program)
+
+        self.assertEqual(lines, ["door freed", "freed at once True"])   # by its count: no cycle held it
+        self.assertIn("Exception ignored in teardown Hold of Stubborn, in the At_Exit pass of Door", stderr)
+        self.assertEqual(stderr.count("Exception ignored"), 1)
 
 
 # ==================================================================
@@ -4982,7 +5056,8 @@ class LayeredDeletionTests(unittest.TestCase):
     __del__ replaces the Layers beneath or, with @Underlay, extends them.
     Amended 2026-09-29: the Agent's Actions answer a teardown and a Layer
     in a collected cycle, and a Layer at program end; a failed teardown
-    is reported after the Layers."""
+    is reported once every teardown ran, and since amendment E it keeps
+    the Agent in the safehouse, so no Layer runs."""
 
     def setUp(self) -> None:
         self.log: list[str] = []
@@ -5341,6 +5416,32 @@ print("end", "Deprecated" in Archmage)
         self.assertEqual([type(error) for _, error in caught], [ValueError, KeyboardInterrupt])
         self.assertEqual(caught[0][0], "Exception ignored in __del__, deleting Door")   # the Layer's own
         self.assertEqual(str(caught[0][1]), "cracked")                                   # error, reported
+
+    def test_an_interruption_is_reported_even_when_a_layer_exits(self) -> None:
+        import sys
+
+        caught: list[BaseException] = []
+
+        class Impatient(Tag):
+            @Rip
+            def Leave(agent) -> None:
+                raise KeyboardInterrupt
+
+        class Exiting(Tag):
+            def __del__(agent) -> None:
+                raise SystemExit("the layer exits")
+
+        hook = sys.unraisablehook
+        sys.unraisablehook = lambda raised: caught.append((raised.err_msg, raised.exc_value))
+
+        try:
+            self.delete(Impatient, Exiting)
+        finally:
+            sys.unraisablehook = hook
+
+        self.assertEqual([type(error) for _, error in caught], [SystemExit, KeyboardInterrupt])
+        self.assertEqual(caught[0][0], "Exception ignored in __del__, deleting Door")   # not an Exception,
+        self.assertEqual(str(caught[0][1]), "the layer exits")                           # reported all the same
 
     def test_a_proxy_host_is_finalized_as_python_finalizes_it(self) -> None:
         log = self.log
@@ -6987,6 +7088,98 @@ class SafehouseTests(unittest.TestCase):
         self.assertEqual([kept for kept in gc.get_objects() if isinstance(kept, self.Door)], [])   # the heap agrees
         self.assertEqual(self.reports, [])
 
+    def test_a_refused_rip_gives_back_the_keeping_a_teardown_ended(self) -> None:
+        """A teardown Rips another Tag that keeps the Agent, then fails:
+        the Rip is refused, and both Tags keep the Agent again."""
+
+        Other, stuck = self.Other, self.stuck
+        mode = ["fail"]
+
+        class Sticky(Tag):
+            @Rip
+            def Hold(agent) -> None:
+                if mode == ["rip other"]:
+                    stuck.clear()                                        # Other's teardown goes through, once
+                    try:
+                        del Other[agent]
+                    finally:
+                        stuck.append(True)
+
+                if mode != ["let go"]:
+                    raise RuntimeError("sticky")
+
+        door = self.Door("d")
+        Sticky(door)
+        Other(door)
+        reference = weakref.ref(door)
+        del door
+
+        door = reference()
+
+        self.assertTrue(door in Sticky[...] and door in Other[...])
+        mode[:] = ["rip other"]
+
+        with self.assertRaises(TagCompositionError):
+            del Sticky[door]
+
+        self.assertIn(door, Other)
+        self.assertIn(door, Other[...])                                  # kept by Other again
+        self.assertIn(door, Sticky[...])
+        mode[:] = ["let go"]
+        del Sticky[door]
+
+        self.assertEqual(list(Tag[...]), [door])                         # Other's teardown never finished
+
+    def test_a_refused_rip_undoes_a_keeping_its_teardown_made(self) -> None:
+        """A teardown calls the finalizer by hand, which keeps the Agent,
+        then fails: the Rip is refused, and the keeping is undone with
+        the rest."""
+
+        Other = self.Other
+        mode = ["keep"]
+
+        class Sticky(Tag):
+            @Rip
+            def Hold(agent) -> None:
+                if mode:
+                    try:
+                        agent.__del__()                                  # Other's teardown fails: kept
+                    except TagCompositionError:
+                        pass
+
+                    raise RuntimeError("sticky")
+
+        door = self.Door("d")
+        Other(door)
+        Sticky(door)
+
+        with self.assertRaises(TagCompositionError):
+            del Sticky[door]
+
+        self.assertNotIn(door, Tag[...])                                 # as before the Rip
+        self.assertTrue(door in Sticky and door in Other)
+        self.assertEqual(self.log, [])                                   # no Layer ran
+        mode.clear()
+        self.stuck.clear()
+        del Sticky[door]
+        del Other[door]
+
+    def test_a_finalizer_called_twice_by_hand_keeps_the_agent_once(self) -> None:
+        door = self.Door("d")
+        self.Cached(door)
+
+        for _ in range(2):
+            try:
+                door.__del__()
+            except TagCompositionError:
+                pass
+
+        self.assertEqual(list(self.Cached[...]), [door])
+        self.stuck.clear()
+        del self.Cached[door]                                            # repaired: the Rip goes through
+
+        self.assertNotIn(door, Tag[...])
+
     def test_at_program_end_nothing_is_kept_and_the_failure_is_reported(self) -> None:
         program = """
 import atexit
@@ -7166,6 +7359,35 @@ class TriageTests(unittest.TestCase):
         self.assertTrue(isinstance(door, self.Hot) and isinstance(door, self.Guard))   # has been, as after any Rip
         self.assertEqual(self.log, [])
 
+    def test_an_agent_the_program_still_holds_answers_no_word_after_triage(self) -> None:
+        @Flag("Wolf")
+        class Cursed(Tag):
+            @Rip
+            def Lift(agent) -> None:
+                raise RuntimeError("the curse holds")
+
+        self.kept("held", Cursed)
+        door = list(Cursed[...])[0]
+
+        self.assertTrue("Wolf" in door and "Cursed" in door)             # kept: a member still
+
+        self.triage(Cursed)
+
+        self.assertNotIn("Wolf", door)                                   # as after any Rip
+        self.assertNotIn("Cursed", door)
+        self.assertNotIn(door, Cursed)
+
+    def test_the_warning_blames_the_line_that_triaged(self) -> None:
+        self.kept("first", self.Cached)
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            del self.Cached[...]
+
+        self.assertEqual(len(caught), 1)
+        self.assertEqual(caught[0].filename, __file__)
+        self.assertTrue(issubclass(TagTriageWarning, UserWarning))      # as the other named warnings
+
     def test_an_empty_safehouse_makes_triage_do_nothing(self) -> None:
         door = self.Door("free")
         self.Guard(door)
@@ -7174,15 +7396,20 @@ class TriageTests(unittest.TestCase):
         self.assertIn(door, self.Guard)
 
     def test_triage_is_done_before_a_warning_can_raise(self) -> None:
-        self.kept("first", self.Cached)
-        self.kept("second", self.Cached)
+        first = self.kept("first", self.Cached)
+        last = self.kept("second", self.Cached)
+        freed = None
 
         with warnings.catch_warnings():
             warnings.simplefilter("error")
 
-            with self.assertRaises(TagTriageWarning):
-                del Tag[...]
+            try:
+                del Tag[...]                                             # not assertRaises: it keeps the frames
+            except TagTriageWarning:
+                gc.collect()
+                freed = (first(), last())                                # while the warning is held
 
+        self.assertEqual(freed, (None, None))                            # its frames hold no Agent
         self.assertFalse(Tag[...])                                       # every Agent let go first
 
 

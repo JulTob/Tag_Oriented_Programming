@@ -1072,13 +1072,14 @@ the loop is the line, and a defective product is off the line.
 
 **Populations combine** (STEP-SPEC-13). `|` is either, `&` is both, `-`
 is the left without the right, on any population: a whole Field, the
-sound view, the defective view, or a combination. A Tag in an operator
-seat is its sound population, as it is in the loop; `Wizard[:] |
-Fighter[:]` is everyone who is either; the levels mix. The result is a
-lazy view that reads its Fields when walked, keeps application order
-within each side, answers `in`, `len`, truth and iteration, and has no
-complement (`~` on a union has no universe). A Tag with anything that is
-not a population keeps the language's own class union (`Wizard | None`).
+sound view, the defective view, the safehouse (§3.2), or a combination.
+A Tag in an operator seat is its sound population, as it is in the loop;
+`Wizard[:] | Fighter[:]` is everyone who is either; the levels mix. The
+result is a lazy view that reads its Fields when walked, keeps
+application order within each side, answers `in`, `len`, truth and
+iteration, and has no complement (`~` on a union has no universe). A Tag
+with anything that is not a population keeps the language's own class
+union (`Wizard | None`).
 
 ```python
 for c in Wizard | Fighter:            # sound in either, each once
@@ -1250,14 +1251,16 @@ its Tags (§3.2); a failed one is reported there as the language reports
 a finalizer's error. A `@Rip` Action with an `@Underlay` runs composed,
 like any Action.
 
-**A failed Rip blocks the expulsion** (STEP-SPEC-18, amendment D). When a
-teardown of an explicit Rip (`del Tag[agent]`, a Scope's exit) fails,
+**A failed Rip blocks the expulsion** (STEP-SPEC-18, amendment D). When
+a teardown of an explicit Rip (`del Tag[agent]`, a Scope's exit) fails,
 the Rip is refused and rolled back, as a failed tagging is (§0.6): the
 Agent is a member of the Tag again, in its place in the Field, with its
 Form, Overlay and views as before the Rip, and every change the Rip and
-its teardowns made to its TOP state and its attributes is undone, a Rip
-one of them made included. The Composition Failure names the Tag and the
-teardowns that failed, with the first one's own error as its cause.
+its teardowns made to its TOP state, its attributes and its keeping in
+the safehouse (§3.2) is undone, a Rip one of them made included. As for
+a failed tagging, the attributes given back are those in the instance's
+own dictionary, not a slot. The Composition Failure names the Tag and
+the teardowns that failed, with the first one's own error as its cause.
 Every teardown of the Tag is due again, so the Rip can be made again
 once the cause is repaired. The rollback gives the Agent back, not the
 world: a file a teardown already deleted stays deleted (Ring 4, raw side
