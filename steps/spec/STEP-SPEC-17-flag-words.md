@@ -219,5 +219,5 @@ now survives any rebuild; `RestoredNameTests` covers it.
 > subclass that does not hash is a Declaration Failure that names the
 > item (item 8). A word is kept as its plain text, so a `str` subclass
 > that hashes matches its own word exactly; one that does not hash could
-> not stand in a set of words, and is refused where 0.2.0a4 raised
-> `TypeError`.
+> not stand in a set of words, and is refused where 0.2.0a4 raised its
+> hash's own error.

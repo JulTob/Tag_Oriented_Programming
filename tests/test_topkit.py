@@ -3702,6 +3702,9 @@ class FlagWordTests(unittest.TestCase):
 
                 self.assertIn(named, str(caught.exception))   # the message names the item
 
+                self.assertIsNone(caught.exception.__cause__)     # the hash's own error is not chained
+                self.assertTrue(caught.exception.__suppress_context__)
+
         howler = Agent()
         Werewolf(howler)
 

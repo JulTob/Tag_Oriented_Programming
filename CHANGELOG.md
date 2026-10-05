@@ -79,8 +79,8 @@
   case-insensitive `str` subclass matches its own word exactly. 0.2.0a4
   kept the subclass, so a case-folding `Folded("Wolf")` answered
   `"wolf"` and missed `"Wolf"`. One that does not hash is refused by
-  name (`TagDeclarationError`), where 0.2.0a4 raised `TypeError` at
-  declaration.
+  name (`TagDeclarationError`), where 0.2.0a4 raised its hash's own
+  error at declaration (`TypeError` when it sets `__hash__` to `None`).
 - `ScopeTests` covers the Imprint failure at the door, a Base pulled in
   or named after its Shape, a Base whose Imprint fails under its Shape,
   the Rip refused for a required Base and the teardown that fails, each
