@@ -161,7 +161,7 @@
   is visible; the kit keeps it, as 0.2.0a3 and 0.2.0a4 did. Only the
   truthiness a host takes from its `__len__` gives way, and `len(agent)`
   stays the host's.
-- **A population is not a type** (STEP-SPEC-13, §2.5).
+- **Breaking: a population is not a type** (STEP-SPEC-13, §2.5).
   `isinstance(x, Wizard | Fighter)` is refused and the refusal names
   the rewrite, `isinstance(x, (Wizard, Fighter))`; a hint
   `Wizard | Fighter | None` or `None | (Wizard | Fighter)` is refused,
@@ -171,7 +171,8 @@
   union of Tags: `&`, `-` and `~` get none, since no tuple of Tags says
   what they mean. 0.2.0a4 raised Python's own `TypeError` for most of
   these and named no rewrite; it built a union for `typing.List[int]`
-  and for `int | str`. A union that begins with `None` or a class,
+  and a `ForwardRef`, and on Python 3.14 for `int | str`; those now
+  raise. A union that begins with `None` or a class,
   `None | Wizard | Fighter`, is still Python's class union: Python joins
   it left to right before a population forms. A plain hint
   `x: Wizard | Fighter` is not refused: it holds a population, as in
@@ -245,9 +246,11 @@
   membership read, about 140 ns.
 - Tag-ness in an operator seat is decided by the metaclass, never by an
   attribute named `_sound` (STEP-SPEC-13). A class with its own `_sound`
-  gives a class union, as in 0.2.0a4. A Tag that declares `_sound` now
-  iterates and combines; in 0.2.0a4 its loop raised `TypeError` and
-  `Wizard | Weird` was a class union.
+  gives a class union; in 0.2.0a4 it did when `_sound` was a value, and
+  `|` called it and raised when it was a method. A Tag that declares
+  `_sound` now iterates and combines; in 0.2.0a4 its loop raised
+  `TypeError`, and `Wizard | Weird` (where `Weird` declares `_sound`) was
+  a class union or raised.
 - A hint's refusal spells the other side as code: a `TypeVar`, a
   `ParamSpec` or a `NewType` by its name, `type(None)` as `None`, and a
   `ForwardRef` as its string inside `typing.Union[...]`.

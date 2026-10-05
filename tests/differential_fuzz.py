@@ -46,6 +46,14 @@ steps, and what follows them, read differently against one. One
 teardown fails only while its Agent is not ok, so a step may repair
 what the safehouse keeps and Rip it, and the Agent goes.
 
+A Tag answers `in` for its sound members, a population with a hint or
+a class is refused, and a Pin's population never combines with a Tag's
+(STEP-SPEC-19 and STEP-SPEC-13). Inside a check the Agent under check
+counts as sound: a promise that reads `agent in ~Other`, `bool(agent)`
+or a loop over `Other` answers so. A kit from before read these
+otherwise, so such steps, and what follows them, read differently
+against one.
+
 Every step writes what it observed: a value, or an exception's type,
 message, cause and notes. A step that changes a Target is often followed by a
 look at it: its Tags, soundness, contract, words, and the names it holds.
@@ -865,6 +873,21 @@ AGENT_MEMBERS = (
             @Post
             def Leveled(agent):
                 return agent not in {other} or agent.level > {k}
+            """),
+        Member("condition", "Unless_Other", 1, """
+            @Post
+            def Unless_Other(agent):
+                return agent in ~{other} or agent.ok
+            """),
+        Member("condition", "Truthy", 1, """
+            @Post
+            def Truthy(agent):
+                return bool(agent) or agent.level > {k}
+            """),
+        Member("condition", "Counted", 1, """
+            @Post
+            def Counted(agent):
+                return agent not in list({other}) or agent.level > {k}
             """),
         Member("imprint", "Enter", 2, """
             @Imprint

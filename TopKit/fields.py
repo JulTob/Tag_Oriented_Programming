@@ -204,8 +204,9 @@ def _spell_tags(
     a name; a Tag that is gone by a placeholder. Two Tags can still read
     alike (a Twin made with ``type("T2", (T2,), {})`` shares both names),
     so a refusal names a rewrite only when every Tag reads apart
-    (``_rewrite_names``); even then a renamed Tag may not answer to that
-    name in the program's own namespace."""
+    (``_rewrite_names``); even then a renamed Tag, or a Twin made under
+    another Tag's name, may not answer to that name in the program's own
+    namespace."""
 
     names = [
             "<a Tag that is gone>" if tag is None else tag.__name__

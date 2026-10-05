@@ -363,9 +363,11 @@ rollback target.
   `__ror__`, which refuses); `isinstance` refuses once it reaches the
   population. The rewrite names Tags by `__name__` (by `__qualname__`
   where two share one), which a renamed Tag may not answer to in the
-  program's own namespace; a Twin that shares both names with its Tag
-  gets no rewrite (`_rewrite_names`). `_spell_operand` spells the other
-  side as code: a `TypeVar`, `ParamSpec` or `NewType` by its name,
+  program's own namespace: a Twin made as `type("T0", (T2,), {})` is
+  spelled `T0` even where `T0` is another Tag of the program. A Twin
+  that shares both names with its Tag gets no rewrite
+  (`_rewrite_names`). `_spell_operand` spells the other side as code:
+  a `TypeVar`, `ParamSpec` or `NewType` by its name,
   `type(None)` as `None`, a `ForwardRef` as its string inside
   `typing.Union[...]`. `(Wizard | Fighter) | ForwardRef('X')` is refused
   on every version (3.14 moved `ForwardRef` to `annotationlib`). A union

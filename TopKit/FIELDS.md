@@ -240,8 +240,9 @@ Pins combine with Pins only (§5).
   and `~Wizard` mean something no tuple of Tags says, so their refusal
   says that `isinstance` or a hint takes Tags. The rewrite names the
   Tags by `__name__` (by `__qualname__` where two share one), so a Tag
-  you renamed may go by another name in your program; a Twin that
-  shares both names with its Tag gets no rewrite.
+  you renamed may go by another name in your program, and a Twin made
+  under another Tag's name, `type("T0", (T2,), {})`, is spelled `T0`;
+  a Twin that shares both names with its Tag gets no rewrite.
 - **Some hints are not refused where they are written.** A plain hint
   `x: Wizard | Fighter` holds a population, and so does a union built
   first that takes one in: `typing.Optional[Wizard | Fighter]`, any

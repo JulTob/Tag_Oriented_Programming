@@ -1883,7 +1883,7 @@ class SoundMembershipTests(unittest.TestCase):
         class Sworn(Tag):
             @Post
             def Has_Oath(agent):
-                if agent not in Sworn:                                # inside a promise: membership, as bool(agent) is True
+                if agent not in Sworn:                                # inside a promise: membership, as Contract.Holds(agent) is True
                     return True
                 return agent.oath is not None
 
@@ -4000,7 +4000,20 @@ class FieldAlgebraTests(unittest.TestCase):
 
         self.assertNotIn("a population", str(caught.exception))       # Python's own error
 
-        union = Wizard | None                                             # a Tag with a non-population: Python's own union
+        for text, build in (
+                ("&", lambda: Wizard & None),                             # only | writes a hint
+                ("&", lambda: None & Wizard),
+                ("-", lambda: Wizard[:] - int),
+                ("-", lambda: (Wizard | Fighter) - typing.Any),
+                ):
+            with self.subTest(operator=text):
+                with self.assertRaises(TypeError) as caught:
+                    build()
+
+                self.assertNotIn("a population", str(caught.exception))   # Python's own error
+                self.assertIn(f"for {text}:", str(caught.exception))
+
+        union = Wizard | None                                            # a Tag with a non-population: Python's own union
         self.assertTrue(isinstance(None, union))
         self.assertTrue(isinstance(self.ari, union))
         self.assertIsNotNone(typing.Optional[typing.Union[Wizard, Fighter]])   # the rewrite
@@ -7865,6 +7878,20 @@ class SafehouseTests(unittest.TestCase):
             Rare | self.Cached[...]
 
         self.assertIn("Rare holds Tags and Cached[...] holds objects", str(refused.exception))
+
+        @Pin
+        class Meta(Tag):
+            pass
+
+        @Meta
+        class Spell(Tag):
+            pass
+
+        with self.assertRaises(TypeError) as refused:
+            Rare[...] | self.Cached                                      # a Pin's safehouse holds Tags
+
+        self.assertIn("Rare[...] holds Tags and Cached holds objects", str(refused.exception))
+        self.assertEqual(list(Rare[...] | Meta), [Spell])                # Tags with Tags: they combine
 
     def test_the_other_keys_keep_their_meaning(self) -> None:
         door = self.Door()

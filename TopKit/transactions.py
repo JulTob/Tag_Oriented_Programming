@@ -269,8 +269,9 @@ def _inspect(
     Postcondition that reads ``agent in Tag`` or ``Contract.Holds(agent)``
     on the Agent under check reads membership and True, never the
     contract it is part of; ``bool(agent)`` reads True too, unless the
-    host or a Tag gives the Agent its own ``__bool__``. The flag is restored, not cleared: a check that tags its
-    own Agent keeps the guard for the rest of that check.
+    host or a Tag gives the Agent its own ``__bool__``. The flag is
+    restored, not cleared: a check that tags its own Agent keeps the
+    guard for the rest of that check.
     """
 
     state = _state_of(agent)

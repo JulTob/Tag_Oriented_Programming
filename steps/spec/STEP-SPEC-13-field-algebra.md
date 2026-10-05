@@ -107,8 +107,10 @@ it, and `|` between it and `None` or a class, and with a union or a
 the message: `isinstance(x, (Wizard, Fighter))`, and for a hint `x:
 Wizard | Fighter | None`, `typing.Optional[typing.Union[Wizard,
 Fighter]]`. 0.2.0a4 refused most of these with Python's own
-`TypeError` and named no rewrite. `Rare | Wizard`, a Pin with a Tag,
-was a class union in 0.2.0a3 and a population of Tags and objects
+`TypeError` and named no rewrite; it built a union for
+`typing.List[int]` and a `ForwardRef` on the right, and on Python 3.14
+for `int | str`, and those now raise. `Rare | Wizard`, a Pin with a
+Tag, was a class union in 0.2.0a3 and a population of Tags and objects
 together in 0.2.0a4; it is now refused, naming both sides. A plain
 hint `x: Wizard | Fighter` is not refused: it holds a population, and
 code that reads it as a type (`typing.get_type_hints` and then

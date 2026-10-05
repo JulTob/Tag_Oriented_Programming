@@ -160,7 +160,7 @@ class MetaTag(type):
                 state is not None
                 and tag in state.active
                 and (
-                    state.checking                  # asked from inside a check
+                    state.checking                  # inside a check; a short cut, as _holds says True
                     or not state.postconditions     # nothing promised: every member is sound
                     or _holds(candidate)
                     )
