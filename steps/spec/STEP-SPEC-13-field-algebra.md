@@ -102,7 +102,7 @@ Two spellings change meaning. In 0.2.0a3 `Wizard | Fighter` was
 Python's class union, usable in `isinstance` and in annotations;
 since 0.2.0a4 it is a population, and 0.2.0a4 did not call that a
 breaking change. `isinstance(x, Wizard | Fighter)`, `issubclass` over
-it, and `|` between it and `None`, a class or a union, and with a
+it, and `|` between it and `None` or a class, and with a union or a
 `typing` form on its right, are refused with the one-line rewrite in
 the message: `isinstance(x, (Wizard, Fighter))`, and for a hint `x:
 Wizard | Fighter | None`, `typing.Optional[typing.Union[Wizard,
@@ -145,18 +145,18 @@ Covered by `tests/test_topkit.py::FieldAlgebraTests` and by the oracle
 operators against its model after every seventeenth transition. The
 refusals: a Pin's population with a Tag's in both orders, the three
 operators, on Tags, `[:]`, `~` and nested combinations, the message
-naming both sides, and a combination taking its kind from its other
-side when one side's Tag is gone, with no rewrite for it; `isinstance`,
-and `|` with `None`, a class, a union, `list[int]` or `typing.Any` in
-either order and with `typing.List[int]` or a `ForwardRef` on the
-right, naming the rewrite for a union of Tags (one Tag spelled alone,
-the other side spelled as code) and none for `&`, `-`, `~` or a Twin
-that shares both names with its Tag, and a hint in a signature where
-Python evaluates it; a plain hint, a union built first and a `typing`
-form on the left holding a population until `isinstance` reaches it; a
-union that begins with `None` or a class staying the class union; a class with its own `_sound` giving the class
-union, and a Tag declaring `_sound` still iterating. The fuzzer asks
-the refusals too.
+naming both sides, and a combination taking its kind from its other side
+when one side's Tag is gone, with no rewrite for it; `isinstance`, and
+`|` with `None`, a class, `list[int]` or `typing.Any` in either order
+and with a union, `typing.List[int]` or a `ForwardRef` on the right,
+naming the rewrite for a union of Tags (one Tag spelled alone, the other
+side spelled as code) and none for `&`, `-`, `~` or a Twin that shares
+both names with its Tag, and a hint in a signature where Python
+evaluates it; a plain hint, a union built first and a `typing` form on
+the left holding a population until `isinstance` reaches it; a union
+that begins with `None` or a class staying the class union; a class with
+its own `_sound` giving the class union, and a Tag declaring `_sound`
+still iterating. The fuzzer asks the refusals too.
 
 ---
 
