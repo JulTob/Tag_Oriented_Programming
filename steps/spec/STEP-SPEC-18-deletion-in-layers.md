@@ -522,8 +522,8 @@ it. A review of the three amendments found that a refused Rip did not
 give back the keeping that a Rip inside its teardown had ended, so the
 Agent could then be freed with a teardown that never finished, without
 triage; what a failed teardown gives back now records the Tags that
-keep the Agent, and `SafehouseTests` pins it, with a keeping a
-teardown made undone too. It also found five protections no test
+keep the Agent and its place in the safehouse, and `SafehouseTests`
+pins it, with a keeping a teardown made undone too. It also found five protections no test
 pinned: the `At_Exit` pass dropping its failures (a cycle until the
 next collection), triage ending the Agent's words, the warning's line
 and its class, an Agent kept once when its finalizer is called twice by

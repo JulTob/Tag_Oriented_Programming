@@ -7089,11 +7089,12 @@ class SafehouseTests(unittest.TestCase):
         self.assertEqual(self.reports, [])
 
     def test_a_refused_rip_gives_back_the_keeping_a_teardown_ended(self) -> None:
-        """A teardown Rips another Tag that keeps the Agent, then fails:
-        the Rip is refused, and both Tags keep the Agent again."""
+        """A teardown Rips the Tag that keeps the Agent, which lets it out
+        of the safehouse, then fails: the Rip is refused, and the Agent is
+        kept again, by that Tag, in its place."""
 
         Other, stuck = self.Other, self.stuck
-        mode = ["fail"]
+        mode = ["let go"]
 
         class Sticky(Tag):
             @Rip
@@ -7111,24 +7112,62 @@ class SafehouseTests(unittest.TestCase):
         door = self.Door("d")
         Sticky(door)
         Other(door)
+        later = self.Door("later")
+        self.Cached(later)
         reference = weakref.ref(door)
-        del door
+        del door, later                                                  # both kept, door first
 
         door = reference()
+        later = list(self.Cached[...])[0]
 
-        self.assertTrue(door in Sticky[...] and door in Other[...])
+        self.assertEqual(list(Tag[...]), [door, later])
+        self.assertNotIn(door, Sticky[...])                              # its teardown went through
         mode[:] = ["rip other"]
 
         with self.assertRaises(TagCompositionError):
             del Sticky[door]
 
-        self.assertIn(door, Other)
+        self.assertTrue(door in Sticky and door in Other)
         self.assertIn(door, Other[...])                                  # kept by Other again
-        self.assertIn(door, Sticky[...])
+        self.assertEqual(list(Tag[...]), [door, later])                  # in its place
         mode[:] = ["let go"]
         del Sticky[door]
 
-        self.assertEqual(list(Tag[...]), [door])                         # Other's teardown never finished
+        self.assertEqual(list(Tag[...]), [door, later])                  # Other's teardown never finished
+
+    def test_a_refused_rip_gives_back_a_keeper_its_teardown_ripped(self) -> None:
+        """Kept by two Tags: a teardown of one Rips the other, then fails.
+        The Rip is refused, and both keep the Agent again."""
+
+        Other, stuck = self.Other, self.stuck
+        mode = ["fail"]
+
+        class Sticky(Tag):
+            @Rip
+            def Hold(agent) -> None:
+                if mode == ["rip other"]:
+                    stuck.clear()
+                    try:
+                        del Other[agent]
+                    finally:
+                        stuck.append(True)
+
+                raise RuntimeError("sticky")
+
+        door = self.Door("d")
+        Sticky(door)
+        Other(door)
+        reference = weakref.ref(door)
+        del door
+
+        door = reference()
+        mode[:] = ["rip other"]
+
+        with self.assertRaises(TagCompositionError):
+            del Sticky[door]
+
+        self.assertTrue(door in Sticky[...] and door in Other[...])       # both keep it again
+        self.assertIn(door, Other)
 
     def test_a_refused_rip_undoes_a_keeping_its_teardown_made(self) -> None:
         """A teardown calls the finalizer by hand, which keeps the Agent,

@@ -195,16 +195,17 @@ rollback target.
   `state.py`), then puts the Agent back in each Field in its place:
   every `_Member` carries its `order`, the count of members the Field
   had when it joined, and `_Field.Rejoin` puts the old `_Member` back
-  before the ones that joined after it. It puts the keeping back too: a
-  Rip a teardown made may have released the Agent from a Tag's keeping,
-  and a finalizer a teardown called by hand may have kept it. Like a
-  failed tagging's, the copy is of the Agent's `__dict__`: a slot a
-  teardown set stays set. A Rip with no teardown due takes no copy:
-  nothing there can fail, so `del Tag[agent]` costs what it did. The
-  `At_Exit` pass takes the same copy before each Agent's teardowns and
-  gives it back when one fails. `_teardown` lets go of its list of
-  failures as it raises: each error's traceback holds its frame, so the
-  list would hold the Agent in a cycle until the next collection.
+  before the ones that joined after it. It puts the keeping back too, in
+  its place in the safehouse's order (`_keep_again`): a Rip a teardown
+  made may have released the Agent from a Tag's keeping, and a finalizer
+  a teardown called by hand may have kept it. Like a failed tagging's,
+  the copy is of the Agent's `__dict__`: a slot a teardown set stays
+  set. A Rip with no teardown due takes no copy: nothing there can fail,
+  so `del Tag[agent]` costs what it did. The `At_Exit` pass takes the
+  same copy before each Agent's teardowns and gives it back when one
+  fails. `_teardown` lets go of its list of failures as it raises: each
+  error's traceback holds its frame, so the list would hold the Agent in
+  a cycle until the next collection.
 - **The safehouse** (STEP-SPEC-18, amendments E and F). `_agent_del`
   takes the same copy before the deletion's teardowns, when one is due.
   When one fails, `lifecycle._kept_at_deletion` gives the copy back,

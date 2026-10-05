@@ -332,9 +332,10 @@ def Rip_Kept(
         tag,
         repair=False,
         ):
-    """An explicit Rip of each Agent the safehouse keeps for this Tag;
-    with ``repair``, each is made ok first, which mends a teardown that
-    fails only while its Agent is not ok."""
+    """An explicit Rip of each Agent the safehouse keeps for this Tag:
+    each Tag of the tree that keeps it is Ripped, Shapes first. With
+    ``repair``, each is made ok first, which mends a teardown that fails
+    only while its Agent is not ok."""
 
     outcomes = []
 
@@ -342,11 +343,15 @@ def Rip_Kept(
         if repair:
             kept.ok = True
 
-        try:
-            del tag[kept]
-            outcomes.append("ripped")
-        except Exception as error:
-            outcomes.append(type(error).__name__ + ": " + str(error))
+        for carried in reversed(Tags(kept)):
+            if issubclass(carried, tag) and kept in carried[...]:
+                try:
+                    del carried[kept]
+                    outcomes.append("ripped " + carried.__name__)
+                except Exception as error:
+                    outcomes.append(type(error).__name__ + ": " + str(error))
+
+        outcomes.append("still kept" if kept in Tag[...] else "let go")
 
     return outcomes
 
@@ -717,7 +722,7 @@ AGENT_MEMBERS = (
             def Leave(agent):
                 raise RuntimeError("{tag} will not let go")
             """),
-        Member("rip", "Leave", 1, """
+        Member("rip", "Leave", 2, """
             @Rip
             def Leave(agent, *, log=LOG):
                 if not agent.ok:
@@ -1753,6 +1758,7 @@ def Safehousing(
                 (f"list({tag}[...] - {other})", None),
                 (f"Rip_Kept({tag})", None),
                 (f"Rip_Kept({tag}, repair=True)", None),
+                ("Rip_Kept(Tag, repair=True)", None),
                 (f"Triage_Of({tag})", f"del {tag}[...]"),
                 )
             )
