@@ -1746,6 +1746,8 @@ def Fielding(
                 f"isinstance({agent}, {tag} | {other})",
                 f"({tag} | {other}) | None",
                 f"None | ({tag} | {other})",
+                f"None | {tag} | {other}",                       # a class union: Python joins it first
+                f"isinstance({agent}, None | {tag} | {other})",  # the has-been check of either
                 f"({tag} | {other}) | int",
                 f"issubclass(Host, {tag} | {other})",
                 f"isinstance({agent}, {tag}[:] | ~{other})",

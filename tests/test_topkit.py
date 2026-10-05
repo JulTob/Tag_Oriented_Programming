@@ -2025,6 +2025,49 @@ class SoundMembershipTests(unittest.TestCase):
         self.assertIn(dee, Nested[:])
         self.assertNotIn(dee, Keeper)                                 # outside again: the contract answers
 
+    def test_a_tagging_begun_inside_a_check_runs_its_gate_under_that_checks_guard(self) -> None:
+        seen = []
+
+        class Healthy(Tag):
+            @Post
+            def Fine(agent):
+                return agent.ok
+
+        class Case(Tag):
+            @Pre
+            def Is_A_Case(agent):
+                seen.append(agent in ~Healthy)
+                return agent in ~Healthy
+
+        class Sickbay(Tag):
+            @Post
+            def Admits(agent):
+                if agent not in Case[:]:
+                    try:
+                        Case(agent)
+                    except Precondition.Is_A_Case:
+                        seen.append("refused")
+                return True
+
+        outside = Agent()
+        outside.ok = True
+        Healthy(outside)
+        outside.ok = False
+
+        with self.assertRaises(Postcondition.Fine):
+            Case(outside)                                             # the gate runs outside the guard: a case
+
+        inside = Agent()
+        inside.ok = True
+        Healthy(inside)
+        Sickbay(inside)
+        inside.ok = False
+        seen.clear()
+        Contract.Status(inside)
+
+        self.assertEqual(seen, [False, "refused"])                    # under Status's guard: counted sound
+        self.assertNotIn(inside, Case[:])
+
     def test_an_imprint_reads_the_populations_as_outside_code_does(self) -> None:
         """An Imprint runs outside the guard: the promise it is about to
         keep is already visible, so the Agent is not `in` another Tag
@@ -3946,7 +3989,11 @@ class FieldAlgebraTests(unittest.TestCase):
         with self.assertRaises(TypeError) as caught:
             (Wizard | Fighter) | typing.ForwardRef("Knight")              # typing's on 3.12, annotationlib's on 3.14
 
-        self.assertIn("write typing.Union[Wizard, Fighter, ", str(caught.exception))
+        self.assertEqual(
+                str(caught.exception),
+                "(Wizard | Fighter) | typing.ForwardRef('Knight'): a population is not a type;"
+                " write typing.Union[Wizard, Fighter, 'Knight']",
+                )
 
         with self.assertRaises(TypeError) as caught:
             (Wizard | Fighter) | "Wizard"                                 # a string is no hint material for |
@@ -3957,6 +4004,50 @@ class FieldAlgebraTests(unittest.TestCase):
         self.assertTrue(isinstance(None, union))
         self.assertTrue(isinstance(self.ari, union))
         self.assertIsNotNone(typing.Optional[typing.Union[Wizard, Fighter]])   # the rewrite
+
+    def test_a_rewrite_spells_the_other_side_as_code(self) -> None:
+        Wizard, Fighter = self.Wizard, self.Fighter
+        T = typing.TypeVar("T")
+        P = typing.ParamSpec("P")
+        Number = typing.NewType("Number", int)
+
+        for other, spelled in (
+                (T, "T"),                                                  # not its repr, ~T
+                (P, "P"),
+                (Number, "Number"),                                        # not __main__.Number
+                (type(None), "None"),                                      # not NoneType
+                ):
+            with self.subTest(other=spelled):
+                with self.assertRaises(TypeError) as caught:
+                    (Wizard | Fighter) | other
+
+                self.assertEqual(
+                        str(caught.exception),
+                        f"(Wizard | Fighter) | {spelled}: a population is not a type;"
+                        f" write typing.Union[Wizard, Fighter, {spelled}]",
+                        )
+
+        self.assertIsNotNone(typing.Union[Wizard, Fighter, T, None, "Knight"])   # each rewrite is code
+
+    def test_a_typing_form_on_the_left_runs_its_own_union_first(self) -> None:
+        """The refusal needs the population's own ``|``. A ``typing``
+        form on the left builds its union first and takes the population
+        in, as ``typing.List[int]`` does; so does a union that begins
+        with ``None`` or a class before the population forms."""
+
+        Wizard, Fighter = self.Wizard, self.Fighter                       # cal is a defective Fighter
+
+        for build in (
+                lambda: typing.ForwardRef("Knight") | (Wizard | Fighter),
+                lambda: typing.Literal[1] | (Wizard | Fighter),
+                lambda: typing.TypeVar("T") | (Wizard | Fighter),
+                ):
+            with self.subTest(union=repr(build())):
+                self.assertIn("sound | sound Field", repr(build()))      # held, not refused
+
+        self.assertTrue(isinstance(self.cal, None | Wizard | Fighter))    # Python's class union: the has-been check
+        self.assertTrue(isinstance(self.cal, int | Wizard | Fighter))
+        self.assertNotIn(self.cal, Wizard | Fighter)                       # the population: the sound only
 
     def test_a_hint_in_a_signature_is_refused_where_python_evaluates_it(self) -> None:
         """Before 3.14 Python evaluates a signature's hints at definition
@@ -4203,6 +4294,16 @@ class FieldAlgebraTests(unittest.TestCase):
             self.Wizard - (gone | Rare)                               # the other order too
 
         self.assertEqual(list(gone | Rare), [])                       # with another Pin it still combines
+
+        with self.assertRaises(TypeError) as caught:
+            isinstance(self.ari, gone | Rare)
+
+        self.assertTrue(str(caught.exception).endswith("isinstance takes Tags"), caught.exception)   # no Tag to name
+
+        with self.assertRaises(TypeError) as caught:
+            (gone | Rare) | None
+
+        self.assertTrue(str(caught.exception).endswith("a hint takes Tags"), caught.exception)
 
 
 class ConditionMemberTests(unittest.TestCase):

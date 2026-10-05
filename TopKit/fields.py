@@ -24,6 +24,7 @@ from typing import Any
 from typing import Callable
 from typing import Iterator
 import types
+import typing
 import weakref
 
 from .declarations import _is_pin
@@ -305,7 +306,7 @@ def _hint_rewrite(
         return "a hint takes Tags"
 
     if other is not None:
-        return f"write typing.Union[{', '.join(names)}, {_spell_operand(other)}]"
+        return f"write typing.Union[{', '.join(names)}, {_spell_operand(other, inside_union=True)}]"
 
     if len(names) == 1:
         return f"write typing.Optional[{names[0]}]"
@@ -372,8 +373,13 @@ def _combine(
 
 def _spell_operand(
         value: Any,
+        inside_union: bool = False,
         ) -> str:
-    if value is None:
+    """The other side of a hint as a program writes it: by its name, or
+    as it spells itself; a ``ForwardRef`` as ``typing.ForwardRef('X')``,
+    or as the string ``'X'`` inside ``typing.Union[...]``."""
+
+    if value is None or value is type(None):
         return "None"
 
     if isinstance(value, type):
@@ -381,6 +387,15 @@ def _spell_operand(
             return f"typing.{value.__qualname__}"
 
         return value.__name__
+
+    if isinstance(value, (typing.TypeVar, typing.ParamSpec, typing.TypeVarTuple, typing.NewType)):
+        return value.__name__   # their repr, ~T or __main__.N, is not code
+
+    if isinstance(value, typing.ForwardRef):
+        if inside_union:
+            return repr(value.__forward_arg__)   # typing.Union takes the name as a string
+
+        return f"typing.ForwardRef({value.__forward_arg__!r})"
 
     return repr(value)   # a union or an alias spells itself: int | str, list[int]
 

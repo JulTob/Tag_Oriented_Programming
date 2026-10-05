@@ -141,9 +141,10 @@ class MetaTag(type):
         sees (STEP-SPEC-19); ``agent in Wizard[:]`` is membership. Inside
         a check the kit runs under its guard (a Postcondition, the quality
         check, a condition read by name, a ``Contract`` read) it answers
-        membership for the Agent under check, as ``bool(agent)`` answers
-        True there; a Precondition at the tagging's gate, an Imprint and a
-        ``@Rip`` protocol read the sound population as code outside does.
+        membership for the Agent under check, as ``Contract.Holds(agent)``
+        answers True there; a Precondition at the tagging's gate, an
+        Imprint and a ``@Rip`` protocol read the sound population as code
+        outside does, unless their tagging began inside a check.
         ``"Deprecated" in Wizard``: a keyword among the Tag's Flag Pins; a
         string is never a member."""
 
