@@ -532,9 +532,9 @@ Moonborn(moon)
 assert Keyword(moon, "Moonborn", "Wolf", "Lycan", "Lupus")
 ```
 
-A collection holds strings and nothing else: an empty one, a number in
-it or a list inside it is refused when the class is declared, and the
-error names the item.
+A collection holds non-empty strings and nothing else: an empty one, or
+an empty string, a number or a list inside one, is refused when the
+class is declared, and the error names the item.
 
 A word is a public name, not a membership: if there is also a `Beast`
 Tag, `"Beast" in howler` is `True` while `howler in Beast` is `False`.
@@ -702,7 +702,10 @@ Shape; whether it should is still a question for the Director
 (STEP-SPEC-6). That holds when the Base's Imprint fails at the door as
 well: the Shape never lands, and the Base stays after the Scope raises.
 A Sentry whose `post` fails at the door is Ripped as the error leaves
-the `with`, and the block does not run: the Scope applied it.
+the `with`, and the block does not run: the Scope applied it. A Sentry
+the block Rips itself is not Ripped again, and one the block then
+applies again, itself or through a Shape of Sentry, is the block's: the
+Scope leaves it.
 
 A Rip that fails is refused and rolled back: a failed Rip blocks the
 expulsion. The `@Rip` protocol runs once the Agent has left, as always;
@@ -756,14 +759,15 @@ class Veteran(Sentry):
 
 
 recruit = Character("Recruit")
+reported = False
 
 try:
     with Scope(recruit, Sentry):
         Veteran(recruit)                # a Shape that still requires Sentry
 except TagCompositionError:
-    pass
+    reported = True
 
-assert recruit in Sentry                # the Rip was refused, and said so
+assert reported and recruit in Sentry   # the Rip was refused, and said so
 ```
 
 A role's conditions do **not** leave with it on their own. What the

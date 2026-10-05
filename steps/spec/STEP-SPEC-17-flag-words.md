@@ -136,12 +136,18 @@ writes each variant the rules may use.
 Bare `@Flag` on a Tag nobody carries means what it meant. `Flag("Wolf")`
 was a Declaration Failure before and is a decorator now. `Flag(["Wolf"])`
 was a Declaration Failure in 0.2.0a4 and is a decorator now too. A
-`str` subclass that does not hash raised `TypeError` in 0.2.0a4 and is
-a Declaration Failure now.
+`str` subclass that does not hash raised its hash's own error in
+0.2.0a4 (`TypeError` when it sets `__hash__` to `None`) and is a
+Declaration Failure now.
 
-One program breaks. A Flag marked on a Tag that already had members was
+Two programs break. A Flag marked on a Tag that already had members was
 accepted and left a half state: `Keyword` answered the new word and the
 Agent's `in` did not. It is now refused (item 11), bare or with words.
+A word given as a `str` subclass that hashes was kept as itself in
+0.2.0a4, so the subclass's own `__eq__` and `__hash__` decided the match:
+a case-folding `Folded("Wolf")` answered `"wolf" in agent` and missed
+`"Wolf"`. It is kept as its plain text now, and answers `"Wolf"` alone
+(item 8).
 
 ## Alternatives considered
 
@@ -154,7 +160,7 @@ Agent's `in` did not. It is now refused (item 11), bare or with words.
 | A spelling that drops the Tag's name | Rejected by the Director: "The tag name always flags. It makes no sense to use Flag otherwise" |
 | Shapes inherit their Base's words | Unnecessary: the Base is active and answers them; inheriting would also make every Shape of a Flag a Flag, which STEP-SPEC-7 does not do |
 | Accept a late mark (item 11) and rebuild every carrier's type, so `in` answers the new words | Set aside for this draft: a Flag is what the Tag is called, fixed when it is declared; open for the Director |
-| Refuse a list or a set of words, and let `@Flag(*words)` spread one | Rejected by the Director on 2026-10-02: "The flags as text or a list of texts makes sense" |
+| Refuse a list or a set of words, and let `@Flag(*words)` spread one | Rejected by the Director on 2026-10-02: "The flags as text or a list of texts makes sense"; "makes sense for it to work with sets and lists both" |
 
 ## Acceptance requirements
 
@@ -202,7 +208,9 @@ now survives any rebuild; `RestoredNameTests` covers it.
 > below; the lone-class form stays open.
 >
 > *Added 2026-10-02, drafted for the Director's confirmation:* the
-> Director: "The flags as text or a list of texts makes sense". So
+> Director: "The flags as text or a list of texts makes sense", and,
+> on `@Flag({"Lycan", "Lupus"})`: "Yeah, makes sense for it to work with
+> sets and lists both." So
 > `@Flag` also takes a list, tuple, set or frozenset of strings, alone or
 > beside single words, as in `@Flag(["Wolf", "Beast"])` and
 > `@Flag({"Lycan", "Lupus"})`. The words are flattened, each kept as its
@@ -211,5 +219,5 @@ now survives any rebuild; `RestoredNameTests` covers it.
 > subclass that does not hash is a Declaration Failure that names the
 > item (item 8). A word is kept as its plain text, so a `str` subclass
 > that hashes matches its own word exactly; one that does not hash could
-> not stand in a set of words, and is refused where 0.2.0a4 raised
-> `TypeError`.
+> not stand in a set of words, and is refused where 0.2.0a4 raised its
+> hash's own error.

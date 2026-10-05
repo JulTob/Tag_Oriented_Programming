@@ -675,10 +675,14 @@ def Exercise_Scope(
     Tag the Scope applied refuses that Rip, the Tag stays, and the Scope
     reports the refusal once every Rip is done, raising it when the
     block ended cleanly and noting it on the block's exception when it
-    did not."""
+    did not. Sometimes the block Rips one of the Scope's Tags first, and
+    often applies it again, or a Shape of it: the Scope's application
+    has ended, and one the block makes is the block's, so the Scope
+    leaves it."""
 
     scoped = tuple(randomizer.choice(family) for _ in range(1 + randomizer.randrange(3)))
     arriving = randomizer.choice(family) if randomizer.random() < 0.3 else None
+    ripping = randomizer.random() < 0.25
 
     if slip:
         scoped = (*scoped[:1], Slipping, *scoped[1:])
@@ -722,6 +726,16 @@ def Exercise_Scope(
             assert not defective, (context, "a defective tagging let the Scope body run")
             assert not slipped, (context, "a failed Imprint let the Scope body run")
             Assert_Target(target, inside, family, context + " inside")
+
+            if ripping and joined_by_scope:
+                own = randomizer.choice(joined_by_scope)
+                Rip_It(target, own, inside, context + " inside")      # refused while a Shape requires it
+
+                if own not in inside.active:
+                    joined_by_scope.remove(own)                       # the Scope's application has ended
+
+                    if randomizer.random() < 0.6:
+                        arriving = randomizer.choice([other for other in family if issubclass(other, own)])   # again, or through a Shape
 
             if arriving is not None:
                 Tag_It(target, arriving, inside, context + " inside")   # the block brings a Tag of its own

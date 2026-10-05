@@ -542,7 +542,9 @@ def Scope(
     the door through its Base's Imprint, the Shape never lands, and the
     Base it pulled in stays after the Scope raises. Whether the Scope
     should Rip such a Base is open in STEP-SPEC-6. A Tag the block
-    itself Ripped is not Ripped again.
+    itself Ripped is not Ripped again; one the block applies again,
+    itself or through a Shape that pulls it in as a Base, is the
+    block's, and stays.
 
     On the way out, a Rip the Scope cannot make is reported as a Rip
     reports it, once every Rip is done, and leaves its Tag: a Rip refused
@@ -554,7 +556,7 @@ def Scope(
     a note (STEP-SPEC-6, drafted for the Director's confirmation).
     """
 
-    applied: list[type] = []
+    applied: list[tuple[type, object]] = []   # each Tag with the application the Scope made
     leaving: BaseException | None = None
 
     try:
@@ -569,11 +571,11 @@ def Scope(
                         )
             except BaseException:
                 if _carries(agent, tag):
-                    applied.append(tag)     # applied, then failed at the door: still the Scope's to Rip
+                    applied.append((tag, _application(agent, tag)))   # applied, then failed at the door: still the Scope's to Rip
 
                 raise
 
-            applied.append(tag)
+            applied.append((tag, _application(agent, tag)))
 
         yield agent
     except BaseException as error:
@@ -597,16 +599,18 @@ def Scope(
 
 def _rip_all(
         agent: object,
-        applied: list[type],
+        applied: list[tuple[type, object]],
         ) -> list[TagError]:
     """Rip what a Scope applied, in reverse, each one tried whatever the
     others do; return the Rips that failed, as a Rip reports them."""
 
     refused: list[TagError] = []
 
-    for tag in reversed(applied):
-        if not _carries(agent, tag):
-            continue                        # the block Ripped it: nothing left to take away
+    for tag, application in reversed(applied):
+        current = _application(agent, tag)
+
+        if current is None or current is not application:
+            continue                        # the block Ripped it: left off, or applied again and so the block's
 
         try:
             _rip(
@@ -654,6 +658,23 @@ def _carries(
     state = _state_of(agent)
 
     return state is not None and tag in state.active
+
+
+def _application(
+        agent: object,
+        tag: type,
+        ) -> object:
+    """Which application of the Tag the Agent carries now, sound or
+    defective: the view captured right after it applied. A Tag Ripped and
+    applied again is a new application. None when the Agent does not
+    carry it."""
+
+    state = _state_of(agent)
+
+    if state is None or tag not in state.active:
+        return None
+
+    return state.snapshots.get(tag)
 
 
 _exit_registry: dict[int, _Member] = {}   # by registration number; an entry leaves when its Agent dies

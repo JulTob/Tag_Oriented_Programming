@@ -388,12 +388,12 @@ def _flag_words(
 
             try:
                 hash(item)
-            except TypeError:
+            except Exception:
                 raise TagDeclarationError(
                         "@Flag takes the words it also answers to as"
                         f" strings that hash; got {item!r}"
                         + (f" in {within!r}" if within is not None else "")
-                        + f"; a {type(item).__name__} does not hash"
+                        + f"; its type, {type(item).__name__}, does not hash"
                         ) from None
 
             texts[text] = None

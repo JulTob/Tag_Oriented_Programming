@@ -274,6 +274,12 @@ def Run() -> None:
     class Skinwalker(Tag): pass
     walker = Character("Walker"); Skinwalker(walker)
     assert "Beast" in walker and walker not in Beast and Beast not in walker   # a word, not membership
+    @Flag(["Wolf", "Lycanthrope"])
+    class Lycan(Tag): pass
+    @Flag("Wolf", {"Lycanthrope"})
+    class Warg(Tag): pass
+    moon = Character("Moon"); Lycan(moon); Warg(moon)
+    assert Keyword(moon, "Lycan", "Warg", "Wolf", "Lycanthrope")   # a list or a set says what the words say
 
     # 1.9 Pins
     @Pin

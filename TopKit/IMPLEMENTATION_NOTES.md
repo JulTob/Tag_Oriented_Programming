@@ -122,7 +122,8 @@ rollback target.
   `_flag_words` flattens the arguments: a string is a word (a `str`
   subclass too, never a collection), a list, tuple, set or frozenset
   gives its strings, one level deep. A word that does not hash, a `str`
-  subclass with `__hash__ = None`, is refused by name: a word must be
+  subclass with `__hash__ = None` or whose `__hash__` raises, is refused
+  by name: a word must be
   able to stand in a set of words. `Flag`
   refuses a Tag whose Field has a live member (`TagDeclarationError`,
   with the count; a Shape's members are in its Base's Field too), so a
@@ -327,14 +328,20 @@ rollback target.
   `_refuse_conditions_shadowed_by_the_agent` in `_apply_one` for a value
   the Agent's own namespace already holds.
 - **Scope** (§3.2) skips a Tag the Agent already carries when its turn
-  comes, so a Base named after its Shape is skipped too. When a
+  comes, so a Base named after its Shape is skipped too. It asks
+  `_carries`, which reads the Agent's state: `agent in Tag` would read
+  a `str` Agent as a word. When a
   tagging raises, it asks whether the Tag is now active (a Postcondition
   or an Imprint failed after commit) and, if so, records it as applied,
   so the teardown Rips what the Scope applied. A Base pulled in with a
   Shape is not recorded (whether it should be is open in STEP-SPEC-6),
-  nor is one whose Imprint failed under its Shape. On the way out,
-  `_rip_all` skips a Tag the Agent no longer carries (the block Ripped
-  it) and collects each `TagError` a Rip raises: a Rip refused for a
+  nor is one whose Imprint failed under its Shape. Each Tag is recorded
+  with its application: the `_Snapshot` the tagging captured right after
+  it applied, which a Rip drops and a new tagging replaces. On the way
+  out, `_rip_all` skips a Tag whose application is no longer the one the
+  Agent carries: the block Ripped it, and left it off or applied it
+  again, itself or through a Shape, so it is the block's. It collects
+  each `TagError` a Rip raises: a Rip refused for a
   required Base leaves the Tag, and a failed teardown has already ended
   the membership. `_report` then raises the first, with the others as
   `add_note` notes, or, when an exception is leaving the block, adds

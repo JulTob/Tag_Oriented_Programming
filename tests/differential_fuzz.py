@@ -29,9 +29,12 @@ alone covers both.
 A Scope reports a Rip it cannot make, refused or with a teardown that
 fails (STEP-SPEC-6, drafted 2026-10-02): the Composition Failure leaves
 the `with`, or is a note on the block's own exception. A kit from before
-dropped it, so such a step reads differently against one. A Tag keeps
-its Report values under `_topkit_reports` in its own `__dict__`; the
-look at a Tag leaves that name out, so kits before and after compare.
+dropped it, so such a step reads differently against one. A Tag the
+block Rips and then applies again is the block's, and the Scope leaves
+it (STEP-SPEC-6, row 6); a kit from before Ripped it again, or dropped
+the refusal when the block's Shape required it. A Tag keeps its Report
+values under `_topkit_reports` in its own `__dict__`; the look at a Tag
+leaves that name out, so kits before and after compare.
 
 Every step writes what it observed: a value, or an exception's type,
 message, cause and notes. A step that changes a Target is often followed by a
@@ -1427,7 +1430,8 @@ def Scoping(
         ) -> list[str]:
     """A block with Tags for its duration; sometimes it fails, and
     sometimes it Rips one of the Scope's own Tags, which the Scope then
-    leaves alone."""
+    leaves alone, or applies one, which after such a Rip is the
+    block's."""
 
     randomizer = plan.randomizer
     agent = Any_Agent(plan)
@@ -1451,6 +1455,7 @@ def Scoping(
                     (Member_Read(plan, agent), None),
                     (f"{Any_Tag(plan).name}({agent})", None),
                     (f"Rip_Of({own}, {agent})", f"del {own}[{agent}]"),
+                    (f"{own}({agent})", None),
                     )
                 )
         lines.append("        " + Do_Line(step, expression, f"inside: {label or expression}"))
