@@ -60,16 +60,22 @@ accepted by the Director on 2026-09-21: "Bring it back, both levels."
    `typing.Optional[typing.Union[Wizard, Fighter]]`. The rewrite is
    named for a union of Tags (`|` only, no `~`); for `&`, `-` or `~` no
    tuple of Tags means the population, and the refusal says that
-   `isinstance` or a hint takes Tags. Before Python 3.14 `x: Wizard |
-   Fighter | None` is evaluated at definition, so it fails there, unless
-   the module has `from __future__ import annotations`; 3.14, and that
-   import, defer it until the annotations are read. The Director,
-   2026-09-29: "Wizard | Fighter should mean a valid fighter OR a valid
-   Wizard, so it is present. A simple isinstance(wizard) or
-   isinstance(fighter) can satisfy the other cases, which are rare and
-   not good practice. Wizard[:] | Fighter[:] would mean broken wizards
-   or good wizards or broken fighters or good fighters, all active
-   agency, all members in the sets (broken or not)."
+   `isinstance` or a hint takes Tags. A union that begins with `None` or
+   a class, `None | Wizard | Fighter`, `int | Wizard | Fighter` or
+   `Wizard | (Fighter | None)`, never forms a population: Python joins
+   it left to right as a class union, so it is the has-been check of
+   either Tag. Write `typing.Optional[typing.Union[Wizard, Fighter]]`
+   for a hint, and `x in (Wizard | Fighter)` for the sound population.
+   Before Python 3.14 `x: Wizard | Fighter | None` is evaluated at
+   definition, so it fails there, unless the module has `from __future__
+   import annotations`; 3.14, and that import, defer it until the
+   annotations are read. The Director, 2026-09-29: "Wizard | Fighter
+   should mean a valid fighter OR a valid Wizard, so it is present. A
+   simple isinstance(wizard) or isinstance(fighter) can satisfy the
+   other cases, which are rare and not good practice. Wizard[:] |
+   Fighter[:] would mean broken wizards or good wizards or broken
+   fighters or good fighters, all active agency, all members in the sets
+   (broken or not)."
 6. Pins are Tags, so a Pin's populations combine the same way over Tags.
    Among themselves: a Pin's population holds Tags and a Tag's holds
    objects, and combining the two in `|`, `&` or `-`, in either order
@@ -92,26 +98,32 @@ different truth a moment later.
 
 ## Backwards compatibility
 
-One spelling changes meaning. In 0.2.0a3 `Wizard | Fighter` was
-Python's class union, usable in `isinstance` and in annotations; now it
-is a population. `isinstance(x, Wizard | Fighter)`, `issubclass` over
-it, and `|` between it and `None`, a class, a union or a `typing` form
-are refused with the one-line rewrite in the message: `isinstance(x,
-(Wizard, Fighter))`, and for a hint `x: Wizard | Fighter | None`,
-`typing.Optional[typing.Union[Wizard, Fighter]]`. `Rare | Wizard`, a
-Pin with a Tag, was a class union in 0.2.0a3 as well; it is now refused,
-naming both sides. A plain hint `x:
-Wizard | Fighter` is not refused: it now holds a population, and code
-that reads it as a type (`typing.get_type_hints` and then
+Two spellings change meaning. In 0.2.0a3 `Wizard | Fighter` was
+Python's class union, usable in `isinstance` and in annotations;
+since 0.2.0a4 it is a population, and 0.2.0a4 did not call that a
+breaking change. `isinstance(x, Wizard | Fighter)`, `issubclass` over
+it, and `|` between it and `None`, a class or a union, and with a
+`typing` form on its right, are refused with the one-line rewrite in
+the message: `isinstance(x, (Wizard, Fighter))`, and for a hint `x:
+Wizard | Fighter | None`, `typing.Optional[typing.Union[Wizard,
+Fighter]]`. 0.2.0a4 refused most of these with Python's own
+`TypeError` and named no rewrite. `Rare | Wizard`, a Pin with a Tag,
+was a class union in 0.2.0a3 and a population of Tags and objects
+together in 0.2.0a4; it is now refused, naming both sides. A plain
+hint `x: Wizard | Fighter` is not refused: it holds a population, and
+code that reads it as a type (`typing.get_type_hints` and then
 `isinstance`, or a runtime validator) fails there; write
-`typing.Union[Wizard, Fighter]`. The same holds for a union built first
-that takes the population in: `typing.Optional[Wizard | Fighter]`, a
-`typing` form's own `|`, or on Python 3.14 `(int | str) | (Wizard |
-Fighter)`. `Wizard | None` is unchanged. `|`, `&` and `-` on Fields
-and views were errors before. Combining two different Tags, and `&`,
-are new: the archived 0.2-alpha line combined only views of one Field
-and had no `&`. `in` on a combined view follows STEP-SPEC-19: it
-answers from the sides, as a set does, and agrees with the loop.
+`typing.Union[Wizard, Fighter]`. The same holds for a union built
+first that takes the population in: `typing.Optional[Wizard |
+Fighter]`, a `typing` form's own `|` on the left, or on Python 3.14
+`(int | str) | (Wizard | Fighter)`. A union that begins with `None`
+or a class, `None | Wizard | Fighter`, is still the class union it
+was in 0.2.0a3 (item 5). `Wizard | None` is unchanged. `|`, `&` and
+`-` on Fields and views were errors before 0.2.0a4. Combining two
+different Tags, and `&`, are new: the archived 0.2-alpha line
+combined only views of one Field and had no `&`. `in` on a combined
+view follows STEP-SPEC-19: it answers from the sides, as a set does,
+and agrees with the loop.
 
 ## Alternatives considered
 
@@ -134,13 +146,15 @@ operators against its model after every seventeenth transition. The
 refusals: a Pin's population with a Tag's in both orders, the three
 operators, on Tags, `[:]`, `~` and nested combinations, the message
 naming both sides, and a combination taking its kind from its other
-side when one side's Tag is gone; `isinstance` and `|` with `None`, a
-class, a union, `list[int]`, a `typing` form or a `ForwardRef`, in
-either order, naming the rewrite for a union of Tags (one Tag spelled
-alone) and none for `&`, `-`, `~` or a Twin that shares both names with
-its Tag, and a hint in a signature where Python evaluates it; a
-plain hint and a union built first holding a population until
-`isinstance` reaches it; a class with its own `_sound` giving the class
+side when one side's Tag is gone, with no rewrite for it; `isinstance`,
+and `|` with `None`, a class, a union, `list[int]` or `typing.Any` in
+either order and with `typing.List[int]` or a `ForwardRef` on the
+right, naming the rewrite for a union of Tags (one Tag spelled alone,
+the other side spelled as code) and none for `&`, `-`, `~` or a Twin
+that shares both names with its Tag, and a hint in a signature where
+Python evaluates it; a plain hint, a union built first and a `typing`
+form on the left holding a population until `isinstance` reaches it; a
+union that begins with `None` or a class staying the class union; a class with its own `_sound` giving the class
 union, and a Tag declaring `_sound` still iterating. The fuzzer asks
 the refusals too.
 
@@ -161,6 +175,7 @@ the refusals too.
 > which are rare and not good practice. Wizard[:] | Fighter[:] would
 > mean broken wizards or good wizards or broken fighters or good
 > fighters, all active agency, all members in the sets (broken or not)."
-> And on mixing a Pin's population with a Tag's: "Refuse". `in` on
-> populations was made consistent with the loop by STEP-SPEC-19, shipped
-> with this STEP in 0.2.0a4.
+> And on mixing a Pin's population with a Tag's: "Refuse". The algebra
+> shipped in 0.2.0a4; the refusals, the Pin rule and Tag-ness by the
+> metaclass follow in the release after it, with STEP-SPEC-19, which
+> makes `in` on populations consistent with the loop.

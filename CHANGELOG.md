@@ -248,10 +248,14 @@
   gives a class union, as in 0.2.0a4. A Tag that declares `_sound` now
   iterates and combines; in 0.2.0a4 its loop raised `TypeError` and
   `Wizard | Weird` was a class union.
-- `SoundMembershipTests` and `FieldAlgebraTests` cover `in` on every population
-  and the refusals; the differential fuzzer asks `in` of combined
-  populations and of a Pin's other populations, and writes the refused
-  unions.
+- A hint's refusal spells the other side as code: a `TypeVar`, a
+  `ParamSpec` or a `NewType` by its name, `type(None)` as `None`, and a
+  `ForwardRef` as its string inside `typing.Union[...]`.
+- `SoundMembershipTests` and `FieldAlgebraTests` cover `in` on every
+  population and the refusals, and `SafehouseTests` the safehouse in the
+  algebra. The differential fuzzer asks `in` of combined populations and
+  of a Pin's other populations, and writes the refused unions and the
+  class unions that begin with `None`.
 
 ### Project
 

@@ -48,9 +48,10 @@ nobody disappears from a plain loop silently.
    stay; the Agent is defective while any visible Postcondition fails.
 5. `bool(agent)` is true exactly when every visible Postcondition holds.
    A host's own truthiness is kept until a Postcondition is visible.
-   *(Corrected 2026-09-30: a host's own `__len__` is kept until a
-   Postcondition is visible; a host's own `__bool__` is kept after, and
-   `bool(agent)` is then the host's answer. See the Amendment below.)*
+   *(Corrected 2026-09-30: truthiness a host takes from its `__len__` is
+   kept until a Postcondition is visible, and `len(agent)` stays the
+   host's; a host's own `__bool__` is kept after, and `bool(agent)` is
+   then the host's answer. See the Amendment below.)*
 6. Iterating the Tag gives the sound population and `len(Tag)` counts
    it; `~Tag` is the defective population; `Tag[:]` is the whole Field.
    *(Amended 2026-09-29 by STEP-SPEC-19.)* `agent in Tag[:]` stays true
@@ -116,9 +117,10 @@ is membership, sound or defective; `agent in ~Tag` the defective.
 Covered by `tests/test_topkit.py::SoundMembershipTests`.
 
 Item 5 is corrected, not ruled: its sentence "A host's own truthiness
-is kept until a Postcondition is visible" holds for a host's `__len__`
-and not for a host's own `__bool__`, which the kit keeps after a
-Postcondition is visible, in 0.2.0a3 as now. `bool(agent)` is then the
+is kept until a Postcondition is visible" holds for truthiness taken
+from a host's `__len__` (`len(agent)` stays the host's) and not for a
+host's own `__bool__`, which the kit keeps after a Postcondition is
+visible, in 0.2.0a3 and 0.2.0a4 as now. `bool(agent)` is then the
 host's answer, while `agent in Tag`, the loop and `~Tag` follow the
 contract. Whether the contract should take that seat too is left to the
 Director (STEP-SPEC-19's Decision).

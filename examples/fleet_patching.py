@@ -134,7 +134,7 @@ def pattern_catalog() -> None:
     Certified(Flyer)
     assert Flyer.certified_by == "aviation board"
     assert Courier.certified_by == "aviation board"     # inherited by the Shape
-    assert Courier not in Certified                     # membership does not inherit
+    assert Courier not in Certified[:]                  # membership does not inherit
 
     Retired(Courier)
     assert "Retired" in Courier                         # a string asks for a keyword

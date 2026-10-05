@@ -43,6 +43,9 @@ assert Wizard.Describe() == "Wizard is rare"
 assert not hasattr(ari, "rarity")        # never on the Agent (§1.4)
 ```
 
+*(The comment on `Wizard in Rare` amended 2026-09-29 by STEP-SPEC-19:
+`in` asks for a sound member; it read "active membership".)*
+
 ## Motivation
 
 Categories have categories. A game marks Tags as *Rare*, *Homebrew* or
@@ -104,8 +107,8 @@ Guide spells it `tag`, not `agent`, so the receiver reads right.
 A Record landed by a Pin is a Report of the pinned Tag: one value for the
 whole Field, held on the Tag, extended by a Shape through the `inherited`
 seat (§1.4), and inherited by the pinned Tag's Shapes the way every Report
-is. Membership does not inherit: `War_Caster in Rare` is False unless
-`Rare(War_Caster)` was applied.
+is. Membership does not inherit: `War_Caster in Rare[:]` is False unless
+`Rare(War_Caster)` was applied *(amended 2026-09-29, STEP-SPEC-19)*.
 
 ### 4. One slot per scope and name: patching, with collision control
 
@@ -197,7 +200,9 @@ Two seats are already taken on a Tag and stay as they are:
   `"Deprecated" in Wizard` is True when the Flag Pin `Deprecated` is
   active on Wizard. A Pin may be a Flag. `Keyword(Wizard, "Deprecated")`
   and `Keyword(Wizard, Deprecated)` answer the same; the class form in
-  the `in` seat stays membership, because a class can be a member there.
+  the `in` seat stays a Field question (a sound member; `Wizard[:]` for
+  membership), because a class can be a member there *(amended
+  2026-09-29, STEP-SPEC-19)*.
 
 `Wizard.Rare` reads the Pin-bound view by name, as `ari.Wizard` does on
 an Agent, on the same miss-path rule.
@@ -229,8 +234,10 @@ seat leaves the patch.
 
 A Pin does **not** change the pinned Tag's own gate over its Agents. A
 Deprecated Tag that should refuse new members writes that as its own
-Precondition reading its Pins: `return self_tag not in Deprecated`. A
-later STEP may give Pins that reach.
+Precondition reading its Pins: `return self_tag not in Deprecated[:]`
+*(amended 2026-09-29, STEP-SPEC-19: `Deprecated[:]`, so a Tag that a
+broken promise leaves defective still counts as Deprecated)*. A later
+STEP may give Pins that reach.
 
 ### 8. Identity and history
 

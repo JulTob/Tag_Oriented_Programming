@@ -72,9 +72,10 @@ Measured on Python 3.11 (`benchmarks/bench.py`), nanoseconds per
 operation: plain attribute read 42, Agent host-attribute read 65, Record
 read 64, plain method call 86, Action call 295, `agent in Tag` 291
 (membership then; since STEP-SPEC-19 it runs the contract once a
-Postcondition is visible), `bool(agent)` with one Post about 1900. Tagging a Record-plus-Post Shape
-over a Base costs about 60 µs per Agent; an empty Tag about 22 µs. Peak
-memory about 6 KB per Agent with two Tags.
+Postcondition is visible), `bool(agent)` with one Post about 1900.
+Tagging a Record-plus-Post Shape over a Base costs about 60 µs per
+Agent; an empty Tag about 22 µs. Peak memory about 6 KB per Agent with
+two Tags.
 
 ## The tagging sequence
 
@@ -107,12 +108,14 @@ rollback target.
   is False there; the gate, Imprints and `@Rip` protocols do not, so a
   Precondition reads the true sound population (while `Contract.Status`
   of that same Pre, run under the guard, reads membership), and an
-  Imprint reads the promise it is about to keep as already broken. `isinstance` is the has-been check and
-  stays true after Rip. Kept because it is a dependable signal for
-  spotting Rogue Agents. A rolled-back call also rolls the ever-set
-  back. `Tag[:]` is the Field, held weakly: once the interpreter tears
-  the module down it is empty, while `agent in Tag` and `Tags(agent)`
-  read the Agent's own state and outlive it.
+  Imprint reads the promise it is about to keep as already broken. A
+  tagging begun inside a check runs its gate and Imprints under that
+  check's guard. `isinstance` is the has-been check and stays true after
+  Rip. Kept because it is a dependable signal for spotting Rogue Agents.
+  A rolled-back call also rolls the ever-set back. `Tag[:]` is the
+  Field, held weakly: once the interpreter tears the module down it is
+  empty, while `agent in Tag` and `Tags(agent)` read the Agent's own
+  state and outlive it.
 - **Records over host descriptors** are refused with a Composition Failure
   rather than silently bypassing a property.
 - **The Tag's dotted namespace is the program's.** Every Tag-level act is
@@ -347,21 +350,29 @@ rollback target.
   `type.__or__` when the other side is not a population, so `Wizard |
   None` stays a typing union; a population is not a type: its class's
   `__instancecheck__` and `__subclasscheck__`, and `|` with `None`, a
-  class, a union, a generic alias or a `typing` form in either order,
-  raise `TypeError`, naming the rewrite for a union of Tags (`|` only,
-  no `~`: `_Population._either`); `&`, `-` and `~` get none, since no
-  tuple of Tags says what they mean. A union built first can still
-  take a population in, since its own `__or__` runs before the
-  population's `__ror__`: `typing.Optional[Wizard | Fighter]` and
-  `typing.List[int] | (Wizard | Fighter)` on every version, `(int |
-  str) | (Wizard | Fighter)` on 3.14 (3.12 hands it to
+  class, a generic alias or `typing.Any` in either order, or with a
+  union or another `typing` form on the right, raise `TypeError`, naming
+  the rewrite for a union of Tags (`|` only, no `~`:
+  `_Population._either`); `&`, `-` and `~` get none, since no tuple of
+  Tags says what they mean. A union built first can still take a
+  population in, since its own `__or__` runs before the population's
+  `__ror__`: `typing.Optional[Wizard | Fighter]` and a `typing` form
+  with its own `__or__` on the left (`typing.List[int]`,
+  `typing.Literal[1]`, a `ForwardRef`, a `TypeVar`) on every version,
+  `(int | str) | (Wizard | Fighter)` on 3.14 (3.12 hands it to
   `__ror__`, which refuses); `isinstance` refuses once it reaches the
-  population. The rewrite names Tags by
-  `__name__` (by `__qualname__` where two share one), which a renamed
-  Tag may not answer to in the program's own namespace; a Twin that
-  shares both names with its Tag gets no rewrite (`_rewrite_names`).
-  `|` with a `ForwardRef` is refused on every version: 3.14 moved it to
-  `annotationlib`. No kernel state changes.
+  population. The rewrite names Tags by `__name__` (by `__qualname__`
+  where two share one), which a renamed Tag may not answer to in the
+  program's own namespace; a Twin that shares both names with its Tag
+  gets no rewrite (`_rewrite_names`). `_spell_operand` spells the other
+  side as code: a `TypeVar`, `ParamSpec` or `NewType` by its name,
+  `type(None)` as `None`, a `ForwardRef` as its string inside
+  `typing.Union[...]`. `(Wizard | Fighter) | ForwardRef('X')` is refused
+  on every version (3.14 moved `ForwardRef` to `annotationlib`). A union
+  that begins with `None` or a class, `None | Wizard | Fighter`, never
+  reaches a population: Python joins it left to right, and `None |
+  Wizard` is already a class union when `Fighter` arrives, so the kit
+  cannot refuse it. No kernel state changes.
 - **Condition members** (STEP-SPEC-14): `_agent_getattr` answers a
   condition by name on the miss path, after Tag views and before the
   host's own `__getattr__`, through `contracts._condition_member`, which

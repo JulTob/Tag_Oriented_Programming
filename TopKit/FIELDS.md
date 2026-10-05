@@ -231,9 +231,11 @@ Pins combine with Pins only (§5).
   Fighter))` and `typing.Optional[typing.Union[Wizard, Fighter]]`.
   Before Python 3.14 an annotation is evaluated where it is written
   (unless the module has `from __future__ import annotations`), so
-  `x: Wizard | Fighter | None` fails at definition. `|` with a class, a
-  union, `list[int]` or a `typing` form is refused the same way; a
-  string (a forward reference) gets Python's own error. The rewrite is
+  `x: Wizard | Fighter | None` fails at definition. `|` with `None`, a
+  class, `list[int]` or `typing.Any` is refused the same way in either
+  order, and so is `|` with a union or another `typing` form (a
+  `typing.ForwardRef` too) when the population is on the left; a plain
+  string gets Python's own error. The rewrite is
   named only for a union of Tags: `Wizard - Fighter`, `Wizard & Fighter`
   and `~Wizard` mean something no tuple of Tags says, so their refusal
   says that `isinstance` or a hint takes Tags. The rewrite names the
@@ -242,15 +244,25 @@ Pins combine with Pins only (§5).
   shares both names with its Tag gets no rewrite.
 - **Some hints are not refused where they are written.** A plain hint
   `x: Wizard | Fighter` holds a population, and so does a union built
-  first that takes one in: `typing.Optional[Wizard | Fighter]`,
-  `typing.List[int] | (Wizard | Fighter)`, or on Python 3.14 `(int |
-  str) | (Wizard | Fighter)`. Nothing fails until
-  something reads the hint as a type: `typing.get_type_hints` and then
-  `isinstance`, or a runtime validator, and `isinstance` only once it
-  reaches the population (on Python 3.14 `isinstance(1, int | str |
-  (Wizard | Fighter))` is True; 3.12 refuses `int | str | (Wizard |
-  Fighter)` where it is written). Write the Tags themselves:
+  first that takes one in: `typing.Optional[Wizard | Fighter]`, any
+  `typing` form with its own `|` on the left (`typing.List[int] |
+  (Wizard | Fighter)`, and the same with `typing.Literal[1]`,
+  `typing.ForwardRef('X')` or a `TypeVar`), or on Python 3.14 `(int |
+  str) | (Wizard | Fighter)`. Nothing fails until something reads the
+  hint as a type: `typing.get_type_hints` and then `isinstance`, or a
+  runtime validator, and `isinstance` only once it reaches the
+  population (on Python 3.14 `isinstance(1, int | str | (Wizard |
+  Fighter))` is True; 3.12 refuses `int | str | (Wizard | Fighter)`
+  where it is written). Write the Tags themselves:
   `typing.Union[Wizard, Fighter]`.
+- **A union that begins with `None` or a class is a class union.**
+  `None | Wizard | Fighter`, `int | Wizard | Fighter` and `Wizard |
+  (Fighter | None)` never form a population: Python joins them left to
+  right before any population is made, so each is the language's class
+  union, and `isinstance` over it is the has-been check of either Tag,
+  defective members included. Write `typing.Optional[typing.Union[Wizard,
+  Fighter]]` for a hint, and `x in (Wizard | Fighter)` for the sound
+  population.
 - **No Tags with objects.** A Pin's population holds Tags, a Tag's holds
   objects; `Rare | Wizard` is refused and the refusal names both.
 

@@ -47,8 +47,10 @@ replaces it: before and after, it is the same object. Precisely:
   unless a Tag deliberately contributes a member of that name;
 - the Target's own special methods (`__contains__`, `__len__`, `__bool__`,
   operators, `__getattr__`) keep working, with one deliberate exception:
-  `bool(agent)` gains contract meaning once a Postcondition is visible
-  (§2.5);
+  once a Postcondition is visible, `bool(agent)` answers the contract for
+  a host that has no `__bool__` of its own, including one whose
+  truthiness came from `__len__` (§2.5); `len(agent)` stays the host's,
+  and a host's own `__bool__` keeps its seat;
 - the name of the object's type is unchanged.
 
 What TOP does **not** promise is nominal type identity: a Python
@@ -837,7 +839,7 @@ Report of the pinned Tag: one value, held on the Tag, inherited by its
 Shapes, and readable through the `inherited` seat of a Shape's own Report
 (§1.4). A Pin's Action lands as an Operation: read from the pinned Tag or
 any of its Shapes, it receives the Tag it was read from, as an Operation
-does. Membership does not inherit: `War_Caster in Rare` is False until
+does. Membership does not inherit: `War_Caster in Rare[:]` is False until
 `Rare(War_Caster)`. Nothing a Pin lands is ever projected onto the Tag's
 Agents. A Pin's own Operations and Reports stay on the Pin.
 
@@ -1084,14 +1086,18 @@ are unchanged: a defective member has been one, and can be Ripped.
 Inside a check TOP runs on an Agent (a Postcondition, the tagging's
 quality check, a condition read by name, a published member's gate, a
 `Contract` read), the Agent under check counts as sound: `agent in
-Wizard` reads membership, `agent in ~Wizard` is False and `bool(agent)`
-is True. A promise never reads the contract it is part of; every other
+Wizard` reads membership, `agent in ~Wizard` is False and
+`Contract.Holds(agent)` is True, and so is `bool(agent)` unless the host
+or a Tag gives the Agent its own `__bool__`, which answers as it always
+does. A promise never reads the contract it is part of; every other
 Agent answers by its own contract. A Precondition at the tagging's gate,
 an Imprint and a `@Rip` protocol run outside that rule and read the
 populations as code outside does, so an Imprint that asks `agent in
 Other` while the promise it is about to keep is visible reads False, as
-`bool(agent)` does there. A guard that means membership is spelled
-`agent in Wizard[:]`, which reads the same everywhere.
+the contract does there. A tagging begun inside a check is the
+exception: its gate and its Imprints run under that check's rule. A
+guard that means membership is spelled `agent in Wizard[:]`, which reads
+the same everywhere.
 
 **Populations combine** (STEP-SPEC-13). `|` is either, `&` is both, `-`
 is the left without the right, on any population: a whole Field, the
@@ -1099,16 +1105,18 @@ sound view, the defective view, the safehouse (§3.2), or a combination.
 A Tag in an operator seat is its sound population, as it is in the loop;
 `Wizard[:] | Fighter[:]` is everyone who is either; the levels mix. The
 result is a lazy view that reads its Fields when walked, keeps
-application order within each side, answers `in` from its sides as a
-set does, `len`, truth and iteration, and has no complement (`~` on a
-union has no universe). A Tag with anything that is not a population
-keeps the language's own class union (`Wizard | None`). A population is
-not a type: `isinstance(x, Wizard | Fighter)`, `Wizard | Fighter | None`
-and `None | (Wizard | Fighter)` are refused, and for a union of Tags the
+application order within each side, answers `in` from its sides as a set
+does, `len`, truth and iteration, and has no complement (`~` on a union
+has no universe). A Tag with anything that is not a population keeps the
+language's own class union (`Wizard | None`). A population is not a
+type: `isinstance(x, Wizard | Fighter)`, `Wizard | Fighter | None` and
+`None | (Wizard | Fighter)` are refused, and for a union of Tags the
 refusal names the rewrite, `isinstance(x, (Wizard, Fighter))` and
-`typing.Optional[typing.Union[Wizard, Fighter]]`. A Pin's population
-holds Tags and a Tag's holds objects; the two never combine, and the
-refusal names both sides.
+`typing.Optional[typing.Union[Wizard, Fighter]]`. A union that begins
+with `None` or a class, `None | Wizard | Fighter`, never forms a
+population: Python joins it left to right as a class union, the has-been
+check of either Tag. A Pin's population holds Tags and a Tag's holds
+objects; the two never combine, and the refusal names both sides.
 
 ```python
 for c in Wizard | Fighter:            # sound in either, each once
@@ -1141,10 +1149,12 @@ and `@Pre def Has_No_Badge(agent, badge): return badge is None` reads
 `True`.
 
 Truthiness on a plain object is vacuously true, so this fills an empty
-seat. A host that defines its own `__bool__` keeps it; a host's `__len__`
-is kept until a Postcondition becomes visible on that Agent. A host's or
-a Tag's own `__bool__` takes the seat: `bool(agent)` is then that method,
-while `agent in Tag`, the loop and `~Tag` still follow the contract.
+seat. A host that defines its own `__bool__` keeps it. A host whose
+truthiness comes from `__len__` keeps that truthiness until a
+Postcondition becomes visible on that Agent; `len(agent)` stays the
+host's. A host's or a Tag's own `__bool__` takes the seat: `bool(agent)`
+is then that method, while `agent in Tag`, the loop and `~Tag` still
+follow the contract.
 
 ## 2.6 Naming the culprit
 
