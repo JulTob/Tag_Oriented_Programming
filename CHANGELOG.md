@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Specification
+
+- STEP-SPEC-19 (Links: a Tag that belongs to an Agent) opened at Brief.
+  `@Link` grants each Agent a Tag of its own, `charlie.Knows(ruth)`, held
+  like a Record and leaving only membership on its members. It comes with
+  the evidence from building the same thing by hand on 0.2.0a4, and four
+  open questions for the Director.
+
 ### Project
 
 - **Releases go out through Trusted Publishing.** A GitHub Release runs
