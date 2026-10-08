@@ -4,22 +4,28 @@
 
 ### Specification
 
-- STEP-SPEC-19 (Links: a Tag that belongs to an Agent) opened at Brief,
-  and was revised after the Director's first review. `@Link` grants each
-  Agent a Tag of its own, `charlie.Knows(ruth)`, held like a Record. Its
-  functions take the Owner first and the Contact second. A Link points
-  one way, and nothing on a Contact leads back to its Owner. Linking
-  makes the Contact a member and writes nothing else on her; facts about
-  the two live on the Pair, `charlie.Knows[ruth].since`.
-- STEP-SPEC-20 (Field Filters) opened at Brief. `Wizard[:].level > 3` is
-  a live population of the Wizards above level 3. Chains fan out with
-  "some", `Social[:].Knows[:] == ruth`, and a Filter by an Action's
-  result follows a changing system. This is the logic of classes and
-  attributes of Boole and Carroll, in the language's own operators.
-- STEP-SPEC-21 (Field Rip, and the end of a Tag) opened at Brief.
-  `del Wizard[:]` Rips the whole Field, and a Tag that ceases to exist
-  does the same, so its members' teardowns run. Membership holds neither
-  side alive.
+- STEP-SPEC-22 (Links) opened at Brief, and was revised after two
+  reviews by the Director. `@Link` grants each Agent a Tag of its own,
+  `charlie.Knows(ruth)`, held like a Record.
+  - Its functions take the Agent first and the Contact second: the Agent
+    has the agency.
+  - A Link points one way: nothing on a Contact names an Agent who links
+    her.
+  - Linking makes the Contact a member and writes no Record, Action or
+    promise on her. Facts about the two live on the Pair,
+    `charlie.Knows[ruth].since`.
+- STEP-SPEC-23 (Field Filters) opened at Brief. `Wizard[:].level > 3` is
+  a live population of the Wizards above level 3.
+  - Chains fan out with "some": `Social[:].Knows[:] == ruth`.
+  - A Filter by an Action's result follows a changing system.
+  - This is the logic of classes and attributes of Boole and Carroll, in
+    the language's own operators.
+- STEP-SPEC-24 (Field Rip and the End of a Tag) opened at Brief.
+  `del Wizard[:]` Rips the whole Field. A Tag that ceases to exist does
+  the same, so its members' teardowns run. Membership holds neither side
+  alive.
+- The three were first drafted as STEP-SPEC-19, 20 and 21, and
+  renumbered because other open work claims those numbers.
 
 ### TopKit
 
