@@ -1596,6 +1596,15 @@ class DefectiveTaggingTests(unittest.TestCase):
         self.assertIn("its Shape Bruiser", message)
         self.assertNotIn("weakens", message)
 
+    def test_the_contract_warning_points_at_the_tagging_line(self) -> None:
+        ari = Agent()
+        ari.strength = 15
+
+        with self.assertWarns(TagContractWarning) as caught:
+            Bruiser(ari)
+
+        self.assertEqual(caught.filename, __file__)
+
     def test_pre_and_post_are_aliases(self) -> None:
         self.assertIs(Pre, Precondition)
         self.assertIs(Post, Postcondition)
