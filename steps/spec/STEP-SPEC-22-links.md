@@ -139,8 +139,8 @@ The changes to the Specification:
 - amendments to:
   - §1.1: a third kind of Agent-scope contribution, a closed slot, and
     Pair scope;
-  - §1.5: a Link's functions open the doors of the Agent who holds the
-    Link and of the Pair, never the Contact's (rule 3.6);
+  - §1.5: a Link's functions open the doors of the Link's Agent and of
+    the Pair, never the Contact's (rule 3.6);
   - §1.7: the Pair in place of the Agent-bound view on a Link;
   - §1.8: a Flag Link answers its words on the Pair (rule 2.3);
   - §2.5: a Link's sound population needs the Pair to hold as well (rule
@@ -159,18 +159,32 @@ cited as "section N" or "rule N.M".
 | Term | Meaning |
 | --- | --- |
 | **Link** | A Tag that belongs to one Agent, granted by a `@Link` declaration of a Tag that Agent carries. The Agent holds the Link and acts through it. |
-| **Contact** | An Agent that a Link holds: a member of the Link's Field. Ruth is Charlie's Contact. |
+| **The Link's Agent** | The one who holds the Link and acts through it. Charlie is the Agent of `charlie.Knows`. |
+| **Contact** | The one a Link holds: a member of the Link's Field. Ruth is Charlie's Contact, the Link's Contact. |
 | **Relation** | The `@Link` declaration itself, `Knows` in the declaring Tag's body: what every Agent's Link is made from. |
 | **Pair** | One Agent and one Contact, linked. The Pair receives the Link's Actions, Records and conditions, as an Agent receives an ordinary Tag's. |
 
-**Agents have the agency.** When a Link is discussed, "the Agent" is
-always the one who holds the Link and acts through it, as in an Action or
-a Record. By §0.2 a Contact is an Agent too: of the Link, and of her own
-Tags. Inside a Link she is always called the Contact, as an Action's
-target is called its target. This STEP never writes "the Link's Agent",
-which §0.2 could read as the Contact. It writes "the Agent who holds the
-Link". "Owner" is an informal word for that Agent, never a term: in a Link
-such as `charlie.Owns(house)`, the domain has its own owners.
+**Agents have the agency.** A Link has two roles, and they are not
+equal. The Link's Agent is the main one: it holds the Link and acts
+through it, as in an Action or a Record. The Link's Contact works for
+the Agent through the Link. In the Director's words: "the contact is a
+subagent that works for the main agent, like subcontracted... so it
+makes sense that one is the main/top one, and the other is the
+subservient."
+
+By §0.2 a member of a Tag's Field is an Agent of that Tag. For a Link,
+this STEP fixes the words: the members of a Link's Field are its
+Contacts, and "the Link's Agent" always means the one who holds it, never
+a Contact. Ruth is still an Agent of her own Tags. "Owner" is an informal
+word for the Link's Agent, never a term: in a Link such as
+`charlie.Owns(house)`, the domain has its own owners.
+
+**Peers are not a Link.** Two Agents at the same level, neither working
+for the other, are members of one ordinary Tag whose precondition keeps
+its Field at two. The Director: "If you want a link between two agents at
+the same level you should build a tag with a pre that limits the size of
+the tag to two. then they can operate together." Section 10 shows it
+(*Peers*).
 
 ### 2. Declaring
 
@@ -180,8 +194,7 @@ such as `charlie.Owns(house)`, the domain has its own owners.
    `Social.Knows` (rule 2.6, section 9).
 2. A Link is an **Agent-scope** contribution of the declaring Tag, a third
    kind beside the Action and the Record. Its slot is `(Agent, name)`
-   (§1.1, amended in rule 4.4), and its receiver is the Agent who holds
-   it.
+   (§1.1, amended in rule 4.4), and its receiver is the Link's Agent.
 3. **A Relation declares what any Tag declares**: Actions, Records,
    conditions (`@Pre`, `@Post`, `@Requirement`), `@Imprint`, `@Rip`,
    `@Delete`, `@Underlay`, `@Secret`, `@Public`, `@Flag`, `@Report` and
@@ -225,9 +238,9 @@ such as `charlie.Owns(house)`, the domain has its own owners.
 ### 3. The seats
 
 1. **Two seats where an ordinary Tag has one.** Every function a Relation
-   declares for the Pair receives the Agent who holds the Link in its
-   first seat, and the Contact in its second. Reports and Operations
-   receive the Link itself.
+   declares for the Pair receives the Link's Agent in its first seat,
+   and the Contact in its second. Reports and Operations receive the
+   Link itself.
    - The Agent comes first because the Link is the Agent's contribution,
      so the Agent is its receiver (§1.1).
    - The Contact comes second, as the Agent comes second in a published
@@ -262,7 +275,7 @@ such as `charlie.Owns(house)`, the domain has its own owners.
    usual: `def Recent(agent, contact, since)` receives `since`.
 5. **Neither seat is ever `None`** (section 8).
 6. **The doors.** A Link's functions run inside the composition door
-   (§1.5) of the Agent who holds the Link and of the Pair, so the Agent's
+   (§1.5) of the Link's Agent and of the Pair, so the Agent's
    secrets and the Pair's secrets resolve. The Contact's door stays shut,
    on every path, the teardowns at either one's deletion included. A Link
    is the Agent's code about a Pair. It never reads the Contact's
@@ -382,16 +395,16 @@ A Link is a Tag. Every Ring 0 act works on it:
    through them is a Composition Failure. An explicit `del
    charlie.Knows[:]` follows STEP-SPEC-24, rule 1.5 instead: a Contact
    linked again during it stays.
-8. **A Link that outlives the Agent who held it**, because a name still
+8. **A Link that outlives its Agent**, because a name still
    holds it (`k = charlie.Knows`), has an empty Field (rule 8.3). Linking
-   through it is a Composition Failure, nothing changed: "the Agent who
-   held this Link no longer exists". `k[ruth]` and `del k[ruth]` answer
-   as for anyone who is not its Contact: a Resolution Failure (§0.7,
+   through it is a Composition Failure, nothing changed: "this Link's
+   Agent no longer exists". `k[ruth]` and `del k[ruth]` answer as for
+   anyone who is not its Contact: a Resolution Failure (§0.7,
    rule 7.4).
 
 ### 6. One direction
 
-1. **A Link points from the Agent who holds it to its Contacts.** TOP has
+1. **A Link points from its Agent to its Contacts.** TOP has
    no spelling that walks back, from a Contact to the Agents whose Links
    hold her.
 2. **Nothing public on a Contact names an Agent who links her.** Her
@@ -403,10 +416,10 @@ A Link is a Tag. Every Ring 0 act works on it:
      of §1.7 for Links.
    - `isinstance(ruth, charlie.Knows)` still answers, because it is asked
      with the Link already in hand.
-3. **A Link never names the Agent who holds it.** Nothing public on a
+3. **A Link never names its Agent.** Nothing public on a
    Link, or on a Pair, leads to that Agent. The kit keeps that Agent only
    where it must run the Link's functions (rules 3.6 and 8.4), weakly and
-   out of public reach, so a Link never keeps the Agent who holds it
+   out of public reach, so a Link never keeps its Agent
    alive (finding 1). A
    Pair's functions receive the Agent in their first seat, and that is
    the Link's own code.
@@ -422,7 +435,7 @@ A Link is a Tag. Every Ring 0 act works on it:
    the declaring Tag can find them with STEP-SPEC-23's Filters:
    - `Social.Knows[:] == ruth` finds the sound Agents who know Ruth, and
      `Social[:].Knows[:] == ruth` all of them;
-   - `Social.Knows == link` finds the sound Agent who holds a Link, and
+   - `Social.Knows == link` finds a Link's Agent, when sound, and
      `Social[:].Knows == link` finds it among them all.
 
    Any module that imports `Social` holds it, and `Tags(ruth)` lists it
@@ -472,8 +485,8 @@ A Link is a Tag. Every Ring 0 act works on it:
    After that, reaching it is a Resolution Failure. Linking again builds
    it fresh (§0.7).
 5. **Nothing of the Pair lands on the Contact.** `ruth.since` is Ruth's
-   own attribute or nothing. A Pair is reached only through the Link of
-   the Agent who holds it: a Contact has no spelling for it.
+   own attribute or nothing. A Pair is reached only through the Link, by
+   the Link's Agent: a Contact has no spelling for it.
 
 ### 8. Ending
 
@@ -681,6 +694,42 @@ Estate(charlie)
 charlie.Owns(cottage)                             # Charlie is the Agent; the cottage is the Contact
 ```
 
+**Peers.** Two Agents at the same level are members of one ordinary Tag,
+and its precondition keeps the Field at two. Neither holds the other:
+
+```python
+class Duel(Tag):
+
+    @Pre
+    def Two_Sides(agent):
+        return len(Duel[:]) < 2
+
+Duel(ann)
+Duel(bob)
+Duel(cal)                                         # refused: Precondition 'Two_Sides' failed
+```
+
+That Tag has one Field for the whole program, so it holds one pair.
+Where the program needs many pairs of peers, the pair itself becomes an
+Agent, and its Link holds the two peers as Contacts, both at the same
+level under it:
+
+```python
+class Bond(Tag):
+
+    @Link
+    class Partners(Tag):
+
+        @Pre
+        def Two_Sides(agent, contact):
+            return len(agent.Partners[:]) < 2
+
+wedding = Wedding()
+Bond(wedding)
+wedding.Partners(ann)
+wedding.Partners(bob)                             # ann and bob are peers; the wedding is the Link's Agent
+```
+
 ## Rationale
 
 **A family of one-place Tags, not a new kind of membership.** Fixing the
@@ -745,8 +794,8 @@ and each concern went to a skeptic. It held, for four reasons:
   rule lands the Link's protocols on the Contact, which is finding 5.
 - **It matches §1.5.** A published Operation takes the Tag that publishes
   it first and the Agent second, `dispatch(agency, sender, message)`. A
-  function the Relation declares for the Pair keeps that order: the Agent
-  who holds the Link first, the Contact second.
+  function the Relation declares for the Pair keeps that order: the
+  Link's Agent first, the Contact second.
 - **One word, one meaning.** Inside `class Social`, `agent` is Charlie on
   every line, and one indentation down it still is.
 - **The deletion path already holds the Agent.** The finalizer has the
@@ -763,6 +812,17 @@ language. I'd keep the agent, as it is the same as for actions and
 records, and owner can be informal but not formal term." A formal "Owner"
 would also clash with domains that have owners of their own, such as
 `charlie.Owns(cottage)`.
+
+**The Link's Agent, the Link's Contact.** An earlier draft avoided "the
+Link's Agent", because by §0.2 a member of a Tag's Field is an Agent of
+that Tag, and a Contact is a member of the Link's Field. The Director
+chose the phrase: "It is the Link's agent and the Link's Contact. the
+contact is a subagent that works for the main agent, like
+subcontracted". The vocabulary (section 1) now fixes the words for a
+Link, so the two never collide: its members are Contacts, and its Agent
+is the one who holds it. The roles are unequal on purpose. Peers at the
+same level are written as an ordinary Tag kept at two members (section
+10, *Peers*).
 
 **Both seats, always.** A one-seat body copied from an ordinary Tag, such
 as `def Is_Person(agent)`, would check the Agent who links when the
@@ -794,9 +854,9 @@ that belongs to both of them and to neither (finding 2).
 link (not the contact, let's separate the concepts) should functionally
 rip the agents ... It should probably work as normal Tag deletion." With
 STEP-SPEC-24, a Link's Field is Ripped like any Tag's, teardowns
-included. Only the moment differs: the finalizer of the Agent who holds
-the Link runs that Field Rip, after the Agent's own teardowns, while it
-can still fill the first seat (rules 8.3 and 8.6).
+included. Only the moment differs: the finalizer of the Link's Agent
+runs that Field Rip, after the Agent's own teardowns, while it can still
+fill the first seat (rules 8.3 and 8.6).
 
 ## Backwards compatibility
 
@@ -844,7 +904,7 @@ name: `Link`. No parameter name is reserved.
      Ruth.
    - `Social` is a module global, and `Tags(ruth)` lists it when Ruth
      carries it herself.
-   - The same code finds the Agent who holds a Link with
+   - The same code finds a Link's Agent with
      `Social[:].Knows == link`.
 
    Is naming the declaring Tag explicit enough? Or should a Projection
@@ -879,7 +939,7 @@ name: `Link`. No parameter name is reserved.
   - the Agent in a reference cycle, built both before and after its Link:
     each teardown runs once, with the Agent, and none with `None`;
   - a Contact in a reference cycle: the teardown reads the Pair;
-  - a Link held by a name after the Agent who held it is gone: linking
+  - a Link held by a name after its Agent is gone: linking
     refused, and a Resolution Failure for `k[x]` and `del k[x]`;
   - the barrier: no spelling on a Contact, a Link or a Pair names the
     Agent who links her (rules 6.2 and 6.3). The search from the

@@ -62,7 +62,7 @@ Both were checked on TopKit 0.2.0a4:
 Links (STEP-SPEC-22) need this. When an Agent is deleted, the Links it
 holds end, and each Link's Field is Ripped like any Tag's, with the
 Link's teardowns run for every Contact. Only the moment differs: the
-finalizer of the Agent who holds the Link runs that Field Rip, while the
+finalizer of the Link's Agent runs that Field Rip, while the
 dying Agent is still in hand to fill the first seat (rule 3.1).
 
 ## Specification
@@ -156,7 +156,7 @@ cited as "section N" or "rule N.M".
    any deletion (§3.2).
 
    A Link's Field is Ripped the same way, at a different moment: by the
-   finalizer of the Agent who holds it, while that Agent can still fill
+   finalizer of the Link's Agent, while that Agent can still fill
    the first seat, and never by the Link's own end. A Contact that
    finalizer never reached ends silently when the Link ends, with no
    teardown (STEP-SPEC-22, rules 8.3 and 8.7).
@@ -204,7 +204,7 @@ cited as "section N" or "rule N.M".
 6. **Which Tags end in practice.**
    - Tags made at run time that none of their own functions names (rule
      2.3): a Tag declared inside a function, and a Tag built from data.
-   - Every Link once the Agent who held it is gone and no name holds the
+   - Every Link once its Agent is gone and no name holds the
      Link (STEP-SPEC-22, rule 8.3).
 
    A Tag declared at the top of a module lives until the interpreter
