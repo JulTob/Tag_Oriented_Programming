@@ -79,8 +79,10 @@ cited as "section N" or "rule N.M".
 2. **Refused before anyone leaves.** If any member still holds an active
    Shape of the Tag, the whole Field Rip is a Composition Failure, and
    the Field is exactly as it was. The message names the members and the
-   Shapes. Rip never cascades (§0.7): `del Wizard[:]` before
-   `del Class[:]`, when Wizard is a Shape of Class.
+   Shapes, and prints the lines that would Rip them first, deepest Shape
+   first: `del Wizard[:]`, then `del Class[:]`, when Wizard is a Shape of
+   Class. Rip never cascades (§0.7), so the program writes those lines
+   itself.
 3. **In the Field's order.** Members leave in the order they joined, the
    order `for` walks. For each member, membership ends and the member
    leaves the Field, and then its teardowns run (§3.1).
@@ -202,6 +204,40 @@ cited as "section N" or "rule N.M".
 
 ## Rationale
 
+**Two acts, two guarantees.** The Director asked whether a Tag's end, which
+nothing can refuse, contradicts a Field Rip, which can be refused. It does
+not: they are two different acts, and TOP already has the same pair for
+Agents (§3.2).
+
+| | Rip demanded: `del Tag[:]` | Deletion happened: the Tag's end |
+| --- | --- | --- |
+| Who acts | the program, on purpose | the language, when nothing can reach the Tag |
+| When | at that line | at the next collection, or never |
+| Can it be refused? | yes, at the door (rule 1.2), nothing changed | no: there is no one to refuse to, and a refusal would leave members of a Tag that is gone |
+| Teardowns | certain, in order, failures reported (rule 1.4) | best effort, Shapes first, failures silent (rules 3.1 and 3.4) |
+| For Agents, the same pair | `del Tag[agent]` (§0.7) | the Agent's deletion (§3.2) |
+
+So the safe act is the one the program writes. A program that needs its
+teardowns to run (a lock released, a line stopped) says `del Tag[:]`, as
+it says `Scope` for an Agent. It never waits for the language to collect
+a Tag.
+
+The refusal of rule 1.2 is the "safety first" act. The Tag's end is the
+"deletion first" fact. Neither contradicts "membership never keeps a Tag
+alive" (rule 2.1). Membership does not keep a Base alive; its Shapes do,
+by inheritance. A Base therefore never ends while a Shape it would refuse
+for is still reachable, and when both end together, the Shapes go first
+(rule 3.4).
+
+**`del Tag` is not an act on the Tag.** In Python, `del Wizard` removes the
+name `Wizard` from one namespace. It never destroys an object, and the
+language calls nothing on the Tag, so TOP cannot see it. The Tag lives on
+while anything else reaches it: another name, a Shape, a function that
+names it (rule 2.3). If that name was the last reference, the Tag ends
+later, at a collection (rule 3.2), by the forced path. That is why the
+demanded act is spelt on the Tag, `del Tag[:]`, where the language does
+call the Tag.
+
 **Same result, same act.** The Director's argument: from the members'
 side, being left in the Field of a Tag that no longer exists and having
 the Agency eliminated are the same result, and the same result should be
@@ -250,7 +286,8 @@ as strong as any value.
 | The loop by hand | Not atomic: a refused Shape stops it halfway. |
 | A Tag's end with strong history | It never fires while a member lives, so it would only happen to Tags that are already empty. |
 | A Tag's end that drops members without teardowns | Rejected by the Director: "it should launch the rip protocols to ensure safety in the program status". |
-| A Field Rip that deforms Shapes first, on a live Base | Rejected: Rip never cascades (§0.7). The program Rips the Shapes it means to. A Tag's end is different (rule 3.4): there the Shapes are ending too. |
+| A Field Rip that deforms Shapes first, on a live Base (a forced `del Tag[:]`) | Rejected: Rip never cascades (§0.7), because a cascade runs other Tags' teardowns behind the program's back. The refusal prints the lines to write instead (rule 1.2). A Tag's end is different (rule 3.4): there the Shapes are ending too. |
+| `del Tag` as the safe act, and `del Tag[:]` as the forced one | Not possible in Python: `del Tag` removes a name, calls nothing on the Tag, and destroys nothing (Rationale, *`del Tag` is not an act on the Tag*). The safe act is `del Tag[:]`, and the forced one is the Tag's end. |
 | Reverse order, last in first out | Possible: see open question 1. |
 
 ## Open questions for the Director
