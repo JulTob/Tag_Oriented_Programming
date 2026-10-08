@@ -320,7 +320,9 @@ answer `False`. `len(f) > 0` asks the population.
 
 ### 6. Not in this STEP
 
-- Writing through a Projection, such as `Wizard.hp = 10`. On a Tag, that
+- Writing through a Projection, such as `Wizard.hp = 10`. Until a STEP
+  gives it a spelling, write the loop: `for wizard in Wizard: wizard.hp =
+  10`. On a Tag, that
   assignment sets an attribute of the Tag itself, as Python does today.
   It then wins over the Projection (rule 1.1), so `Wizard.hp` stops
   reading the members, and over a declared name it replaces the
@@ -423,14 +425,23 @@ Tag-scope name the program puts on a Tag read exactly as before.
 
 ## Open questions for the Director
 
-1. **Truth (section 5).** A refused `bool()` means `if Social.Knows[:] ==
-   ruth:` must be written `if len(Social.Knows[:] == ruth) > 0:`. The
-   alternative keeps a truth value, as Tags have one (`if Wizard:`), and
-   teaches `&` for ranges, accepting that `a < P < b` will be silently
-   wrong. The STEP recommends the refusal.
-2. **Missing names (rule 1.7).** Stop the walk (recommended), or treat a
-   member that cannot answer as not matching?
-3. **Lookup through a Link (rule 1.5).** Through a Link, a name the Pair
+1. **Missing names (rule 1.7).** Stop the walk, or treat a member that
+   cannot answer as not matching? The Director proposed a third reading
+   on 2026-10-08, close to SQL's `NULL`:
+   - `Wizard.dance == True` keeps the Wizards whose `dance` is defined and
+     `True`;
+   - `Wizard.dance == False` keeps those whose `dance` is defined and
+     `False`;
+   - "defined at all" and "not defined" are questions of their own.
+
+   The language cannot overload `is`, so "not defined" would be spelt
+   `Wizard.dance == None` and "defined" `Wizard.dance != None`. Under
+   that reading a missing name and a `None` both count as not defined,
+   and a comparison with an undefined value never matches and never
+   raises. A walk where no member defines the name at all would still
+   warn, to catch a misspelt name. Being drafted for the Director's
+   confirmation.
+2. **Lookup through a Link (rule 1.5).** Through a Link, a name the Pair
    answers wins over the Contact's own attribute of the same name. Is
    that the reading you want, or should a shared name be refused?
 
@@ -471,6 +482,12 @@ Tag-scope name the program puts on a Tag read exactly as before.
 ### Decision *(filled by the Director)*
 
 > Status set to **____** on YYYY-MM-DD, because ____.
+>
+> *Decided by the Director on 2026-10-08, ahead of the whole STEP:*
+> section 5 stands. A Filter refuses `bool()`, to protect chained
+> comparisons: "your reasoning makes sense. we'll refuse to protect that."
+> "Anyone?" is `len(f) > 0` for now; the Director will come back to that
+> spelling.
 >
 > *Drafted for the Director's review.* The Director asked for this on
 > 2026-10-08: "Record/action filters are a neat thing. ... We should
