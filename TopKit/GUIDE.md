@@ -958,6 +958,34 @@ the architecture, with a Field to walk and a history that stays.
 | What applies with it? | `Form(Wizard)`, `f"{Wizard:form}"` |
 | Take it away | `del Wizard[agent]` |
 | Which Pins does it carry? | `Wizard in Rare`, `f"{Wizard:pins}"` |
+| Is every one of them…? | `all(w.level > 3 for w in Wizard)` |
+| Is at least one of them…? | `any(w.level > 3 for w in Wizard)` |
+
+Python's own `all` and `any` ask a question of every member, when the
+question is written inside, as a generator:
+
+```python
+class Scholar(Tag):
+    pass
+
+class Student:
+    def __init__(self, name, grade):
+        self.name, self.grade = name, grade
+
+ann, bo = Student("Ann", 9), Student("Bo", 6)
+Scholar(ann)
+Scholar(bo)
+
+assert all(s.grade > 5 for s in Scholar)        # every sound Scholar passed
+assert any(s.grade > 8 for s in Scholar)        # at least one excelled
+assert not all(s.grade > 8 for s in Scholar)    # not all of them
+```
+
+**Watch out.** Write the question inside. `all(Scholar)` alone asks
+whether every sound Scholar is sound, which is always true, and
+`any(Scholar)` is just `if Scholar:`. Over an empty Tag, `all(...)` is
+True and `any(...)` is False: nobody broke the rule, and nobody is there
+to show it.
 
 Nothing TOP-level lives at `Wizard.something`. That namespace is yours: put
 your Reports and Operations there.

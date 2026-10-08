@@ -33,6 +33,12 @@
   alive.
 - The three were first drafted as STEP-SPEC-19, 20 and 21, and
   renumbered because other open work claims those numbers.
+- STEP-SPEC-28 (Category Error) opened at Brief. `TagCategoryError`, a
+  `TagError` and a `TypeError`, names the mistake of treating one kind of
+  TOP thing as another, such as `Wizard.hp = 10` when `hp` is a Record.
+- Guide: "Reading a Tag" shows Python's `all` and `any` with a question
+  written inside, `all(w.level > 3 for w in Wizard)`, and why
+  `all(Wizard)` alone is always true.
 
 ### TopKit
 

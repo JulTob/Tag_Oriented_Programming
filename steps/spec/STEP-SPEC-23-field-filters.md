@@ -192,9 +192,31 @@ cited as "section N" or "rule N.M".
    Tag's own names. `Rare.rarity` reads `tag.rarity` for each sound pinned
    Tag (for Wizard, `Wizard.rarity`), never a name on the Tag's Agents
    (§1.9).
-7. **A member that cannot answer the name stops the walk.** The failure
-   is the one the language raises for that name. A misspelt name,
-   `Wizard.levle`, is therefore loud at the walk rather than at the read.
+7. **A member with no value for the name.** A member that lacks the
+   name, or holds `None` under it, has no value, as SQL's `NULL` (the
+   Director, 2026-10-08: "== None is the way to check for non-defined
+   gains (records, contracts, actions...) and != None so it simply
+   exists").
+   - `P == None` keeps the members with no value, and `P != None` the
+     members with one: `Wizard.Dance != None` is every sound Wizard that
+     has a `Dance`.
+   - Every other comparison never matches a member with no value, and
+     never raises for it. `Wizard.dance == True` keeps the Wizards whose
+     `dance` is defined and `True`; `Wizard.dance == False` those whose
+     `dance` is defined and `False`.
+   - Walking the values skips members with no value, as SQL's `SUM`
+     skips `NULL`: `sum(Wizard.level)` adds the levels there are.
+   - A walk in which no member has the name at all warns
+     (`RuntimeWarning`), so a misspelt name, `Wizard.levle`, is still
+     loud.
+   - `P == None` calls the Projection's own `__eq__`: the language
+     cannot overload `is`. Style checkers flag `== None` (pycodestyle
+     E711), because for a plain value `is None` is right. SQLAlchemy keeps
+     the same spelling for SQL's `IS NULL`, for the same reason. The Guide
+     says why TOP writes it.
+
+   A member that has the name but refuses to answer it stops the walk,
+   with the failure the refusal raises:
    - A member that has left the Tag that published the name is a Rogue
      Agent of that Tag. Reading its published Report, or calling its
      published Operation through a Projection's call (section 3), raises
@@ -209,9 +231,9 @@ cited as "section N" or "rule N.M".
    `(Wizard & Caster).spells`.
 8. **A Projection is not a population.** It is the values of one
    question, not a set of Agents.
-   - It walks its values, one per root member, or one per leaf after a
-     fan-out (section 4), so `sum(Wizard.level)` adds the levels. `len`
-     counts those values.
+   - It walks its values, one per root member that has one (rule 1.7),
+     or one per leaf after a fan-out (section 4), so `sum(Wizard.level)`
+     adds the levels. `len` counts those values.
    - It refuses `in` and `not in`, with a `TypeError` whose message says
      to compare first: `ruth in (P > 3)`.
    - It refuses assignment, `del`, `~` and the population operators. Of
@@ -432,30 +454,7 @@ Tag-scope name the program puts on a Tag read exactly as before.
 
 ## Open questions for the Director
 
-1. **Missing names (rule 1.7).** Stop the walk, or treat a member that
-   cannot answer as not matching? The Director proposed a third reading
-   on 2026-10-08, close to SQL's `NULL`:
-   - `Wizard.dance == True` keeps the Wizards whose `dance` is defined and
-     `True`;
-   - `Wizard.dance == False` keeps those whose `dance` is defined and
-     `False`;
-   - "defined at all" and "not defined" are questions of their own.
-
-   The language cannot overload `is`, so "not defined" would be spelt
-   `Wizard.dance == None` and "defined" `Wizard.dance != None`. Under
-   that reading a missing name and a `None` both count as not defined,
-   and a comparison with an undefined value never matches and never
-   raises. A walk where no member defines the name at all would still
-   warn, to catch a misspelt name. Being drafted for the Director's
-   confirmation.
-
-   It works in the language: `P == None` calls the Projection's own
-   `__eq__`, which can return a Filter (checked with a model class).
-   Style checkers flag `== None` (pycodestyle E711), because for a plain
-   value `is None` is right. SQLAlchemy keeps the same spelling for SQL's
-   `IS NULL` for the same reason, `is` cannot be overloaded. The Guide
-   would say why TOP writes `== None` here.
-2. **Lookup through a Link (rule 1.5).** Through a Link, a name the Pair
+1. **Lookup through a Link (rule 1.5).** Through a Link, a name the Pair
    answers wins over the Contact's own attribute of the same name. Is
    that the reading you want, or should a shared name be refused?
 
@@ -469,10 +468,14 @@ Tag-scope name the program puts on a Tag read exactly as before.
     declares, and every public name it does not hold, project over the
     sound members; a name both scopes hold reads the Tag; the warning
     when a Pin lands a name the members answer;
+  - no value (rule 1.7): `== None` and `!= None` for a missing name and
+    for `None`, for a Record, a condition and an Action; `== True` and
+    `== False` skipping members with no value; a walk of values skipping
+    them; the warning when no member has the name;
   - liveness: a member joins, a member breaks a promise, or a level
     changes, after the Filter was made;
   - every refusal: `bool()`, `in` on a Projection, a non-boolean
-    comparison, a missing name, a Rogue or defective member reaching a
+    comparison, a Rogue or defective member reaching a
     published name, assignment on a population, a Projection that would
     apply a Tag (at the call for a Link the root's Tag grants, and at the
     walk, before any value is called, for a Record that holds a Tag);
@@ -502,6 +505,11 @@ Tag-scope name the program puts on a Tag read exactly as before.
 > comparisons: "your reasoning makes sense. we'll refuse to protect that."
 > "Anyone?" is `len(f) > 0` for now; the Director will come back to that
 > spelling.
+>
+> *Decided by the Director on 2026-10-08:* rule 1.7, a member with no
+> value is `NULL`-like: "== None is the way to check for non-defined
+> gains (records, contracts, actions...) and != None so it simply
+> exists".
 >
 > *Drafted for the Director's review.* The Director asked for this on
 > 2026-10-08: "Record/action filters are a neat thing. ... We should

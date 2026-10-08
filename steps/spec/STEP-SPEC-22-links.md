@@ -983,6 +983,29 @@ name: `Link`. No parameter name is reserved.
    Agent registered with `At_Exit` gets its teardowns instead. A Link
    teardown that *fails* is a failure, not a skipped teardown: it follows
    whatever STEP-SPEC-24's open question 1 decides for failed teardowns.
+4. **A published line over the Contact's own member (rule 2.8).** The
+   Director asked: "ruth.Greet then should have the underlay defined?"
+   By §1.5 a published member is a normal Action on the Agent that
+   receives it: it overlays at `(Agent, name)`. So if Ruth already has a
+   `Greet` (her host's, or one of her own Tags'), Charlie's `@Public`
+   `Greet` lands on top of it. Two things follow, and both touch the
+   barrier, because the Contact is external:
+   - **Without `@Underlay`, the line replaces her own `Greet`,** for every
+     caller, her own Tags' code included. That is the Link rewriting the
+     Contact, the reason rule 2.5 refuses an ordinary Tag as a Base of a
+     Relation. Proposed: a `@Public` Pair member never replaces a member
+     the Contact already has. If she has one, the Relation must declare
+     `@Underlay`, and her member becomes its underlay; otherwise the
+     linking is a Composition Failure, nothing changed.
+   - **After the unlinking, the line is dead but still on top.** A
+     published member answers members only (§1.5), so `ruth.Greet()`
+     raises a Rogue Access Failure, and by stickiness (§0.7) her own
+     `Greet` underneath never answers again. Proposed: when a Pair ends,
+     the members its Link published onto the Contact are taken off her,
+     and what was beneath answers again. That is an exception to
+     stickiness, for the Contact only: what a Tag gives its own Agent
+     stays, but a line into an external Contact is the Agent's, and
+     ends with the Pair.
 
 ## Acceptance requirements
 
