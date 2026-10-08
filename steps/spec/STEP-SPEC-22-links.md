@@ -910,6 +910,32 @@ name: `Link`. No parameter name is reserved.
    Is naming the declaring Tag explicit enough? Or should a Projection
    refuse to read a Link (both `.Knows[:]` and `.Knows`) unless the
    Relation declares that it may be searched?
+3. **Pairs that end without their teardowns.** The Director: "for the
+   deletion of a link... maybe we should put a foot in the deletion
+   system, and at least throw warnings." Four cases end a Pair in
+   silence today:
+   - a Contact collected in the same cycle as the Link's Agent (rule
+     8.3);
+   - a Contact deleted when the Link's Agent is already gone (rule 8.4);
+   - a Link whose Agent's finalizer never ran (rule 8.7);
+   - interpreter exit without `At_Exit` (rule 8.3).
+
+   The proposal is one named warning per Pair, `TagUnlinkWarning`, in
+   the family of STEP-SPEC-8's named failures and of `TagTriageWarning`
+   (STEP-SPEC-18, amendment F):
+
+   ```python
+   class TagUnlinkWarning(UserWarning):
+       """A Pair ended without its Link's teardowns."""
+   ```
+
+   It names the Relation and the Contact, never the Link's Agent (rule
+   6.3). It comes once the finalizer's work is done, so a warning turned
+   into an error stops nothing. It cannot come while the interpreter is
+   shutting down, because the kit's modules may already be gone; an
+   Agent registered with `At_Exit` gets its teardowns instead. A Link
+   teardown that *fails* is a failure, not a skipped teardown: it follows
+   whatever STEP-SPEC-24's open question 1 decides for failed teardowns.
 
 ## Acceptance requirements
 
