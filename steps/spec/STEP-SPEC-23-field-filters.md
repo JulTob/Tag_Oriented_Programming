@@ -323,17 +323,19 @@ answer `False`. `len(f) > 0` asks the population.
 - Writing through a Projection, such as `Wizard.hp = 10`. Until a STEP
   gives it a spelling, write the loop: `for wizard in Wizard: wizard.hp =
   10`. On a Tag, that
-  assignment sets an attribute of the Tag itself, as Python does today.
-  It then wins over the Projection (rule 1.1), so `Wizard.hp` stops
-  reading the members. Over a Report it is the documented way to change
-  the shared value (§1.4). Over a Record or an Action it is never what
-  anyone means, and today its result depends on timing: before the
-  Tag's first use it erases the declaration, so new Wizards get no
-  `hp`; after, Wizard's own Agents still get it, but a Shape declared
-  later inherits nothing under that name. The kit should refuse it, as
-  it already refuses a Pin that replaces what a Tag's Agents do. On any
-  other population, assignment is refused (rule 1.4). STEP-SPEC-25
-  takes this up.
+  assignment sets a value of the Tag itself, as Python does today: a
+  Report written by hand. The Director: "if it looks like a report, then
+  it is, and we just have more than one way to handle that." It then
+  wins over the Projection (rule 1.1), so `Wizard.hp` stops reading the
+  members. Over a declared Report it is the documented way to change the
+  shared value (§1.4). Over a Record or an Action it is a category
+  error, in the Director's words "probably a misconception", and today
+  its result depends on timing: before the Tag's first use it erases the
+  declaration, so new Wizards get no `hp`; after, Wizard's own Agents
+  still get it, but a Shape declared later inherits nothing under that
+  name. The kit should refuse it, as it already refuses a Pin that
+  replaces what a Tag's Agents do. On any other population, assignment
+  is refused (rule 1.4). STEP-SPEC-25 takes this up.
 - Broadcasting an Action for its effect, such as `Enemy.Take_Damage(5)`.
   It does nothing, and warns (rule 3.3).
 - Applying a Tag through a Projection (rule 1.9).
@@ -446,6 +448,13 @@ Tag-scope name the program puts on a Tag read exactly as before.
    raises. A walk where no member defines the name at all would still
    warn, to catch a misspelt name. Being drafted for the Director's
    confirmation.
+
+   It works in the language: `P == None` calls the Projection's own
+   `__eq__`, which can return a Filter (checked with a model class).
+   Style checkers flag `== None` (pycodestyle E711), because for a plain
+   value `is None` is right. SQLAlchemy keeps the same spelling for SQL's
+   `IS NULL` for the same reason, `is` cannot be overloaded. The Guide
+   would say why TOP writes `== None` here.
 2. **Lookup through a Link (rule 1.5).** Through a Link, a name the Pair
    answers wins over the Contact's own attribute of the same name. Is
    that the reading you want, or should a shared name be refused?
