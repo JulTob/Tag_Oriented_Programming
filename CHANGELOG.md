@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+### Specification
+
+- STEP-SPEC-20 at **Brief**: a condition laid over an **independent**
+  Tag's condition of the same name. The Specification has a law for a
+  Shape over its Base (§2.4) and for an independent Tag's Action or
+  Record (§1.2, §1.3), and none for this. The STEP proposes the slot law
+  of §1.1 for conditions as a third kind: replaced and diagnosed as an
+  Overwrite Warning without `@Underlay`, extended silently with it, the
+  Contract Warning kept for the Geometry. Held for the Director.
+
+### TopKit
+
+- Fixed: the `TagContractWarning` text said "overrides a Base
+  Postcondition" whenever a Tag replaced another Tag's Postcondition
+  without `@Underlay`. It now names the relationship and the Tag: "its
+  Base Soldier" (a weakened promise), "its Shape Knight" (a Base
+  re-applied over its Shape's sticky promise), or "independent Tag
+  Sworn" (neither in the other's Form: an unrelated Tag, a sibling Shape,
+  another Pin), and says that Tag's promise no longer binds the Agent.
+  The class is unchanged until STEP-SPEC-20 is decided.
+- Fixed: the `TagContractWarning` pointed one frame above the line that
+  tagged (`<sys>:0` at module level, the caller's caller inside a
+  function). It names the tagging line, as the Overwrite Warning does.
+
 ### Project
 
 - **Releases go out through Trusted Publishing.** A GitHub Release runs

@@ -212,11 +212,25 @@ rollback target.
   safe. An Agent without Postconditions pays one dictionary lookup.
 - **Conditions are sticky** (STEP-SPEC-12): `_rip` removes membership
   and runs the teardown, nothing else. Every bound check carries its
-  origin Tag (`_stamp`) only so that a Tag re-applied after a Rip
-  replaces its own promise silently. `Contract.Delete(agent, *names)`
+  origin Tag (`_stamp`) for two reasons only: a Tag re-applied after a
+  Rip replaces its own promise silently, and the Contract Warning names
+  the Tag whose promise was replaced. `Contract.Delete(agent, *names)`
   pops the named conditions from the Agent's state and raises a
   Resolution Failure for a name that is not there; it is written to be
   called from a `@Rip` protocol, and works for a pinned Tag as well.
+- **A condition laid over another Tag's** (STEP-SPEC-20, at Brief): the
+  kit keeps one Precondition and one Postcondition per name, latest
+  Layer visible, as for an Action. A Postcondition laid over another
+  Tag's without `@Underlay` raises `TagContractWarning`, and
+  `overlay._replaced_promise` names how the two Tags relate: "its Base"
+  (a weakened promise, §2.4), "its Shape" (a Base re-applied over its
+  Shape's sticky promise), or "independent Tag" (neither in the other's
+  Form). An independent Precondition is replaced silently. The
+  Specification covers only the Shape over its Base; which law governs
+  the rest, and with which warning, is the STEP's question. Until it is
+  decided the class stays `TagContractWarning`. The warning is raised
+  from `_install` itself, one frame shallower than the Overwrite
+  Warnings, hence `stacklevel=5` against their 6.
 - **Field algebra** (STEP-SPEC-13): `_Population` in `fields.py` gives
   every population the three operators; `_Combined` holds two sides and
   an operator and walks them lazily (`|` by identity, each once; `&` and
