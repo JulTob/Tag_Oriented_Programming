@@ -135,8 +135,9 @@ cited as "section N" or "rule N.M".
    carries this STEP.
 4. **Through a Link.** A member reached through a Link is read through
    that Link:
-   - a name that is a Pair Record of the Link reads the Pair,
-     `charlie.Knows[member].since` (STEP-SPEC-22, section 7);
+   - a name the Pair answers (a Record, an Action, a condition or a
+     published member that the Link's Form gives the Pair) reads the
+     Pair, `charlie.Knows[member].since` (STEP-SPEC-22, section 7);
    - any other name reads the Contact, `member.name` (rule 1.1).
 
    This holds for:
@@ -337,7 +338,7 @@ Nothing that works today changes.
 2. **Missing names (rule 1.6).** Stop the walk (recommended), or treat a
    member that cannot answer as not matching?
 3. **Lookup through a Link (rule 1.4).** On a Link's Field, and after a
-   fan-out through a Link, a Pair Record wins over the Contact's own
+   fan-out through a Link, a name the Pair answers wins over the Contact's own
    attribute of the same name. Is that the reading you want, or should a
    shared name be refused?
 4. **The sound population.** `Wizard[:]` holds the defective members too,
@@ -360,7 +361,7 @@ Nothing that works today changes.
     `ruth in P > 3` and `ruth not in P > 3` at the `in`;
   - the warning for a call that is never walked;
   - reading through a Link: the comprehension reads `link[m].x` for a
-    Pair Record and `m.x` otherwise.
+    name the Pair answers, and `m.x` otherwise.
 - TopKit: populations refuse assignment of names, and the test that a
   Field has no public names covers every kind of population.
 - The Fields Guide: a section "Filters", with Carroll's cakes as the
