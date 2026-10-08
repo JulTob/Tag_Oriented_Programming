@@ -227,8 +227,8 @@ nothing through a host's code: it runs no property, no host
 4. **Secrets stay secret** (§1.5). Each member is written as
    `member.name = value` would be at that moment. A secret is written
    only while its composition door is open:
-   - for an Agent, while one of that Agent's own functions is running
-     (§1.5);
+   - for an Agent, while an Action, Imprint, Record builder, condition
+     or Rip protocol bound to that Agent is running (§1.5);
    - for a Pair, while one of its Link's own functions is running
      (STEP-SPEC-22, rule 3.6);
    - for a pinned Tag, while that Tag's own protocols or pinned
@@ -270,13 +270,15 @@ nothing through a host's code: it runs no property, no host
    - the failure is raised as a Composition Failure that names the
      member, with the host's failure as its cause.
 
-   To undo, the kit remembers two things about each member before
-   writing it: the value the name read, and whether the member held the
-   name **itself** (in Python, in its own `__dict__` or a set slot).
-   - If it did, the old value is written back.
-   - If it did not, because the name came from the host class, the
-     member's own attribute is deleted. The member then reads the
-     class's value again, and follows it, as before.
+   To undo, the kit remembers, for each member before writing it, the
+   value the name read and where that value lived:
+   - **on the member itself** (in Python, its own `__dict__` or a set
+     slot): the old value is written back;
+   - **in a host data descriptor**, such as a property with a setter:
+     the old value is written back through the descriptor;
+   - **on the host class, as a plain value**: the write made the member
+     its own attribute, so that attribute is deleted. The member reads
+     the class's value again, and follows it, as before.
 
    This is the call boundary of §0.6: nothing partial is published. An
    interruption, such as `KeyboardInterrupt`, also undoes the act, and is
@@ -309,12 +311,19 @@ nothing through a host's code: it runs no property, no host
    un-patching, `tag.Control = original.Control` (§1.9).
 2. **Refused: a name the Tag gives its Agents.** Assigning or deleting,
    on a Tag, a name that the Tag or a Base in its Form declares **for
-   its Agents** is a Composition Failure, and nothing changes. That is
-   every name §1.9 already refuses to a Pin:
+   its Agents** is a Composition Failure, and nothing changes. On a Link,
+   its Agents' place is the Pair (STEP-SPEC-22, rule 2.3), so this covers
+   what the Link gives its Pairs. These are the names §1.9 already
+   refuses to a Pin:
    - Records and Actions;
    - protocols: Preconditions, Imprints, Postconditions, teardowns,
      `@Delete` and `__del__` Layers;
-   - Links (STEP-SPEC-22).
+   - Links (STEP-SPEC-22);
+   - a name every Tag answers through its metaclass.
+
+   Also refused: on a pinned Tag, the name of one of its own conditions,
+   which it reads by name (§2.5, `Wizard.Has_Members`). It is
+   read-only, as on an Agent (finding 5).
 
    **A name with a Tag-scope slot stays writable.** §1.1 lets a Report
    `colour` and a Record `colour` live side by side, as two slots. When
@@ -367,13 +376,12 @@ nothing through a host's code: it runs no property, no host
    - its defective population, `(~charlie.Knows)`;
    - a Filter rooted on the Link, `(charlie.Knows.since < 2000)`, which
      holds the sound Contacts, or on either population above,
-     `(charlie.Knows[:].since < 2000)`;
-   - a combined view whose operands all come from that one Link:
-     `(charlie.Knows[:] & charlie.Knows)`, its sound Contacts. Here the
-     Link is kept, unlike in STEP-SPEC-23, rule 1.5, because every
-     member has exactly one Pair in it.
+     `(charlie.Knows[:].since < 2000)`.
 
-   The Link itself is never a root, as no Tag is (rule 1.2).
+   The Link itself is never a root, as no Tag is (rule 1.2). So the
+   sound Pairs alone have no root of their own: a combined view would
+   lose the Link (rule 5.3). Use a Filter rooted on the Link, or a `for`
+   loop over `charlie.Knows` (open question 4).
 2. **A write through a Link never reaches the Contact.** A name the Pair
    does not hold is refused before writing, even when the Contact holds
    it. A read through a Link may fall back to the Contact, because a read
@@ -384,13 +392,14 @@ nothing through a host's code: it runs no property, no host
    for contact in charlie.Knows:
        contact.mood = "cheerful"                 # an explicit write on each Contact
    ```
-3. **A combined view of two Links refuses writes.** `(charlie.Knows &
-   bob.Knows).since = 2011` has no one Pair per member, and a combined
-   view sees no Link (STEP-SPEC-23, rule 1.5). It would write Ruth's own
-   `since`, in a line that reads like a change to Pairs. So a write whose
-   root combines populations of different Links, or a Link with anything
-   else, is refused before writing, and the message shows the `for`
-   loop.
+3. **A combined view that holds a Link population refuses writes.** A
+   combined view sees no Link (STEP-SPEC-23, rule 1.5), so it reads each
+   Contact's own attributes. `(charlie.Knows & bob.Knows).since = 2011`
+   would write Ruth's own `since`, in a line that reads like a change to
+   Pairs. So a write whose root combines any population of a Link, with
+   anything, is refused before writing, and the message shows the `for`
+   loop. Reads are unchanged, so a write never reaches a member other
+   than the one a read of that root reads (rule 1.3).
 4. **On the Link itself**, `charlie.Knows.since = 2011` is refused by
    rule 4.2: `since` is a Record the Link gives its Pairs. The message
    shows `charlie.Knows[:].since = 2011`.
@@ -652,13 +661,15 @@ and every write on one Agent.
 4. **The sound members as a root (rule 1.2).** Writing only the sound
    members is spelt `(Enemy[:] & Enemy).hp = 10`. STEP-SPEC-23 set aside
    a short spelling for the sound population, `+Enemy`. Does the write
-   bring that question back? The STEP recommends the long spelling for
-   now: it says what it means.
+   bring that question back? On a Link it matters more: the sound Pairs
+   have no root at all (rule 5.1). The STEP recommends the long spelling
+   for now, and the loop on a Link: both say what they mean.
 
 ## Acceptance requirements
 
-- **First, on its own:** assigning a condition's name on an Agent is
-  refused, as §2.5 requires (finding 5).
+- **First, on its own:** assigning a condition's name on an Agent, or a
+  pinned Tag's own condition name on that Tag, is refused, as §2.5
+  requires (finding 5).
 - `tests/test_topkit.py`: a `WriteThroughTests` class, covering:
   - every root: the Field, `~Tag`, a combined view, a Filter, a Pin's
     population, an empty root;
@@ -674,14 +685,15 @@ and every write on one Agent.
   - a secret written from inside that member's own function;
   - undoing: a host `__setattr__` that fails on the third member, a name
     that came from the host class (deleted on undo, so the member follows
-    the class again), an unset slot, a `KeyboardInterrupt`, and an undo
+    the class again), a property with a setter (written back), an unset
+    slot, a `KeyboardInterrupt`, and an undo
     that fails too;
   - no promise checked: a write that breaks one moves the member to
     `~Tag`, and raises nothing;
   - one shared value (rule 1.4);
-  - Links: the Pair written through the Field, `~`, Filters and a
-    combined view of one Link; a name only the Contact holds refused; a
-    combined view of two Links refused; a fan-out refused;
+  - Links: the Pair written through the Field, `~` and Filters; a name
+    only the Contact holds refused; any combined view with a Link
+    population refused; a fan-out refused;
   - `del` through a population refused, and `-=` failing before any
     write, with the loop in the message.
 - `tests/test_topkit.py`: a `TagAssignmentTests` class, covering:
@@ -692,7 +704,8 @@ and every write on one Agent.
     un-patching, and a new program name, all still written;
   - the warning for a new public name a member holds; none for a name
     the Tag or a Base already holds, none for an underscore name, and
-    none from the kit's own writes when a Pin lands.
+    no second warning when a Pin lands such a name (STEP-SPEC-23, rule
+    1.3, gives one already).
 - `tests/test_topkit.py`: a `WalkTests` class: a member Ripped by an
   earlier turn is skipped, through the Field, both partitions, combined
   views and Filters; an Agent that joins during the walk is not walked,
