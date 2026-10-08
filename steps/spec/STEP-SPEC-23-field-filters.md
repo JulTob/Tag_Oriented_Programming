@@ -27,7 +27,7 @@ the population of sound Wizards whose level is above 3. Like every
 combined view it is alive, and it combines with `|`, `&` and `-`.
 
 **Chains.** A chain fans out through Fields. `Social.Knows[:] == ruth` is
-everyone in Social who knows Ruth.
+every sound Agent in Social who knows Ruth.
 
 **Calls.** An Action's result filters too, so a Filter follows a system
 that is changing: `Wizard.Can_Cast("Light") == True`.
@@ -102,10 +102,13 @@ The changes to the Specification:
 - a new section, **§2.9 Filters**, in Ring 2, beside the population
   algebra of §2.5;
 - one row in §0.8;
-- an amendment to §0.8's rule that "Nothing TOP-level lives at
-  `Wizard.something`". The program's own Tag-scope names stay its own and
-  always win. A public name the Tag does not hold reads across its sound
-  Agents (rule 1.1).
+- an amendment to §0.8, which "leaves the Tag's dotted namespace,
+  `Wizard.something`, to the program" (the Guide says it as "Nothing
+  TOP-level lives at `Wizard.something`"). The Tag's own names stay its
+  own and always win, and so do a pinned Tag's Pin-bound views and Pin
+  conditions by name (§1.9, §2.5). An Agent's name read on the Tag,
+  whether the Tag declares it for its Agents or does not hold it at all,
+  reads across the Tag's sound Agents (rule 1.1).
 
 In this STEP, § cites the Specification only. This STEP's own parts are
 cited as "section N" or "rule N.M".
@@ -113,13 +116,24 @@ cited as "section N" or "rule N.M".
 ### 1. Projection
 
 1. **A name read on a Tag lives in the scope that receives it** (§1.1).
-   - **Tag scope reads the Tag.** A Report, an Operation, what a Pin
-     lands, and anything else the Tag itself holds read the Tag's own
-     value, as today (§0.8). The program's own names always win.
-   - **Any other public name is an Agent's name.** Reading it on the Tag
-     gives a **Projection** over the Tag's sound population, the Agents
-     `for wizard in Wizard` walks (§2.5), in their order. That population
-     is the Projection's **root**.
+   - **An Agent's name projects.** The Tag stores what it declares for its
+     Agents (§1.1: "the Tag stores it once"), but those names are its
+     Agents': an Action (a teardown is one, §3.1), a Record, a condition
+     read by name (§2.5), or a Link (STEP-SPEC-22), declared in its own
+     body or a Base's. So is any public name the Tag does not hold.
+     Reading an Agent's name on the Tag gives a **Projection** over the
+     Tag's sound population, the Agents `for wizard in Wizard` walks
+     (§2.5), in their order. That population is the Projection's
+     **root**.
+   - **Every other name reads the Tag.** That covers:
+     - a Report and an Operation, its own or a Base's;
+     - what a Pin lands;
+     - the Pin-bound view by name, `Wizard.Rare` (§1.9);
+     - a Pin's condition read by name, `Wizard.Has_Members` (§2.5);
+     - a protocol such as an Imprint;
+     - any value the program sets on the Tag.
+
+     These read the Tag's own value, as today (§0.8). They always win.
 
    For each member of the root, the Projection reads the value that
    `member.name` reads at that moment. This is the current access of
@@ -135,10 +149,13 @@ cited as "section N" or "rule N.M".
 3. **A name both scopes hold reads the Tag.** §1.1 lets a Report `colour`
    and the Agents' Record `colour` live side by side. `Wizard.colour` is
    then the Report. To project the Agents' `colour`, read it through a
-   population: `Wizard[:].colour`, kept to the sound members with
-   `& Wizard`.
+   population: `Wizard[:].colour` for every member, or
+   `(Wizard[:] & Wizard).colour` for the sound ones. A Tag in an operator
+   seat is its sound population (§2.5). A Projection takes no population
+   operator (rule 1.8), so `& Wizard` goes inside the brackets.
 
-   A Pin can land a Tag-scope name after a Projection was written. If
+   A Pin can land a Tag-scope name, its own view by name among them, after
+   a Projection was written. If
    the pinned Tag's members already answer that name, `Wizard.name`
    changes meaning. So the kit warns at pinning, and the warning names
    the Pin, the Tag and the name. A Pin is already refused a name the
@@ -152,8 +169,9 @@ cited as "section N" or "rule N.M".
    over Charlie's sound Contacts. A member reached through a Link is read
    through that Link:
    - a name the Pair answers (a Record, an Action, a condition or a
-     published member that the Link's Form gives the Pair) reads the
-     Pair, `charlie.Knows[member].since` (STEP-SPEC-22, section 7);
+     published member that the Links holding the Contact give the Pair)
+     reads the Pair, `charlie.Knows[member].since` (STEP-SPEC-22,
+     section 7);
    - any other name reads the Contact, `member.name` (rule 1.1).
 
    This holds for:
@@ -198,10 +216,19 @@ cited as "section N" or "rule N.M".
      to compare first: `ruth in (P > 3)`.
    - It refuses assignment, `del`, `~` and the population operators. Of
      indexes it answers only `[:]` (section 4).
-9. **A Projection never applies a Tag.** Calling a Projection whose
-   values are Tags or Links is refused, with a `TypeError`. Applying a Tag
-   is a command, not a question (section 6). So `Social.Knows(ruth)` is
-   refused: it is not "everyone in Social links Ruth".
+9. **A Projection never applies a Tag.** Applying a Tag is a command, not
+   a question (section 6). The refusal is a `TypeError`, and no Agent is
+   tagged:
+   - **at the call**, when the name is a Link that the root's Tag grants
+     (STEP-SPEC-22, rule 2.2), so every member of the root holds one. The
+     root's Tag is `Social` for `Social.Knows`, `Social[:].Knows`,
+     `(~Social).Knows`, and a Filter rooted on any of them. So
+     `Social.Knows(ruth)` is refused at once: it is not "everyone in
+     Social links Ruth";
+   - **at the walk**, for any other value that turns out to be a Tag or a
+     Link, such as a Record that holds a Tag. The walk stops before that
+     value is called, and the message names it. A call of this kind that
+     is never walked only warns (rule 3.3).
 
 ### 2. Filter
 
@@ -233,9 +260,10 @@ cited as "section N" or "rule N.M".
    Action that changes something will change it again at every walk. The
    Guide says it plainly: filter by questions, never by commands.
 3. **A call that is never walked says so.** A called Projection that is
-   dropped without ever being walked or compared raises a warning when it
-   is collected. This is the same warning Python gives for a coroutine
-   that is never awaited. So `Enemy.Take_Damage(5)` on a line of its own
+   dropped without ever being walked or compared raises a
+   `RuntimeWarning` when it is collected, the kind of warning Python gives
+   for a coroutine that is never awaited. So `Enemy.Take_Damage(5)` on a
+   line of its own
    does nothing, and the warning says so. Broadcasting a command is not
    in this STEP (section 6).
 
@@ -272,7 +300,8 @@ cited as "section N" or "rule N.M".
 **A Projection, a Filter, and any combination that contains a Filter
 refuse `bool()`.** The refusal is a `TypeError` whose message names the
 spelling to use instead: `len(f) > 0` to ask "anyone?", and
-`(a < P) & (P < b)` for a range.
+`(P > a) & (P < b)` for a range, with the Projection on the left (rule
+2.1).
 
 The reason is the language's chained comparison. Python reads `2000 < P
 < 2020` as `(2000 < P) and (P < 2020)`, and `and` asks the truth of the
@@ -292,8 +321,12 @@ answer `False`. `len(f) > 0` asks the population.
 ### 6. Not in this STEP
 
 - Writing through a Projection, such as `Wizard.hp = 10`. On a Tag, that
-  assignment sets an attribute of the Tag itself, as today; on any other
-  population it is refused (rule 1.8).
+  assignment sets an attribute of the Tag itself, as Python does today.
+  It then wins over the Projection (rule 1.1), so `Wizard.hp` stops
+  reading the members, and over a declared name it replaces the
+  declaration: `Wizard.spells = []` erases the Record. On any other
+  population, assignment is refused (rule 1.4). STEP-SPEC-25 takes this
+  up.
 - Broadcasting an Action for its effect, such as `Enemy.Take_Damage(5)`.
   It does nothing, and warns (rule 3.3).
 - Applying a Tag through a Projection (rule 1.9).
@@ -315,9 +348,11 @@ alive. The whole Field and the repair queue stay one step away, as
 **The receiver decides, for reads too.** §1.1 already says the receiver
 decides a contribution's scope. Reading follows it: a Tag-scope name reads
 the Tag, and an Agent's name reads the Agents. §0.8 promised the program
-the Tag's dotted namespace. That promise holds for every name the
-program puts there, because those names win (rule 1.1). What changes is
-only what an otherwise missing name means.
+the Tag's dotted namespace. That promise holds for every Tag-scope name
+the program puts there, because those names win (rule 1.1). What changes
+is what an Agent's name means on the Tag. One the Tag declares for its
+Agents gave TopKit's raw declaration, and one it does not hold was an
+`AttributeError`.
 
 **The language's own structures.** Comparison operators and attribute
 reads on a Tag read like the domain: *the Wizards whose level is greater
@@ -351,13 +386,15 @@ no values. It holds the question, and asks it again at every walk.
 ## Backwards compatibility
 
 What changes:
-- **A public name the Tag does not hold** was an `AttributeError` on the
+- **A public name the Tag did not answer** was an `AttributeError` on the
   Tag. Now it is a Projection, so `hasattr(Wizard, "level")` is `True`.
-  Code that probed a Tag for a public name with `hasattr` should probe
-  `vars(Wizard)` instead.
-- **A name the Tag declares in Agent scope**, a Record or an Action read
-  on the Tag (`Wizard.spells`), gave TopKit's raw function. That was
-  never a documented spelling. Now it is a Projection.
+  Code that probed a Tag with `hasattr` must ask another way.
+  `vars(Wizard)` alone is not enough: it misses a Report a Shape
+  inherits, and the names a pinned Tag answers by name (§1.9, §2.5).
+- **A name the Tag declares for its Agents**, a Record, an Action or a
+  condition read on the Tag (`Wizard.spells`, `Wizard.Has_Book`), gave
+  TopKit's raw function. That was never a documented spelling. Now it is
+  a Projection.
 - **Reading a public name on a population** was an `AttributeError`,
   apart from the Field's `Add` and `Remove`, which became private in pull
   request #26.
@@ -365,8 +402,9 @@ What changes:
   identity for `==`, a `TypeError` for `<`.
 - **`bool()` of a Projection or a Filter** is new, and refused.
 
-What does not change: Reports, Operations, what a Pin lands, and every
-name the program puts on a Tag read exactly as before.
+What does not change: Reports, Operations, what a Pin lands, a pinned
+Tag's Pin-bound views and Pin conditions by name, and every other
+Tag-scope name the program puts on a Tag read exactly as before.
 
 ## Alternatives considered
 
@@ -377,7 +415,7 @@ name the program puts on a Tag read exactly as before.
 | Projections only on populations, `Wizard[:].level`, with the Tag's dotted names left alone (the first draft) | Withdrawn after the Director's review: the everyday question is about the sound members, and the whole Field made it a two-step spelling, `(Wizard[:].level > 3) & Wizard`. |
 | A spelling for the sound population, `(+Wizard).level` (the first draft's open question) | Set aside: the Tag already means its sound population, and needs no new operator or brackets. |
 | Projecting only the names the Tag declares (its Records and Actions) | Set aside: `level` belongs to the host, as most attributes a program filters on do, and `Wizard.level` must work. |
-| Mask indexing, `Wizard[:][Wizard[:].level > 3]` | `Tag[...]` is already the view and the Field; it would also name the population twice. |
+| Mask indexing, `Wizard[:][Wizard[:].level > 3]` | `Tag[agent]` is already the view and `Tag[:]` the Field; it would also name the population twice. |
 | A Filter with a truth value, "is anyone in it?" | Rejected: it makes chained comparisons silently wrong (section 5). |
 | Members without the name skipped silently | Rejected: a misspelt name would filter everyone out with no error. |
 | "All" as the meaning of a fan-out | Rejected: "some" is what `== ruth` asks, and "all" is one `-` away. |
@@ -400,16 +438,19 @@ name the program puts on a Tag read exactly as before.
 
 - `tests/test_topkit.py`: a `FilterTests` class, covering:
   - every numbered rule;
-  - the receiver rule for reads: Reports, Operations and Pin-landed names
-    read the Tag; every other public name projects over the sound
-    members; a name both scopes hold reads the Tag; the warning when a
-    Pin lands a name the members answer;
+  - the receiver rule for reads: Reports, Operations, Pin-landed names,
+    a pinned Tag's Pin-bound views and Pin conditions by name, and values
+    set on the Tag read the Tag; Records, Actions and conditions the Tag
+    declares, and every public name it does not hold, project over the
+    sound members; a name both scopes hold reads the Tag; the warning
+    when a Pin lands a name the members answer;
   - liveness: a member joins, a member breaks a promise, or a level
     changes, after the Filter was made;
   - every refusal: `bool()`, `in` on a Projection, a non-boolean
     comparison, a missing name, a Rogue or defective member reaching a
     published name, assignment on a population, a Projection that would
-    apply a Tag;
+    apply a Tag (at the call for a Link the root's Tag grants, and at the
+    walk, before any value is called, for a Record that holds a Tag);
   - chained comparisons failing loudly: `a < P < b` at the `and`, and
     `ruth in P > 3` and `ruth not in P > 3` at the `in`;
   - the warning for a call that is never walked;

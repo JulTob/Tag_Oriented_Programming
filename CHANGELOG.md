@@ -10,8 +10,8 @@
   - A Link is a Tag in full: Records, Actions, promises, secrets, Bases
     and Shapes. What an ordinary Tag gives its Agent, a Link gives the
     Pair.
-  - Its functions take the Agent first and the Contact second: the Agent
-    has the agency.
+  - The functions it declares for the Pair take the Agent first and the
+    Contact second: the Agent has the agency.
   - A Link points one way: nothing on a Contact names an Agent who links
     her.
   - Linking makes the Contact a member and writes no Record, Action or
@@ -20,8 +20,9 @@
 - STEP-SPEC-23 (Field Filters) opened at Brief. `Wizard.level > 3` is a
   live population of the sound Wizards above level 3; `Wizard[:].level >
   3` asks the whole Field.
-  - A name read on a Tag follows its receiver: the Tag's own names read
-    the Tag, and any other public name reads across its sound Agents.
+  - A name read on a Tag follows its receiver: the Tag's own Tag-scope
+    names read the Tag, and its Agents' names, whether it declares them
+    or not, read across its sound Agents.
   - Chains fan out with "some": `Social.Knows[:] == ruth`.
   - A Filter by an Action's result follows a changing system.
   - This is the logic of classes and attributes of Boole and Carroll, in

@@ -60,8 +60,10 @@ Both were checked on TopKit 0.2.0a4:
   "Sentry is not active on this Agent". So the spelling is free.
 
 Links (STEP-SPEC-22) need this. When an Agent is deleted, the Links it
-holds end. A Link's end should be a Tag's end like any other, with the
-Contacts' teardowns run, not a special rule.
+holds end, and each Link's Field is Ripped like any Tag's, with the
+Link's teardowns run for every Contact. Only the moment differs: the
+finalizer of the Agent who holds the Link runs that Field Rip, while the
+dying Agent is still in hand to fill the first seat (rule 3.1).
 
 ## Specification
 
@@ -79,9 +81,9 @@ cited as "section N" or "rule N.M".
 2. **Refused before anyone leaves.** If any member still holds an active
    Shape of the Tag, the whole Field Rip is a Composition Failure, and
    the Field is exactly as it was. The message names the members and the
-   Shapes, and prints the lines that would Rip them first, deepest Shape
-   first: `del Wizard[:]`, then `del Class[:]`, when Wizard is a Shape of
-   Class. Rip never cascades (§0.7), so the program writes those lines
+   Shapes, and prints the lines that would Rip them first, the most
+   specific Shape first: `del Wizard[:]`, then `del Class[:]`, when Wizard
+   is a Shape of Class. Rip never cascades (§0.7), so the program writes those lines
    itself.
 3. **In the Field's order.** Members leave in the order they joined, the
    order `for` walks. For each member, membership ends and the member
@@ -133,7 +135,8 @@ cited as "section N" or "rule N.M".
    - a teardown or Action that names its own Tag;
    - the guard of §0.7 (`if agent not in Wizard: return True`), written
      in a Tag made at run time;
-   - `__class__` in an Action.
+   - `__class__`, or a `super()` with no arguments, in an Action: both
+     make the same hidden reference to the class.
 
    A Tag held this way does not end while any Agent keeps that function,
    as a pending teardown or as a sticky Action or condition, and Agents
@@ -146,12 +149,17 @@ cited as "section N" or "rule N.M".
 1. **When a Tag ceases to exist, its Field is Ripped**, as by `del Tag[:]`
    (rules 1.1, 1.3, 1.5 and 1.6), with one difference. As at an Agent's
    deletion (§3.2), teardowns at a Tag's end are best effort and silent:
-   no failure is raised, and nothing is refused (rule 3.4). Every
-   member's teardowns run, then the Tag is gone.
+   no failure is raised, and nothing is refused (rule 3.4). The
+   teardowns of every member still alive at that collection run, then the
+   Tag is gone. A member collected in the same pass as its Tag has
+   already left the Field, and leaves with no teardown, best effort as at
+   any deletion (§3.2).
 
-   A Link is the exception. Its Field is Ripped by the finalizer of the
-   Agent who holds it, never by the Link's own end (STEP-SPEC-22, rule
-   8.3).
+   A Link's Field is Ripped the same way, at a different moment: by the
+   finalizer of the Agent who holds it, while that Agent can still fill
+   the first seat, and never by the Link's own end. A Contact that
+   finalizer never reached ends silently when the Link ends, with no
+   teardown (STEP-SPEC-22, rules 8.3 and 8.7).
 2. **Best effort, like every finalizer** (§3.2). The language decides
    when an unreachable object ends.
 
@@ -181,7 +189,8 @@ cited as "section N" or "rule N.M".
    collection clears every weak reference first, and then runs
    finalizers in no promised order. So the kit sets the order: when Tags
    of one Form end together, each Shape's Field is Ripped before the
-   Field of any of its Bases, deepest Shape first. That is how a program
+   Field of any of its Bases, the most specific Shape first. That is how
+   a program
    would Deform them by hand. No Base's teardown runs while a member
    still carries a Shape of it, and rule 1.2 never refuses an ending.
 
@@ -189,9 +198,9 @@ cited as "section N" or "rule N.M".
    too. By then the language has cleared every weak reference to these
    Tags, so the kit keeps each Field's teardowns where it can run them
    without the Tag.
-5. **A pinned Tag that ends** first has its own Field Ripped, while it is
-   still whole and pinned. Then it leaves its Pins, as an Agent's deletion
-   Rips it from its Tags (§3.2), and the Pins' teardowns run.
+5. **A pinned Tag that ends** first has its own Field Ripped, before it
+   leaves its Pins. Then it leaves its Pins, as an Agent's deletion Rips
+   it from its Tags (§3.2), and the Pins' teardowns run.
 6. **Which Tags end in practice.**
    - Tags made at run time that none of their own functions names (rule
      2.3): a Tag declared inside a function, and a Tag built from data.
@@ -259,7 +268,7 @@ causes for a later member.
 
 **Symmetry.** §0.3 already says a Field never keeps an Agent alive. If
 membership kept a Tag alive, a Tag with members could never end, and rule
-3.1 would never fire. With both directions weak, membership is a link
+3.1 would never fire. With both directions weak, membership is a bond
 between two lives, and neither one owns the other. What an Agent holds by
 name, a Record's value or a Link it holds, is not membership, and stays
 as strong as any value.
@@ -312,10 +321,11 @@ as strong as any value.
     ends at the next collection (the test calls `gc.collect()`), and its
     Field is Ripped; before that collection its members are still
     members;
-  - Shapes end before their Bases: a Base, a Shape and a deeper Shape
-    declared in one function, only the deepest applied, all three dropped
-    together. Under each collection order, every member's teardowns run
-    deepest Shape first, then the Shape, then the Base, and nothing is
+  - Shapes end before their Bases: a Base, a Shape of it, and a Shape of
+    that Shape, declared in one function, only the most specific applied,
+    all three dropped together. Under each collection order, every
+    member's teardowns run for the most specific Shape first, then the
+    Shape, then the Base, and nothing is
     reported. The orders to try: one full `gc.collect()`; `gc.collect(0)`
     then `gc.collect()`; the Base aged by an earlier collection;
   - a Tag that ends at interpreter exit Rips nothing, while an `At_Exit`
@@ -328,8 +338,9 @@ as strong as any value.
 - TopKit holds no Tag strongly from anything it keeps about an Agent's
   membership:
   - in `_State` (state.py): `active`, `ever`, `action_origins`, `records`,
-    `reports`, `operations`, and the keys of `rips` and `snapshots`, with
-    the origins inside a snapshot;
+    `reports`, `operations`, `words` (the Flag Tags behind each keyword),
+    and the keys of `rips` and `snapshots`, with the origins inside a
+    snapshot;
   - on functions the kit makes: the condition stamp `__topkit_origin__`
     (overlay.py) and the `tag` closed over by the Public Operation adapter
     (overlay.py), which fails closed once its Tag has ended;
