@@ -141,8 +141,8 @@ The changes to the Specification:
     Pair scope;
   - §1.5: a Link's functions open the doors of the Link's Agent and of
     the Pair, never the Contact's (rule 3.6); `@Public` on a Link means
-    seen by the Contact, and `@Secret` means between the two linked
-    elements (rule 2.8);
+    seen by the Contact, and `@Secret` means in-house, the Link's
+    Agent's side only (rule 2.8);
   - §1.7: the Pair in place of the Agent-bound view on a Link;
   - §1.8: a Flag Link answers its words on the Pair (rule 2.3);
   - §2.5: a Link's sound population needs the Pair to hold as well (rule
@@ -216,7 +216,7 @@ the tag to two. then they can operate together." Section 10 shows it
      | --- | --- | --- |
      | none | the Link's Agent, through the Pair: `charlie.Knows[ruth].Greet()` | the Link's Agent, through the Link: `charlie.Knows.capacity` |
      | `@Public` | the Contact too: `ruth.Greet()` | the Contacts too: `ruth.capacity` |
-     | `@Secret` | only the Link's own functions | only the Link's own functions |
+     | `@Secret` | in-house: only the Link's Agent's own code, never the Contact | the same |
 
      A Link marked `@Flag` answers its words on the Pair, `"Trusted" in
      charlie.Knows[ruth]`, never on the Contact.
@@ -238,21 +238,25 @@ the tag to two. then they can operate together." Section 10 shows it
    Relation of the same name that does not would replace a Link that may
    already hold Contacts, so it is a Declaration Failure at class use.
    Rule 4.6 says what extending a Link does.
-8. **`@Public` means "seen by the Contact"; `@Secret` means "between the
-   two linked elements".** The Director: "I like the @Public for "seen by
-   the contact" because the contact may be out of the. agency, so it is
-   indeed public, but @Secret then should cover the actions assigned to
-   the agent that may involve both linked elements. Also it should apply
-   to operations with access by the agents and contacts."
+8. **`@Public` means "seen by the Contact"; `@Secret` means "in-house".**
+   The Director: "I like the @Public for "seen by the contact" because
+   the contact may be out of the. agency, so it is indeed public, but
+   @Secret then should cover the actions assigned to the agent that may
+   involve both linked elements. Also it should apply to operations with
+   access by the agents and contacts." And: "Secret stays inhouse, the
+   contact is external by default."
    - A `@Public` Pair member is published onto the Contact, as §1.5
      publishes a Tag's members onto its members. `ruth.Greet()` runs
      `Greet(charlie, ruth)`: the Link's Agent still fills the first seat,
      inside the Link's own code. A `@Public` Operation or Report of the
      Link is published onto its Contacts the same way, and its Agent
      reaches it through the Link.
-   - A `@Secret` member, of the Pair or of the Link, resolves only inside
-     the Link's own functions (rule 3.6). Those functions act for both
-     linked elements: they receive the Agent and the Contact.
+   - A `@Secret` member, of the Pair or of the Link, belongs to the
+     Link's Agent alone. It resolves only inside the Agent's own code: the
+     Link's functions, which are the Agent's code about a Pair (rule 3.6).
+     Its body may involve both linked elements, since it receives the
+     Contact in its second seat, but the Contact never sees it and never
+     calls it: she is external by default, and her door stays shut.
    - **A line, not an open connection.** Publication is installed at the
      linking and is sticky, like everything a Tag gives (§0.7). There is
      no fan-out: `ruth.Greet()` never calls every Pair that holds Ruth.
