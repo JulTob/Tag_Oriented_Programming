@@ -315,18 +315,19 @@ def _install(
 
     for name, function in declarations.postconditions:
         prior = state.postconditions.get(name)
+        origin = _origin_of(prior)   # the Tag that laid the visible promise; None when there is none
 
         if (
-                prior is not None
+                origin is not None
+                and origin is not tag
                 and not _takes_underlay(function)
-                and _origin_of(prior) is not tag
                 and not _quiet.get()
                 ):
             warnings.warn(
                     _replaced_promise(
                             tag,
                             name,
-                            _origin_of(prior),
+                            origin,
                             ),
                     TagContractWarning,
                     stacklevel=5,   # the tagging line: one frame shallower than _install_action's warning
@@ -568,7 +569,7 @@ def _stamp(
 
 
 def _origin_of(
-        check: Function,
+        check: Function | None,
         ) -> type | None:
     return getattr(
             check,
