@@ -4,11 +4,29 @@
 
 ### Specification
 
-- STEP-SPEC-19 (Links: a Tag that belongs to an Agent) opened at Brief.
-  `@Link` grants each Agent a Tag of its own, `charlie.Knows(ruth)`, held
-  like a Record and leaving only membership on its members. It comes with
-  the evidence from building the same thing by hand on 0.2.0a4, and four
-  open questions for the Director.
+- STEP-SPEC-19 (Links: a Tag that belongs to an Agent) opened at Brief,
+  and was revised after the Director's first review. `@Link` grants each
+  Agent a Tag of its own, `charlie.Knows(ruth)`, held like a Record. Its
+  functions take the Owner first and the Contact second. A Link points
+  one way, and nothing on a Contact leads back to its Owner. Linking
+  makes the Contact a member and writes nothing else on her; facts about
+  the two live on the Pair, `charlie.Knows[ruth].since`.
+- STEP-SPEC-20 (Field Filters) opened at Brief. `Wizard[:].level > 3` is
+  a live population of the Wizards above level 3. Chains fan out with
+  "some", `Social[:].Knows[:] == ruth`, and a Filter by an Action's
+  result follows a changing system. This is the logic of classes and
+  attributes of Boole and Carroll, in the language's own operators.
+- STEP-SPEC-21 (Field Rip, and the end of a Tag) opened at Brief.
+  `del Wizard[:]` Rips the whole Field, and a Tag that ceases to exist
+  does the same, so its members' teardowns run. Membership holds neither
+  side alive.
+
+### TopKit
+
+- A Field no longer has public `Add` and `Remove` methods. They were the
+  kit's own halves of commit and Rip, and calling them by hand skipped
+  the gate or the teardowns and left the Field contradicting `in`. They
+  are private now, and membership changes only by tagging and Rip.
 
 ### Project
 

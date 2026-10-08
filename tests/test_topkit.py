@@ -2692,6 +2692,16 @@ class FieldAlgebraTests(unittest.TestCase):
         self.assertEqual(list(self.Wizard[:] & ~self.Fighter), [])
         self.assertEqual(list(self.Fighter[:] - self.Wizard), [self.cal])
 
+    def test_a_field_offers_no_public_way_around_tagging_and_rip(self) -> None:
+        public = [
+                name
+                for name in dir(self.Wizard[:])
+                if not name.startswith("_")
+                ]
+
+        self.assertEqual(public, [])                                  # membership changes only by tagging and Rip
+        self.assertEqual(list(self.Wizard[:]), [self.ari, self.bo])
+
     def test_a_combined_view_is_lazy(self) -> None:
         both = self.Wizard | self.Fighter
         dee = Agent()
