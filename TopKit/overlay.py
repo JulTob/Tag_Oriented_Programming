@@ -329,7 +329,7 @@ def _install(
                             _origin_of(prior),
                             ),
                     TagContractWarning,
-                    stacklevel=6,
+                    stacklevel=5,   # the tagging line: one frame shallower than _install_action's warning
                     )
 
         state.postconditions[name] = _stamp(
