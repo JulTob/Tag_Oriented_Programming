@@ -325,10 +325,15 @@ answer `False`. `len(f) > 0` asks the population.
   10`. On a Tag, that
   assignment sets an attribute of the Tag itself, as Python does today.
   It then wins over the Projection (rule 1.1), so `Wizard.hp` stops
-  reading the members, and over a declared name it replaces the
-  declaration: `Wizard.spells = []` erases the Record. On any other
-  population, assignment is refused (rule 1.4). STEP-SPEC-25 takes this
-  up.
+  reading the members. Over a Report it is the documented way to change
+  the shared value (§1.4). Over a Record or an Action it is never what
+  anyone means, and today its result depends on timing: before the
+  Tag's first use it erases the declaration, so new Wizards get no
+  `hp`; after, Wizard's own Agents still get it, but a Shape declared
+  later inherits nothing under that name. The kit should refuse it, as
+  it already refuses a Pin that replaces what a Tag's Agents do. On any
+  other population, assignment is refused (rule 1.4). STEP-SPEC-25
+  takes this up.
 - Broadcasting an Action for its effect, such as `Enemy.Take_Damage(5)`.
   It does nothing, and warns (rule 3.3).
 - Applying a Tag through a Projection (rule 1.9).
