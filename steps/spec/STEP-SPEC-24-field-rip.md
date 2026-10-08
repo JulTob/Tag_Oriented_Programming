@@ -246,7 +246,7 @@ as strong as any value.
 | Alternative | Verdict |
 | --- | --- |
 | A function, `Close(Wizard)` | The Director prefers the language's own structures; `del` is already Rip's spelling (§0.8). |
-| A method on the Field, `Wizard[:].clear()` | Populations carry no public names (STEP-SPEC-23, rule 1.3), and Rip is spelt with `del`. |
+| A method on the Field, `Wizard[:].clear()` | Populations carry no public names (STEP-SPEC-23, rule 1.4), and Rip is spelt with `del`. |
 | The loop by hand | Not atomic: a refused Shape stops it halfway. |
 | A Tag's end with strong history | It never fires while a member lives, so it would only happen to Tags that are already empty. |
 | A Tag's end that drops members without teardowns | Rejected by the Director: "it should launch the rip protocols to ensure safety in the program status". |

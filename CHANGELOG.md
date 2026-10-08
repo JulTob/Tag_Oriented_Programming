@@ -4,9 +4,12 @@
 
 ### Specification
 
-- STEP-SPEC-22 (Links) opened at Brief, and was revised after two
+- STEP-SPEC-22 (Links) opened at Brief, and was revised after three
   reviews by the Director. `@Link` grants each Agent a Tag of its own,
   `charlie.Knows(ruth)`, held like a Record.
+  - A Link is a Tag in full: Records, Actions, promises, secrets, Bases
+    and Shapes. What an ordinary Tag gives its Agent, a Link gives the
+    Pair.
   - Its functions take the Agent first and the Contact second: the Agent
     has the agency.
   - A Link points one way: nothing on a Contact names an Agent who links
@@ -14,9 +17,12 @@
   - Linking makes the Contact a member and writes no Record, Action or
     promise on her. Facts about the two live on the Pair,
     `charlie.Knows[ruth].since`.
-- STEP-SPEC-23 (Field Filters) opened at Brief. `Wizard[:].level > 3` is
-  a live population of the Wizards above level 3.
-  - Chains fan out with "some": `Social[:].Knows[:] == ruth`.
+- STEP-SPEC-23 (Field Filters) opened at Brief. `Wizard.level > 3` is a
+  live population of the sound Wizards above level 3; `Wizard[:].level >
+  3` asks the whole Field.
+  - A name read on a Tag follows its receiver: the Tag's own names read
+    the Tag, and any other public name reads across its sound Agents.
+  - Chains fan out with "some": `Social.Knows[:] == ruth`.
   - A Filter by an Action's result follows a changing system.
   - This is the logic of classes and attributes of Boole and Carroll, in
     the language's own operators.

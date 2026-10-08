@@ -142,7 +142,7 @@ The changes to the Specification:
 
 It depends on STEP-SPEC-24 (Field Rip, and the end of a Tag) for rules
 8.2 and 8.3. STEP-SPEC-23 (Field Filters) reads the Pair through its
-Link (STEP-SPEC-23, rule 1.4).
+Link (STEP-SPEC-23, rule 1.5).
 
 In this STEP, § cites the Specification only. This STEP's own parts are
 cited as "section N" or "rule N.M".
@@ -168,8 +168,9 @@ such as `charlie.Owns(house)`, the domain has its own owners.
 ### 2. Declaring
 
 1. `@Link` marks a Tag class declared in the body of another Tag, the
-   **declaring Tag**. The inner class is the **Relation**, reachable on
-   the declaring Tag by its name, `Social.Knows`, like a Report.
+   **declaring Tag**. The inner class is the **Relation**. It is named in
+   the declaring Tag's body, `Knows`, and in a class statement's Bases as
+   `Social.Knows` (rule 2.6, section 9).
 2. A Link is an **Agent-scope** contribution of the declaring Tag, a third
    kind beside the Action and the Record. Its slot is `(Agent, name)`
    (§1.1, amended in rule 4.4), and its receiver is the Agent who holds
@@ -404,8 +405,9 @@ A Link is a Tag. Every Ring 0 act works on it:
 
    The barrier does not hide those Agents from a search. Code that holds
    the declaring Tag can find them with STEP-SPEC-23's Filters:
-   - `Social[:].Knows[:] == ruth` finds who knows Ruth;
-   - `Social[:].Knows == link` finds who holds a Link.
+   - `Social.Knows[:] == ruth` finds the sound Agents who know Ruth, and
+     `Social[:].Knows[:] == ruth` all of them;
+   - `Social.Knows == link` finds who holds a Link.
 
    Any module that imports `Social` holds it, and `Tags(ruth)` lists it
    when Ruth carries Social herself. A plain loop over `Social[:]` finds
@@ -499,9 +501,12 @@ A Link is a Tag. Every Ring 0 act works on it:
 ### 9. The Relation itself
 
 The Relation is a template, never a Tag in play, and it has no Field.
-Every act of §0.8 that applies, asks, walks, views, combines or Rips
-membership is a Composition Failure on the Relation. So a reader of the
-first draft is told plainly, not answered `False`. That covers:
+Nothing applies, asks, walks, views, combines or Rips membership through
+it. What `Social.Knows` reads depends on STEP-SPEC-23.
+
+**Without STEP-SPEC-23**, `Social.Knows` reads as the Relation. Every act
+of §0.8 on it is a Composition Failure, so a reader of the first draft is
+told plainly, not answered `False`. That covers:
 - `Social.Knows(x)`;
 - `x in Social.Knows` and `isinstance(x, Social.Knows)`;
 - `for x in Social.Knows`, `len(Social.Knows)` and `if Social.Knows:`;
@@ -514,6 +519,23 @@ first draft is told plainly, not answered `False`. That covers:
 Each message points to a Link: "Knows is a Relation: link through an
 Agent, charlie.Knows(ruth)". `Social.Knows | None` keeps `type`'s own
 meaning, as it does for every Tag.
+
+**With STEP-SPEC-23**, a name read on a Tag follows its receiver
+(STEP-SPEC-23, rule 1.1). A Link is an Agent-scope contribution, so
+`Social.Knows` is a Projection: each sound Social Agent's Link. Then:
+- `Social.Knows[:] == ruth` asks who knows Ruth (rule 6.5);
+- the Projection refuses `in`, `del`, `~` and the population operators
+  (STEP-SPEC-23, rule 1.8);
+- it refuses to apply a Link, so `Social.Knows(x)` is not "everyone in
+  Social links x" (STEP-SPEC-23, rule 1.9);
+- `isinstance(x, Social.Knows)` and `Scope(x, Social.Knows)` are refused
+  by the language itself, because a Projection is not a class.
+
+**In a class statement's Bases**, `Social.Knows` always stands for the
+Relation, so `class Knows(Social.Knows)` extends it (rule 2.6). Under
+STEP-SPEC-23 this works through the language's own protocol for a Base
+that is not a class (`__mro_entries__`, PEP 560), which hands the class
+statement the Relation.
 
 ### 10. Patterns this enables, with no further law
 
@@ -609,7 +631,7 @@ with a `since`. A Pair whose `since` is `None` would stop the walk,
 because `None < 2000` cannot be compared:
 
 ```python
-for old_friend in charlie.Knows[:].since < 2000:
+for old_friend in charlie.Knows.since < 2000:    # Charlie's sound Contacts, by their Pair's since
     print(old_friend.name)
 ```
 
@@ -780,14 +802,18 @@ name: `Link`. No parameter name is reserved.
    charlie.Knows(ruth); Spy(charlie)` would then fail while
    `Spy(charlie)` alone works. The STEP recommends extending every Pair.
 2. **The barrier and Filters.** You asked for "who knows ruth" as
-   `Social[:].Knows[:] == ruth`, and you also said "Breaking a barrier
-   should be explicit." With STEP-SPEC-23, any code that holds `Social`
-   finds Charlie from Ruth. `Social` is a module global, and `Tags(ruth)`
-   lists it when Ruth carries it herself. The same code finds who holds a
-   Link with `Social[:].Knows == link`. Is naming the declaring Tag
-   explicit enough? Or should a Projection refuse to read a Link (both
-   `.Knows[:]` and `.Knows`) unless the Relation declares that it may be
-   searched?
+   `Social[:].Knows[:] == ruth`, which under STEP-SPEC-23 is also
+   `Social.Knows[:] == ruth` for the sound members. You also said
+   "Breaking a barrier should be explicit."
+   - With STEP-SPEC-23, any code that holds `Social` finds Charlie from
+     Ruth.
+   - `Social` is a module global, and `Tags(ruth)` lists it when Ruth
+     carries it herself.
+   - The same code finds who holds a Link with `Social.Knows == link`.
+
+   Is naming the declaring Tag explicit enough? Or should a Projection
+   refuse to read a Link (both `.Knows[:]` and `.Knows`) unless the
+   Relation declares that it may be searched?
 
 ## Acceptance requirements
 
