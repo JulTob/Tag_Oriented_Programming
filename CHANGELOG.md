@@ -33,12 +33,17 @@
   alive.
 - The three were first drafted as STEP-SPEC-19, 20 and 21, and
   renumbered because other open work claims those numbers.
+- STEP-SPEC-26 (A Shape Keeps No Base Hostage) opened at Brief, with
+  the model the Director chose: tagging stays closed upward, then each
+  membership stands alone. `del Human[bob]` is no longer refused while
+  bob is a Werewolf; he keeps the Shape, a spin-off. A Shape that needs
+  its Base says so in a guarded Postcondition.
 - STEP-SPEC-28 (Category Error) opened at Brief. `TagCategoryError`, a
   `TagError` and a `TypeError`, names the mistake of treating one kind of
   TOP thing as another, such as `Wizard.hp = 10` when `hp` is a Record.
 - Guide: "Reading a Tag" shows Python's `all` and `any` with a question
   written inside, `all(w.level > 3 for w in Wizard)`, and why
-  `all(Wizard)` alone is always true.
+  `all(Wizard)` alone does not ask whether there are Wizards.
 
 ### TopKit
 

@@ -456,7 +456,41 @@ Tag-scope name the program puts on a Tag read exactly as before.
 
 1. **Lookup through a Link (rule 1.5).** Through a Link, a name the Pair
    answers wins over the Contact's own attribute of the same name. Is
-   that the reading you want, or should a shared name be refused?
+   that the reading you want, or should a shared name be refused? The
+   design panel below recommends refusing it, so the answer can never
+   change silently.
+2. **An explicit root for the members.** On 2026-10-08 the Director
+   refused rule 1.3's spelling: "I refuse that monstrosity with redundant
+   information", of `(Wizard[:] & Wizard).colour`. He found rule 1.1
+   implicit: "Wizard.level makes it so the record looks like a report, an
+   also doesn't individually tell you what is going on. It's a lot of
+   implicit going on there. Maybe we can do a for Wizard[].level as l:".
+   And he asked for a one-line write over the valid members, which
+   STEP-SPEC-25 spells only as `(Enemy[:] & Enemy).hp = 10`. The three
+   are one gap: no object means "the sound members" and also takes a dot.
+
+   `Wizard[]` is not Python. A design panel (three designers, one judge)
+   recommends:
+   - **The dot on a Tag reads only the Tag.** `Wizard.colour` is the
+     Report. A name the Tag gives its Agents, `Wizard.level`, is refused
+     with a hint, as an `AttributeError`, so `hasattr` answers False.
+   - **`Wizard[Sound]` names the sound members**, with `Sound` imported
+     from TopKit, "sound" being TOP's own word: `Wizard[Sound].level > 3`,
+     `for level in Wizard[Sound].level:`, and the write
+     `Wizard[Sound].hp = 10` (STEP-SPEC-25). The bare Tag keeps every
+     seat it has today (`for`, `len`, `if`, the operators).
+   - **Rule 1.3 goes.** `Wizard.colour` and `Wizard[Sound].colour` say
+     which one is meant.
+
+   Weighed and set aside: `Wizard[()]`, legal and closest to `Wizard[]`,
+   but one shape away from a position, `Wizard[0]`; `Wizard[True]`,
+   because `True` is `1` in Python and an Agent's truth is not always its
+   contract; `(+Wizard).level`, because `+Wizard.level` is read
+   `+(Wizard.level)`; string keys, `Wizard["level"]`; and a function,
+   `Each(Wizard).level`. Adopting it rewrites rules 1.1, 1.3, 1.5 and 1.6
+   and the examples. The panel's other proposals, positions
+   (`Wizard[0]`), the only one (`Wizard[Only]`) and `P[True]` for a
+   boolean Projection, belong to a STEP of their own.
 
 ## Acceptance requirements
 

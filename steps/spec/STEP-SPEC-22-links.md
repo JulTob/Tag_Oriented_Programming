@@ -414,10 +414,12 @@ A Link is a Tag. Every Ring 0 act works on it:
    cares says so.
 2. **Through a Link's Form.** Linking through a Shape Link links through
    its Base Links first, Bases first, each once (§0.5).
-   `charlie.Trusts(ruth)` makes Ruth a Contact of `charlie.Knows` too.
-   Membership is closed upward (§0.3): `ruth in charlie.Knows`. Unlinking
-   her from a Base Link while a Shape Link still holds her is refused
-   (§0.7): `del charlie.Trusts[ruth]` comes first.
+   `charlie.Trusts(ruth)` makes Ruth a Contact of `charlie.Knows` too:
+   linking is closed upward (§0.3), so `ruth in charlie.Knows`. After
+   that each membership stands alone (STEP-SPEC-26): `del
+   charlie.Knows[ruth]` is not refused while `charlie.Trusts` holds her.
+   She leaves `charlie.Knows`, stays in `charlie.Trusts`, and her Pair
+   stays (rule 8.1).
 3. **One Pair for each Contact, across a Link's Form.** A Link and its
    Base Links share one Pair for each Contact, as an Agent is one object
    across the Tags of its Form. `charlie.Knows[ruth]` and
@@ -801,9 +803,9 @@ in the first draft, and it did not survive the Pair:
   promises as an open question. The Director answered it.
 - **Bases needed a rule, not a refusal.** "Which Base?" has one sensible
   answer: the same Agent's Link. With that answer, the laws of Ring 0
-  (Bases first, membership closed upward, Rip refused while a Shape
-  needs the Base) give a Link family its meaning: trusting is a kind of
-  knowing.
+  (Bases first, tagging closed upward, and, with STEP-SPEC-26, each
+  membership standing alone afterwards) give a Link family its meaning:
+  trusting is a kind of knowing.
 - **Two refusals keep a real reason.** An ordinary Tag as the Base of a
   Relation would be written on the Contact at every linking, breaking
   the barrier without a word; an Imprint says the same thing out loud. A
@@ -1021,9 +1023,9 @@ name: `Link`. No parameter name is reserved.
     words, soundness and the sound and defective populations;
   - seats: each kind after the two seats (Underlay, stored, inputs), and
     every refusal of rules 3.3 and 3.4;
-  - Bases: per-Agent resolution, linking through a Shape Link, Rip
-    refused on a Base Link, one Pair across the Form, an ordinary Tag
-    refused as a Base;
+  - Bases: per-Agent resolution, linking through a Shape Link, a Base
+    Link unlinked while a Shape Link holds her (not refused; the Pair
+    stays), one Pair across the Form, an ordinary Tag refused as a Base;
   - extending a held Link: the gate for every Pair at once, a failing
     Pair Record rolling the call back, Imprints and promises for every
     Pair, and the Link's identity, Field and history kept;

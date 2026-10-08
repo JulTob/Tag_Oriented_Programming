@@ -981,11 +981,14 @@ assert any(s.grade > 8 for s in Scholar)        # at least one excelled
 assert not all(s.grade > 8 for s in Scholar)    # not all of them
 ```
 
-**Watch out.** Write the question inside. `all(Scholar)` alone asks
-whether every sound Scholar is sound, which is always true, and
-`any(Scholar)` is just `if Scholar:`. Over an empty Tag, `all(...)` is
-True and `any(...)` is False: nobody broke the rule, and nobody is there
-to show it.
+**Watch out.** Write the question inside. `all(Scholar)` alone asks each
+sound Scholar for its own truth. For most Agents that is their contract,
+which holds for every sound one, so the answer is True. But a host with
+its own `__bool__` or `__len__` answers for itself: an empty `Shelf`
+Agent is sound and still false. So `all(Scholar)` and `any(Scholar)` do
+not ask whether there are Scholars; `if Scholar:` does. Over an empty
+Tag, `all(...)` is True and `any(...)` is False: nobody broke the rule,
+and nobody is there to show it.
 
 Nothing TOP-level lives at `Wizard.something`. That namespace is yours: put
 your Reports and Operations there.
