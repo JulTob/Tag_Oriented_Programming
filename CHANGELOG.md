@@ -33,6 +33,17 @@
   alive.
 - The three were first drafted as STEP-SPEC-19, 20 and 21, and
   renumbered because other open work claims those numbers.
+- STEP-SPEC-25 (Commands to a Population) opened at Brief.
+  `Enemy[:].hp = 10` writes every member's `hp` as one act: every member
+  is checked first, and a failure halfway undoes the write.
+  - On a Tag, assignment keeps Python's meaning. A name the Tag gives its
+    Agents, `Enemy.hp = 10`, is refused, with the population spelling in
+    the message. Today that line is silent, and can destroy the Record.
+  - A write never creates a name and never replaces an Action. Through a
+    Link it writes the Pair, never the Contact.
+  - Broadcasting an Action gets no new spelling: `Enemy.Take_Damage(5)`
+    stays a question, and a command is a `for` statement. A Field walk
+    skips a member that left during the walk.
 
 ### TopKit
 
