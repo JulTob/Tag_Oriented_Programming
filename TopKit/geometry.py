@@ -114,6 +114,19 @@ def _requiring_shapes(
             )
 
 
+def _is_base_of(
+        base: type,
+        shape: type,
+        ) -> bool:
+    """True when ``base`` is a Base in ``shape``'s Form: a strict Base,
+    never ``shape`` itself."""
+
+    return (
+            base is not shape
+            and issubclass(shape, base)
+            )
+
+
 def _related(
         one: type,
         other: type,
