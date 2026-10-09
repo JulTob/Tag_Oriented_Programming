@@ -100,14 +100,15 @@ Notes:
 | --- | --- | --- | --- |
 | **main** | `origin/main` | ce35726 | The Specification and the kit. "On main" means this branch. |
 | **S19** | `origin/Julio_Cl/step-19-sound-in` | e1fbcdd | Not merged. STEP-SPEC-13 items 5 to 7, STEP-SPEC-18 amendments D, E and F, and STEP-SPEC-19, all at Vetting and built into its Specification and kit. It also amends STEP-SPEC-4, 6, 7, 9, 12, 14 and 17 (for example STEP-6's Scope rows and STEP-17 item 8). "Vetting" means this branch. |
-| **PR #26** (HEAD) | `julio_cl/exciting-heisenberg-o475s5` | this commit | STEP-SPEC-22 (Links), 23 (Field Filters), 24 (Field Rip), 26 (A Shape Keeps No Base Hostage), 27 (The Deletion Protocol of a Tag), 28 (Category Error), 29 (The Population Algebra) and 30 (Retire `@Requirement`), all Brief. The Guide's `all(...)` and `any(...)` rows. Its kit is main's, except that `Wizard[:].Add` and `Wizard[:].Remove` became private. |
+| **PR #26** (HEAD) | `julio_cl/exciting-heisenberg-o475s5` | this commit | STEP-SPEC-22 (Links), 23 (Field Filters), 24 (Field Rip), 26 (A Shape Keeps No Base Hostage), 27 (The Deletion Protocol of a Tag), 28 (Category Error), 29 (The Population Algebra), 30 (Retire `@Requirement`) and 31 (Retire `Scope`), all Brief. The Guide's `all(...)` and `any(...)` rows. Its kit is main's, except that `Wizard[:].Add` and `Wizard[:].Remove` became private. |
 | **PR #27** | `julio_cl/nifty-cray-wha6gn` | 1953bce | STEP-SPEC-20, Brief. One note in section 8. |
 | **PR #28** | `julio_cl/step-25-commands-to-a-population` | 1fceebf | STEP-SPEC-25 (writes and commands through populations), Brief. Its kit is PR #26's. Its copies of STEP-SPEC-22, 23 and 24 are older, so this catalog reads PR #26's copies. |
 
-Three new Brief STEPs on PR #26:
+Four new Brief STEPs on PR #26:
 - **STEP-SPEC-27, The Deletion Protocol of a Tag.** It names the phases of `del Human[:]`: gain control (every membership ends), stop gently (the teardowns run, one member at a time, in join order), and then the Tag is ready again ("the power is still on"). It proposes `del Human.colour` to reset one Report. Its first draft's latch, the Pin `Stopped`, is **withdrawn**. The Director, 2026-10-09: "In the catalog you added something about stopped category that was meant for the deletion protocols, that we wanted to gain control, stop gently then delete. It looks like you mixed it up a bit." (STEP-27 Motivation.)
 - **STEP-SPEC-29, The Population Algebra.** One place for every population spelling: the parts `+X` and `~X`, places `X[n]`, an absorbing `~`, and `del X[:]` on any population with one home. Each of its rows is marked Decided, Recommended, Open or Python.
 - **STEP-SPEC-30, Retire `@Requirement`.** A check needed to enter and to stay is written `@Pre` and `@Post`, stacked.
+- **STEP-SPEC-31, Retire `Scope`.** A block that holds a Tag for a while tags before `try` and Rips in `finally`. Decided by the Director, 2026-10-09: "I don't like Scope as a function call in TOP. Or generally using function calls as methodology. TOP should integrate with the language. Also "Scope" is not an informative name. Get it out".
 
 No kit builds them.
 
@@ -121,7 +122,7 @@ No kit builds them.
 - a Pin's population mixed with a Tag's (section 4);
 - what a failed Rip does (section 8);
 - what a failed teardown does when an Agent is deleted (section 8);
-- what a Scope's exit does with a failed Rip (section 8);
+- what a Scope's exit does with a failed Rip (section 8; STEP-31 retires `Scope`);
 - a Flag's words given as a list (section 9);
 - whether `Wizard[:].Add` and `Wizard[:].Remove` are public (section 3; private on PR #26).
 
@@ -303,7 +304,7 @@ Links combine too (section 7). Filters combine too (section 6).
 | `charlie.Knows[ruth]` | The Pair: what charlie's link to ruth holds. Live, not a snapshot. | Pair | **Brief** · STEP-22 r7.1 · PR #26 |
 | `k[ruth]`, where `k = charlie.Knows` outlived charlie | Fails: that Link's Agent is gone. | TagResolutionError | **Brief** · STEP-22 r5.8 · PR #26 |
 | `Social.Knows[:]` | `[:]` on a Projection fans out: it walks each value's members. The only key a Projection takes. | Projection | **Brief** · STEP-23 r4.2 · PR #26 |
-| `with Wizard[h]:`, `with Wizard[h](code="007"):` | A Scope in a bracket spelling: h joins Wizard for the block. Today `Wizard[h]` is the view, and needs h to be a member already. | none | **Set aside by the Director, 2026-10-09:** "with is ill-defined and not necessary. We should clean up the use for a possible future use." He had chosen it on 2026-09-30, for a STEP-SPEC-21 that was never written (S19's STEP-6 amendment, "When, and the spelling", records that choice). `Scope(ari, Wizard)` is not affected. |
+| `with Wizard[h]:`, `with Wizard[h](code="007"):` | A Scope in a bracket spelling: h joins Wizard for the block. Today `Wizard[h]` is the view, and needs h to be a member already. | none | **Set aside by the Director, 2026-10-09:** "with is ill-defined and not necessary. We should clean up the use for a possible future use." He had chosen it on 2026-09-30, for a STEP-SPEC-21 that was never written (S19's STEP-6 amendment, "When, and the spelling", records that choice). Later that day he retired `Scope` too: "Get it out" (STEP-31). TOP then uses `with` nowhere. |
 | `Wizard[:][Wizard[:].level > 3]`, `Wizard[f]` (f a Filter) | Pick members with a mask. The Director asked, 2026-10-09: "a myTag[\<mask>] could apply conditional filters". **STEP-29:** refused: the Filter itself is the masked population. | none; `TagCategoryError` under STEP-29 | **Set aside** · STEP-23 Alternatives (Brief). **Brief** · STEP-29 r5.6 |
 | `Wizard[:f:]` | The Director's "`Wizard[:<mask>:]`". Python passes `slice(None, f, None)`, the key of `Wizard[:f]`. **STEP-29:** refused. | TypeError today (a positional slice); `TagCategoryError` under STEP-29 | **Brief** · STEP-29 r5.6 |
 | `Signal.t[5]`, `Signal.t[a:b]` (a Record marked `@Index`, read on its Tag) | The Index: a key that names one Agent, or a range of them. | none | **Withdrawn** (PR #18 closed unmerged on 2026-10-05). Its spellings clash with STEP-23 r1.1 (`Signal.t` is a Projection), r1.8 (it refuses `Signal.t[5]` and `5 in Signal.t`) and r4.2 (`Signal.t[:]` is a fan-out). |
@@ -448,7 +449,7 @@ Two Agents at the same level are not a Link: they are members of one ordinary Ta
 | `charlie.Knows is not bob.Knows` | Each Agent's Link is its own Tag. | bool | **Brief** · STEP-22 r4.2 |
 | `ruth.Knows` | ruth's own Link, if she holds one. Never another Agent's Link. | Link, or AttributeError | **Brief** · STEP-22 r6.2 |
 | `Social.Knows` | Without STEP-23: the Relation, and every act on it is refused. With STEP-23: a Projection of each sound Agent's Link. In a class statement's Bases: always the Relation. | Relation, or Projection | **Brief** · STEP-22 section 9. STEP-29 r9.4 (Brief) recommends: always the Relation. With the Director's ruling that the dot on a Tag reads the Tag (section 6), the Projection route is gone. |
-| `x in Social.Knows`, `isinstance(x, Social.Knows)`, `Social.Knows & bob.Knows`, `Scope(x, Social.Knows)` | Refused. A Relation has no Field, and nothing walks back from a Contact. | error | **Brief** · STEP-22 section 9. STEP-28 r3 names `isinstance(x, Social.Knows)` and `Scope(x, Social.Knows)` as `TagCategoryError`. |
+| `x in Social.Knows`, `isinstance(x, Social.Knows)`, `Social.Knows & bob.Knows` | Refused. A Relation has no Field, and nothing walks back from a Contact. | error | **Brief** · STEP-22 section 9. STEP-28 r3 names `Social.Knows(x)` and `isinstance(x, Social.Knows)` as `TagCategoryError`. |
 | `charlie.Knows = None`, `del charlie.Knows` | Refused: a held Link is read-only. | TagCompositionError | **Brief** · STEP-22 r4.3 |
 | `Owners(ruth, Social.Knows)` | A function that walks back from a Contact. | none | **Rejected** by the Director · STEP-22 Alternatives |
 | A `@Public` Pair member on the Contact that calls every Pair holding her (fan-out) | Two behaviours for one spelling. | none | **Rejected** by the Director · STEP-22 Alternatives |
@@ -489,8 +490,9 @@ Unlinking is in section 8.
 | `del Human.colour`, over a declared Report | **Today:** removes the declaration; the next read raises AttributeError (probed). **STEP-27:** a reset: the Tag forgets the value, built or written, and the builder runs again at the next read. Over a name the Tag gives its Agents it is refused (STEP-28 r3). | None | **On main (kit only)**. **Brief** · STEP-27 r4.2, OQ3 |
 | `del Human[:], Human.colour` | One statement, done left to right: clean the Field, then reset one Report. STEP-27's answer to a full reset, for now. | None | **Brief** · STEP-27 r4.2, OQ4 |
 | A Tag that nobody can reach any more | **STEP-24:** at the next collection, its Field is Ripped, Shapes before Bases. Best effort; failures silent (OQ1 asks again). | none | **Brief** · STEP-24 sections 2 and 3 |
-| `with Scope(ari, Wizard):` (on exit) | **main:** Rips only what the Scope applied, in reverse order. A failed Rip on exit is swallowed. | context manager | **On main** · §0.7, §3.2. The swallowing is kit only, `TopKit/lifecycle.py:207-208` (`except TagError: pass`). |
-| `with Scope(ari, Wizard):` (on exit) | **S19:** the same, but a failed or refused Rip is reported. | context manager | **Vetting** · S19 · STEP-18 amendment D; STEP-6 rows 4 and 5 (drafted for the Director's confirmation). With STEP-26, a Scope that applied a Base Rips it on exit and the Agent leaves as a spin-off (STEP-26 r8.2). |
+| `with Scope(ari, Wizard):` (on exit) | **main:** Rips only what the Scope applied, in reverse order. A failed Rip on exit is swallowed. | context manager | **On main** · §0.7, §3.2. The swallowing is kit only, `TopKit/lifecycle.py:207-208` (`except TagError: pass`). **To be retired:** STEP-31 (Brief, decided). |
+| `with Scope(ari, Wizard):` (on exit) | **S19:** the same, but a failed or refused Rip is reported. | context manager | **Vetting** · S19 · STEP-18 amendment D; STEP-6 rows 4 and 5 (drafted for the Director's confirmation). **To be retired:** STEP-31 (Brief, decided), which also withdraws STEP-6's Scope rows. |
+| `Wizard(ari)` before a `try`; `del Wizard[ari]` in its `finally` | Hold a Tag for a block: ari joins before the block and leaves after it, even if the block raises. A Rip that fails in the `finally` raises, with the block's own error as its context. If ari may be a Wizard already, check `ari in Wizard[:]` first and Rip only if he was not. | None | **On main** (Python's own `try` and `finally`; checked on main) · STEP-31 r3 (Brief, decided), the replacement for `Scope`. With STEP-26, a Base Ripped there leaves the Agent as a spin-off (STEP-26 r8.2). |
 | `At_Exit(ari)` | Also run ari's teardowns at normal interpreter exit. | ari | **On main** · §3.2. STEP-22 r8.3 adds: it ends ari's Links too. |
 | `Contract.Delete(ari, "Alive")` | Ends one named condition, from a `@Rip` protocol. Membership is untouched. | None | **On main** · §0.7. STEP-20 (PR #27) notes it ends the whole shared name. |
 | `@Delete` on a function in a Tag | Removes the visible contribution of that name. | declaration | **On main** · §1.6 |
@@ -507,7 +509,7 @@ Unlinking is in section 8.
 - (b) the act decides: a demanded Rip rolls back, an ending arrests;
 - (c) out, as the kit does today.
 
-The STEP recommends (a). The Director has not ruled. He said on 2026-10-08: "The safehouse: ends membership first and runs teardowns after is the sensible choice." If (a) is chosen, three S19 rows change: the failed Rip (`del Wizard[ari]`, amendment D), the deletion (`del ari`, amendment E) and the Scope's exit. If (b) is chosen, the S19 deletion row changes.
+The STEP recommends (a). The Director has not ruled. He said on 2026-10-08: "The safehouse: ends membership first and runs teardowns after is the sensible choice." If (a) is chosen, three S19 rows change: the failed Rip (`del Wizard[ari]`, amendment D), the deletion (`del ari`, amendment E) and the Scope's exit (while `Scope` lasts: STEP-31). If (b) is chosen, the S19 deletion row changes.
 
 ### Which `del` do I want?
 
@@ -518,7 +520,7 @@ The STEP recommends (a). The Director has not ruled. He said on 2026-10-08: "The
 - **Everyone leaves one Tag, and the Tag stays ready:** `del Wizard[:]` (Brief, not built; STEP-27 calls it the deletion protocol). Today, write the loop: `for w in list(Wizard[:]): del Wizard[w]`. It stops halfway if a teardown fails, or, under today's rule only, if a member still holds a Shape of Wizard.
 - **Only the defective ones leave:** `del (~Wizard)[:]` (Brief, decided; not built). Today, write `for w in list(~Wizard): del Wizard[w]`.
 - **Only a filtered group leaves:** name it, then `del weak[:]` (Brief, decided; not built).
-- **An Agent joins for a while, then leaves:** `with Scope(ari, Wizard):`.
+- **An Agent joins for a while, then leaves:** `Wizard(ari)` before a `try`, and `del Wizard[ari]` in its `finally` (STEP-31). `with Scope(ari, Wizard):` still works on main, and is to be retired.
 - **End one promise, not the membership:** `Contract.Delete(ari, "Alive")`, from the Tag's `@Rip` protocol.
 - **Give up on Agents stuck in the safehouse** (S19 only): `del Wizard[...]`, or all of them with `del Tag[...]`.
 - **Forget a name in your module:** `del Wizard`. This ends nothing by itself.
@@ -556,7 +558,7 @@ Mixing a Pin's population with a Tag's is in section 4. Applying a Pin to an obj
 
 ## 10. Functions and named failures
 
-TOP keeps functions for queries that need a name (§0.8).
+TOP keeps functions for queries that need a name (§0.8). STEP-31 OQ2 asks how far the Director's "no function calls as methodology" reaches. Its recommended line: an act, which changes an Agent or a Tag, gets the language's syntax; a read with no syntax may stay a function, as Python's own `len()` is.
 
 | Spelling | Plain meaning | Result | Status |
 | --- | --- | --- | --- |
@@ -564,8 +566,8 @@ TOP keeps functions for queries that need a name (§0.8).
 | `Tags(ari)`, `f"{ari:tags}"` | ari's active Tags, in the order applied, without the Bases their Shapes bring. With the cast, `Tags(ari)` is `(Wizard,)`, with no Officer. | tuple, str | **On main** · §0.8 |
 | `Outline(ari)`, `f"{ari:outline}"` | ari's Tags as an indented outline. | str | **On main** · §0.8. STEP-26 OQ4 asks how it should show a Base that a spin-off left. |
 | `Keyword(x, "Undead", "Flying")` | Does x carry every word? | bool | **On main** · §1.8 |
-| `Apply(ari, Wizard, Sworn)` | Apply several Tags, in order. | ari | **On main** · §0.8 |
-| `Scope(ari, Wizard)` | Apply for a `with` block; Rip on exit (section 8). | context manager | **On main** · §0.7 |
+| `Apply(ari, Wizard, Sworn)` | Apply several Tags, in order. | ari | **On main** · §0.8. An act: STEP-31 OQ2 names it a candidate to retire, for `Wizard(ari)` and `Sworn(ari)`, one line each. |
+| `Scope(ari, Wizard)` | Apply for a `with` block; Rip on exit (section 8). | context manager | **On main** · §0.7. **To be retired:** STEP-31 (Brief, decided). Decided by the Director, 2026-10-09: "I don't like Scope as a function call in TOP. Or generally using function calls as methodology. TOP should integrate with the language. Also "Scope" is not an informative name. Get it out". |
 | `At_Exit(ari)` | Run ari's teardowns at normal exit too (section 8). | ari | **On main** · §3.2 |
 | `Contract.Holds(ari)` | Do all ari's promises hold? | bool | **On main** · §2.6 |
 | `Contract.Status(ari)` | Each condition by name, `True` or `False`. Never raises. | dict | **On main** · §2.6 |

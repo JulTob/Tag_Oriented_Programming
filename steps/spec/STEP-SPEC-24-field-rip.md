@@ -258,8 +258,9 @@ acts, and TOP already has the same pair for Agents (§3.2).
 
 So the safe act is the one the program writes. A program that needs its
 teardowns to run (a lock released, a line stopped) says `del Tag[:]`, as
-it says `Scope` for an Agent. It never waits for the language to collect
-a Tag.
+it says `del Tag[agent]` for an Agent, in a `finally` when a block must
+end with it (STEP-SPEC-31). It never waits for the language to collect a
+Tag.
 
 Neither act contradicts "membership never keeps a Tag alive" (rule 2.1).
 Membership does not keep a Base alive; its Shapes do, by inheritance,

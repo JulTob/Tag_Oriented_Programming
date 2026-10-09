@@ -358,8 +358,9 @@ the tag to two. then they can operate together." Section 10 shows it
    - Equal names across scopes do not collide (§1.1): a Report of the
      declaring Tag may share a Link's name.
 5. **Sticky, like every contribution.** Ripping `Social` from Charlie
-   leaves `charlie.Knows` with him (§0.7), and `Scope(charlie, Social)`
-   never ends his Links. Whether a Rogue or defective Agent may still
+   leaves `charlie.Knows` with him (§0.7), and so does a Rip in a
+   `finally`, at the end of a block that tagged him for a while
+   (STEP-SPEC-31): no Rip ends his Links. Whether a Rogue or defective Agent may still
    link is the author's to say, in the gate: `return agent in Social and
    bool(agent)`.
 6. **Extending a held Link.** When an Agent gains a Tag whose Relation
@@ -604,8 +605,7 @@ told plainly, not answered `False`. That covers:
 - `~Social.Knows`, `Social.Knows[:]` and `Social.Knows[x]`;
 - the Relation in a population's operator seat: `Social.Knows &
   bob.Knows`, `|` and `-`;
-- `del Social.Knows[x]` and `del Social.Knows[:]`;
-- `Scope(x, Social.Knows)`.
+- `del Social.Knows[x]` and `del Social.Knows[:]`.
 
 Each message points to a Link: "Knows is a Relation: link through an
 Agent, charlie.Knows(ruth)". `Social.Knows | None` keeps `type`'s own
@@ -627,9 +627,7 @@ meaning, as it does for every Tag.
   `TypeError`, not "everyone in Social links x" (STEP-SPEC-23, rule
   1.9);
 - `isinstance(x, Social.Knows)` is refused by the language, because a
-  Projection is not a class;
-- `Scope(x, Social.Knows)` is refused by the kit, which applies only
-  Tags, and its message says so.
+  Projection is not a class.
 
 **In a class statement's Bases**, `Social.Knows` always stands for the
 Relation, so `class Knows(Social.Knows)` extends it (rule 2.6). Under

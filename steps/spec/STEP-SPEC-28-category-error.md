@@ -139,8 +139,10 @@ it, and a reader recognise it.
      on 2026-10-09: "Rare | Wizard should raise a category error. Pins
      are pinable, but the return population of pins are tags, but tags'
      populations are agents."
-   - **A Relation used as a Tag.** `Scope(x, Social.Knows)` and
-     `isinstance(x, Social.Knows)` (STEP-SPEC-22, section 9).
+   - **A Relation used as a Tag.** `Social.Knows(x)` and
+     `isinstance(x, Social.Knows)` (STEP-SPEC-22, section 9). (An earlier
+     draft listed `Scope(x, Social.Knows)`; `Scope` is retired by
+     STEP-SPEC-31.)
 4. **What is not a category error.**
    - A Tag written wrong, at class use, is a Declaration Failure (§
      Failure model): the mistake is in the declaration, not in an act.

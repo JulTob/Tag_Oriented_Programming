@@ -68,6 +68,11 @@
   Wizard). It recommends `+Wizard` for the sound part before a dot,
   `Wizard[0]` in join order, an absorbing `~` (awaiting his answer) and
   a `rounds` recipe.
+- STEP-SPEC-31 (Retire `Scope`) opened at Brief, as the Director
+  decided ("TOP should integrate with the language … Get it out"). A
+  block that holds a Tag for a while tags the Agent before `try` and
+  Rips it in `finally`. STEP-SPEC-22, 24, 26 and 28 and the catalog no
+  longer lean on `Scope`. The kit keeps it until the STEP is built.
 - A catalog of the Tag algebra, `steps/CATALOG-tag-algebra.md`: every
   spelling found so far that reads or acts on a Tag or a population, with
   its meaning, its result and its status on each branch.
