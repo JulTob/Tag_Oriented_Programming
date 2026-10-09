@@ -45,6 +45,12 @@ TOP's language. Python already has the exact visible control flow needed.
 5. TOP gives `with` no automatic Tagging or Rip rule. A host's normal
    synchronous or asynchronous context protocol is preserved. Context
    dunders supplied as Agent Actions remain normal Python behavior too.
+   Like every Agent Action (STEP-SPEC-3), those hooks run through that
+   Agent's composition door; an asynchronous hook holds it through its await.
+   That asynchronous authority is local to the hook's execution context,
+   not an unrelated sibling; deliberately delegated context shares it only
+   until the hook closes. The door closes before the user's block begins
+   and on every exit path.
 
 ## Rationale
 
@@ -72,8 +78,9 @@ handling.
 
 The tests cover removal from the public API, the explicit `try` / `finally`
 forms and failure paths, preservation of host context managers, and Agent
-Actions implementing synchronous and asynchronous context protocols. The
-oracle and differential fuzz program use the explicit lifecycle form.
+Actions implementing synchronous and asynchronous context protocols,
+including Secret access and cancellation. The oracle and differential
+fuzz program use the explicit lifecycle form.
 
 ### Decision
 

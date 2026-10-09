@@ -45,9 +45,17 @@ Actions; Agents are built once and play for a long time. So:
 - **Runtime types are shared** across every Agent whose host and
   type-level facts match, whatever Tags they carry. Ten thousand Agents of
   one host normally share one type.
-- **The composition door is a counter** on the Agent's state. Bound
-  protocols raise it while they run; the secret-gate descriptor checks it.
-  Agents without secrets use a plain bound callable and pay nothing.
+- **The composition door** uses a counter on the Agent's state for
+  synchronous protocols. An Agent-authored async context hook adds a
+  context-local door while its wrapper awaits. A deliberately derived
+  execution context shares the capability while the hook is active; a
+  pre-existing sibling does not, and closing clears the state reference so
+  a captured context can neither reuse the door nor retain the Agent state.
+  Secret gates accept either form. The type-cache key uses the selected raw
+  Actions and wrappers are allocated only on a cache miss, so equal
+  compositions still share one runtime type. Ordinary Actions on Agents
+  without Secrets use plain callables; context Actions are wrapped even
+  then, because a hook may introduce the first Secret while it runs.
 
 ### Presence without evaluation
 
