@@ -2907,6 +2907,25 @@ class PopulationWalkTests(unittest.TestCase):
                 self.assertEqual(answer, expected)
                 self.assertEqual(checks, [pair[0]])
 
+    def test_a_one_pass_materialization_uses_a_comprehension(self) -> None:
+        checks = []
+
+        class Wizard(Tag):
+            @Post
+            def Ready(agent):
+                checks.append(agent)
+                return True
+
+        ari, bo = Agent(), Agent()
+        Wizard(ari)
+        Wizard(bo)
+        checks.clear()
+
+        members = [member for member in Wizard]
+
+        self.assertEqual(members, [ari, bo])
+        self.assertEqual(checks, [ari, bo])
+
 
 class ConditionMemberTests(unittest.TestCase):
     """STEP-SPEC-14: a condition is read on the Agent by its name, as a

@@ -52,10 +52,12 @@ live at each left-side turn; this STEP changes no algebraic meaning.
 ## Backwards compatibility
 
 A loop no longer yields a later member after an earlier iteration Rips it.
-Code that intentionally retained the old starting membership can write
-`members = list(population)` before performing its acts. Join order,
-weak ownership, soundness and combination operators otherwise keep their
-existing behavior.
+Code that needs to retain what one walk yields can write
+`members = [member for member in population]` before performing its acts.
+The built-in `list(population)` may first ask `len(population)` for a size
+hint, which is a separate live walk and can repeat Postconditions; it is
+not the one-pass snapshot spelling. Join order, weak ownership, soundness
+and combination operators otherwise keep their existing behavior.
 
 ## Alternatives considered
 
@@ -70,7 +72,8 @@ existing behavior.
 
 Focused regressions cover sound, whole and defective Tag views, Pins, all
 three combined operators, Rip, re-Tagging before and after a saved turn,
-new members, and agreement among truth, length and iteration.
+new members, agreement among truth, length and iteration, and the explicit
+one-pass materialization pattern.
 
 ### Decision
 
