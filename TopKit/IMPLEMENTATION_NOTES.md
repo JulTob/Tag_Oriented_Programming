@@ -85,7 +85,13 @@ rollback target.
   language syntax on the metaclass: `in`, `for`, `~`, `len`, `bool`,
   `[:]`, `[agent]`, `del Tag[agent]`, `format`. The only class attribute
   TopKit adds is the private `_topkit_field`. `bool(Tag)` is "any sound
-  member", like a collection.
+  member", like a collection. The one name a program may not write there
+  is one the Tag gives its Agents: the metaclass's `__setattr__` and
+  `__delattr__` refuse it with a `TagCategoryError` (STEP-SPEC-28). The
+  first class in the MRO that holds the name decides, and after a Tag's
+  first use its cached scan does. The kernel's own writes on a pinned Tag
+  go through `type.__setattr__`, past that check: they already passed a
+  Pin's collision control.
 - **The empty-seat rule on Agents.** `__bool__`, `__format__`, `__copy__`
   and `__deepcopy__` are installed on the runtime type only when the host
   defines none of its own (`__bool__` only once a Postcondition is

@@ -525,6 +525,15 @@ truth in a Record, and write `+Wizard` before a dot.
 - `tests/oracle_topkit.py`: parts, places, `del X[:]`. The Guide: its
   "name the group, then act" style, rule 1.4's habit, and `rounds`.
 
+Built on PR #26 on 2026-10-09: rule 7.1, the walk's skip, on every walk
+the kit offers (a Tag, `Wizard[:]`, `~Wizard`, a Pin, a combination),
+with `WalkTests`. The Recommended half of 7.1 is not built as a general
+rule: an Agent that joins a Field during its walk waits for the next one,
+as before, but `&` and `-` still ask their right side at each turn, so
+one that joins `Wizard & Fighter` through Fighter is met in the same
+walk. The refusals of rules 2.3 (a host with its own `__bool__`) and 4.3
+(`Rare | Wizard`) were built with STEP-SPEC-28.
+
 ---
 
 ### Decision *(filled by the Director)*

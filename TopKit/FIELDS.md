@@ -132,6 +132,15 @@ assert combatants                           # truth: anyone at all?
 Keep a combined view around like you would keep a Tag around. Do not
 copy it into a list unless you want the moment frozen.
 
+One walk takes each Field's members when it begins. A member that an
+earlier turn of the same walk Ripped is skipped, so a loop that Rips as it
+goes never meets an Agent that has left. An Agent that joins a Field
+during its walk waits for the next one. Soundness is asked at each turn,
+so a member that breaks during the walk is skipped. `|` walks its right
+side when its left ends; `&` and `-` ask their right side at each turn,
+so an Agent that joins `Wizard & Fighter` through Fighter during the walk
+is met in it.
+
 ---
 
 ## 4. Patterns
@@ -220,6 +229,9 @@ assert list(Combat - Deprecated) == [Wizard]        # combat Tags still in use
 - **Type unions still work.** `Wizard | None` is the language's own class
   union, untouched; only a Tag or a population on the other side makes
   the operator a Field operator.
+- **No Pins with Tags.** A Pin's population holds Tags, and a Tag's holds
+  Agents: `Combat | Wizard` is refused with a `TagCategoryError`. Pins
+  combine with Pins, as above, and Tags with Tags.
 
 ## 6. The checklist
 

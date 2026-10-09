@@ -76,6 +76,17 @@ class TagCompositionError(TagError):
     be materialized, or a teardown failed."""
 
 
+class TagCategoryError(TagError, TypeError):
+    """An act treats one kind of TOP thing as another (STEP-SPEC-28): a
+    value of the Tag written over a name it gives its Agents, a target that
+    cannot be an Agent, a Pin's population combined with a Tag's. Nothing
+    changed.
+
+    It is a ``TypeError`` too, so code that catches ``TypeError`` keeps
+    working. The message names both kinds and the spelling to use.
+    """
+
+
 class TagResolutionError(TagError):
     """A required Underlay, Tag view, or contribution is unavailable."""
 

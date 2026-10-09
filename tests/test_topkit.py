@@ -40,10 +40,12 @@ from TopKit import Rip
 from TopKit import Scope
 from TopKit import Secret
 from TopKit import Tag
+from TopKit import TagCategoryError
 from TopKit import TagCompositionError
 from TopKit import TagContractError
 from TopKit import TagContractWarning
 from TopKit import TagDeclarationError
+from TopKit import TagError
 from TopKit import TagImprintError
 from TopKit import TagOverwriteWarning
 from TopKit import TagPostconditionError
@@ -547,7 +549,7 @@ class KernelTests(unittest.TestCase):
     def test_targets_that_cannot_carry_top_state_fail_explicitly(self) -> None:
         target = Slotted_Agent()
 
-        with self.assertRaises(TagCompositionError):
+        with self.assertRaises(TagCategoryError):
             Person(target)
 
     def test_membership_queries_do_not_actualize_an_untagged_target(self) -> None:
@@ -2916,7 +2918,7 @@ class QueryTests(unittest.TestCase):
 
         bag = HostPreservationTests.Bag()
 
-        with self.assertRaises(TagCompositionError):
+        with self.assertRaises(TagCategoryError):
             Marked(bag)
 
         self.assertNotIn(bag, Marked)
@@ -3210,7 +3212,7 @@ class FlagWordTests(unittest.TestCase):
             if tagged_first:
                 Elf(bag)
 
-            with self.assertRaises(TagCompositionError):
+            with self.assertRaises(TagCategoryError):
                 Marked(bag)
 
             self.assertNotIn(bag, Marked)
@@ -3336,7 +3338,9 @@ class InSeatTests(unittest.TestCase):
     """STEP-SPEC-7, amended: a Flag's words need the Agent's `in`. The host
     (through __contains__ or __iter__) or a Tag's Action of either name
     may already answer it; the two collide, in either order, and the
-    collision is refused and named. `in` never changes meaning in silence."""
+    collision is refused and named. `in` never changes meaning in silence.
+    The host's own `in` is a Category Failure (STEP-SPEC-28); a Tag's
+    Action that answers `in` stays a Composition Failure."""
 
     class Party:
         def __init__(self) -> None:
@@ -3360,12 +3364,15 @@ class InSeatTests(unittest.TestCase):
 
         self.Werewolf, self.Roster, self.Gate = Werewolf, Roster, Gate
 
-    def refused(self, act, *mentions: str) -> None:
-        with self.assertRaises(TagCompositionError) as caught:
+    def refused(self, act, *mentions: str, failure: type = TagCompositionError) -> None:
+        with self.assertRaises(failure) as caught:
             act()
 
         for mention in mentions:
             self.assertIn(mention, str(caught.exception))
+
+    def refused_by_the_host(self, act, *mentions: str) -> None:
+        self.refused(act, *mentions, failure=TagCategoryError)
 
     def test_an_iterable_host_refuses_a_flag(self) -> None:
         for tagged_first in (False, True):
@@ -3374,7 +3381,7 @@ class InSeatTests(unittest.TestCase):
             if tagged_first:
                 Elf(party)
 
-            self.refused(lambda: self.Werewolf(party), "Werewolf", "Party.__iter__")
+            self.refused_by_the_host(lambda: self.Werewolf(party), "Werewolf", "Party.__iter__")
 
             self.assertIn("alice", party)                 # membership keeps its meaning
             self.assertNotIn(party, self.Werewolf)
@@ -3388,9 +3395,9 @@ class InSeatTests(unittest.TestCase):
             def __iter__(self):
                 yield "ace"
 
-        self.refused(lambda: self.Werewolf(Crew()), "Crew already answers", "Party.__iter__")
-        self.refused(lambda: self.Werewolf(Deck()), "Deck.__iter__")
-        self.refused(lambda: self.Werewolf(HostPreservationTests.Bag()), "Bag.__contains__")
+        self.refused_by_the_host(lambda: self.Werewolf(Crew()), "Crew already answers", "Party.__iter__")
+        self.refused_by_the_host(lambda: self.Werewolf(Deck()), "Deck.__iter__")
+        self.refused_by_the_host(lambda: self.Werewolf(HostPreservationTests.Bag()), "Bag.__contains__")
 
     def test_a_host_that_declares_no_in_is_a_free_seat(self) -> None:
         class Loud(self.Party):
@@ -3531,7 +3538,7 @@ class InSeatTests(unittest.TestCase):
 
         odd = Odd()
 
-        self.refused(lambda: self.Werewolf(odd), "Bag.__contains__")
+        self.refused_by_the_host(lambda: self.Werewolf(odd), "Bag.__contains__")
         self.assertIn("x", odd)
 
         hushed = Hushed()
@@ -4881,6 +4888,594 @@ print("end")
         self.assertEqual(
                 lines,
                 ["end", "bool True", "keyword True", "condition True", "report north"],
+                )
+
+
+class CategoryErrorTests(unittest.TestCase):
+    """STEP-SPEC-28: an act that treats one kind of TOP thing as another is
+    a Tag Category Failure. Nothing changes; it is a TypeError too, and
+    its message names both kinds and the spelling to use."""
+
+    def setUp(self) -> None:
+        log: list[str] = []
+
+        class Wizard(Tag):
+            @Record
+            def hp(agent) -> int:
+                log.append("hp built")
+                return 5
+
+            def Cast(agent) -> str:
+                return "cast"
+
+            @Pre
+            def Ready(agent) -> bool:
+                return True
+
+            @Post
+            def Has_Book(agent) -> bool:
+                return True
+
+            @Pre
+            @Post
+            def Awake(agent) -> bool:                                 # necessary to enter and to stay
+                return True
+
+            @Imprint
+            def Arm(agent) -> None:
+                log.append("armed")
+
+            @Delete
+            def weapon(agent) -> None:
+                pass
+
+            @Report
+            def motto(tag) -> str:
+                return "wise"
+
+            @Operation
+            def Count(tag) -> int:
+                return len(tag)
+
+        self.Wizard, self.log = Wizard, log
+        self.agent_names = ("hp", "Cast", "Ready", "Has_Book", "Awake", "Arm", "weapon")
+
+    def refused(self, act) -> TagCategoryError:
+        with self.assertRaises(TypeError) as caught:                  # code that catches TypeError keeps working
+            act()
+
+        self.assertIsInstance(caught.exception, TagCategoryError)
+
+        return caught.exception
+
+    def assertDeclarationsIntact(self, Wizard: type) -> None:
+        bo = Agent()
+        Wizard(bo)
+
+        self.assertEqual((bo.hp, bo.Cast(), bo.Has_Book, bo.Awake), (5, "cast", True, True))
+        self.assertFalse(hasattr(bo, "weapon"))                       # the deletion still holds
+        self.assertIn("armed", self.log)
+        self.assertTrue(bo)
+
+    def test_the_failure_is_a_tag_error_and_a_type_error(self) -> None:
+        import TopKit
+
+        self.assertTrue(issubclass(TagCategoryError, TagError))
+        self.assertTrue(issubclass(TagCategoryError, TypeError))
+        self.assertIn("TagCategoryError", TopKit.__all__)
+
+    def test_a_value_over_an_agent_name_is_refused_before_first_use(self) -> None:
+        Wizard = self.Wizard
+        declared = dict(vars(Wizard))
+
+        for name in self.agent_names:
+            self.refused(lambda: setattr(Wizard, name, 10))
+            self.refused(lambda: delattr(Wizard, name))
+
+            self.assertIs(vars(Wizard)[name], declared[name])         # nothing changed
+
+        self.assertEqual(self.log, [])
+        self.assertDeclarationsIntact(Wizard)
+
+    def test_a_value_over_an_agent_name_is_refused_after_first_use(self) -> None:
+        Wizard = self.Wizard
+        ari = Agent()
+        Wizard(ari)
+        declared = dict(vars(Wizard))
+
+        for name in self.agent_names:
+            self.refused(lambda: setattr(Wizard, name, 10))
+            self.refused(lambda: delattr(Wizard, name))
+
+            self.assertIs(vars(Wizard)[name], declared[name])
+
+        self.assertEqual(ari.hp, 5)                                   # the Tag and its Agents agree
+        self.assertDeclarationsIntact(Wizard)
+
+    def test_the_message_names_both_kinds_and_the_spelling(self) -> None:
+        Wizard = self.Wizard
+
+        def Write() -> None:
+            Wizard.hp = 10
+
+        def Delete_It() -> None:
+            del Wizard.hp
+
+        self.assertEqual(
+                str(self.refused(Write)),
+                "hp is a Record of each Wizard, not a value of the Tag Wizard."
+                " Write: for wizard in Wizard: wizard.hp = 10",
+                )
+        self.assertEqual(
+                str(self.refused(Delete_It)),
+                "hp is a Record of each Wizard, not a value of the Tag Wizard."
+                " Write: for wizard in Wizard: del wizard.hp",
+                )
+        self.assertIn("an Action of each Wizard", str(self.refused(lambda: setattr(Wizard, "Cast", 1))))
+        self.assertIn("@Post def Has_Book", str(self.refused(lambda: setattr(Wizard, "Has_Book", 1))))
+
+    def test_the_spelling_offered_is_python(self) -> None:
+        Wizard = self.Wizard
+
+        class Class(Tag):                                             # "class" is a keyword
+            @Record
+            def hit_die(agent) -> int:
+                return 6
+
+        class Unprintable:
+            def __repr__(self) -> str:
+                raise RuntimeError("no repr")
+
+        def Message(name: str, value: object) -> str:
+            return str(self.refused(lambda: setattr(Wizard, name, value)))
+
+        self.assertTrue(
+                str(self.refused(lambda: setattr(Class, "hit_die", 8))).endswith(
+                        "Write: for agent in Class: agent.hit_die = 8"
+                        )
+                )
+        self.assertTrue(Message("hp", len).endswith("Write: for wizard in Wizard: wizard.hp = ..."))
+        self.assertTrue(Message("hp", Unprintable()).endswith("wizard.hp = ..."))   # still a TagCategoryError
+        self.assertLess(len(Message("hp", list(range(100_000)))), 200)              # a short message
+        self.assertTrue(
+                Message("Cast", lambda agent: "new").endswith(
+                        "Write it in a Tag's class body: def Cast(agent): ..."
+                        )
+                )
+        self.assertTrue(
+                str(self.refused(lambda: delattr(Wizard, "Cast"))).endswith(
+                        "Write: for wizard in Wizard: del wizard.Cast"
+                        )
+                )
+
+    def test_a_callable_that_answers_any_name_is_an_action(self) -> None:
+        class Proxy:                                                  # as xmlrpc's ServerProxy: any name is a call
+            def __getattr__(self, name: str) -> "Proxy":
+                return Proxy()
+
+            def __call__(self, *arguments: object) -> None:
+                return None
+
+        class Wizard(Tag):
+            pass
+
+        Wizard.server = Proxy()                                       # before first use: an Action at first use
+
+        self.refused(lambda: setattr(Wizard, "server", Proxy()))
+
+    def test_a_name_the_tag_does_not_give_its_agents_stays_assignable(self) -> None:
+        Wizard = self.Wizard
+
+        Wizard.motto = "brave"                                        # the Tag's own Report
+        Wizard.Count = 7                                              # the Tag's own Operation
+        Wizard.banner = "blue"                                        # a Report written by hand
+
+        self.assertEqual((Wizard.motto, Wizard.Count, Wizard.banner), ("brave", 7, "blue"))
+
+        del Wizard.banner
+
+        self.assertFalse(hasattr(Wizard, "banner"))
+        self.assertDeclarationsIntact(Wizard)
+        self.assertFalse(hasattr(Agent(), "banner"))
+
+    def test_a_report_beside_a_record_stays_writable(self) -> None:
+        class Painted(Tag):
+            @Record
+            def colour(agent) -> str:
+                return "red"
+
+        class Fire(Painted):
+            @Report
+            def colour(tag) -> str:                                   # Tag scope, beside the Base's Record (§1.1)
+                return "orange"
+
+        ember = Agent()
+        Fire(ember)
+        Fire.colour = "blue"                                          # the write changes the Report
+
+        self.assertEqual(Fire.colour, "blue")
+        self.assertEqual(ember.colour, "red")
+
+        spark = Agent()
+        Fire(spark)
+
+        self.assertEqual(spark.colour, "red")                         # the Record is untouched
+        self.refused(lambda: setattr(Painted, "colour", "blue"))      # on Painted it is only the Record
+
+    def test_a_shape_carries_its_bases_agent_names(self) -> None:
+        Wizard = self.Wizard
+
+        class War_Caster(Wizard):
+            @Record
+            def focus(agent) -> int:
+                return 1
+
+        error = self.refused(lambda: setattr(War_Caster, "hp", 10))
+
+        self.assertIn("for war_caster in War_Caster: war_caster.hp = 10", str(error))
+        self.assertNotIn("hp", vars(War_Caster))
+
+        Wizard.focus = 3                                              # only the Shape gives its Agents focus
+
+        self.assertEqual(Wizard.focus, 3)
+
+        ari = Agent()
+        War_Caster(ari)
+
+        self.assertEqual((ari.hp, ari.focus), (5, 1))
+
+    def test_a_pins_agent_names_and_what_it_lands(self) -> None:
+        @Pin
+        class Rare(Tag):
+            @Record
+            def rarity(tag) -> str:
+                return "rare"
+
+        class Relic(Tag):
+            pass
+
+        Rare(Relic)
+
+        self.refused(lambda: setattr(Rare, "rarity", "common"))      # a Record of each Rare Tag
+        Relic.rarity = "legendary"                                    # the pinned Tag is an Agent of Rare
+
+        self.assertEqual(Relic.rarity, "legendary")
+
+        del Rare[Relic]
+        Rare(Relic)                                                   # the kit writes on the Tag again
+
+        self.assertEqual(Relic.rarity, "rare")
+
+    def test_a_rolled_back_pinning_takes_back_what_it_landed(self) -> None:
+        @Pin
+        class Handled(Tag):
+            @Record
+            def handler(tag):
+                return len                                            # a callable value lands on the Tag
+
+            @Record
+            def broken(tag):
+                raise ValueError("no")
+
+        class Relic(Tag):                                             # never used: its scan is not read yet
+            pass
+
+        with self.assertRaises(TagCompositionError):                  # the Record failure, not a category error
+            Handled(Relic)
+
+        self.assertNotIn("handler", vars(Relic))
+        self.assertNotIn(Relic, Handled)
+
+    def test_targets_that_cannot_be_agents_are_refused(self) -> None:
+        class Fixed:
+            __slots__ = ("__dict__",)                                 # a dictionary, but no weak reference
+
+        Wizard = self.Wizard
+        fixed = Fixed()
+
+        for target in (None, 3, True, "plain", (1, 2), fixed):
+            error = self.refused(lambda: Wizard(target))
+
+            self.assertIn("cannot be an Agent", str(error))
+
+        self.assertEqual(vars(fixed), {})                             # nothing changed
+        self.assertIs(type(fixed), Fixed)
+        self.assertEqual(self.log, [])                                # no Record was built
+        self.assertEqual(list(Wizard[:]), [])
+
+    def test_a_host_with_a_truth_of_its_own_is_refused(self) -> None:
+        class Purse:
+            def __init__(self) -> None:
+                self.coins = 0
+
+            def __bool__(self) -> bool:
+                return self.coins > 0
+
+        class Wallet(Purse):                                          # the truth is inherited
+            pass
+
+        class Gold(float):                                            # the language's own truth
+            pass
+
+        Wizard = self.Wizard
+
+        for host in (Purse, Wallet, Gold):
+            target = host()
+            error = self.refused(lambda: Wizard(target))
+
+            self.assertIn("a truth of its own", str(error))
+            self.assertIs(type(target), host)                         # nothing changed
+            self.assertNotIn(target, Wizard[:])
+            self.assertFalse(target)
+
+        self.assertEqual(self.log, [])
+
+    def test_a_host_with_only_len_is_accepted(self) -> None:
+        class Shelf:
+            def __init__(self) -> None:
+                self.books: list[str] = []
+
+            def __len__(self) -> int:
+                return len(self.books)
+
+        class Library(Tag):
+            pass
+
+        shelf = Shelf()
+        Library(shelf)
+
+        self.assertIn(shelf, Library)
+        self.assertEqual(len(shelf), 0)
+        self.assertFalse(shelf)                                       # no promise visible: its length answers
+
+    def test_a_string_target_is_refused(self) -> None:
+        class Name(str):
+            pass
+
+        Wizard = self.Wizard
+        name = Name("Ari")
+
+        error = self.refused(lambda: Wizard(name))
+
+        self.assertIn("is a string", str(error))
+        self.assertIs(type(name), Name)
+        self.assertEqual(vars(name), {})
+        self.assertEqual(self.log, [])
+
+    def test_retagging_an_agent_keeps_working(self) -> None:
+        class Sworn(Tag):
+            @Post
+            def Loyal(agent) -> bool:
+                return True
+
+        ari = Agent()
+        Sworn(ari)                                                    # its runtime type now answers truth
+        self.Wizard(ari)
+
+        self.assertIn(ari, self.Wizard)
+        self.assertIn(ari, Sworn)
+        self.assertTrue(ari)
+
+    def test_a_pin_on_a_tag_keeps_working(self) -> None:
+        @Pin
+        class Rare(Tag):
+            pass
+
+        @Pin
+        class Ancient(Tag):
+            pass
+
+        Rare(self.Wizard)                                             # a Tag answers truth through its metaclass
+        Ancient(self.Wizard)
+
+        self.assertEqual((list(Rare), list(Ancient)), ([self.Wizard], [self.Wizard]))
+
+    def test_a_flag_on_a_host_with_its_own_in_is_refused(self) -> None:
+        @Flag
+        class Marked(Tag):
+            pass
+
+        bag = HostPreservationTests.Bag()
+        error = self.refused(lambda: Marked(bag))
+
+        self.assertIn("Bag.__contains__", str(error))
+        self.assertNotIn(bag, Marked)
+        self.assertIn("x", bag)
+
+    def test_a_pins_population_never_combines_with_a_tags(self) -> None:
+        @Pin
+        class Rare(Tag):
+            pass
+
+        @Pin
+        class Ancient(Tag):
+            pass
+
+        class Fighter(Tag):
+            pass
+
+        Wizard = self.Wizard
+        Rare(Wizard)
+        Ancient(Fighter)
+
+        for act in (
+                lambda: Rare | Wizard,
+                lambda: Wizard | Rare,
+                lambda: Rare & Wizard,
+                lambda: Wizard & Rare,
+                lambda: Rare - Wizard,
+                lambda: Wizard - Rare,
+                lambda: Rare[:] & Wizard,
+                lambda: ~Rare | Wizard[:],
+                lambda: (Wizard | Fighter) - (Rare | Ancient),
+                ):
+            error = self.refused(act)
+
+            self.assertIn("Rare is a Pin, and its population holds Tags", str(error))
+            self.assertIn("Wizard is a Tag, and its population holds Agents", str(error))
+
+        self.assertEqual(list(Rare | Ancient), [Wizard, Fighter])     # Pins with Pins
+        self.assertEqual(list(Wizard | Fighter), [])                  # Tags with Tags
+        self.assertIn("Wizard", repr(Wizard | None))                  # the language's own type union
+        self.assertIn("Wizard", repr(Wizard | int))
+
+
+class WalkTests(unittest.TestCase):
+    """STEP-SPEC-29, rule 7.1: a walk takes a Field's members when it
+    begins, in join order, and skips a member that an earlier turn of the
+    same walk Ripped. An Agent that joins the Field during the walk waits
+    for the next one; each side of a union is read when its own walk
+    begins. (``&`` and ``-`` ask their right side at each turn.)"""
+
+    def setUp(self) -> None:
+        class Wizard(Tag):
+            @Post
+            def Fit(agent) -> bool:
+                return agent.fit
+
+        class Fighter(Tag):
+            pass
+
+        self.Wizard, self.Fighter = Wizard, Fighter
+        self.ari, self.bo, self.cal = self.Joined(3)
+
+    def Joined(self, count: int, fit: bool = True) -> list[Agent]:
+        """``count`` new Wizards, sound or broken."""
+
+        agents = [Agent() for _ in range(count)]
+
+        for agent in agents:
+            agent.fit = fit
+
+            try:
+                self.Wizard(agent)
+            except Postcondition.Fit:
+                pass                                                  # joins broken
+
+        return agents
+
+    def walked(self, population, act) -> list[object]:
+        """Every member the walk visits; ``act`` runs at each turn."""
+
+        seen = []
+
+        for member in population:
+            seen.append(member)
+            act(member)
+
+        return seen
+
+    def Rip_At(self, turn: object, ripped: object):
+        """At ``turn``'s turn, Rip ``ripped`` from Wizard."""
+
+        def Act(member) -> None:
+            if member is turn:
+                del self.Wizard[ripped]
+
+        return Act
+
+    def test_a_tag_walk_skips_a_member_ripped_earlier_in_the_walk(self) -> None:
+        ari, bo, cal = self.ari, self.bo, self.cal
+
+        self.assertEqual(self.walked(self.Wizard, self.Rip_At(ari, cal)), [ari, bo])
+        self.assertEqual(list(self.Wizard), [ari, bo])
+
+    def test_a_walk_of_the_whole_field_skips_it(self) -> None:
+        ari, bo, cal = self.ari, self.bo, self.cal
+
+        self.assertEqual(self.walked(self.Wizard[:], self.Rip_At(ari, cal)), [ari, bo])
+
+    def test_a_walk_of_the_broken_skips_it(self) -> None:
+        broken, waiting = self.Joined(2, fit=False)
+
+        self.assertEqual(self.walked(~self.Wizard, self.Rip_At(broken, waiting)), [broken])
+
+    def test_a_walk_of_a_combination_skips_it(self) -> None:
+        ari, bo, cal = self.ari, self.bo, self.cal
+        dee = Agent()
+        self.Fighter(dee)
+        self.Fighter(bo)
+
+        self.assertEqual(self.walked(self.Wizard | self.Fighter, self.Rip_At(ari, cal)), [ari, bo, dee])
+
+        self.Wizard(cal)
+
+        self.assertEqual(self.walked(self.Wizard - self.Fighter, self.Rip_At(ari, cal)), [ari])
+
+    def test_a_walk_of_a_pin_skips_it(self) -> None:
+        @Pin
+        class Rare(Tag):
+            pass
+
+        class Relic(Tag):
+            pass
+
+        class Gem(Tag):
+            pass
+
+        class Crown(Tag):
+            pass
+
+        for tag in (Relic, Gem, Crown):
+            Rare(tag)
+
+        def Rip_Crown(member) -> None:
+            if member is Relic:
+                del Rare[Crown]
+
+        self.assertEqual(self.walked(Rare, Rip_Crown), [Relic, Gem])
+
+    def test_ripping_the_member_of_the_turn_is_safe(self) -> None:
+        Wizard = self.Wizard
+
+        def Rip_It(member) -> None:
+            del Wizard[member]
+
+        self.assertEqual(self.walked(Wizard, Rip_It), [self.ari, self.bo, self.cal])
+        self.assertEqual(list(Wizard[:]), [])
+
+    def test_a_member_ripped_and_tagged_again_waits_for_the_next_walk(self) -> None:
+        Wizard, ari, bo, cal = self.Wizard, self.ari, self.bo, self.cal
+
+        def Rip_And_Return(member) -> None:
+            if member is ari:
+                del Wizard[cal]
+                Wizard(cal)                                           # a fresh Tagging: it joins again
+
+        self.assertEqual(self.walked(Wizard, Rip_And_Return), [ari, bo])
+        self.assertEqual(list(Wizard), [ari, bo, cal])
+
+    def test_an_agent_that_joins_during_a_walk_waits_for_the_next_walk(self) -> None:
+        Wizard, ari = self.Wizard, self.ari
+
+        for population in (
+                lambda: Wizard,
+                lambda: Wizard[:],
+                lambda: Wizard - self.Fighter,
+                ):
+            dee = Agent()
+            dee.fit = True
+
+            def Join(member) -> None:
+                if member is ari:
+                    Wizard(dee)
+
+            self.assertNotIn(dee, self.walked(population(), Join))
+            self.assertIn(dee, list(population()))                    # the next walk sees it
+
+    def test_each_side_of_a_union_is_read_when_its_walk_begins(self) -> None:
+        Wizard, Fighter = self.Wizard, self.Fighter
+        dee, eve = Agent(), Agent()
+        eve.fit = True
+        Fighter(dee)
+
+        def Join(member) -> None:
+            if member is dee:
+                Wizard(eve)                                           # joins the right side during the left
+
+        self.assertEqual(
+                self.walked(Fighter | Wizard, Join),
+                [dee, self.ari, self.bo, self.cal, eve],
                 )
 
 

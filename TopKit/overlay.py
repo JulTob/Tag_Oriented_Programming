@@ -24,6 +24,7 @@ from .declarations import _parameters_of
 from .declarations import _protocol_inputs
 from .declarations import _takes_stored
 from .declarations import _takes_underlay
+from .errors import TagCategoryError
 from .errors import TagCompositionError
 from .errors import TagDeclarationError
 from .errors import TagError
@@ -508,7 +509,7 @@ def _refuse_in_collision(
         if seat is not None:
             method, owner = seat
 
-            raise TagCompositionError(
+            raise TagCategoryError(   # the host's own `in` (STEP-SPEC-28)
                     f"{tag.__name__} is a Flag and needs the Agent's `in` for"
                     f" its words, but {host} already answers `in` through"
                     f" {owner.__name__}.{method}; taking the seat would change"
