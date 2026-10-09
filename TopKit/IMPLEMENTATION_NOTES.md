@@ -90,7 +90,9 @@ runs its Preconditions. A refusal does not remove Tags whose turns already
 finished. `_apply_one` then lays the Tag over the
 **live** state (no second copy) in the order Parts, Field entry, Imprints;
 finally `_inspect` runs every visible Postcondition once. The existing
-whole-call Parts boundary is unchanged. `TagImprintError` and
+whole-call Parts boundary is an implementation limitation tracked by #30,
+not the portable contract: a post-Gate Tag must remain, while continuation
+and failure precedence still need a decision. `TagImprintError` and
 `TagPostconditionError` propagate with applied Tags left in place.
 
 Laying over the live state is safe because nothing reads the new Overlay

@@ -13,11 +13,11 @@ Once for the whole call:
     5. Every visible Postcondition is checked.
 
 A refusal in 1 leaves Tags whose turns completed in place and does not
-start the refused Tag. The existing Parts boundary remains at the whole
-call: a failure in 2 restores its entry state. A failure in 4 or 5 raises
-but applied Tags stay. Their current Postconditions determine soundness;
-the failure itself is not a permanent defect. Python interruptions keep
-their original type and follow the same phase boundary.
+start the refused Tag. TopKit's remaining #30 limitation is in Parts: a
+failure in 2 still restores the whole call's entry state. A failure in 4
+or 5 raises but applied Tags stay. Their current Postconditions determine
+soundness; the failure itself is not a permanent defect. Python
+interruptions keep their original type and follow the same phase boundary.
 """
 
 from __future__ import annotations
@@ -217,7 +217,7 @@ def _apply_one(
     # The state is laid over in place: the call boundary (_apply) holds the
     # entry copy that a Record failure rolls back to, and nothing reads the
     # new Overlay before commit binds it on the Agent.
-    boundary.after_commit = False   # this Tag's Parts can still refuse the whole call
+    boundary.after_commit = False   # #30: Parts still restore the whole call in TopKit
     state = _state_for(agent)
     declarations = _declarations_of(tag)
     retained_constants = frozenset(state.constants)

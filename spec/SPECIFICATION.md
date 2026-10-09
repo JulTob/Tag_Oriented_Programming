@@ -184,18 +184,20 @@ The **call boundary** decides what a failure means:
 
 - A refusal in step 1 stops that Tag before its Parts, Contributions, Field
   entry or Imprints. Earlier Tags completed during this call stay applied.
-  A failure in step 2 retains the existing whole-call boundary: the Agent
-  returns to its state at the start of the call, including Bases pulled in
-  by that call. Tags applied by earlier calls are untouched.
+- Once a Gate passes, a later failure is not a refusal. The Agent's current
+  Posts determine deficiency. Issue #30 tracks the unfinished Record-builder
+  continuation and failure-precedence rules; this Gate amendment does not
+  choose between them.
 - A failure in steps 4 or 5 **raises, but the Tags stay**. The product left
   the line. A defective product is not melted back to materials: it is
   flagged, repaired, or Ripped (§2.5).
 
 The phase belongs to the call running the protocol. A nested refusal
 inside an Imprint is that Imprint's failure, with the refusal as its cause;
-a nested failure inside a Record still refuses Parts. Python interruptions
-follow the same boundary and propagate unchanged. Failure to capture the
-Tag-bound view after an Imprint also preserves the applied Tags. If capture
+a nested failure inside a Record is a Parts failure, not a Gate refusal.
+Python interruptions follow the same boundary and propagate unchanged.
+Failure to capture the Tag-bound view after an Imprint also preserves the
+applied Tags. If capture
 fails while an Imprint failure or interruption is already being
 raised, the original failure stays primary and the capture failure is
 reported as a note when possible.
@@ -218,8 +220,7 @@ Broken_Wizard(ari)                Form: Person, Broken_Wizard
 → TagPostconditionError; ari in Person and ari in Wizard; bool(ari) == False
 ```
 
-On a Parts rollback, TOP-managed state is restored to the start of the
-call. An Imprint's in-place mutation of a pre-existing mutable value
+An Imprint's in-place mutation of a pre-existing mutable value
 (`events.append(...)`) is outside what TOP can undo; keep such effects for
 step 4, where they are never rolled back, or hold them in Records.
 

@@ -18,8 +18,8 @@ A Tagging whose Postcondition fails is **applied and defective**: the call
 raises, the Tags stay, and the Agent is a member whose promise is broken.
 An Imprint failure likewise leaves the Tags applied. Each missing Tag now
 passes its own Gate when its turn arrives; a later refusal leaves Tags
-whose turns finished in place. Record failures retain their existing
-whole-call boundary; their post-Gate policy remains a separate decision.
+whose turns finished in place. Once a Gate passes, a later failure is not
+a refusal; issue #30 separately governs the unfinished Record path.
 
 Fields partition into the **sound** population (`for a in Tag`) and the
 **defective** one (`for a in ~Tag`); `Tag[:]` is everyone. Membership
@@ -43,9 +43,8 @@ nobody disappears from a plain loop silently.
    Gate, Parts, Field entry and Imprints; then once per call, after the
    whole Form: quality check (every visible Postcondition).
 2. A Gate refusal stops before that Tag's Parts, Contributions, Field entry
-   or Imprints. Tags whose turns already finished stay applied. A Parts
-   failure retains the existing whole-call rollback while its post-Gate
-   policy is decided separately.
+   or Imprints. Tags whose turns already finished stay applied. A failure
+   after the Gate is not a refusal; current Posts decide deficiency.
 3. A failure in an Imprint raises a Tag Imprint Failure; the Tags stay.
 4. A failure in quality check raises a Tag Postcondition Failure; the Tags
    stay; the Agent is defective while any visible Postcondition fails.
@@ -77,8 +76,9 @@ leave `Tag.name` to the program (Specification §0.8).
 
 Programs that relied on a failed Postcondition rolling back must Rip the
 defective Tag themselves, or check `bool(agent)` after the call. The
-`CONFORMANCE.md` line "atomic taggings, all-or-nothing" is reworded: gate
-and parts are atomic; write and quality check are not.
+original `CONFORMANCE.md` line "atomic taggings, all-or-nothing" was
+reworded when this STEP first deployed. This amendment supersedes its Gate
+half; issue #30 tracks the unfinished post-Gate Parts behavior.
 
 ## Alternatives considered
 
@@ -106,9 +106,10 @@ is a chain, "not a house of cards": completed Tags stay when a later Tag's
 Gate refuses. The Director then explicitly selected **each Tag passes its own
 Gate**.
 
-This amendment changes only the Gate boundary. The handling of a failure after
-a successful Gate—especially a Record builder failure—remains open in issue
-#30 and is not decided here.
+This amendment implements only the Gate chain. The Director has also confirmed
+that failure after a successful Gate is not refusal and the current Tag remains;
+issue #30 still needs the Record continuation and failure-precedence choice
+before that separate implementation can land.
 
 Covered by `tests/test_topkit.py::PreconditionTests`.
 

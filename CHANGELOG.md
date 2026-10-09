@@ -8,13 +8,18 @@
   its turn arrives. A later refusal leaves completed Base Taggings in place
   and stops before the refused Tag's Records, Contributions, Field entry or
   Imprints. A Shape's Precondition no longer suppresses a missing Base's
-  own Gate; active Tags are still not re-asked. The existing Parts failure
-  boundary is unchanged while its post-Gate policy is decided separately.
+  own Gate; active Tags are still not re-asked. Once a Gate passes, a later
+  failure is not a refusal; #30 retains the Record continuation and failure-
+  precedence decision.
 
 ### TopKit
 
 - Gate evaluation now follows the Base-first Tag chain without removing
   completed Bases when a later Tag refuses.
+- **Known #30 limitation, unchanged here:** TopKit still restores the
+  whole call when a Record builder fails. It must retain the post-Gate Tag;
+  the Director still needs to choose whether its later Records and Imprints
+  run, and which failure reports first when a Post also fails.
 
 - **Constant Contributions:** `@Constant` protects Records, Actions,
   Posts, Reports and Operations from replacement, deletion and later
