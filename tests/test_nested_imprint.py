@@ -425,4 +425,3 @@ class NestedImprintTests(unittest.TestCase):
                 self.assertEqual(agent in list(Trained), prepared)
                 self.assertEqual(later, [])
                 del Trained[agent]
-
