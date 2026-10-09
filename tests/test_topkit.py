@@ -1404,7 +1404,7 @@ class ConditionTests(unittest.TestCase):
         mortal = Agent()
         mortal.undead = False
 
-        with self.assertRaises(TagError) as at_the_door:
+        with self.assertRaises(Precondition.Undead) as at_the_door:
             Vampire(mortal)
 
         self.assertIsInstance(at_the_door.exception, Precondition.Undead)
@@ -1415,7 +1415,7 @@ class ConditionTests(unittest.TestCase):
         Vampire(nosferatu)
         nosferatu.undead = False
 
-        with self.assertRaises(TagError) as afterwards:
+        with self.assertRaises(Postcondition.Undead) as afterwards:
             Contract.Postconditions(nosferatu)
 
         self.assertIsInstance(afterwards.exception, Postcondition.Undead)
@@ -1426,7 +1426,10 @@ class ConditionTests(unittest.TestCase):
         import TopKit.declarations
 
         with self.assertRaises(ImportError):
-            from TopKit import Requirement                            # removed: stack @Pre and @Post
+            from TopKit import Requirement
+
+        with self.assertRaises(ImportError):
+            from TopKit.declarations import Requirement
 
         self.assertNotIn("Requirement", TopKit.__all__)
         self.assertFalse(hasattr(TopKit, "Requirement"))

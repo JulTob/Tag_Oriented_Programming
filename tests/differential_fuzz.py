@@ -4,10 +4,10 @@ Everything a program can observe must agree between the two kits. Each
 seed makes one deterministic Python program that uses TOP broadly:
 Tag families with Bases, Shapes and diamonds; Records with a stored seat
 and inputs; Actions with and without @Underlay, special methods among
-them; gates and promises, including both stacked; Imprints, Rips, Deletes,
-Secrets, published Reports and Operations, Flags with words, Pins; blocks
-that hold Tags with try and finally, Apply, applying, re-applying and
-Ripping; Flags declared and Tags renamed while
+them; gates, promises and stacked gate-and-promise conditions; Imprints,
+Rips, Deletes, Secrets, published Reports and Operations, Flags with words,
+Pins; blocks that hold Tags with try and finally, Apply, applying,
+re-applying and Ripping; Flags declared and Tags renamed while
 the program runs, and Tags declared in a function; broken promises and
 the Fields that sort them; views, queries and keywords; At_Exit, deleted
 Agents and collected cycles; hosts and Tags with finalizers of their
