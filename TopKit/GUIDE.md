@@ -409,6 +409,9 @@ assert newt in list(Wizard)             # back in the working population
 This is the factory rule: a bad product is not melted back to materials. It
 is flagged, repaired, or thrown away (`del Wizard[newt]`).
 
+`~` reads "broken", never "not". Broken twice is still broken, so
+`~~Wizard` is `~Wizard`, the repair queue again.
+
 `if agent:` reads "are this agent's promises holding". When you need the
 name of the broken one, `Contract.Display(agent)` or `f"{agent:contract}"`
 prints them.

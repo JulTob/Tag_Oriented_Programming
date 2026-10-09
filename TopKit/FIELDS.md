@@ -71,11 +71,15 @@ assert list(Fighter) == [bo]                # off the line
 assert list(~Fighter) == [cal]              # waiting for repair
 assert cal in Fighter                       # still a member
 assert cal in Fighter[:]                    # still in the Field
+assert list(~~Fighter) == [cal]             # broken twice is still broken
 ```
 
 The plain loop, `for f in Fighter`, is the working population. `~Fighter`
 is the repair queue. `Fighter[:]` is the roster. `if Fighter:` asks
 whether anyone is fit; `len(Fighter[:])` counts everyone.
+
+`~` reads "broken", never "not". So it absorbs: `~~Fighter`,
+`~~~Fighter` and any longer run are `~Fighter`, the repair queue again.
 
 ---
 
@@ -220,8 +224,9 @@ assert list(Combat - Deprecated) == [Wizard]        # combat Tags still in use
 
 ## 5. What the algebra does not do
 
-- **No complement of a union.** `~(Wizard | Fighter)` has no universe to
-  complement, so it is not defined. `~Wizard | ~Fighter` is what you mean.
+- **No `~` on a combination.** `~` means broken, and it applies to a
+  Tag. `~(Wizard | Fighter)` is refused with a `TypeError`;
+  `~Wizard | ~Fighter` is what you mean.
 - **No order across sides.** `|` walks the left side first, then the
   right; it does not interleave by join time.
 - **No copies.** A view reads the Fields it was made from. If you need a

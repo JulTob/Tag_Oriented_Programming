@@ -3,7 +3,8 @@
 A Field never keeps an Agent alive. Membership is indexed by identity so
 registration and removal are constant-time. Iterating a Tag gives the
 sound population (every visible Postcondition holds), ``~Tag`` the
-defective one, ``Tag[:]`` everyone.
+defective one, ``Tag[:]`` everyone. ``~`` means broken, and broken twice
+is still broken: ``~~Tag`` is ``~Tag``.
 
 Populations combine (STEP-SPEC-13): ``Wizard[:] | Fighter[:]`` is everyone
 who is either, ``Wizard - Sworn`` the sound Wizards who have not sworn,
@@ -492,10 +493,17 @@ class _Partition(_Population):
     def __invert__(
             partition,
             ) -> "_Partition":
+        """``~`` means broken, and broken twice is still broken: on the
+        defective half it gives that half back, so ``~~Wizard`` is
+        ``~Wizard`` (STEP-SPEC-29, rule 3.2)."""
+
+        if partition._label == "defective":
+            return partition
+
         holds = partition._holds
 
         return _Partition(
                 partition._field,
                 lambda agent: not holds(agent),
-                "defective" if partition._label == "sound" else "sound",
+                "defective",
                 )

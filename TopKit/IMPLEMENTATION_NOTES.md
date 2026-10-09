@@ -229,7 +229,9 @@ rollback target.
   `-` by `in` on the right side). `_population_of` turns a Tag into its
   sound partition; `MetaTag.__or__` falls back to `type.__or__` when the
   other side is not a population, so `Wizard | None` stays a typing
-  union. No kernel state changes.
+  union. `~` on the defective partition returns that partition, so `~`
+  absorbs (STEP-SPEC-29, rule 3.2); a combination has no `~`. No kernel
+  state changes.
 - **Condition members** (STEP-SPEC-14): `_agent_getattr` answers a
   condition by name on the miss path, after Tag views and before the
   host's own `__getattr__`, through `contracts._condition_member`, which

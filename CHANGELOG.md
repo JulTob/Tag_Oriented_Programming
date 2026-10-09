@@ -117,6 +117,11 @@
   so an Agent that joins the Field during it waits for the next walk,
   while soundness and the right side of `&` and `-` are asked at each
   turn.
+- `~` absorbs (STEP-SPEC-29, rule 3.2), as the Director decided on
+  2026-10-09: "~~~~~~~~~~~~~Wizard is still ~Wizards". `~` on the
+  defective population gives it back, so `~~Wizard`, `~~~Wizard` and any
+  longer run are `~Wizard`. Before, `~~Wizard` flipped back to the sound
+  population. `~(Wizard | Fighter)` is still refused.
 
 ### Project
 

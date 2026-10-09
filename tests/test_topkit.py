@@ -2694,6 +2694,43 @@ class FieldAlgebraTests(unittest.TestCase):
         self.assertEqual(list(self.Wizard[:] & ~self.Fighter), [])
         self.assertEqual(list(self.Fighter[:] - self.Wizard), [self.cal])
 
+    def test_tilde_absorbs_broken_twice_is_still_broken(self) -> None:
+        """STEP-SPEC-29, rule 3.2: "bad bad = bad". Every run of `~` is the
+        broken part, never the sound one."""
+
+        broken = ~self.Fighter
+
+        for spelling in (
+                ~~self.Fighter,
+                ~~~self.Fighter,
+                ~~~~~~~~~~~~~self.Fighter,                            # the Director's ~~~~~~~~~~~~~Wizard
+                ~broken,
+                ):
+            self.assertEqual(repr(spelling), "<defective Field>")
+            self.assertEqual(list(spelling), [self.cal])
+            self.assertEqual(len(spelling), 1)
+            self.assertTrue(spelling)                                 # someone broken
+            self.assertIn(self.cal, spelling)
+            self.assertNotIn(self.bo, spelling)                       # bo is sound: never in a run of ~
+            self.assertEqual(list(spelling | ~self.Wizard), [self.cal])
+
+        self.assertEqual(list(~~self.Wizard), [])                     # nobody broken: still nobody
+        self.assertFalse(~~self.Wizard)
+
+        self.cal.fit = True                                           # repaired: leaves every run of ~ at once
+        self.assertEqual(list(~~self.Fighter), [])
+        self.assertEqual(list(~~~self.Fighter), [])
+        self.assertEqual(list(self.Fighter), [self.bo, self.cal])
+
+    def test_a_combination_takes_no_tilde(self) -> None:
+        for combination in (
+                self.Wizard | self.Fighter,
+                self.Wizard[:] & self.Fighter[:],
+                ~self.Fighter - self.Wizard,
+                ):
+            with self.assertRaises(TypeError):
+                ~combination
+
     def test_a_population_offers_no_public_way_around_tagging_and_rip(self) -> None:
         populations = [
                 self.Wizard[:],                                       # the whole Field

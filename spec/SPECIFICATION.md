@@ -1092,15 +1092,20 @@ it is empty. A broken Agent does not stop being a member (`in`), does not
 leave `Wizard[:]`, and waits in `~Wizard` for repair or Rip. Membership and the loop deliberately disagree for it:
 the loop is the line, and a defective product is off the line.
 
+`~` reads "broken", never "not". Broken twice is still broken, so `~`
+absorbs: `~~Wizard`, `~~~Wizard` and any longer run are `~Wizard`, the
+same defective population (STEP-SPEC-29).
+
 **Populations combine** (STEP-SPEC-13). `|` is either, `&` is both, `-`
 is the left without the right, on any population: a whole Field, the
 sound view, the defective view, or a combination. A Tag in an operator
 seat is its sound population, as it is in the loop; `Wizard[:] |
 Fighter[:]` is everyone who is either; the levels mix. The result is a
 lazy view that reads its Fields when walked, keeps application order
-within each side, answers `in`, `len`, truth and iteration, and has no
-complement (`~` on a union has no universe). A Tag with anything that is
-not a population keeps the language's own class union (`Wizard | None`).
+within each side, answers `in`, `len`, truth and iteration, and takes no
+`~`: `~(Wizard | Fighter)` is refused, and `~Wizard | ~Fighter` is the
+broken members of either. A Tag with anything that is not a population
+keeps the language's own class union (`Wizard | None`).
 A Pin's population holds Tags, and a Tag's holds Agents, so the two never
 combine: `Rare | Wizard`, `Wizard & Rare` and `Rare[:] - Wizard` are a
 Category Failure. Pins combine with Pins, and Tags with Tags.
