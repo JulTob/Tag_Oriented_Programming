@@ -65,11 +65,11 @@ behind. The Director: "This way we can have "transitional tags", like a
 training or classification belt... it makes sense in real life
 systems." Graduation, in the Summary, is one.
 
-**A stop must not be refusable.** STEP-SPEC-27 (the emergency stop,
-drafted alongside) revokes a whole Field, and an emergency stop
-overrides every other function (IEC 60204-1 and ISO 13850, cited in
-STEP-SPEC-27). STEP-SPEC-24, rule 1.2, already drops
-its refusal at the door, citing this STEP.
+**A stop must not be refusable.** STEP-SPEC-27 (the deletion protocol
+of a Tag, drafted alongside) reads `del Human[:]` as "gain control,
+stop gently": every membership ends before any teardown runs. A refusal
+at the door would stop that halfway. STEP-SPEC-24, rule 1.2, already
+drops its refusal at the door, citing this STEP.
 
 **The kit already stores each membership alone.** `agent in Tag` reads
 the Agent's own active Tags (`tags.py:106-124`); a walk reads the Tag's

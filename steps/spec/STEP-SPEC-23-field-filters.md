@@ -15,6 +15,13 @@
 
 ## Summary
 
+> **Superseded in part on 2026-10-09.** The Director decided:
+> "Wizard.level is a report". Wherever this STEP writes a bare Tag
+> before a dot (`Wizard.level`, `Wizard.Can_Cast(...)`, `Social.Knows`),
+> that reading gives way. The root for the sound members is
+> STEP-SPEC-29's question. The rest stands, read from a population such
+> as `Wizard[:].level`.
+
 A Tag can be asked about its members' attributes.
 
 **A Projection.** `Wizard.level` reads the `level` of each sound Wizard,
@@ -120,7 +127,8 @@ cited as "section N" or "rule N.M".
 > projection of an Agent's name on the Tag, and rule 1.3, give way.
 > Projections start from a population; the spelling of the root for the
 > sound members is set in STEP-SPEC-29 (The Population Algebra). The
-> rest of this section (what a Projection is, rules 1.4 to 1.9) stands.
+> rest of this section stands, read from a population root: rule 1.2 and
+> rules 1.4 to 1.9.
 
 1. **A name read on a Tag lives in the scope that receives it** (§1.1).
    - **An Agent's name projects.** The Tag stores what it declares for its
@@ -564,8 +572,8 @@ Tag-scope name the program puts on a Tag read exactly as before.
 > *Decided by the Director on 2026-10-09:* a walk of values skips the
 > members with no value ("sum(Wizard[].level) skipping nulls is
 > sound"); the dot on a Tag reads only the Tag ("Wizard.level is a
-> report"); no named root key ("Wizard[Sound] looks horrible ...
-> Skip."). The root for the sound members goes to STEP-SPEC-29.
+> report"); no named root key ("Wizard[Sound] looks horrible. It takes
+> over programmer's choices, not language options. Skip."). The root for the sound members goes to STEP-SPEC-29.
 >
 > *Drafted for the Director's review.* The Director asked for this on
 > 2026-10-08: "Record/action filters are a neat thing. ... We should

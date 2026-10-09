@@ -611,6 +611,12 @@ Each message points to a Link: "Knows is a Relation: link through an
 Agent, charlie.Knows(ruth)". `Social.Knows | None` keeps `type`'s own
 meaning, as it does for every Tag.
 
+> **Superseded in part on 2026-10-09.** The dot on a Tag reads only the
+> Tag ("Wizard.level is a report"), so the route below, where
+> `Social.Knows` is a Projection, gives way. STEP-SPEC-29 rule 9.4
+> recommends that `Social.Knows` is always the Relation, and that "who
+> knows Ruth" is `(+Social).Knows[:] == ruth`.
+
 **With STEP-SPEC-23**, a name read on a Tag follows its receiver
 (STEP-SPEC-23, rule 1.1). A Link is an Agent-scope contribution, so
 `Social.Knows` is a Projection: each sound Social Agent's Link. Then:
@@ -720,9 +726,10 @@ class Social(Tag):
             return len(agent.Knows[:]) < agent.Knows.capacity
 ```
 
-**Old friends**, with STEP-SPEC-23's Filters. Every Pair here was linked
-with a `since`. A Pair whose `since` is `None` would stop the walk,
-because `None < 2000` cannot be compared:
+**Old friends**, with STEP-SPEC-23's Filters. A Pair whose `since` is
+`None` has no value, so the Filter skips it (STEP-SPEC-23, rule 1.7,
+decided on 2026-10-08). The root for the sound Contacts is STEP-SPEC-29's
+question; this example keeps the first draft's spelling:
 
 ```python
 for old_friend in charlie.Knows.since < 2000:    # Charlie's sound Contacts, by their Pair's since

@@ -18,8 +18,9 @@
 
 `del Wizard[:]` Rips every member of a Tag's Field, and every member's
 teardowns run: the whole Agency closes at once. Everyone leaves first;
-then the teardowns run, in join order. With a latch that keeps the Tag
-closed afterwards, the same act is an emergency stop (STEP-SPEC-27).
+then the teardowns run, in join order. STEP-SPEC-27 reads the same act
+as the deletion protocol of a Tag: gain control, stop gently, and the
+Tag stays ready to tag again.
 
 A Tag that ceases to exist does the same on its way out, so no Agent is
 left a member of something that is gone. For that to happen while a Tag
@@ -128,7 +129,8 @@ cited as "section N" or "rule N.M".
 
    ```python
    del (~Wizard)[:]                 # every broken Wizard leaves Wizard
-   del (Wizard.level < 3)[:]        # every sound Wizard under level 3 leaves
+   weak = Wizard[:].level < 3       # the root for the sound members: STEP-SPEC-29
+   del weak[:]                      # every Wizard under level 3 leaves
    ```
 
    - The population is read once, when the act begins (rule 1.5). A
@@ -349,8 +351,8 @@ as strong as any value.
    - **(a) Arrest.** Membership never comes back. A member whose teardown
      failed is kept in the safehouse as a non-member, under the Tag's
      department and under `Tag[...]`, until it is repaired or triaged
-     (`del Tag[...]`, or the release STEP-SPEC-27 proposes in its open
-     question 6). Simplest to teach, and the access is gone. It
+     (`del Tag[...]`, the triage of STEP-SPEC-18 amendment F). Simplest
+     to teach, and the access is gone. It
      replaces amendment D's rollback for every Rip.
    - **(b) The act decides.** Acts the program demands keep amendment D:
      the failed member is rolled back and stays in the Field, and the
@@ -362,9 +364,9 @@ as strong as any value.
    Recommended: (a). A failed cleanup should not hand the Agent its badge
    back. Keeping it in the safehouse answers the worry behind amendment
    D, "deleting to uncertain states can be problematic", without the
-   access. STEP-SPEC-27 recommends arrest inside a stop whatever this
-   question decides (its section 5 and open question 6): a latched Tag
-   cannot take a member back.
+   access. STEP-SPEC-27 adds no rule of its own here. Under (a), a
+   member kept after a gentle stop can then be triaged with
+   `del Human[...]`.
 
 ## Acceptance requirements
 
@@ -378,7 +380,7 @@ as strong as any value.
     chooses;
   - a teardown that applies the Tag again, to a member and to a new
     Agent: both stay members;
-  - rule 1.7: `del (~Wizard)[:]` and `del (Wizard.level < 3)[:]` Rip
+  - rule 1.7: `del (~Wizard)[:]` and `del weak[:]` Rip
     exactly those members; a population of two Tags is refused;
   - Pins, Links, and the refused Relation.
 - `tests/test_topkit.py`: a `TagEndTests` class, covering:

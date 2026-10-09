@@ -19,12 +19,13 @@
     are published onto her as one line to the Pair, with no fan-out.
     `@Secret` members stay in-house, the Link's Agent's alone. Facts
     about the two live on the Pair, `charlie.Knows[ruth].since`.
-- STEP-SPEC-23 (Field Filters) opened at Brief. `Wizard.level > 3` is a
-  live population of the sound Wizards above level 3; `Wizard[:].level >
-  3` asks the whole Field.
-  - A name read on a Tag follows its receiver: the Tag's own Tag-scope
-    names read the Tag, and its Agents' names, whether it declares them
-    or not, read across its sound Agents.
+- STEP-SPEC-23 (Field Filters) opened at Brief. A Projection reads one
+  name across a population, `Wizard[:].level`; comparing it gives a
+  Filter, a live population. Decided by the Director on 2026-10-09: the
+  dot on a Tag reads only the Tag ("Wizard.level is a report"), so the
+  first draft's `Wizard.level > 3` gives way and the root for the sound
+  members moves to STEP-SPEC-29. Decided on 2026-10-08: a member with no
+  value is like SQL's `NULL` (`== None`), and a Filter refuses `bool()`.
   - Chains fan out with "some": `Social.Knows[:] == ruth`.
   - A Filter by an Action's result follows a changing system.
   - This is the logic of classes and attributes of Boole and Carroll, in
@@ -41,11 +42,14 @@
   be refused while bob is a Werewolf; he would keep the Shape, a
   spin-off. The kit still refuses it today. A Shape that needs its Base
   says so in a guarded Postcondition.
-- STEP-SPEC-27 (Emergency Stop) opened at Brief. `Stopped(Wizard)`, a Pin
-  the kit would provide, stops a Tag at category 1: latch, revoke every
-  member, run the teardowns in join order, report once. The Tag then
-  takes no member until `del Stopped[Wizard]`, a reset that brings no
-  one back. It needs STEP-SPEC-26.
+- STEP-SPEC-27 (The Deletion Protocol of a Tag; opened as "Emergency
+  Stop") at Brief, revised on 2026-10-09 after the Director's
+  correction. It reads `del Human[:]` (STEP-SPEC-24) in three phases:
+  gain control (every membership ends at once), stop gently (teardowns
+  run one member at a time, in join order), and then the Tag is ready
+  again, "the power is still on". `del Human` stays Python's act. It
+  proposes `del Human.colour` to reset one Report. The first draft's
+  latch, the Pin `Stopped`, is withdrawn.
 - STEP-SPEC-28 (Category Error) opened at Brief. `TagCategoryError`, a
   `TagError` and a `TypeError`, names the mistake of treating one kind of
   TOP thing as another, such as `Wizard.hp = 10` when `hp` is a Record.
@@ -55,6 +59,15 @@
 - STEP-SPEC-30 (Retire `@Requirement`) opened at Brief: a claim needed
   to enter and to stay is written `@Pre` + `@Post`, stacked, as the
   Director asked.
+- STEP-SPEC-29 (The Population Algebra) opened at Brief: one place for
+  every population spelling, as the Director asked ("We need to unify
+  all the design of sets and filters"). It records his rulings of
+  2026-10-09 (`ari in Wizard` is sound membership; `if ari:` asks the
+  promises; `Wizard[...]` and `Tag[...]` are the safehouse; `Rare |
+  Wizard` is a category error; `del (~Wizard)[:]` Rips every broken
+  Wizard). It recommends `+Wizard` for the sound part before a dot,
+  `Wizard[0]` in join order, an absorbing `~` (awaiting his answer) and
+  a `rounds` recipe.
 - A catalog of the Tag algebra, `steps/CATALOG-tag-algebra.md`: every
   spelling found so far that reads or acts on a Tag or a population, with
   its meaning, its result and its status on each branch.

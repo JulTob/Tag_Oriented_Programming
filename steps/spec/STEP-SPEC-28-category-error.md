@@ -76,9 +76,11 @@ it, and a reader recognise it.
    wizard in Wizard: wizard.hp = 10".
 3. **Where it is raised.** Each case keeps the rule that already refuses
    it, and its message's rewrite; only the class of the failure is new.
-   Four cases are new refusals, decided by the Director on 2026-10-09: a
-   target that cannot be an Agent, a target with a truth of its own, a
-   string target, and a Flag on a host with its own `in`.
+   The Director decided four cases on 2026-10-09: a target that cannot
+   be an Agent, a target with a truth of its own, a string target, and a
+   Flag on a host with its own `in`. Two are new refusals (a truth of its
+   own, a string). The other two are refused on `main` already, as
+   Composition Failures, and only their class changes.
    - **A value of the Tag over a name the Tag gives its Agents.**
      Assigning or deleting on a Tag a name it declares for its Agents (a
      Record, an Action, a condition): `Wizard.hp = 10`, `del Wizard.hp`.
@@ -89,7 +91,9 @@ it, and a reader recognise it.
      is a Report written by hand (the Director: "if it looks like a
      report, then it is, and we just have more than one way to handle
      that"). STEP-SPEC-25, rule 4.2, refuses the same writes, with the
-     same exception; this STEP names the failure.
+     same exception; this STEP names the failure. Decided by the Director
+     on 2026-10-08: "should probably rise a category error, as it is
+     probably a misconception."
    - **A Tag applied to the wrong kind of target.** An ordinary Tag
      applied to a class, `Wizard(int)`, and a Pin applied to an object
      (§1.9).
@@ -178,11 +182,12 @@ carries the difference.
    messages keep their rewrites. A target that cannot be an Agent,
    `Wizard(3)`, was a Composition Failure too, and becomes a Category
    Failure.
-3. Three kinds of target that could be tagged before are now refused:
-   a host class with its own `__bool__`, a `str` subclass, and, for a
-   Flag, a host class with its own `__contains__`. A program that tagged
-   one keeps its truth, its text or its `in` in a Record or an attribute
-   instead, as the Director says.
+3. Two kinds of target that could be tagged before are now refused: a
+   host class with its own `__bool__`, and a `str` subclass. A program
+   that tagged one keeps its truth or its text in a Record or an
+   attribute instead, as the Director says. (A Flag on a host with its
+   own `__contains__` is refused on `main` already, §1.8; only its class
+   changes, as in item 2.)
 
 ## Alternatives considered
 
