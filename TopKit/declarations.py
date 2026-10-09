@@ -4,6 +4,7 @@ Agent scope:  @Action, @Record          (external by default, @Secret hides)
 Tag scope:    @Operation, @Report     (internal by default, @Public publishes)
 Protocols:    @Imprint, @Pre, @Post, @Rip, @Delete
 Composition:  @Underlay                 (extend the prior visible contribution)
+Protection:   @Constant                 (keep a contribution's binding fixed)
 
 A Tag class is scanned once; the result is cached per class.
 """
@@ -17,8 +18,10 @@ from typing import Any
 from typing import Callable
 from typing import NamedTuple
 from weakref import WeakKeyDictionary
+from weakref import ref
 
 from .errors import TagDeclarationError
+from .errors import TagCompositionError
 from .errors import TagImprintError
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
@@ -31,6 +34,7 @@ _SECRET = "__topkit_secret__"
 _PUBLIC = "__topkit_public__"
 _FLAG = "__topkit_flag__"
 _PIN = "__topkit_pin__"
+_CONSTANT = "__topkit_constant__"
 
 STATE = "_TOPKIT_STATE"
 
@@ -145,6 +149,32 @@ def Underlay(
             function,
             _UNDERLAY,
             )
+
+
+def Constant(
+        member: Any,
+        ) -> Any:
+    """Keep a Contribution's binding fixed after it is established.
+
+    Records keep their initial binding; their values may still be mutable.
+    Actions and Posts cannot be replaced or deleted. Constant Reports
+    keep the declaring Tag's value, shared by its Shapes, and Constant
+    Operations keep their implementation. Stacks with the declaration's
+    other modifiers in either order.
+    """
+
+    target = member.builder if isinstance(member, Report) else getattr(
+            member,
+            "__func__",
+            member,
+            )
+
+    if not callable(target):
+        raise TagDeclarationError(
+                "@Constant marks a Record, Action, Post, Report or Operation"
+                )
+
+    return _flag(member, _CONSTANT)
 
 
 def Rip(
@@ -515,7 +545,8 @@ class Report:
     The builder receives the Tag and runs once per Tag, on first read. A
     second positional parameter receives the value the Tag's Bases give
     that name, or None, so a Shape can extend a Base's Report the way a
-    Record extends what is stored.
+    Record extends what is stored. With @Constant, the builder instead
+    runs once on the declaring Tag; every Shape reads that same value.
     """
 
     def __init__(
@@ -532,6 +563,7 @@ class Report:
         report.__name__ = builder.__name__
         report.__doc__ = builder.__doc__
         report._name = builder.__name__
+        report._owner_ref = None
         report._values: "WeakKeyDictionary[type, Any]" = WeakKeyDictionary()
 
     def __set_name__(
@@ -541,6 +573,9 @@ class Report:
             ) -> None:
         report._name = name
 
+        if report._owner_ref is None:
+            report._owner_ref = ref(owner)
+
     def __get__(
             report,
             instance: object,
@@ -548,6 +583,12 @@ class Report:
             ) -> Any:
         if owner is None:
             owner = type(instance)
+
+        if _is_constant(report) and report._owner_ref is not None:
+            declaring = report._owner_ref()
+
+            if declaring is not None:
+                owner = declaring
 
         try:
             return report._values[owner]
@@ -625,6 +666,7 @@ class _Declarations:
     rips: tuple[str, ...]
     dunders: frozenset[str]
     published: frozenset[str]   # Agent-scope members marked @Public (Pins)
+    constants: frozenset[str]
 
 
 _scan_cache: "WeakKeyDictionary[type, _Declarations]" = WeakKeyDictionary()
@@ -695,6 +737,114 @@ def _has_flag(
             )
 
 
+def _is_constant(
+        member: Any,
+        ) -> bool:
+    return _has_flag(
+            member.builder if isinstance(member, Report) else member,
+            _CONSTANT,
+            )
+
+
+def _constant_owner(
+        tag: type,
+        name: str,
+        ) -> type | None:
+    """The class protecting a name, including Contributions from Pins.
+
+    Look through the complete MRO: an ordinary earlier binding must not
+    hide the protection of a later Base. Only raw namespaces are read;
+    asking about protection never initializes a Report.
+    """
+
+    for klass in tag.__mro__:
+        namespace = vars(klass)
+
+        if _is_constant(namespace.get(name)):
+            return klass
+
+        managed = namespace.get(STATE)
+
+        if managed is not None and name in managed.constants:
+            return klass
+
+    return None
+
+
+def _check_constant_shapes(tag: type, name: str) -> None:
+    """A late Base binding must not hide another Base's Constant in a Shape."""
+
+    pending = list(type.__subclasses__(tag))
+    seen = set()
+    while pending:
+        shape = pending.pop()
+        if shape in seen:
+            continue
+        seen.add(shape)
+        owner = _constant_owner(shape, name)
+        if owner is not None and shape.__mro__.index(tag) < shape.__mro__.index(owner):
+            raise TagCompositionError(
+                    f"{tag.__name__}.{name} would hide the Constant from"
+                    f" {owner.__name__} in {shape.__name__}"
+                    )
+        pending.extend(type.__subclasses__(shape))
+
+
+def _check_constant_declarations(
+        tag: type,
+        namespace: dict[str, Any],
+        ) -> None:
+    """Validate Constant declarations without changing other scan timing."""
+
+    for name, member in namespace.items():
+        if not _is_constant(member):
+            continue
+
+        kind = _kind_of(member)
+        supported = (
+                isinstance(member, Report)
+                or isinstance(member, classmethod) and kind == "operation"
+                or not isinstance(member, (classmethod, staticmethod))
+                and callable(member)
+                and kind in (None, "action", "record", "postcondition", "condition")
+                )
+
+        if _is_private(name) or not supported:
+            raise TagDeclarationError(
+                    f"{tag.__name__}.{name}: @Constant requires a named"
+                    " Record, Action, Post, Report or Operation"
+                    )
+
+    for base in tag.__mro__[1:]:
+        base_namespace = vars(base)
+        protected = {
+                name
+                for name, member in base_namespace.items()
+                if _is_constant(member)
+                }
+        managed = base_namespace.get(STATE)
+
+        if managed is not None:
+            protected.update(managed.constants)
+
+        for name in protected:
+            if name in namespace:
+                raise TagDeclarationError(
+                        f"{tag.__name__}.{name} cannot redefine the Constant"
+                        f" from {base.__name__}"
+                        )
+
+            for earlier in tag.__mro__[1:]:
+                if earlier is base:
+                    break
+
+                if name in vars(earlier):
+                    raise TagDeclarationError(
+                            f"{tag.__name__}: {earlier.__name__}.{name} masks"
+                            f" the Constant from {base.__name__}"
+                            )
+
+
 _NAMED_FAILURES: dict[str, type] = {
         "imprint": TagImprintError,
         "precondition": TagPreconditionError,
@@ -743,6 +893,7 @@ def _scan(
     rips: list[str] = []
     dunders: set[str] = set()
     published: set[str] = set()
+    constants: set[str] = set()
     managed = tag.__dict__.get(STATE)   # names a Pin landed here
 
     if managed is not None:
@@ -750,6 +901,10 @@ def _scan(
                 managed,
                 reports,
                 operations,
+                )
+        constants.update(
+                name for name in managed.published
+                if name in managed.constants
                 )
 
     for name, attribute in tag.__dict__.items():
@@ -761,6 +916,9 @@ def _scan(
                 or name in managed.records
                 ):
             continue
+
+        if _is_constant(attribute):
+            constants.add(name)
 
         if isinstance(attribute, Report):
             if attribute.public and _has_flag(attribute.builder, _SECRET):
@@ -889,6 +1047,7 @@ def _scan(
             rips=tuple(rips),
             dunders=frozenset(dunders),
             published=frozenset(published),
+            constants=frozenset(constants),
             )
 
     if _is_pin(tag):

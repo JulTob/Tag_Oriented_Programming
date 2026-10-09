@@ -4,6 +4,15 @@
 
 ### TopKit
 
+- **Constant Contributions:** `@Constant` protects Records, Actions,
+  Posts, Reports and Operations from replacement, deletion and later
+  Layers. Record values remain per Agent and their contents may mutate.
+  A Constant Report initializes once on its declaring Tag and every Shape
+  shares that exact value; Operations retain their normal receiver.
+  Constant Posts survive Rip and cannot be ended with `Contract.Delete`.
+  Reapplication preserves established Constants and repeats ordinary
+  Record building and Imprints. Publication and Secret access stay independent.
+
 - **Presence by name:** `"name" @ agent` checks current contributions,
   including host bindings; `"name" @ Tag[agent]` checks the captured view.
   False values and `None` count as present. The query respects Secret and

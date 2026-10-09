@@ -2,6 +2,7 @@
 
 from .contracts import Contract
 from .declarations import Action
+from .declarations import Constant
 from .declarations import Delete
 from .declarations import Flag
 from .declarations import Imprint
@@ -44,6 +45,7 @@ __all__ = [
         "Action",
         "Apply",
         "At_Exit",
+        "Constant",
         "Contract",
         "Delete",
         "Flag",

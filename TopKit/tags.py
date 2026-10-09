@@ -32,7 +32,10 @@ from .access import _keyword
 from .access import _view_of
 from .contracts import _holds
 from .declarations import _MISSING
+from .declarations import _check_constant_declarations
+from .declarations import _check_constant_shapes
 from .declarations import _check_pin_bases
+from .declarations import _constant_owner
 from .declarations import _is_pin
 from .declarations import _name_checks
 from .errors import TagCompositionError
@@ -72,8 +75,39 @@ class MetaTag(type):
                 **kwargs,
                 )
         _check_pin_bases(tag)
+        _check_constant_declarations(tag, namespace)
 
         return tag
+
+    def __setattr__(
+            tag,
+            name: str,
+            value: Any,
+            ) -> None:
+        owner = _constant_owner(tag, name)
+
+        if owner is not None:
+            raise TagCompositionError(
+                    f"{tag.__name__}.{name} is Constant from"
+                    f" {owner.__name__}; it cannot be overwritten"
+                    )
+
+        _check_constant_shapes(tag, name)
+        super().__setattr__(name, value)
+
+    def __delattr__(
+            tag,
+            name: str,
+            ) -> None:
+        owner = _constant_owner(tag, name)
+
+        if owner is not None:
+            raise TagCompositionError(
+                    f"{tag.__name__}.{name} is Constant from"
+                    f" {owner.__name__}; it cannot be deleted"
+                    )
+
+        super().__delattr__(name)
 
     def __call__(
             tag,
