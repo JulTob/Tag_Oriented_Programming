@@ -123,6 +123,51 @@ assert enterprise in ~Warp_Core         # waiting in the repair queue
 This is the factory rule: a bad product is not melted back to materials.
 It is flagged, repaired, or thrown away.
 
+### Require a named Contribution
+
+`"name" @ agent` returns a boolean about presence, without reading the
+value or calling its behaviour. It accepts a host-provided name just as it
+accepts a TOP Contribution, and does not require a particular kind. A name
+may change from Action to Record and still satisfy the same presence
+requirement.
+
+```python
+class Equipped_Crew(Tag):
+
+    @Post
+    def Has_Kit(agent):
+        return "kit" @ agent
+
+
+medic = Crew("Beverly", rank=3)
+medic.kit = None
+Equipped_Crew(medic)
+assert medic                            # None is present; the Post requires a name
+
+del medic.kit
+assert medic in ~Equipped_Crew
+
+medic.kit = False
+assert medic                            # False is also a present value
+```
+
+The Post defines the requirement. Presence does not certify a useful
+value, a callable, or successful behaviour; add those conditions to the
+Post when they matter. The query itself does not execute Actions,
+Operations, property getters, lazy Reports or other Posts. It recognizes
+a host property's binding without evaluating its getter, and ignores
+names synthesized only by `__getattr__`.
+
+The actual Agent answers from its current contributions; `"kit" @
+Equipped_Crew[medic]` answers from the view captured when that Tag applied.
+Secret names follow that Agent's composition door. Shared names count on
+the actual Agent through publication: a Report requires its active
+publisher, while an Operation's sticky Action can remain present after
+Rip even though using it is refused. Views check their captured shared
+contributions. Only string left operands ask this TOP
+question; other operands retain ordinary `@` behaviour. A Tag receiving
+Pins is an Agent for this purpose; a bare, unpinned Tag is not.
+
 ---
 
 ## 4. The repair loop, and autofix
