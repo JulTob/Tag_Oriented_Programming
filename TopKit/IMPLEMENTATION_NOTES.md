@@ -261,7 +261,8 @@ rollback target.
   `_refuse_conditions_shadowed_by_the_agent` in `_apply_one` for a value
   the Agent's own namespace already holds.
 - **The guaranteed tier** (§3.2) is the program's own: it tags before
-  `try` and Rips in `finally`. The kit has no context manager and adds
+  `try` and Rips in `finally`. The kit has no built-in membership context
+  manager and adds
   nothing to the `finally`: a Rip there that fails raises as any Rip
   does, with the block's error, if any, as its context. `Scope` made the
   block's choices out of sight (a Tag already carried, a door failure, a

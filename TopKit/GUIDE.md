@@ -777,6 +777,10 @@ broken, so a veteran who is a broken Sentry keeps the Tag too. With
 several Tags, tag them all before the `try`, and Rip them in the
 `finally` in reverse order.
 
+This frees `with` for ordinary Python context protocols. A host or an
+Agent may still define `__enter__` and `__exit__` (or the asynchronous
+forms); TOP simply gives those methods no automatic Tagging or Rip rule.
+
 A role's conditions do **not** leave with it on their own. What the
 Agent *became* stays (pattern 1's Rogue Agent), and so does what the role
 *required*: a promise that outlives its Tag fails loud, never silently.

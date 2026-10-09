@@ -1363,7 +1363,11 @@ block that should leave a Tag the Agent already carried checks first
 (`was_sentry = guard in Sentry[:]`), and a block that should take away a
 Base its Shape pulled in Rips the Base too.
 
-TOP gives `with` no meaning: no TOP object can follow `with`.
+TOP assigns `with` no automatic Tagging or Rip meaning. Ordinary Python
+context protocols remain ordinary Contributions or host behavior: a host,
+or an Agent with `__enter__` / `__exit__` (or their asynchronous forms),
+may still follow `with` without changing membership unless its own code
+does so explicitly.
 
 **The Agent's own finalizer is a member in Layers** (STEP-SPEC-18). The
 host's `__del__` is its first Layer, found as the language finds it. A

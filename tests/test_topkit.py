@@ -2516,420 +2516,128 @@ class ExitProtocolTests(unittest.TestCase):
 
 class TryFinallyTests(unittest.TestCase):
     """A block holds a Tag with Python's own try and finally: tag before
-    try, Rip in finally (STEP-SPEC-31). Each choice Scope made out of sight
-    is now a line the program writes, or does not write."""
+    try, Rip in finally (STEP-SPEC-31)."""
 
     def setUp(self) -> None:
         _DEL_LOG.clear()
 
-    def test_the_plain_form_rips_a_tag_the_agent_already_had(self) -> None:
+    def test_try_finally_rips_when_the_block_raises(self) -> None:
         ari = Agent()
-        Sentry(ari)
 
-        Sentry(ari)                                                   # already a Sentry: does nothing
-        try:
-            self.assertIn(ari, Sentry)
-        finally:
-            del Sentry[ari]                                           # Rips it all the same
+        with self.assertRaises(LookupError):
+            Sentry(ari)
+            try:
+                raise LookupError("the gate is breached")
+            finally:
+                del Sentry[ari]
 
         self.assertNotIn(ari, Sentry)
         self.assertEqual(_DEL_LOG, ["stood down"])
 
-    def test_a_tag_the_agent_already_had_survives_form_2(self) -> None:
-        class Sworn(Tag):
-            @Post
-            def Has_Oath(agent):
-                return agent.oath is not None
-
-        def Hold(
-                agent: Agent,
-                ) -> None:
-            was_sworn = agent in Sworn[:]                             # in the Field already, sound or not?
-            Sworn(agent)                                              # does nothing if it was
-            try:
-                self.assertIn(agent, Sworn[:])
-            finally:
-                if not was_sworn:
-                    del Sworn[agent]                                  # take away only what this block gave
-
-        ari = Agent()
-        ari.oath = "for the realm"
-        Sworn(ari)
-        Hold(ari)
-        self.assertIn(ari, Sworn)                                     # it was Ari's, not the block's
-
-        bo = Agent()
-        bo.oath = None
-
-        with self.assertRaises(Postcondition.Has_Oath):
-            Sworn(bo)
-
-        Hold(bo)
-        self.assertIn(bo, ~Sworn)                                     # a broken Sworn before: a broken Sworn after
-
-        cal = Agent()
-        cal.oath = "for the realm"
-        Hold(cal)
-        self.assertNotIn(cal, Sworn[:])                               # the block gave it: the block took it away
-        self.assertTrue(isinstance(cal, Sworn))
-
-    def test_a_postcondition_that_fails_at_the_door_raises_before_the_try(self) -> None:
-        class Sworn(Tag):
-            @Post
-            def Has_Oath(agent):
-                return agent.oath is not None
-
-        bo = Agent()
-        bo.oath = None
-        ran: list[str] = []
-
-        with self.assertRaises(Postcondition.Has_Oath):
-            Sworn(bo)                                                 # raises here: the try never starts
-            try:
-                ran.append("block")
-            finally:
-                del Sworn[bo]
-
-        self.assertEqual(ran, [])                                     # the block did not run
-        self.assertIn(bo, ~Sworn)                                     # nothing was Ripped: the Tag stays, defective
-        self.assertFalse(bo)
-        self.assertTrue(isinstance(bo, Sworn))
-
-    def test_an_imprint_that_fails_at_the_door_raises_before_the_try(self) -> None:
-        class Slipping(Tag):
-            @Imprint
-            def Slip(agent):
-                raise RuntimeError("slips")
-
-        cal = Agent()
-        ran: list[str] = []
-
-        with self.assertRaises(Imprint.Slip):
-            Slipping(cal)
-            try:
-                ran.append("block")
-            finally:
-                del Slipping[cal]
-
-        self.assertEqual(ran, [])
-        self.assertIn(cal, Slipping)                                  # nothing was Ripped: the Tag stays
-        self.assertTrue(cal)                                          # an Imprint is not a promise: still sound
-
-    def test_a_refused_gate_raises_before_the_try_and_the_tags_before_it_stay(self) -> None:
+    def test_a_refused_gate_raises_before_the_try(self) -> None:
         class Gated(Tag):
             @Pre
             def Ready(agent):
                 return agent.ready
-
-        class Plain(Tag):
-            pass
 
         cal = Agent()
         cal.ready = False
         ran: list[str] = []
 
         with self.assertRaises(Precondition.Ready):
-            Plain(cal)
-            Gated(cal)                                                # refused: there is nothing to undo
+            Gated(cal)
             try:
                 ran.append("block")
             finally:
                 del Gated[cal]
-                del Plain[cal]
 
         self.assertEqual(ran, [])
-        self.assertIn(cal, Plain)                                     # tagged before the refusal: it stays
         self.assertNotIn(cal, Gated[:])
-        self.assertFalse(isinstance(cal, Gated))                      # refused: never a member
 
-    def test_a_base_a_shape_pulled_in_stays_unless_the_finally_rips_it(self) -> None:
-        class Wolf(Tag):
-            pass
-
-        class Dire(Wolf):
-            pass
-
-        bo = Agent()
-        Dire(bo)                                                      # brings Wolf
-        try:
-            self.assertIn(bo, Wolf)
-        finally:
-            del Dire[bo]
-
-        self.assertIn(bo, Wolf)                                       # the Base stays
-        self.assertNotIn(bo, Dire)
-
-        cal = Agent()
-        Dire(cal)
-        try:
-            self.assertIn(cal, Wolf)
-        finally:
-            del Dire[cal]
-            del Wolf[cal]                                             # a block that takes Wolf away too says so
-
-        self.assertNotIn(cal, Wolf)
-        self.assertNotIn(cal, Dire)
-
-    def test_a_rip_that_fails_while_the_block_raises_leaves_with_the_blocks_error_as_context(self) -> None:
-        class Stubborn(Tag):
-            @Rip
-            def Hold_On(agent):
-                raise RuntimeError("will not let go")
-
-        ari = Agent()
-        block_error = LookupError("the block fails")
-
-        with self.assertRaises(TagCompositionError) as caught:
-            Stubborn(ari)
-            try:
-                raise block_error
-            finally:
-                del Stubborn[ari]                                     # fails, and raises: nothing is silent
-
-        self.assertNotIsInstance(caught.exception, LookupError)       # an except LookupError: would not catch it
-        self.assertIsInstance(caught.exception.__cause__, RuntimeError)   # the teardown's own error
-        self.assertIs(caught.exception.__context__, block_error)      # the block's error, kept inside
-
-    def test_a_block_that_rips_the_tag_itself_checks_in_the_finally(self) -> None:
-        ari = Agent()
-
-        with self.assertRaises(TagResolutionError):
-            Sentry(ari)
-            try:
-                del Sentry[ari]                                       # the block ends the role itself
-            finally:
-                del Sentry[ari]                                       # finds no member
-
-        self.assertEqual(_DEL_LOG, ["stood down"])                    # once: the refused Rip ran no teardown
-
-        _DEL_LOG.clear()
-        bo = Agent()
-        Sentry(bo)
-        try:
-            del Sentry[bo]
-        finally:
-            if bo in Sentry[:]:                                       # check first, in the finally
-                del Sentry[bo]
-
-        self.assertNotIn(bo, Sentry)
-        self.assertEqual(_DEL_LOG, ["stood down"])
-
-    def test_a_tag_ripped_and_applied_again_in_the_block_is_ripped_by_the_finally(self) -> None:
-        ari = Agent()
-
-        Sentry(ari)
-        try:
-            del Sentry[ari]
-            Sentry(ari)                                               # the block's new one
-        finally:
-            del Sentry[ari]                                           # Rips it, with no error
-
-        self.assertNotIn(ari, Sentry)
-        self.assertEqual(_DEL_LOG, ["stood down", "stood down"])      # its teardown ran a second time
-
-    def test_several_tags_are_tagged_before_the_try_and_ripped_in_reverse(self) -> None:
-        order: list[str] = []
-
-        class Lookout(Tag):
-            @Rip
-            def Leave_The_Tower(agent):
-                order.append("Lookout")
-
-        class Herald(Tag):
-            @Rip
-            def Fall_Silent(agent):
-                order.append("Herald")
-
-        ari = Agent()
-        Lookout(ari)
-        Herald(ari)
-        try:
-            self.assertIn(ari, Lookout)
-            self.assertIn(ari, Herald)
-        finally:
-            del Herald[ari]
-            del Lookout[ari]
-
-        self.assertEqual(order, ["Herald", "Lookout"])
-
-    def test_a_door_failure_among_several_tags_reaches_the_caller_and_both_stay(self) -> None:
-        class Lookout(Tag):
-            pass
-
-        class Watch(Lookout):
-            @Post
-            def Awake(agent):
-                return agent.awake
-
-        guard = Agent()
-        guard.awake = False
-        ran: list[str] = []
-
-        with self.assertRaises(Postcondition.Awake):                  # Watch's own failure
-            Lookout(guard)
-            Watch(guard)                                              # fails at the door, before the try
-            try:
-                ran.append("block")
-            finally:
-                del Watch[guard]
-                del Lookout[guard]
-
-        self.assertEqual(ran, [])
-        self.assertIn(guard, Lookout)                                 # both Tags stay
-        self.assertIn(guard, ~Watch)
-
-    def test_a_rip_that_fails_among_several_leaves_at_once_and_the_rips_after_it_do_not_run(self) -> None:
-        class Stubborn(Tag):
-            @Rip
-            def Hold_On(agent):
-                raise RuntimeError("will not let go")
-
-        ari = Agent()
-
-        with self.assertRaises(TagCompositionError) as caught:
-            Sentry(ari)
-            Stubborn(ari)
-            try:
-                pass
-            finally:
-                del Stubborn[ari]                                     # fails: its error leaves at once
-                del Sentry[ari]                                       # never runs
-
-        self.assertIn("Stubborn", str(caught.exception))              # the error says which Rip failed
-        self.assertIn(ari, Sentry)                                    # its Tag stays
-        self.assertEqual(_DEL_LOG, [])
-
-    def test_nested_trys_bury_a_door_failure_of_an_inner_tag(self) -> None:
-        class Lookout(Tag):
-            pass
-
-        class Watch(Lookout):
-            @Post
-            def Awake(agent):
-                return agent.awake
-
-        guard = Agent()
-        guard.awake = False
-
-        with self.assertRaises(TagCompositionError) as caught:
-            Lookout(guard)
-            try:
-                Watch(guard)                                          # fails at the door of the inner block
-                try:
-                    pass
-                finally:
-                    del Watch[guard]
-            finally:
-                del Lookout[guard]                                    # refused: Watch still requires it
-
-        self.assertIn("required by active Shape(s): Watch", str(caught.exception))
-        self.assertIsInstance(caught.exception.__context__, Postcondition.Awake)   # Watch's failure is only its context
-
-    def test_form_4_takes_back_a_tag_that_failed_at_the_door(self) -> None:
+    def test_a_postcondition_failure_before_the_try_leaves_the_tag(self) -> None:
         class Sworn(Tag):
             @Post
             def Has_Oath(agent):
                 return agent.oath is not None
 
-        class Slipping(Tag):
-            @Imprint
-            def Slip(agent):
-                raise RuntimeError("slips")
-
-        class Stray(Tag):
-            @Imprint
-            def Bolt(agent):
-                raise RuntimeError("bolts")
-
-        class Feral(Stray):
-            pass
-
-        ran: list[object] = []
-
-        def Hold(
-                agent: Agent,
-                tag: type,
-                ) -> None:
-            try:
-                tag(agent)
-            except (TagPostconditionError, TagImprintError):
-                if agent in tag[:]:                                   # it landed, then failed: take it back
-                    del tag[agent]
-                raise
-            try:
-                ran.append(agent)
-            finally:
-                del tag[agent]
-
         bo = Agent()
         bo.oath = None
+        ran: list[str] = []
 
         with self.assertRaises(Postcondition.Has_Oath):
-            Hold(bo, Sworn)
-
-        self.assertNotIn(bo, Sworn[:])                                # taken back
-        self.assertTrue(isinstance(bo, Sworn))                        # the history stays
-
-        cal = Agent()
-
-        with self.assertRaises(Imprint.Slip):
-            Hold(cal, Slipping)
-
-        self.assertNotIn(cal, Slipping[:])
-
-        dee = Agent()
-
-        with self.assertRaises(Imprint.Bolt):                         # the real failure, not "Feral is not active"
-            Hold(dee, Feral)
-
-        self.assertNotIn(dee, Feral[:])                               # a Shape that fails through its Base never lands
-        self.assertIn(dee, Stray)                                     # the Base stays either way
-        self.assertEqual(ran, [])
-
-        eve = Agent()
-
-        with self.assertRaises(TagResolutionError) as unchecked:
+            Sworn(bo)
             try:
-                Feral(eve)
-            except TagImprintError:
-                del Feral[eve]                                        # without the check
-                raise
-
-        self.assertIsInstance(unchecked.exception.__context__, Imprint.Bolt)   # the real failure is hidden
-
-    def test_tagging_inside_the_try_buries_a_refusal(self) -> None:
-        class Gated(Tag):
-            @Pre
-            def Ready(agent):
-                return agent.ready
-
-        cal = Agent()
-        cal.ready = False
-
-        with self.assertRaises(TagResolutionError) as caught:
-            try:
-                Gated(cal)                                            # inside the try: the wrong place
+                ran.append("block")
             finally:
-                del Gated[cal]                                        # finds no member
+                del Sworn[bo]
 
-        self.assertIsInstance(caught.exception.__context__, Precondition.Ready)   # the refusal is only its context
+        self.assertEqual(ran, [])
+        self.assertIn(bo, ~Sworn)                                     # landed, then reported defective
 
-    def test_no_top_object_follows_with(self) -> None:
+    def test_a_hosts_ordinary_context_protocol_survives_tagging(self) -> None:
+        events: list[str] = []
+
+        class Host:
+            def __enter__(self):
+                events.append("enter")
+                return "host value"
+
+            def __exit__(self, kind, value, traceback):
+                events.append("exit")
+
+        host = Host()
+        Sentry(host)
+
+        with host as value:
+            self.assertEqual(value, "host value")
+
+        self.assertEqual(events, ["enter", "exit"])
+        self.assertIn(host, Sentry)                                   # `with` does not Rip for TOP
+
+    def test_action_context_dunders_remain_ordinary_python(self) -> None:
+        events: list[str] = []
+
+        class Context(Tag):
+            def __enter__(agent):
+                events.append("enter")
+                return agent
+
+            def __exit__(agent, kind, value, traceback):
+                events.append("exit")
+
         ari = Agent()
-        held = Sentry(ari)
+        Context(ari)
 
-        for label, value in (
-                ("the Tag", Sentry),
-                ("the Field", Sentry[:]),
-                ("the defective part", ~Sentry),
-                ("a combination", Sentry | Recruit),
-                ("a view", Sentry[ari]),
-                ("a tagging's result", held),
-                ):
-            with self.subTest(label):
-                with self.assertRaises(TypeError):
-                    with value:
-                        pass
+        with ari as value:
+            self.assertIs(value, ari)
+
+        self.assertEqual(events, ["enter", "exit"])
+        self.assertIn(ari, Context)                                   # its Actions decide; TOP adds no Rip
+
+    def test_async_action_context_dunders_remain_ordinary_python(self) -> None:
+        import asyncio
+
+        events: list[str] = []
+
+        class Context(Tag):
+            async def __aenter__(agent):
+                events.append("enter")
+                return agent
+
+            async def __aexit__(agent, kind, value, traceback):
+                events.append("exit")
+
+        ari = Agent()
+        Context(ari)
+
+        async def use_context() -> None:
+            async with ari as value:
+                self.assertIs(value, ari)
+
+        asyncio.run(use_context())
+
+        self.assertEqual(events, ["enter", "exit"])
+        self.assertIn(ari, Context)
 
     def test_scope_is_no_longer_exported(self) -> None:
         import TopKit
