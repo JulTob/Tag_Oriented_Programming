@@ -544,6 +544,26 @@ class KernelTests(unittest.TestCase):
 
         self.assertEqual(list(Field_Member[:]), [two])
 
+    def test_a_field_offers_no_public_way_around_tagging_and_rip(self) -> None:
+        class Membership(Tag):
+            pass
+
+        agent = Agent()
+        field = Membership[:]
+
+        self.assertFalse(hasattr(field, "Add"))
+        self.assertFalse(hasattr(field, "Remove"))
+
+        Membership(agent)
+
+        self.assertIn(agent, Membership)
+        self.assertIn(agent, field)
+
+        del Membership[agent]
+
+        self.assertNotIn(agent, Membership)
+        self.assertNotIn(agent, field)
+
     def test_targets_that_cannot_carry_top_state_fail_explicitly(self) -> None:
         target = Slotted_Agent()
 

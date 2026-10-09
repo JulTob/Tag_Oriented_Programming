@@ -243,10 +243,14 @@ class _Field(_Population):
         field._members: dict[int, _Member] = {}
         field._expire = field._Forget   # one callback for every member
 
-    def Add(
+    def _Add(
             field,
             agent: object,
             ) -> None:
+        """The commit step's half of membership: hold the Agent weakly
+        in the Field. Private: by itself it would skip the Gate, Records
+        and Imprints while leaving the Agent's state unchanged."""
+
         key = id(agent)
 
         if key in field._members:
@@ -265,10 +269,13 @@ class _Field(_Population):
         reference.key = key
         field._members[key] = reference
 
-    def Remove(
+    def _Remove(
             field,
             agent: object,
             ) -> None:
+        """Rip's and rollback's half of leaving. Private: by itself it
+        would skip the Agent's state change and every teardown."""
+
         field._members.pop(id(agent), None)
 
     def _Forget(
