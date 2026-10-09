@@ -15,9 +15,11 @@
 Every condition on an Agent can be read on the Agent by its own name, as
 a plain boolean computed on read: `agent.Has_Book` is True while the
 promise called `Has_Book` holds and False when it does not. Nothing lands
-on the Agent: the name answers on the miss path, so no value is stored,
-no proxy stands in for the boolean, and `Contract.Status(agent)` and the
-member always agree. Because the name is read on the Agent, **a
+in the Agent's namespace: a state-aware gate on the runtime type answers
+ordinary Agents, while a pinned Tag answers on its metaclass miss path. No
+value is stored, no proxy stands in for the boolean, and
+`Contract.Status(agent)` and the member always agree. Because the name is
+read on the Agent, **a
 condition may not share its name** with an Action, a Record, a member
 the host defines, or a value the Agent already holds; the tagging is
 refused at the door.
@@ -62,11 +64,10 @@ back the Agent member."
 ## Rationale
 
 The proxy was the problem, not the name. A boolean computed on read is a
-value, leaks nothing, and needs no call form. Answering on the miss path
-keeps the kernel's rule that nothing TOP-level is written into the
-Agent's namespace, and makes the collision rule the only new law: it
-protects the reader from a condition that a Record of the same name
-would hide.
+value, leaks nothing, and needs no call form. A state-aware runtime gate
+keeps the kernel's rule that nothing TOP-level is written into the Agent's
+namespace, and makes the collision rule the only new law: it protects the
+reader from a condition that a Record of the same name would hide.
 
 ## Backwards compatibility
 
