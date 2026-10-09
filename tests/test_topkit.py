@@ -2713,6 +2713,35 @@ class FieldAlgebraTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             self.Wizard & 3
 
+    def test_a_plain_class_with_a_sound_name_stays_a_type_union(self) -> None:
+        class Ordinary:
+            @staticmethod
+            def _sound() -> None:
+                raise AssertionError("a plain class is not a TOP population")
+
+        union = self.Wizard | Ordinary
+
+        self.assertIsInstance(self.ari, union)
+        self.assertIsInstance(Ordinary(), union)
+
+    def test_a_tag_may_use_sound_as_its_own_name(self) -> None:
+        class Choir(Tag):
+            @staticmethod
+            def _sound() -> str:
+                return "the program's value"
+
+        solo = Agent()
+        Choir(solo)
+
+        self.assertEqual(Choir._sound(), "the program's value")
+        self.assertEqual(list(Choir), [solo])
+        self.assertEqual(len(Choir), 1)
+        self.assertTrue(Choir)
+        self.assertEqual(
+                list(Choir | self.Wizard),
+                [solo, self.ari, self.bo],
+                )
+
 
 class ConditionMemberTests(unittest.TestCase):
     """STEP-SPEC-14: a condition is read on the Agent by its name, as a

@@ -51,6 +51,18 @@ from .state import _state_of
 from .transactions import _apply
 
 
+def _sound_of(
+        tag: type,
+        ) -> _Partition:
+    """The Tag's sound population, outside its programmer-owned namespace."""
+
+    return _Partition(
+            tag.__dict__["_topkit_field"],
+            _holds,
+            "sound",
+            )
+
+
 class MetaTag(type):
     """Metaclass of every Tag: the Tag-level acts, in language syntax."""
 
@@ -168,34 +180,25 @@ class MetaTag(type):
 
         return super().__instancecheck__(candidate)
 
-    def _sound(
-            tag,
-            ) -> _Partition:
-        return _Partition(
-                tag._topkit_field,
-                _holds,
-                "sound",
-                )
-
     def __iter__(
             tag,
             ) -> Iterator[object]:
-        return iter(tag._sound())
+        return iter(_sound_of(tag))
 
     def __len__(
             tag,
             ) -> int:
-        return len(tag._sound())
+        return len(_sound_of(tag))
 
     def __bool__(
             tag,
             ) -> bool:
-        return bool(tag._sound())
+        return bool(_sound_of(tag))
 
     def __invert__(
             tag,
             ) -> _Partition:
-        return ~tag._sound()
+        return ~_sound_of(tag)
 
     def __or__(
             tag,
@@ -208,7 +211,7 @@ class MetaTag(type):
         if _population_of(other) is NotImplemented:
             return super().__or__(other)
 
-        return tag._sound() | other
+        return _sound_of(tag) | other
 
     def __ror__(
             tag,
@@ -217,31 +220,31 @@ class MetaTag(type):
         if _population_of(other) is NotImplemented:
             return super().__ror__(other)
 
-        return other | tag._sound()
+        return other | _sound_of(tag)
 
     def __and__(
             tag,
             other: Any,
             ) -> Any:
-        return tag._sound() & other
+        return _sound_of(tag) & other
 
     def __rand__(
             tag,
             other: Any,
             ) -> Any:
-        return other & tag._sound()
+        return other & _sound_of(tag)
 
     def __sub__(
             tag,
             other: Any,
             ) -> Any:
-        return tag._sound() - other
+        return _sound_of(tag) - other
 
     def __rsub__(
             tag,
             other: Any,
             ) -> Any:
-        return other - tag._sound()
+        return other - _sound_of(tag)
 
     def __getitem__(
             tag,
