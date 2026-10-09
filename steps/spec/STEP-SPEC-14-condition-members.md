@@ -15,9 +15,10 @@
 Every condition on an Agent can be read on the Agent by its own name, as
 a plain boolean computed on read: `agent.Has_Book` is True while the
 promise called `Has_Book` holds and False when it does not. Nothing lands
-on the Agent: the name answers on the miss path, so no value is stored,
-no proxy stands in for the boolean, and `Contract.Status(agent)` and the
-member always agree. Because the name is read on the Agent, **a
+in the Agent's namespace: a state-aware descriptor on a runtime type
+keyed by its condition names computes the boolean, so no value is stored,
+no proxy stands in for it, and `Contract.Status(agent)` and the member
+always agree. Because the name is read on the Agent, **a
 condition may not share its name** with an Action, a Record, a member
 the host defines, or a value the Agent already holds; the tagging is
 refused at the door.
@@ -62,11 +63,11 @@ back the Agent member."
 ## Rationale
 
 The proxy was the problem, not the name. A boolean computed on read is a
-value, leaks nothing, and needs no call form. Answering on the miss path
-keeps the kernel's rule that nothing TOP-level is written into the
-Agent's namespace, and makes the collision rule the only new law: it
-protects the reader from a condition that a Record of the same name
-would hide.
+value, leaks nothing, and needs no call form. A keyed, state-aware data
+descriptor keeps the kernel's rule that nothing TOP-level is written into
+the Agent's namespace and protects the name from stored shadows. The
+collision rule protects the reader from a condition that a Record of the
+same name would hide.
 
 ## Backwards compatibility
 
@@ -80,14 +81,16 @@ condition was simply unreadable by name. No other program changes.
 | --- | --- |
 | `Contract.Check(agent, "Has_Book")` | Set aside by the Director: the member reads best |
 | A callable member (`agent.Has_Book()`) as well | Rejected with uniform access: needs a proxy |
-| Land the member as a descriptor on the runtime type | Rejected: per-Agent runtime types, or a shared type that lies for Agents without the condition |
+| Land an unkeyed member as a descriptor on the runtime type | Rejected: a shared type would lie for Agents without that condition |
+| Key a state-aware descriptor by the visible condition names | Used by TopKit: runtime types remain shared only when their condition-name sets match; the descriptor computes from each Agent's state and protects the name from stored shadows |
 | Let a Record shadow a condition of the same name silently | Rejected: a silent shadow is the thing the read is for |
 
 ## Acceptance requirements
 
-Covered by `tests/test_topkit.py::ConditionMemberTests` and by the
-oracle (`Assert_Contract`), which reads every condition by name after
-every transition and compares it with `Contract.Status`.
+Covered by `tests/test_topkit.py::ConditionMemberTests`,
+`tests/test_condition_bindings.py`, and by the oracle (`Assert_Contract`),
+which reads every condition by name after every transition and compares
+it with `Contract.Status`.
 
 ---
 

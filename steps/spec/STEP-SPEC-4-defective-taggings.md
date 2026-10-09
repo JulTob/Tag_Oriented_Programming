@@ -89,8 +89,7 @@ and parts are atomic; write and quality check are not.
 The original rules are covered by
 `tests/test_topkit.py::DefectiveTaggingTests`. The 2026-10-09 amendment is
 covered by `HostPreservationTests`: zero and nonzero host lengths, sound
-and defective contracts, no Posts, and an unchanged runtime type when the
-first Post arrives.
+and defective contracts, and no Posts.
 
 ## Amendment: a host's length is not an Agent's truth
 

@@ -116,9 +116,10 @@ rollback target.
   and `__deepcopy__` are installed on the runtime type only when the host
   defines none of its own. The contract `__bool__` lands at the first
   Tagging unless a Tag contributes that special-method Action, so a host's
-  `__len__` keeps `len` but never supplies an Agent's truth, and a first
-  Postcondition needs no new runtime type. Format specs are the display
-  door: `f"{Tag:form}"`, `f"{agent:tags}"`,
+  `__len__` keeps `len` but never supplies an Agent's truth. A new
+  condition name still rebuilds the type for its protective data
+  descriptor. Format specs are the display door: `f"{Tag:form}"`,
+  `f"{agent:tags}"`,
   `f"{agent:outline}"`, `f"{agent:contract}"`.
 - **Flags own the Agent's `in`.** `__contains__` is installed when a
   `@Flag` Tag lands (a type-level fact, part of the type key; a Flag
@@ -253,11 +254,14 @@ rollback target.
   sound partition; `MetaTag.__or__` falls back to `type.__or__` when the
   other side is not a population, so `Wizard | None` stays a typing
   union. No kernel state changes.
-- **Condition members** (STEP-SPEC-14): `_agent_getattr` answers a
-  condition by name on the miss path, after Tag views and before the
-  host's own `__getattr__`, through `contracts._condition_member`, which
-  evaluates one check under the re-entrancy guard and returns a plain
-  bool. Nothing is written to the namespace or the runtime type. The
+- **Condition members** (STEP-SPEC-14): an ordinary Agent answers a
+  condition by name through `_Condition_Gate`; a pinned Tag keeps the
+  metaclass miss path. Both call `contracts._condition_member`, which
+  evaluates under the re-entrancy guard and returns a plain bool. The
+  data gate and `_Binding_Write` refuse assignment
+  or deletion before a host hook runs; `Contract.Delete` rebuilds the
+  runtime type without the ended name, returning it to ordinary
+  attribute behavior. Nothing is written to the Agent's namespace. The
   collision rule lives in three places: `_refuse_condition_collision`
   at install (Actions, Records, host class members),
   `_refuse_member_over_condition` when an Action or Record is installed

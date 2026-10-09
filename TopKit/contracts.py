@@ -12,20 +12,137 @@ from typing import Any
 from typing import Callable
 from typing import Iterable
 
+from .declarations import _MISSING
 from .declarations import _protocol_inputs
 from .declarations import _takes_underlay
 from .errors import _Named
+from .errors import TagCompositionError
 from .errors import TagContractError
 from .errors import TagError
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
 from .geometry import _leaves
+from .state import _namespace_of
 from .state import _State
 from .state import _name_of
 from .state import _state_of
 
 
 Check = Callable[[object, dict[str, Any]], Any]
+
+
+def _refuse_condition_binding(
+        agent: object,
+        name: str,
+        ) -> None:
+    """A visible condition is computed on read and has no stored binding."""
+
+    state = _state_of(agent)
+
+    if state is not None and (
+            name in state.preconditions
+            or name in state.postconditions
+            ):
+        raise TagCompositionError(
+                f"{name!r} is a computed condition on {_name_of(agent)};"
+                " it cannot be assigned or deleted"
+                )
+
+
+class _Condition_Gate:
+    """Compute a condition on read and refuse writes while it is visible.
+
+    If the Agent's state no longer carries the condition, expose the binding
+    gate this descriptor replaced, or ordinary instance storage when there was
+    none.
+    """
+
+    __slots__ = ("name", "member")
+
+    def __init__(
+            gate,
+            name: str,
+            member: Any = _MISSING,
+            ) -> None:
+        gate.name = name
+        gate.member = member
+
+    def __get__(
+            gate,
+            agent: object,
+            owner: type | None = None,
+            ) -> Any:
+        if agent is None:
+            if gate.member is _MISSING:
+                return gate
+
+            getter = getattr(type(gate.member), "__get__", None)
+            return getter(gate.member, None, owner) if getter else gate.member
+
+        state = _state_of(agent)
+
+        if state is not None:
+            verdict = _condition_member(
+                    agent,
+                    state,
+                    gate.name,
+                    )
+
+            if verdict is not None:
+                return verdict
+
+        if gate.member is not _MISSING:
+            getter = getattr(type(gate.member), "__get__", None)
+            return (
+                    getter(gate.member, agent, type(agent))
+                    if getter else gate.member
+                    )
+
+        value = _namespace_of(agent).get(
+                gate.name,
+                _MISSING,
+                )
+
+        if value is _MISSING:
+            raise AttributeError(
+                    f"{_name_of(agent)} has no member {gate.name!r}"
+                    )
+
+        return value
+
+    def __set__(
+            gate,
+            agent: object,
+            value: Any,
+            ) -> None:
+        _refuse_condition_binding(agent, gate.name)
+
+        if gate.member is not _MISSING:
+            setter = getattr(type(gate.member), "__set__", None)
+
+            if setter is not None:
+                setter(gate.member, agent, value)
+                return
+
+        _namespace_of(agent)[gate.name] = value
+
+    def __delete__(
+            gate,
+            agent: object,
+            ) -> None:
+        _refuse_condition_binding(agent, gate.name)
+
+        if gate.member is not _MISSING:
+            deleter = getattr(type(gate.member), "__delete__", None)
+
+            if deleter is not None:
+                deleter(gate.member, agent)
+                return
+
+        _namespace_of(agent).pop(
+                gate.name,
+                None,
+                )
 
 
 def _verdict(
@@ -355,7 +472,8 @@ class Contract:
         or promise should end with its membership deletes it here, from
         its own ``@Rip`` protocol, one deliberate name at a time. A name
         that is not a condition on the Agent is a Resolution Failure: an
-        author who ends a promise must be ending a real one.
+        author who ends a promise must be ending a real one. Every requested
+        name is validated before any condition ends.
         """
 
         from .errors import TagResolutionError
@@ -364,28 +482,38 @@ class Contract:
 
         from .constants import _refuse_constant
 
+        available = set()
+
         if state is not None:
-            for name in names:
-                if name in state.preconditions or name in state.postconditions:
-                    _refuse_constant(state, name)
+            available.update(state.preconditions)
+            available.update(state.postconditions)
 
         for name in names:
-            found = False
-
-            for scope in (
-                    state.preconditions if state is not None else {},
-                    state.postconditions if state is not None else {},
-                    ):
-                if name in scope:
-                    del scope[name]
-                    found = True
-
-            if not found:
+            if name not in available:
                 raise TagResolutionError(
                         f"{name!r} is not a condition on {_name_of(agent)};"
                         " Contract.Delete ends a gate or a promise that is"
                         " there"
                         )
+
+            _refuse_constant(state, name)
+            available.remove(name)
+
+        for name in names:
+            for scope in (
+                    state.preconditions if state is not None else {},
+                    state.postconditions if state is not None else {},
+                    ):
+                scope.pop(name, None)
+
+        if state is not None and names:
+            from .state import _runtime_type_for
+            from .state import _set_runtime_type
+
+            _set_runtime_type(
+                    agent,
+                    _runtime_type_for(state),
+                    )
 
     @staticmethod
     def Status(

@@ -658,7 +658,6 @@ class HostPreservationTests(unittest.TestCase):
 
         shelf = Shelf()
         Library(shelf)
-        runtime = type(shelf)
 
         self.assertEqual(len(shelf), 0)
         self.assertTrue(shelf)                    # no promise: nothing is broken
@@ -667,7 +666,6 @@ class HostPreservationTests(unittest.TestCase):
         shelf.books.append("Dune")
         shelf.catalogued = False
 
-        self.assertIs(type(shelf), runtime)       # a first promise needs no new runtime type
         self.assertEqual(len(shelf), 1)
         self.assertFalse(shelf)                   # broken, whatever its length
 

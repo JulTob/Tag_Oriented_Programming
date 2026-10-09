@@ -138,8 +138,8 @@ class _Constant_Gate:
         _namespace_of(agent).pop(self.name, None)
 
 
-class _Constant_Write:
-    """Check before a host/Action setter can write through its own dictionary."""
+class _Binding_Write:
+    """Check protected bindings before a host or Action setter can run."""
 
     def __init__(self, fallback):
         self.fallback = fallback
@@ -149,6 +149,8 @@ class _Constant_Write:
 
     def __call__(self, agent, name, *values):
         _refuse_constant(_state_of(agent), name)
+        from .contracts import _refuse_condition_binding
+        _refuse_condition_binding(agent, name)
         if issubclass(type(agent), type) and _constant_owner(agent, name) is not None:
             raise TagCompositionError(f"{name!r} is Constant on this Tag")
         if values and issubclass(type(agent), type):
@@ -158,7 +160,7 @@ class _Constant_Write:
         return bound(name, *values)
 
 
-def _constant_write_hooks(namespace, host_type):
+def _binding_write_hooks(namespace, host_type):
     for name in ("__setattr__", "__delattr__"):
         fallback = namespace.get(name, _MISSING)
         if fallback is _MISSING:
@@ -166,6 +168,6 @@ def _constant_write_hooks(namespace, host_type):
                 if name in owner.__dict__:
                     fallback = owner.__dict__[name]
                     break
-        if isinstance(fallback, _Constant_Write):
+        if isinstance(fallback, _Binding_Write):
             fallback = fallback.fallback
-        namespace[name] = _Constant_Write(fallback)
+        namespace[name] = _Binding_Write(fallback)

@@ -8,8 +8,15 @@
   the host nor a Tag contributes `__bool__`, `bool(agent)` is true exactly
   when its visible Posts hold from the first Tagging, and true when it has
   none. A host's `__len__` still answers `len(agent)`. Before, an empty
-  container-like Agent with no Posts was false and adding its first Post
-  rebuilt the runtime type.
+  container-like Agent with no Posts was false.
+
+- **Computed conditions keep their names:** while a named Precondition or
+  Postcondition is visible, assigning or deleting that name is refused before
+  a host setter runs. The name continues to compute its boolean on read;
+  `Contract.Delete` ends the condition and returns the name to ordinary
+  attribute behavior. The protection also covers Pins, custom host setters and
+  direct `object.__setattr__` / `object.__delattr__` calls. A multi-name
+  `Contract.Delete` validates every requested condition before ending any.
 
 - **Constant Contributions:** `@Constant` protects Records, Actions,
   Posts, Reports and Operations from replacement, deletion and later

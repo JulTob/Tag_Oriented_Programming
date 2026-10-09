@@ -5,7 +5,8 @@ live in that dictionary as bound callables, Records as plain values, so
 ordinary attribute access costs what it costs on a plain object. The
 runtime type is neutral (host first, then the ``Tagged`` marker) and only
 carries what Python requires on a type: special-method Actions and the
-descriptors that gate deleted, secret, published, and Constant names.
+descriptors that gate deleted, secret, published, computed-condition,
+and Constant names.
 """
 
 from __future__ import annotations
@@ -834,6 +835,7 @@ def _type_key_of(
             frozenset((state.deleted | state.restored) - {"__del__"}),   # a restored name keeps its gate; __del__ has none
             frozenset(state.secrets),
             frozenset(state.published),
+            frozenset(state.preconditions | state.postconditions),
             any(_is_flag(tag) for tag in state.active),
             tuple(
                     sorted(
@@ -858,16 +860,18 @@ def _runtime_type_for(
         return shared
 
     from .access import _hooks_for   # access imports this module
+    from .contracts import _Condition_Gate
     from .presence import _presence_hook
+    from .constants import _binding_write_hooks
     from .constants import _Constant_Gate
-    from .constants import _constant_write_hooks
 
     host_type = state.host_type
     dunders = _dunder_actions(state)
     deleted = key[1]
     secrets = key[2]
     published = key[3]
-    has_flags = key[4]
+    conditions = key[4]
+    has_flags = key[5]
 
     hooks = _hooks_for(
             host_type,
@@ -889,6 +893,12 @@ def _runtime_type_for(
         for name in published:
             namespace[name] = _Published(name)
 
+        for name in conditions:
+            namespace[name] = _Condition_Gate(
+                    name,
+                    namespace.get(name, _MISSING),
+                    )
+
         if "__contains__" in hooks:
             namespace["__contains__"] = hooks["__contains__"]   # the Flag holds the seat
 
@@ -899,8 +909,8 @@ def _runtime_type_for(
         for name in state.constants:
             namespace[name] = _Constant_Gate(name, namespace.get(name, _MISSING))
 
-    if state.constants or issubclass(host_type, type):
-        _constant_write_hooks(namespace, host_type)
+    if conditions or state.constants or issubclass(host_type, type):
+        _binding_write_hooks(namespace, host_type)
 
     if issubclass(host_type, Tagged):
         bases: tuple[type, ...] = (host_type,)
