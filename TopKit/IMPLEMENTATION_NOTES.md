@@ -6,7 +6,10 @@ whenever the two disagree.
 
 ## Module map
 
-One idea per module, nothing over 600 lines.
+One idea per module, with 600 physical lines as the migration target. The
+target is not yet met: `declarations.py`, `overlay.py`, and `state.py` are the
+current exceptions. [Issue #15](https://github.com/JulTob/Tag_Oriented_Programming/issues/15)
+tracks splitting them by idea without changing semantics.
 
 | Module | Idea |
 | --- | --- |
