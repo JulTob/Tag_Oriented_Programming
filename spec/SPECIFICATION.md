@@ -353,6 +353,8 @@ that slot holds an Action or a Record, never both at once:
 
 ### Presence by name
 
+Specified by [STEP-SPEC-33](../steps/spec/STEP-SPEC-33-contribution-presence.md).
+
 `"name" @ agent` returns a boolean indicating whether the Agent currently
 provides that name. Presence is independent of a Contribution's kind and
 origin: a host attribute or method counts, and a name changing between
