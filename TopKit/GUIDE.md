@@ -748,11 +748,13 @@ joined by Python's own `try` and `finally`. The rule is the one Python
 teaches for a lock: **tag before `try`, Rip in `finally`.** A `finally`
 always runs when its `try` ends, whether the block finished or raised.
 
-Tag *before* the `try`, not inside it. A tagging that fails at the door
-then raises before the block starts, and the `finally` never runs.
-Inside the `try`, a refused tagging would send the `finally` to Rip a
-Tag that never landed. The caller would get "Sentry is not active on this
-Agent", and the refusal would only be kept inside it.
+Tag *before* the `try`, not inside it. A Gate refusal then raises before
+the block starts and leaves no Tag. An Imprint failure or broken Post is
+also reported at the Tagging statement, before the `try`, but that Tag has
+landed and stays. In either case the `finally` never begins. Inside the
+`try`, a refused Tagging would send the `finally` to Rip a Tag that never
+landed. The caller would get "Sentry is not active on this Agent", and the
+refusal would only be kept inside it.
 
 If the Agent may carry the Tag already, take away only what the block
 gave:

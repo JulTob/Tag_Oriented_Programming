@@ -1353,11 +1353,12 @@ finally:
     del Sentry[guard]      # the guard leaves, even if Patrol raised
 ```
 
-A tagging that fails at the door raises before the `try`, so the block
-never runs and nothing is Ripped; a Tag that landed stays, as after any
-such tagging (§0.6). A Rip in a `finally` that fails raises, as every
-Rip does (§3.1). If the block was raising too, the language keeps the
-block's error inside the Rip's failure, as its context, and shows both.
+A Gate refusal raises before the `try`, so the block never runs and there
+is no Tag to Rip. An Imprint failure or broken Post is reported at the
+Tagging statement too, before the `try`, but the Tag has landed and stays
+(§0.6). A Rip in a `finally` that fails raises, as every Rip does (§3.1).
+If the block was raising too, the language keeps the block's error inside
+the Rip's failure, as its context, and shows both.
 TOP adds nothing to this. Each step is a line the program writes: a
 block that should leave a Tag the Agent already carried checks first
 (`was_sentry = guard in Sentry[:]`), and a block that should take away a

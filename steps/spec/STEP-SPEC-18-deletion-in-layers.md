@@ -90,7 +90,8 @@ call to the underlaying del."
    reads the kit's finalizer, whatever the Layers are, even after
    `@Delete`. Calling it by hand runs the whole deletion, teardowns
    included, while the Agent is still a member: end an Agent with `del`,
-   a Rip, or `Scope` instead.
+   or a Rip instead. For a block, tag before `try` and Rip in `finally`;
+   STEP-SPEC-31 supersedes this STEP's former `Scope` spelling.
 10. **Known limits.** In a reference cycle the language may clear weak
     references before finalizers run (Python does), so a teardown or a
     Layer that calls one of the Agent's own Actions there fails. Late in
