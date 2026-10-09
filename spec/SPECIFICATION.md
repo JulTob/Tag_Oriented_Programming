@@ -256,9 +256,11 @@ Rip is the only exit from a Field, and it obeys three laws:
   Tag under an Underlay; or an **explicit deletion from the Tag's own
   `@Rip` protocol**, `Contract.Delete(agent, "Has_Book")`, one
   deliberate name at a time. A name that is not a condition on the Agent
-  is a Resolution Failure.
+  is a Resolution Failure. A Constant Post (§1.5) cannot be deleted;
+  any membership guard must be part of its original check.
 - **Reapplying a Ripped Tag is a fresh Tagging.** Imprints run again;
-  Records are rebuilt.
+  ordinary Records are rebuilt. Established Constant bindings stay intact;
+  their builders do not run again for the same declaration.
 - **A Scope Rips what it applied, and only that.** A Tag the Agent
   already carried at entry is left as it was on exit; a Tag that applied
   and reported a broken promise at the Scope's door did apply, and is
@@ -284,6 +286,7 @@ language, not a library's naming.
 | populations combined (§2.5) | `Wizard \| Fighter`, `Wizard & Fighter`, `Wizard - Sworn`; the same on `Wizard[:]` and `~Wizard` |
 | one condition, read on the Agent (§2.5) | `agent.Has_Book` |
 | a named Contribution is present (§1.1) | `"Attack" @ agent`, `"Attack" @ Wizard[agent]` |
+| keep a Contribution's binding fixed (§1.5) | `@Constant` with `@Record`, `@Action`, `@Post`, `@Report` or `@Operation` |
 | the Agent-bound view | `Wizard[agent]` |
 | leave the Field (Rip) | `del Wizard[agent]` |
 | the Form, as Tags | `Form(Wizard)` |
@@ -406,6 +409,8 @@ class Elf(Person):
         return "With elven grace " + underlay()
 ```
 
+An established Constant Action (§1.5) cannot be replaced or extended.
+
 The Underlay is **captured when the Tag applies**: it is the complete Action
 visible immediately before this Layer. It forms a backward chain of
 callables and never resolves again later. Calling it with no arguments
@@ -505,9 +510,12 @@ above: the stored value must never be mistaken for the input in silence.
 An input the caller did not supply keeps the parameter's default, or is
 `None` when it has none.
 
-After tagging, a Record is an ordinary attribute: read it, assign it,
-delete it with the language's own `del agent.record`. Deleting is allowed
-but rarely good design; frequent deletion means unclear state ownership.
+After tagging, an ordinary Record can be read, assigned, or deleted with
+the language's own `del agent.record`. A Constant Record (§1.5) can be read
+but its binding cannot be replaced or deleted. Constant does not freeze
+the value: a list can still receive items, and each Agent keeps its own
+initialized list. Deleting ordinary Records is allowed but rarely good
+design; frequent deletion means unclear state ownership.
 
 Mutable Record values must be fresh per Agent unless sharing is the
 explicit intent. Shared values belong in a Report.
@@ -538,10 +546,18 @@ Community.colour            # "green"
 Community.Greet("Ari")      # "Community:Ari"
 ```
 
-A Report builder runs once per Tag, on first read, and its value is held
-on the Tag: one copy for the whole Field. Like a Record, it may declare a
+An ordinary Report builder runs once per Tag, on first read, and its value
+is held on the Tag: one copy for the whole Field. Like a Record, it may declare a
 second parameter, which receives the value the Tag's Bases give that name,
 or `None`, so a Shape can extend a Base's Report rather than replace it.
+
+A Constant Report initializes once on its **declaring Tag**, on first
+read through that Tag or any Shape. The builder receives the declaring
+Tag. Every Shape shares the exact same resulting value; no Shape runs a
+separate initialization. Its binding cannot be replaced or deleted, but
+the value's contents may mutate. A Constant Operation instead fixes the
+implementation: it still runs on every call with the Tag through which
+it was called as receiver.
 
 Reports and Operations are **not visible on the Agent**. `ari.colour` does
 not exist after `Community(ari)`, and neither does `ari.Greet`. Projecting
@@ -664,11 +680,50 @@ swallow it and report *no such name* for a name that plainly exists.
 restates the default (`@Public @Record`, `@Secret @Report`) is accepted;
 both on one member is a contradiction and is rejected at declaration.
 
+### Constant bindings
+
+`@Constant` protects a named Record, Action, Post, Report or Operation
+from replacement and deletion. It stacks with its declaration in either
+order and is independent of `@Public` and `@Secret`. An unmarked method
+may also be a Constant Action. A Constant modifier on an unsupported
+declaration is a Declaration Failure.
+
+Once established, a Constant binding survives normal Python assignments
+and deletions, later Layers of any Contribution kind, `@Delete`,
+Underlay-based replacement, and Pin patches. Such an attempt raises a
+Composition Failure and leaves the Constant intact. A Shape declaration
+that would hide a Base's Constant name, including with an ordinary Python
+value, is a Declaration Failure. Direct reassignment or deletion on the
+declaring Tag or a Shape is also refused.
+
+A Constant Record is initialized per Agent and keeps its value on
+reapplication of the same declaration. A Constant Action or Operation
+keeps its implementation and ordinary call behavior. Constant does not
+freeze mutable values or memoize behavior. Constant Reports have the
+single declaring-Tag initialization described in §1.4.
+
+A Constant Post keeps its check after Rip and cannot be replaced or
+deleted through `Contract.Delete`, a protocol or another Layer. Other
+Posts can be added under independent names; all applicable promises must
+hold. Constant does not change when contracts are checked or require a
+Post to return the same answer as the Agent changes.
+
+Applying an active Tag remains a no-op. Reapplying after Rip preserves
+the same declaration's Constants while rebuilding ordinary Records and
+repeating Imprints. These rules do not change the tagging failure phases
+in §0.6.
+
+The Python guarantee includes normal member assignment and deletion,
+including `object.__setattr__` on protected Agent bindings. It does not
+provide a sandbox against deliberate manipulation of private runtime
+state, direct namespace tampering or arbitrary Python execution.
+
 ## 1.6 Delete
 
 `@Delete` on a name removes the visible contribution, or the host member,
 of that name. It frees the slot: the next contribution may occupy it with
 either Agent kind, and an Underlay-seeking contribution finds nothing.
+Deleting a Constant Contribution is refused and leaves its binding intact.
 
 ```python
 class Pacifist(Tag):
@@ -886,6 +941,10 @@ declaration from every future Agent's contract. So is a name every Tag
 answers through its metaclass. Names another Pin landed follow the
 Overlay laws of §1.2 and §1.3.
 
+Constant protection applies to Pin composition too. A Pin cannot replace
+or hide an existing Constant Contribution of its Target or a Target's
+Base; a failed patch leaves that Constant intact.
+
 **Publication on a Tag.** `@Secret` on a Pin's Record or Action makes it
 Pin-private state on the Tag: held in the Tag's state, resolved only
 while the Tag's own protocols or pinned Operations run, an Attribute
@@ -1064,6 +1123,10 @@ its Underlay is a **weakened** promise. TOP allows it, because forbidding it
 would break the refactoring that is the point of TOP, but it is **never
 silent**: a Contract Warning is raised at tagging. If the relaxation is
 intended, the warning is your receipt; if it was a slip, it is your alarm.
+
+A Constant Post is the explicit exception: its implementation cannot be
+overridden, even with an Underlay, or deleted. Strengthen the contract by
+adding an independently named Post; the original check remains applicable.
 
 The discipline in three lines:
 

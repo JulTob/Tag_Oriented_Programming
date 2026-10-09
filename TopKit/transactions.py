@@ -52,6 +52,7 @@ from .state import _restore_namespace
 from .state import _runtime_type_for
 from .state import _state_for
 from .state import _state_of
+from .state import _set_runtime_type
 
 
 @dataclass(slots=True)
@@ -166,7 +167,7 @@ def _rollback(
         namespace.pop(STATE, None)
 
     if type(agent) is not entry_class:
-        agent.__class__ = entry_class
+        _set_runtime_type(agent, entry_class)
 
 
 def _gate(
@@ -232,6 +233,7 @@ def _apply_one(
     boundary.after_commit = False   # this Tag's Parts can still refuse the whole call
     state = _state_for(agent)
     declarations = _declarations_of(tag)
+    retained_constants = frozenset(state.constants)
     deleted_before = set(state.deleted)
     _refuse_conditions_shadowed_by_the_agent(
             agent,
@@ -254,6 +256,7 @@ def _apply_one(
                 declarations,
                 deleted_before,
                 inputs,
+                retained_constants,
                 )
 
         _commit(
@@ -404,7 +407,7 @@ def _commit(
 
     if type(agent) is not next_type:
         try:
-            agent.__class__ = next_type
+            _set_runtime_type(agent, next_type)
         except TypeError as error:
             raise TagCompositionError(
                     f"{type(agent).__name__} cannot be actualized in place"
@@ -479,7 +482,7 @@ def _publish_to_field(
         next_type = _runtime_type_for(agent_state)
 
         if type(agent) is not next_type:
-            agent.__class__ = next_type
+            _set_runtime_type(agent, next_type)
 
 
 def _publish_into(
@@ -490,11 +493,18 @@ def _publish_into(
         adapter: Any,
         ) -> None:
     from .overlay import _install_action
+    from .constants import _refuse_constant
 
     for name in names:
+        if name in agent_state.constants:
+            if agent_state.constants[name][0] is pinned and name in state.constants:
+                continue
+            _refuse_constant(agent_state, name)
         if name in state.records:
             agent_state.reports[name] = (pinned, None)
             agent_state.published.add(name)
+            if name in state.constants:
+                agent_state.constants[name] = (pinned, "report", None)
         elif name in state.actions:
             _install_action(
                     agent_state,
@@ -502,6 +512,8 @@ def _publish_into(
                     name,
                     adapter(pinned, name, state.actions[name]),
                     )
+            if name in state.constants:
+                agent_state.constants[name] = (pinned, "operation", state.actions[name])
 
 
 def _needs_new_type(
@@ -520,6 +532,7 @@ def _needs_new_type(
             _is_flag(tag)
             or declarations.deletions
             or declarations.secrets
+            or declarations.constants
             or declarations.dunders
             or declarations.postconditions
             or any(public for _name, _value, public in declarations.reports)

@@ -362,6 +362,13 @@ class Contract:
 
         state = _state_of(agent)
 
+        from .constants import _refuse_constant
+
+        if state is not None:
+            for name in names:
+                if name in state.preconditions or name in state.postconditions:
+                    _refuse_constant(state, name)
+
         for name in names:
             found = False
 

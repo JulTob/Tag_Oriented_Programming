@@ -227,7 +227,11 @@ assert bob.spellbook == []                # not shared
 
 **Watch out.** A Record builder runs once, when the Tag applies. It is not a
 property; it does not recompute. Reapplying an active Tag does nothing, so
-a Record is never silently reset. To reset, Rip and apply again.
+a Record is never silently reset. To reset an ordinary Record, Rip and
+apply again. `@Constant @Record` keeps its established binding instead;
+the value's contents may still be mutable. [Constant Contributions](CONSTANTS.md)
+shows the distinction and the same protection for Actions, Posts and
+shared Contributions.
 
 ### Pattern 3 · Pile things up from several Tags
 
@@ -699,6 +703,11 @@ Tag instead of the Agent as its first input; it runs once per Tag and its
 value is shared by the whole Field. `def hit_die(tag, inherited)` extends
 the Base's value, as `def spells(agent, stored)` extends what is stored.
 
+A Constant Report initializes once on its declaring Tag; all its Shapes
+share that exact value. Constant protects the binding without freezing
+the value's contents or changing its publication rules. See
+[Constant Contributions](CONSTANTS.md) for the Report and Operation patterns.
+
 **Watch out.** A secret resolves only while one of the Agent's own Actions
 or protocols is running. A handle to a secret Action captured inside and
 called outside fails, on purpose.
@@ -1054,6 +1063,8 @@ your Reports and Operations there.
 - [The Contracts Guide](CONTRACTS.md): gates, promises and error control,
   aboard a starship; and one promise read by its name, `agent.Has_Oath`.
 - [The Fields Guide](FIELDS.md): populations, partitions and the algebra.
+- [Constant Contributions](CONSTANTS.md): fixed bindings, shared values
+  and promises that cannot be replaced or deleted.
 - [The Specification](../spec/SPECIFICATION.md): the laws, ring by ring.
 - [`examples/dnd_character.py`](../examples/dnd_character.py) and
   [`examples/biome.py`](../examples/biome.py): the long form.
