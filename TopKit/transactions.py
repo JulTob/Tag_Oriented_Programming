@@ -31,7 +31,6 @@ from .declarations import _declarations_of
 from .declarations import _is_flag
 from .declarations import _protocol_inputs
 from .errors import TagCompositionError
-from .errors import TagError
 from .errors import TagImprintError
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
@@ -503,8 +502,6 @@ def _imprint(
                     agent,
                     **_protocol_inputs(imprint, inputs, 1),
                     )
-        except TagError:
-            raise
         except Exception as error:
             raise TagImprintError.Named(name)(
                     f"Imprint {imprint.__qualname__} failed:"
