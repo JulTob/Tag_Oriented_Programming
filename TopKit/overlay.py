@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from contextvars import ContextVar
 from functools import wraps
+from os.path import dirname
 from typing import Any
 from typing import Callable
 import warnings
@@ -50,6 +51,7 @@ from .state import _state_of
 
 
 Function = Callable[..., Any]
+_WARNING_SKIP_PREFIXES = (dirname(__file__),)
 
 
 # ------------------------------------------------------------------
@@ -330,7 +332,7 @@ def _install(
                             origin,
                             ),
                     TagContractWarning,
-                    stacklevel=5,   # _install is shallower than _install_action
+                    skip_file_prefixes=_WARNING_SKIP_PREFIXES,
                     )
 
         state.postconditions[name] = _stamp(
@@ -926,7 +928,7 @@ def _install_action(
                 f"{tag.__name__}.{name} replaces the Action of independent"
                 f" Tag {origin.__name__}",
                 TagOverwriteWarning,
-                stacklevel=6,
+                skip_file_prefixes=_WARNING_SKIP_PREFIXES,
                 )
 
     state.actions[name] = _compose(
@@ -992,7 +994,7 @@ def _install_record(
                 f"{tag.__name__}.{name} replaces the Record of independent"
                 f" Tag {prior.__name__}",
                 TagOverwriteWarning,
-                stacklevel=6,
+                skip_file_prefixes=_WARNING_SKIP_PREFIXES,
                 )
 
     state.records[name] = tag

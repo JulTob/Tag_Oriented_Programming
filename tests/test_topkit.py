@@ -12,6 +12,7 @@ from __future__ import annotations
 import collections.abc
 import copy
 import gc
+import inspect
 import unittest
 import warnings
 import weakref
@@ -667,6 +668,27 @@ class HostPreservationTests(unittest.TestCase):
 
 
 class OverlayTests(unittest.TestCase):
+    def test_the_overwrite_warning_points_through_apply(self) -> None:
+        class Guard(Tag):
+            @Action
+            def Patrol(agent):
+                return "guard"
+
+        class Intruder(Tag):
+            @Action
+            def Patrol(agent):
+                return "intruder"
+
+        ari = Agent()
+        Guard(ari)
+
+        with self.assertWarns(TagOverwriteWarning) as caught:
+            expected_line = inspect.currentframe().f_lineno + 1
+            Apply(ari, Intruder)
+
+        self.assertEqual(caught.filename, __file__)
+        self.assertEqual(caught.lineno, expected_line)
+
     def test_underlay_captures_the_visible_overlay_at_tagging_time(self) -> None:
         ari = Agent()
 
@@ -1601,9 +1623,22 @@ class DefectiveTaggingTests(unittest.TestCase):
         ari.strength = 15
 
         with self.assertWarns(TagContractWarning) as caught:
+            expected_line = inspect.currentframe().f_lineno + 1
             Bruiser(ari)
 
         self.assertEqual(caught.filename, __file__)
+        self.assertEqual(caught.lineno, expected_line)
+
+    def test_the_contract_warning_points_through_apply(self) -> None:
+        ari = Agent()
+        ari.strength = 15
+
+        with self.assertWarns(TagContractWarning) as caught:
+            expected_line = inspect.currentframe().f_lineno + 1
+            Apply(ari, Bruiser)
+
+        self.assertEqual(caught.filename, __file__)
+        self.assertEqual(caught.lineno, expected_line)
 
     def test_pre_and_post_are_aliases(self) -> None:
         self.assertIs(Pre, Precondition)
