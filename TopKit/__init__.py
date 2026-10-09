@@ -14,10 +14,10 @@ from .declarations import Precondition
 from .declarations import Public
 from .declarations import Record
 from .declarations import Report
-from .declarations import Requirement
 from .declarations import Rip
 from .declarations import Secret
 from .declarations import Underlay
+from .errors import TagCategoryError
 from .errors import TagCompositionError
 from .errors import TagContractError
 from .errors import TagContractWarning
@@ -30,7 +30,6 @@ from .errors import TagPreconditionError
 from .errors import TagResolutionError
 from .errors import TagRogueAccessError
 from .lifecycle import At_Exit
-from .lifecycle import Scope
 from .queries import Apply
 from .queries import Form
 from .queries import Keyword
@@ -60,11 +59,10 @@ __all__ = [
         "Public",
         "Record",
         "Report",
-        "Requirement",
         "Rip",
-        "Scope",
         "Secret",
         "Tag",
+        "TagCategoryError",
         "TagCompositionError",
         "TagContractError",
         "TagContractWarning",

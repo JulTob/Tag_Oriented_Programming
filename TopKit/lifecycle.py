@@ -1,22 +1,22 @@
-"""Lifecycle: Rip, teardown, Scope, and exit protocols.
+"""Lifecycle: Rip, teardown, and exit protocols.
 
 Rip ends active membership. Contributions are sticky: Actions and Records
 stay on the Agent (a Rogue Agent) unless the Tag's @Rip teardowns change
 them. Ripping a Base is refused while an active Shape still requires it.
+
+Of the three deletion tiers (§3.2), the kit gives the finalizer's
+teardowns and At_Exit. The guaranteed tier is the program's own: it tags
+before ``try`` and Rips in ``finally`` (STEP-SPEC-31).
 """
 
 from __future__ import annotations
 
-from contextlib import contextmanager
 from typing import Any
-from typing import Iterator
 import atexit
 
 from .declarations import _parameters_of
 from .declarations import _takes_underlay
 from .errors import TagCompositionError
-from .errors import TagError
-from .errors import TagPostconditionError
 from .errors import TagResolutionError
 from .fields import _Member
 from .geometry import _requiring_shapes
@@ -54,7 +54,7 @@ def _rip(
     state.active.remove(tag)
     state.words = None
     state.snapshots.pop(tag, None)   # a view needs membership: never read again
-    tag._topkit_field.Remove(agent)
+    tag._topkit_field._Remove(agent)
 
     _teardown(
             agent,
@@ -161,51 +161,6 @@ def _call_teardown(
                 )
     else:
         teardown(agent)
-
-
-@contextmanager
-def Scope(
-        agent: object,
-        *tags: type,
-        **inputs: Any,
-        ) -> Iterator[object]:
-    """Apply Tags for a block and Rip them, in reverse, on exit, even if
-    the block raises. The guaranteed teardown path.
-
-    Only what the Scope itself applied is Ripped: a Tag the Agent already
-    carried at entry is left as it was. A Tag that applied and then
-    reported a broken promise at the door did apply, so it is Ripped on
-    the way out like any other.
-    """
-
-    applied: list[type] = []
-
-    try:
-        for tag in tags:
-            if agent in tag:
-                continue                    # already the Agent's: not the Scope's to take away
-
-            try:
-                tag(
-                        agent,
-                        **inputs,
-                        )
-            except TagPostconditionError:
-                applied.append(tag)         # applied, and defective: still the Scope's to Rip
-                raise
-
-            applied.append(tag)
-
-        yield agent
-    finally:
-        for tag in reversed(applied):
-            try:
-                _rip(
-                        agent,
-                        tag,
-                        )
-            except TagError:
-                pass
 
 
 _exit_registry: dict[int, _Member] = {}   # by registration number; an entry leaves when its Agent dies

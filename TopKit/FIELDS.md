@@ -71,11 +71,15 @@ assert list(Fighter) == [bo]                # off the line
 assert list(~Fighter) == [cal]              # waiting for repair
 assert cal in Fighter                       # still a member
 assert cal in Fighter[:]                    # still in the Field
+assert list(~~Fighter) == [cal]             # broken twice is still broken
 ```
 
 The plain loop, `for f in Fighter`, is the working population. `~Fighter`
 is the repair queue. `Fighter[:]` is the roster. `if Fighter:` asks
 whether anyone is fit; `len(Fighter[:])` counts everyone.
+
+`~` reads "broken", never "not". So it absorbs: `~~Fighter`,
+`~~~Fighter` and any longer run are `~Fighter`, the repair queue again.
 
 ---
 
@@ -131,6 +135,17 @@ assert combatants                           # truth: anyone at all?
 
 Keep a combined view around like you would keep a Tag around. Do not
 copy it into a list unless you want the moment frozen.
+
+One walk takes each Field's members when it begins. At its turn, each is
+visited if it is a member then, and skipped if it is not. So a member
+that an earlier turn of the same walk Ripped is skipped, and a loop that
+Rips as it goes never meets an Agent that has left. A member Ripped and
+tagged again before its turn is in, so it is visited there, once. An
+Agent that joins a Field during its walk waits for the next one.
+Soundness is asked at each turn, so a member that breaks during the walk
+is skipped. `|` walks its right side when its left ends; `&` and `-` ask
+their right side at each turn, so an Agent that joins `Wizard & Fighter`
+through Fighter during the walk is met in it.
 
 ---
 
@@ -211,8 +226,9 @@ assert list(Combat - Deprecated) == [Wizard]        # combat Tags still in use
 
 ## 5. What the algebra does not do
 
-- **No complement of a union.** `~(Wizard | Fighter)` has no universe to
-  complement, so it is not defined. `~Wizard | ~Fighter` is what you mean.
+- **No `~` on a combination.** `~` means broken, and it applies to a
+  Tag. `~(Wizard | Fighter)` is refused with a `TypeError`;
+  `~Wizard | ~Fighter` is what you mean.
 - **No order across sides.** `|` walks the left side first, then the
   right; it does not interleave by join time.
 - **No copies.** A view reads the Fields it was made from. If you need a
@@ -220,6 +236,9 @@ assert list(Combat - Deprecated) == [Wizard]        # combat Tags still in use
 - **Type unions still work.** `Wizard | None` is the language's own class
   union, untouched; only a Tag or a population on the other side makes
   the operator a Field operator.
+- **No Pins with Tags.** A Pin's population holds Tags, and a Tag's holds
+  Agents: `Combat | Wizard` is refused with a `TagCategoryError`. Pins
+  combine with Pins, as above, and Tags with Tags.
 
 ## 6. The checklist
 

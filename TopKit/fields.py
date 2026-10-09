@@ -3,13 +3,19 @@
 A Field never keeps an Agent alive. Membership is indexed by identity so
 registration and removal are constant-time. Iterating a Tag gives the
 sound population (every visible Postcondition holds), ``~Tag`` the
-defective one, ``Tag[:]`` everyone.
+defective one, ``Tag[:]`` everyone. ``~`` means broken, and broken twice
+is still broken: ``~~Tag`` is ``~Tag``.
 
 Populations combine (STEP-SPEC-13): ``Wizard[:] | Fighter[:]`` is everyone
 who is either, ``Wizard - Sworn`` the sound Wizards who have not sworn,
 ``Wizard & Fighter`` the sound Agents who are both. A Tag in an operator
 seat means its sound population. The result is a lazy view: it reads the
 Fields when it is walked, never copies them, and keeps application order.
+A Pin's population holds Tags and never combines with one of Agents.
+
+A walk takes a Field's members when it begins, and visits each at its
+turn if it is a member then: one an earlier turn Ripped is skipped, and
+one Ripped and tagged again is visited (STEP-SPEC-29, rule 7.1).
 """
 
 from __future__ import annotations
@@ -19,7 +25,8 @@ from typing import Callable
 from typing import Iterator
 import weakref
 
-from .errors import TagCompositionError
+from .declarations import _is_pin
+from .errors import TagCategoryError
 
 
 class _Population:
@@ -38,6 +45,26 @@ class _Population:
             agent: object,
             ) -> bool:
         raise NotImplementedError
+
+    def _home(
+            population,
+            ) -> type | None:
+        """The Tag the population was drawn from (a combination's left
+        side's), or None once that Tag is gone."""
+
+        raise NotImplementedError
+
+    def _holds_tags(
+            population,
+            ) -> bool:
+        """A Pin's population holds Tags; every other Tag's holds Agents."""
+
+        home = population._home()
+
+        return (
+                home is not None
+                and _is_pin(home)
+                )
 
     def __len__(
             population,
@@ -153,11 +180,56 @@ def _combine(
     if left is NotImplemented or right is NotImplemented:
         return NotImplemented
 
+    _refuse_tags_with_agents(
+            left,
+            right,
+            operator,
+            )
+
     return _Combined(
             left,
             right,
             operator,
             )
+
+
+def _refuse_tags_with_agents(
+        left: _Population,
+        right: _Population,
+        operator: str,
+        ) -> None:
+    """A Pin's population holds Tags, and a Tag's holds Agents: the two
+    never combine (STEP-SPEC-28). Python's own type union, ``Wizard |
+    None``, never reaches here."""
+
+    left_holds_tags = left._holds_tags()
+
+    if left_holds_tags == right._holds_tags():
+        return
+
+    if left_holds_tags:
+        pins, agents = left, right
+    else:
+        pins, agents = right, left
+
+    raise TagCategoryError(
+            f"{_name_of_home(left)} {operator} {_name_of_home(right)}:"
+            f" {_name_of_home(pins)} is a Pin, and its population holds Tags;"
+            f" {_name_of_home(agents)} is a Tag, and its population holds"
+            " Agents. The two never combine: combine Pins with Pins, and"
+            " Tags with Tags"
+            )
+
+
+def _name_of_home(
+        population: _Population,
+        ) -> str:
+    home = population._home()
+
+    if home is None:
+        return "a population"
+
+    return home.__name__
 
 
 class _Combined(_Population):
@@ -179,6 +251,11 @@ class _Combined(_Population):
         combined._right = right
         combined._operator = operator
         combined._label = f"{left._label} {operator} {right._label}"
+
+    def _home(
+            combined,
+            ) -> type | None:
+        return combined._left._home()
 
     def __iter__(
             combined,
@@ -242,11 +319,25 @@ class _Field(_Population):
             ) -> None:
         field._members: dict[int, _Member] = {}
         field._expire = field._Forget   # one callback for every member
+        field._tag: weakref.ref | None = None   # its Tag, set when the Tag is made
 
-    def Add(
+    def _home(
+            field,
+            ) -> type | None:
+        if field._tag is None:
+            return None
+
+        return field._tag()
+
+    def _Add(
             field,
             agent: object,
             ) -> None:
+        """The commit step's half of membership (§0.6, step 3): hold the
+        Agent weakly in the Field. Private: by itself it skips the gate,
+        the Records and the Imprints, and the Agent's own state would
+        still say it is no member."""
+
         key = id(agent)
 
         if key in field._members:
@@ -258,17 +349,20 @@ class _Field(_Population):
                     field._expire,
                     )
         except TypeError as error:
-            raise TagCompositionError(
+            raise TagCategoryError(
                     "Tagged Agents must support weak references for Fields"
                     ) from error
 
         reference.key = key
         field._members[key] = reference
 
-    def Remove(
+    def _Remove(
             field,
             agent: object,
             ) -> None:
+        """Rip's and rollback's half of leaving: drop the Agent from the
+        Field. Private: by itself it runs no teardown."""
+
         field._members.pop(id(agent), None)
 
     def _Forget(
@@ -292,13 +386,33 @@ class _Field(_Population):
     def __iter__(
             field,
             ) -> Iterator[object]:
-        live = [
+        """The members at the start of the walk, in application order. An
+        Agent that joins during the walk waits for the next one."""
+
+        held = [
                 agent
                 for reference in list(field._members.values())
                 if (agent := reference()) is not None
                 ]
 
-        return iter(live)
+        return field._Walk(held)
+
+    def _Walk(
+            field,
+            held: list[object],
+            ) -> Iterator[object]:
+        """Each held member at its turn, if it is a member now
+        (STEP-SPEC-29, rule 7.1). One an earlier turn Ripped is out, so it
+        is skipped. One Ripped and tagged again before its turn is in, so
+        it is visited there, once."""
+
+        members = field._members
+
+        for agent in held:
+            reference = members.get(id(agent))
+
+            if reference is not None and reference() is agent:   # `agent in field`, without the call
+                yield agent
 
     def _held(
             field,
@@ -343,6 +457,11 @@ class _Partition(_Population):
         partition._holds = holds
         partition._label = label
 
+    def _home(
+            partition,
+            ) -> type | None:
+        return partition._field._home()
+
     def __iter__(
             partition,
             ) -> Iterator[object]:
@@ -377,10 +496,17 @@ class _Partition(_Population):
     def __invert__(
             partition,
             ) -> "_Partition":
+        """``~`` means broken, and broken twice is still broken: on the
+        defective half it gives that half back, so ``~~Wizard`` is
+        ``~Wizard`` (STEP-SPEC-29, rule 3.2)."""
+
+        if partition._label == "defective":
+            return partition
+
         holds = partition._holds
 
         return _Partition(
                 partition._field,
                 lambda agent: not holds(agent),
-                "defective" if partition._label == "sound" else "sound",
+                "defective",
                 )

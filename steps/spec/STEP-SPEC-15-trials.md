@@ -10,6 +10,11 @@
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
 
+> **Superseded in part on 2026-10-09.** The spelling `with Try(agent):`
+> leaves TOP. The Director: "With Try should also leave TOP. Get rid of
+> it". TOP gives `with` no meaning (STEP-SPEC-31, rule 6). Whether Trials
+> stay, with another spelling, is open.
+
 ## Summary
 
 A **Trial** is a phase during which every tagging on one Agent is

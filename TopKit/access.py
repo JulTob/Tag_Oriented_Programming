@@ -47,6 +47,9 @@ def _host_member(
         if klass is object:
             break
 
+        if "_TOPKIT_HOST_TYPE" in klass.__dict__:
+            continue   # a runtime type: its members are the kit's or a Tag's, not the host's
+
         member = klass.__dict__.get(name)
 
         if member is not None:
@@ -94,9 +97,14 @@ def _host_in_seat(
 
 def _hooks_for(
         host_type: type,
-        has_posts: bool,
         has_flags: bool,
         ) -> dict[str, Any]:
+    """The kit's special methods for one host. ``__bool__`` is on every
+    Agent: its truth is its contract, even over the host's ``__len__``,
+    which still answers ``len`` (§2.5). A host with its own ``__bool__``
+    never gets here (§0.5), but a Tag does: it keeps its metaclass's
+    truth, "anyone sound?"."""
+
     hooks: dict[str, Any] = {
             "__getattr__": _agent_getattr,
             "__del__": _agent_del,
@@ -104,7 +112,7 @@ def _hooks_for(
             "_TOPKIT_HOST_GETATTR": _host_member(host_type, "__getattr__"),
             }
 
-    if has_posts and _host_member(host_type, "__bool__") is None:
+    if _host_member(host_type, "__bool__") is None:
         hooks["__bool__"] = _agent_bool
 
     if _host_member(host_type, "__format__") is None:
@@ -290,7 +298,35 @@ def _keyword(
 def _agent_bool(
         agent: object,
         ) -> bool:
+    """An Agent's truth is its contract (STEP-SPEC-28): true while every
+    visible promise holds, and true with none. An object built from an
+    Agent's runtime type but never tagged is a plain host object, and
+    keeps its host's truth."""
+
+    state = _state_of(agent)
+
+    if state is None:
+        return _host_truth(agent)
+
+    if not state.postconditions:
+        return True   # nothing promised
+
     return _holds(agent)
+
+
+def _host_truth(
+        agent: object,
+        ) -> bool:
+    """Python's own truth for a host with no ``__bool__``: its length when
+    it has one, otherwise true."""
+
+    if hasattr(
+            type(agent),
+            "__len__",
+            ):
+        return len(agent) != 0
+
+    return True
 
 
 def _host_finalizer(

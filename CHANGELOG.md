@@ -2,6 +2,193 @@
 
 ## Unreleased
 
+### Specification
+
+- STEP-SPEC-22 (Links) opened at Brief, and was revised after three
+  reviews by the Director. `@Link` grants each Agent a Tag of its own,
+  `charlie.Knows`, held like a Record.
+  - A Link is a Tag in full: Records, Actions, promises, secrets, Bases
+    and Shapes. What an ordinary Tag gives its Agent, a Link gives the
+    Pair.
+  - The functions it declares for the Pair take the Agent first and the
+    Contact second: the Agent has the agency.
+  - A Link points one way: nothing on a Contact names an Agent who links
+    her.
+  - Linking makes the Contact a member and writes no Record, Action or
+    promise on her, except members the Relation marks `@Public`: those
+    are published onto her as one line to the Pair, with no fan-out.
+    `@Secret` members stay in-house, the Link's Agent's alone. Facts
+    about the two live on the Pair, `charlie.Knows[ruth].since`.
+- STEP-SPEC-23 (Field Filters) opened at Brief. A Projection reads one
+  name across a population, `Wizard[:].level`; comparing it gives a
+  Filter, a live population. Decided by the Director on 2026-10-09: the
+  dot on a Tag reads only the Tag ("Wizard.level is a report"), so the
+  first draft's `Wizard.level > 3` gives way and the root for the sound
+  members moves to STEP-SPEC-29. Decided on 2026-10-08: a member with no
+  value is like SQL's `NULL` (`== None`), and a Filter refuses `bool()`.
+  - Chains fan out with "some": `Social.Knows[:] == ruth`.
+  - A Filter by an Action's result follows a changing system.
+  - This is the logic of classes and attributes of Boole and Carroll, in
+    the language's own operators.
+- STEP-SPEC-24 (Field Rip and the End of a Tag) opened at Brief.
+  `del Wizard[:]` Rips the whole Field. A Tag that ceases to exist does
+  the same, so its members' teardowns run. Membership holds neither side
+  alive.
+- The three were first drafted as STEP-SPEC-19, 20 and 21, and
+  renumbered because other open work claims those numbers.
+- STEP-SPEC-26 (A Shape Keeps No Base Hostage) opened at Brief, with
+  the model the Director chose: tagging stays closed upward, then each
+  membership stands alone. Under it, `del Human[bob]` would no longer
+  be refused while bob is a Werewolf; he would keep the Shape, a
+  spin-off. The kit still refuses it today. A Shape that needs its Base
+  says so in a guarded Postcondition.
+- STEP-SPEC-27 (The Deletion Protocol of a Tag; opened as "Emergency
+  Stop") at Brief, revised on 2026-10-09 after the Director's
+  correction. It reads `del Human[:]` (STEP-SPEC-24) in three phases:
+  gain control (every membership ends at once), stop gently (teardowns
+  run one member at a time, in join order), and then the Tag is ready
+  again, "the power is still on". `del Human` stays Python's act. It
+  proposes `del Human.colour` to reset one Report. The first draft's
+  latch, the Pin `Stopped`, is withdrawn.
+- STEP-SPEC-28 (Category Error) opened at Brief. `TagCategoryError`, a
+  `TagError` and a `TypeError`, names the mistake of treating one kind of
+  TOP thing as another, such as `Wizard.hp = 10` when `hp` is a Record.
+- Guide: "Reading a Tag" shows Python's `all` and `any` with a question
+  written inside, `all(w.level > 3 for w in Wizard)`, and why
+  `all(Wizard)` alone does not ask whether there are Wizards.
+- STEP-SPEC-30 (Retire `@Requirement`) opened at Brief: a claim needed
+  to enter and to stay is written `@Pre` + `@Post`, stacked, as the
+  Director asked.
+- STEP-SPEC-29 (The Population Algebra) opened at Brief: one place for
+  every population spelling, as the Director asked ("We need to unify
+  all the design of sets and filters"). It records his rulings of
+  2026-10-09 (`ari in Wizard` is sound membership; `if ari:` asks the
+  promises; `Wizard[...]` and `Tag[...]` are the safehouse; `Rare |
+  Wizard` is a category error; `del (~Wizard)[:]` Rips every broken
+  Wizard). It recommends `+Wizard` for the sound part before a dot,
+  `Wizard[0]` in join order, an absorbing `~` (since decided and built: see TopKit below) and
+  a `rounds` recipe.
+- STEP-SPEC-31 (Retire `Scope`) opened at Brief, as the Director
+  decided ("TOP should integrate with the language … Get it out"). A
+  block that holds a Tag for a while tags the Agent before `try` and
+  Rips it in `finally`. STEP-SPEC-22, 24, 26 and 28 and the catalog no
+  longer lean on `Scope`. The kit no longer has it (see TopKit below).
+- STEP-SPEC-32 (The Arrest) opened at Brief, with the Director's ruling:
+  a failed teardown ends the membership anyway, and the Agent is kept
+  in the Tag's safehouse, arrested. When it tries to act, the safehouse
+  runs its teardowns first; the act goes on only if they all pass.
+  `del Wizard[ari]` retries; `del Wizard[...]` ends it. One rule for a
+  Rip and a Field Rip; a deletion is recommended to follow it.
+- A catalog of the Tag algebra, `steps/CATALOG-tag-algebra.md`: every
+  spelling found so far that reads or acts on a Tag or a population, with
+  its meaning, its result and its status on each branch.
+
+### TopKit
+
+- A Field no longer has public `Add` and `Remove` methods. They were the
+  kit's own halves of commit and Rip, and calling them by hand skipped
+  the gate or the teardowns and left the Field contradicting `in`. They
+  are private now, and membership changes only by tagging and Rip.
+- New failure: `TagCategoryError` (STEP-SPEC-28), for an act that treats
+  one kind of TOP thing as another. It is a `TagError` and a
+  `TypeError`, so code that catches `TypeError` keeps working. Nothing
+  changes when it is raised, and its message names the spelling to use.
+- `Wizard.hp = 10` and `del Wizard.hp` are refused when `hp` is a name
+  the Tag gives its Agents: a Record, an Action, a condition, an Imprint
+  or a deletion, declared on the Tag or on a Base. Before, the write
+  passed in silence: before the Tag's first use it erased the
+  declaration, and after it the Tag and its Agents disagreed. The message
+  names the spelling to use: the loop
+  `for wizard in Wizard: wizard.hp = 10`, or the Tag's class body for an
+  Action or a condition. A Report beside a Record of the same name, and
+  any name the Tag does not give its Agents, stay writable.
+- A target that cannot be an Agent is refused at tagging with a
+  `TagCategoryError`: `Wizard(None)`, `Wizard(3)`, `Wizard(True)`, any
+  value with no instance dictionary or no weak reference (before, a
+  `TagCompositionError`), an instance of a `str` subclass, and a host
+  whose class defines its own `__bool__` (both tagged before). A host
+  with only `__len__` is still accepted.
+- A Flag on a host that answers `in` itself (its own `__contains__` or
+  `__iter__`) is refused with a `TagCategoryError` instead of a
+  `TagCompositionError`. The message is unchanged. A collision with a
+  Tag's Action that answers `in` stays a `TagCompositionError`.
+- A Pin's population no longer combines with a Tag's: `Rare | Wizard`,
+  `Wizard & Rare` and `Rare[:] - Wizard` raise a `TagCategoryError`.
+  Pins combine with Pins, and Tags with Tags; `Wizard | None` is still
+  Python's type union.
+- A walk visits a member at its turn only if it is a member then
+  (STEP-SPEC-29, rule 7.1), on every population: a Tag, `Wizard[:]`,
+  `~Wizard`, a Pin and every combination. So it skips a member that an
+  earlier turn of the same walk Ripped; before, the walk visited it. A
+  member Ripped and tagged again before its turn is visited, as before:
+  the Director, on 2026-10-09, "if an agent is tagged again, it is in
+  the list so you shouldn't skip it". The rest is unchanged: a walk
+  takes a Field's members when it begins, so an Agent that joins the
+  Field during it waits for the next walk, while soundness and the right
+  side of `&` and `-` are asked at each turn.
+- `~` absorbs (STEP-SPEC-29, rule 3.2), as the Director decided on
+  2026-10-09: "~~~~~~~~~~~~~Wizard is still ~Wizards". `~` on the
+  defective population gives it back, so `~~Wizard`, `~~~Wizard` and any
+  longer run are `~Wizard`. Before, `~~Wizard` flipped back to the sound
+  population. `~(Wizard | Fighter)` is still refused.
+- An Agent's truth is its contract, whatever its host (STEP-SPEC-28,
+  open question 2, decided by the Director on 2026-10-09). `bool(agent)`
+  is True while every visible promise holds, and True when it has none.
+  A host's `__len__` still answers `len(agent)`, but no longer its truth.
+  Before, such an Agent took its truth from its length until a
+  Postcondition was visible, so an empty `Shelf` with no promise was
+  false, and one whose Tag deleted `__len__` raised. A first
+  Postcondition no longer gives the Agent a new runtime type. An object
+  built from an Agent's runtime type but never tagged is a plain host,
+  and keeps its host's truth. A class built on an Agent's runtime type
+  takes none of the kit's or a Tag's special methods as its host's own,
+  so its truth is its contract, and reading a name it lacks is an
+  `AttributeError`, not a `RecursionError`.
+- `@Requirement` is removed (STEP-SPEC-30), as the Director decided on
+  2026-10-09: "remove @Requirement at once". There is no release of
+  warning: `TopKit.Requirement` and its export are gone, so
+  `from TopKit import Requirement` is an `ImportError`. Write `@Pre` and
+  `@Post` stacked on one function instead, in either order. It means
+  what `@Requirement` meant: a stacked `Alive` refuses an Agent at the
+  door with `Precondition.Alive`, and an Agent that fails it afterwards
+  is defective, with `Postcondition.Alive`.
+  The Specification (§0.8, §2.7 and the conformance obligations), both
+  guides and the crew example now write the two marks.
+- `Scope` is removed (STEP-SPEC-31), as the Director decided on
+  2026-10-09: "I don't like Scope as a function call in TOP. Or
+  generally using function calls as methodology. TOP should integrate
+  with the language. Also "Scope" is not an informative name. Get it
+  out", and "I like the try-finally for the training purpose. Do that.
+  Implement it." There is no release of warning: `TopKit.Scope` and its
+  export are gone, so `from TopKit import Scope` is an `ImportError`.
+  A block that holds a Tag says so with Python's own `try` and
+  `finally`, by one rule: tag before `try`, Rip in `finally`. For
+  `with Scope(guard, Sentry): guard.Patrol()`, write `Sentry(guard)`,
+  then `try: guard.Patrol()`, then `finally: del Sentry[guard]`. Several
+  Tags are all tagged before the `try` and Ripped in the `finally` in
+  reverse. TOP gives `with` no meaning. The Specification (§0.7, §0.8,
+  §3.1, §3.2, the table of contents and the conformance obligations),
+  the Guide's pattern 9, the notes and the conformance table say so.
+  What `Scope` decided out of sight is now a line the program writes, or
+  does not write:
+  - A Tag the Agent already carried: `Scope` left it; a plain `finally`
+    Rips it. A block that should leave it checks first,
+    `was_sentry = guard in Sentry[:]`, and Rips only
+    `if not was_sentry`.
+  - A Tag that fails at the door: the tagging raises before the `try`,
+    the block does not run, and the Tag stays, defective after a broken
+    Postcondition. `Scope` Ripped it after a Postcondition.
+  - A Rip that fails on the way out: `Scope` dropped it in silence. Now
+    it raises, as every Rip does. If the block was raising too, the
+    block's error is kept inside the Rip's failure as its context, so an
+    `except` for the block's own error no longer catches it.
+  - A block that Rips the Tag itself: `Scope` tried again and dropped the
+    failure. Now the `del` in the `finally` finds no member and raises a
+    `TagResolutionError`, so such a block checks first,
+    `if guard in Sentry[:]: del Sentry[guard]`.
+  - A Base that a Shape pulled in stays, as before; `del Wolf[bo]` in the
+    `finally` takes it away.
+
 ### Project
 
 - **Releases go out through Trusted Publishing.** A GitHub Release runs
