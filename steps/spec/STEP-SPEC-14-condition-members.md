@@ -80,7 +80,8 @@ condition was simply unreadable by name. No other program changes.
 | --- | --- |
 | `Contract.Check(agent, "Has_Book")` | Set aside by the Director: the member reads best |
 | A callable member (`agent.Has_Book()`) as well | Rejected with uniform access: needs a proxy |
-| Land the member as a descriptor on the runtime type | Rejected: per-Agent runtime types, or a shared type that lies for Agents without the condition |
+| Land an unkeyed member as a descriptor on the runtime type | Rejected: a shared type would lie for Agents without that condition |
+| Key a state-aware descriptor by the visible condition names | Used by TopKit: runtime types remain shared only when their condition-name sets match; the descriptor computes from each Agent's state and protects the name from stored shadows |
 | Let a Record shadow a condition of the same name silently | Rejected: a silent shadow is the thing the read is for |
 
 ## Acceptance requirements
