@@ -510,7 +510,7 @@ Unlinking is in section 8.
 - (b) the act decides: a demanded Rip rolls back, an ending arrests;
 - (c) out, as the kit does today.
 
-The recommendation as it was written: (a). He had said on 2026-10-08: "The safehouse: ends membership first and runs teardowns after is the sensible choice." With (a), three S19 rows change: the failed Rip (`del Wizard[ari]`, amendment D), the deletion (`del ari`, amendment E) and the Scope's exit (while `Scope` lasts: STEP-31). If (b) is chosen, the S19 deletion row changes.
+The recommendation as it was written: (a). He had said on 2026-10-08: "The safehouse: ends membership first and runs teardowns after is the sensible choice." With (a), three S19 rows change: the failed Rip (`del Wizard[ari]`, amendment D), the deletion (`del ari`, amendment E) and the Scope's exit (while `Scope` lasts: STEP-31).
 
 ### Which `del` do I want?
 
