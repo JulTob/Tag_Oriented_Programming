@@ -35,6 +35,7 @@ from .errors import TagResolutionError
 from .declarations import STATE
 from .declarations import Report
 from .declarations import _declarations_of
+from .geometry import _is_base_of
 from .geometry import _related
 from .declarations import _MISSING
 from .state import _Bound
@@ -306,18 +307,22 @@ def _install(
 
     for name, function in declarations.postconditions:
         prior = state.postconditions.get(name)
+        origin = _origin_of(prior)   # the Tag that laid the visible promise; None when there is none
 
         if (
-                prior is not None
+                origin is not None
+                and origin is not tag
                 and not _takes_underlay(function)
-                and _origin_of(prior) is not tag
                 and not _quiet.get()
                 ):
             warnings.warn(
-                    f"{tag.__name__}.{name} overrides a Base Postcondition"
-                    " without @Underlay (weakens a promise; see Forward-Post)",
+                    _replaced_promise(
+                            tag,
+                            name,
+                            origin,
+                            ),
                     TagContractWarning,
-                    stacklevel=6,
+                    stacklevel=5,   # the tagging line: one frame shallower than _install_action's warning
                     )
 
         state.postconditions[name] = _stamp(
@@ -554,12 +559,46 @@ def _stamp(
 
 
 def _origin_of(
-        check: Function,
+        check: Function | None,
         ) -> type | None:
     return getattr(
             check,
             "__topkit_origin__",
             None,
+            )
+
+
+def _replaced_promise(
+        tag: type,
+        name: str,
+        origin: type,
+        ) -> str:
+    """The Contract Warning's text: how ``tag`` stands to ``origin``, the
+    Tag stamped on the visible Postcondition it replaces without
+    @Underlay. Only a Shape over its Base weakens a promise in the sense
+    of §2.4. A Base laid over its Shape's sticky promise, or a Tag laid
+    over an independent Tag's, replaces a promise it never made, and the
+    text says whose promise no longer binds (STEP-SPEC-20 asks which law
+    governs that case)."""
+
+    replacing = f"{tag.__name__}.{name}"
+
+    if _is_base_of(origin, tag):
+        return (
+                f"{replacing} overrides the Postcondition of its Base"
+                f" {origin.__name__} without @Underlay (weakens a promise;"
+                " see Forward-Post)"
+                )
+
+    if _is_base_of(tag, origin):
+        relation = f"its Shape {origin.__name__}"
+    else:
+        relation = f"independent Tag {origin.__name__}"
+
+    return (
+            f"{replacing} replaces the Postcondition of {relation} without"
+            f" @Underlay; {origin.__name__}'s promise no longer binds this"
+            " Agent"
             )
 
 
