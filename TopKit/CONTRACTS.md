@@ -56,11 +56,12 @@ at all: it is what publication *means*.
 
 ---
 
-## 2. The gate: nothing changes
+## 2. The Gate: this Tag does not begin
 
 A Precondition inspects the incoming Agent. When it says no, the tagging
-stops before anything is written, and the failure carries the name you
-wrote.
+stops before that Tag's Records, Contributions, Field entry or Imprints,
+and the failure carries the name you wrote. If a Shape brought missing
+Bases, each Base already completed its own turn and remains applied.
 
 ```python
 class Officer(Tag):
@@ -75,7 +76,7 @@ ensign = Crew("Wesley", rank=1)
 try:
     Officer(ensign)
 except Precondition.Commissioned:
-    pass                                # refused; Wesley is exactly as he was
+    pass                                # refused; Officer never began
 
 assert ensign not in Officer
 assert not isinstance(ensign, Officer)  # never was one
@@ -87,6 +88,10 @@ Officer(ensign)                         # now it takes
 `except Precondition.Commissioned` catches that one refusal. A name you
 never declared is an error at the `except` line, so a handler cannot sit
 silently and never fire.
+
+Each missing Tag passes its own Gate when its turn arrives. A Shape cannot
+override away a missing Base's Gate: the Base must pass first. An already
+active Base is not asked again when the Shape arrives.
 
 ---
 

@@ -162,20 +162,18 @@ deliberate act: Rip, then apply again.
 
 ## 0.6 The tagging sequence
 
-Think of a factory line. Once, for the whole call:
+Think of a factory line. After the whole-Form collision check (§1.8), for
+each missing Tag in the Form, in order:
 
-1. **Gate.** The Preconditions visible in the Form this call will produce
-   inspect the incoming Agent and the inputs. A Shape's Precondition
-   overrides its Base's, so a Shape can relax the gate. A failed gate stops
-   the call before anything changes.
-
-Then for each Tag in the Form, in order:
+1. **Gate.** That Tag's own Preconditions inspect the Agent and the inputs
+   when its turn arrives. A failed Gate stops before that Tag begins; Tags
+   whose turns have finished stay applied.
 
 2. **Parts.** That Tag's Records are built, each allowed to read the value
    already stored under its name.
-3. **Commit.** The Agent enters the Tag's Field; the Overlay and the
+3. **Field entry.** The Agent enters the Tag's Field; the Overlay and the
    Agent-bound view are set.
-4. **Write.** That Tag's Imprints run, in declaration order.
+4. **Imprint.** That Tag's Imprints run, in declaration order.
 
 Then, once for the whole call:
 
@@ -184,10 +182,11 @@ Then, once for the whole call:
 
 The **call boundary** decides what a failure means:
 
-- A failure in steps 1 or 2, for any Tag in the Form, **rolls the whole
-  call back**. The Agent is exactly as it was at the call, including Bases
-  pulled in by this call. Tags committed by earlier calls are untouched.
-  Nothing partial is ever published.
+- A refusal in step 1 stops that Tag before its Parts, Contributions, Field
+  entry or Imprints. Earlier Tags completed during this call stay applied.
+  A failure in step 2 retains the existing whole-call boundary: the Agent
+  returns to its state at the start of the call, including Bases pulled in
+  by that call. Tags applied by earlier calls are untouched.
 - A failure in steps 4 or 5 **raises, but the Tags stay**. The product left
   the line. A defective product is not melted back to materials: it is
   flagged, repaired, or Ripped (§2.5).
@@ -196,7 +195,7 @@ The phase belongs to the call running the protocol. A nested refusal
 inside an Imprint is that Imprint's failure, with the refusal as its cause;
 a nested failure inside a Record still refuses Parts. Python interruptions
 follow the same boundary and propagate unchanged. Failure to capture the
-Tag-bound view after Write also preserves the committed Tags. If capture
+Tag-bound view after an Imprint also preserves the applied Tags. If capture
 fails while an Imprint failure or interruption is already being
 raised, the original failure stays primary and the capture failure is
 reported as a note when possible.
@@ -204,23 +203,23 @@ reported as a note when possible.
 An exceptional return does not itself make an Agent permanently defective.
 Its current visible Postconditions determine soundness (§2.5), so a finished
 Agent whose promises hold may be sound despite a failed Imprint or an
-interruption after Commit.
+interruption after Field entry.
 
 ```text
 Citadel(ari)                      Form: Territory, Citadel
-    gate       Has_Charter FAILS
-→ TagPreconditionError; ari in Territory == False, ari in Citadel == False
+    Territory  gate, parts, Field entry, Imprint
+    Citadel    gate: Has_Charter FAILS
+→ TagPreconditionError; ari in Territory == True, ari in Citadel == False
 
 Broken_Wizard(ari)                Form: Person, Broken_Wizard
-    gate       ok
-    Person     parts, commit, write
-    Wizard     parts, commit, write
+    Person     gate, parts, Field entry, Imprint
+    Wizard     gate, parts, Field entry, Imprint
     check      Has_Spellbook FAILS
 → TagPostconditionError; ari in Person and ari in Wizard; bool(ari) == False
 ```
 
-Tagging is otherwise side-effect free: TOP-managed state is restored on
-rollback. An Imprint's in-place mutation of a pre-existing mutable value
+On a Parts rollback, TOP-managed state is restored to the start of the
+call. An Imprint's in-place mutation of a pre-existing mutable value
 (`events.append(...)`) is outside what TOP can undo; keep such effects for
 step 4, where they are never rolled back, or hold them in Records.
 
@@ -980,7 +979,7 @@ by name, on the same miss-path rule as `charlie.Wizard`.
 receive the Tag; a failed gate leaves the Tag exactly as it was, its
 metaclass included. Postconditions are checked once per pinning and
 re-checked at later pinning boundaries of that Tag; a broken promise
-leaves the Tag pinned and defective (§2.5). Imprints run after commit.
+leaves the Tag pinned and defective (§2.5). Imprints run after Field entry.
 `del Rare[Wizard]` runs the Pin's Rip protocols; landed values and
 Operations stay, sticky, and `isinstance(Wizard, Rare)` stays True.
 Pinning again after a Rip is a fresh pinning (§0.7).
@@ -1025,12 +1024,17 @@ permits. Legal until written into law.
 ## 2.2 Preconditions: the gate
 
 A Precondition inspects the **incoming materials**: may this Agent, with
-these inputs, enter the line? It runs at step 1, once per call, for **the
-Tags applied in the current call only**, as they will be composed: a
-Shape's gate replaces its Base's. An earlier Tag's gate is not re-asked
-when a later, unrelated Tag arrives; it already let its Agent in. Because
-the gate runs before any Base applies, a Precondition sees the Agent as it
-arrives, never what a Base's Imprint is about to write.
+these inputs, enter this Tag? It runs at step 1 when **that Tag's turn**
+arrives. Missing Bases take their own turns first, so a later Shape's Gate
+sees the Records, Actions, membership and Imprints of every Base that
+completed. An active Tag's Gate is not re-asked; it already let its Agent
+in.
+
+A Shape cannot waive a missing Base's Gate: the Base must pass before the
+Shape has a turn. A same-named Precondition declared by the Shape controls
+the Shape's own Gate and the condition visible afterwards. `@Underlay`
+deliberately calls the condition visible before the Shape as part of the
+Shape's Gate.
 
 Preconditions, like Record builders and Imprints, receive application
 inputs by name:
@@ -1048,15 +1052,16 @@ Coded(bond, code="007")  # applies
 A parameter the caller did not supply keeps its declared default, or is
 `None` when it has none.
 
-Preconditions **relax backward**. A Shape may ask for less than its Base,
-never more, so a Shape can stand in wherever its Base is expected. Override
-freely; compose with `@Underlay` when you want the Base's gate too:
+Preconditions overlay **backward** within the current Tag's Gate. A Shape
+may ask for less on its own turn, but it does not rewrite a Base's earlier
+turn. Override freely; compose with `@Underlay` when the Shape should ask
+the prior visible condition again:
 
 ```python
 class Founder(Guild):
     @Pre
     def Dues_Paid(agent):
-        return True                # founders skip the dues gate
+        return True                # the Founder's own Gate is open
 
 class Apprentice(Wizard):
     @Pre
@@ -1065,6 +1070,10 @@ class Apprentice(Wizard):
         assert agent.mentor        # also needs a mentor
         return base()              # then the Base's gate
 ```
+
+An unpaid fresh Agent still fails `Guild` before `Founder` has a turn. If
+the Agent is already in `Guild`, applying `Founder` asks only Founder's
+Gate; `Guild` is not re-asked.
 
 This is also how **synergy** is expressed: a feat that requires two other
 Tags gates on both.
@@ -1078,8 +1087,9 @@ class War_Caster(Tag):
 
 ## 2.3 Imprints: the writing
 
-An Imprint performs the work of tagging: it runs at step 4, after the Tag
-has committed, in declaration order, with the application inputs by name.
+An Imprint performs the work of tagging: it runs at step 4, after the Agent
+enters the Tag's Field, in declaration order, with the application inputs
+by name.
 
 ```python
 class MI6(Tag):
@@ -1427,10 +1437,10 @@ types but must keep these distinct.
 | **Tag Composition Failure** | Contributions cannot form the Overlay: cross-kind collision, Record over a host descriptor, a Record builder or teardown that failed, a Target that cannot carry state, a Base still required. | call rolled back (or Rip refused) |
 | **Tag Resolution Failure** | A required Underlay, view, or membership is unavailable. | call rolled back |
 | **Tag Rogue Access Failure** | A Rogue Agent reached a published member of a Tag it has left. A Resolution Failure, and a TOP failure only: never dressed as a host-language attribute failure. | use refused |
-| **Tag Precondition Failure** | A gate refused the incoming Agent. | call rolled back |
-| **Tag Imprint Failure** | An Imprint failed after commit. | Tags stay |
+| **Tag Precondition Failure** | A Gate refused the incoming Agent. | that Tag does not apply; earlier turns stay |
+| **Tag Imprint Failure** | An Imprint failed after Field entry. | Tags stay |
 | **Tag Postcondition Failure** | The finished Agent breaks a promise. | Tags stay, Agent defective |
-| **Tag Contract Failure** | A condition returned a non-boolean. | gate: call rolled back; quality check: Tags stay, Agent defective |
+| **Tag Contract Failure** | A condition returned a non-boolean. | Gate: that Tag does not apply; quality check: Tags stay, Agent defective |
 | **Overwrite Warning** | An independent Tag replaced a visible Action or Record without an Underlay. | diagnostic |
 | **Contract Warning** | A Shape weakened a Base Postcondition. | diagnostic |
 
@@ -1485,8 +1495,8 @@ A conforming implementation provides, ring by ring:
   snapshots requiring active membership.
 
 **Ring 2**
-- strict boolean conditions; Preconditions gating only the current call,
-  with inputs; Imprints after commit, with inputs; Postconditions once per
+- strict boolean conditions; each Tag gating when its turn arrives, with
+  inputs; Imprints after Field entry, with inputs; Postconditions once per
   call after the whole Form, re-checked at every later boundary, without
   inputs;
 - the contract direction, with weakened Postconditions diagnosed;

@@ -2,7 +2,19 @@
 
 ## Unreleased
 
+### Specification
+
+- **Gates run per Tag:** each missing Tag passes its own Preconditions when
+  its turn arrives. A later refusal leaves completed Base Taggings in place
+  and stops before the refused Tag's Records, Contributions, Field entry or
+  Imprints. A Shape's Precondition no longer suppresses a missing Base's
+  own Gate; active Tags are still not re-asked. The existing Parts failure
+  boundary is unchanged while its post-Gate policy is decided separately.
+
 ### TopKit
+
+- Gate evaluation now follows the Base-first Tag chain without removing
+  completed Bases when a later Tag refuses.
 
 - **Constant Contributions:** `@Constant` protects Records, Actions,
   Posts, Reports and Operations from replacement, deletion and later

@@ -7,6 +7,7 @@
 - **Status:** Deployed
 - **Created:** 2026-09-04
 - **Deployed:** 2026-09-05
+- **Amended:** 2026-10-09
 
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
@@ -15,8 +16,10 @@
 
 A Tagging whose Postcondition fails is **applied and defective**: the call
 raises, the Tags stay, and the Agent is a member whose promise is broken.
-An Imprint failure likewise leaves the Tags applied. Preconditions and
-Record failures still roll the whole call back.
+An Imprint failure likewise leaves the Tags applied. Each missing Tag now
+passes its own Gate when its turn arrives; a later refusal leaves Tags
+whose turns finished in place. Record failures retain their existing
+whole-call boundary; their post-Gate policy remains a separate decision.
 
 Fields partition into the **sound** population (`for a in Tag`) and the
 **defective** one (`for a in ~Tag`); `Tag[:]` is everyone. Membership
@@ -36,13 +39,14 @@ nobody disappears from a plain loop silently.
 
 ## Specification
 
-1. The tagging sequence: once per call, the gate (the Preconditions
-   visible in the composed Form of the call, so a Shape relaxes its Base);
-   then per Tag in the Form: parts, commit, write; then once per call,
-   after the whole Form: quality check (every visible Postcondition).
-2. A failure in gate or parts, for any Tag in the Form, rolls the whole
-   call back (STEP-SPEC-6 keeps that law).
-3. A failure in write raises a Tag Imprint Failure; the Tags stay.
+1. The tagging sequence, for each missing Tag in Form order: that Tag's
+   Gate, Parts, Field entry and Imprints; then once per call, after the
+   whole Form: quality check (every visible Postcondition).
+2. A Gate refusal stops before that Tag's Parts, Contributions, Field entry
+   or Imprints. Tags whose turns already finished stay applied. A Parts
+   failure retains the existing whole-call rollback while its post-Gate
+   policy is decided separately.
+3. A failure in an Imprint raises a Tag Imprint Failure; the Tags stay.
 4. A failure in quality check raises a Tag Postcondition Failure; the Tags
    stay; the Agent is defective while any visible Postcondition fails.
 5. `bool(agent)` is true exactly when every visible Postcondition holds.
@@ -57,6 +61,10 @@ nobody disappears from a plain loop silently.
 Checking Postconditions once per call, after the whole Form, lets a Base
 promise what its Shape delivers ("an Element has an attack"). Checking
 per Tag would refuse every such Base at its own step.
+
+Gates are different: every Tag independently decides whether the Agent may
+enter that Tag. A missing Base must pass its own Gate before a Shape gets a
+turn; the chain is not erased when a later Gate refuses.
 
 The plain loop is the working population: gameplay iterates the Agents
 fit to play, repair iterates `~Wizard`, and `Wizard[:]` is there when a
@@ -77,6 +85,7 @@ and parts are atomic; write and quality check are not.
 | Alternative | Verdict |
 | --- | --- |
 | Roll back on any failure (0.1 behaviour) | Rejected by the Director: a product is not unmade |
+| One composed Gate before the whole Form | Superseded by the Director's chain decision: each Tag passes its own Gate at its turn |
 | Author chooses per Tag | Set aside; two laws to explain |
 | Default iteration is the whole Field, `Tag[:]` the sound one | Rejected by the Director; the loop should be the working population, with `~Tag` one character away |
 | `Tag.Field`, `Tag.Rip(agent)` as dotted methods | Rejected; `Tag.name` belongs to the program (§0.8) |
@@ -85,6 +94,23 @@ and parts are atomic; write and quality check are not.
 ## Acceptance requirements
 
 Covered by `tests/test_topkit.py::DefectiveTaggingTests`.
+
+---
+
+## Amendment, 2026-10-09
+
+The original deployed text gave the whole Form one composed Gate and made a
+later Shape's Precondition suppress its Base's own Gate. During issue #30's
+review, the Director clarified that Tags are independent and Form application
+is a chain, "not a house of cards": completed Tags stay when a later Tag's
+Gate refuses. The Director then explicitly selected **each Tag passes its own
+Gate**.
+
+This amendment changes only the Gate boundary. The handling of a failure after
+a successful Gate—especially a Record builder failure—remains open in issue
+#30 and is not decided here.
+
+Covered by `tests/test_topkit.py::PreconditionTests`.
 
 ---
 

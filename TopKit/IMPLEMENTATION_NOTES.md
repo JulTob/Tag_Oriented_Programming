@@ -84,19 +84,18 @@ memory about 6 KB per Agent with two Tags.
 ## The tagging sequence
 
 `transactions._apply` is the call boundary: it snapshots the instance
-dictionary, the state, and the class on entry. `_gate` lays every pending
-Tag of the Form over a scratch copy and runs the composed Preconditions
-once, so a Shape's gate overrides its Base's and declaration errors
-surface before anything changes. `_apply_one` then lays each Tag over the
-**live** state (no second copy) in the order parts, commit, write; finally
-`_inspect` runs every visible Postcondition once. A `TagPreconditionError`, `TagCompositionError`,
-`TagResolutionError` or `TagContractError` rolls the call back to the entry
-snapshot, including Fields. `TagImprintError` and `TagPostconditionError`
-propagate with everything left in place.
+dictionary, the state, and the class on entry. Before each missing Tag,
+`_gate` lays only that Tag over a scratch copy of the completed Overlay and
+runs its Preconditions. A refusal does not remove Tags whose turns already
+finished. `_apply_one` then lays the Tag over the
+**live** state (no second copy) in the order Parts, Field entry, Imprints;
+finally `_inspect` runs every visible Postcondition once. The existing
+whole-call Parts boundary is unchanged. `TagImprintError` and
+`TagPostconditionError` propagate with applied Tags left in place.
 
 Laying over the live state is safe because nothing reads the new Overlay
-before commit binds it on the Agent, and the entry snapshot is the only
-rollback target.
+before Field entry binds it on the Agent. The call-entry snapshot remains
+the Parts rollback target.
 
 ## Judgment calls
 
@@ -216,7 +215,7 @@ rollback target.
   class-attribute writes the kernel makes): a pinned Tag's `@Secret`
   members live in `state.secret_values` and answer on the miss path
   while `composing` is open; `@Public` pinned members are pushed to the
-  Field at commit (`_publish_to_field`, dry run on copies first) and
+  Field at Field entry (`_publish_to_field`, dry run on copies first) and
   emitted by the Tag's scan for future Agents, so the scan cache is
   dropped at pinning. `_state_of` reads the dictionary directly, which
   is why `agent in Tag` got faster rather than slower.

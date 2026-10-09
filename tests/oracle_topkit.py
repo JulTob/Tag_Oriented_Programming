@@ -3,8 +3,8 @@ after every transition.
 
 The model knows the laws of the Specification and nothing of the kernel:
 Base-first Forms, membership and history, Rip refused while a Shape
-requires the Base, Scope as apply-then-rip, the call boundary (a refused
-gate rolls back, a broken promise keeps the Tag and marks the Agent
+requires the Base, Scope as apply-then-rip, the call boundary (each Tag
+gates at its own turn, a broken promise keeps the Tag and marks the Agent
 defective, a failed Imprint keeps the Tag), sticky conditions ended by
 the author, published members answering sound members only, condition
 members read as booleans, Field algebra, Pins with a Tag in the
@@ -289,7 +289,7 @@ class Guild(Tag):
 
 
 class Gated(Tag):
-    """A gate that refuses when the Agent is not ok; the call rolls back."""
+    """A Gate that refuses when the Agent is not ok."""
 
     @Pre
     def Ready(agent) -> bool:
@@ -305,12 +305,24 @@ class Gated(Tag):
 
 
 class Slipping(Tag):
-    """An Imprint that fails after commit; the Tag stays."""
+    """An Imprint that fails after Field entry; the Tag stays."""
 
     @Imprint
     def Slip(agent) -> None:
         agent.events.append("slipped")
         raise RuntimeError("deliberate")
+
+
+class Refused_Guild(Guild):
+    """Its Base completes, then this Shape refuses at its own Gate."""
+
+    @Pre
+    def Never(agent) -> bool:
+        return False
+
+    @Record
+    def refused_record(agent) -> str:
+        return "must not be built"
 
 
 CONDITION_TAGS = (Promised, Marked)
@@ -716,13 +728,26 @@ def Exercise_Transactions(
         model: Model,
         context: str,
         ) -> None:
-    """The call boundary: a refused gate rolls the call back, a failed
-    Imprint keeps the Tag."""
+    """Per-Tag Gates preserve the completed chain; a failed Imprint keeps
+    the Tag."""
 
     if not model.Sound():
         return
 
     events_before = list(target.events)
+
+    if Guild not in model.active:
+        try:
+            Refused_Guild(target)
+        except TagPreconditionError.Never:
+            pass
+        else:
+            raise AssertionError((context, "later Gate accepted the Agent"))
+
+        Model_Apply(model, Guild)
+        assert target in Guild, (context, "later Gate removed its completed Base")
+        assert target not in Refused_Guild, (context, "refused Shape entered its Field")
+        assert not hasattr(target, "refused_record"), (context, "refused Shape built a Record")
 
     if Gated not in model.active:
         target.ok = False
@@ -739,11 +764,11 @@ def Exercise_Transactions(
             else:
                 raise AssertionError((context, "gate accepted a not-ok Agent"))
 
-            assert target not in Gated, (context, "gate rollback: membership")
+            assert target not in Gated, (context, "Gate refusal: membership")
             assert target.events == events_before, (context, "gate ran the Imprint")
 
             if not model.gated_ever:
-                assert not hasattr(target, "token"), (context, "gate rollback: Record")      # sticky once ever applied
+                assert not hasattr(target, "token"), (context, "Gate refusal: Record")      # sticky once ever applied
             target.ok = True
             model.ok = True
 

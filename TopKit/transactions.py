@@ -1,25 +1,23 @@
 """Applying a Tag: the tagging sequence and its call boundary.
 
-Once for the whole call:
+After the whole-Form collision check, for each Tag in the Form (Bases
+first), in order:
 
-    1. Gate: the Preconditions visible in the composed Form of this call
-       inspect the incoming Agent. A Shape's override wins over its Base's.
-
-For each Tag in the Form (Bases first), in order:
-
+    1. Gate: that Tag's Preconditions inspect the Agent at this turn.
     2. Its Records are built (each may read the value already stored).
-    3. Commit: membership, Overlay, runtime type.
+    3. Field entry: membership, Overlay, runtime type.
     4. Its Imprints run.
 
 Once for the whole call:
 
     5. Every visible Postcondition is checked.
 
-A failure in 1 or 2 rolls the whole call back: the Agent is exactly as it
-was, including Bases pulled in by this call. A failure in 4 or 5 raises
-but the committed Tags stay. Their current Postconditions determine
-soundness; the failure itself is not a permanent defect. Python
-interruptions keep their original type and follow the same phase boundary.
+A refusal in 1 leaves Tags whose turns completed in place and does not
+start the refused Tag. The existing Parts boundary remains at the whole
+call: a failure in 2 restores its entry state. A failure in 4 or 5 raises
+but applied Tags stay. Their current Postconditions determine soundness;
+the failure itself is not a permanent defect. Python interruptions keep
+their original type and follow the same phase boundary.
 """
 
 from __future__ import annotations
@@ -98,18 +96,15 @@ def _apply(
                         pending,
                         )
 
-            if any(
-                    _declarations_of(member).preconditions
-                    for member in pending
-                    ):
-                _gate(
-                        agent,
-                        state,
-                        pending,
-                        inputs,
-                        )
-
             for member in pending:
+                if _declarations_of(member).preconditions:
+                    _gate(
+                            agent,
+                            state,
+                            member,
+                            inputs,
+                            )
+
                 _apply_one(
                         agent,
                         member,
@@ -173,33 +168,25 @@ def _rollback(
 def _gate(
         agent: object,
         state: _State,
-        pending: list[type],
+        tag: type,
         inputs: dict[str, Any],
         ) -> None:
-    """Inspect the incoming materials once, against the Form as it will be.
+    """Let one Tag inspect the Agent before that Tag begins.
 
-    Every pending Tag is laid over a scratch copy so that a Shape's
-    Precondition overrides (relaxes) its Base's, and so that declaration
-    errors and collisions surface before anything changes.
+    The scratch Overlay composes this Tag's own declarations over Tags whose
+    turns have already finished. Nothing is installed on the live state.
     """
 
     scratch = state.Copy()
-    names: list[str] = []
     quiet = _quiet.set(_quiet.get() + 1)   # the real pass warns; catch_warnings() would reset every registry
 
     try:
-        for tag in pending:
-            declarations = _declarations_of(tag)
-
-            _install(
-                    scratch,
-                    tag,
-                    declarations,
-                    )
-
-            for name, _function in declarations.preconditions:
-                if name not in names:
-                    names.append(name)
+        declarations = _declarations_of(tag)
+        _install(
+                scratch,
+                tag,
+                declarations,
+                )
     finally:
         _quiet.reset(quiet)
 
@@ -209,7 +196,7 @@ def _gate(
         _evaluate(
                 (
                     (name, scratch.preconditions[name])
-                    for name in names
+                    for name, _function in declarations.preconditions
                     if name in scratch.preconditions
                     ),
                 agent,

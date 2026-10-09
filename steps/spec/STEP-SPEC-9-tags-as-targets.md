@@ -214,7 +214,7 @@ A Pin's Preconditions gate the pinning and receive the Tag:
 `@Pre def Has_Members(tag): return bool(tag)`. Postconditions are checked
 once per pinning and re-checked at later pinning boundaries of that Tag;
 a broken promise leaves the Tag pinned and defective (STEP-SPEC-4).
-Imprints run after commit with the Tag as receiver. `del Rare[Wizard]`
+Imprints run after Field entry with the Tag as receiver. `del Rare[Wizard]`
 runs the Pin's Rip protocol; landed Operations and Report values stay,
 sticky, and `isinstance(Wizard, Rare)` stays True. Pinning again after a
 Rip is a fresh pinning and silent: a Tag replacing its own earlier

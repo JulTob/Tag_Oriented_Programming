@@ -368,8 +368,10 @@ War_Caster(bruk)                        # now it takes
 
 Three things to notice.
 
-- **A refused Agent is untouched.** When a Precondition says no, the
-  tagging stops before anything is written. Bruk is exactly as he was.
+- **A refused Tag never begins.** Its Records, Actions, Field membership
+  and Imprints do not appear. When a Shape brings missing Bases, each Base
+  takes its own turn first; those completed Taggings stay if the Shape's
+  Gate later refuses.
 - **The error carries the name you wrote.** `except Precondition.Is_A_Caster`
   catches that one refusal and nothing else. `except TagPreconditionError`
   catches every refusal. Both work; the named one reads better. A name
@@ -378,6 +380,11 @@ Three things to notice.
 - **A gate can ask about other Tags.** `agent in Wizard` is an ordinary
   check, so a Tag can require another Tag. That is how synergies are
   written: the second Tag needs the first.
+
+Each missing Tag passes its own Gate. A Shape cannot waive a missing Base's
+Gate by overriding a same-named Precondition: the Base must enter first. If
+the Base is already active, its Gate is not asked again; only the Shape's
+turn runs.
 
 **Inputs travel with the tagging.** Sometimes the gate needs information
 that is not on the Agent yet, like a code number. You give it at the call:

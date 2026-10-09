@@ -1283,16 +1283,17 @@ class PreconditionTests(unittest.TestCase):
         Recruit(bond)
         self.assertIsNone(bond.code)
 
-    def test_failing_shape_rolls_back_its_bases_atomically(self) -> None:
+    def test_a_later_gate_refusal_keeps_the_completed_base(self) -> None:
         ari = Agent()
 
         with self.assertRaises(TagPreconditionError):
             Citadel(ari)
 
-        self.assertNotIn(ari, Territory)
+        self.assertIn(ari, Territory)
         self.assertNotIn(ari, Citadel)
-        self.assertFalse(hasattr(ari, "banner"))
-        self.assertFalse(isinstance(ari, Territory))
+        self.assertEqual(ari.banner, "raised")
+        self.assertTrue(isinstance(ari, Territory))
+        self.assertFalse(isinstance(ari, Citadel))
 
         ari.charter = "royal"
         Citadel(ari)
@@ -1300,7 +1301,7 @@ class PreconditionTests(unittest.TestCase):
         self.assertIn(ari, Citadel)
         self.assertEqual(ari.banner, "raised")
 
-    def test_atomic_rollback_keeps_earlier_committed_tags(self) -> None:
+    def test_a_refused_tag_keeps_an_already_active_base(self) -> None:
         ari = Agent()
 
         Territory(ari)
@@ -1311,6 +1312,116 @@ class PreconditionTests(unittest.TestCase):
         self.assertIn(ari, Territory)
         self.assertNotIn(ari, Citadel)
         self.assertEqual(ari.banner, "raised")
+
+    def test_each_tag_gates_before_its_own_tagging_begins(self) -> None:
+        events = []
+        observed = {}
+
+        class Foundation(Tag):
+            @Pre
+            def Foundation_Open(agent, code):
+                events.append(f"Foundation Gate:{code}")
+                return code == "007"
+
+            @Record
+            def foundation_record(agent):
+                events.append("Foundation Record")
+                return "built"
+
+            def Foundation_Action(agent):
+                return "ready"
+
+            @Imprint
+            def Foundation_Training(agent):
+                events.append("Foundation Imprint")
+
+        class Refused_Shape(Foundation):
+            @Pre
+            def Shape_Open(agent, code):
+                events.append(f"Shape Gate:{code}")
+                observed.update(
+                        foundation_membership=agent in Foundation,
+                        shape_membership=agent in Refused_Shape,
+                        foundation_record="foundation_record" @ agent,
+                        foundation_action="Foundation_Action" @ agent,
+                        shape_record="shape_record" @ agent,
+                        shape_action="Shape_Action" @ agent,
+                        )
+                return False
+
+            @Record
+            def shape_record(agent):
+                events.append("Shape Record")
+                return "not built"
+
+            def Shape_Action(agent):
+                return "not attached"
+
+            @Imprint
+            def Shape_Training(agent):
+                events.append("Shape Imprint")
+
+        ari = Agent()
+
+        with self.assertRaises(Precondition.Shape_Open):
+            Refused_Shape(ari, code="007")
+
+        self.assertEqual(
+                events,
+                [
+                    "Foundation Gate:007",
+                    "Foundation Record",
+                    "Foundation Imprint",
+                    "Shape Gate:007",
+                    ],
+                )
+        self.assertEqual(
+                observed,
+                {
+                    "foundation_membership": True,
+                    "shape_membership": False,
+                    "foundation_record": True,
+                    "foundation_action": True,
+                    "shape_record": False,
+                    "shape_action": False,
+                    },
+                )
+        self.assertIn(ari, Foundation)
+        self.assertNotIn(ari, Refused_Shape)
+        self.assertEqual(ari.foundation_record, "built")
+        self.assertEqual(ari.Foundation_Action(), "ready")
+
+    def test_a_shape_gate_does_not_replace_its_base_gate(self) -> None:
+        events = []
+
+        class Base(Tag):
+            @Pre
+            def Ready(agent):
+                events.append("Base")
+                return agent.ready
+
+        class Shape(Base):
+            @Pre
+            def Ready(agent):
+                events.append("Shape")
+                return True
+
+        ari = Agent()
+        ari.ready = False
+
+        with self.assertRaises(Precondition.Ready):
+            Shape(ari)
+
+        self.assertEqual(events, ["Base"])
+        self.assertNotIn(ari, Base)
+        self.assertNotIn(ari, Shape)
+
+        ari.ready = True
+        Shape(ari)
+
+        self.assertEqual(events, ["Base", "Base", "Shape"])
+        self.assertIn(ari, Base)
+        self.assertIn(ari, Shape)
 
     def test_assert_style_precondition_fails_by_raising(self) -> None:
         ari = Agent()
@@ -1335,6 +1446,9 @@ class PreconditionTests(unittest.TestCase):
 
         with self.assertRaises(TagPreconditionError):
             Apprentice(ari)
+
+        self.assertIn(ari, Scholar)
+        self.assertNotIn(ari, Apprentice)
 
         ari.mentor = "Elminster"
         Apprentice(ari)
