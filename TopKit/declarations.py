@@ -178,10 +178,24 @@ def Constant(
 
 
 def Rip(
-        function: Function,
-        ) -> Function:
+        function: Any,
+        ) -> Any:
     """Teardown. Runs when the Agent leaves the Tag's Field. It is also a
     normally callable Action."""
+
+    if isinstance(function, property):
+        for accessor in (
+                function.fget,
+                function.fset,
+                function.fdel,
+                ):
+            if accessor is not None:
+                _flag(
+                        accessor,
+                        _RIP,
+                        )
+
+        return function
 
     return _flag(
             function,
@@ -878,6 +892,20 @@ def _name_checks(
             failure.Named(name)
 
 
+def _check_rip_declarations(
+        owner: str,
+        namespace: dict[str, Any],
+        ) -> None:
+    """Reject a Rip mark which class creation would otherwise ignore."""
+
+    for name, attribute in namespace.items():
+        _check_rip_declaration(
+                owner,
+                name,
+                attribute,
+                )
+
+
 def _scan(
         tag: type,
         ) -> _Declarations:
@@ -908,13 +936,19 @@ def _scan(
                 )
 
     for name, attribute in tag.__dict__.items():
-        if _is_private(name):
-            continue
-
         if managed is not None and (
                 name in managed.actions
                 or name in managed.records
                 ):
+            continue
+
+        _check_rip_declaration(
+                tag,
+                name,
+                attribute,
+                )
+
+        if _is_private(name):
             continue
 
         if _is_constant(attribute):
@@ -1057,6 +1091,58 @@ def _scan(
                 )
 
     return declarations
+
+
+def _check_rip_declaration(
+        owner: type | str,
+        name: str,
+        attribute: Any,
+        ) -> None:
+    """A Rip protocol is an Action too; never ignore the mark on another
+    declaration kind or on a name which cannot become a Contribution."""
+
+    if isinstance(attribute, property):
+        marked = any(
+                accessor is not None and _has_flag(accessor, _RIP)
+                for accessor in (
+                    attribute.fget,
+                    attribute.fset,
+                    attribute.fdel,
+                    )
+                )
+    else:
+        member = attribute.builder if isinstance(attribute, Report) else attribute
+        marked = _has_flag(member, _RIP)
+
+    if not marked:
+        return
+
+    kind = _kind_of(attribute)
+
+    if (
+            not _is_private(name)
+            and not isinstance(attribute, (Report, classmethod, staticmethod))
+            and callable(attribute)
+            and kind in (None, "action")
+            ):
+        return
+
+    if _is_private(name):
+        reason = "private names are not Contributions"
+    elif isinstance(attribute, Report):
+        reason = "it is a Report"
+    elif kind is not None:
+        reason = f"its declaration kind is {kind.replace('_', ' ')}"
+    else:
+        reason = f"it is a {type(attribute).__name__}"
+
+    owner_name = owner if isinstance(owner, str) else owner.__name__
+
+    raise TagDeclarationError(
+            f"{owner_name}.{name} is marked @Rip, but {reason};"
+            " @Rip marks an Action because a teardown is also callable"
+            " as an Action"
+            )
 
 
 def _emit_published_pins(
