@@ -48,7 +48,7 @@ This catalog lists the spellings found so far that read a Tag or a population, o
 - **Finalizer**: code Python runs when an object is about to be destroyed (`__del__`).
 - **`__del__` Layers**: an Agent's finalizer, stacked: the host's own `__del__` first, then each Tag's.
 - **Collection**: Python's garbage collector freeing objects that nothing can reach.
-- **Safehouse** (S19 only): where the kit keeps an Agent whose teardown failed when it was deleted.
+- **Safehouse** (S19 only): where the kit keeps an Agent whose teardown failed when it was deleted. Under STEP-32 (Brief, decided), also after a failed Rip: the Agent is arrested there, and is no longer a member.
 - **Triage** (S19 only): giving up on kept Agents and letting them go.
 
 **In Brief STEPs**
@@ -468,7 +468,7 @@ Unlinking is in section 8.
 | `del Rare[Sword]`, while `Legendary(Sword)` is active (`Legendary` a Shape of the Pin `Rare`) | **Today:** refused. **STEP-26:** works; Sword stays Legendary. | TagCompositionError today | **On main** · §0.7. **Brief** · STEP-26 r8.1 |
 | `del Wizard[dee]`, where dee is not a member | Fails. | TagResolutionError | **On main** · §0.7 |
 | `del Wizard[ari]`, and a teardown fails | **main:** ari has already left, and stays out. The error is raised. | TagCompositionError | **On main** · §3.1 |
-| `del Wizard[ari]`, and a teardown fails | **S19:** the Rip is refused and rolled back. ari is a member again, and the teardowns are due again. | TagCompositionError | **Vetting** · S19 · STEP-18 amendment D. STEP-24 OQ1 may change it. |
+| `del Wizard[ari]`, and a teardown fails | **S19:** the Rip is refused and rolled back. ari is a member again, and the teardowns are due again. | TagCompositionError | **Vetting** · S19 · STEP-18 amendment D. Replaced by STEP-32 (Brief, decided): ari leaves Wizard and is arrested in `Wizard[...]`. |
 | `del Wizard[:]` | **Today:** the slice is read as an Agent, so it fails. | TagResolutionError | **On main (kit only)**, on main and S19 |
 | `del Wizard[:]` | **Field Rip.** Everyone leaves first; no user code runs in that phase. Then each member's teardowns run. Both phases go in join order. Failures are collected and raised once, at the end. A member that holds a Shape of Wizard leaves Wizard and keeps the Shape. | None | **Brief** · STEP-24 r1.1 to r1.5 · PR #26. Join order and "everyone leaves first" decided by the Director (2026-10-08). |
 | `del Human[:]`, as the deletion protocol of a Tag | **STEP-27:** the same act, read as "gain control, stop gently". Afterwards the Tag is still defined, with its Shapes, Reports, Operations and Pins, and `Human(bob)` works at once: "the power is still on". No latch, no reset act, no error. Nothing cascades: each Shape is its own line. | None | **Brief** · STEP-27 section 2, section 6. The Director, 2026-10-09: "del Human[:] just cleans the field but leaves the tag as defined." Whether it also resets Reports is open (STEP-27 OQ2; recommended: no). |
@@ -480,7 +480,7 @@ Unlinking is in section 8.
 | `del k[ruth]`, where `k = charlie.Knows` outlived charlie | Fails. | TagResolutionError | **Brief** · STEP-22 r5.8 |
 | `del Wizard[...]` | **main:** no meaning. The key is read as an Agent, so it fails. | TagResolutionError | **No status** on main |
 | `del Wizard[...]` | **S19: Triage.** Each kept Agent is Ripped from all its Tags with no teardowns, taken out, and let go. One `TagTriageWarning` each. Never refused. | None, and warnings | **Vetting** · S19 · STEP-18 amendment F; STEP-29 r8.3. STEP-27 section 5 reads it as a category 0 stop, for kept Agents only. |
-| `del Wizard[...][:]` | **STEP-29:** refused for now, until STEP-24 OQ1 settles whether kept Agents are members. | `TagCategoryError` under STEP-29 | **Brief** · STEP-29 r8.3, OQ3 |
+| `del Wizard[...][:]` | **STEP-29:** refused for now. STEP-32 settles that kept Agents are not members; what this does is STEP-32's open question 11. | `TagCategoryError` under STEP-29 | **Brief** · STEP-29 r8.3, OQ3 |
 | `del Tag[...]` | **S19:** triage of the whole safehouse. | None, and warnings | **Vetting** · S19 · STEP-18 amendment F |
 | `del Cached[kept]`, when Cached keeps that Agent | **S19:** a Rip that goes through also takes it out of the safehouse. | None | **Vetting** · S19 · STEP-18 item 12 |
 | `del ari` (the last reference goes) | **main:** the teardowns run while ari is still a member (§3.2 line 1225 says deletion "Rips", but the kit does not), then the `__del__` Layers. A failed teardown is silent. | none | **On main** · §3.2 (STEP-18 at Vetting) |
@@ -510,7 +510,7 @@ Unlinking is in section 8.
 - (b) the act decides: a demanded Rip rolls back, an ending arrests;
 - (c) out, as the kit does today.
 
-The STEP recommends (a). The Director has not ruled. He said on 2026-10-08: "The safehouse: ends membership first and runs teardowns after is the sensible choice." If (a) is chosen, three S19 rows change: the failed Rip (`del Wizard[ari]`, amendment D), the deletion (`del ari`, amendment E) and the Scope's exit (while `Scope` lasts: STEP-31). If (b) is chosen, the S19 deletion row changes.
+The recommendation as it was written: (a). He had said on 2026-10-08: "The safehouse: ends membership first and runs teardowns after is the sensible choice." With (a), three S19 rows change: the failed Rip (`del Wizard[ari]`, amendment D), the deletion (`del ari`, amendment E) and the Scope's exit (while `Scope` lasts: STEP-31). If (b) is chosen, the S19 deletion row changes.
 
 ### Which `del` do I want?
 
