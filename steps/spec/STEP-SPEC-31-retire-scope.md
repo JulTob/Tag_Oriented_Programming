@@ -217,9 +217,9 @@ Get it out".
 
 6. **TOP gives `with` no meaning.** No TOP object can follow `with`. A
    later STEP may give `with` a meaning (the Director: "for a possible
-   future use"). STEP-SPEC-15 (Trials), still Brief, proposes `with
-   Try(agent):`. If the Director keeps Trials, they need another
-   spelling, or that later STEP.
+   future use"). STEP-SPEC-15 (Trials), still Brief, proposed `with
+   Try(agent):`. **Decided by the Director on 2026-10-09:** "With Try should also leave TOP. Get
+   rid of it". If Trials stay, they need another spelling.
 7. **The kit.** Recommended: the same path as STEP-SPEC-30. In the next
    release `Scope` still works, and issues a `DeprecationWarning` that
    shows the pattern of rule 3. Python shows that warning by default only
@@ -360,7 +360,12 @@ tagging and a Rip, which TOP already defines.
 
 ## Open questions for the Director
 
-1. **Warn first, or remove at once?** This is STEP-SPEC-30's open
+1. **Warn first, or remove at once?** Answered with STEP-SPEC-30's:
+   remove at once. The Director, 2026-10-09: "I like the try-finally for
+   the training purpose. Do that. Implement it." and, for STEP-SPEC-30,
+   "remove @Requirement at once". Rule 7's warning release is dropped.
+
+   The question as it was asked. This is STEP-SPEC-30's open
    question 1 again. Recommended: answer both the same way, with one
    release of `DeprecationWarning`. A program's own tests then show the
    pattern, instead of an `ImportError`. If the warning should show

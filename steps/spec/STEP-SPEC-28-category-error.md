@@ -210,6 +210,7 @@ carries the difference.
    `Shelf` of books for example. Recommended: the Director's "(Or at
    least underlayed by the contracts)". The Agent's truth is its contract
    (`bool(agent)` asks the promises), and `len(agent)` stays the host's.
+   **Decided by the Director on 2026-10-09:** "Yes", to that recommendation.
 
 ## Acceptance requirements
 

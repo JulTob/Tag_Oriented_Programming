@@ -208,9 +208,9 @@ branch `origin/Julio_Cl/step-19-sound-in`; "PR #28" is
    Field `Wizard[:]`, its safehouse `Wizard[...]`, and a Link. Under `+` or `~`, a bare Tag stands for its whole
    Field. So `+Wizard` and `+Wizard[:]` hold what bare `Wizard` walks,
    and `~Wizard[:]` is `~Wizard`.
-2. **Both absorb.** *Recommended, for `~` as the Director proposed it;
-   he asked "Makes sense?", so it waits for his answer (open question
-   7).* `~~X` is `~X`: "any number of ~ should mean "broken Wizards"".
+2. **Both absorb.** *Decided for `~`; Recommended for `+`.* The
+   Director, 2026-10-09: "Implement the "bad bad = bad" meaning of ~.
+   ~~~~~~~~~~~~~Wizard is still ~Wizards". `~~X` is `~X`: "any number of ~ should mean "broken Wizards"".
    `++X` is `+X`.
 3. **Opposite signs are refused; the laws.** *Recommended.* `+~X` and
    `~+X` are always empty, so each is a `TagCategoryError` naming `+X` or
@@ -309,9 +309,14 @@ branch `origin/Julio_Cl/step-19-sound-in`; "PR #28" is
 ### 7. Walking
 
 1. **`for` walks in join order.** *Decided for the skip; the rest
-   Recommended* (STEP-25 rule 6.5). A member an earlier turn Ripped is
-   skipped: "it makes sense, to skip the left out member". An Agent that
-   joins during the walk waits for the next walk.
+   Recommended* (STEP-25 rule 6.5). At its turn, a member is visited if
+   it is a member now. One that an earlier turn Ripped is skipped: "it
+   makes sense, to skip the left out member". One Ripped and tagged
+   again is visited. The Director, 2026-10-09: "a ripped agent should not
+   be a member. that's an oximoron. If the agent is in, it was tagged, if
+   the agent was ripped it's out so it does not make it to the list, and
+   if an agent is tagged again, it is in the list so you shouldn't skip
+   it." An Agent that joins during the walk waits for the next walk.
 2. **`while X:` is Python's.** *Python.* It asks `bool(X)` before each
    round and binds no name. The Director: "while Enemy should be a loop.
    your notes indicate a stop when finds a member. it should loop through
@@ -492,9 +497,16 @@ truth in a Record, and write `+Wizard` before a dot.
 5. **A host with `__len__`** (STEP-28 open question 2). Recommended: your
    "(Or at least underlayed by the contracts)": truth is the contract.
 6. **"Anyone?"** stays `len(f) > 0` until you come back to it.
-7. **Does `~` absorb?** (rule 3.2) You wrote "~~= ~" and asked "Makes
-   sense?". Recommended: yes.
-8. **Is `+Wizard` a list?** The Director proposed it on 2026-10-09: the
+7. **Does `~` absorb?** (rule 3.2) **Decided by the Director on 2026-10-09:** yes, "~~~~~~~~~~~~~Wizard
+   is still ~Wizards".
+8. **Is `+Wizard` a list?** **Decided by the Director on 2026-10-09:** (b). "+Wizard stays a live
+   group for masks and such. not fixing them. I settled on an easy call
+   to list is enough for what I was thinking earlier." The Guide teaches
+   `list(...)` as the step into a list. Still open: whether `X[True]`
+   picks one member ("w = (+Wizard)[True] one valid wizard, any one"),
+   and whether a Filter has places (`veterans[0]`).
+
+   The question as it was asked. The Director proposed it on 2026-10-09: the
    bare Tag refuses number keys, "but +Wizard would, as it returns a
    list". Two answers:
    - **(a) `+Wizard` is a list:** the sound members, copied at that

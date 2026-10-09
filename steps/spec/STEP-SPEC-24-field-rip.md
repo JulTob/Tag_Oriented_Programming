@@ -362,7 +362,26 @@ as strong as any value.
    - **(c) Today's kit.** The member stays out, half torn down, and only
      the error remains.
 
-   Recommended: (a). A failed cleanup should not hand the Agent its badge
+   **Decided by the Director on 2026-10-09:** (a), arrest, as one rule for a Rip and a Field
+   Rip. His words: "A failed rip sends you to the safehouse, and you leave
+   the tag. A dangerous agent gets arrested if the rip protocols were not
+   followed (it still has a gun and badge! that's a security issue!) it
+   is not allowed anything except rerunning rips or deletion. The
+   safehouse of a tag should keep the rip protocols of the tag and be
+   able to run them on the agents. A successfully rip agent can become a
+   rogue agent. An arrested agent cannot do anything (access its own
+   records, or taking its own actions included) until successful rip is
+   performed. […] If it is in the safehouse, it is not in the tag, so a
+   failed rip does not block leaving membership. It does leave the tag,
+   and loses access to reports and operations. It just gets them
+   arrested until it follows protocol. same quarantine philosophy of
+   contracts and posts but stricter. a single rule for Rip and a Field
+   Rip." This replaces STEP-SPEC-18 amendment D's rollback. Its details
+   are being settled with the Director: whether an arrested Agent's
+   first act retries the Rip by itself or is refused until a Rip is
+   asked for, how much of the Agent is locked, and the failure's name.
+
+   The recommendation as it was written: (a). A failed cleanup should not hand the Agent its badge
    back. Keeping it in the safehouse answers the worry behind amendment
    D, "deleting to uncertain states can be problematic", without the
    access. STEP-SPEC-27 adds no rule of its own here. Under (a), a

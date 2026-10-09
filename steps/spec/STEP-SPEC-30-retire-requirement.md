@@ -101,7 +101,11 @@ plainer than a third word that stands for them.
 
 ## Open questions for the Director
 
-1. **Warn first, or remove at once?** TopKit is still an alpha
+1. **Warn first, or remove at once?** **Decided by the Director on 2026-10-09:** "remove
+   @Requirement at once". Rule 3's warning release is dropped:
+   `TopKit.Requirement` goes in the next release.
+
+   The question as it was asked. TopKit is still an alpha
    (0.2.0a4), so a breaking change is allowed. Recommended: one release
    of `DeprecationWarning`, because a program then learns the
    replacement from the warning instead of from an `ImportError`.
