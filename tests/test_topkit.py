@@ -2714,6 +2714,200 @@ class FieldAlgebraTests(unittest.TestCase):
             self.Wizard & 3
 
 
+class PopulationWalkTests(unittest.TestCase):
+    """STEP-SPEC-29: a walk saves join order, then asks membership at
+    each member's turn."""
+
+    @staticmethod
+    def walked(population, act) -> list[object]:
+        seen = []
+
+        for member in population:
+            seen.append(member)
+            act(member)
+
+        return seen
+
+    def test_a_ripped_member_is_skipped_by_each_field_view(self) -> None:
+        for view in ("sound", "whole", "defective"):
+            with self.subTest(view=view):
+                class Wizard(Tag):
+                    @Post
+                    def Ready(agent):
+                        return agent.ready
+
+                ari, bo, cal = Agent(), Agent(), Agent()
+
+                for member in (ari, bo, cal):
+                    Wizard(member)
+
+                if view == "defective":
+                    for member in (ari, bo, cal):
+                        member.ready = False
+
+                    population = ~Wizard
+                elif view == "whole":
+                    population = Wizard[:]
+                else:
+                    population = Wizard
+
+                def Rip_Cal(member) -> None:
+                    if member is ari:
+                        del Wizard[cal]
+
+                self.assertEqual(self.walked(population, Rip_Cal), [ari, bo])
+
+    def test_a_pin_walk_skips_a_tag_ripped_before_its_turn(self) -> None:
+        @Pin
+        class School(Tag):
+            pass
+
+        class Mage(Tag):
+            pass
+
+        class Bard(Tag):
+            pass
+
+        class Druid(Tag):
+            pass
+
+        for tag in (Mage, Bard, Druid):
+            School(tag)
+
+        def Rip_Druid(tag) -> None:
+            if tag is Mage:
+                del School[Druid]
+
+        self.assertEqual(self.walked(School, Rip_Druid), [Mage, Bard])
+
+    def test_combined_walks_skip_a_member_ripped_from_the_left(self) -> None:
+        for operator in ("|", "&", "-"):
+            with self.subTest(operator=operator):
+                class Left(Tag):
+                    pass
+
+                class Right(Tag):
+                    pass
+
+                ari, bo, cal = Agent(), Agent(), Agent()
+
+                for member in (ari, bo, cal):
+                    Left(member)
+
+                if operator != "-":
+                    for member in (ari, bo, cal):
+                        Right(member)
+
+                if operator == "|":
+                    population = Left[:] | Right[:]
+                elif operator == "&":
+                    population = Left[:] & Right[:]
+                else:
+                    population = Left[:] - Right[:]
+
+                def Rip_Bo(member) -> None:
+                    if member is ari:
+                        del Left[bo]
+
+                        if operator == "|":
+                            del Right[bo]
+
+                self.assertEqual(self.walked(population, Rip_Bo), [ari, cal])
+
+    def test_a_lazy_unions_right_field_starts_when_reached(self) -> None:
+        """This change preserves the algebra's per-side walk timing."""
+
+        class Wizard(Tag):
+            pass
+
+        class Fighter(Tag):
+            pass
+
+        ari, bo, cal = Agent(), Agent(), Agent()
+        Wizard(ari)
+        Fighter(bo)
+        combatants = Wizard[:] | Fighter[:]
+
+        def Join_Right(member) -> None:
+            if member is ari:
+                Fighter(cal)                                         # before the right Field starts
+
+        self.assertEqual(self.walked(combatants, Join_Right), [ari, bo, cal])
+
+    def test_a_new_member_waits_but_a_retagged_member_keeps_its_turn(self) -> None:
+        class Wizard(Tag):
+            pass
+
+        ari, bo, cal, dee = Agent(), Agent(), Agent(), Agent()
+
+        for member in (ari, bo, cal):
+            Wizard(member)
+
+        def Change_Field(member) -> None:
+            if member is ari:
+                del Wizard[bo]
+                Wizard(bo)                                           # in again before its saved turn
+                Wizard(dee)                                          # no saved turn in this walk
+
+        self.assertEqual(self.walked(Wizard, Change_Field), [ari, bo, cal])
+        self.assertEqual(list(Wizard), [ari, cal, bo, dee])
+
+    def test_retagging_after_a_saved_turn_does_not_visit_it_twice(self) -> None:
+        class Wizard(Tag):
+            pass
+
+        ari, bo, cal = Agent(), Agent(), Agent()
+
+        for member in (ari, bo, cal):
+            Wizard(member)
+
+        def Return_Ari(member) -> None:
+            if member is bo:
+                del Wizard[ari]
+                Wizard(ari)
+
+        self.assertEqual(self.walked(Wizard[:], Return_Ari), [ari, bo, cal])
+        self.assertEqual(list(Wizard[:]), [bo, cal, ari])
+
+    def test_truth_length_and_iteration_share_membership_at_turn(self) -> None:
+        def ask(question):
+            checks = []
+            changing = [False]
+            pair: list[object] = []
+
+            class Enemy(Tag):
+                @Post
+                def Standing(agent):
+                    checks.append(agent)
+
+                    if changing[0] and agent is pair[0]:
+                        del Enemy[pair[1]]
+                        return False
+
+                    return True
+
+            pair[:] = [Agent(), Agent()]
+            Enemy(pair[0])
+            Enemy(pair[1])
+            checks.clear()
+            changing[0] = True
+
+            return question(Enemy), checks, pair
+
+        questions = (
+                ("truth", bool, False),
+                ("length", len, 0),
+                ("iteration", lambda population: [member for member in population], []),
+                )
+
+        for name, question, expected in questions:
+            with self.subTest(question=name):
+                answer, checks, pair = ask(question)
+
+                self.assertEqual(answer, expected)
+                self.assertEqual(checks, [pair[0]])
+
+
 class ConditionMemberTests(unittest.TestCase):
     """STEP-SPEC-14: a condition is read on the Agent by its name, as a
     plain bool, computed on read. Nothing lands on the Agent."""

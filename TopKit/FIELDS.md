@@ -132,6 +132,19 @@ assert combatants                           # truth: anyone at all?
 Keep a combined view around like you would keep a Tag around. Do not
 copy it into a list unless you want the moment frozen.
 
+One walk saves a Field's join order when that Field's part of the walk
+begins. The saved places are turns, not a frozen membership list. At each
+turn TOP asks whether that same Agent or Tag is still in the Field. A
+member Ripped by an earlier turn is skipped. If it is tagged again before
+its turn, it is in again and is visited once, at the saved place. A new
+member had no saved turn and waits for the next walk.
+
+The same rule governs a plain Tag, `Tag[:]`, `~Tag`, a Pin and every side
+of a combined population. Soundness and the right side of `&` or `-` are
+also read when the member's turn arrives. `bool(population)` and
+`len(population)` follow the same membership rule, so they cannot count a
+member that the equivalent iteration would skip.
+
 ---
 
 ## 4. Patterns

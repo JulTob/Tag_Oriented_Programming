@@ -1179,6 +1179,17 @@ for b in Wizard & Fighter:            # sound in both
 for u in (Wizard[:] | Fighter[:]) - Sworn:   # anyone with a role who has not sworn
 ```
 
+**A population walk** saves each Field's members in join order when that
+Field's part of the walk begins. At a saved member's turn, the member is
+visited only if it is in that Field then. Thus an earlier turn may Rip a
+later member and the later turn is skipped. If the same member is tagged
+again before its turn, it is a member again and is visited once in its
+saved place. An Agent or Tag that was not present when the Field's walk
+began waits for the next walk. This applies to sound, whole and defective
+Fields, Pins and every side of a combined population. Soundness and the
+right side of `&` and `-` are evaluated at the member's turn. Population
+truth and length follow the same membership rule.
+
 **A condition is read on the Agent by its name** (STEP-SPEC-14).
 `agent.Has_Book` is `True` while the promise called `Has_Book` holds and
 `False` when it does not: the language's boolean, computed on read, never
