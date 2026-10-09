@@ -47,6 +47,9 @@ def _host_member(
         if klass is object:
             break
 
+        if "_TOPKIT_HOST_TYPE" in klass.__dict__:
+            continue   # a runtime type: its members are the kit's or a Tag's, not the host's
+
         member = klass.__dict__.get(name)
 
         if member is not None:
@@ -295,7 +298,35 @@ def _keyword(
 def _agent_bool(
         agent: object,
         ) -> bool:
+    """An Agent's truth is its contract (STEP-SPEC-28): true while every
+    visible promise holds, and true with none. An object built from an
+    Agent's runtime type but never tagged is a plain host object, and
+    keeps its host's truth."""
+
+    state = _state_of(agent)
+
+    if state is None:
+        return _host_truth(agent)
+
+    if not state.postconditions:
+        return True   # nothing promised
+
     return _holds(agent)
+
+
+def _host_truth(
+        agent: object,
+        ) -> bool:
+    """Python's own truth for a host with no ``__bool__``: its length when
+    it has one, otherwise true."""
+
+    if hasattr(
+            type(agent),
+            "__len__",
+            ):
+        return len(agent) != 0
+
+    return True
 
 
 def _host_finalizer(

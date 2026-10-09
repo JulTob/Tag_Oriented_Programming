@@ -2834,6 +2834,7 @@ class TryFinallyTests(unittest.TestCase):
         self.assertIn("Stubborn", str(caught.exception))              # the error says which Rip failed
         self.assertIn(ari, Sentry)                                    # its Tag stays
         self.assertEqual(_DEL_LOG, [])
+        del Sentry[ari]                                               # end the role here, not in a later test's collection
 
     def test_nested_trys_bury_a_door_failure_of_an_inner_tag(self) -> None:
         class Lookout(Tag):
@@ -5723,6 +5724,68 @@ class CategoryErrorTests(unittest.TestCase):
 
         self.assertIn(built, Library)
         self.assertTrue(built)
+
+    def test_an_untagged_object_built_from_an_agents_type_keeps_its_hosts_truth(self) -> None:
+        class Shelf:
+            def __init__(self) -> None:
+                self.books: list[str] = []
+
+            def __len__(self) -> int:
+                return len(self.books)
+
+        class Library(Tag):
+            pass
+
+        shelf = Shelf()
+        Library(shelf)
+        spare = type(shelf)()                                         # built from the runtime type, never tagged
+
+        self.assertNotIn(spare, Library[:])
+        self.assertFalse(spare)                                       # a plain host: empty is false
+        spare.books.append("Dune")
+        self.assertTrue(spare)
+
+    def test_a_class_built_on_an_agents_runtime_type_takes_no_tags_truth(self) -> None:
+        class Truthy(Tag):
+            def __bool__(agent) -> bool:
+                return False
+
+        class Library(Tag):
+            pass
+
+        first = Agent()
+        Truthy(first)
+
+        class On_Truthy(type(first)):                                 # Truthy's __bool__ is on its base
+            pass
+
+        built = On_Truthy()
+        Library(built)
+
+        self.assertEqual(Tags(built), (Library,))
+        self.assertTrue(built)                                        # its contract, not a Tag it never carried
+
+    def test_a_class_built_on_an_agents_runtime_type_reads_a_missing_name_plainly(self) -> None:
+        class Library(Tag):
+            pass
+
+        class Kept(Tag):
+            @Post
+            def Ok(agent) -> bool:
+                return True
+
+        first = Agent()
+        Library(first)
+        Kept(first)
+
+        class Built_On(type(first)):
+            pass
+
+        built = Built_On()
+        Library(built)
+
+        with self.assertRaises(AttributeError):                       # not a RecursionError through the kit's own __getattr__
+            built.missing
 
     def test_a_string_target_is_refused(self) -> None:
         class Name(str):

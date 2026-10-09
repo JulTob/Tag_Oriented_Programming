@@ -138,7 +138,12 @@
   Before, such an Agent took its truth from its length until a
   Postcondition was visible, so an empty `Shelf` with no promise was
   false, and one whose Tag deleted `__len__` raised. A first
-  Postcondition no longer gives the Agent a new runtime type.
+  Postcondition no longer gives the Agent a new runtime type. An object
+  built from an Agent's runtime type but never tagged is a plain host,
+  and keeps its host's truth. A class built on an Agent's runtime type
+  takes none of the kit's or a Tag's special methods as its host's own,
+  so its truth is its contract, and reading a name it lacks is an
+  `AttributeError`, not a `RecursionError`.
 - `@Requirement` is removed (STEP-SPEC-30), as the Director decided on
   2026-10-09: "remove @Requirement at once". There is no release of
   warning: `TopKit.Requirement` and its export are gone, so
