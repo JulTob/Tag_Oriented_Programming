@@ -1,6 +1,6 @@
-# STEP-SPEC-29: Population membership at each turn
+# STEP-SPEC-35: Population membership at each turn
 
-- **STEP:** SPEC-29
+- **STEP:** SPEC-35
 - **Desk:** spec
 - **Title:** Population membership at each turn
 - **Author:** Codex, extracting the Director's approved rule
@@ -79,4 +79,5 @@ if the agent was ripped it's out so it does not make it to the list, and
 if an agent is tagged again, it is in the list so you shouldn't skip it."
 This focused STEP records that decision as **Cleared** without importing
 the unresolved filters, picks, safehouse or deletion proposals from the
-earlier broad draft of STEP-SPEC-29.
+earlier broad draft of STEP-SPEC-29. STEP-SPEC-29 itself is reserved for
+the separately extracted absorbing-`~` rule.

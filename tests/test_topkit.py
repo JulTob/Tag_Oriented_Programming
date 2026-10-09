@@ -2715,7 +2715,7 @@ class FieldAlgebraTests(unittest.TestCase):
 
 
 class PopulationWalkTests(unittest.TestCase):
-    """STEP-SPEC-29: a walk saves join order, then asks membership at
+    """STEP-SPEC-35: a walk saves join order, then asks membership at
     each member's turn."""
 
     @staticmethod

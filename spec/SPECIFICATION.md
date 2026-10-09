@@ -1179,7 +1179,7 @@ for b in Wizard & Fighter:            # sound in both
 for u in (Wizard[:] | Fighter[:]) - Sworn:   # anyone with a role who has not sworn
 ```
 
-**A population walk** saves each Field's members in join order when that
+**A population walk** (STEP-SPEC-35) saves each Field's members in join order when that
 Field's part of the walk begins. At a saved member's turn, the member is
 visited only if it is in that Field then. Thus an earlier turn may Rip a
 later member and the later turn is skipped. If the same member is tagged
