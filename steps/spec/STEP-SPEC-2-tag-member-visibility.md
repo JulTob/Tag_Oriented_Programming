@@ -4,8 +4,9 @@
 - **Desk:** spec
 - **Title:** Tag Members Are Composition-Internal
 - **Author:** Julio Toboso (@JulTob)
-- **Status:** Brief
+- **Status:** Redacted
 - **Created:** 2026-09-02
+- **Redacted:** 2026-10-10
 
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
@@ -208,4 +209,19 @@ A conforming profile must demonstrate:
 
 ### Decision *(filled by the Director)*
 
-> Status set to **____** on YYYY-MM-DD, because ____.
+> Status set to **Redacted** on 2026-10-10, because the Director requested
+> this record repair in issue #11. The STEP's central runtime restriction —
+> that bare Tag Reports and Operations are not public application access —
+> contradicts the deployed access law: direct `Tag.name` access is one of
+> TOP's canonical scope forms (STEP-SPEC-1 §4; Specification §1.4). No
+> optional runtime prohibition on that access was adopted. The proposed
+> `Tag.Rip(agent)` and `~Tag[:]` spellings, and the proposed split between a
+> runtime API and tooling introspection, also do not describe deployed TOP.
+>
+> The sound parts have authoritative homes elsewhere: Agent and Tag scope,
+> including no implicit projection, live in STEP-SPEC-1 §4/§6 and
+> Specification §1.4; explicit publication lives in STEP-SPEC-3 and §1.5;
+> Fields and their public set access live in §0.3, §0.8 and §2.5;
+> Agent-bound Tag views live in §1.7; and pinned member scope and publication
+> live in STEP-SPEC-9 and §1.9. Because this STEP's core rule was rejected,
+> rather than deployed and later absorbed, this record remains Redacted.
