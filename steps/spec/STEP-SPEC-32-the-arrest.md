@@ -12,13 +12,16 @@
 
 ## Summary
 
-When a teardown fails, the Agent still leaves the Tag. It is held in the
-Tag's safehouse, **arrested**. An arrested Agent does nothing. When it
-tries to act, the safehouse first runs its teardowns again. If they all
-pass, the Agent is free, and the act goes on. If one fails, the act is
-refused before it starts. The program can also retry by hand, with `del
-Wizard[ari]`. Or it can end every Agent that Wizard keeps, with `del
-Wizard[...]`. One rule covers a Rip and a Field Rip.
+When a teardown fails during an ordinary Tag's explicit Rip or Field
+Rip, the Agent still leaves the Tag. It is held in the Tag's safehouse,
+**arrested**. An
+arrested Agent does nothing. When it tries to act, the safehouse first
+runs its teardowns again. If they all pass, the Agent is free, and the act
+goes on. If one fails, the act is refused before it starts. The program
+can also retry by hand, with `del Wizard[ari]`. Or it can end every Agent
+that Wizard keeps, with `del Wizard[...]`. One decided rule covers an
+ordinary Tag's explicit Rip and Field Rip. Agent deletion remains open
+question 7; a Tag's end, Pins and Links remain open question 8.
 
 ```python
 class Sentry(Tag):
@@ -48,7 +51,8 @@ guard.Patrol()          # Hand_In_Badge passes: the guard is free, then Patrol r
 - **Teardown**: a `@Rip` protocol of a Tag (§3.1). A Tag may have any
   number of them.
 - **Field Rip**: `del Wizard[:]`. Every member leaves the Tag, then each
-  one's teardowns run (STEP-SPEC-24).
+  one's cleanup begins (STEP-SPEC-24); a failure freezes its remaining
+  teardowns under rule 5.
 - **Safehouse**: where a Tag keeps the Agents whose teardowns failed,
   `Wizard[...]` (STEP-SPEC-18, amendment E, on `step-19-sound-in`).
   `Tag[...]` lists every Agent that any Tag keeps.
@@ -141,9 +145,10 @@ Amendment F, triage, stays.
 
 ## Specification
 
-1. **A failed teardown ends membership anyway.** *Decided.* When a
-   teardown fails during a Rip (`del Wizard[ari]`) or a Field Rip (`del
-   Wizard[:]`, STEP-SPEC-24), the Agent still leaves the Tag: "If it is
+1. **A failed teardown ends membership anyway.** *Decided.* When an
+   ordinary Tag's teardown fails during a Rip (`del Wizard[ari]`) or a
+   Field Rip (`del Wizard[:]`, STEP-SPEC-24), the Agent still leaves the
+   Tag: "If it is
    in the safehouse, it is not in the tag". It is out of `Wizard[:]`,
    `Wizard` and `~Wizard`, and it loses the Tag's published Reports and
    Operations, as after any Rip (§0.7).
@@ -178,14 +183,17 @@ Amendment F, triage, stays.
      its host's `__del__` never run. If it was collected in a cycle, it
      has already lost its weak references: one the program held stays
      dead. Open question 7.
-3. **The failure is reported.** *Decided.* The Director, 2026-10-09: "A failed del
-   Wizard[ari] should raise an error. Yes." `del Wizard[ari]` raises
-   the Composition Failure. It names the teardowns that failed and says
-   the Agent is arrested, with the first teardown's own error as its
-   cause. A Field Rip reports once, after every member's teardowns have
-   run (STEP-SPEC-24, rule 1.4). A deletion reports as the language
-   reports a finalizer's error. In every case, the arrest has already
-   happened when the failure is raised.
+3. **An explicit Rip reports the failure.** *Decided.* The Director,
+   2026-10-09: "A failed del Wizard[ari] should raise an error. Yes."
+   `del Wizard[ari]` raises the Composition Failure. It names the
+   teardown that failed and says the Agent is arrested, with that
+   teardown's own error as its cause. The arrest has already happened
+   when the failure is raised.
+
+   *Recommended, not decided:* a Field Rip continues with its next member
+   and reports its ordinary failures once after the bulk walk
+   (STEP-SPEC-24, rule 1.4; open question 16). Reporting at an Agent's
+   deletion remains part of open question 7.
 4. **An arrested Agent does nothing.** *Decided:* no Action and no record
    access ("Any Action or record access"), and no `print()` ("An agent
    in the safehouse is jailed and cannot answer the print"). Moving it,
@@ -260,8 +268,8 @@ Amendment F, triage, stays.
      freeze the underlaying rips so they keep the intended order."
    - *Recommended:* the safehouses take turns in the order they arrested
      the Agent. In a Field Rip, one member's failure freezes only that
-     member's teardowns: the next member's still run (STEP-SPEC-24, rule
-     1.4).
+     member's teardowns; the next member's still run (STEP-SPEC-24, rule
+     1.4; open question 16).
    - *A limit of Python:* a host method taken before the arrest (`ping =
      guard.ping`), or called through its class (`Host.ping(guard)`),
      does not ask the Agent first. The lock stops it at its first read
@@ -341,9 +349,9 @@ Amendment F, triage, stays.
 | STEP-SPEC-18 amendment E (`step-19-sound-in`) | A kept Agent stays a member of its Tags | A kept Agent is not a member (rules 1, 2) |
 | STEP-SPEC-18 amendment F (`step-19-sound-in`) | Triage, `del Wizard[...]` | Stays (rule 7) |
 | §0.7 (`step-19-sound-in`) | "A Rip whose own teardown fails is refused too, and rolled back" | The Rip goes through, and the Agent is arrested (rules 1, 2) |
-| §3.2 table and the Failure model (`step-19-sound-in`) | "on a Rip, the Rip refused; at deletion, the Agent kept" | On a Rip and at deletion, the Agent leaves and is arrested |
+| §3.2 table and the Failure model (`step-19-sound-in`) | "on a Rip, the Rip refused; at deletion, the Agent kept" | On an explicit Rip, the Agent leaves and is arrested; the same rule at deletion is recommended in open question 7 |
 | `main`, a Rip | A failed teardown: the Agent is out, half torn down, and nothing holds it | Arrested (rules 1, 2) |
-| `main`, a deletion | A failed teardown is silent, and the Agent is freed | Arrested and reported (rules 1 to 3) |
+| `main`, a deletion | A failed teardown is silent, and the Agent is freed | Recommended: arrested and reported; open question 7 |
 | A Scope's exit (amendment D; while `Scope` lasts, STEP-SPEC-31) | A failed Rip on exit is refused and rolled back; the Tag stays | The Agent leaves and is arrested |
 | STEP-SPEC-24 open question 1, and rules 1.4 and 3.1 | Open: arrest, the act decides, or today's kit | Answered: arrest (rule 1); a Tag's end is open question 8 |
 | STEP-SPEC-26 rule 2.1 | On `step-19-sound-in` the §0.7 bullet keeps amendment D's sentence | The sentence goes (rule 1) |
@@ -475,12 +483,27 @@ gets an error, never the act.
     `Wizard.Second`, `Wizard.Third`). Under "a teardown that passed never
     runs again", should the Base's `Second` count as passed once the
     Shape's ran it? Recommended: yes.
+16. **Continue the Field Rip after one member fails?** Recommended: yes.
+    That member's later teardowns stay frozen, but cleanup continues with
+    the next member in the initial snapshot. Ordinary failures are
+    reported once after the walk. The other choice is to stop the cleanup
+    walk at the first failed member while retaining every unattempted
+    obligation for retry.
+17. **Interruption during a Field Rip.** If a teardown raises an
+    interruption such as `KeyboardInterrupt` or `SystemExit`, does the
+    bulk walk stop immediately, or finish cleanup for the other snapshot
+    members and then re-raise? In either case, the original interruption
+    remains an interruption, pending cleanup is not discarded, and no
+    success is fabricated. Still open: whether the interruption itself
+    arrests the current member.
 
 ## Acceptance requirements
 
 - `tests/test_topkit.py`: an `ArrestTests` class, covering:
-  - a failed teardown on a Rip and a Field Rip, and at a deletion: the
-    Agent is out of the Field and in the safehouse;
+  - a failed teardown on an explicit Rip: the Agent is out of the Field
+    and in the safehouse; the same outcome for that failed member in a
+    Field Rip, with later-member continuation following open question 16;
+    Agent deletion follows open question 7;
   - every act of rule 4 runs the retry, and nothing in the second list
     does; a Tag view and an Action taken before the arrest are locked;
   - a retry that passes frees the Agent and the act runs; one that fails

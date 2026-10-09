@@ -357,9 +357,10 @@ branch `origin/Julio_Cl/step-19-sound-in`; "PR #28" is
    sides share one; otherwise `del` is refused, naming one line per Tag.
 3. **The safehouse.** *Vetting on S19:* `del Wizard[...]` and
    `del Tag[...]` are triage (STEP-18 amendment F, where the Director
-   chose "End it, then let it go"). *Open:* `del Wizard[...][:]` is
-   refused until STEP-24 open question 1 settles whether kept Agents are
-   members.
+   chose "End it, then let it go"). STEP-SPEC-32 settles that arrested
+   Agents are nonmembers. *Open:* `del Wizard[...][:]` stays refused
+   until STEP-SPEC-32 open question 11 chooses between a bulk retry and
+   continued refusal.
 4. **No Rip by place.** *Recommended.* `del Wizard[0]` is refused: an act
    names its target. Write `w = Wizard[0]`, then `del Wizard[w]`.
 
@@ -490,8 +491,9 @@ truth in a Record, and write `+Wizard` before a dot.
 2. **"the first ever WIzard": `Wizard[0]` (the oldest sound one) or
    `Wizard[:][0]` (the oldest of everyone)?** Closed on 2026-10-09: a
    plain Tag has no places (the note at section 6).
-3. **`del Wizard[...][:]`** stays refused until STEP-24 open question 1
-   settles whether kept Agents are still members.
+3. **`del Wizard[...][:]`** stays refused. Arrested Agents are settled as
+   nonmembers; STEP-SPEC-32 open question 11 asks whether this spelling
+   becomes their bulk retry or remains refused.
 4. **Should `P == True` refuse a value that is not a bool?** Recommended:
    not now; the Guide names the `level == True` trap.
 5. **A host with `__len__`** (STEP-28 open question 2). Recommended: your

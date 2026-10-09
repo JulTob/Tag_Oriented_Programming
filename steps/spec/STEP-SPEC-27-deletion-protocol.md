@@ -15,7 +15,7 @@
 ## Summary
 
 To delete a Tag is to **gain control, stop gently, then reset**. Every
-membership ends at once. Then each member's teardowns run, one member at
+membership ends at once. Then each member's cleanup begins, one member at
 a time. At the end the Tag is still defined and "the power is still on":
 it can be tagged again at once, with no error. The act is STEP-SPEC-24's
 Field Rip, `del Human[:]`. This STEP proposes a reset of the Tag's own
@@ -82,7 +82,7 @@ STEP.
 | **Field Rip** | `del Human[:]`: a Rip of every member at once (STEP-SPEC-24, Brief). |
 | **Report** | A value of the Tag itself. Its **builder** runs once per Tag, on first read (§1.4). |
 | **Shape**, **Base**, **spin-off** | In `class Werewolf(Human):`, Werewolf is a Shape and Human its Base. A spin-off holds a Shape but has left its Base (STEP-SPEC-26, Brief). |
-| **Safehouse**, **triage** | On the `step-19-sound-in` line (S19): Agents the kit keeps after a failed teardown, `Human[...]`; and `del Human[...]`, which lets them go without teardowns (STEP-SPEC-18, amendments E and F). |
+| **Safehouse**, **triage** | On the `step-19-sound-in` line (S19): Agents the kit keeps after a failed deletion, `Human[...]`; and `del Human[...]`, which lets them go without teardowns (STEP-SPEC-18, amendments E and F). STEP-SPEC-32 supersedes S19's rollback for an ordinary Tag's explicit Rip or Field Rip: the failed Agent is a nonmember, arrested. |
 
 ### 1. Why `del Human` cannot be the act
 
@@ -128,24 +128,36 @@ and what holds at the end.
    user code runs: no teardown, no condition, no Imprint (code run at
    joining). From here on, no member holds the Tag's access
    (STEP-SPEC-24, rule 1.3).
-2. **Stop gently.** Then each member's teardowns run (§3.1: every one,
-   in declaration order), one member at a time, in join order: first in,
-   first out. The Director: "We'll follow [your] fifo recommendation on
-   deletion". Inside every teardown, `len(Human[:])` is 0. A failure
-   stops neither that member's other teardowns nor the next member's.
-   Failures are reported once, after the walk (STEP-SPEC-24, rule 1.4).
-   Where a member whose teardown failed ends up is STEP-SPEC-24's open
-   question 1; this STEP adds no rule of its own.
+2. **Stop gently.** Then each member's cleanup begins, one member at a
+   time, in join order: first in, first out. The Director: "We'll follow
+   [your] fifo recommendation on deletion". When cleanup begins, and in
+   its first teardown, `len(Human[:])` is 0. A teardown can create a new
+   application after that (rule 2.4).
+
+   STEP-SPEC-32 governs one member's failure, order and retry. A teardown
+   that passed never runs again; the first failure freezes that member's
+   later teardowns in declaration order; and the failed member is
+   arrested as a nonmember (rules 1, 2 and 5). Whether the bulk walk then
+   continues with its next member, collecting ordinary failures for one
+   report at the end, remains STEP-SPEC-32 open question 16. An
+   interruption during the walk remains open question 17. This STEP adds
+   no different failure rule.
 3. **Reset: the power is still on.** At the end the Tag is still
    defined: the same class, with its Shapes, Reports, Operations and
-   Pins. Its Field is empty, and `Human(bob)` works at once. There is no
-   latch, nothing to unlock and no error. What the Tag gave its old members
-   stays on them (§0.7): they are Rogue Agents, with what they learned
-   but no access.
+   Pins. Every initial membership has ended; absent a new application
+   made during cleanup, its Field is empty. `Human(bob)` works at once.
+   There is no latch, nothing to unlock and no error. What the Tag gave
+   its old members stays on them (§0.7). A member whose teardowns
+   finished is a Rogue
+   Agent, with what it learned but no access. A member whose teardown
+   failed is arrested; it becomes Rogue only once every pending teardown
+   has passed (STEP-SPEC-32, rules 2 and 8).
 4. **Nothing refuses it.** A member that holds a Shape leaves Human and
    keeps the Shape (STEP-SPEC-24, rule 1.2, with STEP-SPEC-26). A
-   teardown that applies Human again makes a member, and it stays (rule
-   1.5 there; §3.1 calls this outside good TOP use).
+   teardown that applies Human again creates a new application (rule 1.5
+   there; §3.1 calls this outside good TOP use). Whether it still stands
+   when an old application's cleanup later fails is STEP-SPEC-32 open
+   question 14.
 
 Today it is a loop by hand, `for h in list(Human[:]): del Human[h]`.
 The Tag takes members again afterwards, but with three members the
@@ -219,17 +231,19 @@ is in place, and to bring it back at `del`.
    S19). It reaches only the Agents in the safehouse, Rips each from
    every Tag it carries, and gives one `TagTriageWarning` each. This
    STEP adds no act that skips the teardowns of a member not kept.
-2. **So category 0 follows a gentle stop that failed.** If STEP-SPEC-24
-   keeps a member whose teardown failed (its open question 1, option
-   (a)), the program may then give up on it:
+2. **So category 0 follows a gentle stop that failed.** STEP-SPEC-32
+   decides that an ordinary Tag's failed explicit Rip or Field Rip
+   arrests the member as a nonmember. The program may then give up on it:
 
    ```python
-   del Human[:]      # gain control, stop gently; a failed member may be kept
+   del Human[:]      # gain control, stop gently; a failed member is arrested
    del Human[...]    # category 0, for the kept ones only: triage
    ```
 
    On S19 today the safehouse fills only at an Agent's deletion
    (amendment E); a failed explicit Rip is rolled back (amendment D).
+   Those lines record that branch's implementation, not the desired
+   explicit-Rip rule: STEP-SPEC-32 supersedes the rollback with arrest.
 
 ### 6. No cascades
 
@@ -313,7 +327,11 @@ not want. A blueprint can always be used again.
 ## Acceptance requirements
 
 - `tests/test_topkit.py`, `DeletionProtocolTests`: after `del Human[:]`,
-  `Human(x)` works at once; every teardown sees `len(Human[:]) == 0`;
+  `Human(x)` works at once; before cleanup begins, and therefore in the
+  first teardown, `len(Human[:]) == 0`;
+  a first failed teardown freezes that member's later teardowns and
+  arrests it, with cross-member continuation following STEP-SPEC-32 open
+  question 16 and interruption following open question 17;
   `del Human` leaves every member a member; `del Human.colour` reruns
   the builder after a read and after a write; a value written by hand is
   removed; `del Human.hp` over a Record raises `TagCategoryError`;
@@ -323,7 +341,8 @@ not want. A blueprint can always be used again.
 - Spec: §1.4 gains the reset of a Report, and §0.8 a row, "reset a
   Report: `del Wizard.colour`". STEP-SPEC-24's §3.3 names the three
   phases and says `del Tag` is Python's own act.
-- Needs STEP-SPEC-24, 26 and 28. Section 5 needs the S19 safehouse.
+- Needs STEP-SPEC-24, 26, 28 and 32. Section 5 needs STEP-SPEC-32's
+  replacement for the S19 safehouse, not amendment D's rollback.
 
 ---
 
