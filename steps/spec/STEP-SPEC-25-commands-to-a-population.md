@@ -7,7 +7,10 @@
 - **Status:** Brief
 - **Created:** 2026-10-08
 - **Revised:** 2026-10-08, after three independent reviews: Spec
-  consistency, Python semantics, and design and clarity.
+  consistency, Python semantics, and design and clarity. 2026-10-09,
+  after the Director's review of pull request #28: the dependencies
+  made explicit, the limits of restoring a failed write stated (issue
+  #41), and the sound root spelt as STEP-SPEC-29 proposes.
 
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
@@ -19,9 +22,17 @@ STEP-SPEC-23 taught a Tag to answer **questions** about its members,
 member at once.
 
 - **A write through a population.** `Enemy[:].hp = 10` sets the `hp` of
-  every Enemy. It is one act. Every member is checked before anyone is
-  written. One refusal refuses the whole write, and a failure halfway
-  undoes what was written.
+  every Enemy, as one act. It ends in one of four ways (rule 3.2):
+  - **refused**: a member fails the check before writing, and nothing is
+    written;
+  - **written**: every member holds the new value;
+  - **restored**: a host's write failed halfway, and the kit put back the
+    values it had already written;
+  - **left changed**: putting a value back failed too, and the failure
+    names each member left changed.
+
+  The kit restores values, not effects. What a host's setter did when it
+  ran, such as a line logged or a message sent, stays (rule 3.3).
 - **The Tag keeps its own names.** `Enemy.hp = 10` keeps the meaning
   Python gives it: an attribute of the Tag itself. When `hp` is a name
   the Tag gives its Agents, that line is a mistake. Today it silently
@@ -36,7 +47,7 @@ member at once.
 Enemy[:].hp = 10                          # every Enemy, sound or defective
 (~Enemy).hp = 10                          # repair the defective ones
 (Enemy[:].hp < 5).hp = 5                  # a Filter as the root: every weak Enemy
-(Enemy[:] & Enemy).hp = 10                # only the sound ones
+(+Enemy).hp = 10                          # only the sound ones (STEP-SPEC-29's sound part)
 
 for enemy in Enemy:                       # an Action, to each sound Enemy
     enemy.Take_Damage(5)
@@ -95,9 +106,9 @@ for enemy in Enemy[:]:
 ```
 
 For a write, one act can promise more than the loop can:
-- **all or nothing.** The kit can check every member first, and can put
-  back a value it wrote. A loop that fails halfway leaves half the
-  population changed (finding 3);
+- **checked first, restored on failure.** The kit can check every member
+  before it writes any, and can put back a value it wrote. A loop that
+  fails halfway leaves half the population changed (finding 3);
 - **a fixed set of members.** Writing `hp` while walking `Enemy[:].hp <
   5` changes the Filter during the walk. One act walks a snapshot;
 - **one expression for the members.** The population is written once, in
@@ -128,6 +139,38 @@ A population still has no names of its own. Now a public name assigned on
 it is its members' name (rule 1.1). STEP-SPEC-23, rule 3.3, also changes:
 its warning names the loop (rule 6.4).
 
+### Dependencies
+
+This STEP builds on work that is not merged yet. Each item says what
+this STEP takes from it.
+
+- **STEP-SPEC-23, Field Filters** (Brief, pull request #26). Projections,
+  Filters, and populations as roots. This STEP amends it, as listed
+  above.
+- **STEP-SPEC-29, The Population Algebra** (Brief, pull request #26).
+  - Its sound part, `+Enemy`, is this STEP's sound root (rule 1.2). It is
+    *Recommended* there, not yet decided. Without it, the same members
+    are spelt `(Enemy[:] & Enemy)`.
+  - Its *Decided* rulings that the dot on a Tag never projects
+    (STEP-SPEC-29, rules 1.1 to 1.3) change sections 4 and 6 of this
+    STEP. For example, `Enemy.Take_Damage(5)` becomes a refusal at the
+    dot, not a lazy call, and a write on a Tag of a name it gives its
+    Agents becomes a `TagCategoryError` (STEP-SPEC-28). STEP-SPEC-29's
+    table "What this replaces" lists each line. Those edits are made
+    when this branch is updated after its parent work merges.
+  - Section 3, the guarantees of a write, depends on none of
+    STEP-SPEC-29's open spellings, such as picks and places.
+- **STEP-SPEC-22, Links** (Brief, pull request #26), for section 5.
+- **STEP-SPEC-24, Field Rip** (Brief, pull request #26), for the walk of
+  rule 6.5 and for `del Tag[:]` in section 7.
+- **Issue #31**, the repair that refuses assigning a condition's name on
+  one Agent (finding 5). Rule 2.3 refuses condition names in a write
+  through a population. That refusal assumes the single write is
+  refused too. The repair is its own pull request, on main.
+
+Building this STEP in TopKit is its own issue and pull request, after the
+Director clears it.
+
 In this STEP, § cites the Specification only. This STEP's own parts are
 cited as "section N" or "rule N.M".
 
@@ -148,13 +191,14 @@ cited as "section N" or "rule N.M".
 2. **A Tag is never the root of a write.** §0.8 gives the Tag's dotted
    names to the program. So on a Tag, assignment keeps the language's
    meaning (section 4), and a write always names a population. The sound
-   members are written through a population that says so:
-   `(Enemy[:] & Enemy).hp = 10`.
+   members are written through their own part, `(+Enemy).hp = 10`
+   (STEP-SPEC-29, rule 3.1). Until STEP-SPEC-29 is decided, the same
+   population is spelt `(Enemy[:] & Enemy)`.
 3. **A root means what it means everywhere.** A write reaches exactly the
    members a read of that root would reach (STEP-SPEC-23):
    - "every Enemy is healed" is `Enemy[:]`;
    - "repair the broken ones" is `~Enemy`;
-   - "only those still fit to fight" is `Enemy[:] & Enemy`;
+   - "only those still fit to fight" is `+Enemy`;
    - a Tag inside a root is its sound population, as in every operator
      seat (§2.5). So `(Enemy.hp < 5)` holds only sound Enemies, and
      `(Wizard | Fighter)` only sound Wizards and Fighters. To include the
@@ -254,23 +298,39 @@ nothing through a host's code: it runs no property, no host
 
 ### 3. Order, snapshot and failure
 
-1. **A snapshot.** The root is walked once, at the start, before the
-   check before writing. The members found then are the members written,
-   in the root's order (the order `for` walks it). A write that changes
-   the root during the act changes nothing about who is written:
-   - `(Enemy[:].hp < 5).hp = 5` writes every Enemy that was weak at the
-     start, though after its write that Enemy is no longer weak;
-   - `(~Enemy).hp = 10` writes every defective Enemy, though each one
-     leaves `~Enemy` as it is repaired.
-2. **All or nothing.** The check before writing (section 2) looks at every
-   member before the first write. Then the writes run, in order.
-3. **A failure during the writes undoes the act.** A host's own
-   `__setattr__`, or a setter, can still fail. Then:
-   - the writes already made are undone, newest first;
+1. **A snapshot, taken once.** The root is walked exactly once, at the
+   start, before the check before writing. The members found then are
+   the members written, in the root's order (the order `for` walks it).
+   - A live Filter asks its question once per member, in that one walk.
+     The kit asks nothing before it: no `len`, and no length hint, which
+     would walk the Filter a second time and call its Actions twice
+     (STEP-SPEC-23, rule 3.2).
+   - A write that changes the root during the act changes nothing about
+     who is written:
+     - `(Enemy[:].hp < 5).hp = 5` writes every Enemy that was weak at
+       the start, though after its write that Enemy is no longer weak;
+     - `(~Enemy).hp = 10` writes every defective Enemy, though each one
+       leaves `~Enemy` as it is repaired.
+2. **Four outcomes.** A write through a population ends in exactly one of
+   these:
+
+   | Outcome | When | What the program sees |
+   | --- | --- | --- |
+   | **Refused** | A member fails the check before writing (section 2). | A Composition Failure listing every refused member. Nothing was written, and no host setter ran. |
+   | **Written** | Every write succeeds. | No failure. Every member holds the value. |
+   | **Restored** | A host's write fails after the check (rule 3.3). | A Composition Failure naming the member that failed. Every value the kit wrote is back as it was. Host effects may remain. |
+   | **Left changed** | A host's write fails, and putting a value back fails too. | The same failure, with each failed restore attached. It names every member left changed. |
+
+   Only **Refused** promises that no host code ran. That is the guarantee
+   of the check before writing, and it is a strong one. **Restored** is
+   best effort: it restores values, not effects.
+3. **A failure during the writes: values are restored, effects are
+   not.** A host's own `__setattr__`, or a setter, can still fail. Then:
+   - the writes already made are put back, newest first;
    - the failure is raised as a Composition Failure that names the
      member, with the host's failure as its cause.
 
-   To undo, the kit remembers, for each member before writing it, the
+   To put values back, the kit remembers, for each member before writing it, the
    value the name read and where that value lived:
    - **on the member itself** (in Python, its own `__dict__` or a set
      slot): the old value is written back;
@@ -280,14 +340,21 @@ nothing through a host's code: it runs no property, no host
      its own attribute, so that attribute is deleted. The member reads
      the class's value again, and follows it, as before.
 
-   This is the call boundary of §0.6: nothing partial is published. An
-   interruption, such as `KeyboardInterrupt`, also undoes the act, and is
-   then raised as it was.
+   An interruption, such as `KeyboardInterrupt`, is restored the same
+   way, and then raised as it was.
 
-   Undoing runs host code again: a setter, or a host `__setattr__`. A
-   host's own side effect cannot be undone (Ring 4, raw side effects). If
-   undoing fails too, that failure is attached to the one raised, and it
-   names the member left changed.
+   **A host write is not a transaction.** A host data descriptor or
+   `__setattr__` is the program's own code, and it may do anything: log
+   a line, send a message, change a counter elsewhere. Those effects
+   happen when it runs. They stay when the value is put back, and
+   putting it back runs that code again, with its effects again. TOP
+   cannot undo them (Ring 4, raw side effects). This is the limit §0.6
+   already states for rollback: TOP restores the state it manages, never
+   an effect of the program's own code.
+
+   If putting a value back fails too, that failure is attached to the
+   one raised, and it names the member left changed. The kit still tries
+   every other member.
 4. **No promise is checked.** A write through a population is play, not a
    tagging boundary. Conditions "run at tagging boundaries, never
    continuously during play" (Ring 2), and "do not check themselves
@@ -379,9 +446,10 @@ nothing through a host's code: it runs no property, no host
      `(charlie.Knows[:].since < 2000)`.
 
    The Link itself is never a root, as no Tag is (rule 1.2). So the
-   sound Pairs alone have no root of their own: a combined view would
-   lose the Link (rule 5.3). Use a Filter rooted on the Link, or a `for`
-   loop over `charlie.Knows` (open question 4).
+   sound Pairs need STEP-SPEC-29's sound part, `(+charlie.Knows).since =
+   2011` (STEP-SPEC-29, rule 9.2). Without it they have no root of their
+   own, because a combined view would lose the Link (rule 5.3). Then use
+   a Filter rooted on the Link, or a `for` loop over `charlie.Knows`.
 2. **A write through a Link never reaches the Contact.** A name the Pair
    does not hold is refused before writing, even when the Contact holds
    it. A read through a Link may fall back to the Contact, because a read
@@ -551,10 +619,12 @@ population an assignment has one meaning: the members'.
 with the meanings it gave them (rule 1.3). The Tag cannot be a root, so
 the sound members need a longer spelling. That cost is open question 4.
 
-**All or nothing, for writes.** A write through a population is one act,
-so it gets one outcome. The kit can check every member first, and can
-put a value back. That gives the promise §0.6 makes at the gate: a failed
-act publishes nothing.
+**Checked first, restored on failure, for writes.** A write through a
+population is one act, so it gets one outcome (rule 3.2). Its strong
+promise is the check before writing: a refusal changes nothing and runs
+no host code, as a failed gate does (§0.6). After that, host code runs,
+and the kit can only put values back. So it promises that much, and says
+plainly that effects stay.
 
 **A loop, for Actions.** An Action can do anything: print, send, spend,
 Rip. The kit cannot put that back, so a broadcast cannot be all or
@@ -613,7 +683,7 @@ and every write on one Agent.
 
 | Alternative | Verdict |
 | --- | --- |
-| The loop alone, for writes | Valid, and it stays. Set aside as the only spelling: it cannot be all or nothing, and a Filter root changes while it walks. |
+| The loop alone, for writes | Valid, and it stays. Set aside as the only spelling: it cannot check every member first or restore values, and a Filter root changes while it walks. |
 | `Wizard.hp = 10` routed to the members for every name they hold | Rejected: the meaning of a line would depend on today's members, and on an empty Tag it would write the Tag. |
 | `Wizard.hp = 10` routed only for names the Tag declares for its Agents | Possible: open question 2. Its cost: `Wizard.hp = 10` writes the members while `Wizard.level = 3`, a host attribute, writes the Tag. |
 | `Wizard.hp[:] = 10`, the slice assignment of lists and arrays | Rejected. A Projection does to each value what is written on it, so `Wizard.spells[:] = []` would mean `wizard.spells[:] = []` for each Wizard: clearing each list in place. And `Wizard.hp[:]` already reads a fan-out (STEP-SPEC-23, rule 4.2). |
@@ -621,7 +691,8 @@ and every write on one Agent.
 | `Enemy.Take_Damage(5)` eager only when it stands alone as a statement | Rejected: the kit could guess it from the result being dropped, but that is magic, and it would run at an unpredictable moment, when the result is collected. |
 | Running a called Projection by walking it, `list(Enemy.Take_Damage(5))` | It runs, but it reads as a question. Not taught. |
 | A kit function or command object, `Each(Enemy).Take_Damage(5)` | Set aside for now: a function call, and the loop already says it. Open question 1. |
-| Collected failures for a write | Rejected in favour of all or nothing: a write can be undone, so it should be. |
+| Collected failures for a write | Rejected in favour of checking first and restoring: a value can be put back, so it should be. |
+| Calling the write a transaction | Rejected: a host setter's effects stay when its value is put back (rule 3.3). |
 | A promise check, or a warning, after a write | Rejected: one write checks none, so many writes check none (rule 3.4). |
 | Copying the value for each member | Rejected: copying is magic, and not every value can be copied. Open question 3. |
 | A write that creates names | Rejected: a typo would add a name to every member, silently. |
@@ -641,7 +712,10 @@ and every write on one Agent.
      6.3). Is a naming convention in the Guide enough?
 
    The STEP recommends the loop, with `ExceptionGroup` in the Guide, and
-   the naming convention.
+   the naming convention. It proposes no function, object or context
+   manager for this; the question is only whether you want one. If
+   STEP-SPEC-29's dot rulings hold, the Operation's clash goes away:
+   `Enemy.Take_Damage(5)` is refused at the dot.
 2. **`Enemy.hp = 10` itself (section 4).** You wrote the example as
    `Wizard.hp = 10`. This STEP refuses it, and teaches `Wizard[:].hp =
    10`. The alternative routes the assignment to the members when the Tag
@@ -659,21 +733,24 @@ and every write on one Agent.
    Not every object that can change refuses a hash, so the first is a
    guess. The STEP recommends sharing, said plainly.
 4. **The sound members as a root (rule 1.2).** Writing only the sound
-   members is spelt `(Enemy[:] & Enemy).hp = 10`. STEP-SPEC-23 set aside
-   a short spelling for the sound population, `+Enemy`. Does the write
-   bring that question back? On a Link it matters more: the sound Pairs
-   have no root at all (rule 5.1). The STEP recommends the long spelling
-   for now, and the loop on a Link: both say what they mean.
+   members is spelt `(+Enemy).hp = 10`, STEP-SPEC-29's sound part. Without
+   STEP-SPEC-29, it is `(Enemy[:] & Enemy).hp = 10`. This question closes
+   if STEP-SPEC-29 is cleared. It matters most on a Link: without `+`,
+   the sound Pairs have no root at all (rule 5.1). The STEP recommends
+   `+`, as STEP-SPEC-29 does.
 
 ## Acceptance requirements
 
-- **First, on its own:** assigning a condition's name on an Agent, or a
-  pinned Tag's own condition name on that Tag, is refused, as §2.5
-  requires (finding 5).
+- **First, on its own:** issue #31. Assigning a condition's name on an
+  Agent, or a pinned Tag's own condition name on that Tag, is refused,
+  as §2.5 requires (finding 5).
 - `tests/test_topkit.py`: a `WriteThroughTests` class, covering:
   - every root: the Field, `~Tag`, a combined view, a Filter, a Pin's
     population, an empty root;
   - the snapshot: a Filter on the written name, and the repair of `~Tag`;
+  - a Filter root walked exactly once: a counting question is asked once
+    per member, and the root's `__len__` and `__length_hint__` are never
+    called;
   - every refusal of section 2, each with nothing changed: a name a
     member does not hold, a name only a host `__getattr__` answers, an
     Action, a published Operation, a host method, an Operation on a Tag
@@ -683,11 +760,16 @@ and every write on one Agent.
   - the message and its `ExceptionGroup`, with every refused member;
   - the check runs no property, no host `__getattr__` and no condition;
   - a secret written from inside that member's own function;
-  - undoing: a host `__setattr__` that fails on the third member, a name
-    that came from the host class (deleted on undo, so the member follows
+  - restoring: a host `__setattr__` that fails on the third member, a name
+    that came from the host class (deleted on restore, so the member follows
     the class again), a property with a setter (written back), an unset
-    slot, a `KeyboardInterrupt`, and an undo
-    that fails too;
+    slot, a `KeyboardInterrupt`;
+  - each of the four outcomes of rule 3.2, with the members each one
+    names;
+  - a setter with an effect outside the member (a log it appends to):
+    after a restored write, the value is back and both log lines stay;
+  - a setter whose restore fails: the failure names that member as left
+    changed, and the other members are still restored;
   - no promise checked: a write that breaks one moves the member to
     `~Tag`, and raises nothing;
   - one shared value (rule 1.4);

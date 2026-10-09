@@ -33,8 +33,10 @@
 - The three were first drafted as STEP-SPEC-19, 20 and 21, and
   renumbered because other open work claims those numbers.
 - STEP-SPEC-25 (Commands to a Population) opened at Brief.
-  `Enemy[:].hp = 10` writes every member's `hp` as one act: every member
-  is checked first, and a failure halfway undoes the write.
+  `Enemy[:].hp = 10` writes every member's `hp` as one act. Every member
+  is checked before the first write, so a refusal changes nothing. If a
+  host's own setter fails halfway, the kit puts back the values it
+  wrote; the setter's own effects stay.
   - On a Tag, assignment keeps Python's meaning. A name the Tag gives its
     Agents, `Enemy.hp = 10`, is refused, with the population spelling in
     the message. Today that line is silent, and can destroy the Record.
