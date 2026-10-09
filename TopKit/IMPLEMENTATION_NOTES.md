@@ -59,19 +59,26 @@ memory about 6 KB per Agent with two Tags.
 ## The tagging sequence
 
 `transactions._apply` is the call boundary: it snapshots the instance
-dictionary, the state, and the class on entry. `_gate` lays every pending
+dictionary, the state, the class, and the Agent's original weak Field entries
+on entry. `_gate` lays every pending
 Tag of the Form over a scratch copy and runs the composed Preconditions
 once, so a Shape's gate overrides its Base's and declaration errors
 surface before anything changes. `_apply_one` then lays each Tag over the
 **live** state (no second copy) in the order parts, commit, write; finally
-`_inspect` runs every visible Postcondition once. A `TagPreconditionError`, `TagCompositionError`,
-`TagResolutionError` or `TagContractError` rolls the call back to the entry
-snapshot, including Fields. `TagImprintError` and `TagPostconditionError`
-propagate with everything left in place.
+`_inspect` runs every visible Postcondition once. The call's phase decides
+recovery: Gate and Parts restore the incoming Agent; Write, final view capture
+and Quality preserve the committed Tags. A nested failure keeps the phase of
+the outer protocol, rather than choosing restoration by its exception class.
 
-Laying over the live state is safe because nothing reads the new Overlay
-before commit binds it on the Agent, and the entry snapshot is the only
-rollback target.
+Field restoration reuses that Agent's original weak entries, with monotonic
+join-order numbers restoring their original positions. It captures only the
+Agent's entries, not whole Fields; reordering is needed only on restoration.
+Other Agents' joins and departures remain. No Imprint or Rip is replayed, and
+resource cleanup or mutations inside shared values are not undone. A Field's
+mutation revision lets rebuilding retry if a finalizer changed its entries.
+
+The entry snapshot remains the restoration target for a failed Gate or
+Parts; protocol bodies may inspect the evolving state while it is laid over.
 
 ## Judgment calls
 
@@ -147,7 +154,7 @@ rollback target.
 - **What the kit keeps, and for how long.** The Form cache holds a Tag's
   Bases only, never the Tag, so a dropped Tag class is freed. A Rip drops
   the Tag's view snapshot (a view needs membership). A Field entry is a
-  slotted weak reference carrying its key, with one callback per Field;
+  slotted weak reference carrying its key and join-order number, with one callback per Field;
   `At_Exit` numbers its registrations the same way and drops each one when
   its Agent dies. A scratch pass (the gate, a Pin's publication) silences
   the kit's warnings through a context variable, never

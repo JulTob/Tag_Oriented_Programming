@@ -227,9 +227,9 @@ class _Combined(_Population):
 
 
 class _Member(weakref.ref):
-    """A Field's weak reference to one Agent, carrying its identity key."""
+    """A weak reference carrying its key and, in a Field, its join order."""
 
-    __slots__ = ("key",)
+    __slots__ = ("key", "order")
 
 
 class _Field(_Population):
@@ -242,6 +242,8 @@ class _Field(_Population):
             ) -> None:
         field._members: dict[int, _Member] = {}
         field._expire = field._Forget   # one callback for every member
+        field._joined = 0
+        field._revision = 0
 
     def Add(
             field,
@@ -263,13 +265,54 @@ class _Field(_Population):
                     ) from error
 
         reference.key = key
+        reference.order = field._joined
+        field._joined += 1
         field._members[key] = reference
+        field._revision += 1
 
     def Remove(
             field,
             agent: object,
             ) -> None:
-        field._members.pop(id(agent), None)
+        if field._members.pop(id(agent), None) is not None:
+            field._revision += 1
+
+    def _Rejoin(
+            field,
+            agent: object,
+            member: _Member | None,
+            ) -> None:
+        """Restore just this Agent's original weak entry and join order."""
+
+        key = id(agent)
+
+        if member is None or member() is not agent:
+            field.Add(agent)
+            return
+
+        if field._members.get(key) is member:
+            return
+
+        while True:
+            revision = field._revision
+            restored = field._members.copy()
+            restored[key] = member   # replace a newer entry from Rip/reapplication
+            ordered = dict(sorted(
+                    restored.items(),
+                    key=lambda item: item[1].order,
+                    ))
+
+            if field._revision == revision:
+                break   # finalizers may change the Field while rebuilding it
+
+        field._members = ordered
+        field._revision += 1
+
+        # Expiry during rebuilding reached the old mapping; do not reinsert
+        # those dead references after their callbacks have already run.
+        for reference in list(field._members.values()):
+            if reference() is None:
+                field._Forget(reference)
 
     def _Forget(
             field,
@@ -277,6 +320,7 @@ class _Field(_Population):
             ) -> None:
         if field._members.get(expired.key) is expired:
             del field._members[expired.key]
+            field._revision += 1
 
     def __contains__(
             field,

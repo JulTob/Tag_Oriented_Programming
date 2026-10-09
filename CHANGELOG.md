@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### TopKit
+
+- **Fixed:** a refused Gate or failed Record builder restored the Agent's
+  active Tags without restoring Field entries removed by a nested Rip.
+  Restoration now also returns that Agent's original weak Field entries
+  in their original join order, including after Rip and reapplication.
+  Other Agents' Field changes remain, and no Imprint or Rip is replayed.
+
 ### Project
 
 - **Releases go out through Trusted Publishing.** A GitHub Release runs

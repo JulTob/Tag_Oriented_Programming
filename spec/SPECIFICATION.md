@@ -185,9 +185,10 @@ Then, once for the whole call:
 The **call boundary** decides what a failure means:
 
 - A failure in steps 1 or 2, for any Tag in the Form, **rolls the whole
-  call back**. The Agent is exactly as it was at the call, including Bases
-  pulled in by this call. Tags committed by earlier calls are untouched.
-  Nothing partial is ever published.
+  call back**. The incoming Agent's bindings, TOP state, runtime class and
+  memberships are restored, including its original Field positions.
+  Memberships introduced by this call, including its missing Bases, are
+  removed. Existing memberships return without replaying their protocols.
 - A failure in steps 4 or 5 **raises, but the Tags stay**. The product left
   the line. A defective product is not melted back to materials: it is
   flagged, repaired, or Ripped (§2.5).
@@ -219,10 +220,12 @@ Broken_Wizard(ari)                Form: Person, Broken_Wizard
 → TagPostconditionError; ari in Person and ari in Wizard; bool(ari) == False
 ```
 
-Tagging is otherwise side-effect free: TOP-managed state is restored on
-rollback. An Imprint's in-place mutation of a pre-existing mutable value
-(`events.append(...)`) is outside what TOP can undo; keep such effects for
-step 4, where they are never rolled back, or hold them in Records.
+Restoration puts back the incoming Agent's TOP state and its original
+entries in its Fields, in their original join order. It does not replay
+Imprints or run Rip. Effects already performed outside that restored state
+remain: changes involving other Agents, resource cleanup, I/O and in-place
+mutations of shared values (`events.append(...)`) are not undone. Restoring
+a Record's binding does not undo a change inside its value.
 
 ## 0.7 Rip
 
