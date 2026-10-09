@@ -31,7 +31,6 @@ from .errors import TagPreconditionError
 from .errors import TagResolutionError
 from .errors import TagRogueAccessError
 from .lifecycle import At_Exit
-from .lifecycle import Scope
 from .queries import Apply
 from .queries import Form
 from .queries import Keyword
@@ -64,7 +63,6 @@ __all__ = [
         "Report",
         "Requirement",
         "Rip",
-        "Scope",
         "Secret",
         "Tag",
         "TagCompositionError",
