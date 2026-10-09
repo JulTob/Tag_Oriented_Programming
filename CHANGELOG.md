@@ -4,6 +4,12 @@
 
 ### TopKit
 
+- **An Agent's truth is its contract over a host's length.** When neither
+  the host nor a Tag contributes `__bool__`, `bool(agent)` is true exactly
+  when its visible Posts hold from the first Tagging, and true when it has
+  none. A host's `__len__` still answers `len(agent)`. Before, an empty
+  container-like Agent with no Posts was false.
+
 - **Computed conditions keep their names:** while a named Precondition or
   Postcondition is visible, assigning or deleting that name is refused before
   a host setter runs. The name continues to compute its boolean on read;

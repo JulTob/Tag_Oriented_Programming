@@ -45,8 +45,10 @@ nobody disappears from a plain loop silently.
 3. A failure in write raises a Tag Imprint Failure; the Tags stay.
 4. A failure in quality check raises a Tag Postcondition Failure; the Tags
    stay; the Agent is defective while any visible Postcondition fails.
-5. `bool(agent)` is true exactly when every visible Postcondition holds.
-   A host's own truthiness is kept until a Postcondition is visible.
+5. When neither the host nor a Tag contributes `__bool__`, `bool(agent)`
+   is true exactly when every visible Postcondition holds. With no
+   Postconditions it is true. A host's `__len__` still answers
+   `len(agent)`, but never supplies the Agent's truth.
 6. Iterating the Tag gives the sound population and `len(Tag)` counts
    it; `~Tag` is the defective population; `Tag[:]` is the whole Field.
    `agent in Tag` stays true for a defective member.
@@ -84,7 +86,19 @@ and parts are atomic; write and quality check are not.
 
 ## Acceptance requirements
 
-Covered by `tests/test_topkit.py::DefectiveTaggingTests`.
+The original rules are covered by
+`tests/test_topkit.py::DefectiveTaggingTests`. The 2026-10-09 amendment is
+covered by `HostPreservationTests`: zero and nonzero host lengths, sound
+and defective contracts, and no Posts.
+
+## Amendment: a host's length is not an Agent's truth
+
+The Director was asked whether a container-like host should keep
+`len(agent)` while `bool(agent)` answers the visible contract from the
+first Tagging, and answered **"Yes"** on 2026-10-09. Rule 5 records only
+that ruling: no visible Postconditions means true, and the host's
+`__len__` remains its length only. Whether an explicit TOP `__bool__`
+Contribution may occupy that seat is a separate decision.
 
 ---
 
