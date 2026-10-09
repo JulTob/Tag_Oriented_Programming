@@ -26,7 +26,7 @@ ring it claims. Examples are in Python; the laws are language-neutral.
 | **0 · Kernel** | identity, membership, Geometry, the tagging sequence, Rip |
 | **1 · Contributions** | Actions, Records, Operations, Reports, Overlay and Underlay, publication, access |
 | **2 · Contracts** | Preconditions, Imprints, Postconditions, defective Agents |
-| **3 · Lifecycle** | teardown protocols, Scope, deletion |
+| **3 · Lifecycle** | teardown protocols, deletion |
 | **4 · Edges** | what TOP does not promise, and why |
 
 The last sections give the failure model, the conformance obligations, and
@@ -266,10 +266,6 @@ Rip is the only exit from a Field, and it obeys three laws:
   is a Resolution Failure.
 - **Reapplying a Ripped Tag is a fresh Tagging.** Imprints run again;
   Records are rebuilt.
-- **A Scope Rips what it applied, and only that.** A Tag the Agent
-  already carried at entry is left as it was on exit; a Tag that applied
-  and reported a broken promise at the Scope's door did apply, and is
-  Ripped on the way out with the rest.
 
 ## 0.8 Spellings
 
@@ -317,8 +313,8 @@ renders what a Tag or Agent is, without a method on either. On an Agent the
 door follows the empty-seat rule: a host with its own formatting keeps it.
 
 Queries that need a name are functions (`Form`, `Tags`, `Keyword`,
-`Apply`, `Outline`, `Contract`, `Scope`), never members of the Tag or of
-the Agent.
+`Apply`, `Outline`, `Contract`), never members of the Tag or of the
+Agent.
 Another language profile chooses its own native spellings; the acts and
 their distinctions are what must survive.
 
@@ -1249,9 +1245,9 @@ agent.spellbook` reads well, but asks two questions at once: *defined* and
 
 ## 3.1 Rip protocols
 
-Imprint and Rip are duals: constructor and destructor, `__enter__` and
-`__exit__`. A `@Rip` Action runs when the Agent leaves the Tag's Field. It
-is also an ordinary, callable Action.
+Imprint and Rip are duals: constructor and destructor. A `@Rip` Action
+runs when the Agent leaves the Tag's Field. It is also an ordinary,
+callable Action.
 
 ```python
 class MI6(Tag):
@@ -1280,15 +1276,40 @@ use: it could keep an Agent from ever leaving a Field.
 ## 3.2 Deleting an Agent
 
 Deletion of an Agent Rips it from its active Tags, so exit protocols run.
-An implementation provides three tiers and says which is which:
+There are three tiers. The implementation provides the first and the
+third; the program writes the second.
 
 | Tier | Guarantee |
 | --- | --- |
 | **Finalizer** (`__del__`) | best effort: when the Agent is collected, its teardowns run, then its `__del__` Layers; at interpreter exit only the `__del__` Layers run; the language may not run finalizers at shutdown or inside reference cycles |
-| **`Scope(agent, *tags)`** | guaranteed: Tags apply on entry and Rip, in reverse, on exit, even if the block raises |
+| **`del Tag[agent]` in a `finally`** | guaranteed: the language runs a `finally` whenever its block ends, by finishing or by raising |
 | **`At_Exit(agent)`** | opt-in: teardowns also run at normal interpreter exit; registration is weak |
 
 Every teardown runs at most once, whichever tier reaches it first.
+
+**A block that holds a Tag** (STEP-SPEC-31) is a tagging and a Rip,
+joined by the language's own `try` and `finally`. The rule: **tag before
+`try`, Rip in `finally`.**
+
+```python
+Sentry(guard)              # the guard joins Sentry
+try:
+    guard.Patrol()
+finally:
+    del Sentry[guard]      # the guard leaves, even if Patrol raised
+```
+
+A tagging that fails at the door raises before the `try`, so the block
+never runs and nothing is Ripped; a Tag that landed stays, as after any
+such tagging (§0.6). A Rip in a `finally` that fails raises, as every
+Rip does (§3.1). If the block was raising too, the language keeps the
+block's error inside the Rip's failure, as its context, and shows both.
+TOP adds nothing to this. Each step is a line the program writes: a
+block that should leave a Tag the Agent already carried checks first
+(`was_sentry = guard in Sentry[:]`), and a block that should take away a
+Base its Shape pulled in Rips the Base too.
+
+TOP gives `with` no meaning: no TOP object can follow `with`.
 
 **The Agent's own finalizer is a member in Layers** (STEP-SPEC-18). The
 host's `__del__` is its first Layer, found as the language finds it. A
@@ -1329,12 +1350,6 @@ Carried(lamp)
 Enchanted(lamp)
 del lamp
 assert log == ["put down", "spell fades", "wick out"]
-```
-
-```python
-with Scope(agent, Sentry):
-    guard_the_gate(agent)
-# Sentry's teardown has run here, exception or not
 ```
 
 ---
@@ -1443,8 +1458,10 @@ A conforming implementation provides, ring by ring:
 
 **Ring 3**
 - `@Rip` protocols run after membership ends, once, composed, failures
-  reported; the three deletion tiers; the Agent's `__del__` as Layers of
-  its Overlay, run after the teardowns, and alone at interpreter exit.
+  reported; the three deletion tiers, the finalizer and `At_Exit` from
+  the implementation, and the guaranteed one written by the program, a
+  Rip in a `finally`; the Agent's `__del__` as Layers of its Overlay,
+  run after the teardowns, and alone at interpreter exit.
 
 **Everywhere**
 - the failure types above, distinct and named.

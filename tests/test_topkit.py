@@ -2967,6 +2967,17 @@ class TryFinallyTests(unittest.TestCase):
                     with value:
                         pass
 
+    def test_scope_is_no_longer_exported(self) -> None:
+        import TopKit
+        import TopKit.lifecycle
+
+        with self.assertRaises(ImportError):
+            from TopKit import Scope                                  # removed: tag before try, Rip in finally
+
+        self.assertNotIn("Scope", TopKit.__all__)
+        self.assertFalse(hasattr(TopKit, "Scope"))
+        self.assertFalse(hasattr(TopKit.lifecycle, "Scope"))
+
 
 # ==================================================================
 # Ring 4: Access and queries

@@ -18,7 +18,7 @@ One idea per module, nothing over 600 lines.
 | `overlay.py` | laying one Tag's declarations over a state; materializing Records |
 | `contracts.py` | strict verdicts, binding conditions, `Contract` |
 | `transactions.py` | the tagging sequence and the call boundary |
-| `lifecycle.py` | Rip, teardown, `Scope`, `At_Exit` |
+| `lifecycle.py` | Rip, teardown, `At_Exit` |
 | `access.py` | the hooks on the runtime type, Agent-bound views |
 | `tags.py` | `Tag` and its metaclass |
 | `queries.py` | `Apply`, `Has`, `Tags`, `Outline` |
@@ -247,9 +247,14 @@ rollback target.
   over a condition's name, and
   `_refuse_conditions_shadowed_by_the_agent` in `_apply_one` for a value
   the Agent's own namespace already holds.
-- **Scope** (§0.7) skips a Tag the Agent already carries and records a
-  Tag whose tagging raised a Postcondition failure as applied, so the
-  teardown Rips exactly what the Scope applied.
+- **The guaranteed tier** (§3.2) is the program's own: it tags before
+  `try` and Rips in `finally`. The kit has no context manager and adds
+  nothing to the `finally`: a Rip there that fails raises as any Rip
+  does, with the block's error, if any, as its context. `Scope` made the
+  block's choices out of sight (a Tag already carried, a door failure, a
+  Rip that failed) and was removed (STEP-SPEC-31). `TryFinallyTests`,
+  the oracle's `Exercise_Block` and the fuzz's `Holding` write the
+  pattern.
 - **The oracle** (`tests/oracle_topkit.py`): an independent model of
   the laws driven by a random walk; `tests/test_oracle.py` runs a short
   walk under the suite. Run it at size with `--seeds 50 --steps 1200

@@ -72,7 +72,7 @@
   decided ("TOP should integrate with the language … Get it out"). A
   block that holds a Tag for a while tags the Agent before `try` and
   Rips it in `finally`. STEP-SPEC-22, 24, 26 and 28 and the catalog no
-  longer lean on `Scope`. The kit keeps it until the STEP is built.
+  longer lean on `Scope`. The kit no longer has it (see TopKit below).
 - A catalog of the Tag algebra, `steps/CATALOG-tag-algebra.md`: every
   spelling found so far that reads or acts on a Tag or a population, with
   its meaning, its result and its status on each branch.
@@ -143,6 +143,40 @@
   is defective, with `Postcondition.Alive`.
   The Specification (§0.8, §2.7 and the conformance obligations), both
   guides and the crew example now write the two marks.
+- `Scope` is removed (STEP-SPEC-31), as the Director decided on
+  2026-10-09: "I don't like Scope as a function call in TOP. Or
+  generally using function calls as methodology. TOP should integrate
+  with the language. Also "Scope" is not an informative name. Get it
+  out", and "I like the try-finally for the training purpose. Do that.
+  Implement it." There is no release of warning: `TopKit.Scope` and its
+  export are gone, so `from TopKit import Scope` is an `ImportError`.
+  A block that holds a Tag says so with Python's own `try` and
+  `finally`, by one rule: tag before `try`, Rip in `finally`. For
+  `with Scope(guard, Sentry): guard.Patrol()`, write `Sentry(guard)`,
+  then `try: guard.Patrol()`, then `finally: del Sentry[guard]`. Several
+  Tags are all tagged before the `try` and Ripped in the `finally` in
+  reverse. TOP gives `with` no meaning. The Specification (§0.7, §0.8,
+  §3.1, §3.2, the table of contents and the conformance obligations),
+  the Guide's pattern 9, the notes and the conformance table say so.
+  What `Scope` decided out of sight is now a line the program writes, or
+  does not write:
+  - A Tag the Agent already carried: `Scope` left it; a plain `finally`
+    Rips it. A block that should leave it checks first,
+    `was_sentry = guard in Sentry[:]`, and Rips only
+    `if not was_sentry`.
+  - A Tag that fails at the door: the tagging raises before the `try`,
+    the block does not run, and the Tag stays, defective after a broken
+    Postcondition. `Scope` Ripped it after a Postcondition.
+  - A Rip that fails on the way out: `Scope` dropped it in silence. Now
+    it raises, as every Rip does. If the block was raising too, the
+    block's error is kept inside the Rip's failure as its context, so an
+    `except` for the block's own error no longer catches it.
+  - A block that Rips the Tag itself: `Scope` tried again and dropped the
+    failure. Now the `del` in the `finally` finds no member and raises a
+    `TagResolutionError`, so such a block checks first,
+    `if guard in Sentry[:]: del Sentry[guard]`.
+  - A Base that a Shape pulled in stays, as before; `del Wolf[bo]` in the
+    `finally` takes it away.
 
 ### Project
 
