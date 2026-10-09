@@ -201,6 +201,9 @@ class MetaTag(type):
     def __invert__(
             tag,
             ) -> _Partition:
+        """``~Wizard``: the defective population. ``~`` on it gives it
+        back, so ``~~Wizard`` is ``~Wizard`` (STEP-SPEC-29, rule 3.2)."""
+
         return ~tag._sound()
 
     def __or__(

@@ -3,7 +3,8 @@
 A Field never keeps an Agent alive. Membership is indexed by identity so
 registration and removal are constant-time. Iterating a Tag gives the
 sound population (every visible Postcondition holds), ``~Tag`` the
-defective one, ``Tag[:]`` everyone.
+defective one, ``Tag[:]`` everyone. ``~`` means broken, and broken twice
+is still broken: ``~~Tag`` is ``~Tag``.
 
 Populations combine (STEP-SPEC-13): ``Wizard[:] | Fighter[:]`` is everyone
 who is either, ``Wizard - Sworn`` the sound Wizards who have not sworn,
@@ -12,8 +13,9 @@ seat means its sound population. The result is a lazy view: it reads the
 Fields when it is walked, never copies them, and keeps application order.
 A Pin's population holds Tags and never combines with one of Agents.
 
-A walk takes a Field's members when it begins, and skips a member that an
-earlier turn of the same walk Ripped (STEP-SPEC-29, rule 7.1).
+A walk takes a Field's members when it begins, and visits each at its
+turn if it is a member then: one an earlier turn Ripped is skipped, and
+one Ripped and tagged again is visited (STEP-SPEC-29, rule 7.1).
 """
 
 from __future__ import annotations
@@ -388,7 +390,7 @@ class _Field(_Population):
         Agent that joins during the walk waits for the next one."""
 
         held = [
-                (reference, agent)
+                agent
                 for reference in list(field._members.values())
                 if (agent := reference()) is not None
                 ]
@@ -397,17 +399,19 @@ class _Field(_Population):
 
     def _Walk(
             field,
-            held: list[tuple[_Member, object]],
+            held: list[object],
             ) -> Iterator[object]:
-        """Each held member at its turn, unless it left the Field since the
-        walk began: one an earlier turn Ripped is skipped (STEP-SPEC-29,
-        rule 7.1). Its membership is the reference it had at the start, so
-        one Ripped and tagged again during the walk is skipped too."""
+        """Each held member at its turn, if it is a member now
+        (STEP-SPEC-29, rule 7.1). One an earlier turn Ripped is out, so it
+        is skipped. One Ripped and tagged again before its turn is in, so
+        it is visited there, once."""
 
         members = field._members
 
-        for reference, agent in held:
-            if members.get(reference.key) is reference:
+        for agent in held:
+            reference = members.get(id(agent))
+
+            if reference is not None and reference() is agent:   # `agent in field`, without the call
                 yield agent
 
     def _held(
@@ -492,10 +496,17 @@ class _Partition(_Population):
     def __invert__(
             partition,
             ) -> "_Partition":
+        """``~`` means broken, and broken twice is still broken: on the
+        defective half it gives that half back, so ``~~Wizard`` is
+        ``~Wizard`` (STEP-SPEC-29, rule 3.2)."""
+
+        if partition._label == "defective":
+            return partition
+
         holds = partition._holds
 
         return _Partition(
                 partition._field,
                 lambda agent: not holds(agent),
-                "defective" if partition._label == "sound" else "sound",
+                "defective",
                 )

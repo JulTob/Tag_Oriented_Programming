@@ -3,7 +3,7 @@
 Ring 0  Kernel: identity, membership, Geometry, Fields.
 Ring 1  Contributions: Overlay, Underlay, Records, publication.
 Ring 2  Contracts: Pre, Imprint, Post, defective taggings.
-Ring 3  Lifecycle: Rip, teardown, Scope, exit.
+Ring 3  Lifecycle: Rip, teardown, try and finally, exit.
 Ring 4  Access and queries.
 """
 
@@ -35,9 +35,7 @@ from TopKit import Precondition
 from TopKit import Public
 from TopKit import Record
 from TopKit import Report
-from TopKit import Requirement
 from TopKit import Rip
-from TopKit import Scope
 from TopKit import Secret
 from TopKit import Tag
 from TopKit import TagCategoryError
@@ -632,11 +630,13 @@ class HostPreservationTests(unittest.TestCase):
         self.assertIn("x", bag)
         self.assertNotIn(Field_Member, bag)       # the host keeps its `in`
         self.assertEqual(bag | 1, "host-or")
+        self.assertEqual(len(bag), 1)             # and its `len`
         self.assertTrue(bool(bag))
 
         bag.items.clear()
 
-        self.assertFalse(bool(bag))
+        self.assertEqual(len(bag), 0)
+        self.assertTrue(bool(bag))                # its truth is its contract, not its length (§2.5)
         self.assertEqual(bag.dynamic, "from host getattr")
 
     def test_tag_members_do_not_leak_onto_the_agent(self) -> None:
@@ -1377,9 +1377,10 @@ class ConditionTests(unittest.TestCase):
         self.assertIs(Precondition.Alive, TagPreconditionError.Alive)
         self.assertIs(Postcondition.Alive, TagPostconditionError.Alive)
 
-    def test_requirement_is_the_stacked_pair_in_one_word(self) -> None:
+    def test_the_two_marks_stack_in_either_order(self) -> None:
         class Vampire(Tag):
-            @Requirement
+            @Post
+            @Pre
             def Undead(agent):
                 return agent.undead
 
@@ -1397,12 +1398,43 @@ class ConditionTests(unittest.TestCase):
         with self.assertRaises(Postcondition.Undead):
             Contract.Postconditions(nosferatu)
 
-    def test_a_requirement_names_no_failure_of_its_own(self) -> None:
-        with self.assertRaises(AttributeError) as caught:
-            Requirement.Undead
+    def test_a_stacked_condition_fails_under_the_name_of_the_half_that_refused(self) -> None:
+        class Vampire(Tag):
+            @Pre
+            @Post
+            def Undead(agent):
+                return agent.undead
 
-        self.assertIn("Precondition.Undead", str(caught.exception))
-        self.assertIn("Postcondition.Undead", str(caught.exception))
+        mortal = Agent()
+        mortal.undead = False
+
+        with self.assertRaises(TagError) as at_the_door:
+            Vampire(mortal)
+
+        self.assertIsInstance(at_the_door.exception, Precondition.Undead)
+        self.assertNotIsInstance(at_the_door.exception, Postcondition.Undead)
+
+        nosferatu = Agent()
+        nosferatu.undead = True
+        Vampire(nosferatu)
+        nosferatu.undead = False
+
+        with self.assertRaises(TagError) as afterwards:
+            Contract.Postconditions(nosferatu)
+
+        self.assertIsInstance(afterwards.exception, Postcondition.Undead)
+        self.assertNotIsInstance(afterwards.exception, Precondition.Undead)
+
+    def test_requirement_is_no_longer_exported(self) -> None:
+        import TopKit
+        import TopKit.declarations
+
+        with self.assertRaises(ImportError):
+            from TopKit import Requirement                            # removed: stack @Pre and @Post
+
+        self.assertNotIn("Requirement", TopKit.__all__)
+        self.assertFalse(hasattr(TopKit, "Requirement"))
+        self.assertFalse(hasattr(TopKit.declarations, "Requirement"))
 
 
 class DefectiveTaggingTests(unittest.TestCase):
@@ -2364,9 +2396,10 @@ class StickyConditionTests(unittest.TestCase):
         with self.assertRaises(TagResolutionError):
             Contract.Delete(ari, "Has_Oath")
 
-    def test_deletion_ends_both_halves_of_a_requirement(self) -> None:
+    def test_deletion_ends_both_halves_of_a_stacked_condition(self) -> None:
         class Elf(Tag):
-            @Requirement
+            @Pre
+            @Post
             def Alive(agent):
                 return agent.alive
 
@@ -2464,22 +2497,28 @@ class ExitProtocolTests(unittest.TestCase):
         self.assertEqual(seen, ["host del"])
         self.assertEqual(_DEL_LOG, ["stood down"])
 
-    def test_scope_applies_and_rips_with_guaranteed_teardown(self) -> None:
+    def test_a_rip_in_a_finally_is_the_guaranteed_teardown(self) -> None:
         ari = Agent()
 
-        with Scope(ari, Sentry) as scoped:
-            self.assertIs(scoped, ari)
+        held = Sentry(ari)                                            # tag before the try
+        try:
+            self.assertIs(held, ari)
             self.assertIn(ari, Sentry)
+        finally:
+            del Sentry[ari]                                           # Rip in the finally
 
         self.assertNotIn(ari, Sentry)
         self.assertEqual(_DEL_LOG, ["stood down"])
 
-    def test_scope_rips_even_when_the_block_raises(self) -> None:
+    def test_a_rip_in_a_finally_runs_even_when_the_block_raises(self) -> None:
         ari = Agent()
 
         with self.assertRaises(ValueError):
-            with Scope(ari, Sentry):
+            Sentry(ari)
+            try:
                 raise ValueError("boom")
+            finally:
+                del Sentry[ari]
 
         self.assertNotIn(ari, Sentry)
         self.assertEqual(_DEL_LOG, ["stood down"])
@@ -2511,27 +2550,66 @@ class ExitProtocolTests(unittest.TestCase):
         self.assertLess((after - before) / 2000, 16)   # nothing kept per dead registration
 
 
-# ==================================================================
-# Ring 4: Access and queries
-# ==================================================================
+class TryFinallyTests(unittest.TestCase):
+    """A block holds a Tag with Python's own try and finally: tag before
+    try, Rip in finally (STEP-SPEC-31). Each choice Scope made out of sight
+    is now a line the program writes, or does not write."""
 
+    def setUp(self) -> None:
+        _DEL_LOG.clear()
 
-class ScopeTests(unittest.TestCase):
-    """Scope Rips only what it applied, and everything it applied."""
+    def test_the_plain_form_rips_a_tag_the_agent_already_had(self) -> None:
+        ari = Agent()
+        Sentry(ari)
 
-    def test_a_tag_the_agent_already_had_survives_the_scope(self) -> None:
-        class Wizard(Tag):
-            pass
+        Sentry(ari)                                                   # already a Sentry: does nothing
+        try:
+            self.assertIn(ari, Sentry)
+        finally:
+            del Sentry[ari]                                           # Rips it all the same
+
+        self.assertNotIn(ari, Sentry)
+        self.assertEqual(_DEL_LOG, ["stood down"])
+
+    def test_a_tag_the_agent_already_had_survives_form_2(self) -> None:
+        class Sworn(Tag):
+            @Post
+            def Has_Oath(agent):
+                return agent.oath is not None
+
+        def Hold(
+                agent: Agent,
+                ) -> None:
+            was_sworn = agent in Sworn[:]                             # in the Field already, sound or not?
+            Sworn(agent)                                              # does nothing if it was
+            try:
+                self.assertIn(agent, Sworn[:])
+            finally:
+                if not was_sworn:
+                    del Sworn[agent]                                  # take away only what this block gave
 
         ari = Agent()
-        Wizard(ari)
+        ari.oath = "for the realm"
+        Sworn(ari)
+        Hold(ari)
+        self.assertIn(ari, Sworn)                                     # it was Ari's, not the block's
 
-        with Scope(ari, Wizard):
-            self.assertIn(ari, Wizard)
+        bo = Agent()
+        bo.oath = None
 
-        self.assertIn(ari, Wizard)                                    # it was Ari's, not the Scope's
+        with self.assertRaises(Postcondition.Has_Oath):
+            Sworn(bo)
 
-    def test_a_tag_whose_promise_broke_at_the_door_is_ripped_on_exit(self) -> None:
+        Hold(bo)
+        self.assertIn(bo, ~Sworn)                                     # a broken Sworn before: a broken Sworn after
+
+        cal = Agent()
+        cal.oath = "for the realm"
+        Hold(cal)
+        self.assertNotIn(cal, Sworn[:])                               # the block gave it: the block took it away
+        self.assertTrue(isinstance(cal, Sworn))
+
+    def test_a_postcondition_that_fails_at_the_door_raises_before_the_try(self) -> None:
         class Sworn(Tag):
             @Post
             def Has_Oath(agent):
@@ -2539,15 +2617,41 @@ class ScopeTests(unittest.TestCase):
 
         bo = Agent()
         bo.oath = None
+        ran: list[str] = []
 
         with self.assertRaises(Postcondition.Has_Oath):
-            with Scope(bo, Sworn):
-                raise AssertionError("the body must not run")
+            Sworn(bo)                                                 # raises here: the try never starts
+            try:
+                ran.append("block")
+            finally:
+                del Sworn[bo]
 
-        self.assertNotIn(bo, Sworn)                                   # applied, defective, and Ripped on the way out
-        self.assertTrue(isinstance(bo, Sworn))                        # the history stays
+        self.assertEqual(ran, [])                                     # the block did not run
+        self.assertIn(bo, ~Sworn)                                     # nothing was Ripped: the Tag stays, defective
+        self.assertFalse(bo)
+        self.assertTrue(isinstance(bo, Sworn))
 
-    def test_a_refused_gate_applies_nothing_and_rips_nothing(self) -> None:
+    def test_an_imprint_that_fails_at_the_door_raises_before_the_try(self) -> None:
+        class Slipping(Tag):
+            @Imprint
+            def Slip(agent):
+                raise RuntimeError("slips")
+
+        cal = Agent()
+        ran: list[str] = []
+
+        with self.assertRaises(Imprint.Slip):
+            Slipping(cal)
+            try:
+                ran.append("block")
+            finally:
+                del Slipping[cal]
+
+        self.assertEqual(ran, [])
+        self.assertIn(cal, Slipping)                                  # nothing was Ripped: the Tag stays
+        self.assertTrue(cal)                                          # an Imprint is not a promise: still sound
+
+    def test_a_refused_gate_raises_before_the_try_and_the_tags_before_it_stay(self) -> None:
         class Gated(Tag):
             @Pre
             def Ready(agent):
@@ -2558,13 +2662,326 @@ class ScopeTests(unittest.TestCase):
 
         cal = Agent()
         cal.ready = False
+        ran: list[str] = []
 
         with self.assertRaises(Precondition.Ready):
-            with Scope(cal, Plain, Gated):
-                pass
+            Plain(cal)
+            Gated(cal)                                                # refused: there is nothing to undo
+            try:
+                ran.append("block")
+            finally:
+                del Gated[cal]
+                del Plain[cal]
 
-        self.assertNotIn(cal, Plain)                                  # Plain was the Scope's: gone
-        self.assertNotIn(cal, Gated)
+        self.assertEqual(ran, [])
+        self.assertIn(cal, Plain)                                     # tagged before the refusal: it stays
+        self.assertNotIn(cal, Gated[:])
+        self.assertFalse(isinstance(cal, Gated))                      # refused: never a member
+
+    def test_a_base_a_shape_pulled_in_stays_unless_the_finally_rips_it(self) -> None:
+        class Wolf(Tag):
+            pass
+
+        class Dire(Wolf):
+            pass
+
+        bo = Agent()
+        Dire(bo)                                                      # brings Wolf
+        try:
+            self.assertIn(bo, Wolf)
+        finally:
+            del Dire[bo]
+
+        self.assertIn(bo, Wolf)                                       # the Base stays
+        self.assertNotIn(bo, Dire)
+
+        cal = Agent()
+        Dire(cal)
+        try:
+            self.assertIn(cal, Wolf)
+        finally:
+            del Dire[cal]
+            del Wolf[cal]                                             # a block that takes Wolf away too says so
+
+        self.assertNotIn(cal, Wolf)
+        self.assertNotIn(cal, Dire)
+
+    def test_a_rip_that_fails_while_the_block_raises_leaves_with_the_blocks_error_as_context(self) -> None:
+        class Stubborn(Tag):
+            @Rip
+            def Hold_On(agent):
+                raise RuntimeError("will not let go")
+
+        ari = Agent()
+        block_error = LookupError("the block fails")
+
+        with self.assertRaises(TagCompositionError) as caught:
+            Stubborn(ari)
+            try:
+                raise block_error
+            finally:
+                del Stubborn[ari]                                     # fails, and raises: nothing is silent
+
+        self.assertNotIsInstance(caught.exception, LookupError)       # an except LookupError: would not catch it
+        self.assertIsInstance(caught.exception.__cause__, RuntimeError)   # the teardown's own error
+        self.assertIs(caught.exception.__context__, block_error)      # the block's error, kept inside
+
+    def test_a_block_that_rips_the_tag_itself_checks_in_the_finally(self) -> None:
+        ari = Agent()
+
+        with self.assertRaises(TagResolutionError):
+            Sentry(ari)
+            try:
+                del Sentry[ari]                                       # the block ends the role itself
+            finally:
+                del Sentry[ari]                                       # finds no member
+
+        self.assertEqual(_DEL_LOG, ["stood down"])                    # once: the refused Rip ran no teardown
+
+        _DEL_LOG.clear()
+        bo = Agent()
+        Sentry(bo)
+        try:
+            del Sentry[bo]
+        finally:
+            if bo in Sentry[:]:                                       # check first, in the finally
+                del Sentry[bo]
+
+        self.assertNotIn(bo, Sentry)
+        self.assertEqual(_DEL_LOG, ["stood down"])
+
+    def test_a_tag_ripped_and_applied_again_in_the_block_is_ripped_by_the_finally(self) -> None:
+        ari = Agent()
+
+        Sentry(ari)
+        try:
+            del Sentry[ari]
+            Sentry(ari)                                               # the block's new one
+        finally:
+            del Sentry[ari]                                           # Rips it, with no error
+
+        self.assertNotIn(ari, Sentry)
+        self.assertEqual(_DEL_LOG, ["stood down", "stood down"])      # its teardown ran a second time
+
+    def test_several_tags_are_tagged_before_the_try_and_ripped_in_reverse(self) -> None:
+        order: list[str] = []
+
+        class Lookout(Tag):
+            @Rip
+            def Leave_The_Tower(agent):
+                order.append("Lookout")
+
+        class Herald(Tag):
+            @Rip
+            def Fall_Silent(agent):
+                order.append("Herald")
+
+        ari = Agent()
+        Lookout(ari)
+        Herald(ari)
+        try:
+            self.assertIn(ari, Lookout)
+            self.assertIn(ari, Herald)
+        finally:
+            del Herald[ari]
+            del Lookout[ari]
+
+        self.assertEqual(order, ["Herald", "Lookout"])
+
+    def test_a_door_failure_among_several_tags_reaches_the_caller_and_both_stay(self) -> None:
+        class Lookout(Tag):
+            pass
+
+        class Watch(Lookout):
+            @Post
+            def Awake(agent):
+                return agent.awake
+
+        guard = Agent()
+        guard.awake = False
+        ran: list[str] = []
+
+        with self.assertRaises(Postcondition.Awake):                  # Watch's own failure
+            Lookout(guard)
+            Watch(guard)                                              # fails at the door, before the try
+            try:
+                ran.append("block")
+            finally:
+                del Watch[guard]
+                del Lookout[guard]
+
+        self.assertEqual(ran, [])
+        self.assertIn(guard, Lookout)                                 # both Tags stay
+        self.assertIn(guard, ~Watch)
+
+    def test_a_rip_that_fails_among_several_leaves_at_once_and_the_rips_after_it_do_not_run(self) -> None:
+        class Stubborn(Tag):
+            @Rip
+            def Hold_On(agent):
+                raise RuntimeError("will not let go")
+
+        ari = Agent()
+
+        with self.assertRaises(TagCompositionError) as caught:
+            Sentry(ari)
+            Stubborn(ari)
+            try:
+                pass
+            finally:
+                del Stubborn[ari]                                     # fails: its error leaves at once
+                del Sentry[ari]                                       # never runs
+
+        self.assertIn("Stubborn", str(caught.exception))              # the error says which Rip failed
+        self.assertIn(ari, Sentry)                                    # its Tag stays
+        self.assertEqual(_DEL_LOG, [])
+
+    def test_nested_trys_bury_a_door_failure_of_an_inner_tag(self) -> None:
+        class Lookout(Tag):
+            pass
+
+        class Watch(Lookout):
+            @Post
+            def Awake(agent):
+                return agent.awake
+
+        guard = Agent()
+        guard.awake = False
+
+        with self.assertRaises(TagCompositionError) as caught:
+            Lookout(guard)
+            try:
+                Watch(guard)                                          # fails at the door of the inner block
+                try:
+                    pass
+                finally:
+                    del Watch[guard]
+            finally:
+                del Lookout[guard]                                    # refused: Watch still requires it
+
+        self.assertIn("required by active Shape(s): Watch", str(caught.exception))
+        self.assertIsInstance(caught.exception.__context__, Postcondition.Awake)   # Watch's failure is only its context
+
+    def test_form_4_takes_back_a_tag_that_failed_at_the_door(self) -> None:
+        class Sworn(Tag):
+            @Post
+            def Has_Oath(agent):
+                return agent.oath is not None
+
+        class Slipping(Tag):
+            @Imprint
+            def Slip(agent):
+                raise RuntimeError("slips")
+
+        class Stray(Tag):
+            @Imprint
+            def Bolt(agent):
+                raise RuntimeError("bolts")
+
+        class Feral(Stray):
+            pass
+
+        ran: list[object] = []
+
+        def Hold(
+                agent: Agent,
+                tag: type,
+                ) -> None:
+            try:
+                tag(agent)
+            except (TagPostconditionError, TagImprintError):
+                if agent in tag[:]:                                   # it landed, then failed: take it back
+                    del tag[agent]
+                raise
+            try:
+                ran.append(agent)
+            finally:
+                del tag[agent]
+
+        bo = Agent()
+        bo.oath = None
+
+        with self.assertRaises(Postcondition.Has_Oath):
+            Hold(bo, Sworn)
+
+        self.assertNotIn(bo, Sworn[:])                                # taken back
+        self.assertTrue(isinstance(bo, Sworn))                        # the history stays
+
+        cal = Agent()
+
+        with self.assertRaises(Imprint.Slip):
+            Hold(cal, Slipping)
+
+        self.assertNotIn(cal, Slipping[:])
+
+        dee = Agent()
+
+        with self.assertRaises(Imprint.Bolt):                         # the real failure, not "Feral is not active"
+            Hold(dee, Feral)
+
+        self.assertNotIn(dee, Feral[:])                               # a Shape that fails through its Base never lands
+        self.assertIn(dee, Stray)                                     # the Base stays either way
+        self.assertEqual(ran, [])
+
+        eve = Agent()
+
+        with self.assertRaises(TagResolutionError) as unchecked:
+            try:
+                Feral(eve)
+            except TagImprintError:
+                del Feral[eve]                                        # without the check
+                raise
+
+        self.assertIsInstance(unchecked.exception.__context__, Imprint.Bolt)   # the real failure is hidden
+
+    def test_tagging_inside_the_try_buries_a_refusal(self) -> None:
+        class Gated(Tag):
+            @Pre
+            def Ready(agent):
+                return agent.ready
+
+        cal = Agent()
+        cal.ready = False
+
+        with self.assertRaises(TagResolutionError) as caught:
+            try:
+                Gated(cal)                                            # inside the try: the wrong place
+            finally:
+                del Gated[cal]                                        # finds no member
+
+        self.assertIsInstance(caught.exception.__context__, Precondition.Ready)   # the refusal is only its context
+
+    def test_no_top_object_follows_with(self) -> None:
+        ari = Agent()
+        held = Sentry(ari)
+
+        for label, value in (
+                ("the Tag", Sentry),
+                ("the Field", Sentry[:]),
+                ("the defective part", ~Sentry),
+                ("a combination", Sentry | Recruit),
+                ("a view", Sentry[ari]),
+                ("a tagging's result", held),
+                ):
+            with self.subTest(label):
+                with self.assertRaises(TypeError):
+                    with value:
+                        pass
+
+    def test_scope_is_no_longer_exported(self) -> None:
+        import TopKit
+        import TopKit.lifecycle
+
+        with self.assertRaises(ImportError):
+            from TopKit import Scope                                  # removed: tag before try, Rip in finally
+
+        self.assertNotIn("Scope", TopKit.__all__)
+        self.assertFalse(hasattr(TopKit, "Scope"))
+        self.assertFalse(hasattr(TopKit.lifecycle, "Scope"))
+
+
+# ==================================================================
+# Ring 4: Access and queries
+# ==================================================================
 
 
 class AccessTests(unittest.TestCase):
@@ -2693,6 +3110,43 @@ class FieldAlgebraTests(unittest.TestCase):
         self.assertEqual(list(~self.Fighter | self.Wizard), [self.cal, self.ari, self.bo])
         self.assertEqual(list(self.Wizard[:] & ~self.Fighter), [])
         self.assertEqual(list(self.Fighter[:] - self.Wizard), [self.cal])
+
+    def test_tilde_absorbs_broken_twice_is_still_broken(self) -> None:
+        """STEP-SPEC-29, rule 3.2: "bad bad = bad". Every run of `~` is the
+        broken part, never the sound one."""
+
+        broken = ~self.Fighter
+
+        for spelling in (
+                ~~self.Fighter,
+                ~~~self.Fighter,
+                ~~~~~~~~~~~~~self.Fighter,                            # the Director's ~~~~~~~~~~~~~Wizard
+                ~broken,
+                ):
+            self.assertEqual(repr(spelling), "<defective Field>")
+            self.assertEqual(list(spelling), [self.cal])
+            self.assertEqual(len(spelling), 1)
+            self.assertTrue(spelling)                                 # someone broken
+            self.assertIn(self.cal, spelling)
+            self.assertNotIn(self.bo, spelling)                       # bo is sound: never in a run of ~
+            self.assertEqual(list(spelling | ~self.Wizard), [self.cal])
+
+        self.assertEqual(list(~~self.Wizard), [])                     # nobody broken: still nobody
+        self.assertFalse(~~self.Wizard)
+
+        self.cal.fit = True                                           # repaired: leaves every run of ~ at once
+        self.assertEqual(list(~~self.Fighter), [])
+        self.assertEqual(list(~~~self.Fighter), [])
+        self.assertEqual(list(self.Fighter), [self.bo, self.cal])
+
+    def test_a_combination_takes_no_tilde(self) -> None:
+        for combination in (
+                self.Wizard | self.Fighter,
+                self.Wizard[:] & self.Fighter[:],
+                ~self.Fighter - self.Wizard,
+                ):
+            with self.assertRaises(TypeError):
+                ~combination
 
     def test_a_population_offers_no_public_way_around_tagging_and_rip(self) -> None:
         populations = [
@@ -2863,7 +3317,8 @@ class ConditionMemberTests(unittest.TestCase):
 
     def test_the_member_and_the_status_agree(self) -> None:
         class Elf(Tag):
-            @Requirement
+            @Pre
+            @Post
             def Alive(agent):
                 return agent.alive
 
@@ -5211,9 +5666,13 @@ class CategoryErrorTests(unittest.TestCase):
         self.assertEqual(self.log, [])
 
     def test_a_host_with_only_len_is_accepted(self) -> None:
+        """Decided on 2026-10-09 (STEP-SPEC-28, open question 2): the
+        Agent's truth is its contract, and `len(agent)` stays the host's."""
+
         class Shelf:
             def __init__(self) -> None:
                 self.books: list[str] = []
+                self.catalogued = True
 
             def __len__(self) -> int:
                 return len(self.books)
@@ -5221,12 +5680,49 @@ class CategoryErrorTests(unittest.TestCase):
         class Library(Tag):
             pass
 
+        class Catalogue(Tag):
+            @Post
+            def Catalogued(agent) -> bool:
+                return agent.catalogued
+
         shelf = Shelf()
         Library(shelf)
+        runtime = type(shelf)
 
         self.assertIn(shelf, Library)
         self.assertEqual(len(shelf), 0)
-        self.assertFalse(shelf)                                       # no promise visible: its length answers
+        self.assertTrue(shelf)                                        # no promise: nothing is broken, empty or not
+
+        Catalogue(shelf)
+        shelf.books.append("Dune")
+        shelf.catalogued = False
+
+        self.assertIs(type(shelf), runtime)                           # a first promise needs no new runtime type
+        self.assertEqual(len(shelf), 1)                               # the host's length
+        self.assertFalse(shelf)                                       # a broken promise, whatever the length
+        self.assertIn(shelf, ~Catalogue)
+
+        shelf.books.clear()
+        shelf.catalogued = True
+
+        self.assertEqual(len(shelf), 0)
+        self.assertTrue(shelf)                                        # every promise holds: empty and still true
+
+    def test_a_class_built_on_an_agents_runtime_type_has_no_truth_of_its_own(self) -> None:
+        class Library(Tag):
+            pass
+
+        first = Agent()
+        Library(first)
+
+        class Built_On(type(first)):                                  # the kit's __bool__ is on its base
+            pass
+
+        built = Built_On()
+        Library(built)
+
+        self.assertIn(built, Library)
+        self.assertTrue(built)
 
     def test_a_string_target_is_refused(self) -> None:
         class Name(str):
@@ -5322,10 +5818,12 @@ class CategoryErrorTests(unittest.TestCase):
 
 class WalkTests(unittest.TestCase):
     """STEP-SPEC-29, rule 7.1: a walk takes a Field's members when it
-    begins, in join order, and skips a member that an earlier turn of the
-    same walk Ripped. An Agent that joins the Field during the walk waits
-    for the next one; each side of a union is read when its own walk
-    begins. (``&`` and ``-`` ask their right side at each turn.)"""
+    begins, in join order, and visits each at its turn if it is a member
+    then. One an earlier turn of the same walk Ripped is skipped; one
+    Ripped and tagged again is visited. An Agent that joins the Field
+    during the walk waits for the next one; each side of a union is read
+    when its own walk begins. (``&`` and ``-`` ask their right side at
+    each turn.)"""
 
     def setUp(self) -> None:
         class Wizard(Tag):
@@ -5434,16 +5932,48 @@ class WalkTests(unittest.TestCase):
         self.assertEqual(self.walked(Wizard, Rip_It), [self.ari, self.bo, self.cal])
         self.assertEqual(list(Wizard[:]), [])
 
-    def test_a_member_ripped_and_tagged_again_waits_for_the_next_walk(self) -> None:
+    def test_a_member_ripped_and_tagged_again_is_visited_at_its_turn(self) -> None:
+        """The Director, 2026-10-09: "if an agent is tagged again, it is in
+        the list so you shouldn't skip it." Once, at its place in the
+        starting list."""
+
         Wizard, ari, bo, cal = self.Wizard, self.ari, self.bo, self.cal
 
         def Rip_And_Return(member) -> None:
             if member is ari:
                 del Wizard[cal]
-                Wizard(cal)                                           # a fresh Tagging: it joins again
+                Wizard(cal)                                           # a fresh Tagging: it is in again
 
-        self.assertEqual(self.walked(Wizard, Rip_And_Return), [ari, bo])
+        self.assertEqual(self.walked(Wizard, Rip_And_Return), [ari, bo, cal])
+        self.assertEqual(self.walked(Wizard[:], Rip_And_Return), [ari, bo, cal])
         self.assertEqual(list(Wizard), [ari, bo, cal])
+
+    def test_a_member_ripped_and_tagged_again_after_its_turn_is_not_visited_twice(self) -> None:
+        Wizard, ari, bo, cal = self.Wizard, self.ari, self.bo, self.cal
+
+        def Rip_And_Return(member) -> None:
+            if member is bo:
+                del Wizard[ari]
+                Wizard(ari)                                           # its turn is past: it now joins last
+
+        self.assertEqual(self.walked(Wizard, Rip_And_Return), [ari, bo, cal])
+        self.assertEqual(list(Wizard), [bo, cal, ari])
+
+    def test_a_member_ripped_and_tagged_again_broken_is_skipped_by_the_sound_walk(self) -> None:
+        Wizard, ari, bo, cal = self.Wizard, self.ari, self.bo, self.cal
+
+        def Rip_And_Return_Broken(member) -> None:
+            if member is ari:
+                del Wizard[cal]
+                cal.fit = False
+
+                try:
+                    Wizard(cal)
+                except Postcondition.Fit:
+                    pass                                              # in again, broken
+
+        self.assertEqual(self.walked(Wizard, Rip_And_Return_Broken), [ari, bo])
+        self.assertEqual(self.walked(Wizard[:], Rip_And_Return_Broken), [ari, bo, cal])
 
     def test_an_agent_that_joins_during_a_walk_waits_for_the_next_walk(self) -> None:
         Wizard, ari = self.Wizard, self.ari

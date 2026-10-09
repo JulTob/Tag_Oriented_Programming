@@ -94,9 +94,14 @@ def _host_in_seat(
 
 def _hooks_for(
         host_type: type,
-        has_posts: bool,
         has_flags: bool,
         ) -> dict[str, Any]:
+    """The kit's special methods for one host. ``__bool__`` is on every
+    Agent: its truth is its contract, even over the host's ``__len__``,
+    which still answers ``len`` (§2.5). A host with its own ``__bool__``
+    never gets here (§0.5), but a Tag does: it keeps its metaclass's
+    truth, "anyone sound?"."""
+
     hooks: dict[str, Any] = {
             "__getattr__": _agent_getattr,
             "__del__": _agent_del,
@@ -104,7 +109,7 @@ def _hooks_for(
             "_TOPKIT_HOST_GETATTR": _host_member(host_type, "__getattr__"),
             }
 
-    if has_posts and _host_member(host_type, "__bool__") is None:
+    if _host_member(host_type, "__bool__") is None:
         hooks["__bool__"] = _agent_bool
 
     if _host_member(host_type, "__format__") is None:

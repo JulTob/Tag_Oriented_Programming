@@ -476,8 +476,8 @@ def _needs_new_type(
         declarations: _Declarations,
         ) -> bool:
     """Only type-level facts change the runtime type: the first tagging,
-    deletions, secrets, published Reports, dunder Actions, a first Post,
-    a first Flag."""
+    deletions, secrets, published Reports, dunder Actions, a first Flag.
+    A Post is not one: every Agent's truth is its contract (§2.5)."""
 
     if "_TOPKIT_HOST_TYPE" not in type(agent).__dict__:
         return True   # the Agent still wears its host's own class
@@ -487,7 +487,6 @@ def _needs_new_type(
             or declarations.deletions
             or declarations.secrets
             or declarations.dunders
-            or declarations.postconditions
             or any(public for _name, _value, public in declarations.reports)
             )
 

@@ -29,8 +29,7 @@ an adjective, changeable. Wizard is a Tag. Hit points are a Record.
 from TopKit import (
         Action, Contract, Delete, Flag, Form, Imprint, Keyword, Operation,
         Outline, Pin, Post, Postcondition, Pre, Precondition, Public,
-        Record, Report, Requirement, Rip, Scope, Secret, Tag, Tags,
-        Underlay,
+        Record, Report, Rip, Secret, Tag, Tags, Underlay,
         TagCompositionError, TagPostconditionError, TagPreconditionError,
         TagResolutionError,
         )
@@ -409,6 +408,9 @@ assert newt in list(Wizard)             # back in the working population
 This is the factory rule: a bad product is not melted back to materials. It
 is flagged, repaired, or thrown away (`del Wizard[newt]`).
 
+`~` reads "broken", never "not". Broken twice is still broken, so
+`~~Wizard` is `~Wizard`, the repair queue again.
+
 `if agent:` reads "are this agent's promises holding". When you need the
 name of the broken one, `Contract.Display(agent)` or `f"{agent:contract}"`
 prints them.
@@ -442,20 +444,10 @@ assert ari in ~Elf
 Being alive is necessary to be an Elf, not sufficient: other living things
 are not Elves. That is the difference between a condition and a Tag.
 
-When the claim reads better as one necessity than as two checks, write
-`@Requirement` instead of the pair. It means exactly the same thing:
-
-```python
-class Elf(Tag):
-
-    @Requirement
-    def Alive(agent):
-        return agent.alive
-```
-
-It still fails under two names, because you repair the two differently:
-`Precondition.Alive` is someone who may not come in, `Postcondition.Alive`
-is an Elf already in and now broken.
+The order of the two marks does not matter: `@Post` above `@Pre` is the
+same condition. It fails under two names, because you repair the two
+differently: `Precondition.Alive` is someone who may not come in,
+`Postcondition.Alive` is an Elf already in and now broken.
 
 **Watch out.** A Shape should promise *at least* what its Base promised.
 Use `@Post @Underlay` and `return base() and ...`. Overriding a Base's
@@ -657,15 +649,52 @@ class Sentry(Tag):
 
 guard = Character("Guard")
 
-with Scope(guard, Sentry):              # applies on entry
+Sentry(guard)                           # the guard joins Sentry
+try:
     assert guard.on_duty
+finally:
+    del Sentry[guard]                   # the guard leaves, even if the block raised
 
-assert not guard.on_duty                # Ripped on exit, even on error
+assert not guard.on_duty
 assert guard not in Sentry
 ```
 
 `@Imprint` runs after the Tag applies; `@Rip` runs after it leaves. They
-are constructor and destructor, `__enter__` and `__exit__`.
+are constructor and destructor.
+
+A role for a block is two acts you already know, the tagging and the Rip,
+joined by Python's own `try` and `finally`. The rule is the one Python
+teaches for a lock: **tag before `try`, Rip in `finally`.** A `finally`
+always runs when its `try` ends, whether the block finished or raised.
+
+Tag *before* the `try`, not inside it. A tagging that fails at the door
+then raises before the block starts, and the `finally` never runs.
+Inside the `try`, a refused tagging would send the `finally` to Rip a
+Tag that never landed. The caller would get "Sentry is not active on this
+Agent", and the refusal would only be kept inside it.
+
+If the Agent may carry the Tag already, take away only what the block
+gave:
+
+```python
+veteran = Character("Veteran")
+Sentry(veteran)                         # a Sentry before the block
+
+was_sentry = veteran in Sentry[:]       # in the Field already, sound or not?
+Sentry(veteran)                         # does nothing if he was
+try:
+    assert veteran.on_duty
+finally:
+    if not was_sentry:
+        del Sentry[veteran]             # take away only what this block gave
+
+assert veteran in Sentry                # a Sentry before, a Sentry after
+```
+
+Write `Sentry[:]`, with the brackets: it asks the whole Field, sound or
+broken, so a veteran who is a broken Sentry keeps the Tag too. With
+several Tags, tag them all before the `try`, and Rip them in the
+`finally` in reverse order.
 
 A role's conditions do **not** leave with it on their own. What the
 Agent *became* stays (pattern 1's Rogue Agent), and so does what the role
@@ -704,7 +733,7 @@ return True`, which lets the promise follow any membership you like; the
 Contracts Guide shows both.
 
 **Watch out.** Python does not promise to run finalizers at shutdown, so
-`del agent` is best-effort. `Scope` is the guaranteed path.
+`del agent` is best-effort. A Rip in a `finally` is the guaranteed path.
 
 **An object's own `__del__` is a Layer.** It keeps running when the object
 is tagged. A Tag may replace it, or wrap it with `@Underlay`; the Tags'
@@ -982,16 +1011,35 @@ assert not all(s.grade > 8 for s in Scholar)    # not all of them
 ```
 
 **Watch out.** Write the question inside. `all(Scholar)` alone asks each
-sound Scholar for its own truth. For most Agents that is their contract,
-which holds for every sound one, so the answer is True. But a host with
-`__len__` answers for itself while no promise is visible on it: an empty
-`Shelf` Agent is sound and still false. A host with its own `__bool__`
-never gets that far: TopKit refuses it at tagging with a
-`TagCategoryError`, because its truth would answer for the contract, so
-keep that truth in a Record. So `all(Scholar)` and `any(Scholar)` do
-not ask whether there are Scholars; `if Scholar:` does. Over an empty
-Tag, `all(...)` is True and `any(...)` is False: nobody broke the rule,
-and nobody is there to show it.
+sound Scholar for its own truth. An Agent's truth is its contract, which
+holds for every sound one. So `all(Scholar)` is always True, and
+`any(Scholar)` only repeats `if Scholar:`, the plain way to ask whether
+there are Scholars. A host with `__len__` changes none of this: `len`
+stays the host's, but the truth is the contract's.
+
+```python
+class Shelf:
+    def __init__(self):
+        self.books = []
+
+    def __len__(self):
+        return len(self.books)
+
+class Library(Tag):
+    pass
+
+shelf = Shelf()
+Library(shelf)
+
+assert len(shelf) == 0                          # the host's length
+assert shelf                                    # its truth: no promise is broken
+```
+
+A host with its own `__bool__` never gets that far: TopKit refuses it at
+tagging with a `TagCategoryError`, because its truth would answer for the
+contract, so keep that truth in a Record. Over an empty Tag, `all(...)`
+is True and `any(...)` is False: nobody broke the rule, and nobody is
+there to show it.
 
 Nothing TOP-level lives at `Wizard.something`. That namespace is yours: put
 your Reports and Operations there. A name the Tag gives its Agents is the
@@ -1011,7 +1059,7 @@ that names the loop you meant,
 | Gate with `@Pre`; promise with `@Post`; repair through `~Tag`. | Roll your own validation after the fact. |
 | Mark word-like Tags `@Flag` and write rules as data. | Match every Tag by name. Only Flags are words. |
 | Say things about a Tag with a `@Pin`. | Keep a side table of Tags outside TOP. |
-| Clean up with `@Rip`, guarantee it with `Scope`. | Rely on `del agent` for anything that matters. |
+| Clean up with `@Rip`; for a block, tag before `try` and Rip in `finally`. | Rely on `del agent` for anything that matters. |
 | Reset by Rip and apply again. | Reapply an active Tag hoping it resets (it does nothing). |
 | Expect a Rogue Agent to keep its own Actions and lose the Agency's published ones. | Check membership by hand inside every published Operation. |
 | Catch the named promise, repair what it names, retry. | Catch every failure in one handler and guess. |

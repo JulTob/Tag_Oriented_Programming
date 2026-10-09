@@ -26,7 +26,7 @@ ring it claims. Examples are in Python; the laws are language-neutral.
 | **0 · Kernel** | identity, membership, Geometry, the tagging sequence, Rip |
 | **1 · Contributions** | Actions, Records, Operations, Reports, Overlay and Underlay, publication, access |
 | **2 · Contracts** | Preconditions, Imprints, Postconditions, defective Agents |
-| **3 · Lifecycle** | teardown protocols, Scope, deletion |
+| **3 · Lifecycle** | teardown protocols, deletion |
 | **4 · Edges** | what TOP does not promise, and why |
 
 The last sections give the failure model, the conformance obligations, and
@@ -48,8 +48,9 @@ before and after, it is the same object. Precisely:
   unless a Tag deliberately contributes a member of that name;
 - the Target's own special methods (`__contains__`, `__len__`, operators,
   `__getattr__`) keep working, with one deliberate exception:
-  `bool(agent)` gains contract meaning once a Postcondition is visible
-  (§2.5). A host with its own `__bool__` is not a Target (§0.5);
+  `bool(agent)` is the Agent's contract (§2.5), even when the host
+  defines `__len__`; `len(agent)` stays the host's. A host with its own
+  `__bool__` is not a Target (§0.5);
 - the name of the object's type is unchanged.
 
 What TOP does **not** promise is nominal type identity: a Python
@@ -176,9 +177,9 @@ one is a Category Failure, refused before anything changes:
 
 Keep such a value, or such a truth, in a Record or an attribute of an
 object, and tag the object. A host that defines only `__len__` is a
-Target: its length answers its truth until a Postcondition is visible
-(§2.5). A Tag answers its truth through its metaclass, so pinning (§1.9)
-is not concerned.
+Target: `len(agent)` stays its own, and its truth is its contract, as on
+every Agent (§2.5). A Tag answers its truth through its metaclass, so
+pinning (§1.9) is not concerned.
 
 ## 0.6 The tagging sequence
 
@@ -265,10 +266,6 @@ Rip is the only exit from a Field, and it obeys three laws:
   is a Resolution Failure.
 - **Reapplying a Ripped Tag is a fresh Tagging.** Imprints run again;
   Records are rebuilt.
-- **A Scope Rips what it applied, and only that.** A Tag the Agent
-  already carried at entry is left as it was on exit; a Tag that applied
-  and reported a broken promise at the Scope's door did apply, and is
-  Ripped on the way out with the rest.
 
 ## 0.8 Spellings
 
@@ -298,7 +295,7 @@ language, not a library's naming.
 | catch one check's failure (§2.6) | `except Precondition.Is_A_Caster:`, `except Postcondition.Has_Book:`, `except Imprint.Arm:` |
 | catch a Rogue Agent's access (§1.5) | `except TagRogueAccessError:` |
 | end a condition explicitly (§0.7), from a `@Rip` protocol | `Contract.Delete(agent, "Has_Book")` |
-| necessary to enter and to stay (§2.7) | `@Pre` + `@Post`, or `@Requirement` |
+| necessary to enter and to stay (§2.7) | `@Pre` + `@Post`, stacked on one function |
 | pin a Tag (§1.9), and every act above with a Tag in the Agent's seat | `Rare(Wizard)`, `Wizard in Rare`, `for tag in Rare`, `Rare[Wizard]`, `del Rare[Wizard]` |
 | a Tag carries a keyword? (Flag Pins, §1.9) | `"Deprecated" in Wizard`, `Keyword(Wizard, "Deprecated")` |
 | a Tag's Pins and contract, as text | `f"{Wizard:pins}"`, `f"{Wizard:contract}"` |
@@ -316,8 +313,8 @@ renders what a Tag or Agent is, without a method on either. On an Agent the
 door follows the empty-seat rule: a host with its own formatting keeps it.
 
 Queries that need a name are functions (`Form`, `Tags`, `Keyword`,
-`Apply`, `Outline`, `Contract`, `Scope`), never members of the Tag or of
-the Agent.
+`Apply`, `Outline`, `Contract`), never members of the Tag or of the
+Agent.
 Another language profile chooses its own native spellings; the acts and
 their distinctions are what must survive.
 
@@ -1092,15 +1089,20 @@ it is empty. A broken Agent does not stop being a member (`in`), does not
 leave `Wizard[:]`, and waits in `~Wizard` for repair or Rip. Membership and the loop deliberately disagree for it:
 the loop is the line, and a defective product is off the line.
 
+`~` reads "broken", never "not". Broken twice is still broken, so `~`
+absorbs: `~~Wizard`, `~~~Wizard` and any longer run are `~Wizard`, the
+same defective population (STEP-SPEC-29).
+
 **Populations combine** (STEP-SPEC-13). `|` is either, `&` is both, `-`
 is the left without the right, on any population: a whole Field, the
 sound view, the defective view, or a combination. A Tag in an operator
 seat is its sound population, as it is in the loop; `Wizard[:] |
 Fighter[:]` is everyone who is either; the levels mix. The result is a
 lazy view that reads its Fields when walked, keeps application order
-within each side, answers `in`, `len`, truth and iteration, and has no
-complement (`~` on a union has no universe). A Tag with anything that is
-not a population keeps the language's own class union (`Wizard | None`).
+within each side, answers `in`, `len`, truth and iteration, and takes no
+`~`: `~(Wizard | Fighter)` is refused, and `~Wizard | ~Fighter` is the
+broken members of either. A Tag with anything that is not a population
+keeps the language's own class union (`Wizard | None`).
 A Pin's population holds Tags, and a Tag's holds Agents, so the two never
 combine: `Rare | Wizard`, `Wizard & Rare` and `Rare[:] - Wizard` are a
 Category Failure. Pins combine with Pins, and Tags with Tags.
@@ -1111,10 +1113,13 @@ for b in Wizard & Fighter:            # sound in both
 for u in (Wizard[:] | Fighter[:]) - Sworn:   # anyone with a role who has not sworn
 ```
 
-**A walk** takes a Field's members when it begins, in join order. A
-member that an earlier turn of the same walk Ripped is skipped, so a loop
-that Rips as it goes never meets an Agent that has left (STEP-SPEC-29).
-An Agent that joins the Field during the walk waits for the next one.
+**A walk** takes a Field's members when it begins, in join order. At its
+turn, each is visited if it is a member then, and skipped if it is not
+(STEP-SPEC-29). So a member that an earlier turn of the same walk Ripped
+is skipped, and a loop that Rips as it goes never meets an Agent that
+has left. A member Ripped and tagged again before its turn is a member,
+so it is visited there, once. An Agent that joins the Field during the
+walk waits for the next one.
 Soundness is asked at each turn, so a member that breaks during the walk
 is skipped. A combination walks its left side this way. `|` walks its
 right side when the left ends. `&` and `-` ask the right side at each
@@ -1136,10 +1141,11 @@ A condition that outlived its Tag (§0.7) still reads by name until the
 author ends it.
 
 Truthiness on a plain object is vacuously true, so this fills an empty
-seat. A host that defines its own `__len__` keeps that truth until a
-Postcondition becomes visible on that Agent. A host that defines its own
-`__bool__` is refused at tagging (§0.5): its truth would answer for the
-contract.
+seat. An Agent with no visible Postcondition is truthy: no promise of it
+is broken. A host that defines its own `__len__` keeps `len(agent)`, but
+not its truth: an empty Agent whose promises hold is truthy
+(STEP-SPEC-28). A host that defines its own `__bool__` is refused at
+tagging (§0.5): its truth would answer for the contract.
 
 ## 2.6 Naming the culprit
 
@@ -1213,22 +1219,14 @@ Being alive is necessary to become an Elf and necessary to remain a sound
 one; it is not sufficient, since other living things are not Elves. A
 condition says *necessary*; membership says *is*.
 
-`@Requirement` is the same mark said in one word, for a claim that reads
-better as a necessity than as a pair of checks:
+The order of the two marks changes nothing: `@Post` above `@Pre` is the
+same condition. The two marks are its only spelling, so the page shows
+that it is a gate and a promise.
 
-```python
-class Elf(Tag):
-
-    @Requirement
-    def Alive(agent):
-        return agent.alive
-```
-
-A Requirement names no failure of its own. It fails at the door as
-`Precondition.Alive` and afterwards as `Postcondition.Alive`, because a
-program repairs the two differently: one is an Agent that may not come
-in, the other an Agent already in and now broken. Reading
-`Requirement.Alive` is a Declaration-time mistake and says so.
+The two failures keep their two names: `Precondition.Alive` at the
+door, `Postcondition.Alive` afterwards. A program repairs the two
+differently. One is an Agent that may not come in; the other is an Agent
+already in and now broken.
 
 ## 2.8 Writing a check
 
@@ -1247,9 +1245,9 @@ agent.spellbook` reads well, but asks two questions at once: *defined* and
 
 ## 3.1 Rip protocols
 
-Imprint and Rip are duals: constructor and destructor, `__enter__` and
-`__exit__`. A `@Rip` Action runs when the Agent leaves the Tag's Field. It
-is also an ordinary, callable Action.
+Imprint and Rip are duals: constructor and destructor. A `@Rip` Action
+runs when the Agent leaves the Tag's Field. It is also an ordinary,
+callable Action.
 
 ```python
 class MI6(Tag):
@@ -1278,15 +1276,40 @@ use: it could keep an Agent from ever leaving a Field.
 ## 3.2 Deleting an Agent
 
 Deletion of an Agent Rips it from its active Tags, so exit protocols run.
-An implementation provides three tiers and says which is which:
+There are three tiers. The implementation provides the first and the
+third; the program writes the second.
 
 | Tier | Guarantee |
 | --- | --- |
 | **Finalizer** (`__del__`) | best effort: when the Agent is collected, its teardowns run, then its `__del__` Layers; at interpreter exit only the `__del__` Layers run; the language may not run finalizers at shutdown or inside reference cycles |
-| **`Scope(agent, *tags)`** | guaranteed: Tags apply on entry and Rip, in reverse, on exit, even if the block raises |
+| **`del Tag[agent]` in a `finally`** | guaranteed: the language runs a `finally` whenever its block ends, by finishing or by raising |
 | **`At_Exit(agent)`** | opt-in: teardowns also run at normal interpreter exit; registration is weak |
 
 Every teardown runs at most once, whichever tier reaches it first.
+
+**A block that holds a Tag** (STEP-SPEC-31) is a tagging and a Rip,
+joined by the language's own `try` and `finally`. The rule: **tag before
+`try`, Rip in `finally`.**
+
+```python
+Sentry(guard)              # the guard joins Sentry
+try:
+    guard.Patrol()
+finally:
+    del Sentry[guard]      # the guard leaves, even if Patrol raised
+```
+
+A tagging that fails at the door raises before the `try`, so the block
+never runs and nothing is Ripped; a Tag that landed stays, as after any
+such tagging (§0.6). A Rip in a `finally` that fails raises, as every
+Rip does (§3.1). If the block was raising too, the language keeps the
+block's error inside the Rip's failure, as its context, and shows both.
+TOP adds nothing to this. Each step is a line the program writes: a
+block that should leave a Tag the Agent already carried checks first
+(`was_sentry = guard in Sentry[:]`), and a block that should take away a
+Base its Shape pulled in Rips the Base too.
+
+TOP gives `with` no meaning: no TOP object can follow `with`.
 
 **The Agent's own finalizer is a member in Layers** (STEP-SPEC-18). The
 host's `__del__` is its first Layer, found as the language finds it. A
@@ -1327,12 +1350,6 @@ Carried(lamp)
 Enchanted(lamp)
 del lamp
 assert log == ["put down", "spell fades", "wick out"]
-```
-
-```python
-with Scope(agent, Sentry):
-    guard_the_gate(agent)
-# Sentry's teardown has run here, exception or not
 ```
 
 ---
@@ -1420,8 +1437,8 @@ A conforming implementation provides, ring by ring:
 - published members answering members only, and only sound ones: a Rogue
   Access Failure on a Rogue Agent, the broken promise by name on a
   defective one, open again on membership or repair;
-- `@Pre` and `@Post` stacked on one function as one condition, spelled
-  `@Requirement` in one word;
+- `@Pre` and `@Post` stacked on one function as one condition, in
+  either order;
 - populations combined with `|`, `&` and `-` at every level, lazily, a
   Tag in an operator seat meaning its sound population;
 - every condition read on the Agent by its name as a plain boolean, with
@@ -1435,14 +1452,17 @@ A conforming implementation provides, ring by ring:
   call after the whole Form, re-checked at every later boundary, without
   inputs;
 - the contract direction, with weakened Postconditions diagnosed;
-- defective Agents: contract truthiness; the plain loop as the sound
-  population, `~Tag` the defective one, `Tag[:]` everyone, membership
-  unchanged; a namespace that names the culprit.
+- defective Agents: contract truthiness, whatever the host's `__len__`
+  (which keeps `len`); the plain loop as the sound population, `~Tag` the
+  defective one, with `~` absorbing (`~~Tag` is `~Tag`), `Tag[:]`
+  everyone, membership unchanged; a namespace that names the culprit.
 
 **Ring 3**
 - `@Rip` protocols run after membership ends, once, composed, failures
-  reported; the three deletion tiers; the Agent's `__del__` as Layers of
-  its Overlay, run after the teardowns, and alone at interpreter exit.
+  reported; the three deletion tiers, the finalizer and `At_Exit` from
+  the implementation, and the guaranteed one written by the program, a
+  Rip in a `finally`; the Agent's `__del__` as Layers of its Overlay,
+  run after the teardowns, and alone at interpreter exit.
 
 **Everywhere**
 - the failure types above, distinct and named.
