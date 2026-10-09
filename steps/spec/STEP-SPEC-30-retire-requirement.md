@@ -52,8 +52,8 @@ catches `Precondition.Name` or `Postcondition.Name` is unchanged.
 
 The tests exercise both decorator orders, the two distinct named failures,
 explicit condition deletion, condition-member reads and removal from the
-public API. The example, oracle and differential fuzz program use only the
-stacked spelling.
+public API. The example and differential fuzz program use the stacked
+spelling; the oracle contains no retired API and passes unchanged.
 
 ### Decision
 
