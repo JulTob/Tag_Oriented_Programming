@@ -15,8 +15,8 @@ Once for the whole call:
 
     5. Every visible Postcondition is checked.
 
-A failure in 1 or 2 rolls the whole call back: the Agent is exactly as it
-was, including Bases pulled in by this call. A failure in 4 or 5 raises
+A failure in 1 or 2 restores the incoming Agent's bindings, TOP state and
+memberships, removing memberships introduced by this call. A failure in 4 or 5 raises
 but the committed Tags stay. Their current Postconditions determine
 soundness; the failure itself is not a permanent defect. Python
 interruptions keep their original type and follow the same phase boundary.
@@ -36,6 +36,7 @@ from .errors import TagCompositionError
 from .errors import TagImprintError
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
+from .fields import _Member
 from .geometry import _form_of
 from .overlay import _install
 from .overlay import _quiet
@@ -79,6 +80,10 @@ def _apply(
     entry_namespace = dict(_namespace_of(agent) or {})
     entry_copy = entry_state.Copy() if entry_state is not None else None
     entry_tags = tuple(entry_state.active) if entry_state is not None else ()
+    entry_members = tuple(
+            member._topkit_field._members.get(id(agent))
+            for member in entry_tags
+            )
     entry_class = type(agent)
     boundary = _Call_Boundary()
 
@@ -125,6 +130,7 @@ def _apply(
                     entry_namespace,
                     entry_copy,
                     entry_tags,
+                    entry_members,
                     entry_class,
                     )
         raise
@@ -137,6 +143,7 @@ def _rollback(
         entry_namespace: dict[str, Any],
         entry_copy: _State | None,
         entry_tags: tuple[type, ...],
+        entry_members: tuple[_Member | None, ...],
         entry_class: type,
         ) -> None:
     current = _state_of(agent)
@@ -167,6 +174,12 @@ def _rollback(
 
     if type(agent) is not entry_class:
         agent.__class__ = entry_class
+
+    for tag, member in zip(entry_tags, entry_members):
+        tag._topkit_field._Rejoin(
+                agent,
+                member,
+                )
 
 
 def _gate(
@@ -227,8 +240,8 @@ def _apply_one(
         boundary: _Call_Boundary,
         ) -> None:
     # The state is laid over in place: the call boundary (_apply) holds the
-    # entry copy that a Record failure rolls back to, and nothing reads the
-    # new Overlay before commit binds it on the Agent.
+    # entry copy that a Record failure restores. Commit binds the Overlay
+    # on the Agent after this Tag's Parts are built.
     boundary.after_commit = False   # this Tag's Parts can still refuse the whole call
     state = _state_for(agent)
     declarations = _declarations_of(tag)
