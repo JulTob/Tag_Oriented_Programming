@@ -14,7 +14,6 @@ from TopKit import Pre
 from TopKit import Public
 from TopKit import Record
 from TopKit import Report
-from TopKit import Requirement
 from TopKit import Rip
 from TopKit import Secret
 from TopKit import Tag
@@ -61,8 +60,8 @@ class InvalidRipTests(unittest.TestCase):
                 ("Imprint", Imprint),
                 ("Pre", Pre),
                 ("Post", Post),
-                ("Requirement", Requirement),
-                ("stacked Pre and Post", lambda function: Pre(Post(function))),
+                ("Pre outside Post", lambda function: Pre(Post(function))),
+                ("Post outside Pre", lambda function: Post(Pre(function))),
                 ("Delete", Delete),
                 ("Report", Report),
                 ("Operation", Operation),
