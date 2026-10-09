@@ -33,6 +33,9 @@
 - Three retention probes join the same isolated runner: a large Field whose
   Agents are released, lifecycle teardown during collection and cache churn
   through transient hosts, Tags, runtime types and Agents.
+- The remaining compatible probes cover many independent Agents in worker
+  threads and repeated reciprocal Pin/Rip cycles. The old self-Pin half is
+  omitted because current TOP refuses a Pin applied to itself.
 - **Releases go out through Trusted Publishing.** A GitHub Release runs
   `.github/workflows/release.yml`: the suite on Python 3.12, 3.13 and
   3.14, the oracle at its audited size, a check that the tag names
