@@ -5402,10 +5402,12 @@ class CategoryErrorTests(unittest.TestCase):
 
 class WalkTests(unittest.TestCase):
     """STEP-SPEC-29, rule 7.1: a walk takes a Field's members when it
-    begins, in join order, and skips a member that an earlier turn of the
-    same walk Ripped. An Agent that joins the Field during the walk waits
-    for the next one; each side of a union is read when its own walk
-    begins. (``&`` and ``-`` ask their right side at each turn.)"""
+    begins, in join order, and visits each at its turn if it is a member
+    then. One an earlier turn of the same walk Ripped is skipped; one
+    Ripped and tagged again is visited. An Agent that joins the Field
+    during the walk waits for the next one; each side of a union is read
+    when its own walk begins. (``&`` and ``-`` ask their right side at
+    each turn.)"""
 
     def setUp(self) -> None:
         class Wizard(Tag):
@@ -5514,16 +5516,48 @@ class WalkTests(unittest.TestCase):
         self.assertEqual(self.walked(Wizard, Rip_It), [self.ari, self.bo, self.cal])
         self.assertEqual(list(Wizard[:]), [])
 
-    def test_a_member_ripped_and_tagged_again_waits_for_the_next_walk(self) -> None:
+    def test_a_member_ripped_and_tagged_again_is_visited_at_its_turn(self) -> None:
+        """The Director, 2026-10-09: "if an agent is tagged again, it is in
+        the list so you shouldn't skip it." Once, at its place in the
+        starting list."""
+
         Wizard, ari, bo, cal = self.Wizard, self.ari, self.bo, self.cal
 
         def Rip_And_Return(member) -> None:
             if member is ari:
                 del Wizard[cal]
-                Wizard(cal)                                           # a fresh Tagging: it joins again
+                Wizard(cal)                                           # a fresh Tagging: it is in again
 
-        self.assertEqual(self.walked(Wizard, Rip_And_Return), [ari, bo])
+        self.assertEqual(self.walked(Wizard, Rip_And_Return), [ari, bo, cal])
+        self.assertEqual(self.walked(Wizard[:], Rip_And_Return), [ari, bo, cal])
         self.assertEqual(list(Wizard), [ari, bo, cal])
+
+    def test_a_member_ripped_and_tagged_again_after_its_turn_is_not_visited_twice(self) -> None:
+        Wizard, ari, bo, cal = self.Wizard, self.ari, self.bo, self.cal
+
+        def Rip_And_Return(member) -> None:
+            if member is bo:
+                del Wizard[ari]
+                Wizard(ari)                                           # its turn is past: it now joins last
+
+        self.assertEqual(self.walked(Wizard, Rip_And_Return), [ari, bo, cal])
+        self.assertEqual(list(Wizard), [bo, cal, ari])
+
+    def test_a_member_ripped_and_tagged_again_broken_is_skipped_by_the_sound_walk(self) -> None:
+        Wizard, ari, bo, cal = self.Wizard, self.ari, self.bo, self.cal
+
+        def Rip_And_Return_Broken(member) -> None:
+            if member is ari:
+                del Wizard[cal]
+                cal.fit = False
+
+                try:
+                    Wizard(cal)
+                except Postcondition.Fit:
+                    pass                                              # in again, broken
+
+        self.assertEqual(self.walked(Wizard, Rip_And_Return_Broken), [ari, bo])
+        self.assertEqual(self.walked(Wizard[:], Rip_And_Return_Broken), [ari, bo, cal])
 
     def test_an_agent_that_joins_during_a_walk_waits_for_the_next_walk(self) -> None:
         Wizard, ari = self.Wizard, self.ari

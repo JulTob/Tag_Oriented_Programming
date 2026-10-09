@@ -110,13 +110,16 @@
   `Wizard & Rare` and `Rare[:] - Wizard` raise a `TagCategoryError`.
   Pins combine with Pins, and Tags with Tags; `Wizard | None` is still
   Python's type union.
-- A walk skips a member that an earlier turn of the same walk Ripped
+- A walk visits a member at its turn only if it is a member then
   (STEP-SPEC-29, rule 7.1), on every population: a Tag, `Wizard[:]`,
-  `~Wizard`, a Pin and every combination. Before, the walk visited it.
-  The rest is unchanged: a walk takes a Field's members when it begins,
-  so an Agent that joins the Field during it waits for the next walk,
-  while soundness and the right side of `&` and `-` are asked at each
-  turn.
+  `~Wizard`, a Pin and every combination. So it skips a member that an
+  earlier turn of the same walk Ripped; before, the walk visited it. A
+  member Ripped and tagged again before its turn is visited, as before:
+  the Director, on 2026-10-09, "if an agent is tagged again, it is in
+  the list so you shouldn't skip it". The rest is unchanged: a walk
+  takes a Field's members when it begins, so an Agent that joins the
+  Field during it waits for the next walk, while soundness and the right
+  side of `&` and `-` are asked at each turn.
 - `~` absorbs (STEP-SPEC-29, rule 3.2), as the Director decided on
   2026-10-09: "~~~~~~~~~~~~~Wizard is still ~Wizards". `~` on the
   defective population gives it back, so `~~Wizard`, `~~~Wizard` and any

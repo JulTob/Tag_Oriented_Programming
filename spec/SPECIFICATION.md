@@ -1117,10 +1117,13 @@ for b in Wizard & Fighter:            # sound in both
 for u in (Wizard[:] | Fighter[:]) - Sworn:   # anyone with a role who has not sworn
 ```
 
-**A walk** takes a Field's members when it begins, in join order. A
-member that an earlier turn of the same walk Ripped is skipped, so a loop
-that Rips as it goes never meets an Agent that has left (STEP-SPEC-29).
-An Agent that joins the Field during the walk waits for the next one.
+**A walk** takes a Field's members when it begins, in join order. At its
+turn, each is visited if it is a member then, and skipped if it is not
+(STEP-SPEC-29). So a member that an earlier turn of the same walk Ripped
+is skipped, and a loop that Rips as it goes never meets an Agent that
+has left. A member Ripped and tagged again before its turn is a member,
+so it is visited there, once. An Agent that joins the Field during the
+walk waits for the next one.
 Soundness is asked at each turn, so a member that breaks during the walk
 is skipped. A combination walks its left side this way. `|` walks its
 right side when the left ends. `&` and `-` ask the right side at each
