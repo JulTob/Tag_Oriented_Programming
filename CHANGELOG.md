@@ -133,6 +133,16 @@
   Postcondition was visible, so an empty `Shelf` with no promise was
   false, and one whose Tag deleted `__len__` raised. A first
   Postcondition no longer gives the Agent a new runtime type.
+- `@Requirement` is removed (STEP-SPEC-30), as the Director decided on
+  2026-10-09: "remove @Requirement at once". There is no release of
+  warning: `TopKit.Requirement` and its export are gone, so
+  `from TopKit import Requirement` is an `ImportError`. Write `@Pre` and
+  `@Post` stacked on one function instead, in either order. It means
+  what `@Requirement` meant: a stacked `Alive` refuses an Agent at the
+  door with `Precondition.Alive`, and an Agent that fails it afterwards
+  is defective, with `Postcondition.Alive`.
+  The Specification (§0.8, §2.7 and the conformance obligations), both
+  guides and the crew example now write the two marks.
 
 ### Project
 

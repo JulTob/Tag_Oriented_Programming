@@ -299,7 +299,7 @@ language, not a library's naming.
 | catch one check's failure (§2.6) | `except Precondition.Is_A_Caster:`, `except Postcondition.Has_Book:`, `except Imprint.Arm:` |
 | catch a Rogue Agent's access (§1.5) | `except TagRogueAccessError:` |
 | end a condition explicitly (§0.7), from a `@Rip` protocol | `Contract.Delete(agent, "Has_Book")` |
-| necessary to enter and to stay (§2.7) | `@Pre` + `@Post`, or `@Requirement` |
+| necessary to enter and to stay (§2.7) | `@Pre` + `@Post`, stacked on one function |
 | pin a Tag (§1.9), and every act above with a Tag in the Agent's seat | `Rare(Wizard)`, `Wizard in Rare`, `for tag in Rare`, `Rare[Wizard]`, `del Rare[Wizard]` |
 | a Tag carries a keyword? (Flag Pins, §1.9) | `"Deprecated" in Wizard`, `Keyword(Wizard, "Deprecated")` |
 | a Tag's Pins and contract, as text | `f"{Wizard:pins}"`, `f"{Wizard:contract}"` |
@@ -1223,22 +1223,14 @@ Being alive is necessary to become an Elf and necessary to remain a sound
 one; it is not sufficient, since other living things are not Elves. A
 condition says *necessary*; membership says *is*.
 
-`@Requirement` is the same mark said in one word, for a claim that reads
-better as a necessity than as a pair of checks:
+The order of the two marks changes nothing: `@Post` above `@Pre` is the
+same condition. The two marks are its only spelling, so the page shows
+that it is a gate and a promise.
 
-```python
-class Elf(Tag):
-
-    @Requirement
-    def Alive(agent):
-        return agent.alive
-```
-
-A Requirement names no failure of its own. It fails at the door as
-`Precondition.Alive` and afterwards as `Postcondition.Alive`, because a
-program repairs the two differently: one is an Agent that may not come
-in, the other an Agent already in and now broken. Reading
-`Requirement.Alive` is a Declaration-time mistake and says so.
+The two failures keep their two names: `Precondition.Alive` at the
+door, `Postcondition.Alive` afterwards. A program repairs the two
+differently. One is an Agent that may not come in; the other is an Agent
+already in and now broken.
 
 ## 2.8 Writing a check
 
@@ -1430,8 +1422,8 @@ A conforming implementation provides, ring by ring:
 - published members answering members only, and only sound ones: a Rogue
   Access Failure on a Rogue Agent, the broken promise by name on a
   defective one, open again on membership or repair;
-- `@Pre` and `@Post` stacked on one function as one condition, spelled
-  `@Requirement` in one word;
+- `@Pre` and `@Post` stacked on one function as one condition, in
+  either order;
 - populations combined with `|`, `&` and `-` at every level, lazily, a
   Tag in an operator seat meaning its sound population;
 - every condition read on the Agent by its name as a plain boolean, with

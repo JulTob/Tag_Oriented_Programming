@@ -16,8 +16,8 @@ is a contract.
 ```python
 from TopKit import (
         Action, Contract, Flag, Operation, Pin, Post, Postcondition, Pre,
-        Precondition, Public, Record, Report, Requirement, Rip, Tag,
-        TagRogueAccessError, Underlay,
+        Precondition, Public, Record, Report, Rip, Tag, TagRogueAccessError,
+        Underlay,
         )
 
 
@@ -280,22 +280,11 @@ assert worf in list(Crew_Member)
 Being alive is necessary to be crew, not sufficient: other living things
 are not crew. A condition says *necessary*; membership says *is*.
 
-`@Requirement` is the same mark in one word, for a claim that reads as a
-necessity rather than as a pair of checks:
-
-```python
-class Crew_Member(Tag):
-
-    @Requirement
-    def Alive(agent):
-        return agent.alive
-```
-
-A Requirement still fails under two names, and that is the point: at the
+The order of the two marks does not matter: `@Post` above `@Pre` is the
+same condition. It fails under two names, and that is the point: at the
 door it is `Precondition.Alive`, someone who may not come aboard;
 afterwards it is `Postcondition.Alive`, someone aboard who needs sickbay.
-Two repairs, two names. Asking `Requirement.Alive` for a failure of its
-own is a mistake, and the refusal tells you which of the two you meant.
+Two repairs, two names.
 
 ---
 
@@ -503,14 +492,14 @@ assert worf.Not_Infected
 assert not hasattr(worf, "Has_Sword")   # no such promise: the ordinary miss
 ```
 
-A gate reads the same way, and a `@Requirement` answers as one:
+A gate reads the same way, and so does `Crew_Member`'s stacked `Alive`:
 
 ```python
 dax = Crew("Dax")
 Crew_Member(dax)
 assert dax.Alive is True
 dax.alive = False
-assert dax.Alive is False               # Crew_Member's requirement, read on Dax
+assert dax.Alive is False               # Crew_Member's condition, read on Dax
 ```
 
 **The name is the promise's own.** Because the promise is read on the
@@ -611,8 +600,8 @@ assert Bridge in Certified
   untouched.
 - **Promise what must stay true** with `@Post`. A broken promise flags,
   never undoes.
-- **Stack both**, or write `@Requirement`, when a claim is a necessity in
-  both directions.
+- **Stack both**, `@Pre` and `@Post` on one function, when a claim is a
+  necessity in both directions.
 - **Catch the name**, `except Precondition.X`, `except Postcondition.X`,
   and repair what it names. Never one handler for everything.
 - **Expect two failures on a published member**: `TagRogueAccessError`

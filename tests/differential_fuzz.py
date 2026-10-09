@@ -4,7 +4,7 @@ Everything a program can observe must agree between the two kits. Each
 seed makes one deterministic Python program that uses TOP broadly:
 Tag families with Bases, Shapes and diamonds; Records with a stored seat
 and inputs; Actions with and without @Underlay, special methods among
-them; gates, promises and Requirements; Imprints, Rips, Deletes, Secrets,
+them; gates, promises and both stacked; Imprints, Rips, Deletes, Secrets,
 published Reports and Operations, Flags with words, Pins; Scope, Apply,
 applying, re-applying and Ripping; Flags declared and Tags renamed while
 the program runs, and Tags declared in a function; broken promises and
@@ -103,7 +103,6 @@ from TopKit import Pre
 from TopKit import Public
 from TopKit import Record
 from TopKit import Report
-from TopKit import Requirement
 from TopKit import Rip
 from TopKit import Scope
 from TopKit import Secret
@@ -651,7 +650,8 @@ AGENT_MEMBERS = (
                 return agent in {other}
             """),
         Member("condition", "Alive", 2, """
-            @Requirement
+            @Post
+            @Pre
             def Alive(agent):
                 return agent.ok
             """),

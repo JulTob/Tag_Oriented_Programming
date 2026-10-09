@@ -14,7 +14,6 @@ from .declarations import Precondition
 from .declarations import Public
 from .declarations import Record
 from .declarations import Report
-from .declarations import Requirement
 from .declarations import Rip
 from .declarations import Secret
 from .declarations import Underlay
@@ -61,7 +60,6 @@ __all__ = [
         "Public",
         "Record",
         "Report",
-        "Requirement",
         "Rip",
         "Scope",
         "Secret",
