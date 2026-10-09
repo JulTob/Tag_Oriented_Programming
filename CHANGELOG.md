@@ -52,6 +52,9 @@
 - Guide: "Reading a Tag" shows Python's `all` and `any` with a question
   written inside, `all(w.level > 3 for w in Wizard)`, and why
   `all(Wizard)` alone does not ask whether there are Wizards.
+- STEP-SPEC-30 (Retire `@Requirement`) opened at Brief: a claim needed
+  to enter and to stay is written `@Pre` + `@Post`, stacked, as the
+  Director asked.
 - A catalog of the Tag algebra, `steps/CATALOG-tag-algebra.md`: every
   spelling found so far that reads or acts on a Tag or a population, with
   its meaning, its result and its status on each branch.

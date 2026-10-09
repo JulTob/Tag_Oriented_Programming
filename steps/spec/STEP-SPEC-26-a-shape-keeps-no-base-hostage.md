@@ -232,10 +232,14 @@ Agent also holds the Base; a spin-off does not".
    not yet active" (line 150) and "Reapplying an active Tag does nothing"
    (line 159). And the Base now hides its Shape, although with Base-first
    order a Shape always lies above its Base (§1.2, line 350, "The latest
-   applied Layer is the visible Overlay"). Recommended (open question 2,
-   option A): `Werewolf(bob)` does nothing. Option A amends line 150;
-   option B amends line 159 and Ring 0's line 1337.
-2. **To bring the Base back, the program says so.**
+   applied Layer is the visible Overlay"). **Decided by the Director
+   (2026-10-09): `Werewolf(bob)` does nothing.** "if ari is a Wizard,
+   this is idempotent, so it does nothing. that's the stablished rule."
+   This amends line 150: the missing Bases of a Form are applied only
+   when the Shape itself is applied to an Agent that does not hold it.
+2. **To bring the Base back, the program says so.** The Director, on
+   2026-10-09, of `Officer(ari)` on a spin-off: "it reinstates ari as
+   Officer. explicit. good."
 
    ```python
    Human(bob)          # Human comes back, on top, with a warning (rule 5.3)
@@ -248,8 +252,8 @@ Agent also holds the Base; a spin-off does not".
    Werewolf's Bite on top. Neither starts from nothing: Records with a
    stored seat pile up (a list Record held `['human', 'human']`), and
    the Shape's sticky promises stay.
-3. **Recommended (open question 2): a Base applied over its own Shape
-   lands on top, and warns.** It is a later Tag like any other: "The
+3. **Recommended (open question 2): a Base applied again lands on top
+   of its Shape, and warns.** It is a later Tag like any other: "The
    latest applied Layer is the visible Overlay for a name" (§1.2, line
    350); the Guide: "The last one applied is what you see." Today
    `overlay._independent` (`overlay.py:83-92`, which calls
@@ -438,16 +442,13 @@ refusal: a trial merge gave 7 small conflicts, then 7 failing tests.
    shape... and those are set by inheritance as the same or mutated by
    the shape". Then a published Operation gets the Shape as its Tag
    (`Werewolf.Census(bob)` answers "Werewolf counts" today). Right?
-2. **Applying a Shape again, and a Base over its Shape.**
-   - `Werewolf(bob)` on a spin-off. (A) Nothing, as §0.5 says for any
-     active Tag; the program writes `Human(bob)`, or Rips and applies
-     again (rule 5.2). (B) Apply the missing Bases: that fits "It should
-     rebuild it if it needs it", but the Base lands over the Shape (rule
-     5.1). Recommended: (A), explicit and true to §0.5.
-   - `Human(bob)` on a spin-off. Recommended: on top, with a warning
-     (rule 5.3). Or install it beneath the Shape (a kernel change:
-     crystallized Actions recomposed), or refuse it (that blocks the
-     simplest repair).
+2. **Where a reinstated Base lands.** Decided on 2026-10-09:
+   `Werewolf(bob)` on a spin-off does nothing (rule 5.1), and
+   `Human(bob)` reinstates the Base (rule 5.2). Still open: where its
+   layer goes. Recommended: on top, with a warning (rule 5.3). The other
+   choices are to install it beneath the Shape, which means building the
+   Shape's Actions again (a change in the kit's core), or to refuse it,
+   which the Director's "explicit. good." rules out.
 3. **Should a Rip that leaves an Agent defective say so at once?**
    Today the failure is raised later (rule 4.3). (a) Nothing, as today.
    (b) A warning at the Rip, naming the broken promise. (c) Raise
@@ -468,7 +469,10 @@ refusal: a trial merge gave 7 small conflicts, then 7 failing tests.
    stands: it refuses every fresh Agent (rule 4.2). (a) Write it as a
    guarded Postcondition (rule 4.1). Recommended. (b) Let the gate see
    the Bases its Form will apply. That changes §2.2 for every
-   Precondition. Which?
+   Precondition. Which? The Director has since proposed retiring
+   `@Requirement` in favour of `@Pre` and `@Post` (STEP-SPEC-30). A
+   `@Pre` naming the Base refuses every fresh Agent for the same reason,
+   so under (a) the spelling is the guarded `@Post`.
 6. **A spin-off in the safehouse's departments.** Should `Wizard[...]`
    list an Agent kept by Archmage that no longer holds Wizard (rule
    8.3)? Recommended: yes, the class tree, as now.
@@ -515,6 +519,12 @@ refusal: a trial merge gave 7 small conflicts, then 7 failing tests.
 > requirement follows the maxima: "Explicit beats implicit" which is my
 > last straw to decide this is the model we want. Yep. Decided. Let's go
 > for it and start building it."
+>
+> *Decided by the Director on 2026-10-09:* applying a Shape the Agent
+> already holds does nothing, a spin-off included ("if ari is a Wizard,
+> this is idempotent, so it does nothing. that's the stablished rule");
+> applying the Base again reinstates it ("it reinstates ari as Officer.
+> explicit. good.").
 >
 > The Status stays Brief until the Director has read this text and
 > answered the open questions.

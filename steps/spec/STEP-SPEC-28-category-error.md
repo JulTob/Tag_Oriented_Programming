@@ -76,6 +76,9 @@ it, and a reader recognise it.
    wizard in Wizard: wizard.hp = 10".
 3. **Where it is raised.** Each case keeps the rule that already refuses
    it, and its message's rewrite; only the class of the failure is new.
+   Four cases are new refusals, decided by the Director on 2026-10-09: a
+   target that cannot be an Agent, a target with a truth of its own, a
+   string target, and a Flag on a host with its own `in`.
    - **A value of the Tag over a name the Tag gives its Agents.**
      Assigning or deleting on a Tag a name it declares for its Agents (a
      Record, an Action, a condition): `Wizard.hp = 10`, `del Wizard.hp`.
@@ -90,6 +93,37 @@ it, and a reader recognise it.
    - **A Tag applied to the wrong kind of target.** An ordinary Tag
      applied to a class, `Wizard(int)`, and a Pin applied to an object
      (§1.9).
+   - **A target that cannot be an Agent.** `Wizard(None)`, `Wizard(3)`,
+     `Wizard(True)`, and any other value with no instance dictionary or
+     no weak reference (a plain `str`, a `tuple`). Decided by the
+     Director on 2026-10-09: "Wizard(None), Wizard(3), Wizard(True) those
+     should all be category errors." On `main` these are Composition
+     Failures today ("int cannot carry TOP state").
+   - **A target with a truth of its own.** A host class that defines
+     `__bool__` is refused at tagging. An Agent's truth is its contract
+     (`if ari:` asks whether its promises hold), and a host's own truth
+     would answer instead. Decided by the Director on 2026-10-09:
+     "bool(ari), when ari's host class has its own __bool__ should be a
+     category error to tag a target with bool behaviour. Bool-like
+     behaviour conflicts with contracts. should be refused. (Or at least
+     underlayed by the contracts). any bool behaviour can be set in a
+     record or attribute, not directly on the target." A host that only
+     defines `__len__` takes its truth from its length; open question 2
+     asks about it.
+   - **A target that is a string.** An instance of a `str` subclass is
+     refused at tagging: `"Undead" in Wizard` reads a string as a Flag
+     word (§1.9), so a string Agent could never answer `in` as a member.
+     Decided by the Director on 2026-10-09: "s in Sworn, where s is an
+     Agent made from a str subclass should be refused at tagging as a
+     category error."
+   - **A Flag on a host with its own `in`.** A Tag marked `@Flag` is
+     refused on a target whose host class defines `__contains__`. On an
+     Agent, `Wizard in ari` and `"Wizard" in ari` are the host's own
+     question when it has one, and Flag words otherwise (§1.8). Decided
+     by the Director on 2026-10-09: "Wizard in ari, "Wizard" in ari
+     (Wizard is not a Flag) should be the underlaying object behavior,
+     and flags should be refused on objects or agents with defined in
+     behavior."
    - **A Projection asked a population's question.** `in` and `not in` on
      a Projection (STEP-SPEC-23, rule 1.8), and `bool()` of a Projection,
      a Filter, or a combination that holds one (STEP-SPEC-23, section 5).
@@ -97,7 +131,10 @@ it, and a reader recognise it.
      and `Wizard | Fighter | None` (STEP-SPEC-13, item 5, on the
      `step-19-sound-in` line).
    - **A Pin's population mixed with a Tag's**, `Combat | Wizard`
-     (STEP-SPEC-13, item 6, on the same line).
+     (STEP-SPEC-13, item 6, on the same line). Decided by the Director
+     on 2026-10-09: "Rare | Wizard should raise a category error. Pins
+     are pinable, but the return population of pins are tags, but tags'
+     populations are agents."
    - **A Relation used as a Tag.** `Scope(x, Social.Knows)` and
      `isinstance(x, Social.Knows)` (STEP-SPEC-22, section 9).
 4. **What is not a category error.**
@@ -138,7 +175,14 @@ carries the difference.
    population mixed with a Tag's is allowed on `main`; it is refused only
    with STEP-SPEC-13, item 6. Every other case was already a `TypeError`
    and still is, because `TagCategoryError` is a `TypeError`. The
-   messages keep their rewrites.
+   messages keep their rewrites. A target that cannot be an Agent,
+   `Wizard(3)`, was a Composition Failure too, and becomes a Category
+   Failure.
+3. Three kinds of target that could be tagged before are now refused:
+   a host class with its own `__bool__`, a `str` subclass, and, for a
+   Flag, a host class with its own `__contains__`. A program that tagged
+   one keeps its truth, its text or its `in` in a Record or an attribute
+   instead, as the Director says.
 
 ## Alternatives considered
 
@@ -155,6 +199,12 @@ carries the difference.
    STEPs on three lines of work. Should every one of them move to this
    failure, and should a refusal added later join it by default when it
    is about the wrong kind of thing?
+2. **A host with `__len__`.** Python takes an object's truth from
+   `__len__` when it has no `__bool__`: an empty container is false.
+   Refusing every such host would refuse every container-like Agent, a
+   `Shelf` of books for example. Recommended: the Director's "(Or at
+   least underlayed by the contracts)". The Agent's truth is its contract
+   (`bool(agent)` asks the promises), and `len(agent)` stays the host's.
 
 ## Acceptance requirements
 
@@ -167,6 +217,9 @@ carries the difference.
   - assigning a name the Tag does not give its Agents still works;
   - `Wizard(int)` raises `TagCategoryError`, and `except TypeError`
     still catches it;
+  - `Wizard(None)`, `Wizard(3)`, `Wizard(True)`, a host with
+    `__bool__`, a `str` subclass, and a Flag on a host with
+    `__contains__`: each refused at tagging, nothing changed;
   - each other case in rule 3, once its STEP is built.
 - The Specification's Failure model gains the row of rule 1.
 

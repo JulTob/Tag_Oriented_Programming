@@ -120,6 +120,23 @@ cited as "section N" or "rule N.M".
      (STEP-SPEC-22).
    - A Relation has no Field to Rip: `del Social.Knows[:]` is refused
      (STEP-SPEC-22, section 9).
+7. **A part of the Field.** `del X[:]` on a population drawn from one
+   Tag Rips that Tag from every member of the population, by rules 1.1
+   to 1.5. Decided by the Director on 2026-10-09: "del (~Wizard)[:] is
+   good to delete all broken wizards. Also filtered groups... I like it a
+   lot! very useful."
+
+   ```python
+   del (~Wizard)[:]                 # every broken Wizard leaves Wizard
+   del (Wizard.level < 3)[:]        # every sound Wizard under level 3 leaves
+   ```
+
+   - The population is read once, when the act begins (rule 1.5). A
+     Filter is not asked again during the walk.
+   - Recommended: a population drawn from two Tags, `del (Wizard |
+     Fighter)[:]`, is refused, because it does not say which Tag to
+     Rip. The program writes one line per Tag. Under STEP-SPEC-28 the
+     refusal is a category error.
 
 ### 2. Membership holds neither side alive
 
@@ -361,6 +378,8 @@ as strong as any value.
     chooses;
   - a teardown that applies the Tag again, to a member and to a new
     Agent: both stay members;
+  - rule 1.7: `del (~Wizard)[:]` and `del (Wizard.level < 3)[:]` Rip
+    exactly those members; a population of two Tags is refused;
   - Pins, Links, and the refused Relation.
 - `tests/test_topkit.py`: a `TagEndTests` class, covering:
   - a Tag made in a function, unreachable after the function returns,
