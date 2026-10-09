@@ -137,5 +137,4 @@ class TagOverwriteWarning(UserWarning):
 class TagContractWarning(UserWarning):
     """A Tag replaced a visible Postcondition without @Underlay: a Shape
     weakening its Base's promise (§2.4), or a Tag laid over the promise of
-    its own Shape or of an independent Tag (STEP-SPEC-20). The text names
-    which."""
+    its own Shape or of an independent Tag. The text names which."""

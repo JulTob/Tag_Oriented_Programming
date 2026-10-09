@@ -315,7 +315,7 @@ def _install(
 
     for name, function in declarations.postconditions:
         prior = state.postconditions.get(name)
-        origin = _origin_of(prior)   # the Tag that laid the visible promise; None when there is none
+        origin = _origin_of(prior)
 
         if (
                 origin is not None
@@ -330,7 +330,7 @@ def _install(
                             origin,
                             ),
                     TagContractWarning,
-                    stacklevel=5,   # the tagging line: one frame shallower than _install_action's warning
+                    stacklevel=5,   # _install is shallower than _install_action
                     )
 
         state.postconditions[name] = _stamp(
@@ -588,8 +588,8 @@ def _replaced_promise(
     @Underlay. Only a Shape over its Base weakens a promise in the sense
     of §2.4. A Base laid over its Shape's sticky promise, or a Tag laid
     over an independent Tag's, replaces a promise it never made, and the
-    text says whose promise no longer binds (STEP-SPEC-20 asks which law
-    governs that case)."""
+    text says whose promise no longer binds. The replacement policy is a
+    separate design question; this helper reports current behavior."""
 
     replacing = f"{tag.__name__}.{name}"
 
