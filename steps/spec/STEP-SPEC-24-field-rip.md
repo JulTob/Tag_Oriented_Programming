@@ -376,10 +376,10 @@ as strong as any value.
    and loses access to reports and operations. It just gets them
    arrested until it follows protocol. same quarantine philosophy of
    contracts and posts but stricter. a single rule for Rip and a Field
-   Rip." This replaces STEP-SPEC-18 amendment D's rollback. Its details
-   are being settled with the Director: whether an arrested Agent's
-   first act retries the Rip by itself or is refused until a Rip is
-   asked for, how much of the Agent is locked, and the failure's name.
+   Rip." This replaces STEP-SPEC-18 amendment D's rollback. The rule,
+   with the details the Director settled the same day (an arrested
+   Agent's act retries its teardowns first), is STEP-SPEC-32, The
+   Arrest.
 
    The recommendation as it was written: (a). A failed cleanup should not hand the Agent its badge
    back. Keeping it in the safehouse answers the worry behind amendment

@@ -505,7 +505,7 @@ Unlinking is in section 8.
 | `del Wizard[0]` | **STEP-29:** refused: an act names its target. Write `w = Wizard[0]`, then `del Wizard[w]`. | `TagCategoryError` under STEP-29 | **Brief** · STEP-29 r8.4 |
 | `Close(Wizard)`, `Wizard[:].clear()` | Function or method spellings for a Field Rip. | none | **Set aside** · STEP-24 Alternatives (Brief) |
 
-**Still open.** STEP-24 open question 1 asks where an Agent goes when a teardown fails:
+**Decided on 2026-10-09: (a), arrest** (STEP-32, The Arrest, Brief). A failed teardown ends the membership; the Agent is kept in the Tag's safehouse and can do nothing; when it tries to act, the safehouse runs its teardowns first, and the act goes on only if they all pass. `del Wizard[ari]` retries; `del Wizard[...]` ends it. The question was: STEP-24 open question 1 asks where an Agent goes when a teardown fails:
 - (a) arrested: kept in the safehouse as a non-member, for every Rip;
 - (b) the act decides: a demanded Rip rolls back, an ending arrests;
 - (c) out, as the kit does today.
