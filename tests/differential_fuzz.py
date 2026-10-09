@@ -5,8 +5,9 @@ seed makes one deterministic Python program that uses TOP broadly:
 Tag families with Bases, Shapes and diamonds; Records with a stored seat
 and inputs; Actions with and without @Underlay, special methods among
 them; gates, promises and Requirements; Imprints, Rips, Deletes, Secrets,
-published Reports and Operations, Flags with words, Pins; Scope, Apply,
-applying, re-applying and Ripping; Flags declared and Tags renamed while
+published Reports and Operations, Flags with words, Pins; blocks that hold
+Tags with try and finally, Apply, applying, re-applying and Ripping; Flags
+declared and Tags renamed while
 the program runs, and Tags declared in a function; broken promises and
 the Fields that sort them; views, queries and keywords; At_Exit, deleted
 Agents and collected cycles; hosts and Tags with finalizers of their
@@ -68,7 +69,7 @@ import time
 
 
 REPOSITORY = pathlib.Path(__file__).resolve().parent.parent
-STANDARD_LIBRARY = os.path.dirname(os.__file__)   # where a warning raised through contextlib points
+STANDARD_LIBRARY = os.path.dirname(os.__file__)   # where a warning raised through the standard library points
 WORKING_TREE = "."
 DIFF_LINES_SHOWN = 40           # per differing seed
 
@@ -105,7 +106,6 @@ from TopKit import Record
 from TopKit import Report
 from TopKit import Requirement
 from TopKit import Rip
-from TopKit import Scope
 from TopKit import Secret
 from TopKit import Tag
 from TopKit import Tags
@@ -1296,22 +1296,28 @@ def Ripping(
             )
 
 
-def Scoping(
+def Holding(
         plan: Plan,
         step: str,
         ) -> list[str]:
-    """A block with Tags for its duration; sometimes it fails."""
+    """A block that holds Tags, as STEP-SPEC-31 writes it: tag before
+    try, Rip in finally, in reverse. Sometimes the block fails, and a
+    teardown may fail on the way out."""
 
     randomizer = plan.randomizer
     agent = Any_Agent(plan)
-    tags = ", ".join(Any_Tag(plan).name for _ in range(randomizer.randint(1, 3)))
-    head = f"Scope({agent}, {tags}{Inputs(plan)})"
+    held = [Any_Tag(plan).name for _ in range(randomizer.randint(1, 3))]
+    inputs = Inputs(plan)
     lines = [
             "",
             "",
-            f"def Scope_{step}():",
-            f"    with {head}:",
+            f"def Hold_{step}():",
             ]
+
+    for tag in held:
+        lines.append(f"    {tag}({agent}{inputs})")
+
+    lines.append("    try:")
 
     for _ in range(randomizer.randint(1, 3)):
         expression = randomizer.choice(
@@ -1328,6 +1334,11 @@ def Scoping(
     if randomizer.random() < 0.3:
         lines.append(f'        raise LookupError("the block of {step} fails")')
 
+    lines.append("    finally:")
+
+    for tag in reversed(held):
+        lines.append(f"        del {tag}[{agent}]")
+
     return Then_Look(
             plan,
             step,
@@ -1335,7 +1346,7 @@ def Scoping(
             lines + [
                 "",
                 "",
-                Do_Line(step, f"Scope_{step}()", f"with {head}"),
+                Do_Line(step, f"Hold_{step}()", f"hold {', '.join(held)} on {agent}{inputs}"),
                 ],
             )
 
@@ -1844,7 +1855,7 @@ STEPS: tuple[tuple[int, int, Step], ...] = (   # weight in the ordinary mix, in 
         (16, 12, Tagging),
         (2, 2, Tagging_Many),
         (6, 5, Ripping),
-        (4, 3, Scoping),
+        (4, 3, Holding),
         (3, 3, Applying),
         (14, 10, Reading),
         (8, 6, Writing),
