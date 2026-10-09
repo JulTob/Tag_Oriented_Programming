@@ -178,19 +178,24 @@ Amendment F, triage, stays.
      its host's `__del__` never run. If it was collected in a cycle, it
      has already lost its weak references: one the program held stays
      dead. Open question 7.
-3. **The failure is reported.** *Recommended.* `del Wizard[ari]` raises
+3. **The failure is reported.** *Decided.* The Director, 2026-10-09: "A failed del
+   Wizard[ari] should raise an error. Yes." `del Wizard[ari]` raises
    the Composition Failure. It names the teardowns that failed and says
    the Agent is arrested, with the first teardown's own error as its
    cause. A Field Rip reports once, after every member's teardowns have
    run (STEP-SPEC-24, rule 1.4). A deletion reports as the language
    reports a finalizer's error. In every case, the arrest has already
-   happened when the failure is raised. Open question 1.
+   happened when the failure is raised.
 4. **An arrested Agent does nothing.** *Decided:* no Action and no record
    access ("Any Action or record access"), and no `print()` ("An agent
    in the safehouse is jailed and cannot answer the print"). Moving it,
    or asking what Tags it carries, need not be an act ("Moving the agent
    around or checking what tags it belongs to are not necessarily
-   triggers for that"). *Recommended:* the lists below (open question 2).
+   triggers for that"). *Decided:* the lists below. The Director, 2026-10-09: "Yes,
+   that's the model. An agent acts, or the program acts on the agent are
+   different concepts. hashs and equal checks are more organizational
+   than actions, unless the agent has redefined them and needs to access
+   information on records or needs to execute actions."
 
    Anything the Agent answers itself is an **act**:
    - reading or writing any name on it: a Record, a host attribute, a
@@ -239,13 +244,24 @@ Amendment F, triage, stays.
      normal: "it is then liberated and performs the action as normal".
    - If one fails, an error is raised before the act starts: "an error
      is raised before it tries to perform the action". The Agent stays
-     arrested. *Recommended:* the error is the Arrested Access Failure
-     (rule 11), with the teardown's own error as its cause.
-   - *Recommended:* only the teardowns that have not passed run. A
-     teardown that passed is done; it never runs again, in a later retry
-     or by hand. They run as §3.1 runs them: in declared order, every
-     one of them, even after one fails. The safehouses take turns in the
-     order they arrested the Agent. Open question 5.
+     arrested. *Decided:* the error is the Arrested Access Failure (rule
+     11). *Recommended:* the teardown's own error is its cause.
+   - *Decided:* a teardown that passed never runs again, in a later
+     retry or by hand.
+   - *Decided:* the teardowns keep their order. A Tag's run top to
+     bottom, as written. A Shape's run before its Base's: overlay to
+     underlay (§3.2; checked on TopKit 0.2.0a4). At the first failure,
+     the teardowns after it do not run: they wait, frozen, so the order
+     holds. A retry starts again at the one that failed, and goes on in
+     the same order. The Director, 2026-10-09: ""A teardown that passed never runs
+     again." ok, but the order of running is the order of tagging up to
+     down in the code, right? two rip protocols in an underlay run up to
+     down and overlay to underlay, right? So a failed ripping should
+     freeze the underlaying rips so they keep the intended order."
+   - *Recommended:* the safehouses take turns in the order they arrested
+     the Agent. In a Field Rip, one member's failure freezes only that
+     member's teardowns: the next member's still run (STEP-SPEC-24, rule
+     1.4).
    - *A limit of Python:* a host method taken before the arrest (`ping =
      guard.ping`), or called through its class (`Host.ping(guard)`),
      does not ask the Agent first. The lock stops it at its first read
@@ -285,11 +301,13 @@ Amendment F, triage, stays.
    teardowns have all passed lets the Agent go, as amendment E says; the
    Agent stays arrested while another safehouse keeps it (open question
    13).
-9. **Tagging an arrested Agent.** *Recommended.* `Wizard(ari)`, or any
-   other Tag on ari, is an act: the teardowns run first. If ari goes
-   free, the tagging goes on. If not, it is refused with the Arrested
-   Access Failure. The Director: "it is not allowed anything except
-   rerunning rips or deletion". Open question 4.
+9. **Tagging an arrested Agent.** *Decided.* `Wizard(ari)`, or any other
+   Tag on ari, is an act: the teardowns run first. If ari goes free, the
+   tagging goes on. If not, it is refused with the Arrested Access
+   Failure. The Director, 2026-10-09: "Tagging would grant acts to the Agent. these
+   could be used as "skip protocol" hacks. Yes, it is better to ban
+   taggings too. An override of the features of the tag could still
+   happen before, which is a better design rule."
 10. **At interpreter exit.** *Recommended.* Once the interpreter is
     finalizing, nothing can be kept, as STEP-SPEC-18 amendment E already
     says. A teardown that fails in the `At_Exit` pass is reported; the
@@ -298,9 +316,10 @@ Amendment F, triage, stays.
     retry runs then, because no teardown runs while finalizing. Its
     `__del__` Layers run, exempt as a teardown is: the Director allows
     "rerunning rips or deletion". Open question 9.
-11. **The failure.** *Recommended:* `TagArrestedAccessError`, the **Tag
-    Arrested Access Failure**, a Resolution Failure like the Rogue Access
-    Failure. Open question 3. The Failure model gains a row:
+11. **The failure.** *Decided:* `TagArrestedAccessError`, the **Tag
+    Arrested Access Failure** ("TagArrestedAccessError, yes").
+    *Recommended:* a Resolution Failure, like the Rogue Access Failure.
+    The Failure model gains a row:
 
     | Failure | Meaning | Effect |
     | --- | --- | --- |
@@ -332,6 +351,7 @@ Amendment F, triage, stays.
 | STEP-SPEC-29 open question 3, rule 8.3 | `del Wizard[...][:]` refused until STEP-24 OQ1 settles whether kept Agents are members | Settled: kept Agents are not members (rule 1). What `del Wizard[...][:]` does is open question 11; `del Wizard[...]` stays triage (rule 7) |
 | STEP-SPEC-31, Backwards compatibility 3 | Amendment D's rollback "still holds for every Rip" | Replaced: a failed Rip arrests (rule 1) |
 | STEP-SPEC-22, its point on a failed Link teardown | Follows STEP-24's open question 1 | Rule 12 and open question 8 |
+| §3.1, and STEP-SPEC-24 rule 1.4 | Every teardown of a Rip runs, even after one fails; the failures are collected | At the first failure, the Agent's later teardowns wait, frozen (rule 5) |
 
 ## Rationale
 
@@ -394,30 +414,29 @@ gets an error, never the act.
    checks raise that guard too. The lock is the type, so code that reads
    the Agent past its type (`object.__getattribute__(ari, name)`,
    `gc.get_referents(ari)`) is not seen.
-3. **Teardowns that passed** are remembered per Agent and per Tag, so a
-   retry runs only the rest (rule 5).
+3. **Teardowns that passed** are remembered per Agent and per Tag, with
+   the one that failed, so a retry starts there and runs only the rest,
+   in order (rule 5).
 4. **What the kit hands out.** An Action and a Tag view hold the Agent
    and reach it past its type. Each one checks the arrest when it is
    used, so one taken before the arrest is locked too.
 
 ## Open questions for the Director
 
-1. **Does the failed Rip still raise?** (rule 3) Recommended: yes. The
-   arrest has happened, but the program asked for a Rip that did not
-   finish cleanly, and a silent arrest would surprise it later.
-2. **What counts as an act?** (rule 4) Recommended: the two lists there.
-   On a host with its own `__eq__` or `__hash__`, `==` and `hash()` are
-   acts: the other way opens the lock for the host's code, and that code
-   could read and call the arrested Agent.
-3. **The failure's name and kind.** (rules 5, 11) Recommended:
-   `TagArrestedAccessError`, a Resolution Failure, beside
-   `TagRogueAccessError`. Its cause is the teardown's own error.
-4. **Tagging an arrested Agent.** (rule 9) Recommended: an act.
-5. **Which teardowns does a retry run?** (rule 5) Recommended: only
-   those that have not passed, in declared order, every one of them,
-   even after one fails. This matches `main`'s "Every teardown runs at
-   most once" (§3.2). Under STEP-SPEC-18 amendment D, every teardown was
-   due again.
+1. **Does the failed Rip still raise?** (rule 3) *Decided on 2026-10-09:*
+   yes.
+2. **What counts as an act?** (rule 4) *Decided on 2026-10-09:* the two
+   lists there; on a host with its own `__eq__` or `__hash__` that reads
+   the Agent, `==` and `hash()` are acts.
+3. **The failure's name and kind.** (rules 5, 11) *Decided on
+   2026-10-09:* `TagArrestedAccessError`. Still recommended: a Resolution
+   Failure, with the teardown's own error as its cause.
+4. **Tagging an arrested Agent.** (rule 9) *Decided on 2026-10-09:* an
+   act, so it is banned until the Agent is free.
+5. **Which teardowns does a retry run?** (rule 5) *Decided on
+   2026-10-09:* a teardown that passed never runs again; the order holds;
+   a failure freezes the ones after it, and a retry starts at the one
+   that failed.
 6. **An arrested Agent in another Tag's populations.** (rule 4)
    Recommended: in neither `Fighter` nor `~Fighter`, with no retry, and
    still in `Fighter[:]`.
@@ -449,6 +468,13 @@ gets an error, never the act.
 14. **A teardown that tags again.** (rule 1) Recommended: the new
     membership stands, with no arrest. The other choice: the arrest
     wins, and the new tagging is undone.
+15. **A teardown layered over its Base's.** A Shape's `@Rip @Underlay
+    def Second` runs the Base's `Second` through `underlay()`. At the
+    Agent's deletion, the Base's own `Second` then runs again (checked on
+    TopKit 0.2.0a4: `Hexer.Second`, `Wizard.Second`, then `Wizard.First`,
+    `Wizard.Second`, `Wizard.Third`). Under "a teardown that passed never
+    runs again", should the Base's `Second` count as passed once the
+    Shape's ran it? Recommended: yes.
 
 ## Acceptance requirements
 

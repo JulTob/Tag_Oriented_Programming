@@ -104,11 +104,13 @@ cited as "section N" or "rule N.M".
    member keeps access while the others are cleaned up. Only a teardown
    that applies the Tag again can make a member (rule 1.5).
 4. **Failures are collected.** A teardown that fails does not stop the
-   others, nor the next member's. The failures are reported once, as a
-   Composition Failure, after the walk (§3.1). At a Tag's end there is no
-   caller, and failures stay silent (rule 3.1). Where a member whose
-   teardown failed ends up (out of the Field, back in it, or kept in the
-   safehouse) is open question 1.
+   next member's. The failures are reported once, as a Composition
+   Failure, after the walk (§3.1). At a Tag's end there is no caller, and
+   failures stay silent (rule 3.1). *Changed on 2026-10-09:* within one
+   member, a failure freezes that member's later teardowns, and the
+   member is arrested (STEP-SPEC-32, rules 1 and 5). Where a member whose
+   teardown failed ends up was open question 1: kept in the safehouse,
+   arrested.
 5. **The Field as it was.** The Field Rip revokes the members the Field
    had when it began. A teardown that applies the Tag again, to a member
    or to an Agent for the first time, makes that Agent a member again,
