@@ -283,6 +283,7 @@ language, not a library's naming.
 | everyone in the Field | `Wizard[:]`, `if Wizard[:]:` |
 | populations combined (§2.5) | `Wizard \| Fighter`, `Wizard & Fighter`, `Wizard - Sworn`; the same on `Wizard[:]` and `~Wizard` |
 | one condition, read on the Agent (§2.5) | `agent.Has_Book` |
+| a named Contribution is present (§1.1) | `"Attack" @ agent`, `"Attack" @ Wizard[agent]` |
 | the Agent-bound view | `Wizard[agent]` |
 | leave the Field (Rip) | `del Wizard[agent]` |
 | the Form, as Tags | `Form(Wizard)` |
@@ -349,6 +350,39 @@ that slot holds an Action or a Record, never both at once:
   Base's view (§1.7) keeps the prior kind.
 - Across scopes, equal names do not collide. `Fire.colour` (Tag) and
   `ember.colour` (Agent) are two slots with two histories.
+
+### Presence by name
+
+Specified by [STEP-SPEC-33](../steps/spec/STEP-SPEC-33-contribution-presence.md).
+
+`"name" @ agent` returns a boolean indicating whether the Agent currently
+provides that name. Presence is independent of a Contribution's kind and
+origin: a host attribute or method counts, and a name changing between
+Action and Record does not change its presence. Stored `False`, `None`,
+zero and empty values count as present. A declaration or leftover registry
+entry without an actual binding does not.
+
+The query does not execute Actions, Operations, host property getters,
+lazy Report builders or Postconditions. A host property's binding counts
+without evaluating its getter; names synthesized only by `__getattr__`
+do not count. Presence guarantees neither successful value access,
+callability nor successful behaviour. A Postcondition states which names
+are required and any further conditions on their values or behaviour.
+
+On the actual Agent, the query checks the current Overlay and host
+bindings. Tag-scope names count there through publication. A published
+Report requires its active publishing Tag; a lazy Report need not have
+been read to be present. A published Operation's sticky Action can remain
+present after Rip even though its use is refused (§1.5).
+`"name" @ Wizard[agent]` instead checks that Agent-bound view's captured
+contributions, including its captured shared contributions. Both forms
+respect the receiver Agent's composition door for Secret names (§1.5).
+Presence does not evaluate soundness.
+
+Only a string left operand selects this TOP meaning. Other operands
+retain the receiver's existing `@` behaviour. A pinned Tag is an Agent and
+supports the query in that role; the operator introduces no presence API
+on a bare, unpinned Tag.
 
 ## 1.2 Actions
 

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### TopKit
+
+- **Presence by name:** `"name" @ agent` checks current contributions,
+  including host bindings; `"name" @ Tag[agent]` checks the captured view.
+  False values and `None` count as present. The query respects Secret and
+  publication boundaries without executing behaviour, getters or Posts.
+  A Post can require the named Contribution; nonstring operands retain
+  ordinary `@` behaviour. Pinned Tags support it as Agents.
+
 ### Project
 
 - **Releases go out through Trusted Publishing.** A GitHub Release runs

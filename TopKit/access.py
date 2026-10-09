@@ -474,6 +474,33 @@ class _Tag_View:
             ) -> None:
         raise AttributeError("a Tag view is a snapshot; it is read-only")
 
+    def __rmatmul__(
+            view,
+            name: object,
+            ) -> bool:
+        """Ask about Contributions at this view's captured position."""
+
+        if not issubclass(type(name), str):
+            return NotImplemented
+
+        from .presence import _namespace
+
+        name = str.__str__(name)
+        snapshot = view._snapshot
+
+        if name in snapshot.deleted:
+            return False
+
+        if name in snapshot.secrets and _namespace(view._agent)[STATE].composing == 0:
+            return False
+
+        return (
+                name in snapshot.actions
+                or name in snapshot.records
+                or name in snapshot.reports
+                or name in snapshot.operations
+                )
+
     def __repr__(
             view,
             ) -> str:

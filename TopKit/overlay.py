@@ -37,6 +37,7 @@ from .declarations import Report
 from .declarations import _declarations_of
 from .geometry import _related
 from .declarations import _MISSING
+from .presence import _Presence
 from .state import _Bound
 from .state import _Pinned_Operation
 from .state import _State
@@ -101,6 +102,9 @@ def _host_function(
 
     for klass in host_type.__mro__:
         attribute = klass.__dict__.get(name)
+
+        if issubclass(type(attribute), _Presence):
+            attribute = attribute.fallback
 
         if attribute is None:
             continue

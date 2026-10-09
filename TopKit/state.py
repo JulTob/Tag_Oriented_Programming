@@ -844,6 +844,7 @@ def _runtime_type_for(
         return shared
 
     from .access import _hooks_for   # access imports this module
+    from .presence import _presence_hook
 
     host_type = state.host_type
     dunders = _dunder_actions(state)
@@ -878,6 +879,7 @@ def _runtime_type_for(
             namespace["__contains__"] = hooks["__contains__"]   # the Flag holds the seat
 
     namespace["__del__"] = hooks["__del__"]   # the finalizer, whatever gate names __del__
+    _presence_hook(namespace, host_type)
 
     if issubclass(host_type, Tagged):
         bases: tuple[type, ...] = (host_type,)

@@ -49,6 +49,31 @@ Actions; Agents are built once and play for a long time. So:
   protocols raise it while they run; the secret-gate descriptor checks it.
   Agents without secrets use a plain bound callable and pay nothing.
 
+### Presence without evaluation
+
+`"name" @ agent` inspects current bindings rather than asking `hasattr`
+or evaluating the name. A missing Action or Record is absent even if its
+name remains in a sticky registry. False values, including `None`, are
+present. Host fields and methods qualify regardless of origin; property
+bindings are inspected without running their getters, and synthesized
+`__getattr__` names are outside this query.
+
+An actual Agent counts shared Tag names only through publication. A
+published Report needs an active publisher; its descriptor supplies the
+binding without building the value. A published Operation follows its
+actual Action binding, which can remain after Rip although use is refused.
+A Tag-bound view checks its captured contributions,
+including captured shared entries. Secret names respect the underlying
+Agent's composition door. The query never evaluates Posts, so a Post can
+require a name without recursively checking soundness.
+
+The runtime hook reserves string left operands for presence and preserves
+the effective host or Tag `__rmatmul__` behaviour for other operands. A
+descriptor exposes the original reflected method on class access to keep
+Python's priority for a right operand whose type is a subtype. A
+pinned Tag supports the query as an Agent; an unpinned Tag gains no TOP
+operator from this feature.
+
 Measured on Python 3.11 (`benchmarks/bench.py`), nanoseconds per
 operation: plain attribute read 42, Agent host-attribute read 65, Record
 read 64, plain method call 86, Action call 295, `agent in Tag` 291,
