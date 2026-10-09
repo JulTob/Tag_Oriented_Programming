@@ -58,6 +58,14 @@ STEP-SPEC-11 (Redacted) met the case once, in its open question, where
 `Elf` laid an `@Underlay` promise over an independent `Alive`'s. It
 decided what Rip should do about it, not what the laying itself is.
 
+Issue [#10](https://github.com/JulTob/Tag_Oriented_Programming/issues/10)
+reported the same wrong text from another side: a Shape `class C(A, B)`
+whose two unrelated Bases both promise `Fine` warns on every application
+of `C` and calls B's promise a weakened Base Postcondition. Its option D,
+"route unrelated same-name Postconditions to the Overwrite Warning", is
+this STEP's proposal; its other options are about the Form (see *Out of
+scope*).
+
 ### What actually happens today
 
 The kit keeps one condition per name and kind, latest Layer visible, as
@@ -86,9 +94,10 @@ gate.
 1. **One law for every Agent name.** A condition is laid like any
    contribution: the latest Layer is visible under its name, one
    Precondition and one Postcondition per name.
-2. **Across independent Tags** (neither in the other's Form, §1.1), a
-   Precondition laid over a Precondition, or a Postcondition over a
-   Postcondition, of the same name:
+2. **Across independent Tags** (neither in the other's Form, §1.1)
+   applied by separate taggings, a Precondition laid over a
+   Precondition, or a Postcondition over a Postcondition, of the same
+   name (two Bases inside one Form: see *Out of scope*):
    - **without `@Underlay`** replaces it. The other Tag's gate or promise
      no longer binds the Agent. TOP allows it and diagnoses it with an
      **Overwrite Warning** that names the Tag whose condition no longer
@@ -189,6 +198,14 @@ example runs today, silently).
 
 ## Out of scope
 
+- **What "independent" means inside one Form.** In `class C(A, B)`, A
+  and B are independent pairwise (neither is in the other's Form), yet
+  C's author declared, once, that B lays over A. Whether that is silent,
+  diagnosed once at the `class` line, or diagnosed at every application
+  of C is issue #10's question (its options A to C), and it holds for
+  Actions and Records as much as for conditions. This STEP's law is for
+  Tags applied separately; inside one Form it follows whatever #10
+  decides.
 - A Precondition of one Tag and a Postcondition of another under one
   name. They are two kinds and do not replace each other; `agent.Name`
   reads the Postcondition first (§2.5). Unchanged.
@@ -204,7 +221,9 @@ text names the real relationship ("replaces the Postcondition of
 independent Tag Sworn without @Underlay; Sworn's promise no longer binds
 this Agent"; "its Shape Knight"; "its Base Soldier"), and it points at the
 tagging line instead of the frame above it. The warning class is
-unchanged. `IMPLEMENTATION_NOTES.md` records the judgment call.
+unchanged. `IMPLEMENTATION_NOTES.md` records the judgment call. This
+corrects the wording #10 reports; #10's repetition at every application
+of a Shape, and the class it should carry, stay open there.
 
 ## Acceptance requirements
 
