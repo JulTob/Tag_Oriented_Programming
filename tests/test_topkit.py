@@ -630,12 +630,105 @@ class HostPreservationTests(unittest.TestCase):
         self.assertIn("x", bag)
         self.assertNotIn(Field_Member, bag)       # the host keeps its `in`
         self.assertEqual(bag | 1, "host-or")
+        self.assertEqual(len(bag), 1)             # and its `len`
         self.assertTrue(bool(bag))
 
         bag.items.clear()
 
-        self.assertFalse(bool(bag))
+        self.assertEqual(len(bag), 0)
+        self.assertTrue(bool(bag))                # its truth is its contract, not its length
         self.assertEqual(bag.dynamic, "from host getattr")
+
+    def test_an_agents_truth_is_its_contract_while_len_stays_the_hosts(self) -> None:
+        class Shelf:
+            def __init__(self) -> None:
+                self.books: list[str] = []
+                self.catalogued = True
+
+            def __len__(self) -> int:
+                return len(self.books)
+
+        class Library(Tag):
+            pass
+
+        class Catalogue(Tag):
+            @Post
+            def Catalogued(agent) -> bool:
+                return agent.catalogued
+
+        shelf = Shelf()
+        Library(shelf)
+        runtime = type(shelf)
+
+        self.assertEqual(len(shelf), 0)
+        self.assertTrue(shelf)                    # no promise: nothing is broken
+
+        Catalogue(shelf)
+        shelf.books.append("Dune")
+        shelf.catalogued = False
+
+        self.assertIs(type(shelf), runtime)       # a first promise needs no new runtime type
+        self.assertEqual(len(shelf), 1)
+        self.assertFalse(shelf)                   # broken, whatever its length
+
+        shelf.books.clear()
+        shelf.catalogued = True
+
+        self.assertEqual(len(shelf), 0)
+        self.assertTrue(shelf)                    # sound, whatever its length
+
+    def test_an_untagged_object_from_an_agents_type_keeps_host_truth(self) -> None:
+        bag = self.Bag()
+        Field_Member(bag)
+        spare = type(bag)()
+
+        self.assertTrue(spare)
+        spare.items.clear()
+        self.assertFalse(spare)
+
+        class Host:
+            pass
+
+        class Sized(Tag):
+            def __len__(agent) -> int:
+                raise AssertionError("TOP behaviour leaked into a plain host")
+
+        tagged = Host()
+        Sized(tagged)
+
+        self.assertTrue(type(tagged)())            # ignores the Tag's __len__
+
+    def test_plain_runtime_truth_binds_a_non_descriptor_len_as_python_does(self) -> None:
+        class Length:
+            def __call__(self) -> int:
+                return 0
+
+        class Host:
+            __len__ = Length()
+
+        host = Host()
+        Field_Member(host)
+
+        self.assertFalse(type(host)())
+
+    def test_plain_runtime_truth_skips_every_synthesized_layer(self) -> None:
+        class Host:
+            pass
+
+        class Sized(Tag):
+            def __len__(agent) -> int:
+                raise AssertionError("an older TOP layer leaked")
+
+        first = Host()
+        Sized(first)
+
+        class Derived(type(first)):
+            pass
+
+        second = Derived()
+        Field_Member(second)
+
+        self.assertTrue(type(second)())
 
     def test_tag_members_do_not_leak_onto_the_agent(self) -> None:
         ari = Agent()

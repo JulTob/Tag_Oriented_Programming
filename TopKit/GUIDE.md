@@ -1022,6 +1022,11 @@ the architecture, with a Field to walk and a history that stays.
 | Are its promises holding? | `if agent:`, `Contract.Status(agent)`, `f"{agent:contract}"` |
 | What did it look like right after Wizard? | `agent.Wizard`, `Wizard[agent]` |
 
+When neither a host nor a Tag contributes `__bool__`, an Agent's truth is
+its visible contract. With no Postconditions it is true: nothing promised
+is broken. A host's `__len__` still answers `len(agent)`, but never
+supplies this truth, so an empty Agent can be sound and truthy.
+
 ## Reading a Tag
 
 | Question | Spelling |

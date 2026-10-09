@@ -4,6 +4,13 @@
 
 ### TopKit
 
+- **An Agent's truth is its contract over a host's length.** When neither
+  the host nor a Tag contributes `__bool__`, `bool(agent)` is true exactly
+  when its visible Posts hold from the first Tagging, and true when it has
+  none. A host's `__len__` still answers `len(agent)`. Before, an empty
+  container-like Agent with no Posts was false and adding its first Post
+  rebuilt the runtime type.
+
 - **Constant Contributions:** `@Constant` protects Records, Actions,
   Posts, Reports and Operations from replacement, deletion and later
   Layers. Record values remain per Agent and their contents may mutate.

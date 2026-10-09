@@ -47,8 +47,9 @@ replaces it: before and after, it is the same object. Precisely:
   unless a Tag deliberately contributes a member of that name;
 - the Target's own special methods (`__contains__`, `__len__`, `__bool__`,
   operators, `__getattr__`) keep working, with one deliberate exception:
-  `bool(agent)` gains contract meaning once a Postcondition is visible
-  (§2.5);
+  when neither the host nor a Tag contributes `__bool__`, `bool(agent)`
+  is the Agent's contract from its first Tagging, even if the host defines
+  `__len__`; `len(agent)` stays the host's (§2.5);
 - the name of the object's type is unchanged.
 
 What TOP does **not** promise is nominal type identity: a Python
@@ -1193,9 +1194,11 @@ pinned Tag reads its own conditions the same way (`Wizard.Has_Members`).
 A condition that outlived its Tag (§0.7) still reads by name until the
 author ends it.
 
-Truthiness on a plain object is vacuously true, so this fills an empty
-seat. A host that defines its own `__bool__` or `__len__` keeps it until a
-Postcondition becomes visible on that Agent.
+When neither its host nor a Tag contributes `__bool__`, an Agent with no
+visible Postcondition is truthy: it has no broken promise. A host that
+defines `__len__`, but not `__bool__`, keeps `len(agent)`; its length
+never answers the Agent's truth. Thus an empty Agent whose visible
+promises hold is still truthy.
 
 ## 2.6 Naming the culprit
 
