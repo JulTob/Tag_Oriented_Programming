@@ -21,20 +21,27 @@ Tag's dotted namespace to the program:
 A Tag marked @Pin applies to Tags (STEP-SPEC-9); the pinned Tag is then
 an Agent in every spelling above: Rare(Wizard), Wizard in Rare,
 for tag in Rare, Rare[Wizard], del Rare[Wizard], f"{Wizard:pins}".
+
+The dot on a Tag reads and writes the Tag. A name the Tag gives its
+Agents (a Record, an Action, a condition) is not a value of the Tag:
+``Wizard.hp = 10`` and ``del Wizard.hp`` are refused (STEP-SPEC-28).
 """
 
 from __future__ import annotations
 
 from typing import Any
 from typing import Iterator
+import weakref
 
 from .access import _keyword
 from .access import _view_of
 from .contracts import _holds
 from .declarations import _MISSING
+from .declarations import _agent_kind
 from .declarations import _check_pin_bases
 from .declarations import _is_pin
 from .declarations import _name_checks
+from .errors import TagCategoryError
 from .errors import TagCompositionError
 from .fields import _Field
 from .fields import _Partition
@@ -71,9 +78,39 @@ class MetaTag(type):
                 namespace,
                 **kwargs,
                 )
+        tag._topkit_field._tag = weakref.ref(tag)   # a Pin's Field holds Tags
         _check_pin_bases(tag)
 
         return tag
+
+    def __setattr__(
+            tag,
+            name: str,
+            value: Any,
+            ) -> None:
+        """``Wizard.motto = "wise"`` sets a value of the Tag. A name the Tag
+        gives its Agents is refused, before anything changes."""
+
+        _refuse_a_write_over_an_agent_name(
+                tag,
+                name,
+                value,
+                )
+        super().__setattr__(
+                name,
+                value,
+                )
+
+    def __delattr__(
+            tag,
+            name: str,
+            ) -> None:
+        _refuse_a_write_over_an_agent_name(
+                tag,
+                name,
+                _MISSING,   # a deletion
+                )
+        super().__delattr__(name)
 
     def __call__(
             tag,
@@ -266,6 +303,68 @@ class MetaTag(type):
                 f"unknown format spec {spec!r} for a Tag; use 'form',"
                 " 'pins', or 'contract'"
                 )
+
+
+_AGENT_KINDS = {
+        "record": ("a Record of each", None),
+        "action": ("an Action of each", None),
+        "precondition": ("a Precondition of each", "@Pre"),
+        "postcondition": ("a Postcondition of each", "@Post"),
+        "condition": ("a Precondition and a Postcondition of each", "@Pre @Post"),
+        "imprint": ("an Imprint of each", "@Imprint"),
+        "delete": ("a name deleted from each", "@Delete"),
+        }
+# what a declaration is to the Agents, and the mark that writes it when it
+# is a protocol; a Record or an Action is written on each Agent instead
+
+
+def _refuse_a_write_over_an_agent_name(
+        tag: type,
+        name: str,
+        value: Any,
+        ) -> None:
+    """A Category Failure (STEP-SPEC-28) when ``name`` is something the Tag
+    gives its Agents: writing ``value`` there, or deleting it when
+    ``value`` is _MISSING, would make the Tag and its Agents disagree.
+    Before the Tag's first use it would erase the declaration; after, the
+    Tag would read a value no Agent has."""
+
+    kind = _agent_kind(
+            tag,
+            name,
+            )
+
+    if kind is None:
+        return
+
+    what, mark = _AGENT_KINDS[kind]
+    agent = _loop_name(tag)
+    loop = f"for {agent} in {tag.__name__}:"
+
+    if mark is not None:
+        spelling = f"Write it in a Tag's class body: {mark} def {name}(agent): ..."
+    elif value is _MISSING:
+        spelling = f"Write: {loop} del {agent}.{name}"
+    else:
+        spelling = f"Write: {loop} {agent}.{name} = {value!r}"
+
+    raise TagCategoryError(
+            f"{name} is {what} {tag.__name__}, not a value of the Tag"
+            f" {tag.__name__}. {spelling}"
+            )
+
+
+def _loop_name(
+        tag: type,
+        ) -> str:
+    """What a loop over the Tag calls each member: ``wizard`` for Wizard."""
+
+    name = tag.__name__.lower()
+
+    if name == tag.__name__:
+        return "agent"   # a lower-case Tag: its own name would shadow it
+
+    return name
 
 
 def _check_pin_target(

@@ -24,6 +24,7 @@ from .declarations import _MISSING
 from .declarations import _Words
 from .declarations import _is_dunder
 from .declarations import _is_flag
+from .errors import TagCategoryError
 from .errors import TagCompositionError
 
 Function = Callable[..., Any]
@@ -121,6 +122,11 @@ class _Class_Namespace:
     A class dictionary is read through a proxy and written through the
     class. This adapter gives the kernel the few dictionary operations it
     uses, so the tagging sequence is one code path for objects and Tags.
+
+    It writes with ``type``'s own ``__setattr__``, past the Tag's refusal
+    of a value over a name it gives its Agents (STEP-SPEC-28): what the
+    kernel lands, and takes back on a rollback, already passed a Pin's
+    collision control, and is the Tag's own value, never a declaration.
     """
 
     __slots__ = ("_owner",)
@@ -152,7 +158,7 @@ class _Class_Namespace:
             name: str,
             value: Any,
             ) -> None:
-        setattr(
+        type.__setattr__(
                 namespace._owner,
                 name,
                 value,
@@ -180,7 +186,7 @@ class _Class_Namespace:
 
             return default
 
-        delattr(
+        type.__delattr__(
                 namespace._owner,
                 name,
                 )
@@ -286,14 +292,17 @@ def _state_of(
 def _state_for(
         agent: object,
         ) -> _State:
-    """The Agent's state, attached on first use."""
+    """The Agent's state, attached on first use: its first tagging. A
+    target that cannot be an Agent is refused here, before anything
+    changes (STEP-SPEC-28)."""
 
     namespace = _namespace_of(agent)
 
     if namespace is None:
-        raise TagCompositionError(
-                f"{type(agent).__name__} cannot carry TOP state"
-                " (no instance dictionary)"
+        raise TagCategoryError(
+                f"{type(agent).__name__} cannot carry TOP state (no instance"
+                " dictionary), so it cannot be an Agent. Keep the value in a"
+                " Record or an attribute of an object, and tag the object"
                 )
 
     state = namespace.get(STATE)
@@ -303,10 +312,18 @@ def _state_for(
         host_of_runtime = host_type.__dict__.get("_TOPKIT_HOST_TYPE")
 
         if host_of_runtime is not None and not isinstance(agent, type):
+            host_type = host_of_runtime
+
+        if not isinstance(agent, type):
+            _refuse_a_target_that_cannot_be_an_agent(
+                    agent,
+                    host_type,
+                    )
+
+        if host_type is not type(agent):
             # Built from an Agent's runtime type (dataclasses.replace,
             # type(self)(...)): until tagged, it is a plain host object.
-            agent.__class__ = host_of_runtime
-            host_type = host_of_runtime
+            agent.__class__ = host_type
 
         state = _State(
                 host_type=host_type,
@@ -315,6 +332,70 @@ def _state_for(
         namespace[STATE] = state
 
     return state
+
+
+def _refuse_a_target_that_cannot_be_an_agent(
+        agent: object,
+        host_type: type,
+        ) -> None:
+    """A string, an object no Field can hold, and a host with a truth of
+    its own are refused at their first tagging (STEP-SPEC-28). The host's
+    own class decides, never the kit's runtime type."""
+
+    host = host_type.__name__
+
+    if isinstance(agent, str):
+        raise TagCategoryError(
+                f"{host} is a string, so it cannot be an Agent: a string in"
+                " `in` is read as a Flag word (\"Undead\" in Wizard), never as"
+                " a member. Keep the text in a Record or an attribute of an"
+                " object, and tag the object"
+                )
+
+    if not _takes_weak_references(agent):
+        raise TagCategoryError(
+                f"{host} cannot carry TOP state (no weak reference), so it"
+                " cannot be an Agent: a Field holds its Agents weakly. Keep"
+                " the value in a Record or an attribute of an object, and tag"
+                " the object"
+                )
+
+    truth = _own_truth_of(host_type)
+
+    if truth is not None:
+        raise TagCategoryError(
+                f"{host} has a truth of its own ({truth.__name__}.__bool__),"
+                " so it cannot be an Agent: an Agent's truth is its contract,"
+                " and `if agent:` asks whether its promises hold. Keep the"
+                " host's truth in a Record or an attribute"
+                )
+
+
+def _takes_weak_references(
+        agent: object,
+        ) -> bool:
+    try:
+        weakref.ref(agent)
+    except TypeError:
+        return False
+
+    return True
+
+
+def _own_truth_of(
+        host_type: type,
+        ) -> type | None:
+    """The class that gives the host its own ``__bool__``, or None: the
+    first class in the MRO, before ``object``, that defines one."""
+
+    for klass in host_type.__mro__:
+        if klass is object:
+            break
+
+        if klass.__dict__.get("__bool__") is not None:
+            return klass
+
+    return None
 
 
 def _set_state(

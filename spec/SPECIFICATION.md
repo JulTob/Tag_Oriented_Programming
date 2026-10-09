@@ -38,17 +38,18 @@ where TOP stands among paradigms.
 
 ## 0.1 Identity
 
-A **Target** is any object a program already has. Tagging a Target never
-replaces it: before and after, it is the same object. Precisely:
+A **Target** is any object a program already has, except the few kinds of
+value that cannot be an Agent (§0.5). Tagging a Target never replaces it:
+before and after, it is the same object. Precisely:
 
 - object identity is preserved (`tagged is original`, same `id`, same hash,
   same equality);
 - every attribute and method the Target had keeps working the way it did,
   unless a Tag deliberately contributes a member of that name;
-- the Target's own special methods (`__contains__`, `__len__`, `__bool__`,
-  operators, `__getattr__`) keep working, with one deliberate exception:
+- the Target's own special methods (`__contains__`, `__len__`, operators,
+  `__getattr__`) keep working, with one deliberate exception:
   `bool(agent)` gains contract meaning once a Postcondition is visible
-  (§2.5);
+  (§2.5). A host with its own `__bool__` is not a Target (§0.5);
 - the name of the object's type is unchanged.
 
 What TOP does **not** promise is nominal type identity: a Python
@@ -160,6 +161,25 @@ MI6(bond, code="007")      # every protocol that names `code` receives it
 membership, does not rerun Imprints, does not reset Records. Resetting is a
 deliberate act: Rip, then apply again.
 
+**Who may be a Target.** Some values cannot be Agents. Applying a Tag to
+one is a Category Failure, refused before anything changes:
+
+- **A value that cannot carry TOP state**: one with no instance
+  dictionary or no weak reference, such as `None`, `3`, `True`, a plain
+  `str` or a `tuple`. A Field holds its Agents weakly.
+- **A string**, even of a `str` subclass that could carry state. A string
+  in a Tag's `in` asks for a keyword (§1.9), so a string Agent could never
+  answer `in` as a member.
+- **A host with a truth of its own**: its class defines `__bool__`. An
+  Agent's truth is its contract (§2.5): `if agent:` asks whether its
+  promises hold, and the host's own truth would answer instead.
+
+Keep such a value, or such a truth, in a Record or an attribute of an
+object, and tag the object. A host that defines only `__len__` is a
+Target: its length answers its truth until a Postcondition is visible
+(§2.5). A Tag answers its truth through its metaclass, so pinning (§1.9)
+is not concerned.
+
 ## 0.6 The tagging sequence
 
 Think of a factory line. Once, for the whole call:
@@ -253,7 +273,8 @@ Rip is the only exit from a Field, and it obeys three laws:
 ## 0.8 Spellings
 
 TOP borrows the language's own syntax for every Tag-level act and leaves
-the Tag's dotted namespace, `Wizard.something`, to the program. A Report
+the Tag's dotted namespace, `Wizard.something`, to the program, but for
+the names the Tag gives its Agents (§1.1). A Report
 called `Field`, `Form` or `Rip` must be possible. Structure without
 stepping on the programmer's choices: TOP should feel like part of the
 language, not a library's naming.
@@ -335,6 +356,19 @@ that slot holds an Action or a Record, never both at once:
   Base's view (§1.7) keeps the prior kind.
 - Across scopes, equal names do not collide. `Fire.colour` (Tag) and
   `ember.colour` (Agent) are two slots with two histories.
+
+On a class the two scopes share one dictionary, so **a value of the Tag
+never takes a name the Tag gives its Agents**. Assigning or deleting on a
+Tag a name it declares for its Agents (a Record, an Action, a condition,
+an Imprint, a deletion), itself or in a Base, is a Category Failure, before
+and after the Tag's first use, and nothing changes. `Wizard.hp = 10`
+would make the Tag and its Agents disagree; the message names the loop
+that writes each Agent, `for wizard in Wizard: wizard.hp = 10`. The first
+class in the Tag's MRO that holds the name decides, as it does for a read.
+So a Report `colour` that a Shape declares beside its Base's Record
+`colour` stays writable on the Shape: the write changes the Report. A name
+the Tag does not give its Agents stays assignable: it is a Report written
+by hand.
 
 ## 1.2 Actions
 
@@ -755,12 +789,14 @@ non-empty strings and match exactly, like names.
 A Flag needs the Agent's `in`, and one seat holds one meaning. Something
 else may already answer it: the host, through its own `__contains__` or
 `__iter__` (a container, a party that iterates its members), or a Tag's
-Action of either name, a published Operation included. A Flag and any of
-them collide, in either order, and within one Form before any of it
-applies. The later one fails with a Composition Failure naming both
-sides, like a Record over a host property, and nothing changes: a seat
-never changes meaning in silence. A Flag that declares such an Action
-itself is a Declaration Failure.
+Action of either name, a published Operation included. A Flag on a host
+that answers `in` itself is a Category Failure: on that Agent,
+`Undead in ghoul` and `"Undead" in ghoul` stay the host's own question.
+A Flag and a Tag's Action collide in either order, and within one Form
+before any of it applies; the later one fails with a Composition Failure,
+like a Record over a host property. Each failure names both sides, and
+nothing changes: a seat never changes meaning in silence. A Flag that
+declares such an Action itself is a Declaration Failure.
 
 The host's seat is read as the language reads `in`. In Python, for
 `__contains__` and then `__iter__`, the first class in the MRO that
@@ -806,7 +842,7 @@ fails with a Composition Failure. An ordinary Tag applies to objects only;
 on a class it is refused, as before. A Pin may not pin itself or any Tag
 of its own Form. A Shape of a Pin is a Pin, and one Form is all Pins or
 no Pins: mixing them is a Declaration Failure. Fields therefore never mix
-Agents and Tags.
+Agents and Tags, and populations never combine them (§2.5).
 
 **The receiver rule** (§1.1). The first parameter of a Pin's Agent-scope
 member is the pinned Tag; write it `tag`. A Pin's Record lands as a
@@ -1061,12 +1097,21 @@ lazy view that reads its Fields when walked, keeps application order
 within each side, answers `in`, `len`, truth and iteration, and has no
 complement (`~` on a union has no universe). A Tag with anything that is
 not a population keeps the language's own class union (`Wizard | None`).
+A Pin's population holds Tags, and a Tag's holds Agents, so the two never
+combine: `Rare | Wizard`, `Wizard & Rare` and `Rare[:] - Wizard` are a
+Category Failure. Pins combine with Pins, and Tags with Tags.
 
 ```python
 for c in Wizard | Fighter:            # sound in either, each once
 for b in Wizard & Fighter:            # sound in both
 for u in (Wizard[:] | Fighter[:]) - Sworn:   # anyone with a role who has not sworn
 ```
+
+**A walk** visits the members there when it begins, in join order. A
+member that an earlier turn of the same walk Ripped is skipped, so a loop
+that Rips as it goes never meets an Agent that has left. An Agent that
+joins during a walk waits for the next one. Each side of a combination is
+read when its own walk begins.
 
 **A condition is read on the Agent by its name** (STEP-SPEC-14).
 `agent.Has_Book` is `True` while the promise called `Has_Book` holds and
@@ -1083,8 +1128,10 @@ A condition that outlived its Tag (§0.7) still reads by name until the
 author ends it.
 
 Truthiness on a plain object is vacuously true, so this fills an empty
-seat. A host that defines its own `__bool__` or `__len__` keeps it until a
-Postcondition becomes visible on that Agent.
+seat. A host that defines its own `__len__` keeps that truth until a
+Postcondition becomes visible on that Agent. A host that defines its own
+`__bool__` is refused at tagging (§0.5): its truth would answer for the
+contract.
 
 ## 2.6 Naming the culprit
 
@@ -1313,7 +1360,8 @@ types but must keep these distinct.
 | Failure | Meaning | Effect |
 | --- | --- | --- |
 | **Tag Declaration Failure** | A Tag is written wrong: illegal mark combination, `@Underlay` without a parameter to receive it. | at class use |
-| **Tag Composition Failure** | Contributions cannot form the Overlay: cross-kind collision, Record over a host descriptor, a Record builder or teardown that failed, a Target that cannot carry state, a Base still required. | call rolled back (or Rip refused) |
+| **Tag Composition Failure** | Contributions cannot form the Overlay: cross-kind collision, Record over a host descriptor, a Record builder or teardown that failed, a Base still required. | call rolled back (or Rip refused) |
+| **Tag Category Failure** | An act treats one kind of TOP thing as another: a Tag as its Agents, a population as a type, a Projection as a population. | refused, nothing changed |
 | **Tag Resolution Failure** | A required Underlay, view, or membership is unavailable. | call rolled back |
 | **Tag Rogue Access Failure** | A Rogue Agent reached a published member of a Tag it has left. A Resolution Failure, and a TOP failure only: never dressed as a host-language attribute failure. | use refused |
 | **Tag Precondition Failure** | A gate refused the incoming Agent. | call rolled back |

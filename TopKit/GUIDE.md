@@ -984,15 +984,20 @@ assert not all(s.grade > 8 for s in Scholar)    # not all of them
 **Watch out.** Write the question inside. `all(Scholar)` alone asks each
 sound Scholar for its own truth. For most Agents that is their contract,
 which holds for every sound one, so the answer is True. But a host with
-its own `__bool__` answers for itself, and so does a host with `__len__`
-while no promise is visible on it: an empty `Shelf` Agent is sound and
-still false. So `all(Scholar)` and `any(Scholar)` do
+`__len__` answers for itself while no promise is visible on it: an empty
+`Shelf` Agent is sound and still false. A host with its own `__bool__`
+never gets that far: TopKit refuses it at tagging with a
+`TagCategoryError`, because its truth would answer for the contract, so
+keep that truth in a Record. So `all(Scholar)` and `any(Scholar)` do
 not ask whether there are Scholars; `if Scholar:` does. Over an empty
 Tag, `all(...)` is True and `any(...)` is False: nobody broke the rule,
 and nobody is there to show it.
 
 Nothing TOP-level lives at `Wizard.something`. That namespace is yours: put
-your Reports and Operations there.
+your Reports and Operations there. A name the Tag gives its Agents is the
+one thing it refuses: `Wizard.spell_slots = 2` raises a `TagCategoryError`
+that names the loop you meant,
+`for wizard in Wizard: wizard.spell_slots = 2`.
 
 ---
 

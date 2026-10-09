@@ -900,6 +900,85 @@ def _scan(
     return declarations
 
 
+def _agent_kind(
+        tag: type,
+        name: str,
+        ) -> str | None:
+    """The kind of what ``tag.name`` reaches when the Tag gives it to its
+    Agents ("record", "action", a condition, "imprint", "delete"), or None
+    when it is the Tag's own: a Report, an Operation, a value, what a Pin
+    landed, or nothing yet.
+
+    The first class in the MRO that holds the name decides, as for a read:
+    a Report a Shape declares over its Base's Record is the Shape's own.
+    After a Tag's first use, its scan is what its Agents get."""
+
+    if _is_private(name):
+        return None
+
+    for klass in tag.__mro__:
+        if name in klass.__dict__:
+            return _agent_kind_in(
+                    klass,
+                    name,
+                    )
+
+    return None
+
+
+def _agent_kind_in(
+        klass: type,
+        name: str,
+        ) -> str | None:
+    if "_topkit_field" not in klass.__dict__:
+        return None   # not a Tag: a mixin's member is no declaration
+
+    managed = klass.__dict__.get(STATE)
+
+    if managed is not None and (
+            name in managed.actions
+            or name in managed.records
+            ):
+        return None   # a Pin landed it: the Tag's own value
+
+    scanned = _scan_cache.get(klass)
+
+    if scanned is not None and not _gives_agents(scanned, name):
+        return None
+
+    attribute = klass.__dict__[name]
+
+    if (
+            isinstance(attribute, (Report, classmethod, staticmethod))
+            or not callable(attribute)
+            ):
+        return None
+
+    kind = _kind_of(attribute)
+
+    if kind == "operation":
+        return None   # the Tag's own, however it is wrapped
+
+    return kind or "action"   # unmarked and callable: an Action
+
+
+def _gives_agents(
+        declarations: _Declarations,
+        name: str,
+        ) -> bool:
+    for given, _function in (
+            *declarations.actions,
+            *declarations.records,
+            *declarations.preconditions,
+            *declarations.postconditions,
+            *declarations.imprints,
+            ):
+        if given == name:
+            return True
+
+    return name in declarations.deletions
+
+
 def _emit_published_pins(
         managed: Any,
         reports: list[tuple[str, Any, bool]],

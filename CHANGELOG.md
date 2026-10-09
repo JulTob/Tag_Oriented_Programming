@@ -83,6 +83,37 @@
   kit's own halves of commit and Rip, and calling them by hand skipped
   the gate or the teardowns and left the Field contradicting `in`. They
   are private now, and membership changes only by tagging and Rip.
+- New failure: `TagCategoryError` (STEP-SPEC-28), for an act that treats
+  one kind of TOP thing as another. It is a `TagError` and a
+  `TypeError`, so code that catches `TypeError` keeps working. Nothing
+  changes when it is raised, and its message names the spelling to use.
+- `Wizard.hp = 10` and `del Wizard.hp` are refused when `hp` is a name
+  the Tag gives its Agents: a Record, an Action, a condition, an Imprint
+  or a deletion, declared on the Tag or on a Base. Before, the write
+  passed in silence: before the Tag's first use it erased the
+  declaration, and after it the Tag and its Agents disagreed. The message
+  names the loop, `for wizard in Wizard: wizard.hp = 10`. A Report beside
+  a Record of the same name, and any name the Tag does not give its
+  Agents, stay writable.
+- A target that cannot be an Agent is refused at tagging with a
+  `TagCategoryError`: `Wizard(None)`, `Wizard(3)`, `Wizard(True)`, any
+  value with no instance dictionary or no weak reference (before, a
+  `TagCompositionError`), an instance of a `str` subclass, and a host
+  whose class defines its own `__bool__` (both tagged before). A host
+  with only `__len__` is still accepted.
+- A Flag on a host that answers `in` itself (its own `__contains__` or
+  `__iter__`) is refused with a `TagCategoryError` instead of a
+  `TagCompositionError`. The message is unchanged. A collision with a
+  Tag's Action that answers `in` stays a `TagCompositionError`.
+- A Pin's population no longer combines with a Tag's: `Rare | Wizard`,
+  `Wizard & Rare` and `Rare[:] - Wizard` raise a `TagCategoryError`.
+  Pins combine with Pins, and Tags with Tags; `Wizard | None` is still
+  Python's type union.
+- A walk skips a member that an earlier turn of the same walk Ripped
+  (STEP-SPEC-29, rule 7.1), on every population: a Tag, `Wizard[:]`,
+  `~Wizard`, a Pin and every combination. Before, the walk visited it.
+  An Agent that joins during a walk still waits for the next one, and
+  each side of a combination is still read when its own walk begins.
 
 ### Project
 

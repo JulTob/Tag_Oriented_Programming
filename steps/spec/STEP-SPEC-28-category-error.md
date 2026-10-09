@@ -230,6 +230,13 @@ carries the difference.
   - each other case in rule 3, once its STEP is built.
 - The Specification's Failure model gains the row of rule 1.
 
+Built on PR #26 on 2026-10-09: `TagCategoryError`, exported; the four
+cases decided on 2026-10-09, the refusal of `Wizard.hp = 10` and
+`del Wizard.hp`, and of a Pin's population mixed with a Tag's; the
+Failure model's row; `CategoryErrorTests`. `Wizard(int)`, a Pin applied
+to an object, a population used as a type, and the Projection and
+Relation cases wait for open question 1.
+
 ---
 
 ### Decision *(filled by the Director)*
