@@ -4,6 +4,11 @@
 
 ### TopKit
 
+- **Fresh Tagging is not a reset:** the Specification and Guide now say
+  explicitly that Rip removes membership, not sticky Contributions. After
+  Rip, applying the Tag again runs ordinary Record builders over the
+  Agent's current values. Resetting a binding is a separate, explicit act.
+
 - **Constant Contributions:** `@Constant` protects Records, Actions,
   Posts, Reports and Operations from replacement, deletion and later
   Layers. Record values remain per Agent and their contents may mutate.
