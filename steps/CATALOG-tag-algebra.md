@@ -55,7 +55,7 @@ This catalog lists the spellings found so far that read a Tag or a population, o
 - **Projection**: the values of one name across a population, `Wizard[:].level`. The population it reads is its **root**. The dot on a bare Tag is not one: "Wizard.level is a report" (decided, 2026-10-09).
 - **Filter**: the members whose value passes a comparison, `Wizard[:].level > 3`.
 - **Part** (STEP-29): `+Wizard`, the sound part of a root, and `~Wizard`, its broken part.
-- **Place** (STEP-29): `Wizard[0]`, the Agent at place 0 now, in join order.
+- **Place** (STEP-29): `Wizard[0]`, the Agent at place 0 now, in join order. **A plain Tag has no places** (decided by the Director, 2026-10-09); whether `+Wizard` has them is open (STEP-29 OQ8).
 - **Home** (STEP-29): the one Tag a population was drawn from. `del X[:]` Rips its members from it.
 - **Deletion protocol** (STEP-27): what `del Wizard[:]` does to a Tag: gain control, stop gently, then the Tag is ready again.
 - **No value** ("NULL-like"): a member that lacks the name, or holds `None`. Like SQL's `NULL`.
@@ -293,7 +293,7 @@ Links combine too (section 7). Filters combine too (section 6).
 | `Wizard[::]` | The same as `Wizard[:]` (section 13). | population | **On main (kit only)** |
 | `Wizard[...]` | **main:** no meaning; the key is read as an Agent and fails. **S19:** the safehouse (decided). See section 3. | error, or population | main: **No status**. S19: **Vetting** · STEP-18 amendment E |
 | `Wizard[0]`, `Wizard[-1]`, `Wizard["x"]`, `Wizard[True]`, `Wizard[()]` | **Today:** any other key is read as an Agent, so these fail. | TagResolutionError | **On main (kit only)** |
-| `Wizard[0]`, `Wizard[n]`, `Wizard[-1]` | **STEP-29:** a place. The Agent at place n now, in join order, counting the sound members. `0` is the oldest, `-1` the newest. | Agent; IndexError naming the count now | **Brief** · STEP-29 r6.1. The Director, 2026-10-09: "Wizard[0] is, naturally speaking, the first ever WIzard, not any wizard. Numbers have order." Which "first" he means is open (STEP-29 OQ2). |
+| `Wizard[0]`, `Wizard[n]`, `Wizard[-1]` | **STEP-29:** a place. The Agent at place n now, in join order, counting the sound members. `0` is the oldest, `-1` the newest. | Agent; IndexError naming the count now | **Brief** · STEP-29 r6.1. The Director, 2026-10-09: "Wizard[0] is, naturally speaking, the first ever WIzard, not any wizard. Numbers have order." Which "first" he means is open (STEP-29 OQ2). **Rejected on a bare Tag** by the Director, 2026-10-09: "I would then make it so Wizard, the plain tag, doesn't accept the [] call with numbers (the tag is itself not ordered, but +Wizard would, as it returns a list." OQ2 is closed. `(+Wizard)[0]` is open (STEP-29 OQ8). |
 | `Wizard[True]`, `Wizard[False]` | The Director's ideas, 2026-10-09: "any one sound wizard" and "any broken wizard", or the populations of valid and broken members. **STEP-29:** refused, naming `+Wizard`, `~Wizard` and `Wizard[0]`. Python reads `True` as `1`, so `Wizard[True]` and `Wizard[1]` would collide. | `TagCategoryError` under STEP-29 | **Brief** · STEP-29 r6.3 |
 | `Wizard[()]`, `Wizard["level"]`, `Wizard[1:3]` | **STEP-29:** refused: never an Agent, never a place. | `TagCategoryError` under STEP-29 | **Brief** · STEP-29 r6.7 |
 | `Wizard[1:2]`, `Wizard[0:]`, `Wizard[::1]` | Positional slices have no meaning for a population. | TypeError | **On main (kit only)** · `TopKit/tags.py:216-217` |
@@ -715,6 +715,8 @@ A design panel answered: three designers (python-native, algebra-purist, explici
 | Through a Link, a name both the Pair and the Contact hold | Refused at the walk, naming both spellings. So the answer can never change silently. | `TagCategoryError` under STEP-29 | **Brief** · STEP-29 r9.3; recorded in STEP-23 OQ1 as the panel's answer |
 
 ### Picking one member
+
+*Rows below that use a place on a bare Tag, such as `Wizard[0]` or `Wizard[:][0]`, are superseded: a plain Tag has no places (the Director, 2026-10-09). Without places: `for w in Wizard: ... break` for the first in the walk, `[w] = Wizard` for the only one, `list(Wizard)` for a list with places. Whether `+Wizard` is a list is STEP-29 OQ8.*
 
 | Spelling | Plain meaning | Result | Status |
 | --- | --- | --- | --- |

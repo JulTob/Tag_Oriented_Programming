@@ -22,6 +22,15 @@ part of a root, and `~X` its broken part. Inside `[ ]` goes only "who":
 comparison on a Projection is the mask. `del X[:]` Rips a population from
 its home. Everything else is Python's own tools.
 
+> **Superseded in part on 2026-10-09.** A plain Tag has no places. The
+> Director: "So I would not implement [0] and[-1] then because that would demand any number to be an input there." And: "I would then make it so Wizard, the plain tag, doesn't accept the [] call with numbers (the tag is itself not ordered, but +Wizard would, as it returns a list. I know this is weird, but it forces a separation of masks+lists vs tags"
+> So `Wizard[0]`, `Wizard[-1]` and every number key on a bare Tag are
+> refused (*Decided*). Rules 6.1 and 6.2 no longer apply to a bare Tag,
+> and open question 2 is closed. Still *Open*: whether `+Wizard` gives a
+> list with places, as the Director proposes, or stays a live group,
+> with `list(Wizard)` as the step into a list (open question 8). The
+> rows below that use places on other populations wait for that answer.
+
 **Words used here.**
 - **Sound**: every visible promise (Postcondition) of the Agent holds.
   **Broken** (defective): a member with a broken promise.
@@ -261,6 +270,15 @@ branch `origin/Julio_Cl/step-19-sound-in`; "PR #28" is
 
 ### 6. Picks
 
+> **Superseded in part on 2026-10-09.** A plain Tag has no places. The
+> Director: "So I would not implement [0] and[-1] then because that would demand any number to be an input there." And: "I would then make it so Wizard, the plain tag, doesn't accept the [] call with numbers (the tag is itself not ordered, but +Wizard would, as it returns a list. I know this is weird, but it forces a separation of masks+lists vs tags"
+> So `Wizard[0]`, `Wizard[-1]` and every number key on a bare Tag are
+> refused (*Decided*). Rules 6.1 and 6.2 no longer apply to a bare Tag,
+> and open question 2 is closed. Still *Open*: whether `+Wizard` gives a
+> list with places, as the Director proposes, or stays a live group,
+> with `list(Wizard)` as the step into a list (open question 8). The
+> rows below that use places on other populations wait for that answer.
+
 1. **`X[n]` is the Agent at place n now, in join order.** *Recommended.*
    "Numbers have order." On a Tag, places count the sound members. `0` is
    the oldest, `-1` the newest. A miss is an `IndexError` naming the count
@@ -465,7 +483,8 @@ truth in a Record, and write `+Wizard` before a dot.
 1. **`rounds`: a Guide recipe or a kit name?** Recommended: the Guide;
    five lines of plain Python.
 2. **"the first ever WIzard": `Wizard[0]` (the oldest sound one) or
-   `Wizard[:][0]` (the oldest of everyone)?** Recommended: `Wizard[0]`.
+   `Wizard[:][0]` (the oldest of everyone)?** Closed on 2026-10-09: a
+   plain Tag has no places (the note at section 6).
 3. **`del Wizard[...][:]`** stays refused until STEP-24 open question 1
    settles whether kept Agents are still members.
 4. **Should `P == True` refuse a value that is not a bool?** Recommended:
@@ -475,6 +494,20 @@ truth in a Record, and write `+Wizard` before a dot.
 6. **"Anyone?"** stays `len(f) > 0` until you come back to it.
 7. **Does `~` absorb?** (rule 3.2) You wrote "~~= ~" and asked "Makes
    sense?". Recommended: yes.
+8. **Is `+Wizard` a list?** The Director proposed it on 2026-10-09: the
+   bare Tag refuses number keys, "but +Wizard would, as it returns a
+   list". Two answers:
+   - **(a) `+Wizard` is a list:** the sound members, copied at that
+     moment, with places. `(+Wizard)[0]` works.
+   - **(b) `+Wizard` stays a live group, and lists are Python's:**
+     `list(Wizard)[0]`, or `[*Wizard][0]` without a call. `+` keeps one
+     job, "the sound part", and stays the partner of `~`.
+
+   Recommended: (b). Under (a), `+` would do two jobs, choose the sound
+   members and freeze them, and `+X` and `~X` would stop being a pair.
+   Masks show the risk most clearly: on a plain Python list, `del
+   weak[:]` only empties the list and Rips nobody (checked), so a mask
+   that gave a plain list would silently undo the decided rule 8.1.
 
 ## Acceptance requirements
 
