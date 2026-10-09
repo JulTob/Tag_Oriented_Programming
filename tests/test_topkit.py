@@ -2720,9 +2720,12 @@ class FieldAlgebraTests(unittest.TestCase):
                 raise AssertionError("a plain class is not a TOP population")
 
         union = self.Wizard | Ordinary
+        reverse = Ordinary | self.Wizard
 
         self.assertIsInstance(self.ari, union)
         self.assertIsInstance(Ordinary(), union)
+        self.assertIsInstance(self.ari, reverse)
+        self.assertIsInstance(Ordinary(), reverse)
 
     def test_a_tag_may_use_sound_as_its_own_name(self) -> None:
         class Choir(Tag):
@@ -2741,6 +2744,29 @@ class FieldAlgebraTests(unittest.TestCase):
                 list(Choir | self.Wizard),
                 [solo, self.ari, self.bo],
                 )
+
+    def test_a_report_or_operation_named_sound_does_not_replace_the_field(self) -> None:
+        class Reported(Tag):
+            @Report
+            def _sound(tag) -> str:
+                return "the report"
+
+        class Operated(Tag):
+            @Operation
+            def _sound(tag, agent) -> object:
+                return agent
+
+        report_agent = Agent()
+        operation_agent = Agent()
+        Reported(report_agent)
+        Operated(operation_agent)
+
+        self.assertEqual(Reported._sound, "the report")
+        self.assertIs(Operated._sound(operation_agent), operation_agent)
+        self.assertEqual(list(Reported), [report_agent])
+        self.assertEqual(list(Operated), [operation_agent])
+        self.assertEqual(list(~Reported), [])
+        self.assertEqual(list(Operated[:]), [operation_agent])
 
 
 class ConditionMemberTests(unittest.TestCase):
