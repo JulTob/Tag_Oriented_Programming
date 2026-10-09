@@ -371,7 +371,8 @@ and whenever soundness is read.
 4. **Text on HEAD.** `spec/SPECIFICATION.md` 98-100, 139-140, 150 or
    159 (open question 2), 232-234, 750-751, 1316 ("a Base still
    required"), 1334-1335, 1337 and 1341-1342. `CONFORMANCE.md:14`.
-   STEP-SPEC-22 rule 5.2 (418-420), 804 and 1024. STEP-SPEC-24, rule 3.4,
+   STEP-SPEC-22 rule 5.2 and two passages that cite it, already revised
+   with this STEP. STEP-SPEC-24, rule 3.4,
    cites §0.4's "Deform them by hand" (section 6).
    `tests/oracle_topkit.py` lines 5-6, the model's header.
    STEP-SPEC-17 (Vetting) 30, 63 and 132. STEP-SPEC-6 (Deployed) 20-23,
@@ -384,9 +385,10 @@ and whenever soundness is read.
    404; `declarations.py` 465-466; `lifecycle.py` 5, 438 and 568-572.
    Spec 79 and 1392-1397 stay true with the class tree; they gain one
    sentence: a spin-off may be in `Wizard[...]` and not in `Wizard[:]`.
-6. **STEP-SPEC-25** (PR #28), line 253, rests on STEP-SPEC-24's old rule
-   1.2 refusal, which is gone. A command through `Human[:]` no longer
-   reaches spin-offs.
+6. **STEP-SPEC-25** (PR #28). Its rule 2.7 (line 253) cites
+   "STEP-SPEC-24, rule 1.2" for failures reported once; that is rule 1.4,
+   in its own copy too. With spin-offs, a write through `Human[:]` no
+   longer reaches an Agent that left Human and kept a Shape.
 
 ## Alternatives considered
 

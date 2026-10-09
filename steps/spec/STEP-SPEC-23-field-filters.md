@@ -353,11 +353,13 @@ answer `False`. `len(f) > 0` asks the population.
   shared value (§1.4). Over a Record or an Action it is a category
   error, in the Director's words "probably a misconception", and today
   its result depends on timing: before the Tag's first use it erases the
-  declaration, so new Wizards get no `hp`; after, Wizard's own Agents
-  still get it, but a Shape declared later inherits nothing under that
-  name. The kit should refuse it, as it already refuses a Pin that
-  replaces what a Tag's Agents do. On any other population, assignment
-  is refused (rule 1.4). STEP-SPEC-25 takes this up.
+  declaration, so new Wizards and its Shapes' Agents get no `hp`; after,
+  every Agent still gets the Record, because the kit read the
+  declaration at first use, but `Wizard.hp` now reads 10, so the Tag and
+  its Agents disagree. The kit should refuse it, as it already refuses a
+  Pin that replaces what a Tag's Agents do. On any other population,
+  assignment is refused (rule 1.4). STEP-SPEC-25 refuses it (rule 4.2), and
+  STEP-SPEC-28 names the failure, `TagCategoryError`.
 - Broadcasting an Action for its effect, such as `Enemy.Take_Damage(5)`.
   It does nothing, and warns (rule 3.3).
 - Applying a Tag through a Projection (rule 1.9).

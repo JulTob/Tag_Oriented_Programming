@@ -28,7 +28,8 @@ nothing about Ruth in `bob.Knows`.
 A Link is a Tag in full. It has Records, Actions and promises, Bases and
 Shapes, secrets and published members. What an ordinary Tag gives its
 Agent, a Link gives the **Pair**: Charlie and Ruth, linked. So nothing
-lands on Ruth but membership, and the Pair is read through the Agent:
+lands on Ruth but membership and the members the Relation marks
+`@Public` (rule 2.7). The Pair is read through the Agent:
 `charlie.Knows[ruth].since`.
 
 A Link points one way. Charlie reaches Ruth; nothing on Ruth leads back
@@ -142,7 +143,7 @@ The changes to the Specification:
   - §1.5: a Link's functions open the doors of the Link's Agent and of
     the Pair, never the Contact's (rule 3.6); `@Public` on a Link means
     seen by the Contact, and `@Secret` means in-house, the Link's
-    Agent's side only (rule 2.8);
+    Agent's side only (rule 2.7);
   - §1.7: the Pair in place of the Agent-bound view on a Link;
   - §1.8: a Flag Link answers its words on the Pair (rule 2.3);
   - §2.5: a Link's sound population needs the Pair to hold as well (rule
@@ -210,7 +211,7 @@ the tag to two. then they can operate together." Section 10 shows it
      Link per Agent: `def capacity(link)`.
    - **Who sees what.** A Link's members have two audiences: the Link's
      Agent, and its Contacts, who may be outside the declaring Tag's
-     agency. The modifiers say which (rule 2.8):
+     agency. The modifiers say which (rule 2.7):
 
      | Modifier | Pair members (Actions, Records) | Link members (Operations, Reports) |
      | --- | --- | --- |
@@ -238,7 +239,7 @@ the tag to two. then they can operate together." Section 10 shows it
    Relation of the same name that does not would replace a Link that may
    already hold Contacts, so it is a Declaration Failure at class use.
    Rule 4.6 says what extending a Link does.
-8. **`@Public` means "seen by the Contact"; `@Secret` means "in-house".**
+7. **`@Public` means "seen by the Contact"; `@Secret` means "in-house".**
    The Director: "I like the @Public for "seen by the contact" because
    the contact may be out of the. agency, so it is indeed public, but
    @Secret then should cover the actions assigned to the agent that may
@@ -261,7 +262,8 @@ the tag to two. then they can operate together." Section 10 shows it
      linking and is sticky, like everything a Tag gives (§0.7). There is
      no fan-out: `ruth.Greet()` never calls every Pair that holds Ruth.
      When two Links publish the same name onto her, the ordinary rule of
-     composition applies (§0.4): the last linking is what she sees, with
+     composition applies (§1.2: "The latest applied Layer is the visible
+     Overlay for a name"): the last linking is what she sees, with
      the usual Overwrite Warning between independent Tags. The Director:
      "the Links are tags, and tags are sticky. Records are the maleable
      ones, so a Link may establish a line, not an open connection."
@@ -272,7 +274,7 @@ the tag to two. then they can operate together." Section 10 shows it
      the Pair, but nothing she receives names the Agent unless the
      Relation's author returns it. Publishing is the author's explicit
      act, as an Imprint that links back is (rule 6.4).
-9. **Still refused**, each a Declaration Failure at class use, and each
+8. **Still refused**, each a Declaration Failure at class use, and each
    its own topic:
    - a Relation that is a `@Pin`, and a `@Link` inside a `@Pin`. Links
      between Tags need their own receiver rule (§1.9);
@@ -324,9 +326,11 @@ the tag to two. then they can operate together." Section 10 shows it
    is the Agent's code about a Pair. It never reads the Contact's
    secrets. This reverses what a tagging opens today, which is the door
    of the Agent being tagged.
-7. **Nothing lands on the Contact.** What a Relation declares for the
-   Pair lands on the Pair. Nothing of it is read by name on the Contact,
-   listed in her contract, or re-checked at her later boundaries.
+7. **Nothing lands on the Contact, unless published.** What a Relation
+   declares for the Pair lands on the Pair. Nothing of it is read by name
+   on the Contact, listed in her contract, or re-checked at her later
+   boundaries, except a member marked `@Public`, which is published onto
+   her (rule 2.7).
 
 ### 4. Granting
 
@@ -510,7 +514,7 @@ A Link is a Tag. Every Ring 0 act works on it:
    - secrets, which resolve only inside the Link's own functions (rule
      3.6);
    - the Link's own Reports and Operations, as its Agent reads them
-     (rule 2.8), and its keywords if it is a Flag.
+     (rule 2.7), and its keywords if it is a Flag.
 3. **A Pair is sound or defective on its own.**
    - `bool(charlie.Knows[ruth])` is `True` exactly when every promise of
      the Pair holds.
@@ -531,7 +535,7 @@ A Link is a Tag. Every Ring 0 act works on it:
    it fresh (§0.7).
 5. **Nothing of the Pair lands on the Contact, unless the Relation
    publishes it.** `ruth.since` is Ruth's own attribute or nothing,
-   unless `since` is `@Public` (rule 2.8). The Pair itself is reached
+   unless `since` is `@Public` (rule 2.7). The Pair itself is reached
    only through the Link, by the Link's Agent: a Contact has no spelling
    for it.
 
@@ -798,7 +802,8 @@ in the first draft, and it did not survive the Pair:
   declarations was the only way to keep Ruth clean.
 - **The Pair removed that reason.** It was introduced for Records, but
   the same move answers everything. Give the Pair what an ordinary Tag
-  gives its Agent, and nothing reaches Ruth, whatever the Link declares.
+  gives its Agent, and nothing reaches Ruth unless the Relation
+  publishes it (rule 2.7).
   The second draft applied it to Records only, and left Actions and
   promises as an open question. The Director answered it.
 - **Bases needed a rule, not a refusal.** "Which Base?" has one sensible
@@ -893,7 +898,7 @@ records on a link too... like a relationship's attribute ...
 `charlie.Knows[ruth].since`". §1.7's `Tag[agent]` is a read-only snapshot
 of the Agent right after that Tag applied. On a Link, a snapshot of the
 Contact would show nothing the Link gave her, because a Link gives her
-nothing but membership. So the spelling is put to better use: on a Link
+only membership and what it publishes. So the spelling is put to better use: on a Link
 it is the Pair. That puts the facts about two Agents in the one place
 that belongs to both of them and to neither (finding 2).
 
@@ -931,8 +936,8 @@ name: `Link`. No parameter name is reserved.
 | A query from the Contact back to the Agents who link her, `Owners(ruth, Social.Knows)` or `ruth in Social.Knows` (the first draft) | Rejected by the Director: links point one way, and TOP speaks in the language's own structures, not in query functions. The spelling is now refused (section 9). |
 | The holding Agent in the Link's display, `Knows[Charlie]` (the first draft) | Withdrawn: it would lead from the Contact to the Agent. |
 | A marker for two-way Links, `@Link(both_ways=True)` | Set aside: the Imprint says it in two visible lines, and a marker would hide what runs. |
-| Fan-out: a `@Public` Pair member on the Contact calls every Pair that holds her | Rejected by the Director: "fanning-out... that soounds off, as we'd have two behaviours for the same thing only contextually different." A Link establishes a line (rule 2.8). |
-| `@Public` publishes a Link's Report or Operation onto its Pairs (an earlier draft) | Replaced by rule 2.8: `@Public` means seen by the Contact. |
+| Fan-out: a `@Public` Pair member on the Contact calls every Pair that holds her | Rejected by the Director: "fanning-out... that soounds off, as we'd have two behaviours for the same thing only contextually different." A Link establishes a line (rule 2.7). |
+| `@Public` publishes a Link's Report or Operation onto its Pairs (an earlier draft) | Replaced by rule 2.7: `@Public` means seen by the Contact. |
 | The Relation as a Base of every Link | Rejected: Rip never cascades (§0.7), so membership in the Relation would outlive the last linking. |
 
 ## Open questions for the Director
@@ -985,7 +990,7 @@ name: `Link`. No parameter name is reserved.
    Agent registered with `At_Exit` gets its teardowns instead. A Link
    teardown that *fails* is a failure, not a skipped teardown: it follows
    whatever STEP-SPEC-24's open question 1 decides for failed teardowns.
-4. **A published line over the Contact's own member (rule 2.8).** The
+4. **A published line over the Contact's own member (rule 2.7).** The
    Director asked: "ruth.Greet then should have the underlay defined?"
    By §1.5 a published member is a normal Action on the Agent that
    receives it: it overlays at `(Agent, name)`. So if Ruth already has a

@@ -99,8 +99,9 @@ cited as "section N" or "rule N.M".
 
    Both phases go in the order the members joined, the order `for` walks
    (the Director: "We'll follow [your] fifo recommendation on deletion").
-   So while any teardown runs, nobody is a member any more: no member
-   keeps access while the others are cleaned up.
+   So when the first teardown runs, nobody is a member any more: no
+   member keeps access while the others are cleaned up. Only a teardown
+   that applies the Tag again can make a member (rule 1.5).
 4. **Failures are collected.** A teardown that fails does not stop the
    others, nor the next member's. The failures are reported once, as a
    Composition Failure, after the walk (§3.1). At a Tag's end there is no
@@ -331,7 +332,8 @@ as strong as any value.
    - **(a) Arrest.** Membership never comes back. A member whose teardown
      failed is kept in the safehouse as a non-member, under the Tag's
      department and under `Tag[...]`, until it is repaired or triaged
-     (`del Tag[...]`). Simplest to teach, and the access is gone. It
+     (`del Tag[...]`, or the release STEP-SPEC-27 proposes in its open
+     question 6). Simplest to teach, and the access is gone. It
      replaces amendment D's rollback for every Rip.
    - **(b) The act decides.** Acts the program demands keep amendment D:
      the failed member is rolled back and stays in the Field, and the
@@ -343,7 +345,8 @@ as strong as any value.
    Recommended: (a). A failed cleanup should not hand the Agent its badge
    back. Keeping it in the safehouse answers the worry behind amendment
    D, "deleting to uncertain states can be problematic", without the
-   access. STEP-SPEC-27 needs (a) for a stop in any case: a closed Tag
+   access. STEP-SPEC-27 recommends arrest inside a stop whatever this
+   question decides (its section 5 and open question 6): a latched Tag
    cannot take a member back.
 
 ## Acceptance requirements

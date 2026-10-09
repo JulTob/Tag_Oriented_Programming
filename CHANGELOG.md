@@ -6,7 +6,7 @@
 
 - STEP-SPEC-22 (Links) opened at Brief, and was revised after three
   reviews by the Director. `@Link` grants each Agent a Tag of its own,
-  `charlie.Knows(ruth)`, held like a Record.
+  `charlie.Knows`, held like a Record.
   - A Link is a Tag in full: Records, Actions, promises, secrets, Bases
     and Shapes. What an ordinary Tag gives its Agent, a Link gives the
     Pair.
@@ -15,8 +15,10 @@
   - A Link points one way: nothing on a Contact names an Agent who links
     her.
   - Linking makes the Contact a member and writes no Record, Action or
-    promise on her. Facts about the two live on the Pair,
-    `charlie.Knows[ruth].since`.
+    promise on her, except members the Relation marks `@Public`: those
+    are published onto her as one line to the Pair, with no fan-out.
+    `@Secret` members stay in-house, the Link's Agent's alone. Facts
+    about the two live on the Pair, `charlie.Knows[ruth].since`.
 - STEP-SPEC-23 (Field Filters) opened at Brief. `Wizard.level > 3` is a
   live population of the sound Wizards above level 3; `Wizard[:].level >
   3` asks the whole Field.
@@ -35,15 +37,24 @@
   renumbered because other open work claims those numbers.
 - STEP-SPEC-26 (A Shape Keeps No Base Hostage) opened at Brief, with
   the model the Director chose: tagging stays closed upward, then each
-  membership stands alone. `del Human[bob]` is no longer refused while
-  bob is a Werewolf; he keeps the Shape, a spin-off. A Shape that needs
-  its Base says so in a guarded Postcondition.
+  membership stands alone. Under it, `del Human[bob]` would no longer
+  be refused while bob is a Werewolf; he would keep the Shape, a
+  spin-off. The kit still refuses it today. A Shape that needs its Base
+  says so in a guarded Postcondition.
+- STEP-SPEC-27 (Emergency Stop) opened at Brief. `Stopped(Wizard)`, a Pin
+  the kit would provide, stops a Tag at category 1: latch, revoke every
+  member, run the teardowns in join order, report once. The Tag then
+  takes no member until `del Stopped[Wizard]`, a reset that brings no
+  one back. It needs STEP-SPEC-26.
 - STEP-SPEC-28 (Category Error) opened at Brief. `TagCategoryError`, a
   `TagError` and a `TypeError`, names the mistake of treating one kind of
   TOP thing as another, such as `Wizard.hp = 10` when `hp` is a Record.
 - Guide: "Reading a Tag" shows Python's `all` and `any` with a question
   written inside, `all(w.level > 3 for w in Wizard)`, and why
   `all(Wizard)` alone does not ask whether there are Wizards.
+- A catalog of the Tag algebra, `steps/CATALOG-tag-algebra.md`: every
+  spelling found so far that reads or acts on a Tag or a population, with
+  its meaning, its result and its status on each branch.
 
 ### TopKit
 

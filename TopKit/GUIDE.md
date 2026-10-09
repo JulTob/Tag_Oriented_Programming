@@ -961,8 +961,8 @@ the architecture, with a Field to walk and a history that stays.
 | Is every one of them…? | `all(w.level > 3 for w in Wizard)` |
 | Is at least one of them…? | `any(w.level > 3 for w in Wizard)` |
 
-Python's own `all` and `any` ask a question of every member, when the
-question is written inside, as a generator:
+Python's own `all` and `any` ask a question of every sound member,
+when the question is written inside, as a generator:
 
 ```python
 class Scholar(Tag):
@@ -984,8 +984,9 @@ assert not all(s.grade > 8 for s in Scholar)    # not all of them
 **Watch out.** Write the question inside. `all(Scholar)` alone asks each
 sound Scholar for its own truth. For most Agents that is their contract,
 which holds for every sound one, so the answer is True. But a host with
-its own `__bool__` or `__len__` answers for itself: an empty `Shelf`
-Agent is sound and still false. So `all(Scholar)` and `any(Scholar)` do
+its own `__bool__` answers for itself, and so does a host with `__len__`
+while no promise is visible on it: an empty `Shelf` Agent is sound and
+still false. So `all(Scholar)` and `any(Scholar)` do
 not ask whether there are Scholars; `if Scholar:` does. Over an empty
 Tag, `all(...)` is True and `any(...)` is False: nobody broke the rule,
 and nobody is there to show it.

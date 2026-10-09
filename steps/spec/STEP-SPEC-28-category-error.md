@@ -47,9 +47,10 @@ them fail in scattered ways, or not at all:
 
 - `Wizard.hp = 10`, when `hp` is a Record, raises nothing. What it does
   depends on timing (checked on TopKit 0.2.0a4): before the Tag's first
-  use it erases the Record, so new Wizards get no `hp`; after, Wizard's
-  own Agents still get it, but a Shape declared later inherits nothing
-  (STEP-SPEC-23, section 6).
+  use it erases the Record, so new Wizards, and the Agents of its Shapes,
+  get no `hp`; after, every Agent still gets the Record, because the kit
+  read the declaration at first use, but `Wizard.hp` now reads 10: the
+  Tag and its Agents disagree (STEP-SPEC-23, section 6).
 - `Wizard(int)` raises a plain `TypeError`: "Wizard is applied to
   objects, not classes".
 - `isinstance(x, Wizard | Fighter)` raises Python's generic `TypeError`
@@ -78,11 +79,14 @@ it, and a reader recognise it.
    - **A value of the Tag over a name the Tag gives its Agents.**
      Assigning or deleting on a Tag a name it declares for its Agents (a
      Record, an Action, a condition): `Wizard.hp = 10`, `del Wizard.hp`.
-     Refused at once, before anything changes. Assigning a name the Tag
-     does not give its Agents stays allowed: it is a Report written by
-     hand (the Director: "if it looks like a report, then it is, and we
-     just have more than one way to handle that"). STEP-SPEC-25, rule
-     4.2, refuses the same writes; this STEP names the failure.
+     Refused at once, before anything changes. A name the Tag also
+     holds in Tag scope, such as a Report `colour` beside a Record
+     `colour` (§1.1), stays writable: the write changes the Report.
+     Assigning a name the Tag does not give its Agents stays allowed: it
+     is a Report written by hand (the Director: "if it looks like a
+     report, then it is, and we just have more than one way to handle
+     that"). STEP-SPEC-25, rule 4.2, refuses the same writes, with the
+     same exception; this STEP names the failure.
    - **A Tag applied to the wrong kind of target.** An ordinary Tag
      applied to a class, `Wizard(int)`, and a Pin applied to an object
      (§1.9).
@@ -127,9 +131,14 @@ carries the difference.
 1. `Wizard.hp = 10` over a declared Agent name was accepted silently, and
    is now refused. A program that did it was already broken, in a way
    that depended on timing.
-2. Every other case was already a `TypeError` and still is, because
-   `TagCategoryError` is a `TypeError`. The messages keep their
-   rewrites.
+2. Two cases were a Composition Failure and become a Category Failure:
+   a Pin applied to an object (§1.9), and, without STEP-SPEC-23, a
+   Relation used as a Tag (STEP-SPEC-22, section 9). Code that catches
+   `TagCompositionError` there must catch `TagCategoryError`. A Pin's
+   population mixed with a Tag's is allowed on `main`; it is refused only
+   with STEP-SPEC-13, item 6. Every other case was already a `TypeError`
+   and still is, because `TagCategoryError` is a `TypeError`. The
+   messages keep their rewrites.
 
 ## Alternatives considered
 
