@@ -386,11 +386,16 @@ def _own_truth_of(
         host_type: type,
         ) -> type | None:
     """The class that gives the host its own ``__bool__``, or None: the
-    first class in the MRO, before ``object``, that defines one."""
+    first class in the MRO, before ``object``, that defines one. A kit's
+    runtime type is passed over: its ``__bool__`` is the contract, on a
+    class a program built on an Agent's runtime type too."""
 
     for klass in host_type.__mro__:
         if klass is object:
             break
+
+        if "_TOPKIT_HOST_TYPE" in klass.__dict__:
+            continue   # a runtime type: its __bool__ is the kit's
 
         if klass.__dict__.get("__bool__") is not None:
             return klass
@@ -901,7 +906,6 @@ def _type_key_of(
             frozenset((state.deleted | state.restored) - {"__del__"}),   # a restored name keeps its gate; __del__ has none
             frozenset(state.secrets),
             frozenset(state.published),
-            bool(state.postconditions),
             any(_is_flag(tag) for tag in state.active),
             tuple(
                     sorted(
@@ -931,12 +935,10 @@ def _runtime_type_for(
     deleted = key[1]
     secrets = key[2]
     published = key[3]
-    has_posts = key[4]
-    has_flags = key[5]
+    has_flags = key[4]
 
     hooks = _hooks_for(
             host_type,
-            has_posts,
             has_flags,
             )
     namespace: dict[str, Any] = dict(hooks)

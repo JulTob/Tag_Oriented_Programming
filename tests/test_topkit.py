@@ -632,11 +632,13 @@ class HostPreservationTests(unittest.TestCase):
         self.assertIn("x", bag)
         self.assertNotIn(Field_Member, bag)       # the host keeps its `in`
         self.assertEqual(bag | 1, "host-or")
+        self.assertEqual(len(bag), 1)             # and its `len`
         self.assertTrue(bool(bag))
 
         bag.items.clear()
 
-        self.assertFalse(bool(bag))
+        self.assertEqual(len(bag), 0)
+        self.assertTrue(bool(bag))                # its truth is its contract, not its length (§2.5)
         self.assertEqual(bag.dynamic, "from host getattr")
 
     def test_tag_members_do_not_leak_onto_the_agent(self) -> None:
@@ -5248,9 +5250,13 @@ class CategoryErrorTests(unittest.TestCase):
         self.assertEqual(self.log, [])
 
     def test_a_host_with_only_len_is_accepted(self) -> None:
+        """Decided on 2026-10-09 (STEP-SPEC-28, open question 2): the
+        Agent's truth is its contract, and `len(agent)` stays the host's."""
+
         class Shelf:
             def __init__(self) -> None:
                 self.books: list[str] = []
+                self.catalogued = True
 
             def __len__(self) -> int:
                 return len(self.books)
@@ -5258,12 +5264,49 @@ class CategoryErrorTests(unittest.TestCase):
         class Library(Tag):
             pass
 
+        class Catalogue(Tag):
+            @Post
+            def Catalogued(agent) -> bool:
+                return agent.catalogued
+
         shelf = Shelf()
         Library(shelf)
+        runtime = type(shelf)
 
         self.assertIn(shelf, Library)
         self.assertEqual(len(shelf), 0)
-        self.assertFalse(shelf)                                       # no promise visible: its length answers
+        self.assertTrue(shelf)                                        # no promise: nothing is broken, empty or not
+
+        Catalogue(shelf)
+        shelf.books.append("Dune")
+        shelf.catalogued = False
+
+        self.assertIs(type(shelf), runtime)                           # a first promise needs no new runtime type
+        self.assertEqual(len(shelf), 1)                               # the host's length
+        self.assertFalse(shelf)                                       # a broken promise, whatever the length
+        self.assertIn(shelf, ~Catalogue)
+
+        shelf.books.clear()
+        shelf.catalogued = True
+
+        self.assertEqual(len(shelf), 0)
+        self.assertTrue(shelf)                                        # every promise holds: empty and still true
+
+    def test_a_class_built_on_an_agents_runtime_type_has_no_truth_of_its_own(self) -> None:
+        class Library(Tag):
+            pass
+
+        first = Agent()
+        Library(first)
+
+        class Built_On(type(first)):                                  # the kit's __bool__ is on its base
+            pass
+
+        built = Built_On()
+        Library(built)
+
+        self.assertIn(built, Library)
+        self.assertTrue(built)
 
     def test_a_string_target_is_refused(self) -> None:
         class Name(str):

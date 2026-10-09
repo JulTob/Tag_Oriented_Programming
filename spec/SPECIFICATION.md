@@ -48,8 +48,9 @@ before and after, it is the same object. Precisely:
   unless a Tag deliberately contributes a member of that name;
 - the Target's own special methods (`__contains__`, `__len__`, operators,
   `__getattr__`) keep working, with one deliberate exception:
-  `bool(agent)` gains contract meaning once a Postcondition is visible
-  (§2.5). A host with its own `__bool__` is not a Target (§0.5);
+  `bool(agent)` is the Agent's contract (§2.5), even when the host
+  defines `__len__`; `len(agent)` stays the host's. A host with its own
+  `__bool__` is not a Target (§0.5);
 - the name of the object's type is unchanged.
 
 What TOP does **not** promise is nominal type identity: a Python
@@ -176,9 +177,9 @@ one is a Category Failure, refused before anything changes:
 
 Keep such a value, or such a truth, in a Record or an attribute of an
 object, and tag the object. A host that defines only `__len__` is a
-Target: its length answers its truth until a Postcondition is visible
-(§2.5). A Tag answers its truth through its metaclass, so pinning (§1.9)
-is not concerned.
+Target: `len(agent)` stays its own, and its truth is its contract, as on
+every Agent (§2.5). A Tag answers its truth through its metaclass, so
+pinning (§1.9) is not concerned.
 
 ## 0.6 The tagging sequence
 
@@ -1141,10 +1142,11 @@ A condition that outlived its Tag (§0.7) still reads by name until the
 author ends it.
 
 Truthiness on a plain object is vacuously true, so this fills an empty
-seat. A host that defines its own `__len__` keeps that truth until a
-Postcondition becomes visible on that Agent. A host that defines its own
-`__bool__` is refused at tagging (§0.5): its truth would answer for the
-contract.
+seat. An Agent with no visible Postcondition is truthy: no promise of it
+is broken. A host that defines its own `__len__` keeps `len(agent)`, but
+not its truth: an empty Agent whose promises hold is truthy
+(STEP-SPEC-28). A host that defines its own `__bool__` is refused at
+tagging (§0.5): its truth would answer for the contract.
 
 ## 2.6 Naming the culprit
 

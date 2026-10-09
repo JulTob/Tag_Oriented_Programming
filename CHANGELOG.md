@@ -122,6 +122,14 @@
   defective population gives it back, so `~~Wizard`, `~~~Wizard` and any
   longer run are `~Wizard`. Before, `~~Wizard` flipped back to the sound
   population. `~(Wizard | Fighter)` is still refused.
+- An Agent's truth is its contract, whatever its host (STEP-SPEC-28,
+  open question 2, decided by the Director on 2026-10-09). `bool(agent)`
+  is True while every visible promise holds, and True when it has none.
+  A host's `__len__` still answers `len(agent)`, but no longer its truth.
+  Before, such an Agent took its truth from its length until a
+  Postcondition was visible, so an empty `Shelf` with no promise was
+  false, and one whose Tag deleted `__len__` raised. A first
+  Postcondition no longer gives the Agent a new runtime type.
 
 ### Project
 

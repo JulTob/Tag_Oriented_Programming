@@ -39,8 +39,8 @@ Actions; Agents are built once and play for a long time. So:
   every special method of the host keeps working. Its name is the host's
   name. It carries only what Python requires on a type: special-method
   Actions, and one descriptor per deleted, secret, or published name, plus
-  `__bool__` once a Postcondition is visible, `__getattr__` for views by
-  name, and `__del__` for deletion. Tags are **not** in the MRO;
+  `__bool__` (the contract), `__getattr__` for views by name, and
+  `__del__` for deletion. Tags are **not** in the MRO;
   `isinstance` is answered by the metaclass from the Agent's ever-set.
 - **Runtime types are shared** across every Agent whose host and
   type-level facts match, whatever Tags they carry. Ten thousand Agents of
@@ -94,9 +94,13 @@ rollback target.
   Pin's collision control.
 - **The empty-seat rule on Agents.** `__bool__`, `__format__`, `__copy__`
   and `__deepcopy__` are installed on the runtime type only when the host
-  defines none of its own (`__bool__` only once a Postcondition is
-  visible). Format specs are the display door: `f"{Tag:form}"`,
-  `f"{agent:tags}"`, `f"{agent:outline}"`, `f"{agent:contract}"`.
+  defines none of its own. A host with its own `__bool__` is refused at
+  tagging, so `__bool__` lands on every Agent but a pinned Tag, whose
+  metaclass answers "anyone sound?". It lands at the first tagging,
+  promise or not, so a first Postcondition needs no new runtime type, and
+  a host's `__len__` answers `len` but never truth (STEP-SPEC-28). Format
+  specs are the display door: `f"{Tag:form}"`, `f"{agent:tags}"`,
+  `f"{agent:outline}"`, `f"{agent:contract}"`.
 - **Flags own the Agent's `in`.** `__contains__` is installed when a
   `@Flag` Tag lands (a type-level fact, part of the type key; a Flag
   landing on an Agent that is already tagged rebuilds its runtime type).
