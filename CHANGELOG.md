@@ -4,10 +4,11 @@
 
 ### TopKit
 
-- **Fresh Tagging is not a reset:** the Specification and Guide now say
-  explicitly that Rip removes membership, not sticky Contributions. After
-  Rip, applying the Tag again runs ordinary Record builders over the
-  Agent's current values. Resetting a binding is a separate, explicit act.
+- **Fresh Tagging rebuilds ordinary Records:** the Specification and Guide
+  now say explicitly that Rip removes membership, not sticky Contributions.
+  Applying the Tag after Rip reruns ordinary Record builders. A builder
+  without a `stored` seat replaces the current binding; a builder with that
+  seat receives the current binding and decides how to evolve it.
 
 - **Constant Contributions:** `@Constant` protects Records, Actions,
   Posts, Reports and Operations from replacement, deletion and later
