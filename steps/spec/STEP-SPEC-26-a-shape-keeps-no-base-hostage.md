@@ -314,15 +314,23 @@ ran the Base's teardown first at deletion.
 1. **Pins follow the same rule** (§1.9). With `Legendary` a Shape of the
    Pin `Rare`, `del Rare[Sword]` works while `Legendary(Sword)` is
    active, and Sword stays Legendary. Today it is refused.
-2. **A Base held for a block.** `Scope` is retired (STEP-SPEC-31): a
+2. **A Base held for a block.** `Scope` is retired (STEP-SPEC-31). A
    block that holds a Tag for a while tags before `try` and Rips in
-   `finally`. With `Human(lu)`, then `Werewolf(lu)` inside the block,
-   the `del Human[lu]` in the `finally` now works, and lu leaves as a
-   spin-off. Today it is refused, and today's `Scope` swallowed that
+   `finally`:
+
+   ```python
+   Human(lu)
+   try:
+       Werewolf(lu)
+   finally:
+       del Human[lu]   # with this STEP: works; lu stays a Werewolf, a spin-off
+   ```
+
+   Today's kit refuses that Rip, and today's `Scope` swallows the
    refusal in silence (`lifecycle.py:201-208`). On `step-19-sound-in`,
    the tests and examples of a reported refused Rip used this refusal
-   through `Scope`; they go with `Scope` (STEP-SPEC-31, Backwards
-   compatibility 3).
+   through `Scope`. STEP-SPEC-31 rewrites the tests to its pattern. A
+   test that needs a Rip that fails uses a failing teardown instead.
 3. **The safehouse** (`step-19-sound-in`, STEP-SPEC-18 amendment E) sorts
    kept Agents by the class tree (`lifecycle.py:342`, `:354` there). So
    `Wizard[...]` may list a spin-off kept by Archmage who is not in
@@ -374,7 +382,8 @@ and whenever soundness is read.
    `step-19-sound-in`, nine: those two, five ScopeTests (`test_topkit.py`
    3494, 3511, 3534, 3612, 3709), the §3.2 Scope example
    (`spec_examples.py` 214-219) and the Guide's Veteran block (750-773).
-   The last seven use `Scope`, and go with it (STEP-SPEC-31).
+   The last seven use `Scope`. STEP-SPEC-31 rewrites the five tests to
+   its pattern, and removes the example and the Guide block.
 4. **Text on HEAD.** `spec/SPECIFICATION.md` 98-100, 139-140, 150 or
    159 (open question 2), 232-234, 750-751, 1316 ("a Base still
    required"), 1334-1335, 1337 and 1341-1342. `CONFORMANCE.md:14`.
@@ -424,9 +433,10 @@ and whenever soundness is read.
 5. **`queries.Outline`** (66-90) and a Rip warning in `_rip`, per open
    questions 4 and 3. Small; the warning is paid only by spin-offs.
 6. **Text:** `access._agent_copy`'s copy recipe (389-395). The Scope
-   docstring on `step-19-sound-in` (551-576) and the oracle's
-   `Exercise_Scope` ("a Rip refused for a required Base is swallowed")
-   go with `Scope` (STEP-SPEC-31).
+   docstring on `step-19-sound-in` (551-576) goes with `Scope`
+   (STEP-SPEC-31). The oracle's `Exercise_Scope` ("a Rip refused for a
+   required Base is swallowed") is rewritten to STEP-SPEC-31's pattern
+   (its Implementation plan 2); under this STEP that Rip works.
 7. **No change:** the population operators in `tags.py`, `fields.py`,
    `contracts._holds`, `_gate`, `_teardown_all`, `_publish_to_field`.
 
@@ -503,7 +513,8 @@ refusal: a trial merge gave 7 small conflicts, then 7 failing tests.
   - Pins; a Base Ripped in a `finally` (rule 8.2); the Rip warning and
     the `Outline` mark (questions 3, 4).
 - The old refusal test becomes a test that the Shape stays. On
-  `step-19-sound-in`, the ScopeTests go with `Scope` (STEP-SPEC-31).
+  `step-19-sound-in`, the ScopeTests are rewritten to STEP-SPEC-31's
+  pattern, with a failing teardown where they used this refusal.
 - `tests/oracle_topkit.py`: `Rip_Refused` no longer refuses for a Shape;
   the model applies again per question 2; spin-offs in the walk.
 - When STEP-SPEC-24 lands: `del Base[:]` leaves spin-offs.

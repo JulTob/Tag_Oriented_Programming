@@ -358,10 +358,9 @@ the tag to two. then they can operate together." Section 10 shows it
    - Equal names across scopes do not collide (§1.1): a Report of the
      declaring Tag may share a Link's name.
 5. **Sticky, like every contribution.** Ripping `Social` from Charlie
-   leaves `charlie.Knows` with him (§0.7), and so does a Rip in a
-   `finally`, at the end of a block that tagged him for a while
-   (STEP-SPEC-31): no Rip ends his Links. Whether a Rogue or defective Agent may still
-   link is the author's to say, in the gate: `return agent in Social and
+   leaves `charlie.Knows` with him (§0.7). No Rip ends his Links, not
+   even one in a `finally` (STEP-SPEC-31). Whether a Rogue or defective
+   Agent may still link is the author's to say, in the gate: `return agent in Social and
    bool(agent)`.
 6. **Extending a held Link.** When an Agent gains a Tag whose Relation
    extends a Relation of a Link it already holds (rule 2.6), the Link

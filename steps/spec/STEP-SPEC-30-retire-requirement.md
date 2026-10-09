@@ -105,6 +105,12 @@ plainer than a third word that stands for them.
    (0.2.0a4), so a breaking change is allowed. Recommended: one release
    of `DeprecationWarning`, because a program then learns the
    replacement from the warning instead of from an `ImportError`.
+   Python shows a `DeprecationWarning` by default only for code in the
+   main script, or under a test runner (`unittest` turns it on). A
+   `@Requirement` is usually written in a module, so a program sees the
+   warning in its tests. If it should show everywhere, Python's
+   `FutureWarning` is always shown. STEP-SPEC-31 asks the same question
+   about `Scope`: one answer can serve both.
 
 ## Acceptance requirements
 

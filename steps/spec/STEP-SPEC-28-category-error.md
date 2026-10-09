@@ -174,22 +174,20 @@ carries the difference.
 1. `Wizard.hp = 10` over a declared Agent name was accepted silently, and
    is now refused. A program that did it was already broken, in a way
    that depended on timing.
-2. Two cases were a Composition Failure and become a Category Failure:
-   a Pin applied to an object (§1.9), and, without STEP-SPEC-23, a
-   Relation used as a Tag (STEP-SPEC-22, section 9). Code that catches
-   `TagCompositionError` there must catch `TagCategoryError`. A Pin's
-   population mixed with a Tag's is allowed on `main`; it is refused only
-   with STEP-SPEC-13, item 6. Every other case was already a `TypeError`
-   and still is, because `TagCategoryError` is a `TypeError`. The
-   messages keep their rewrites. A target that cannot be an Agent,
-   `Wizard(3)`, was a Composition Failure too, and becomes a Category
-   Failure.
+2. Four cases were a Composition Failure and become a Category Failure:
+   a Pin applied to an object (§1.9); a target that cannot be an Agent,
+   `Wizard(3)`; a Flag on a host with its own `__contains__` (§1.8); and,
+   without STEP-SPEC-23, a Relation used as a Tag, `Social.Knows(x)`
+   (STEP-SPEC-22, section 9). Code that catches `TagCompositionError`
+   there must catch `TagCategoryError`. A Pin's population mixed with a
+   Tag's is allowed on `main`; it is refused only with STEP-SPEC-13,
+   item 6. Every other case was already a `TypeError` and still is,
+   because `TagCategoryError` is a `TypeError`. The messages keep their
+   rewrites.
 3. Two kinds of target that could be tagged before are now refused: a
    host class with its own `__bool__`, and a `str` subclass. A program
    that tagged one keeps its truth or its text in a Record or an
-   attribute instead, as the Director says. (A Flag on a host with its
-   own `__contains__` is refused on `main` already, §1.8; only its class
-   changes, as in item 2.)
+   attribute instead, as the Director says.
 
 ## Alternatives considered
 
