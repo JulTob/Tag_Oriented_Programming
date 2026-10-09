@@ -12,7 +12,7 @@ seat means its sound population. The result is a lazy view: it reads the
 Fields when it is walked, never copies them, and keeps application order.
 A Pin's population holds Tags and never combines with one of Agents.
 
-A walk reads who is there when it begins, and skips a member that an
+A walk takes a Field's members when it begins, and skips a member that an
 earlier turn of the same walk Ripped (STEP-SPEC-29, rule 7.1).
 """
 

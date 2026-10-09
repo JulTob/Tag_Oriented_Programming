@@ -47,6 +47,7 @@ Function = Callable[..., Any]
 
 
 _CONDITION_KINDS = ("precondition", "postcondition", "condition")
+_GIVEN_KINDS = ("record", "action", *_CONDITION_KINDS, "imprint", "delete")   # what a Tag gives its Agents
 
 
 def _mark(
@@ -959,7 +960,10 @@ def _agent_kind_in(
     if kind == "operation":
         return None   # the Tag's own, however it is wrapped
 
-    return kind or "action"   # unmarked and callable: an Action
+    if kind in _GIVEN_KINDS:
+        return kind
+
+    return "action"   # unmarked, or a proxy: an Action, as in the scan
 
 
 def _gives_agents(

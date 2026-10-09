@@ -362,13 +362,17 @@ never takes a name the Tag gives its Agents**. Assigning or deleting on a
 Tag a name it declares for its Agents (a Record, an Action, a condition,
 an Imprint, a deletion), itself or in a Base, is a Category Failure, before
 and after the Tag's first use, and nothing changes. `Wizard.hp = 10`
-would make the Tag and its Agents disagree; the message names the loop
-that writes each Agent, `for wizard in Wizard: wizard.hp = 10`. The first
-class in the Tag's MRO that holds the name decides, as it does for a read.
-So a Report `colour` that a Shape declares beside its Base's Record
-`colour` stays writable on the Shape: the write changes the Report. A name
-the Tag does not give its Agents stays assignable: it is a Report written
-by hand.
+would make the Tag and its Agents disagree; the message names the
+spelling to use: the loop that writes each Agent,
+`for wizard in Wizard: wizard.hp = 10`, or the Tag's class body. The
+first class in the Tag's MRO that holds the name decides, as it does for
+a read. So a Report `colour` that a Shape declares beside its Base's
+Record `colour` stays writable on the Shape: the write changes the
+Report. A name the Tag does not give its Agents stays assignable. A value
+written there is a Report written by hand. A callable written there
+before the Tag's first use is an Action of its Agents, like one in the
+class body: they get it at first use, and a later write or deletion of
+that name is refused.
 
 ## 1.2 Actions
 
@@ -1107,11 +1111,15 @@ for b in Wizard & Fighter:            # sound in both
 for u in (Wizard[:] | Fighter[:]) - Sworn:   # anyone with a role who has not sworn
 ```
 
-**A walk** visits the members there when it begins, in join order. A
+**A walk** takes a Field's members when it begins, in join order. A
 member that an earlier turn of the same walk Ripped is skipped, so a loop
-that Rips as it goes never meets an Agent that has left. An Agent that
-joins during a walk waits for the next one. Each side of a combination is
-read when its own walk begins.
+that Rips as it goes never meets an Agent that has left (STEP-SPEC-29).
+An Agent that joins the Field during the walk waits for the next one.
+Soundness is asked at each turn, so a member that breaks during the walk
+is skipped. A combination walks its left side this way. `|` walks its
+right side when the left ends. `&` and `-` ask the right side at each
+turn, so an Agent that joins `Wizard & Fighter` through Fighter during
+the walk is met in it.
 
 **A condition is read on the Agent by its name** (STEP-SPEC-14).
 `agent.Has_Book` is `True` while the promise called `Has_Book` holds and

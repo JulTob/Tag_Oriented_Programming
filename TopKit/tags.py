@@ -31,6 +31,9 @@ from __future__ import annotations
 
 from typing import Any
 from typing import Iterator
+import ast
+import keyword
+import reprlib
 import weakref
 
 from .access import _keyword
@@ -307,15 +310,16 @@ class MetaTag(type):
 
 _AGENT_KINDS = {
         "record": ("a Record of each", None),
-        "action": ("an Action of each", None),
-        "precondition": ("a Precondition of each", "@Pre"),
-        "postcondition": ("a Postcondition of each", "@Post"),
-        "condition": ("a Precondition and a Postcondition of each", "@Pre @Post"),
-        "imprint": ("an Imprint of each", "@Imprint"),
-        "delete": ("a name deleted from each", "@Delete"),
+        "action": ("an Action of each", ""),
+        "precondition": ("a Precondition of each", "@Pre "),
+        "postcondition": ("a Postcondition of each", "@Post "),
+        "condition": ("a Precondition and a Postcondition of each", "@Pre @Post "),
+        "imprint": ("an Imprint of each", "@Imprint "),
+        "delete": ("a name deleted from each", "@Delete "),
         }
-# what a declaration is to the Agents, and the mark that writes it when it
-# is a protocol; a Record or an Action is written on each Agent instead
+# what a declaration is to the Agents, and the marks that declare it in a
+# Tag's class body; a Record is written on each Agent instead, and a
+# Record or an Action is deleted from each Agent
 
 
 def _refuse_a_write_over_an_agent_name(
@@ -341,12 +345,12 @@ def _refuse_a_write_over_an_agent_name(
     agent = _loop_name(tag)
     loop = f"for {agent} in {tag.__name__}:"
 
-    if mark is not None:
-        spelling = f"Write it in a Tag's class body: {mark} def {name}(agent): ..."
-    elif value is _MISSING:
+    if value is _MISSING and kind in ("record", "action"):
         spelling = f"Write: {loop} del {agent}.{name}"
+    elif kind == "record":
+        spelling = f"Write: {loop} {agent}.{name} = {_spelling_of(value)}"
     else:
-        spelling = f"Write: {loop} {agent}.{name} = {value!r}"
+        spelling = f"Write it in a Tag's class body: {mark}def {name}(agent): ..."
 
     raise TagCategoryError(
             f"{name} is {what} {tag.__name__}, not a value of the Tag"
@@ -364,7 +368,26 @@ def _loop_name(
     if name == tag.__name__:
         return "agent"   # a lower-case Tag: its own name would shadow it
 
+    if keyword.iskeyword(name):
+        return "agent"   # Class, For, In: ``for class in Class`` is no Python
+
     return name
+
+
+def _spelling_of(
+        value: Any,
+        ) -> str:
+    """How the message writes ``value``: its short repr when that reads as
+    Python, else ``...``. A function, a class or an object whose repr is no
+    literal has no spelling, and a repr may fail or be huge."""
+
+    try:
+        text = reprlib.repr(value)
+        ast.literal_eval(text)
+    except Exception:
+        return "..."
+
+    return text
 
 
 def _check_pin_target(

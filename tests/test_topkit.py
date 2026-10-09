@@ -5014,6 +5014,55 @@ class CategoryErrorTests(unittest.TestCase):
         self.assertIn("an Action of each Wizard", str(self.refused(lambda: setattr(Wizard, "Cast", 1))))
         self.assertIn("@Post def Has_Book", str(self.refused(lambda: setattr(Wizard, "Has_Book", 1))))
 
+    def test_the_spelling_offered_is_python(self) -> None:
+        Wizard = self.Wizard
+
+        class Class(Tag):                                             # "class" is a keyword
+            @Record
+            def hit_die(agent) -> int:
+                return 6
+
+        class Unprintable:
+            def __repr__(self) -> str:
+                raise RuntimeError("no repr")
+
+        def Message(name: str, value: object) -> str:
+            return str(self.refused(lambda: setattr(Wizard, name, value)))
+
+        self.assertTrue(
+                str(self.refused(lambda: setattr(Class, "hit_die", 8))).endswith(
+                        "Write: for agent in Class: agent.hit_die = 8"
+                        )
+                )
+        self.assertTrue(Message("hp", len).endswith("Write: for wizard in Wizard: wizard.hp = ..."))
+        self.assertTrue(Message("hp", Unprintable()).endswith("wizard.hp = ..."))   # still a TagCategoryError
+        self.assertLess(len(Message("hp", list(range(100_000)))), 200)              # a short message
+        self.assertTrue(
+                Message("Cast", lambda agent: "new").endswith(
+                        "Write it in a Tag's class body: def Cast(agent): ..."
+                        )
+                )
+        self.assertTrue(
+                str(self.refused(lambda: delattr(Wizard, "Cast"))).endswith(
+                        "Write: for wizard in Wizard: del wizard.Cast"
+                        )
+                )
+
+    def test_a_callable_that_answers_any_name_is_an_action(self) -> None:
+        class Proxy:                                                  # as xmlrpc's ServerProxy: any name is a call
+            def __getattr__(self, name: str) -> "Proxy":
+                return Proxy()
+
+            def __call__(self, *arguments: object) -> None:
+                return None
+
+        class Wizard(Tag):
+            pass
+
+        Wizard.server = Proxy()                                       # before first use: an Action at first use
+
+        self.refused(lambda: setattr(Wizard, "server", Proxy()))
+
     def test_a_name_the_tag_does_not_give_its_agents_stays_assignable(self) -> None:
         Wizard = self.Wizard
 
@@ -5272,10 +5321,11 @@ class CategoryErrorTests(unittest.TestCase):
 
 
 class WalkTests(unittest.TestCase):
-    """STEP-SPEC-29, rule 7.1: a walk visits the members there when it
+    """STEP-SPEC-29, rule 7.1: a walk takes a Field's members when it
     begins, in join order, and skips a member that an earlier turn of the
-    same walk Ripped. An Agent that joins during a walk waits for the next
-    one; each side of a union is read when its own walk begins."""
+    same walk Ripped. An Agent that joins the Field during the walk waits
+    for the next one; each side of a union is read when its own walk
+    begins. (``&`` and ``-`` ask their right side at each turn.)"""
 
     def setUp(self) -> None:
         class Wizard(Tag):
@@ -5427,6 +5477,7 @@ class WalkTests(unittest.TestCase):
                 self.walked(Fighter | Wizard, Join),
                 [dee, self.ari, self.bo, self.cal, eve],
                 )
+
 
 if __name__ == "__main__":
     unittest.main()

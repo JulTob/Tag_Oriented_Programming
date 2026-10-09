@@ -92,9 +92,10 @@
   or a deletion, declared on the Tag or on a Base. Before, the write
   passed in silence: before the Tag's first use it erased the
   declaration, and after it the Tag and its Agents disagreed. The message
-  names the loop, `for wizard in Wizard: wizard.hp = 10`. A Report beside
-  a Record of the same name, and any name the Tag does not give its
-  Agents, stay writable.
+  names the spelling to use: the loop
+  `for wizard in Wizard: wizard.hp = 10`, or the Tag's class body for an
+  Action or a condition. A Report beside a Record of the same name, and
+  any name the Tag does not give its Agents, stay writable.
 - A target that cannot be an Agent is refused at tagging with a
   `TagCategoryError`: `Wizard(None)`, `Wizard(3)`, `Wizard(True)`, any
   value with no instance dictionary or no weak reference (before, a
@@ -112,8 +113,10 @@
 - A walk skips a member that an earlier turn of the same walk Ripped
   (STEP-SPEC-29, rule 7.1), on every population: a Tag, `Wizard[:]`,
   `~Wizard`, a Pin and every combination. Before, the walk visited it.
-  An Agent that joins during a walk still waits for the next one, and
-  each side of a combination is still read when its own walk begins.
+  The rest is unchanged: a walk takes a Field's members when it begins,
+  so an Agent that joins the Field during it waits for the next walk,
+  while soundness and the right side of `&` and `-` are asked at each
+  turn.
 
 ### Project
 

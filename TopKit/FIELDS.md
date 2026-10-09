@@ -132,10 +132,14 @@ assert combatants                           # truth: anyone at all?
 Keep a combined view around like you would keep a Tag around. Do not
 copy it into a list unless you want the moment frozen.
 
-One walk reads who is there when it begins. A member that an earlier turn
-of the same walk Ripped is skipped, so a loop that Rips as it goes never
-meets an Agent that has left. An Agent that joins during a walk waits for
-the next one; each side of a combination is read when its own walk begins.
+One walk takes each Field's members when it begins. A member that an
+earlier turn of the same walk Ripped is skipped, so a loop that Rips as it
+goes never meets an Agent that has left. An Agent that joins a Field
+during its walk waits for the next one. Soundness is asked at each turn,
+so a member that breaks during the walk is skipped. `|` walks its right
+side when its left ends; `&` and `-` ask their right side at each turn,
+so an Agent that joins `Wizard & Fighter` through Fighter during the walk
+is met in it.
 
 ---
 
