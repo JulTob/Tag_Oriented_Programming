@@ -184,18 +184,10 @@ def Rip(
     normally callable Action."""
 
     if isinstance(function, property):
-        for accessor in (
-                function.fget,
-                function.fset,
-                function.fdel,
-                ):
-            if accessor is not None:
-                _flag(
-                        accessor,
-                        _RIP,
-                        )
-
-        return function
+        raise TagDeclarationError(
+                "@Rip cannot mark a property; @Rip marks an Action because"
+                " a teardown is also callable as an Action"
+                )
 
     return _flag(
             function,

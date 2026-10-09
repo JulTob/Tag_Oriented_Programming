@@ -79,7 +79,6 @@ class InvalidRipTests(unittest.TestCase):
         for kind, mark in (
                 ("classmethod", classmethod),
                 ("staticmethod", staticmethod),
-                ("property", property),
                 ):
             for order, build in (
                     ("Rip outside", _with_rip_outside),
@@ -87,6 +86,41 @@ class InvalidRipTests(unittest.TestCase):
                     ):
                 with self.subTest(kind=kind, order=order):
                     self.assert_invalid(build(mark))
+
+    def test_rip_is_rejected_outside_a_property_without_marking_its_accessor(self) -> None:
+        log: list[str] = []
+
+        def Cleanup(agent) -> None:
+            log.append("clean")
+
+        with self.assertRaisesRegex(
+                TagDeclarationError,
+                r"@Rip.*property.*@Rip marks an Action",
+                ):
+            Rip(property(Cleanup))
+
+        Declared = type(
+                "Declared",
+                (Tag,),
+                {
+                    "Cleanup": Cleanup,
+                    },
+                )
+        agent = Host()
+        Declared(agent)
+        del Declared[agent]
+
+        self.assertEqual(log, [])
+
+    def test_rip_is_rejected_inside_a_property(self) -> None:
+        self.assert_invalid(property(Rip(_member())))
+
+    def test_rip_is_rejected_on_an_accessorless_property(self) -> None:
+        with self.assertRaisesRegex(
+                TagDeclarationError,
+                r"@Rip.*property.*@Rip marks an Action",
+                ):
+            Rip(property())
 
     def test_rip_is_rejected_on_a_private_name(self) -> None:
         self.assert_invalid(
