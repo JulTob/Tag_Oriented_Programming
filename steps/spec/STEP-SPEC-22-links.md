@@ -992,8 +992,11 @@ name: `Link`. No parameter name is reserved.
    into an error stops nothing. It cannot come while the interpreter is
    shutting down, because the kit's modules may already be gone; an
    Agent registered with `At_Exit` gets its teardowns instead. A Link
-   teardown that *fails* is a failure, not a skipped teardown: it follows
-   whatever STEP-SPEC-24's open question 1 decides for failed teardowns.
+   teardown that *fails* is a failure, not a skipped teardown. Its
+   treatment for a Link or Pair remains STEP-SPEC-32 open question 8,
+   and is separate from this warning for a teardown that was never
+   attempted. STEP-SPEC-24's former open question 1 has already been
+   answered for an ordinary explicit Rip and Field Rip.
 4. **A published line over the Contact's own member (rule 2.7).** The
    Director asked: "ruth.Greet then should have the underlay defined?"
    By §1.5 a published member is a normal Action on the Agent that

@@ -113,10 +113,13 @@ then stands alone: a Rip of a Base ends that membership only (§0.7)."
    works while `Wolf` is active: the Agent leaves Beast, Beast's
    teardowns run, and it stays a Wolf. Rip never cascades: TOP does not
    run other Tags' protocols behind your back." On the
-   `step-19-sound-in` branch the bullet keeps its last sentence, from
-   STEP-SPEC-18 amendment D: "A Rip whose own teardown fails is refused
-   too, and rolled back (§3.1): a failed Rip blocks the expulsion."
-   STEP-SPEC-24's open question 1 may change that sentence.
+   `step-19-sound-in` branch the bullet currently keeps its last
+   sentence, from STEP-SPEC-18 amendment D: "A Rip whose own teardown
+   fails is refused too, and rolled back (§3.1): a failed Rip blocks the
+   expulsion." That records S19's implementation. STEP-SPEC-32
+   supersedes it for the desired explicit-Rip rule: membership ends and
+   the Agent is arrested. Do not port amendment D's rollback as the new
+   behaviour.
 2. **What was given stays, including what the Shape crystallized.**
    Contributions are sticky (§0.7). A Shape's `@Underlay` captured the
    Action beneath it when the Shape applied (§1.2; `overlay.py:850`), and

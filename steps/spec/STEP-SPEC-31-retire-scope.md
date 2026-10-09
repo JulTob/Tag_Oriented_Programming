@@ -312,13 +312,15 @@ tagging and a Rip, which TOP already defines.
 
    STEP-SPEC-6's amendment there is about `Scope` in all seven rows. Its
    rulings end with `Scope`, and its text stays as the record (item 4).
-   The Director's ruling on a failed teardown (the Rip is refused and
-   rolled back) still holds for every Rip, through STEP-SPEC-18
-   amendment D. The amendment's draft that the block's own error leaves,
-   with a failed Rip as a note (rows 4 and 5), is reversed: now the
-   failed Rip leaves, and the block's error is its context (rule 5). The
-   Specification there drops "a Scope's exit" from line 1296, so the list
-   reads `del Tag[agent]`. STEP-SPEC-18's own text stays (item 4).
+   STEP-SPEC-18 amendment D's refused-and-rolled-back Rip records the S19
+   implementation; STEP-SPEC-32 supersedes it for the desired explicit
+   Rip rule, where membership ends and the Agent is arrested. This STEP
+   chooses neither failure model: its `try`/`finally` pattern exposes the
+   explicit Rip's rule. Under STEP-SPEC-32, a failed Rip in the `finally`
+   leaves and arrests the Agent, and the block's own error is its context
+   (rule 5). The Specification there drops "a Scope's exit" from line
+   1296, so the list reads `del Tag[agent]`. STEP-SPEC-18's own text stays
+   as the historical record (item 4).
 4. **Other STEPs.** The Brief STEPs of PR #26 are updated with this one:
    STEP-SPEC-22 (rule 4.5 and section 9), STEP-SPEC-24 (its Rationale),
    STEP-SPEC-26 (the title of section 8, rule 8.2, Backwards

@@ -16,11 +16,12 @@
 
 ## Summary
 
-`del Wizard[:]` Rips every member of a Tag's Field, and every member's
-teardowns run: the whole Agency closes at once. Everyone leaves first;
-then the teardowns run, in join order. STEP-SPEC-27 reads the same act
-as the deletion protocol of a Tag: gain control, stop gently, and the
-Tag stays ready to tag again.
+`del Wizard[:]` Rips every member of a Tag's Field: the whole Agency
+closes at once. Everyone leaves first; then each member's cleanup begins,
+in join order. A first failure freezes that member's later teardowns for
+retry (STEP-SPEC-32). STEP-SPEC-27 reads the same act as the deletion
+protocol of a Tag: gain control, stop gently, and the Tag stays ready to
+tag again.
 
 A Tag that ceases to exist does the same on its way out, so no Agent is
 left a member of something that is gone. For that to happen while a Tag
@@ -67,8 +68,9 @@ Both were checked on TopKit 0.2.0a4:
   "Sentry is not active on this Agent". So the spelling is free.
 
 Links (STEP-SPEC-22) need this. When an Agent is deleted, the Links it
-holds end, and each Link's Field is Ripped like any Tag's, with the
-Link's teardowns run for every Contact. Only the moment differs: the
+holds end, and each Link's Field is Ripped like any Tag's, with cleanup
+begun for its Contacts. Failed Link or Pair cleanup remains
+STEP-SPEC-32 open question 8. Only the moment differs: the
 finalizer of the Link's Agent runs that Field Rip, while the
 dying Agent is still in hand to fill the first seat (rule 3.1).
 
@@ -91,36 +93,46 @@ cited as "section N" or "rule N.M".
    a base hostage"). Nothing cascades (§0.7): `del Class[:]` Rips no one
    from `Wizard`, a Shape of Class. So nothing at the door refuses a
    Field Rip.
-3. **Everyone leaves first, then the teardowns run.** The act has two
+3. **Everyone leaves first, then cleanup begins.** The act has two
    phases, in the order the Director gave for a stop (STEP-SPEC-27):
    "revoke all - rip protocols (teardowns)".
    - First, every member's membership ends and every member leaves the
      Field. No user code runs in this phase.
-   - Then each member's teardowns run (§3.1), one member at a time.
+   - Then each member's teardown ledger begins (§3.1), one member at a
+     time. Rule 1.4 governs a failure.
 
    Both phases go in the order the members joined, the order `for` walks
    (the Director: "We'll follow [your] fifo recommendation on deletion").
    So when the first teardown runs, nobody is a member any more: no
    member keeps access while the others are cleaned up. Only a teardown
    that applies the Tag again can make a member (rule 1.5).
-4. **Failures are collected.** A teardown that fails does not stop the
-   next member's. The failures are reported once, as a Composition
-   Failure, after the walk (§3.1). At a Tag's end there is no caller, and
-   failures stay silent (rule 3.1). *Changed on 2026-10-09:* within one
-   member, a failure freezes that member's later teardowns, and the
-   member is arrested (STEP-SPEC-32, rules 1 and 5). Where a member whose
-   teardown failed ends up was open question 1: kept in the safehouse,
-   arrested.
+4. **A failure freezes that member's later teardowns.** *Changed on
+   2026-10-09:* within one member, a teardown that passed never runs
+   again; the first failure and the teardowns after it stay pending, in
+   order; and the member is arrested as a nonmember (STEP-SPEC-32, rules
+   1, 2 and 5). This answers this STEP's former open question 1 for an
+   ordinary Tag's explicit Rip and Field Rip. Pins and Links remain
+   STEP-SPEC-32 open question 8.
+
+   *Recommended, not decided:* that failure does not stop the next
+   member's cleanup. Under that bulk rule, ordinary failures are reported
+   once, as a Composition Failure, after the walk (§3.1). This is
+   STEP-SPEC-32 open question 16. Interruption is the separate open
+   question 17. A Tag's end has no caller and is another separate
+   boundary, still open in STEP-SPEC-32 question 8 (rule 3.1).
 5. **The Field as it was.** The Field Rip revokes the members the Field
    had when it began. A teardown that applies the Tag again, to a member
-   or to an Agent for the first time, makes that Agent a member again,
-   and it stays a member (§3.1: outside good TOP use, but not
-   forbidden).
+   or to an Agent for the first time, creates a new application outside
+   that snapshot (§3.1: outside good TOP use, but not forbidden).
+   Whether that new application stands when an old application's
+   teardown then fails remains STEP-SPEC-32 open question 14.
 6. **Every kind of Tag.**
    - On a Pin, `del Rare[:]` un-pins every Tag. A Pin's `@Rip` that
-     declares the second seat receives its originals (§1.9).
+     declares the second seat receives its originals (§1.9). Failed Pin
+     cleanup remains STEP-SPEC-32 open question 8.
    - On a Link, `del charlie.Knows[:]` unlinks every Contact
-     (STEP-SPEC-22).
+     (STEP-SPEC-22). Failed Link or Pair cleanup remains STEP-SPEC-32
+     open question 8.
    - A Relation has no Field to Rip: `del Social.Knows[:]` is refused
      (STEP-SPEC-22, section 9).
 7. **A part of the Field.** `del X[:]` on a population drawn from one
@@ -180,12 +192,12 @@ cited as "section N" or "rule N.M".
 1. **When a Tag ceases to exist, its Field is Ripped**, as by `del Tag[:]`
    (rules 1.1, 1.3, 1.5 and 1.6), with one difference. As at an Agent's
    deletion (§3.2), teardowns at a Tag's end are best effort and silent:
-   no failure is raised (open question 1 asks whether a member whose
-   teardown failed is kept in the safehouse instead). The
-   teardowns of every member still alive at that collection run, then the
-   Tag is gone. A member collected in the same pass as its Tag has
-   already left the Field, and leaves with no teardown, best effort as at
-   any deletion (§3.2).
+   no failure is raised. Whether a member whose teardown failed is kept
+   under the root safehouse after its Tag is gone remains STEP-SPEC-32
+   open question 8. Cleanup begins for every member still alive at that
+   collection, then the Tag is gone. A member collected in the same pass
+   as its Tag has already left the Field, and leaves with no teardown,
+   best effort as at any deletion (§3.2).
 
    A Link's Field is Ripped the same way, at a different moment: by the
    finalizer of the Link's Agent, while that Agent can still fill
@@ -255,7 +267,7 @@ acts, and TOP already has the same pair for Agents (§3.2).
 | Who acts | the program, on purpose | the language, when nothing can reach the Tag |
 | When | at that line | at the next collection, or never |
 | Can it be refused? | not at the door: Shapes stay as spin-offs (rule 1.2) | no: there is no one to refuse to |
-| Teardowns | certain, in order, failures reported (rule 1.4) | best effort, Shapes first, failures silent (rules 3.1 and 3.4) |
+| Teardowns | begun in order; a first failure freezes that member's rest; cross-member continuation is STEP-32 OQ16 (rule 1.4) | best effort, Shapes first, failures silent; failed-cleanup retention is STEP-32 OQ8 (rules 3.1 and 3.4) |
 | For Agents, the same pair | `del Tag[agent]` (§0.7) | the Agent's deletion (§3.2) |
 
 So the safe act is the one the program writes. A program that needs its
@@ -297,8 +309,11 @@ can stop it once it starts: no refusal at the door (rule 1.2), and
 membership ends for everyone before any teardown runs (rule 1.3). It is
 the order of safety engineering and of incident response: reach the safe
 state first (nobody holds the Tag's access), then do the paperwork (the
-teardowns). After that, as in §3.1, failures are collected and never stop
-the act.
+teardowns). After that, a failure freezes that member's remaining
+teardowns and arrests it (STEP-SPEC-32). Whether cleanup continues with
+the next member and reports ordinary failures once after the walk remains
+STEP-SPEC-32 open question 16; no failure restores the memberships that
+phase one already ended.
 
 **Symmetry.** §0.3 already says a Field never keeps an Agent alive. If
 membership kept a Tag alive, a Tag with members could never end, and rule
@@ -335,7 +350,7 @@ as strong as any value.
 | `del Tag` as the safe act, and `del Tag[:]` as the forced one | Not possible in Python: `del Tag` removes a name, calls nothing on the Tag, and destroys nothing (Rationale, *`del Tag` is not an act on the Tag*). The safe act is `del Tag[:]`, and the forced one is the Tag's end. |
 | Reverse order, last in first out | Set aside by the Director, who chose join order: "We'll follow [your] fifo recommendation on deletion". Members of a Field are peers, not a stack, and join order is the order every other walk uses. |
 
-## Open questions for the Director
+## Decision record and remaining boundaries
 
 1. **A member whose teardown fails: where does it go?** Two lines of
    work disagree, and both carry the Director's words.
@@ -390,6 +405,12 @@ as strong as any value.
    member kept after a gentle stop can then be triaged with
    `del Human[...]`.
 
+   This decision covers an explicit Rip and Field Rip. It does not decide
+   a Tag's end (STEP-SPEC-32 open question 8), a new application made by
+   a teardown before the old cleanup fails (question 14), or whether a
+   bulk walk continues with its next member after one member's failure
+   (question 16) or an interruption (question 17).
+
 ## Acceptance requirements
 
 - `tests/test_topkit.py`: a `FieldRipTests` class, covering:
@@ -398,10 +419,12 @@ as strong as any value.
     sees `len(Tag[:]) == 0`;
   - a member that holds a Shape leaves the Tag and keeps the Shape (no
     refusal, no cascade);
-  - failures collected after the walk, with the outcome open question 1
-    chooses;
+  - a failed member leaves and is arrested; its later teardowns stay
+    pending in order; cross-member continuation follows STEP-SPEC-32 open
+    question 16, and interruption follows open question 17;
   - a teardown that applies the Tag again, to a member and to a new
-    Agent: both stay members;
+    Agent, with the outcome after an old-cleanup failure following
+    STEP-SPEC-32 open question 14;
   - rule 1.7: `del (~Wizard)[:]` and `del weak[:]` Rip
     exactly those members; a population of two Tags is refused;
   - Pins, Links, and the refused Relation.
