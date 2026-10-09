@@ -747,7 +747,8 @@ def Exercise_Block(
         assert Is_Block_Error(error.__context__) is fail, (context, "the Rip's context is not the block's error")
         assert fail or error.__context__ is None, (context, "a Rip's failure carries a context of its own")
     except LookupError as error:
-        assert Is_Block_Error(error) and refusal is None, (context, "the block's error reached the caller past a failed Rip")
+        assert Is_Block_Error(error) and door is None, (context, "the block ran past a door failure")
+        assert refusal is None, (context, "the block's error reached the caller past a failed Rip")
     else:
         assert door is None and refusal is None and not fail, (context, "the block ended where the model raises")
 
