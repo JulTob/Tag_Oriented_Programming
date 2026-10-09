@@ -192,6 +192,20 @@ The **call boundary** decides what a failure means:
   the line. A defective product is not melted back to materials: it is
   flagged, repaired, or Ripped (§2.5).
 
+The phase belongs to the call running the protocol. A nested refusal
+inside an Imprint is that Imprint's failure, with the refusal as its cause;
+a nested failure inside a Record still refuses Parts. Python interruptions
+follow the same boundary and propagate unchanged. Failure to capture the
+Tag-bound view after Write also preserves the committed Tags. If capture
+fails while an Imprint failure or interruption is already being
+raised, the original failure stays primary and the capture failure is
+reported as a note when possible.
+
+An exceptional return does not itself make an Agent permanently defective.
+Its current visible Postconditions determine soundness (§2.5), so a finished
+Agent whose promises hold may be sound despite a failed Imprint or an
+interruption after Commit.
+
 ```text
 Citadel(ari)                      Form: Territory, Citadel
     gate       Has_Charter FAILS
@@ -1319,7 +1333,7 @@ types but must keep these distinct.
 | **Tag Precondition Failure** | A gate refused the incoming Agent. | call rolled back |
 | **Tag Imprint Failure** | An Imprint failed after commit. | Tags stay |
 | **Tag Postcondition Failure** | The finished Agent breaks a promise. | Tags stay, Agent defective |
-| **Tag Contract Failure** | A condition returned a non-boolean. | call rolled back |
+| **Tag Contract Failure** | A condition returned a non-boolean. | gate: call rolled back; quality check: Tags stay, Agent defective |
 | **Overwrite Warning** | An independent Tag replaced a visible Action or Record without an Underlay. | diagnostic |
 | **Contract Warning** | A Shape weakened a Base Postcondition. | diagnostic |
 
