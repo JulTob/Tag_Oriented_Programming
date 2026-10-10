@@ -109,6 +109,14 @@ chain identity: a flow-local Rip guard checks every Underlay in the selected
 teardown chain, remembers a violation even when user code catches it, and does
 not reinterpret an independent `@Rip` Action called normally as a teardown.
 
+Record builder failures identify the declaration name, not the callable's
+Python function metadata. Existing TOP failures and Python interruptions keep
+their original exception; other builder errors remain Composition Failures
+with the original cause. Shared private diagnostic helpers preserve normal
+exception text, falling back only when that text cannot be rendered. This
+does not change construction order, values (including `False` and `None`),
+or settle the Record continuation/failure-boundary design tracked in #30.
+
 ## Judgment calls
 
 - **`in` vs `isinstance`.** `agent in Tag` is the is-now check; `isinstance`

@@ -37,6 +37,8 @@ from .errors import TagPostconditionError
 from .errors import TagRogueAccessError
 from .errors import TagContractWarning
 from .errors import TagResolutionError
+from .errors import _exception_text
+from .errors import _type_name
 from .declarations import STATE
 from .declarations import Report
 from .declarations import _declarations_of
@@ -1033,6 +1035,7 @@ def _restore(
 
 def _materialize(
         agent: object,
+        tag: type,
         declarations: _Declarations,
         deleted_before: set[str],
         inputs: dict[str, Any],
@@ -1101,9 +1104,11 @@ def _materialize(
         except TagError:
             raise
         except Exception as error:
+            tag_name = str.__str__(type.__dict__["__name__"].__get__(tag))
+            record_name = str.__str__(name)
             raise TagCompositionError(
-                    f"Record {builder.__qualname__} could not be"
-                    f" materialized: {type(error).__name__}: {error}"
+                    f"Record {tag_name}.{record_name} could not be"
+                    f" materialized: {_type_name(error)}: {_exception_text(error)}"
                     ) from error
 
         if pinned and name in declarations.secrets:

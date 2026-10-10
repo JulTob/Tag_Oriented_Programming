@@ -4,6 +4,12 @@
 
 ### TopKit
 
+- **Record diagnostics name their declaration:** builder failures identify
+  the declared Record even for accepted callable objects without Python
+  function metadata. The original cause is retained; exception text that
+  cannot be rendered uses a diagnostic fallback. Record construction order,
+  returned values and the existing failure boundary are unchanged.
+
 - **Synchronous protocol results:** Preconditions, Imprints, Postconditions
   and Rip teardowns now reject coroutine, generator and async-generator
   results explicitly instead of silently discarding work that never ran.
