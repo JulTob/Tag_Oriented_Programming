@@ -5,7 +5,7 @@ live in that dictionary as bound callables, Records as plain values, so
 ordinary attribute access costs what it costs on a plain object. The
 runtime type is neutral (host first, then the ``Tagged`` marker) and only
 carries what Python requires on a type: special-method Actions and the
-descriptors that gate deleted, secret, and published names.
+descriptors that gate deleted, secret, published, and Constant names.
 """
 
 from __future__ import annotations
@@ -66,6 +66,7 @@ class _State:
     rips: dict[type, tuple[Function, ...]] = field(default_factory=dict)
     secret_values: dict[str, Any] = field(default_factory=dict)   # a pinned Tag's @Secret members
     originals: dict[str, Any] = field(default_factory=dict)       # what a Pin patched, as declared
+    constants: dict[str, tuple[type, str, Any]] = field(default_factory=dict)  # origin, kind, declaration
     composing: int = 0
     checking: bool = False
     words: _Words | None = None   # what its Flags answer to; None after its Tags change
@@ -109,6 +110,7 @@ class _State:
                 rips=dict(state.rips),
                 secret_values=dict(state.secret_values),
                 originals=dict(state.originals),
+                constants=dict(state.constants),
                 composing=state.composing,
                 checking=state.checking,
                 words=state.words,
@@ -152,7 +154,7 @@ class _Class_Namespace:
             name: str,
             value: Any,
             ) -> None:
-        setattr(
+        type.__setattr__(
                 namespace._owner,
                 name,
                 value,
@@ -180,7 +182,7 @@ class _Class_Namespace:
 
             return default
 
-        delattr(
+        type.__delattr__(
                 namespace._owner,
                 name,
                 )
@@ -322,6 +324,18 @@ def _set_state(
         state: _State,
         ) -> None:
     _namespace_of(agent)[STATE] = state
+
+
+def _set_runtime_type(agent: object, runtime_type: type) -> None:
+    """Install kernel protection even when a host setter stores names directly."""
+
+    if issubclass(type(agent), type):
+        type.__setattr__(agent, "__class__", runtime_type)
+    else:
+        object.__setattr__(agent, "__class__", runtime_type)
+
+    if type(agent) is not runtime_type:
+        raise TagCompositionError("the host did not accept the Agent runtime type")
 
 
 # ------------------------------------------------------------------
@@ -828,6 +842,7 @@ def _type_key_of(
                             for name, function in _dunder_actions(state).items()
                             )
                     ),
+            frozenset(state.constants),
             )
 
 
@@ -844,6 +859,9 @@ def _runtime_type_for(
         return shared
 
     from .access import _hooks_for   # access imports this module
+    from .presence import _presence_hook
+    from .constants import _Constant_Gate
+    from .constants import _constant_write_hooks
 
     host_type = state.host_type
     dunders = _dunder_actions(state)
@@ -878,6 +896,14 @@ def _runtime_type_for(
             namespace["__contains__"] = hooks["__contains__"]   # the Flag holds the seat
 
     namespace["__del__"] = hooks["__del__"]   # the finalizer, whatever gate names __del__
+    _presence_hook(namespace, host_type)
+
+    if not issubclass(host_type, type):
+        for name in state.constants:
+            namespace[name] = _Constant_Gate(name, namespace.get(name, _MISSING))
+
+    if state.constants or issubclass(host_type, type):
+        _constant_write_hooks(namespace, host_type)
 
     if issubclass(host_type, Tagged):
         bases: tuple[type, ...] = (host_type,)

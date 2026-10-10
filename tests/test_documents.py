@@ -66,6 +66,12 @@ class DocumentTests(unittest.TestCase):
     def test_the_fields_guide(self) -> None:
         self.assertGreater(Run_Blocks(ROOT / "TopKit" / "FIELDS.md"), 8)
 
+    def test_the_presence_wiki_page(self) -> None:
+        self.assertGreater(Run_Blocks(ROOT / "wiki" / "1.3-TopKit:-Presence.md"), 5)
+
+    def test_the_constants_guide(self) -> None:
+        self.assertGreater(Run_Blocks(ROOT / "TopKit" / "CONSTANTS.md"), 5)
+
 
 if __name__ == "__main__":
     unittest.main()

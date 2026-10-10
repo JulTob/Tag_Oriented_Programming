@@ -18,6 +18,8 @@ from .access import _host_finalizer
 from .access import _host_in_seat
 from .contracts import _bind_condition
 from .contracts import _guarded
+from .constants import _constant_overlay
+from .constants import _refuse_constant
 from .declarations import _Declarations
 from .declarations import _is_flag
 from .declarations import _parameters_of
@@ -37,6 +39,7 @@ from .declarations import Report
 from .declarations import _declarations_of
 from .geometry import _related
 from .declarations import _MISSING
+from .presence import _Presence
 from .state import _Bound
 from .state import _Pinned_Operation
 from .state import _State
@@ -101,6 +104,9 @@ def _host_function(
 
     for klass in host_type.__mro__:
         attribute = klass.__dict__.get(name)
+
+        if issubclass(type(attribute), _Presence):
+            attribute = attribute.fallback
 
         if attribute is None:
             continue
@@ -274,6 +280,8 @@ def _install(
     """Lay ``tag`` over ``state`` (a candidate copy). Order matters: deletions
     free names first; conditions, Tag members, Actions, Records follow."""
 
+    declarations, new_constants = _constant_overlay(state, tag, declarations)
+
     _refuse_a_second_in(
             state,
             tag,
@@ -372,6 +380,8 @@ def _install(
                 state.actions[name]
                 for name in declarations.rips
                 )
+
+    state.constants.update(new_constants)
 
 
 def _refuse_stored_input_collision(
@@ -745,6 +755,7 @@ def _delete(
         state: _State,
         name: str,
         ) -> None:
+    _refuse_constant(state, name)
     state.actions.pop(name, None)
     state.action_origins.pop(name, None)
     state.records.pop(name, None)
@@ -820,6 +831,7 @@ def _install_action(
         name: str,
         function: Function,
         ) -> None:
+    _refuse_constant(state, name)
     _refuse_member_over_condition(
             state,
             tag,
@@ -893,6 +905,7 @@ def _install_record(
         name: str,
         builder: Function,
         ) -> None:
+    _refuse_constant(state, name)
     _refuse_member_over_condition(
             state,
             tag,
@@ -972,6 +985,7 @@ def _materialize(
         declarations: _Declarations,
         deleted_before: set[str],
         inputs: dict[str, Any],
+        retained: frozenset[str] = frozenset(),
         ) -> None:
     """Run the Tag's Record builders and store their values on the Agent.
 
@@ -985,6 +999,8 @@ def _materialize(
     pinned = isinstance(agent, type)
 
     for name, builder in declarations.records:
+        if name in retained:
+            continue
         if pinned:
             stored = _state_of(agent).secret_values.get(name, _MISSING)
 

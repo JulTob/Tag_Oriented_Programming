@@ -111,6 +111,46 @@ assert ari.Wizard.Attack() == "Ari casts a spell"   # the view after Wizard
 It never changes, whatever comes later. `Wizard[ari]` is the same view by
 class, exact even if two Tags share a name.
 
+### Ask whether a named Contribution is present
+
+`"name" @ agent` asks whether the Agent currently provides that name.
+Ordinary host attributes and methods count too. The answer does not depend
+on whether the name holds an Action or a Record, or whether its value is
+true.
+
+This syntax is available on a TOP Agent after its first Tagging, or on a
+Tag-bound view. A raw host before its first Tagging has no TOP `@` operator.
+
+```python
+assert "name" @ ari                       # the host supplied it
+assert "Attack" @ ari                     # an Action, without calling it
+
+ari.note = None
+assert "note" @ ari                       # None is still a stored value
+
+del ari.spell_slots
+assert not ("spell_slots" @ ari)           # the current Agent lost it
+assert "spell_slots" @ Wizard[ari]         # the view kept its captured value
+
+ari.spell_slots = 0
+assert "spell_slots" @ ari                # zero is present too
+```
+
+This tests presence, not value or successful behaviour. It does not call
+Actions or Operations, evaluate property getters or lazy Reports, or run
+Posts. A host property counts as a binding without evaluating its getter;
+a name synthesized only by `__getattr__` does not count. A name can change
+from Action to Record or back and still be present.
+
+On the actual Agent, shared names count through publication. A published
+Report requires an active publishing Tag; a published Operation's Action
+can remain present after Rip, with its use still checked separately. A
+Tag-bound view checks its captured shared contributions. Secret names
+obey the Agent's composition door. The query
+takes a string name; other left operands keep their ordinary `@`
+behaviour. A pinned Tag can be queried as an Agent, but a bare, unpinned
+Tag has no TOP presence query.
+
 ### A Tag can be taken away. What it gave stays.
 
 ```python
@@ -187,7 +227,11 @@ assert bob.spellbook == []                # not shared
 
 **Watch out.** A Record builder runs once, when the Tag applies. It is not a
 property; it does not recompute. Reapplying an active Tag does nothing, so
-a Record is never silently reset. To reset, Rip and apply again.
+a Record is never silently reset. To reset an ordinary Record, Rip and
+apply again. `@Constant @Record` keeps its established binding instead;
+the value's contents may still be mutable. [Constant Contributions](CONSTANTS.md)
+shows the distinction and the same protection for Actions, Posts and
+shared Contributions.
 
 ### Pattern 3 · Pile things up from several Tags
 
@@ -413,6 +457,31 @@ is flagged, repaired, or thrown away (`del Wizard[newt]`).
 name of the broken one, `Contract.Display(agent)` or `f"{agent:contract}"`
 prints them.
 
+Use a Post to make a named Contribution a requirement:
+
+```python
+class Equipped(Tag):
+
+    @Post
+    def Carries_Equipment(agent):
+        return "equipment" @ agent
+
+
+scout = Character("Scout")
+scout.equipment = None
+Equipped(scout)                          # the name is present, even with None
+
+del scout.equipment
+assert scout in ~Equipped                # the required name is now missing
+
+scout.equipment = False
+assert scout                            # presence restored
+```
+
+The Post says what must remain. If equipment must also have a particular
+value or support some behaviour, express that condition in the Post too;
+presence alone promises neither.
+
 **Necessary to enter, necessary to stay.** Stack `@Pre` and `@Post` on
 one function and it is both: a gate at the door and a promise kept after.
 
@@ -633,6 +702,11 @@ Notice the symmetry. A Report is written exactly like a Record, with the
 Tag instead of the Agent as its first input; it runs once per Tag and its
 value is shared by the whole Field. `def hit_die(tag, inherited)` extends
 the Base's value, as `def spells(agent, stored)` extends what is stored.
+
+A Constant Report initializes once on its declaring Tag; all its Shapes
+share that exact value. Constant protects the binding without freezing
+the value's contents or changing its publication rules. See
+[Constant Contributions](CONSTANTS.md) for the Report and Operation patterns.
 
 **Watch out.** A secret resolves only while one of the Agent's own Actions
 or protocols is running. A handle to a secret Action captured inside and
@@ -942,6 +1016,7 @@ the architecture, with a Field to walk and a history that stays.
 | Is it a Wizard now? | `agent in Wizard` |
 | Was it ever? | `isinstance(agent, Wizard)` |
 | Does it carry the keyword? | `"Undead" in agent`, `Keyword(agent, "Undead")`, a Flag's words too |
+| Does it currently provide this name? | `"Attack" @ agent` |
 | Which Tags, in order? | `Tags(agent)`, `f"{agent:tags}"` |
 | The whole shape? | `Outline(agent)`, `f"{agent:outline}"` |
 | Are its promises holding? | `if agent:`, `Contract.Status(agent)`, `f"{agent:contract}"` |
@@ -988,6 +1063,8 @@ your Reports and Operations there.
 - [The Contracts Guide](CONTRACTS.md): gates, promises and error control,
   aboard a starship; and one promise read by its name, `agent.Has_Oath`.
 - [The Fields Guide](FIELDS.md): populations, partitions and the algebra.
+- [Constant Contributions](CONSTANTS.md): fixed bindings, shared values
+  and promises that cannot be replaced or deleted.
 - [The Specification](../spec/SPECIFICATION.md): the laws, ring by ring.
 - [`examples/dnd_character.py`](../examples/dnd_character.py) and
   [`examples/biome.py`](../examples/biome.py): the long form.

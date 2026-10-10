@@ -17,12 +17,14 @@ Once for the whole call:
 
 A failure in 1 or 2 rolls the whole call back: the Agent is exactly as it
 was, including Bases pulled in by this call. A failure in 4 or 5 raises
-but the Tags stay: the product left the line, defective, to be repaired
-or Ripped.
+but the committed Tags stay. Their current Postconditions determine
+soundness; the failure itself is not a permanent defect. Python
+interruptions keep their original type and follow the same phase boundary.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from .contracts import _evaluate
@@ -31,7 +33,6 @@ from .declarations import _declarations_of
 from .declarations import _is_flag
 from .declarations import _protocol_inputs
 from .errors import TagCompositionError
-from .errors import TagError
 from .errors import TagImprintError
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
@@ -51,6 +52,14 @@ from .state import _restore_namespace
 from .state import _runtime_type_for
 from .state import _state_for
 from .state import _state_of
+from .state import _set_runtime_type
+
+
+@dataclass(slots=True)
+class _Call_Boundary:
+    """The failure phase of this call, independent of any nested tagging."""
+
+    after_commit: bool = False
 
 
 def _apply(
@@ -72,6 +81,7 @@ def _apply(
     entry_copy = entry_state.Copy() if entry_state is not None else None
     entry_tags = tuple(entry_state.active) if entry_state is not None else ()
     entry_class = type(agent)
+    boundary = _Call_Boundary()
 
     try:
         state = _state_for(agent)
@@ -104,19 +114,20 @@ def _apply(
                         agent,
                         member,
                         inputs,
+                        boundary,
                         )
 
+            boundary.after_commit = True   # Quality follows the completed Form
             _inspect(agent)
-    except (TagImprintError, TagPostconditionError):
-        raise
     except BaseException:
-        _rollback(
-                agent,
-                entry_namespace,
-                entry_copy,
-                entry_tags,
-                entry_class,
-                )
+        if not boundary.after_commit:
+            _rollback(
+                    agent,
+                    entry_namespace,
+                    entry_copy,
+                    entry_tags,
+                    entry_class,
+                    )
         raise
 
     return agent
@@ -156,7 +167,7 @@ def _rollback(
         namespace.pop(STATE, None)
 
     if type(agent) is not entry_class:
-        agent.__class__ = entry_class
+        _set_runtime_type(agent, entry_class)
 
 
 def _gate(
@@ -214,12 +225,15 @@ def _apply_one(
         agent: object,
         tag: type,
         inputs: dict[str, Any],
+        boundary: _Call_Boundary,
         ) -> None:
     # The state is laid over in place: the call boundary (_apply) holds the
     # entry copy that a Record failure rolls back to, and nothing reads the
     # new Overlay before commit binds it on the Agent.
+    boundary.after_commit = False   # this Tag's Parts can still refuse the whole call
     state = _state_for(agent)
     declarations = _declarations_of(tag)
+    retained_constants = frozenset(state.constants)
     deleted_before = set(state.deleted)
     _refuse_conditions_shadowed_by_the_agent(
             agent,
@@ -228,6 +242,7 @@ def _apply_one(
             declarations,
             )
     state.composing += 1
+    primary_failure: BaseException | None = None
 
     try:
         _install(
@@ -241,6 +256,7 @@ def _apply_one(
                 declarations,
                 deleted_before,
                 inputs,
+                retained_constants,
                 )
 
         _commit(
@@ -251,18 +267,39 @@ def _apply_one(
                 declarations,
                 )
 
+        boundary.after_commit = True
+
         try:
             _imprint(
                     agent,
                     declarations,
                     inputs,
                     )
+        except BaseException as error:
+            primary_failure = error
+            raise
         finally:
-            state.snapshots[tag] = _snapshot(
-                    agent,
-                    state,
-                    )
+            try:
+                state.snapshots[tag] = _snapshot(
+                        agent,
+                        state,
+                        )
+            except BaseException as closing_error:
+                if primary_failure is None:
+                    raise
+
+                # Diagnostics must never replace the primary failure. Custom
+                # exceptions can make even adding a note fail.
+                try:
+                    BaseException.add_note(
+                            primary_failure,
+                            f"The {tag.__name__} view could not be captured after Write:"
+                            f" {type(closing_error).__name__}",
+                            )
+                except BaseException:
+                    pass
     finally:
+        primary_failure = None   # do not keep the Agent alive through an exception traceback
         state.composing -= 1
 
 
@@ -370,7 +407,7 @@ def _commit(
 
     if type(agent) is not next_type:
         try:
-            agent.__class__ = next_type
+            _set_runtime_type(agent, next_type)
         except TypeError as error:
             raise TagCompositionError(
                     f"{type(agent).__name__} cannot be actualized in place"
@@ -445,7 +482,7 @@ def _publish_to_field(
         next_type = _runtime_type_for(agent_state)
 
         if type(agent) is not next_type:
-            agent.__class__ = next_type
+            _set_runtime_type(agent, next_type)
 
 
 def _publish_into(
@@ -456,11 +493,18 @@ def _publish_into(
         adapter: Any,
         ) -> None:
     from .overlay import _install_action
+    from .constants import _refuse_constant
 
     for name in names:
+        if name in agent_state.constants:
+            if agent_state.constants[name][0] is pinned and name in state.constants:
+                continue
+            _refuse_constant(agent_state, name)
         if name in state.records:
             agent_state.reports[name] = (pinned, None)
             agent_state.published.add(name)
+            if name in state.constants:
+                agent_state.constants[name] = (pinned, "report", None)
         elif name in state.actions:
             _install_action(
                     agent_state,
@@ -468,6 +512,8 @@ def _publish_into(
                     name,
                     adapter(pinned, name, state.actions[name]),
                     )
+            if name in state.constants:
+                agent_state.constants[name] = (pinned, "operation", state.actions[name])
 
 
 def _needs_new_type(
@@ -486,6 +532,7 @@ def _needs_new_type(
             _is_flag(tag)
             or declarations.deletions
             or declarations.secrets
+            or declarations.constants
             or declarations.dunders
             or declarations.postconditions
             or any(public for _name, _value, public in declarations.reports)
@@ -503,8 +550,6 @@ def _imprint(
                     agent,
                     **_protocol_inputs(imprint, inputs, 1),
                     )
-        except TagError:
-            raise
         except Exception as error:
             raise TagImprintError.Named(name)(
                     f"Imprint {imprint.__qualname__} failed:"
