@@ -12,7 +12,7 @@ from TopKit import Tag
 class GeometryRegressionTests(unittest.TestCase):
 
     def test_form_does_not_use_python_recursion_depth(self) -> None:
-        depth = sys.getrecursionlimit() + 50
+        depth = 250
         current = Tag
         expected: list[type[Tag]] = []
 
@@ -24,10 +24,16 @@ class GeometryRegressionTests(unittest.TestCase):
                     )
             expected.append(current)
 
-        self.assertEqual(
-                Form(current),
-                tuple(expected),
-                )
+        original_limit = sys.getrecursionlimit()
+
+        try:
+            sys.setrecursionlimit(200)
+            self.assertEqual(
+                    Form(current),
+                    tuple(expected),
+                    )
+        finally:
+            sys.setrecursionlimit(original_limit)
 
 
 if __name__ == "__main__":
