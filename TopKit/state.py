@@ -722,10 +722,8 @@ def _bind_to(
 
     if name in state.secrets:
         bound: _Bound = _Secret_Bound(function, agent, name)
-    elif state.secrets:
-        bound = _Composing_Bound(function, agent)
     else:
-        bound = _Bound(function, agent)
+        bound = _Composing_Bound(function, agent)
 
     _namespace_of(agent)[name] = bound
 
@@ -741,10 +739,8 @@ def _bind_pinned(
 
     if name in state.secrets:
         bound: _Pinned_Operation = _Secret_Pinned_Operation(function, state, name)
-    elif state.secrets:
-        bound = _Composing_Pinned_Operation(function, state)
     else:
-        bound = _Pinned_Operation(function)
+        bound = _Composing_Pinned_Operation(function, state)
 
     if name in state.secrets:
         _namespace_of(tag).pop(name, None)
