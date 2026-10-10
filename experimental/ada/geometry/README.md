@@ -30,10 +30,24 @@ The runner enables Ada 2022 and assertions, builds in a temporary directory,
 and removes its build outputs on exit. `GNATMAKE` can select a compiler;
 `GNAT_FLAGS` supplies additional whitespace-separated arguments, such as GNAT
 runtime search paths. A sentinel refuses to report success if assertions were
-disabled. The ten tests cover an empty Registry/root, chains,
+disabled. The ten focused tests cover an empty Registry/root, chains,
 ordered independent Bases, diamonds, overlapping/duplicate Bases, a 3,000-Tag
 chain, detached input/result lists, invalid handles, and handles from ended
 Registries.
+
+A separate finite-space oracle checks every Form in 10,400 five-Tag
+declaration graphs (52,000 comparisons). Each direct Base list is an ordered,
+repetition-free subset of earlier Tags: `1 × 2 × 5 × 16 × 65` graphs. All
+smaller prefixes are covered too. A bounded recursive reference follows a
+separate model of integer Base lists; only its final expected order is mapped
+to issued Tag IDs for comparison. It does not use Registry internals or the
+production traversal helpers. Executed graph/comparison counts are asserted.
+
+This checks the existing experiment's Form ordering and deduplication, not a
+new allowable Geometry or final Tag-ID API. It is exhaustive only within the
+five-Tag, repetition-free declaration space. The focused duplicate-Base and
+depth-3,000 tests remain necessary: this bounded oracle does not test direct
+repetitions, prove stack safety, or establish full TOP conformance.
 
 Target lifetime/identity carriers, native Field/view syntax, and the Tagging
 and Rip protocols belong to separate design proposals. This experiment does
