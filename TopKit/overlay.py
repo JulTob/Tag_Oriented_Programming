@@ -430,42 +430,6 @@ def _refuse_a_second_in(
             )
 
 
-def _refuse_in_collisions_of_the_form(
-        state: _State,
-        pending: list[type],
-        ) -> None:
-    """The same collision over a whole Form before any of it applies, so
-    a Flag Base never runs its Imprint for a Shape that is then refused."""
-
-    if state.pinned is not None or not any(
-            _is_flag(tag) or _answering(_declarations_of(tag))
-            for tag in pending
-            ):
-        return   # no Flag and no `in` answer arrives: nothing can collide
-
-    flags = _flags_of(state)
-    answers = _in_answers_of(state)
-
-    for tag in pending:
-        declarations = _declarations_of(tag)
-        _refuse_in_collision(
-                state.host_type,
-                tag,
-                declarations,
-                flags,
-                answers,
-                )
-
-        if _is_flag(tag):
-            flags.append(tag)
-
-        for name in declarations.deletions:
-            answers.pop(name, None)
-
-        for name in _answering(declarations):
-            answers[name] = tag
-
-
 def _flags_of(
         state: _State,
         ) -> list[type]:

@@ -1,23 +1,21 @@
 """Applying a Tag: the tagging sequence and its call boundary.
 
-Once for the whole call:
-
-    1. Gate: the Preconditions visible in the composed Form of this call
-       inspect the incoming Agent. A Shape's override wins over its Base's.
-
 For each Tag in the Form (Bases first), in order:
 
+    1. Gate: that Tag's declarations are checked against the current
+       Overlay, then its Preconditions inspect the Agent at this turn.
     2. Its Records are built (each may read the value already stored).
-    3. Commit: membership, Overlay, runtime type.
+    3. Field entry: membership, Overlay, runtime type.
     4. Its Imprints run.
 
 Once for the whole call:
 
     5. Every visible Postcondition is checked.
 
-A failure in 1 or 2 rolls the whole call back: the Agent is exactly as it
-was, including Bases pulled in by this call. A failure in 4 or 5 raises
-but the committed Tags stay. Their current Postconditions determine
+A refusal in 1 leaves Tags whose turns completed in place and does not
+start the refused Tag. TopKit's remaining #30 limitation is in Parts: a
+failure in 2 still restores the whole call's entry state. A failure in 4
+or 5 raises but applied Tags stay. Their current Postconditions determine
 soundness; the failure itself is not a permanent defect. Python
 interruptions keep their original type and follow the same phase boundary.
 """
@@ -39,7 +37,6 @@ from .errors import TagPreconditionError
 from .geometry import _form_of
 from .overlay import _install
 from .overlay import _quiet
-from .overlay import _refuse_in_collisions_of_the_form
 from .overlay import _materialize
 from .state import STATE
 from .state import _Snapshot
@@ -92,24 +89,14 @@ def _apply(
                 ]
 
         if pending:
-            if len(pending) > 1:
-                _refuse_in_collisions_of_the_form(
-                        state,
-                        pending,
-                        )
-
-            if any(
-                    _declarations_of(member).preconditions
-                    for member in pending
-                    ):
+            for member in pending:
                 _gate(
                         agent,
                         state,
-                        pending,
+                        member,
                         inputs,
                         )
 
-            for member in pending:
                 _apply_one(
                         agent,
                         member,
@@ -173,33 +160,31 @@ def _rollback(
 def _gate(
         agent: object,
         state: _State,
-        pending: list[type],
+        tag: type,
         inputs: dict[str, Any],
         ) -> None:
-    """Inspect the incoming materials once, against the Form as it will be.
+    """Let one Tag inspect the Agent before that Tag begins.
 
-    Every pending Tag is laid over a scratch copy so that a Shape's
-    Precondition overrides (relaxes) its Base's, and so that declaration
-    errors and collisions surface before anything changes.
+    The scratch Overlay composes this Tag's own declarations over Tags whose
+    turns have already finished. Nothing is installed on the live state.
     """
 
+    declarations = _declarations_of(tag)
+    _refuse_conditions_shadowed_by_the_agent(
+            agent,
+            state,
+            tag,
+            declarations,
+            )
     scratch = state.Copy()
-    names: list[str] = []
     quiet = _quiet.set(_quiet.get() + 1)   # the real pass warns; catch_warnings() would reset every registry
 
     try:
-        for tag in pending:
-            declarations = _declarations_of(tag)
-
-            _install(
-                    scratch,
-                    tag,
-                    declarations,
-                    )
-
-            for name, _function in declarations.preconditions:
-                if name not in names:
-                    names.append(name)
+        _install(
+                scratch,
+                tag,
+                declarations,
+                )
     finally:
         _quiet.reset(quiet)
 
@@ -209,7 +194,7 @@ def _gate(
         _evaluate(
                 (
                     (name, scratch.preconditions[name])
-                    for name in names
+                    for name, _function in declarations.preconditions
                     if name in scratch.preconditions
                     ),
                 agent,
@@ -229,18 +214,12 @@ def _apply_one(
         ) -> None:
     # The state is laid over in place: the call boundary (_apply) holds the
     # entry copy that a Record failure rolls back to, and nothing reads the
-    # new Overlay before commit binds it on the Agent.
-    boundary.after_commit = False   # this Tag's Parts can still refuse the whole call
+    # new Overlay before Field entry binds it on the Agent.
+    boundary.after_commit = False   # #30: Parts still restore the whole call in TopKit
     state = _state_for(agent)
     declarations = _declarations_of(tag)
     retained_constants = frozenset(state.constants)
     deleted_before = set(state.deleted)
-    _refuse_conditions_shadowed_by_the_agent(
-            agent,
-            state,
-            tag,
-            declarations,
-            )
     state.composing += 1
     primary_failure: BaseException | None = None
 

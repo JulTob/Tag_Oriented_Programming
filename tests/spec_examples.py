@@ -28,7 +28,7 @@ def Run() -> None:
     class Arcane_Duelist(Spellcaster, Duelist): pass
     assert Form(Arcane_Duelist) == (Spellcaster, Duelist, Arcane_Duelist)
 
-    # 0.6 rollback example
+    # 0.6 per-Tag Gate example
     class Territory(Tag):
         @Record
         def banner(agent): return "raised"
@@ -38,7 +38,7 @@ def Run() -> None:
     ari = Character()
     try: Citadel(ari); raise SystemExit("expected failure")
     except TagPreconditionError: pass
-    assert ari not in Territory and ari not in Citadel
+    assert ari in Territory and ari not in Citadel and ari.banner == "raised"
 
     # 0.7 / 3.1 MI6
     class MI6(Tag):
@@ -143,8 +143,10 @@ def Run() -> None:
         @Pre
         def Dues_Paid(agent): return True
     f = Character(); f.paid = False
-    try: Guild(f); raise SystemExit("dues")
+    try: Founder(f); raise SystemExit("dues")
     except TagPreconditionError: pass
+    assert f not in Guild and f not in Founder
+    f.paid = True; Guild(f); f.paid = False
     Founder(f); assert f in Guild
     class Apprentice(Wiz):
         @Pre

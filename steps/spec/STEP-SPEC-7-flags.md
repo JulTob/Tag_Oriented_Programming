@@ -53,10 +53,11 @@ and turns the container case into a loud error.
      Operation included, while it is visible (Actions are sticky, so a
      Ripped Tag's Action still counts).
 
-   A Flag and any of these collide, in either order, and within one Form
-   before any of it applies. The later one fails at the gate with a
-   Composition Failure naming both sides, and nothing changes. A Flag that
-   declares such an Action itself is a Declaration Failure. `__getitem__`
+   A Flag and any of these collide, in either order. Within one Form, the
+   check occurs at the current Tag's turn. The later one fails at the Gate
+   with a Composition Failure naming both sides; completed Base Tags stay,
+   and the colliding Tag never starts. A Flag that declares such an Action
+   itself is a Declaration Failure. `__getitem__`
    alone is not a seat, and a Flag takes it: on a keyed host its `in`
    fails or never ends; on an index-style host (Python's old sequence
    protocol) its `in` worked, and stops meaning membership once a Flag
