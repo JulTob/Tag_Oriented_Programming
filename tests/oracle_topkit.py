@@ -549,6 +549,7 @@ def Assert_Fields(
         assert list(tag[:]) == whole, (context, "whole Field", tag.__name__, Names(tag[:]), Names(whole))
         assert list(tag) == sound, (context, "sound Field", tag.__name__)
         assert list(~tag) == defective, (context, "defective Field", tag.__name__)
+        assert list(~~tag) == defective, (context, "~ absorbs", tag.__name__)
         assert len(tag) == len(sound) and bool(tag) is bool(sound), (context, "Field size", tag.__name__)
 
     first, second = family[0], family[6]

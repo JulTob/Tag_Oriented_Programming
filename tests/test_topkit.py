@@ -2692,6 +2692,42 @@ class FieldAlgebraTests(unittest.TestCase):
         self.assertEqual(list(self.Wizard[:] & ~self.Fighter), [])
         self.assertEqual(list(self.Fighter[:] - self.Wizard), [self.cal])
 
+    def test_tilde_absorbs_broken_twice_is_still_broken(self) -> None:
+        """The Director's rule: "bad bad = bad". Every run of ``~`` is
+        the defective population, never the sound one."""
+
+        broken = ~self.Fighter
+
+        for spelling in (
+                ~~self.Fighter,
+                ~~~self.Fighter,
+                ~~~~~~~~~~~~~self.Fighter,
+                ~broken,
+                ):
+            self.assertEqual(repr(spelling), "<defective Field>")
+            self.assertEqual(list(spelling), [self.cal])
+            self.assertEqual(len(spelling), 1)
+            self.assertTrue(spelling)
+            self.assertIn(self.cal, spelling)
+            self.assertNotIn(self.bo, spelling)
+
+        self.assertEqual(list(~~self.Wizard), [])
+        self.assertFalse(~~self.Wizard)
+
+        self.cal.fit = True
+        self.assertEqual(list(~~self.Fighter), [])
+        self.assertEqual(list(~~~self.Fighter), [])
+        self.assertEqual(list(self.Fighter), [self.bo, self.cal])
+
+    def test_a_combination_takes_no_tilde(self) -> None:
+        for combination in (
+                self.Wizard | self.Fighter,
+                self.Wizard[:] & self.Fighter[:],
+                ~self.Fighter - self.Wizard,
+                ):
+            with self.assertRaises(TypeError):
+                ~combination
+
     def test_a_combined_view_is_lazy(self) -> None:
         both = self.Wizard | self.Fighter
         dee = Agent()
