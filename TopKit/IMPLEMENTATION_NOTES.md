@@ -189,8 +189,8 @@ rollback target.
   used to leave the door open for good.) Known limit: in a reference cycle,
   Python clears weak references before finalizers run, so a finalizer's
   Tag code cannot call the Agent's bound Actions there (`ReferenceError`).
-- **What the kit keeps, and for how long.** The Form cache holds a Tag's
-  Bases only, never the Tag, so a dropped Tag class is freed. A Rip drops
+- **What the kit keeps, and for how long.** Each Tag owns its Form memo,
+  so that memo is not a global root for Base/Shape cycles. A Rip drops
   the Tag's view snapshot (a view needs membership). A Field entry is a
   slotted weak reference carrying its key, with one callback per Field;
   `At_Exit` numbers its registrations the same way and drops each one when
