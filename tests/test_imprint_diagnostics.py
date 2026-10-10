@@ -560,6 +560,76 @@ class ImprintDiagnosticTests(unittest.TestCase):
                 self.assertIn(target, Trained[:])
                 self.assertEqual(runtime._state_of(target).composing, 0)
 
+    def test_string_subclass_declaration_names_use_only_their_plain_text(self):
+        for pinned in (False, True):
+            for kind in ("failure", "coroutine", "generator", "async generator"):
+                with self.subTest(pinned=pinned, kind=kind):
+                    class Name(str):
+                        armed = False
+
+                        def __repr__(self):
+                            raise AssertionError("declaration name repr was read")
+
+                        def __str__(self):
+                            if Name.armed:
+                                raise AssertionError("declaration name str was read")
+                            return str.__str__(self)
+
+                        def __format__(self, specification):
+                            if Name.armed:
+                                raise AssertionError("declaration name format was read")
+                            return str.__format__(self, specification)
+
+                    original = RuntimeError("training failed")
+                    returned = []
+                    events = []
+
+                    def Training(agent):
+                        if kind == "failure":
+                            raise original
+
+                        async def Coroutine():
+                            events.append("started")
+
+                        def Generator():
+                            events.append("started")
+                            yield None
+
+                        async def Async_Generator():
+                            events.append("started")
+                            yield None
+
+                        builders = {
+                                "coroutine": Coroutine,
+                                "generator": Generator,
+                                "async generator": Async_Generator,
+                                }
+                        result = builders[kind]()
+                        returned.append(result)
+                        return result
+
+                    Trained = type("Role", (Tag,), {Name("Training"): Imprint(Training)})
+                    if pinned:
+                        Trained = Pin(Trained)
+                    target = _target(pinned)
+                    # Formatted metadata is unnecessary even when the accepted
+                    # declaration key only becomes hostile after class creation.
+                    Name.armed = True
+                    with self.assertRaises(TagImprintError.Training) as caught:
+                        Trained(target)
+
+                    self.assertIn("Training", str(caught.exception))
+                    self.assertIs(caught.exception.__cause__, original if kind == "failure" else None)
+                    self.assertIn(target, Trained[:])
+                    self.assertTrue(Contract.Holds(target))
+                    self.assertEqual(events, [])
+                    if kind == "coroutine":
+                        self.assertIsNone(returned[0].cr_frame)
+                    elif kind == "generator":
+                        self.assertIsNone(returned[0].gi_frame)
+                    elif kind == "async generator":
+                        asyncio.run(returned[0].aclose())
+
 
 if __name__ == "__main__":
     unittest.main()

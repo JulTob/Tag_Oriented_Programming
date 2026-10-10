@@ -556,7 +556,7 @@ def _imprint(
             lazy = _discard_lazy_result(result)
         except Exception as error:
             raise TagImprintError.Named(name)(
-                    f"Imprint {name!r} failed:"
+                    f"Imprint {str.__str__(name)!r} failed:"
                     f" {_type_name(error)}: {_exception_text(error)}"
                     ) from error
 
@@ -564,7 +564,7 @@ def _imprint(
             article = "an" if lazy == "async generator" else "a"
 
             raise TagImprintError.Named(name)(
-                    f"Imprint {name!r} returned {article}"
+                    f"Imprint {str.__str__(name)!r} returned {article}"
                     f" {lazy}; an Imprint must complete synchronously."
                     " TOP does not await or iterate application protocols."
                     )
