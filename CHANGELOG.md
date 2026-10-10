@@ -4,6 +4,11 @@
 
 ### TopKit
 
+- **Field membership stays behind TOP's doors:** `Tag[:]` no longer
+  exposes public `Add` or `Remove` methods. Membership changes through
+  Tagging and Rip, so the Field and the Agent's active Tags cannot be
+  made to contradict each other through a partial internal operation.
+
 - **Constant Contributions:** `@Constant` protects Records, Actions,
   Posts, Reports and Operations from replacement, deletion and later
   Layers. Record values remain per Agent and their contents may mutate.

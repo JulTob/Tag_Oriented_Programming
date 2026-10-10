@@ -145,7 +145,7 @@ def _rollback(
     if current is not None:
         for tag in current.active:
             if tag not in entry_tags:
-                tag._topkit_field.Remove(agent)
+                tag._topkit_field._Remove(agent)
 
     _restore_namespace(
             agent,
@@ -413,7 +413,7 @@ def _commit(
                     f"{type(agent).__name__} cannot be actualized in place"
                     ) from error
 
-    tag._topkit_field.Add(agent)
+    tag._topkit_field._Add(agent)
 
     if state.pinned is not None and declarations.published:
         _publish_to_field(
