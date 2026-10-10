@@ -1,0 +1,39 @@
+# Checks the provisional experiment only; this is not TOP conformance CI.
+name: Experimental Ada Lifetime
+
+on:
+  push:
+    paths:
+      - "experimental/ada/lifetime/**"
+      - ".github/workflows/ada-lifetime.yml"
+  pull_request:
+    paths:
+      - "experimental/ada/lifetime/**"
+      - ".github/workflows/ada-lifetime.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ada-lifetime-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lifetime:
+    name: GNAT carrier finalization (experimental)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Ubuntu's native GNAT toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends gnat
+          gnatmake --version
+      - name: Check finalization with assertions and strict warnings
+        env:
+          GNAT_FLAGS: "-gnatwa -gnatwe"
+        run: sh experimental/ada/lifetime/run-tests.sh
