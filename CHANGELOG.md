@@ -20,6 +20,11 @@
   A Post can require the named Contribution; nonstring operands retain
   ordinary `@` behaviour. Pinned Tags support it as Agents.
 
+- **Fixed Field-algebra Tag recognition:** operator seats now recognize a
+  Tag by `MetaTag`, not by a callable named `_sound`. An ordinary Python
+  class with that name keeps normal class-union behaviour, and a Tag may
+  use `_sound` in its own namespace without changing its Field.
+
 ### Project
 
 - **Releases go out through Trusted Publishing.** A GitHub Release runs

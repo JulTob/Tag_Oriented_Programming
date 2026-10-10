@@ -22,6 +22,24 @@ import weakref
 from .errors import TagCompositionError
 
 
+_MetaTag: type | None = None   # imported on first use: tags imports this module
+
+
+def _is_tag_type(
+        candidate: object,
+        ) -> bool:
+    """A Tag is identified by its metaclass, never by a lookalike name."""
+
+    global _MetaTag
+
+    if _MetaTag is None:
+        from .tags import MetaTag
+
+        _MetaTag = MetaTag
+
+    return isinstance(candidate, _MetaTag)
+
+
 class _Population:
     """What every population answers: walk, ``in``, ``len``, truth, and
     the algebra. ``__iter__`` and ``__contains__`` come from the subclass."""
@@ -130,14 +148,10 @@ def _population_of(
     if isinstance(candidate, _Population):
         return candidate
 
-    sound = getattr(
-            candidate,
-            "_sound",
-            None,
-            )
+    if _is_tag_type(candidate):
+        from .tags import _sound_of
 
-    if callable(sound) and isinstance(candidate, type):
-        return sound()
+        return _sound_of(candidate)
 
     return NotImplemented
 
