@@ -65,8 +65,17 @@ view. Bindings keep the Agent weakly. A Secret Action selected through a
 view requires that same Agent's door to be open before invocation, so a
 handle captured during composition cannot authorize itself afterward.
 The guard preserves the captured Secret boundary when a later Layer is
-public. This is a view-specific repair: ordinary captured Agent/Pinned
-handles and lazy execution still need separate review (#93, #103).
+public.
+
+Ordinary object Agents also bind their current Secret Actions with this
+invocation guard, including Constant Actions. A synchronous call requires
+that same Agent's active synchronous or execution-local async-context
+door; another Agent's composition grants no access. Capturing a handle,
+ending membership, deleting the current binding, or changing the current
+Contribution's kind does not turn its captured implementation public.
+Authorized calls inside composition remain possible, and captured handles
+still hold their Agent weakly. Pin descriptors and lazy execution still
+need separate review (#93, #103).
 
 ### Presence without evaluation
 
