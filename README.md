@@ -80,7 +80,7 @@ alpha.
 | [`TopKit/FIELDS.md`](https://github.com/JulTob/Tag_Oriented_Programming/blob/main/TopKit/FIELDS.md) | **The Fields Guide**: populations, partitions and the algebra between them. | Apache-2.0 |
 | [`tests/`](https://github.com/JulTob/Tag_Oriented_Programming/tree/main/tests) | The conformance suite, the examples and every document block, the oracle (an independent model of the paradigm checked against the kit on a random walk), and the differential fuzzer (the same random programs on two versions of the kit, transcripts compared). | Apache-2.0 |
 | [`examples/`](https://github.com/JulTob/Tag_Oriented_Programming/tree/main/examples) | A D&D character sheet, a mix-and-match biome, a drone fleet patched through Pins, a starship crew under published members. Each is a set of design patterns. | Apache-2.0 |
-| [`benchmarks/`](https://github.com/JulTob/Tag_Oriented_Programming/tree/main/benchmarks) | Runtime budgets for reads, calls, tagging and memory, plus isolated capacity probes for Geometry scaling. | Apache-2.0 |
+| [`benchmarks/`](https://github.com/JulTob/Tag_Oriented_Programming/tree/main/benchmarks) | Runtime budgets for reads, calls, tagging and memory, plus isolated capacity probes for scaling and lifecycle behavior. | Apache-2.0 |
 | [`steps/`](https://github.com/JulTob/Tag_Oriented_Programming/tree/main/steps) | **STEP**s, Standard TOP Enhancement Proposals. | CC-BY-4.0 |
 | [`RELEASING.md`](https://github.com/JulTob/Tag_Oriented_Programming/blob/main/RELEASING.md) | How TopKit reaches PyPI, and what to check first. | Apache-2.0 |
 

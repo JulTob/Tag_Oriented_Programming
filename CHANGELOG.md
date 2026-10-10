@@ -30,6 +30,9 @@
   wide independent composition and wide diamonds. Each probe runs alone,
   asserts its observable result and reports time without treating a
   workstation measurement as a portable performance budget.
+- Three retention probes join the same isolated runner: a large Field whose
+  Agents are released, lifecycle teardown during collection and cache churn
+  through transient hosts, Tags, runtime types and Agents.
 - **Releases go out through Trusted Publishing.** A GitHub Release runs
   `.github/workflows/release.yml`: the suite on Python 3.12, 3.13 and
   3.14, the oracle at its audited size, a check that the tag names

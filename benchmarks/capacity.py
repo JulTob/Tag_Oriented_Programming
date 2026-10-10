@@ -1,12 +1,15 @@
-"""Isolated probes for TopKit's Geometry scaling boundaries.
+"""Isolated probes for TopKit's capacity boundaries.
 
-Run one probe in a fresh process so a deep Form does not contaminate a wide
-composition's memory or timing::
+Run one probe in a fresh process so one extreme does not contaminate another's
+memory or timing::
 
     PYTHONPATH=. python3 benchmarks/capacity.py deep 500
     PYTHONPATH=. python3 benchmarks/capacity.py form 1500
     PYTHONPATH=. python3 benchmarks/capacity.py wide 2000
     PYTHONPATH=. python3 benchmarks/capacity.py diamond 512
+    PYTHONPATH=. python3 benchmarks/capacity.py population 50000
+    PYTHONPATH=. python3 benchmarks/capacity.py lifecycle 20000
+    PYTHONPATH=. python3 benchmarks/capacity.py caches 5000
 
 These are capacity probes, not portable performance budgets.  They assert the
 observable result and report wall-clock time; compare measurements only on a
@@ -16,10 +19,14 @@ controlled machine and interpreter.
 from __future__ import annotations
 
 import argparse
+import gc
 import time
+import weakref
 from collections.abc import Callable
 
+from TopKit import At_Exit
 from TopKit import Form
+from TopKit import Rip
 from TopKit import Tag
 from TopKit import Tags
 
@@ -215,6 +222,157 @@ def Diamond(
             )
 
 
+def Population(
+        count: int,
+        ) -> None:
+    """Fill one Field, release every Agent and check weak cleanup."""
+
+    class Populated(Tag):
+        pass
+
+    agents = [
+            Agent()
+            for _ in range(count)
+            ]
+    started = time.perf_counter()
+
+    for agent in agents:
+        Populated(agent)
+
+    applied = time.perf_counter()
+
+    assert len(Populated[:]) == count
+
+    references = [
+            weakref.ref(agent)
+            for agent in agents
+            ]
+    agents.clear()
+    del agent
+    gc.collect()
+    collected = time.perf_counter()
+
+    assert len(Populated[:]) == 0
+    assert all(reference() is None for reference in references)
+
+    print(
+            "POPULATION PASS",
+            f"count={count}",
+            f"apply={applied - started:.6f}",
+            f"collect={collected - applied:.6f}",
+            )
+
+
+def Lifecycle(
+        count: int,
+        ) -> None:
+    """Collect registered Agents and check each teardown runs once."""
+
+    closed: list[int] = []
+
+    class Managed(Tag):
+        @Rip
+        def Close(
+                agent,
+                ) -> None:
+            closed.append(agent.identity)
+
+    agents = [
+            Agent()
+            for _ in range(count)
+            ]
+
+    for identity, agent in enumerate(agents):
+        agent.identity = identity
+        Managed(agent)
+        At_Exit(agent)
+
+    references = [
+            weakref.ref(agent)
+            for agent in agents
+            ]
+    started = time.perf_counter()
+
+    agents.clear()
+    del agent
+    gc.collect()
+
+    finished = time.perf_counter()
+
+    assert len(closed) == count
+    assert len(set(closed)) == count
+    assert len(Managed[:]) == 0
+    assert all(reference() is None for reference in references)
+
+    print(
+            "LIFECYCLE PASS",
+            f"targets={count}",
+            f"collect={finished - started:.6f}",
+            )
+
+
+def Cache_Churn(
+        count: int,
+        ) -> None:
+    """Drop transient hosts, Tags, runtime types and Agents."""
+
+    host_references: list[weakref.ReferenceType[type]] = []
+    tag_references: list[weakref.ReferenceType[type]] = []
+    runtime_references: list[weakref.ReferenceType[type]] = []
+    agent_references: list[weakref.ReferenceType[object]] = []
+    started = time.perf_counter()
+
+    for index in range(count):
+        host = type(
+                f"Transient_Host_{index}",
+                (),
+                {},
+                )
+        tag = type(
+                f"Transient_Tag_{index}",
+                (Tag,),
+                {},
+                )
+        agent = host()
+
+        tag(agent)
+
+        host_references.append(weakref.ref(host))
+        tag_references.append(weakref.ref(tag))
+        runtime_references.append(weakref.ref(type(agent)))
+        agent_references.append(weakref.ref(agent))
+
+    created = time.perf_counter()
+
+    del host
+    del tag
+    del agent
+
+    gc.collect()
+    gc.collect()
+
+    collected = time.perf_counter()
+    groups = (
+            host_references,
+            tag_references,
+            runtime_references,
+            agent_references,
+            )
+
+    assert all(
+            reference() is None
+            for group in groups
+            for reference in group
+            )
+
+    print(
+            "CACHES PASS",
+            f"compositions={count}",
+            f"create={created - started:.6f}",
+            f"collect={collected - created:.6f}",
+            )
+
+
 def _positive(
         value: str,
         ) -> int:
@@ -232,9 +390,12 @@ def main() -> None:
             "form": Form_Only,
             "wide": Wide,
             "diamond": Diamond,
+            "population": Population,
+            "lifecycle": Lifecycle,
+            "caches": Cache_Churn,
             }
     parser = argparse.ArgumentParser(
-            description="Run one isolated TopKit Geometry capacity probe.",
+            description="Run one isolated TopKit capacity probe.",
             )
     parser.add_argument(
             "probe",
