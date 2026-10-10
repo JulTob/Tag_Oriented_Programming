@@ -247,7 +247,7 @@ class _Field(_Population):
             field,
             agent: object,
             ) -> None:
-        """The commit step's half of membership: hold the Agent weakly
+        """The Field-entry half of membership: hold the Agent weakly
         in the Field. Private: by itself it would skip the Gate, Records
         and Imprints while leaving the Agent's state unchanged."""
 
