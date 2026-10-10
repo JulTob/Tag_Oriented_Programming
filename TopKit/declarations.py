@@ -1180,18 +1180,17 @@ class _Parameters:
     var_keyword: bool
 
 
-_parameter_cache: "WeakKeyDictionary[Function, _Parameters]" = (
-        WeakKeyDictionary()
-        )
+_parameter_cache: "dict[int, tuple[ref[Function], _Parameters]]" = {}
 
 
 def _parameters_of(
         function: Function,
         ) -> _Parameters:
-    cached = _parameter_cache.get(function)
+    key = id(function)
+    cached = _parameter_cache.get(key)
 
-    if cached is not None:
-        return cached
+    if cached is not None and cached[0]() is function:
+        return cached[1]
 
     positional = 0
     named: list[tuple[str, bool]] = []
@@ -1210,7 +1209,7 @@ def _parameters_of(
 
         named.append(
                 (
-                    parameter.name,
+                    str.__str__(parameter.name),
                     parameter.default is not Parameter.empty,
                     )
                 )
@@ -1220,7 +1219,19 @@ def _parameters_of(
             named=tuple(named),
             var_keyword=var_keyword,
             )
-    _parameter_cache[function] = spec
+
+    def Forget(expired: ref[Function], key: int = key) -> None:
+        current = _parameter_cache.get(key)
+
+        if current is not None and current[0] is expired:
+            del _parameter_cache[key]
+
+    try:
+        reference = ref(function, Forget)
+    except TypeError:
+        pass   # valid non-weakrefable callables are inspected without a memo
+    else:
+        _parameter_cache[key] = reference, spec
 
     return spec
 

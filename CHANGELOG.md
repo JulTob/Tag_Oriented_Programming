@@ -4,6 +4,14 @@
 
 ### TopKit
 
+- **Protocol signature identity:** different callable objects that compare
+  equal no longer reuse each other's parameter seats. Unhashable and
+  non-weakrefable accepted callables work without custom equality or hash
+  calls from the memo. Weak entries expire safely; parameter identifiers
+  are copied as plain text so attached user references cannot root a
+  callable. Defaults, named inputs and signature-inspection policy stay
+  unchanged, with uncached inspection for non-weakrefable callables.
+
 - **Constant Contributions:** `@Constant` protects Records, Actions,
   Posts, Reports and Operations from replacement, deletion and later
   Layers. Record values remain per Agent and their contents may mutate.
