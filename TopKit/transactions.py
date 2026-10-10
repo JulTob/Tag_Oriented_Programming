@@ -254,6 +254,7 @@ def _apply_one(
 
         _materialize(
                 agent,
+                tag,
                 declarations,
                 deleted_before,
                 inputs,
