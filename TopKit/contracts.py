@@ -79,6 +79,7 @@ def _bind_condition(
         function: Callable[..., Any],
         prior: Check | None,
         with_inputs: bool,
+        name: str,
         ) -> Check:
     """Bind one condition, giving it its Underlay when marked.
 
@@ -87,13 +88,13 @@ def _bind_condition(
     ``return base() and ...`` both compose.
     """
 
-    uses_underlay = _takes_underlay(function)
+    uses_underlay = _takes_underlay(function, name)
 
     if uses_underlay and prior is None:
         from .errors import TagResolutionError
 
         raise TagResolutionError(
-                f"{function.__qualname__} is @Underlay but no prior"
+                f"{str.__str__(name)!r} is @Underlay but no prior"
                 " condition of that name is visible"
                 )
 
