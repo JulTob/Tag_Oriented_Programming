@@ -1423,6 +1423,35 @@ class PreconditionTests(unittest.TestCase):
         self.assertIn(ari, Base)
         self.assertIn(ari, Shape)
 
+    def test_a_later_condition_collision_keeps_the_completed_base(self) -> None:
+        events = []
+
+        class Foundation(Tag):
+            @Record
+            def foundation_record(agent):
+                return "built"
+
+            @Imprint
+            def Foundation_Training(agent) -> None:
+                events.append("Foundation")
+
+        class Colliding_Shape(Foundation):
+            @Post
+            def Taken(agent) -> bool:
+                return True
+
+        ari = Agent()
+        ari.Taken = "host value"
+
+        with self.assertRaises(TagCompositionError):
+            Colliding_Shape(ari)
+
+        self.assertEqual(events, ["Foundation"])
+        self.assertIn(ari, Foundation)
+        self.assertNotIn(ari, Colliding_Shape)
+        self.assertEqual(ari.foundation_record, "built")
+        self.assertEqual(ari.Taken, "host value")
+
     def test_assert_style_precondition_fails_by_raising(self) -> None:
         ari = Agent()
         ari.level = 0

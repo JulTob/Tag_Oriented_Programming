@@ -347,7 +347,8 @@ A name identifies **one slot per scope**: `(scope, name)`. In Agent scope
 that slot holds an Action or a Record, never both at once:
 
 - **Independent** Tags (neither in the other's Form) cannot place an Action
-  and a Record at the same Agent name. The Tagging fails at step 1, atomic.
+  and a Record at the same Agent name. The current Tag fails at step 1 and
+  never enters its Field; completed earlier turns stay applied.
 - Within one Form, a Shape may **change the kind** of a Base slot: fix a
   Base Action as a Record, or compute a Base Record with an Action. The
   Base's view (§1.7) keeps the prior kind.
@@ -977,9 +978,9 @@ Wizard" (§0.8); a pinned Tag's own promises are read from the Pin's side,
 `f"{Wizard:pins}"` names its Pins. `Wizard.Rare` is the Pin-bound view
 by name, on the same miss-path rule as `charlie.Wizard`.
 
-**Contracts, Imprints, Rip.** A Pin's Preconditions gate the pinning and
-receive the Tag; a failed gate leaves the Tag exactly as it was, its
-metaclass included. Postconditions are checked once per pinning and
+**Contracts, Imprints, Rip.** A Pin's Preconditions gate its own turn and
+receive the Tag; a failed Gate leaves that Pin unapplied and its metaclass
+unchanged, while completed Base Pins stay. Postconditions are checked once per pinning and
 re-checked at later pinning boundaries of that Tag; a broken promise
 leaves the Tag pinned and defective (§2.5). Imprints run after Field entry.
 `del Rare[Wizard]` runs the Pin's Rip protocols; landed values and
@@ -1436,8 +1437,8 @@ types but must keep these distinct.
 | Failure | Meaning | Effect |
 | --- | --- | --- |
 | **Tag Declaration Failure** | A Tag is written wrong: illegal mark combination, `@Underlay` without a parameter to receive it. | at class use |
-| **Tag Composition Failure** | Contributions cannot form the Overlay: cross-kind collision, Record over a host descriptor, a Record builder or teardown that failed, a Target that cannot carry state, a Base still required. | call rolled back (or Rip refused) |
-| **Tag Resolution Failure** | A required Underlay, view, or membership is unavailable. | call rolled back |
+| **Tag Composition Failure** | Contributions cannot form the Overlay: cross-kind collision, Record over a host descriptor, a Record builder or teardown that failed, a Target that cannot carry state, a Base still required. | at the Gate: current Tag absent, earlier turns stay; after the Gate: current Tag stays; or Rip refused |
+| **Tag Resolution Failure** | A required Underlay, view, or membership is unavailable. | use refused; during Tagging, follows the current phase boundary |
 | **Tag Rogue Access Failure** | A Rogue Agent reached a published member of a Tag it has left. A Resolution Failure, and a TOP failure only: never dressed as a host-language attribute failure. | use refused |
 | **Tag Precondition Failure** | A Gate refused the incoming Agent. | that Tag does not apply; earlier turns stay |
 | **Tag Imprint Failure** | An Imprint failed after Field entry. | Tags stay |
@@ -1458,8 +1459,10 @@ A conforming implementation provides, ring by ring:
   has-been check that survives Rip;
 - non-owning, identity-indexed, iterable Fields;
 - Base-first Form application, each Base once, active reapply a no-op;
-- the five-step tagging sequence with the call boundary: rollback on gate
-  and Record failure, Tags stay on Imprint and Postcondition failure;
+- the five-step tagging sequence at each Tag's turn: a failed declaration
+  check or Gate leaves that Tag absent and earlier turns in place; after
+  its Gate passes, later failures leave it tagged and current Posts decide
+  deficiency;
 - Rip: sticky contributions and sticky conditions, ended by the author
   (a guard, or `Contract.Delete` from the `@Rip` protocol), refusal while
   a Shape requires the Base, no cascade;

@@ -169,11 +169,17 @@ def _gate(
     turns have already finished. Nothing is installed on the live state.
     """
 
+    declarations = _declarations_of(tag)
+    _refuse_conditions_shadowed_by_the_agent(
+            agent,
+            state,
+            tag,
+            declarations,
+            )
     scratch = state.Copy()
     quiet = _quiet.set(_quiet.get() + 1)   # the real pass warns; catch_warnings() would reset every registry
 
     try:
-        declarations = _declarations_of(tag)
         _install(
                 scratch,
                 tag,
@@ -208,18 +214,12 @@ def _apply_one(
         ) -> None:
     # The state is laid over in place: the call boundary (_apply) holds the
     # entry copy that a Record failure rolls back to, and nothing reads the
-    # new Overlay before commit binds it on the Agent.
+    # new Overlay before Field entry binds it on the Agent.
     boundary.after_commit = False   # #30: Parts still restore the whole call in TopKit
     state = _state_for(agent)
     declarations = _declarations_of(tag)
     retained_constants = frozenset(state.constants)
     deleted_before = set(state.deleted)
-    _refuse_conditions_shadowed_by_the_agent(
-            agent,
-            state,
-            tag,
-            declarations,
-            )
     state.composing += 1
     primary_failure: BaseException | None = None
 

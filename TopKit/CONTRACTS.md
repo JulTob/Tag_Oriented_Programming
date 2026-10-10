@@ -47,7 +47,7 @@ at its own time.
 
 | Claim | Mark | Checked | When it fails |
 | --- | --- | --- | --- |
-| "You may enter" | `@Pre` | at the door, once | nothing changes: refused |
+| "You may enter" | `@Pre` | at that Tag's door, once | current Tag never starts; earlier turns stay |
 | "You will stay like this" | `@Post` | at the door, then at every tagging and every use of a published member | the Tag stays; the Agent is **defective** |
 | "You may use what we share" | `@Public` | at every use | refused until membership and soundness return |
 
@@ -657,8 +657,8 @@ assert Bridge in Certified
 
 ## 12. The checklist
 
-- **Gate what must be true to enter** with `@Pre`. A refused Agent is
-  untouched.
+- **Gate what must be true to enter** with `@Pre`. A refused Tag never
+  starts; Tags whose turns already finished stay applied.
 - **Promise what must stay true** with `@Post`. A broken promise flags,
   never undoes.
 - **Stack both**, or write `@Requirement`, when a claim is a necessity in
