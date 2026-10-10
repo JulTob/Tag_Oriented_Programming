@@ -44,6 +44,7 @@ from .overlay import _materialize
 from .state import STATE
 from .state import _Snapshot
 from .state import _State
+from .state import _actualize_runtime_type
 from .state import _bind_to
 from .state import _name_of
 from .state import _namespace_of
@@ -140,7 +141,10 @@ def _rollback(
         entry_tags: tuple[type, ...],
         entry_class: type,
         ) -> None:
-    current = _state_of(agent)
+    if type(agent) is not entry_class:
+        _set_runtime_type(agent, entry_class)
+
+    current = _state_of(agent)   # the refused type may have hidden the namespace
 
     if current is not None:
         for tag in current.active:
@@ -165,9 +169,6 @@ def _rollback(
             live.Restore(entry_copy)   # in place: a door opened before this call closes on it
     else:
         namespace.pop(STATE, None)
-
-    if type(agent) is not entry_class:
-        _set_runtime_type(agent, entry_class)
 
 
 def _gate(
@@ -406,12 +407,10 @@ def _commit(
         next_type = type(agent)
 
     if type(agent) is not next_type:
-        try:
+        if type(agent) is state.host_type:
+            _actualize_runtime_type(agent, next_type, state)
+        else:
             _set_runtime_type(agent, next_type)
-        except TypeError as error:
-            raise TagCompositionError(
-                    f"{type(agent).__name__} cannot be actualized in place"
-                    ) from error
 
     tag._topkit_field.Add(agent)
 

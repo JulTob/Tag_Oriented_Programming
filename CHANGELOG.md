@@ -4,6 +4,11 @@
 
 ### TopKit
 
+- **Host actualization is atomic:** a Target that refuses, ignores or
+  substitutes TopKit's runtime type now raises a Composition Failure.
+  Runtime-subclass hooks and disposable `__dict__` views are normalized
+  too; the original host type, namespace, Tags and Fields remain unchanged.
+
 - **Constant Contributions:** `@Constant` protects Records, Actions,
   Posts, Reports and Operations from replacement, deletion and later
   Layers. Record values remain per Agent and their contents may mutate.

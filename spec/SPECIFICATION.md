@@ -54,7 +54,9 @@ replaces it: before and after, it is the same object. Precisely:
 What TOP does **not** promise is nominal type identity: a Python
 implementation may swap the object's class for a runtime subclass of it.
 `isinstance(agent, Host)` stays true; `type(agent) is Host` may not. See
-Ring 4.
+Ring 4. If the chosen representation cannot be created or installed
+exactly, Tagging fails with a Composition Failure and leaves the Target
+unchanged.
 
 ## 0.2 Vocabulary
 

@@ -45,6 +45,11 @@ Actions; Agents are built once and play for a long time. So:
 - **Runtime types are shared** across every Agent whose host and
   type-level facts match, whatever Tags they carry. Ten thousand Agents of
   one host normally share one type.
+- **Actualization is verified before Field entry.** The Target must retain
+  its state and accept the exact runtime type the kit requested. Host
+  `__setattr__` and `__init_subclass__` refusals, and metaclasses that
+  substitute another type, become Composition Failures. Rollback restores
+  the host type through the kernel path, not through the refusing hook.
 - **The composition door is a counter** on the Agent's state. Bound
   protocols raise it while they run; the secret-gate descriptor checks it.
   Agents without secrets use a plain bound callable and pay nothing.
