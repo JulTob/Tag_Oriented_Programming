@@ -10,6 +10,10 @@ who is either, ``Wizard - Sworn`` the sound Wizards who have not sworn,
 ``Wizard & Fighter`` the sound Agents who are both. A Tag in an operator
 seat means its sound population. The result is a lazy view: it reads the
 Fields when it is walked, never copies them, and keeps application order.
+
+A walk takes a Field's join order when it begins. At each saved member's
+turn it asks membership again: one Ripped earlier in the walk is skipped,
+while one Ripped and tagged again before its turn is visited once.
 """
 
 from __future__ import annotations
@@ -292,25 +296,32 @@ class _Field(_Population):
     def __iter__(
             field,
             ) -> Iterator[object]:
-        live = [
+        held = [
                 agent
                 for reference in list(field._members.values())
                 if (agent := reference()) is not None
                 ]
 
-        return iter(live)
+        return field._Walk(held)
 
-    def _held(
+    def _Walk(
             field,
-            ) -> list[object | None]:
-        """Every member, held for as long as the list lives; None where
-        one has died. A question that stops early skips the filtering a
-        walk pays for."""
+            held: list[object],
+            ) -> Iterator[object]:
+        """Walk the saved join order, asking membership at each turn.
 
-        return [
-                reference()
-                for reference in list(field._members.values())
-                ]
+        Holding the starting members keeps identity stable for the walk.
+        Membership itself stays live: Rip skips a coming turn, and a
+        fresh Tagging restores it without adding a second turn.
+        """
+
+        members = field._members
+
+        for agent in held:
+            reference = members.get(id(agent))
+
+            if reference is not None and reference() is agent:
+                yield agent
 
     def __len__(
             field,
@@ -346,19 +357,24 @@ class _Partition(_Population):
     def __iter__(
             partition,
             ) -> Iterator[object]:
+        field = partition._field
+
         return (
                 agent
-                for agent in partition._field
-                if partition._holds(agent)
+                for agent in field
+                if partition._holds(agent) and agent in field
                 )
 
     def __contains__(
             partition,
             agent: object,
             ) -> bool:
+        field = partition._field
+
         return (
-                agent in partition._field
+                agent in field
                 and partition._holds(agent)
+                and agent in field
                 )
 
     def __bool__(
@@ -366,13 +382,10 @@ class _Partition(_Population):
             ) -> bool:
         """Anyone? Stops at the first member that counts (``while Enemy:``)."""
 
-        holds = partition._holds
-
-        for agent in partition._field._held():   # every member held while the checks run
-            if agent is not None and holds(agent):
-                return True
-
-        return False
+        return any(
+                True
+                for _ in partition
+                )
 
     def __invert__(
             partition,
