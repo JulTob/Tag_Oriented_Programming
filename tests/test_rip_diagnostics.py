@@ -381,6 +381,57 @@ class RipDiagnosticTests(unittest.TestCase):
                 self.assertIsNone(value.gi_frame)
                 self.assertNotIn(target, Shape[:])
 
+    def test_namespace_key_repr_cannot_mask_lazy_rip_failures(self) -> None:
+        for pinned in (False, True):
+            for composed in (False, True):
+                with self.subTest(pinned=pinned, composed=composed):
+                    class Name(str):
+                        def __str__(self) -> str:
+                            raise AssertionError("name text was evaluated")
+
+                        def __repr__(self) -> str:
+                            raise AssertionError("name representation was evaluated")
+
+                    name = Name("Close")
+                    returned = []
+
+                    class Lazy:
+                        def __call__(self, agent: object) -> Any:
+                            def Values():
+                                yield None
+
+                            value = Values()
+                            returned.append(value)
+                            return value
+
+                    closing = type("Closing", (Tag,), {name: Rip(Lazy())})
+                    if pinned:
+                        closing = Pin(closing)
+
+                    if composed:
+                        def Implementation(agent: object, underlay) -> None:
+                            try:
+                                underlay()
+                            except Exception:
+                                pass
+
+                        closing = type(
+                                "Shape",
+                                (closing,),
+                                {name: Rip(Underlay(Implementation))},
+                                )
+
+                    target = _target(pinned)
+                    closing(target)
+                    with self.assertRaises(TagCompositionError) as failure:
+                        del closing[target]
+
+                    cause = failure.exception.__cause__
+                    self.assertIsInstance(cause, TagCompositionError)
+                    self.assertIn("Rip protocol 'Close' returned a generator", str(cause))
+                    self.assertIsNone(returned[0].gi_frame)
+                    self.assertNotIn(target, closing[:])
+
 
 if __name__ == "__main__":
     unittest.main()

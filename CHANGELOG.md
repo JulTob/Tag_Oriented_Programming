@@ -9,6 +9,7 @@
   Failure reporting no longer reads Python function-name metadata, so it
   preserves the original cause and still attempts the remaining cleanup.
   Lazy Underlay violations retain the same named failure even when caught.
+  Failed exception formatting cannot conceal a lazy disposal failure.
 
 - **Synchronous protocol results:** Preconditions, Imprints, Postconditions
   and Rip teardowns now reject coroutine, generator and async-generator

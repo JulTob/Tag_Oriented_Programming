@@ -191,7 +191,7 @@ def _call_teardown(
         article = "an" if lazy == "async generator" else "a"
 
         raise TagCompositionError(
-                f"Rip protocol {name!r} returned {article}"
+                f"Rip protocol {str.__str__(name)!r} returned {article}"
                 f" {lazy}; a Rip protocol must complete synchronously."
                 " TOP does not await or iterate teardown protocols."
                 )
