@@ -95,7 +95,7 @@ snapshot, including Fields. `TagImprintError` and `TagPostconditionError`
 propagate with everything left in place.
 
 Laying over the live state is safe because nothing reads the new Overlay
-before commit binds it on the Agent, and the entry snapshot is the only
+before Field entry binds it on the Agent, and the entry snapshot is the only
 rollback target.
 
 `declarations._discard_lazy_result` recognizes coroutines, generators and
