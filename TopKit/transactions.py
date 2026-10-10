@@ -1,9 +1,9 @@
 """Applying a Tag: the tagging sequence and its call boundary.
 
-After the whole-Form collision check, for each Tag in the Form (Bases
-first), in order:
+For each Tag in the Form (Bases first), in order:
 
-    1. Gate: that Tag's Preconditions inspect the Agent at this turn.
+    1. Gate: that Tag's declarations are checked against the current
+       Overlay, then its Preconditions inspect the Agent at this turn.
     2. Its Records are built (each may read the value already stored).
     3. Field entry: membership, Overlay, runtime type.
     4. Its Imprints run.
@@ -37,7 +37,6 @@ from .errors import TagPreconditionError
 from .geometry import _form_of
 from .overlay import _install
 from .overlay import _quiet
-from .overlay import _refuse_in_collisions_of_the_form
 from .overlay import _materialize
 from .state import STATE
 from .state import _Snapshot
@@ -90,20 +89,13 @@ def _apply(
                 ]
 
         if pending:
-            if len(pending) > 1:
-                _refuse_in_collisions_of_the_form(
-                        state,
-                        pending,
-                        )
-
             for member in pending:
-                if _declarations_of(member).preconditions:
-                    _gate(
-                            agent,
-                            state,
-                            member,
-                            inputs,
-                            )
+                _gate(
+                        agent,
+                        state,
+                        member,
+                        inputs,
+                        )
 
                 _apply_one(
                         agent,

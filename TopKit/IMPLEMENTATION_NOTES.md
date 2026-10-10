@@ -139,9 +139,8 @@ the Parts rollback target.
   it, so they cannot disagree. The same check refuses a Flag while a
   Tag's `__contains__`/`__iter__` Action (a published Operation included)
   is visible, and such an Action while a Flag is active; `@Flag` refuses
-  a Tag that declares one. A Form of several Tags is checked as a whole
-  before any of it applies (`_refuse_in_collisions_of_the_form`), so a
-  Flag Base's Imprint never runs for a Shape that is then refused. No
+  a Tag that declares one. The candidate Overlay check runs at each Tag's
+  own turn, so a later collision leaves completed Base Tags in place. No
   type-level gate (`@Delete`, `@Secret`, `@Public` of the same name) can
   overwrite the Flag's hook. Pins are exempt: on a Tag, TOP owns `in`.
 - **Deletion in Layers** (STEP-SPEC-18). The runtime type's `__del__` is

@@ -162,12 +162,12 @@ deliberate act: Rip, then apply again.
 
 ## 0.6 The tagging sequence
 
-Think of a factory line. After the whole-Form collision check (§1.8), for
-each missing Tag in the Form, in order:
+Think of a factory line. For each missing Tag in the Form, in order:
 
-1. **Gate.** That Tag's own Preconditions inspect the Agent and the inputs
-   when its turn arrives. A failed Gate stops before that Tag begins; Tags
-   whose turns have finished stay applied.
+1. **Gate.** That Tag's declarations are checked against the current
+   Overlay, then its own Preconditions inspect the Agent and the inputs.
+   A failed check or Precondition stops before that Tag begins; Tags whose
+   turns have finished stay applied.
 
 2. **Parts.** That Tag's Records are built, each allowed to read the value
    already stored under its name.
@@ -859,11 +859,12 @@ A Flag needs the Agent's `in`, and one seat holds one meaning. Something
 else may already answer it: the host, through its own `__contains__` or
 `__iter__` (a container, a party that iterates its members), or a Tag's
 Action of either name, a published Operation included. A Flag and any of
-them collide, in either order, and within one Form before any of it
-applies. The later one fails with a Composition Failure naming both
-sides, like a Record over a host property, and nothing changes: a seat
-never changes meaning in silence. A Flag that declares such an Action
-itself is a Declaration Failure.
+them collide, in either order. The later one fails with a Composition
+Failure naming both sides, like a Record over a host property. Within one
+Form, the collision is checked when that Tag's turn arrives: completed
+Base Tags stay, while the colliding Tag never begins. A seat never changes
+meaning in silence. A Flag that declares such an Action itself is a
+Declaration Failure.
 
 The host's seat is read as the language reads `in`. In Python, for
 `__contains__` and then `__iter__`, the first class in the MRO that

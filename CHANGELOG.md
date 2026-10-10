@@ -5,17 +5,17 @@
 ### Specification
 
 - **Gates run per Tag:** each missing Tag passes its own Preconditions when
-  its turn arrives. A later refusal leaves completed Base Taggings in place
-  and stops before the refused Tag's Records, Contributions, Field entry or
-  Imprints. A Shape's Precondition no longer suppresses a missing Base's
-  own Gate; active Tags are still not re-asked. Once a Gate passes, a later
-  failure is not a refusal; #30 retains the Record continuation and failure-
-  precedence decision.
+  its turn arrives. A later refusal or Overlay collision leaves completed
+  Base Taggings in place and stops before the current Tag's Records, Field
+  entry or Imprints. A Shape's Precondition no longer suppresses a missing
+  Base's own Gate; active Tags are still not re-asked. Once a Gate passes,
+  a later failure is not a refusal; #30 retains the Record continuation and
+  failure-precedence decision.
 
 ### TopKit
 
-- Gate evaluation now follows the Base-first Tag chain without removing
-  completed Bases when a later Tag refuses.
+- Gate and candidate-Overlay evaluation now follow the Base-first Tag chain
+  without removing completed Bases when a later Tag refuses or collides.
 - **Known #30 limitation, unchanged here:** TopKit still restores the
   whole call when a Record builder fails. It must retain the post-Gate Tag;
   the Director still needs to choose whether its later Records and Imprints

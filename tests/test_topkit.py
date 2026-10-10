@@ -3561,7 +3561,7 @@ class InSeatTests(unittest.TestCase):
             self.assertIn("Wolf", ari)                    # the words keep the seat
             self.assertNotIn(ari, answering)
 
-    def test_a_shape_that_answers_in_over_a_flag_base_rolls_back(self) -> None:
+    def test_a_shape_collision_keeps_its_completed_flag_base(self) -> None:
         Werewolf = self.Werewolf
 
         class Pack_Leader(Werewolf):
@@ -3572,8 +3572,9 @@ class InSeatTests(unittest.TestCase):
 
         self.refused(lambda: Pack_Leader(ari), "Pack_Leader.__iter__", "Flag Werewolf")
 
-        self.assertNotIn(ari, Werewolf)                   # the whole Form rolled back
+        self.assertIn(ari, Werewolf)
         self.assertNotIn(ari, Pack_Leader)
+        self.assertIn("Wolf", ari)
 
     def test_a_flag_cannot_answer_in_itself(self) -> None:
         class Pack(Tag):
@@ -3683,10 +3684,11 @@ class InSeatTests(unittest.TestCase):
             self.refused(lambda: Alpha(fresh), "Alpha", method)
 
             self.assertIn(carrying, answering)            # it keeps what it had
-            self.assertNotIn(fresh, answering)            # the whole Form rolled back
+            self.assertIn(fresh, answering)               # its Base turn completed
             self.assertIn("alice", carrying)
+            self.assertIn("alice", fresh)
 
-    def test_a_form_collides_before_anything_runs(self) -> None:
+    def test_a_later_collision_keeps_the_completed_base(self) -> None:
         log: list[str] = []
 
         @Flag
@@ -3703,8 +3705,10 @@ class InSeatTests(unittest.TestCase):
 
         self.refused(lambda: Alpha(ari), "Alpha.__iter__", "Flag Wolfkin")
 
-        self.assertEqual(log, [])                         # the Base's Imprint never ran
-        self.assertNotIn(ari, Wolfkin)
+        self.assertEqual(log, ["Wolfkin"])
+        self.assertIn(ari, Wolfkin)
+        self.assertNotIn(ari, Alpha)
+        self.assertIn("Wolfkin", ari)
 
     def test_a_form_may_free_the_seat_before_its_flag(self) -> None:
         class Ungate(self.Gate):
