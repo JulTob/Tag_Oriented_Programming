@@ -596,6 +596,7 @@ class _Composing_Bound(_Bound):
     @Secret members resolve inside it."""
 
     __slots__ = ()
+    __doc__ = _Bound.__dict__["__doc__"]   # keep the bound Action's metadata
 
     def __call__(
             bound,
@@ -618,6 +619,46 @@ class _Composing_Bound(_Bound):
                     )
         finally:
             state.composing -= 1
+
+
+class _Secret_Bound(_Composing_Bound):
+    """A Secret view Action needs an open door before it can open its own.
+
+    Capturing the callable from inside composition grants no later access.
+    Its captured Secret boundary stays even if a newer Layer is public.
+    """
+
+    __slots__ = ("_name",)
+    __doc__ = _Bound.__dict__["__doc__"]
+
+    def __init__(
+            bound,
+            function: Function,
+            agent: object,
+            name: str,
+            ) -> None:
+        super().__init__(function, agent)
+        bound._name = name
+
+    def __call__(
+            bound,
+            *args: Any,
+            **kwargs: Any,
+            ) -> Any:
+        agent = bound._reference()
+
+        if agent is None:
+            raise ReferenceError("the Agent of this Action no longer exists")
+
+        state = _state_of(agent)
+
+        if state is None or not _is_composing(state):
+            raise AttributeError(
+                    f"{bound._name!r} is a secret Action; it is reachable"
+                    " only from its Agent's composition"
+                    )
+
+        return super().__call__(*args, **kwargs)
 
 
 def _bind_to(

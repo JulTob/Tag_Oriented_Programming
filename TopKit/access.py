@@ -24,8 +24,9 @@ from .declarations import _MISSING
 from .declarations import _is_flag
 from .declarations import _words_of
 from .lifecycle import _teardown_all
-from .state import _Bound
+from .state import _Composing_Bound
 from .state import _Pinned_Operation
+from .state import _Secret_Bound
 from .state import _Snapshot
 from .state import _State
 from .state import _is_composing
@@ -445,7 +446,14 @@ class _Tag_View:
                     )
 
         if name in snapshot.actions:
-            return _Bound(
+            if name in snapshot.secrets:
+                return _Secret_Bound(
+                        snapshot.actions[name],
+                        agent,
+                        name,
+                        )
+
+            return _Composing_Bound(
                     snapshot.actions[name],
                     agent,
                     )
