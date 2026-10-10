@@ -22,6 +22,9 @@
 
 ### Project
 
+- **Fixed:** resolving a Form deeper than Python's recursion limit raised
+  `RecursionError`. Geometry now walks Bases iteratively, preserving the
+  same Base-first, declaration-order, duplicate-free result.
 - **Releases go out through Trusted Publishing.** A GitHub Release runs
   `.github/workflows/release.yml`: the suite on Python 3.12, 3.13 and
   3.14, the oracle at its audited size, a check that the tag names
