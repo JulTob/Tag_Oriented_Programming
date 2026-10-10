@@ -1288,14 +1288,16 @@ in, the other an Agent already in and now broken. Reading
 
 ## 2.8 Writing a check
 
-A condition usually asks whether an Agent *has* something. `assert
-agent.spellbook` reads well, but asks two questions at once: *defined* and
-*truthy*. That is fine for a spellbook object; it is a trap for a
-`spell_slots` of `0`. Separate having a contribution from its value:
+A Post can require an Agent to *have* a named Contribution (§1.1).
+Separate presence from its value:
 
-- Is it there at all? `assert agent.spell_slots is not None`, or
-  `assert hasattr(agent, "spell_slots")` when `None` is itself valid.
-- Does it have a particular value? `assert agent.spell_slots > 0`.
+- Is it there at all? `"spell_slots" @ agent` tests the name's presence.
+  Stored `False`, `None` and `0` all count as present.
+- Does it have a particular value? `agent.spell_slots > 0` tests its value.
+
+A Post requiring the name can write `return "spell_slots" @ agent`.
+Presence guarantees neither successful value access, callability nor
+successful behaviour; express those requirements separately.
 
 ---
 
