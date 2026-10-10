@@ -157,8 +157,12 @@ MI6(bond, code="007")      # every protocol that names `code` receives it
 ```
 
 **Reapplying an active Tag does nothing.** It does not duplicate
-membership, does not rerun Imprints, does not reset Records. Resetting is a
-deliberate act: Rip, then apply again.
+membership, does not rerun Imprints, and does not rebuild Records. Rip ends
+membership but leaves sticky Contributions. Applying the Tag after Rip is
+fresh Tagging: ordinary Record builders run again. A builder without a
+`stored` seat replaces the current binding with its returned value; a
+builder with that seat receives the current binding and determines how to
+evolve it.
 
 ## 0.6 The tagging sequence
 
@@ -259,8 +263,11 @@ Rip is the only exit from a Field, and it obeys three laws:
   is a Resolution Failure. A Constant Post (§1.5) cannot be deleted;
   any membership guard must be part of its original check.
 - **Reapplying a Ripped Tag is a fresh Tagging.** Imprints run again;
-  ordinary Records are rebuilt. Established Constant bindings stay intact;
-  their builders do not run again for the same declaration.
+  ordinary Record builders run again. A builder without a `stored` seat
+  replaces the current binding; one with that seat receives the current
+  binding, including a value left by the Tag's earlier application.
+  Established Constant bindings stay intact; their builders do not run
+  again for the same declaration.
 - **A Scope Rips what it applied, and only that.** A Tag the Agent
   already carried at entry is left as it was on exit; a Tag that applied
   and reported a broken promise at the Scope's door did apply, and is

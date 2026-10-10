@@ -227,11 +227,16 @@ assert bob.spellbook == []                # not shared
 
 **Watch out.** A Record builder runs once, when the Tag applies. It is not a
 property; it does not recompute. Reapplying an active Tag does nothing, so
-a Record is never silently reset. To reset an ordinary Record, Rip and
-apply again. `@Constant @Record` keeps its established binding instead;
-the value's contents may still be mutable. [Constant Contributions](CONSTANTS.md)
-shows the distinction and the same protection for Actions, Posts and
-shared Contributions.
+a Record is never silently rebuilt. Rip removes membership, not the binding.
+Applying the Tag after Rip is fresh Tagging: every ordinary builder runs
+again. A builder without a `stored` seat replaces the current binding with
+its returned value. A builder with that seat receives the current binding,
+including a value left by the Tag's earlier application, and decides how to
+evolve it. Thus Rip alone is not a reset; the builder determines what fresh
+Tagging does with the value. `@Constant @Record` is not rebuilt, though the
+value's contents may still be mutable. [Constant Contributions](CONSTANTS.md)
+shows the distinction and the same protection for Actions, Posts and shared
+Contributions.
 
 ### Pattern 3 · Pile things up from several Tags
 
@@ -1050,7 +1055,7 @@ your Reports and Operations there.
 | Mark word-like Tags `@Flag` and write rules as data. | Match every Tag by name. Only Flags are words. |
 | Say things about a Tag with a `@Pin`. | Keep a side table of Tags outside TOP. |
 | Clean up with `@Rip`, guarantee it with `Scope`. | Rely on `del agent` for anything that matters. |
-| Reset by Rip and apply again. | Reapply an active Tag hoping it resets (it does nothing). |
+| Rip, then Tag again when the Record builder should rebuild its value. | Assume Rip itself erases Contributions, or reapply an active Tag hoping it rebuilds. |
 | Expect a Rogue Agent to keep its own Actions and lose the Agency's published ones. | Check membership by hand inside every published Operation. |
 | Catch the named promise, repair what it names, retry. | Catch every failure in one handler and guess. |
 | Keep shared data in a `Report`, one copy. | Copy shared data into every Agent's Record. |
