@@ -10,25 +10,40 @@ memory or timing::
     PYTHONPATH=. python3 benchmarks/capacity.py population 50000
     PYTHONPATH=. python3 benchmarks/capacity.py lifecycle 20000
     PYTHONPATH=. python3 benchmarks/capacity.py caches 5000
+    PYTHONPATH=. python3 benchmarks/capacity.py threads 20000
+    PYTHONPATH=. python3 benchmarks/capacity.py pin-cycles 10000
 
 These are capacity probes, not portable performance budgets.  They assert the
 observable result and report wall-clock time; compare measurements only on a
 controlled machine and interpreter.
+Run without -O/-OO and unset PYTHONOPTIMIZE: assertions validate the result.
+Optimized execution is refused instead of reporting an unchecked PASS.
 """
 
 from __future__ import annotations
+
+if not __debug__:
+    raise SystemExit(
+            "Capacity probes require assertions. Rerun without -O/-OO"
+            " and unset PYTHONOPTIMIZE."
+            )
 
 import argparse
 import gc
 import time
 import weakref
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 
+from TopKit import Action
 from TopKit import At_Exit
 from TopKit import Form
+from TopKit import Pin
+from TopKit import Record
 from TopKit import Rip
 from TopKit import Tag
 from TopKit import Tags
+from TopKit import Underlay
 
 
 class Agent:
@@ -373,6 +388,123 @@ def Cache_Churn(
             )
 
 
+def Distinct_Target_Threads(
+        count: int,
+        ) -> None:
+    """Stress independent Agent ownership with up to sixteen workers.
+
+    Each Agent stays in one worker, but the shared Fields are unsynchronized.
+    This probe records current CPython behavior; it establishes no thread-safety
+    guarantee.
+    """
+
+    class Base(Tag):
+        @Record
+        def values(
+                agent,
+                ) -> list[int]:
+            return []
+
+        @Action
+        def Add(
+                agent,
+                value: int,
+                ) -> int:
+            agent.values.append(value)
+            return len(agent.values)
+
+    class Refined(Base):
+        @Action
+        @Underlay
+        def Add(
+                agent,
+                underlay,
+                value: int,
+                ) -> int:
+            return underlay(value * 2)
+
+    def Exercise(
+            index: int,
+            ) -> bool:
+        agent = Agent()
+        Refined(agent)
+
+        assert agent.Add(index) == 1
+        assert agent.values == [index * 2]
+        assert agent in Base
+        assert agent in Refined
+
+        del Refined[agent]
+        del Base[agent]
+
+        return (
+                agent not in Base
+                and agent not in Refined
+                and isinstance(agent, Refined)
+                )
+
+    started = time.perf_counter()
+
+    with ThreadPoolExecutor(max_workers=16) as workers:
+        results = list(
+                workers.map(
+                        Exercise,
+                        range(count),
+                        )
+                )
+
+    finished = time.perf_counter()
+
+    assert all(results)
+    assert len(Base[:]) == 0
+    assert len(Refined[:]) == 0
+
+    print(
+            "THREADS PASS",
+            f"targets={count}",
+            f"seconds={finished - started:.6f}",
+            )
+
+
+def Pin_Cycles(
+        count: int,
+        ) -> None:
+    """Apply and Rip reciprocal Pins repeatedly without retaining membership."""
+
+    @Pin
+    class First(Tag):
+        pass
+
+    @Pin
+    class Second(Tag):
+        pass
+
+    started = time.perf_counter()
+
+    for _ in range(count):
+        First(Second)
+        Second(First)
+
+        assert Second in First
+        assert First in Second
+
+        del First[Second]
+        del Second[First]
+
+    finished = time.perf_counter()
+
+    assert Tags(First) == ()
+    assert Tags(Second) == ()
+    assert isinstance(Second, First)
+    assert isinstance(First, Second)
+
+    print(
+            "PIN-CYCLES PASS",
+            f"cycles={count}",
+            f"seconds={finished - started:.6f}",
+            )
+
+
 def _positive(
         value: str,
         ) -> int:
@@ -393,6 +525,8 @@ def main() -> None:
             "population": Population,
             "lifecycle": Lifecycle,
             "caches": Cache_Churn,
+            "threads": Distinct_Target_Threads,
+            "pin-cycles": Pin_Cycles,
             }
     parser = argparse.ArgumentParser(
             description="Run one isolated TopKit capacity probe.",
