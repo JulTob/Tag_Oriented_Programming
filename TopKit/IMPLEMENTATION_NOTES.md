@@ -53,9 +53,22 @@ Actions; Agents are built once and play for a long time. So:
   a captured context can neither reuse the door nor retain the Agent state.
   Secret gates accept either form. The type-cache key uses the selected raw
   Actions and wrappers are allocated only on a cache miss, so equal
-  compositions still share one runtime type. Ordinary Actions on Agents
-  without Secrets use plain callables; context Actions are wrapped even
-  then, because a hook may introduce the first Secret while it runs.
+  compositions still share one runtime type. Current synchronous TOP
+  Actions, including Pin Actions, open their composition door even before
+  any Secret exists: an Action may introduce the first Secret while it
+  runs. A public handle captured before that Tagging still composes when
+  called afterward. Ordinary host methods are not wrapped. This does not
+  change general special-method composition (#93), lazy execution (#94),
+  or inherited Pin receiver/authority choices (#98).
+  Public Pin handles without Secrets now use the existing composing callable
+  wrapper rather than Python's `MethodType`; their receiver, strong ownership,
+  `__name__` and `__doc__` stay, but method-only `__self__` / `__func__`
+  introspection is not preserved by that wrapper. The Python callable profile
+  remains a separate decision (#87).
+  Optional callable metadata does not gate Pin invocation: usable `__name__`
+  and `__doc__` are preserved; ordinary failures reading or assigning them
+  fall back to the declared name and `None`, respectively. Metadata interrupts
+  still propagate. Operation publication is a separate repair (#138).
 
 Synchronous Actions selected through an Agent-bound Tag view use the same
 composition door, even when that snapshot preceded the first Secret
