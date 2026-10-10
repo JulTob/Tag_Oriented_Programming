@@ -95,8 +95,19 @@ snapshot, including Fields. `TagImprintError` and `TagPostconditionError`
 propagate with everything left in place.
 
 Laying over the live state is safe because nothing reads the new Overlay
-before commit binds it on the Agent, and the entry snapshot is the only
+before Field entry binds it on the Agent, and the entry snapshot is the only
 rollback target.
+
+`declarations._discard_lazy_result` recognizes coroutines, generators and
+async generators returned from synchronous protocols. It closes only through
+a synchronous disposal operation and never drives the lazy body.
+Conditions turn the result into a Contract Failure, Imprints into their named
+Imprint Failure, and lifecycle teardown into the collected Composition
+Failure. Best-effort deletion uses the same path, so discarded coroutines do
+not escape as unawaited-coroutine warnings. Composed Actions carry a private
+chain identity: a flow-local Rip guard checks every Underlay in the selected
+teardown chain, remembers a violation even when user code catches it, and does
+not reinterpret an independent `@Rip` Action called normally as a teardown.
 
 ## Judgment calls
 

@@ -204,7 +204,16 @@ reported as a note when possible.
 An exceptional return does not itself make an Agent permanently defective.
 Its current visible Postconditions determine soundness (§2.5), so a finished
 Agent whose promises hold may be sound despite a failed Imprint or an
-interruption after Commit.
+interruption after Field entry.
+
+Preconditions, Imprints, Postconditions and Rip teardowns are synchronous
+protocols. Returning a coroutine, generator or async generator is an explicit
+failure of that protocol: TOP never awaits or iterates the result, and closes
+it synchronously where Python permits that without starting its body. The
+normal phase boundary still applies—the refused Tag does not apply, a failed
+Imprint or Post leaves its Tag applied, and a failed Rip is reported after
+membership has ended. A Record builder is different: its return is the
+Record value, not a discarded protocol result.
 
 ```text
 Citadel(ari)                      Form: Territory, Citadel
@@ -1327,6 +1336,8 @@ bond.status          # "Former MI6 Agent"
 Teardowns run **after** membership has ended, in declaration order, every
 one of them; failures are collected and reported once as a Composition
 Failure. A `@Rip` Action with an `@Underlay` runs composed, like any Action.
+Like the tagging protocols (§0.6), a teardown must finish synchronously; a
+lazy return is rejected without awaiting or iterating it.
 
 Ripping a Tag may apply another Tag, even itself. That is outside good TOP
 use: it could keep an Agent from ever leaving a Field.

@@ -13,6 +13,10 @@ from typing import Iterator
 import atexit
 
 from .declarations import _parameters_of
+from .declarations import _ACTION_CHAIN
+from .declarations import _discard_lazy_result
+from .declarations import _Lazy_Rip_Guard
+from .declarations import _lazy_rip_guard
 from .declarations import _takes_underlay
 from .errors import TagCompositionError
 from .errors import TagError
@@ -142,25 +146,51 @@ def _call_teardown(
     receives the Tag's original declarations, so un-patching is
     ``tag.Control = original.Control``."""
 
-    if state.pinned is None:
-        teardown(agent)
-        return
-
-    declared = getattr(
-            teardown,
-            "__wrapped__",
-            teardown,
-            )
-    seats = _parameters_of(declared).positional
-    receiver_seats = 2 if _takes_underlay(declared) else 1
-
-    if seats > receiver_seats:
-        teardown(
-                agent,
-                _Originals(state.originals),
+    guard = _Lazy_Rip_Guard(
+            getattr(
+                teardown,
+                _ACTION_CHAIN,
+                None,
                 )
-    else:
-        teardown(agent)
+            )
+    token = _lazy_rip_guard.set(guard)
+
+    try:
+        if state.pinned is None:
+            result = teardown(agent)
+        else:
+            declared = getattr(
+                    teardown,
+                    "__wrapped__",
+                    teardown,
+                    )
+            seats = _parameters_of(declared).positional
+            receiver_seats = 2 if _takes_underlay(declared) else 1
+
+            if seats > receiver_seats:
+                result = teardown(
+                        agent,
+                        _Originals(state.originals),
+                        )
+            else:
+                result = teardown(agent)
+    finally:
+        guard.active = False
+        _lazy_rip_guard.reset(token)
+
+    lazy = _discard_lazy_result(result)
+
+    if guard.failures:
+        raise guard.failures[0]
+
+    if lazy is not None:
+        article = "an" if lazy == "async generator" else "a"
+
+        raise TagCompositionError(
+                f"Rip protocol {teardown.__qualname__} returned {article}"
+                f" {lazy}; a Rip protocol must complete synchronously."
+                " TOP does not await or iterate teardown protocols."
+                )
 
 
 @contextmanager

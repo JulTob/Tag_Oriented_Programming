@@ -13,8 +13,11 @@ from typing import Callable
 from typing import Iterable
 
 from .declarations import _protocol_inputs
+from .declarations import _discard_lazy_result
 from .declarations import _takes_underlay
 from .errors import _Named
+from .errors import _exception_text
+from .errors import _type_name
 from .errors import TagContractError
 from .errors import TagError
 from .errors import TagPostconditionError
@@ -28,10 +31,36 @@ from .state import _state_of
 Check = Callable[[object, dict[str, Any]], Any]
 
 
+def _result_repr(result: Any) -> str:
+    """Keep ordinary diagnostic detail without trusting an invalid value's repr."""
+
+    try:
+        return str.__str__(repr(result))
+    except Exception:
+        return "<result representation unavailable>"
+
+
 def _verdict(
         result: Any,
         label: str,
         ) -> bool:
+    try:
+        lazy = _discard_lazy_result(result)
+    except Exception as error:
+        raise TagContractError(
+                f"{label} returned a lazy result that could not be"
+                f" disposed of: {_type_name(error)}: {_exception_text(error)}"
+                ) from error
+
+    if lazy is not None:
+        article = "an" if lazy == "async generator" else "a"
+
+        raise TagContractError(
+                f"{label} returned {article} {lazy}; a condition must"
+                " complete synchronously. TOP does not await or iterate"
+                " application protocols."
+                )
+
     if result is True or result is None:
         return True
 
@@ -39,7 +68,7 @@ def _verdict(
         return False
 
     raise TagContractError(
-            f"{label} returned {result!r} ({type(result).__name__}); a"
+            f"{label} returned {_result_repr(result)} ({_type_name(result)}); a"
             " condition must yield True, False, or None. TOP does not"
             " coerce truthy / falsy values: write the comparison you mean,"
             " such as `x != 0`, `x > 0`, or `x is not None`."
@@ -100,12 +129,13 @@ def _bind_condition(
 
         def base() -> bool:
             try:
-                return _verdict(
-                        prior(agent, inputs),
-                        "underlay",
-                        )
+                result = prior(agent, inputs)
+            except TagContractError:
+                raise
             except Exception:
                 return False
+
+            return _verdict(result, "condition Underlay")
 
         return function(
                 agent,
@@ -128,11 +158,13 @@ def _evaluate(
     for name, check in checks:
         try:
             result = check(agent, inputs)
-        except TagContractError:
-            raise
+        except TagContractError as error:
+            raise TagContractError(
+                    f"{phase} {name!r} failed: {_exception_text(error)}"
+                    ) from error
         except Exception as error:
             raise failure.Named(name)(
-                    f"{phase} {name!r} raised {type(error).__name__}: {error}"
+                    f"{phase} {name!r} raised {_type_name(error)}: {_exception_text(error)}"
                     ) from error
 
         if not _verdict(result, f"{phase} {name!r}"):
