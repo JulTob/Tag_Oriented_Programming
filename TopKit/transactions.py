@@ -33,6 +33,8 @@ from .declarations import _discard_lazy_result
 from .declarations import _declarations_of
 from .declarations import _is_flag
 from .declarations import _protocol_inputs
+from .errors import _exception_text
+from .errors import _type_name
 from .errors import TagCompositionError
 from .errors import TagImprintError
 from .errors import TagPostconditionError
@@ -555,7 +557,7 @@ def _imprint(
         except Exception as error:
             raise TagImprintError.Named(name)(
                     f"Imprint {name!r} failed:"
-                    f" {type(error).__name__}: {error}"
+                    f" {_type_name(error)}: {_exception_text(error)}"
                     ) from error
 
         if lazy is not None:

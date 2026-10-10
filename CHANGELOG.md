@@ -8,6 +8,8 @@
   results identify the Imprint's declared name, including callable objects
   without Python function metadata and aliased functions. The original cause,
   completed Tagging, and existing stop-at-failure order are preserved.
+  Failing exception text uses a fallback rather than hiding that failure;
+  Python interruptions still propagate.
 
 - **Synchronous protocol results:** Preconditions, Imprints, Postconditions
   and Rip teardowns now reject coroutine, generator and async-generator

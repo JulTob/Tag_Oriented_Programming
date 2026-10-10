@@ -214,7 +214,10 @@ not reinterpret an independent `@Rip` Action called normally as a teardown.
   return uses that name rather than inspecting or renaming its callable.
   The original cause is preserved. Later Imprints still do not run after
   failure; the applied Tag and its captured view remain, and current Posts
-  alone determine soundness. Python interruptions retain their own type.
+  alone determine soundness. Shared private helpers bypass exception-type
+  metadata and fall back when ordinary exception-text formatting fails.
+  Synchronous return values are not observed; Python interruptions retain
+  their own type, including interruptions during diagnostic text.
 - **Pins reuse the whole sequence.** A pinned Tag is an Agent whose
   namespace is its class dictionary. `_namespace_of` hands the kernel a
   `_Class_Namespace` adapter (get, set, pop, keys) over the proxy, so
