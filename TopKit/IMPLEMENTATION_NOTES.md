@@ -74,8 +74,23 @@ door; another Agent's composition grants no access. Capturing a handle,
 ending membership, deleting the current binding, or changing the current
 Contribution's kind does not turn its captured implementation public.
 Authorized calls inside composition remain possible, and captured handles
-still hold their Agent weakly. Pin descriptors and lazy execution still
-need separate review (#93, #103).
+still hold their Agent weakly. Lazy execution remains a separate concern
+(#94).
+
+Current Secret Actions landed by Pins use a Secret-specific Operation
+descriptor. Its captured callable checks the pinned Tag's existing
+composition before opening its own door; an unrelated pinned Tag's own
+door supplies no authority. Ordinary and Constant Secret Operations share
+this guard.
+Receiver binding and ownership are unchanged: a captured Pin Operation
+retains its pinned Tag as existing Operation handles do, while the Pin's
+Field remains weak. Rip, fresh pinning, and a refused pinning preserve
+the same state, so authorized calls still work across those boundaries.
+Inherited public Operations still open their declaring Base's state even
+when their receiver is a Shape; such a call can therefore authorize that
+Base's captured Secret Operation. This receiver/authority question and
+inherited Secret dependencies remain pending (#98). This repair neither
+introduces private Pin binding deletion nor governs lazy execution (#94).
 
 ### Presence without evaluation
 

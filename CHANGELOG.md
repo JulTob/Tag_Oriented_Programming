@@ -4,6 +4,14 @@
 
 ### TopKit
 
+- **Captured Pin-private Operations:** a captured current Secret Action
+  landed by a Pin, including a Constant Action, requires its pinned Tag's
+  already-open composition door before invocation. Rip, fresh pinning,
+  or a public class-namespace shadow cannot make that capture public.
+  Existing receiver binding and ownership remain
+  unchanged; inherited public Operation dependencies and lazy execution
+  remain separate concerns.
+
 - **Captured Secret Actions:** current Secret Action handles on ordinary
   object Agents, including Constant Actions, require an already-open
   composition door on that same Agent when invoked. Capturing a handle
