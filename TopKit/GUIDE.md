@@ -418,6 +418,12 @@ and it will refuse the raw value. Write the comparison you mean, such as
 `return agent.slots > 0`. This keeps a real zero from being mistaken for
 a refusal.
 
+**Protocol work finishes now.** `@Pre`, `@Imprint`, `@Post` and `@Rip`
+are synchronous. An `async def` or a function containing `yield` returns
+work that has not run; TopKit rejects that result without awaiting or
+iterating it. Put async or streaming behaviour in Actions or Operations.
+This rule does not decide what a Record may store.
+
 ### Pattern 6 · Promise, then repair
 
 **When you want** a Tag to guarantee something about the finished Agent.

@@ -21,7 +21,10 @@ from .contracts import _guarded
 from .constants import _constant_overlay
 from .constants import _refuse_constant
 from .declarations import _Declarations
+from .declarations import _ACTION_CHAIN
+from .declarations import _discard_lazy_result
 from .declarations import _is_flag
+from .declarations import _lazy_rip_guard
 from .declarations import _parameters_of
 from .declarations import _protocol_inputs
 from .declarations import _takes_stored
@@ -166,6 +169,15 @@ def _compose(
                 f"{function.__qualname__} requires a visible Underlay"
                 )
 
+    chain = getattr(
+            underlay,
+            _ACTION_CHAIN,
+            None,
+            )
+
+    if chain is None:
+        chain = object()
+
     @wraps(function)
     def Call(
             agent: object,
@@ -177,17 +189,50 @@ def _compose(
                 **next_kwargs: Any,
                 ) -> Any:
             if next_args or next_kwargs:
-                return underlay(
+                result = underlay(
                         agent,
                         *next_args,
                         **next_kwargs,
                         )
+            else:
+                result = underlay(
+                        agent,
+                        *args,
+                        **kwargs,
+                        )
 
-            return underlay(
-                    agent,
-                    *args,
-                    **kwargs,
-                    )
+            guard = _lazy_rip_guard.get()
+
+            if (
+                    guard is not None
+                    and guard.active
+                    and guard.chain is chain
+                    ):
+                try:
+                    lazy = _discard_lazy_result(result)
+                except Exception as error:
+                    failure = TagCompositionError(
+                            f"Rip protocol {underlay.__qualname__} returned a"
+                            " lazy result that could not be disposed of:"
+                            f" {type(error).__name__}: {error}"
+                            )
+                    guard.failures.append(failure)
+
+                    raise failure from error
+
+                if lazy is not None:
+                    article = "an" if lazy == "async generator" else "a"
+                    failure = TagCompositionError(
+                            f"Rip protocol {underlay.__qualname__} returned"
+                            f" {article} {lazy}; a Rip protocol must complete"
+                            " synchronously. TOP does not await or iterate"
+                            " teardown protocols."
+                            )
+                    guard.failures.append(failure)
+
+                    raise failure
+
+            return result
 
         return function(
                 agent,
@@ -195,6 +240,12 @@ def _compose(
                 *args,
                 **kwargs,
                 )
+
+    setattr(
+            Call,
+            _ACTION_CHAIN,
+            chain,
+            )
 
     return Call
 

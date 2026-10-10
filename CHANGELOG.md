@@ -4,6 +4,14 @@
 
 ### TopKit
 
+- **Synchronous protocol results:** Preconditions, Imprints, Postconditions
+  and Rip teardowns now reject coroutine, generator and async-generator
+  results explicitly instead of silently discarding work that never ran.
+  Closeable lazy results are disposed of without awaiting or iterating them,
+  including on best-effort deletion paths. Each failure retains its existing
+  phase: the refused Tag does not apply, Imprint and Post leave their Tag
+  applied, and Rip membership has already ended. Record values are unchanged.
+
 - **Constant Contributions:** `@Constant` protects Records, Actions,
   Posts, Reports and Operations from replacement, deletion and later
   Layers. Record values remain per Agent and their contents may mutate.

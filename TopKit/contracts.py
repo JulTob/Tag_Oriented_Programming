@@ -13,6 +13,7 @@ from typing import Callable
 from typing import Iterable
 
 from .declarations import _protocol_inputs
+from .declarations import _discard_lazy_result
 from .declarations import _takes_underlay
 from .errors import _Named
 from .errors import TagContractError
@@ -32,6 +33,23 @@ def _verdict(
         result: Any,
         label: str,
         ) -> bool:
+    try:
+        lazy = _discard_lazy_result(result)
+    except Exception as error:
+        raise TagContractError(
+                f"{label} returned a lazy result that could not be"
+                f" disposed of: {type(error).__name__}: {error}"
+                ) from error
+
+    if lazy is not None:
+        article = "an" if lazy == "async generator" else "a"
+
+        raise TagContractError(
+                f"{label} returned {article} {lazy}; a condition must"
+                " complete synchronously. TOP does not await or iterate"
+                " application protocols."
+                )
+
     if result is True or result is None:
         return True
 
@@ -102,8 +120,10 @@ def _bind_condition(
             try:
                 return _verdict(
                         prior(agent, inputs),
-                        "underlay",
+                        f"underlay for {function.__qualname__}",
                         )
+            except TagContractError:
+                raise
             except Exception:
                 return False
 
@@ -128,8 +148,10 @@ def _evaluate(
     for name, check in checks:
         try:
             result = check(agent, inputs)
-        except TagContractError:
-            raise
+        except TagContractError as error:
+            raise TagContractError(
+                    f"{phase} {name!r} failed: {error}"
+                    ) from error
         except Exception as error:
             raise failure.Named(name)(
                     f"{phase} {name!r} raised {type(error).__name__}: {error}"

@@ -11,7 +11,11 @@ A Tag class is scanned once; the result is cached per class.
 
 from __future__ import annotations
 
+from contextvars import ContextVar
 from dataclasses import dataclass
+from inspect import isasyncgen
+from inspect import iscoroutine
+from inspect import isgenerator
 from inspect import Parameter
 from inspect import signature
 from typing import Any
@@ -35,6 +39,7 @@ _PUBLIC = "__topkit_public__"
 _FLAG = "__topkit_flag__"
 _PIN = "__topkit_pin__"
 _CONSTANT = "__topkit_constant__"
+_ACTION_CHAIN = "__topkit_action_chain__"
 
 STATE = "_TOPKIT_STATE"
 
@@ -43,6 +48,30 @@ _flags_declared = 0   # counts every @Flag, so an Agent's gathered words know wh
 _MISSING = object()
 
 Function = Callable[..., Any]
+
+
+class _Lazy_Rip_Guard:
+    """Failures found inside composed Rip Underlays during one teardown."""
+
+    __slots__ = (
+            "active",
+            "chain",
+            "failures",
+            )
+
+    def __init__(
+            guard,
+            chain: object | None,
+            ) -> None:
+        guard.active = True
+        guard.chain = chain
+        guard.failures: list[TagCompositionError] = []
+
+
+_lazy_rip_guard: ContextVar[_Lazy_Rip_Guard | None] = ContextVar(
+        "topkit_lazy_rip_guard",
+        default=None,
+        )
 
 
 # ------------------------------------------------------------------
@@ -1265,3 +1294,31 @@ def _protocol_inputs(
                     )
 
     return bound
+
+
+def _discard_lazy_result(
+        result: Any,
+        ) -> str | None:
+    """Dispose of a lazy result a synchronous protocol cannot use.
+
+    Return its kind for the phase-specific failure message. Coroutines and
+    synchronous generators have a synchronous ``close`` operation that does
+    not start an unentered body. Async generators can only be closed by
+    awaiting ``aclose``; TOP does not invent an event loop merely to reject
+    one, so it leaves the unstarted object for Python to reclaim.
+    """
+
+    if iscoroutine(result):
+        result.close()
+
+        return "coroutine"
+
+    if isasyncgen(result):
+        return "async generator"
+
+    if isgenerator(result):
+        result.close()
+
+        return "generator"
+
+    return None
