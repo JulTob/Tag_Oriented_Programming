@@ -669,19 +669,24 @@ class _Declarations:
     constants: frozenset[str]
 
 
-_scan_cache: "WeakKeyDictionary[type, _Declarations]" = WeakKeyDictionary()
-
-
 def _declarations_of(
         tag: type,
         ) -> _Declarations:
-    cached = _scan_cache.get(tag)
+    # The Tag owns its scan through its own kernel Field. Functions may
+    # refer back to their class through closures, defaults or annotations;
+    # a global weak-key cache would retain the Tag through those values.
+    field = vars(tag)["_topkit_field"]
 
-    if cached is None:
-        cached = _scan(tag)
-        _scan_cache[tag] = cached
+    if field._declarations is None:
+        field._declarations = _scan(tag)
 
-    return cached
+    return field._declarations
+
+
+def _invalidate_declarations(
+        tag: type,
+        ) -> None:
+    vars(tag)["_topkit_field"]._declarations = None
 
 
 def _is_private(

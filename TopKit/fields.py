@@ -242,6 +242,7 @@ class _Field(_Population):
             ) -> None:
         field._members: dict[int, _Member] = {}
         field._expire = field._Forget   # one callback for every member
+        field._declarations = None   # the owning Tag's declaration memo
 
     def Add(
             field,

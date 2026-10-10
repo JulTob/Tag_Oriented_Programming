@@ -432,11 +432,11 @@ def _publish_to_field(
     whole Field is checked on copies first, so no Agent is touched unless
     all can be."""
 
-    from .declarations import _scan_cache
+    from .declarations import _invalidate_declarations
     from .overlay import _adapter
 
     state = _state_of(pinned)
-    _scan_cache.pop(pinned, None)   # the Tag's declarations grew
+    _invalidate_declarations(pinned)   # the Tag's declarations grew
     agents = list(pinned[:])
     plans: list[tuple[object, _State]] = []
 

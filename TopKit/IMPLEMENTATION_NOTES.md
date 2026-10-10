@@ -170,7 +170,14 @@ rollback target.
   Python clears weak references before finalizers run, so a finalizer's
   Tag code cannot call the Agent's bound Actions there (`ReferenceError`).
 - **What the kit keeps, and for how long.** The Form cache holds a Tag's
-  Bases only, never the Tag, so a dropped Tag class is freed. A Rip drops
+  Bases only, never the owning Tag itself. Each Tag owns its declaration
+  memo through its own kernel Field, not a global cache: the memo does
+  not globally root its Tag through a declaration's closure, defaults or
+  annotations. Pin publication invalidates the receiving Tag's memo.
+  This adds no binding to the Tag's namespace and does not change the
+  Field's weak membership. Holding a Field explicitly also holds its
+  declaration metadata; these ownership rules are not a blanket lifetime
+  guarantee about arbitrary user values that refer back to Tags. A Rip drops
   the Tag's view snapshot (a view needs membership). A Field entry is a
   slotted weak reference carrying its key, with one callback per Field;
   `At_Exit` numbers its registrations the same way and drops each one when
