@@ -191,14 +191,14 @@ class _Combined(_Population):
         right = combined._right
 
         if combined._operator == "|":
-            seen: set[int] = set()
+            seen: dict[int, object] = {}
 
             for agent in left:
-                seen.add(id(agent))
+                seen[id(agent)] = agent
                 yield agent
 
             for agent in right:
-                if id(agent) not in seen:
+                if seen.get(id(agent)) is not agent:
                     yield agent
 
             return

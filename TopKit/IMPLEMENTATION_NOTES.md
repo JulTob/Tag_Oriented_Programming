@@ -251,8 +251,10 @@ rollback target.
   union. `_Field.__iter__` holds the starting Agents in join order, then
   checks the live identity entry at each turn. Rip therefore skips a
   coming turn, re-Tagging restores that turn, and a new member waits.
-  Partitions—including their fast truth question—and combinations all
-  route through that walk. No kernel state changes.
+  A union walk retains the Agents it has seen on its left until that walk
+  ends, so Python cannot reuse one identity key for a distinct Agent on a
+  later side. Partitions—including their fast truth question—and
+  combinations all route through that walk. No kernel state changes.
 - **Condition members** (STEP-SPEC-14): `_agent_getattr` answers a
   condition by name on the miss path, after Tag views and before the
   host's own `__getattr__`, through `contracts._condition_member`, which
