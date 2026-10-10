@@ -1,0 +1,39 @@
+# Checks the provisional experiment only; this is not TOP conformance CI.
+name: Experimental Ada Geometry
+
+on:
+  push:
+    paths:
+      - "experimental/ada/geometry/**"
+      - ".github/workflows/ada-geometry.yml"
+  pull_request:
+    paths:
+      - "experimental/ada/geometry/**"
+      - ".github/workflows/ada-geometry.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ada-geometry-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  geometry:
+    name: GNAT Geometry/Form (experimental)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Ubuntu's native GNAT toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends gnat
+          gnatmake --version
+      - name: Check Geometry/Form with assertions and strict warnings
+        env:
+          GNAT_FLAGS: "-gnatwa -gnatwe"
+        run: sh experimental/ada/geometry/run-tests.sh
