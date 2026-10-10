@@ -2834,6 +2834,34 @@ class PopulationWalkTests(unittest.TestCase):
 
         self.assertEqual(self.walked(combatants, Join_Right), [ari, bo, cal])
 
+    def test_a_union_walk_keeps_seen_identity_stable_until_it_finishes(self) -> None:
+        class Wizard(Tag):
+            pass
+
+        class Fighter(Tag):
+            pass
+
+        class Druid(Tag):
+            pass
+
+        ari, bo, cal = Agent(), Agent(), Agent()
+        Wizard(ari)
+        Fighter(bo)
+        Druid(cal)
+        reference = weakref.ref(ari)
+        combatants = iter((Wizard[:] | Fighter[:]) | Druid[:])
+
+        self.assertIs(next(combatants), ari)
+        del ari
+        self.assertIs(next(combatants), bo)
+        self.assertIs(next(combatants), cal)
+        gc.collect()
+
+        self.assertIsNotNone(reference())
+        self.assertEqual([member for member in combatants], [])
+        gc.collect()
+        self.assertIsNone(reference())
+
     def test_a_new_member_waits_but_a_retagged_member_keeps_its_turn(self) -> None:
         class Wizard(Tag):
             pass

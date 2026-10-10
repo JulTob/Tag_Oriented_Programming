@@ -14,7 +14,9 @@
   Tags, whole and defective Fields, Pins and combinations share the rule,
   and their truth and length agree with iteration. A one-pass materialization
   uses a comprehension; Python's `list(population)` may first perform a
-  separate live length-hint walk.
+  separate live length-hint walk. A union walk keeps the left-side Agents
+  used for deduplication until it ends, so Python cannot reuse an old identity
+  for a distinct Agent on a later side.
 
 - **Constant Contributions:** `@Constant` protects Records, Actions,
   Posts, Reports and Operations from replacement, deletion and later
