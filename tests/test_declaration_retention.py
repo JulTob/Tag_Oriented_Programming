@@ -5,7 +5,7 @@ import unittest
 import weakref
 
 from TopKit import Action, Constant, Pin, Public, Record, Tag, TagCompositionError
-from TopKit.declarations import _declarations_of
+from TopKit.declarations import _declaration_key, _declarations_of
 
 
 class Host:
@@ -76,6 +76,46 @@ class DeclarationRetentionTests(unittest.TestCase):
             return (weakref.ref(Ephemeral),)
 
         self.assert_collected(create())
+
+    def test_a_retained_empty_population_does_not_keep_its_pinned_tag_alive(self):
+        @Pin
+        class MetaPin(Tag):
+            pass
+
+        def create():
+            @Pin
+            class InnerPin(Tag):
+                def Owner(receiver):
+                    return __class__
+
+            class Receiver(Tag):
+                pass
+
+            MetaPin(InnerPin)
+            InnerPin(Receiver)
+            self.assertIs(Receiver.Owner(), InnerPin)
+            return InnerPin[:], (weakref.ref(InnerPin), weakref.ref(Receiver))
+
+        population, references = create()
+        self.assert_collected(references)
+        self.assertEqual(len(population), 0)
+        self.assertEqual(list(MetaPin[:]), [])
+
+    def test_a_retained_population_does_not_keep_an_action_default_agent_alive(self):
+        def create():
+            agent = Host()
+
+            def Work(receiver, original=agent):
+                return original
+
+            tag = type("Ephemeral", (Tag,), {"Work": Action(Work)})
+            tag(agent)
+            self.assertIs(agent.Work(), agent)
+            return tag[:], (weakref.ref(tag), weakref.ref(agent))
+
+        population, references = create()
+        self.assert_collected(references)
+        self.assertEqual(len(population), 0)
 
     def test_a_shape_owns_its_scan_instead_of_inheriting_the_bases(self):
         class Base(Tag):
@@ -182,6 +222,67 @@ class DeclarationRetentionTests(unittest.TestCase):
         Base(future)
         self.assertIs(existing.label, Base.label)
         self.assertIs(future.label, Base.label)
+
+    def test_a_collision_with_the_identity_qualified_key_is_not_overwritten(self):
+        for value in (None, False, "application-private"):
+            with self.subTest(value=value):
+                class Given(Tag):
+                    def Work(agent):
+                        return "given"
+
+                name = _declaration_key(Given)
+                setattr(Given, name, value)
+                before = _declarations_of(Given)
+                self.assertIsNot(_declarations_of(Given), before)
+                agent = Host()
+                Given(agent)
+                self.assertEqual(agent.Work(), "given")
+                self.assertIs(vars(Given)[name], value)
+
+    def test_an_inherited_collision_is_not_shadowed_by_the_shape_memo(self):
+        class Earlier(Tag):
+            pass
+
+        _declarations_of(Earlier)
+
+        class Base(Tag):
+            pass
+
+        class Shape(Earlier, Base):
+            def Work(agent):
+                return "shape"
+
+        name = _declaration_key(Shape)
+        setattr(Base, name, "application-private")
+        declarations = _declarations_of(Shape)
+        self.assertIsNot(_declarations_of(Shape), declarations)
+        agent = Host()
+        Shape(agent)
+        self.assertEqual(agent.Work(), "shape")
+        self.assertEqual(getattr(Shape, name), "application-private")
+        self.assertNotIn(name, vars(Shape))
+
+    def test_pin_invalidation_preserves_a_colliding_user_binding(self):
+        class Base(Tag):
+            pass
+
+        name = _declaration_key(Base)
+        setattr(Base, name, "application-private")
+        existing = Host()
+        Base(existing)
+
+        @Pin
+        class Given(Tag):
+            @Public
+            @Record
+            def label(tag):
+                return "given"
+
+        Given(Base)
+        self.assertEqual(vars(Base)[name], "application-private")
+        future = Host()
+        Base(future)
+        self.assertEqual((existing.label, future.label), ("given", "given"))
 
     def test_multiple_bases_keep_their_effective_private_binding(self):
         class Earlier(Tag):

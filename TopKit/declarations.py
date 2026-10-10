@@ -672,21 +672,38 @@ class _Declarations:
 def _declarations_of(
         tag: type,
         ) -> _Declarations:
-    # The Tag owns its scan through its own kernel Field. Functions may
-    # refer back to their class through closures, defaults or annotations;
-    # a global weak-key cache would retain the Tag through those values.
-    field = vars(tag)["_topkit_field"]
+    # A Tag owns its memo, never its public Field or a global weak-key
+    # cache: declaration values may refer back to the Tag or its Agents.
+    name = _declaration_key(tag)
+    namespace = vars(tag)
+    cached = namespace.get(name, _MISSING)
 
-    if field._declarations is None:
-        field._declarations = _scan(tag)
+    if type(cached) is _Declarations:
+        return cached
 
-    return field._declarations
+    declarations = _scan(tag)
+    if name not in namespace and all(
+            name not in vars(base)
+            for base in tag.__mro__[1:]
+            ):
+        type.__setattr__(tag, name, declarations)
+
+    return declarations
+
+
+def _declaration_key(
+        tag: type,
+        ) -> str:
+    # Distinct Base and Shape memos have different keys.
+    return f"_TOPKIT_DECLARATIONS_{id(tag):x}"
 
 
 def _invalidate_declarations(
         tag: type,
         ) -> None:
-    vars(tag)["_topkit_field"]._declarations = None
+    name = _declaration_key(tag)
+    if type(vars(tag).get(name)) is _Declarations:
+        type.__delattr__(tag, name)
 
 
 def _is_private(
