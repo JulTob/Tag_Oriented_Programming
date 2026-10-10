@@ -669,19 +669,41 @@ class _Declarations:
     constants: frozenset[str]
 
 
-_scan_cache: "WeakKeyDictionary[type, _Declarations]" = WeakKeyDictionary()
-
-
 def _declarations_of(
         tag: type,
         ) -> _Declarations:
-    cached = _scan_cache.get(tag)
+    # A Tag owns its memo, never its public Field or a global weak-key
+    # cache: declaration values may refer back to the Tag or its Agents.
+    name = _declaration_key(tag)
+    namespace = vars(tag)
+    cached = namespace.get(name, _MISSING)
 
-    if cached is None:
-        cached = _scan(tag)
-        _scan_cache[tag] = cached
+    if type(cached) is _Declarations:
+        return cached
 
-    return cached
+    declarations = _scan(tag)
+    if name not in namespace and all(
+            name not in vars(base)
+            for base in tag.__mro__[1:]
+            ):
+        type.__setattr__(tag, name, declarations)
+
+    return declarations
+
+
+def _declaration_key(
+        tag: type,
+        ) -> str:
+    # Distinct Base and Shape memos have different keys.
+    return f"_TOPKIT_DECLARATIONS_{id(tag):x}"
+
+
+def _invalidate_declarations(
+        tag: type,
+        ) -> None:
+    name = _declaration_key(tag)
+    if type(vars(tag).get(name)) is _Declarations:
+        type.__delattr__(tag, name)
 
 
 def _is_private(
