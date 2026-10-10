@@ -179,7 +179,18 @@ rollback target.
   it is left untouched and the Tag is scanned without memoization. Pin
   publication invalidates only the receiving Tag's internal memo. These
   ownership rules are not a blanket lifetime guarantee about arbitrary
-  user values that refer back to Tags. A Rip drops
+  user values that refer back to Tags. Protocol parameter memos use
+  callable identity, never its custom hash or equality, and hold the
+  callable weakly. An expired reference cannot delete a replacement
+  entry. An accepted callable without weak-reference support is inspected
+  without memoization or added attributes. Native parameter name objects
+  are preserved for keyword lookup and the keys passed into the callable.
+  When any retained name is a string subclass, inspection is uncached:
+  its attached references cannot become owners through the global memo.
+  Exact-string names remain safely memoized with the original
+  first-inspection timing. Defaults and input-binding policy are preserved.
+  This does not choose a different callable introspection profile (#87).
+  A Rip drops
   the Tag's view snapshot (a view needs membership). A Field entry is a
   slotted weak reference carrying its key, with one callback per Field;
   `At_Exit` numbers its registrations the same way and drops each one when
