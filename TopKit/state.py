@@ -549,15 +549,17 @@ class _Composing_Pinned_Operation(_Pinned_Operation):
     """A pinned Operation that opens the pinned Tag's composition door
     while it runs, so the Pin's @Secret members resolve inside it."""
 
-    __slots__ = ("_state",)
+    __slots__ = ("_state", "_name")
 
     def __init__(
             operation,
             function: Function,
             state: "_State",
+            name: str,
             ) -> None:
         super().__init__(function)
         operation._state = state
+        operation._name = name
 
     def __get__(
             operation,
@@ -585,8 +587,15 @@ class _Composing_Pinned_Operation(_Pinned_Operation):
             finally:
                 state.composing -= 1
 
-        Composing.__name__ = function.__name__
-        Composing.__doc__ = function.__doc__
+        try:
+            Composing.__name__ = function.__name__
+        except Exception:
+            Composing.__name__ = operation._name
+
+        try:
+            Composing.__doc__ = function.__doc__
+        except Exception:
+            Composing.__doc__ = None
 
         return Composing
 
@@ -594,16 +603,7 @@ class _Composing_Pinned_Operation(_Pinned_Operation):
 class _Secret_Pinned_Operation(_Composing_Pinned_Operation):
     """A captured Pin-private Operation cannot open its own access door."""
 
-    __slots__ = ("_name",)
-
-    def __init__(
-            operation,
-            function: Function,
-            state: "_State",
-            name: str,
-            ) -> None:
-        super().__init__(function, state)
-        operation._name = name
+    __slots__ = ()
 
     def __get__(
             operation,
@@ -740,7 +740,7 @@ def _bind_pinned(
     if name in state.secrets:
         bound: _Pinned_Operation = _Secret_Pinned_Operation(function, state, name)
     else:
-        bound = _Composing_Pinned_Operation(function, state)
+        bound = _Composing_Pinned_Operation(function, state, name)
 
     if name in state.secrets:
         _namespace_of(tag).pop(name, None)

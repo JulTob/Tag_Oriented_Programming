@@ -11,7 +11,9 @@
   also compose. Secret invocation guards, host methods, weak object
   binding and existing Pin receiver/ownership behavior stay unchanged.
   General special-method composition, lazy execution and inherited Pin
-  receiver dependencies remain separate concerns.
+  receiver dependencies remain separate concerns. Pin Action handles
+  preserve available callable metadata and fall back to the declared name
+  and no documentation when optional metadata cannot be copied.
 
 - **Captured Pin-private Operations:** a captured current Secret Action
   landed by a Pin, including a Constant Action, requires its pinned Tag's

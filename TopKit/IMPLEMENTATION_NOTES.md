@@ -65,6 +65,10 @@ Actions; Agents are built once and play for a long time. So:
   `__name__` and `__doc__` stay, but method-only `__self__` / `__func__`
   introspection is not preserved by that wrapper. The Python callable profile
   remains a separate decision (#87).
+  Optional callable metadata does not gate Pin invocation: usable `__name__`
+  and `__doc__` are preserved; ordinary failures reading or assigning them
+  fall back to the declared name and `None`, respectively. Metadata interrupts
+  still propagate. Operation publication is a separate repair (#138).
 
 Synchronous Actions selected through an Agent-bound Tag view use the same
 composition door, even when that snapshot preceded the first Secret
