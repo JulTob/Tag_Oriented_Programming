@@ -4,6 +4,14 @@
 
 ### TopKit
 
+- **Form memo ownership:** a Tag owns its cached Bases, so a Base
+  Contribution referring back to its Shape no longer lets a global
+  cache keep both alive. Empty retained Fields remain weak; returned
+  Form tuples still deliberately retain their Tags. Private-name
+  collisions fall back to recomputation without replacing program
+  bindings. Base-first order, iterative traversal and ordinary-class
+  Form behavior are unchanged.
+
 - **Constant Contributions:** `@Constant` protects Records, Actions,
   Posts, Reports and Operations from replacement, deletion and later
   Layers. Record values remain per Agent and their contents may mutate.
