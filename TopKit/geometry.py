@@ -7,12 +7,22 @@ ending with the Tag itself. Applying a Tag follows its Form.
 from __future__ import annotations
 
 from typing import Iterable
+from typing import NamedTuple
 from weakref import WeakKeyDictionary
 
 
 _tag_types: tuple[type, type] | None = None
+# Compatibility fallback for non-Tags; ordinary classes have no TOP Bases.
 _bases_cache: "WeakKeyDictionary[type, tuple[type, ...]]" = WeakKeyDictionary()
-# a Tag's Bases, Base-first; never the Tag itself, which would keep its own key alive
+
+
+class _Bases_Memo(NamedTuple):
+    owner: type
+    bases: tuple[type, ...]
+
+
+def _form_key(tag: type) -> str:
+    return f"_TOPKIT_BASES_{id(tag):#x}"
 
 
 def _is_tag(
@@ -51,10 +61,20 @@ def _form_of(
         ) -> tuple[type, ...]:
     """Base-first closure of one Tag: every required Base once, then the Tag."""
 
-    cached = _bases_cache.get(tag)
+    owned = _is_tag(tag)
 
-    if cached is not None:
-        return cached + (tag,)
+    if owned:
+        name = _form_key(tag)
+        namespace = vars(tag)
+        memo = namespace.get(name)
+
+        if type(memo) is _Bases_Memo and memo.owner is tag:
+            return memo.bases + (tag,)
+    else:
+        cached = _bases_cache.get(tag)
+
+        if cached is not None:
+            return cached + (tag,)
 
     form: list[type] = []
     seen: set[type] = set()
@@ -93,7 +113,17 @@ def _form_of(
                         )
 
     result = tuple(form)
-    _bases_cache[tag] = result[:-1]
+
+    if owned:
+        # A Base's Contributions may point back to its Shape. Keep that
+        # cycle on the Tag, never in a global cache or its public Field.
+        if name not in namespace and all(
+                name not in vars(base)
+                for base in tag.__mro__[1:]
+                ):
+            type.__setattr__(tag, name, _Bases_Memo(tag, result[:-1]))
+    else:
+        _bases_cache[tag] = result[:-1]
 
     return result
 
