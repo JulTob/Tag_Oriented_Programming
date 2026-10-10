@@ -889,7 +889,9 @@ def _type_key_of(
         state: _State,
         ) -> tuple:
     return (
-            state.host_type,
+            # A live cached runtime type owns its Host through its bases,
+            # preventing id reuse. The key must not root a Host/Agent cycle.
+            id(state.host_type),
             frozenset((state.deleted | state.restored) - {"__del__"}),   # a restored name keeps its gate; __del__ has none
             frozenset(state.secrets),
             frozenset(state.published),
