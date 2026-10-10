@@ -97,16 +97,21 @@ deallocated, and may confuse a reused address with the previous Agent.
 
 Two plausible first supported profiles are:
 
-1. A limited controlled carrier that host Targets explicitly extend. Its
-   finalization unregisters membership; the host opts into a root type.
+1. An opt-in limited carrier that host Targets explicitly extend. A private
+   controlled lifetime component can perform internal cleanup independently
+   of a host override of `Finalize`. Cleanup placed only in an inherited
+   `Finalize` instead requires explicit host cooperation.
 2. A caller-owned controlled companion attached to an existing aliased
    Target. The companion owns TOP state, not the host Target; the profile
    must guarantee its lifetime does not outlast or misidentify that Target.
 
-The first has a simpler enforceable lifetime contract but constrains host
-types. The second preserves more existing host structures but needs explicit
-lifetime ordering. A raw address registry is useful only as a scoped experiment,
-not evidence that the non-owning Field law has been met.
+Containment offers the stronger automatic-lifetime candidate but constrains
+host types. A companion preserves more existing host structures, but requires
+defined lifetime ordering, uniqueness and deallocation rules; checked
+accessibility alone does not enforce these. The native evidence is recorded
+in [STEP-ADA-3's issue #117](https://github.com/JulTob/Tag_Oriented_Programming/issues/117).
+A raw address registry is useful only as a scoped experiment, not evidence
+that the non-owning Field law has been met.
 
 No carrier choice, copying rule, task-safety promise or ownership transfer
 is decided by this STEP. Ada unsupported Targets must fail explicitly rather
