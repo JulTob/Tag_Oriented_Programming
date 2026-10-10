@@ -261,53 +261,137 @@ class ParameterCacheTests(unittest.TestCase):
         self.assertNotIn(key, declarations._parameter_cache)
         self.assertEqual(spec.named, (("receiver", False), ("amount", True)))
 
-    def test_a_parameter_identifier_backreference_is_copied_as_plain_text(self):
+    def test_parameter_identifier_backreferences_are_not_globally_memoized(self):
         class Name(str):
             def __str__(self):
                 raise AssertionError("an identifier is not a user formatter")
 
-        def create():
+        def create(index):
             def Protocol(agent, **inputs):
                 return inputs.get("count", 9)
+
+            name = Name("agent" if index == 0 else "count")
+            name.owner = Protocol
+            agent_name = name if index == 0 else "agent"
+            count_name = name if index == 1 else "count"
+            Protocol.__signature__ = inspect.Signature([
+                inspect.Parameter(agent_name, inspect.Parameter.POSITIONAL_ONLY),
+                inspect.Parameter(count_name, inspect.Parameter.KEYWORD_ONLY, default=9),
+            ])
+            with patch.object(declarations, "signature", wraps=inspect.signature) as inspect_each:
+                first = declarations._parameters_of(Protocol)
+                second = declarations._parameters_of(Protocol)
+
+            self.assertIs(first.named[index][0], name)
+            self.assertIs(second.named[index][0], name)
+            self.assertIsNot(first, second)
+            self.assertEqual(inspect_each.call_count, 2)
+            self.assertNotIn(id(Protocol), declarations._parameter_cache)
+            return weakref.ref(Protocol), id(Protocol)
+
+        for index in (0, 1):
+            with self.subTest(index=index):
+                reference, key = create(index)
+                gc.collect()
+                gc.collect()
+                self.assertIsNone(reference())
+                self.assertNotIn(key, declarations._parameter_cache)
+
+    def test_native_parameter_name_objects_keep_keyword_binding_and_defaults(self):
+        class Name(str):
+            def __str__(self):
+                raise AssertionError("an identifier is not a user formatter")
+
+        class IdentityName(Name):
+            def __eq__(self, other):
+                return self is other
+
+            def __hash__(self):
+                return id(self)
+
+        class Calculate:
+            def __init__(self, name):
+                self.name = name
+                self.received_keys = ()
+                self.__name__ = self.__qualname__ = "Calculate"
+                self.__signature__ = inspect.Signature([
+                    inspect.Parameter("agent", inspect.Parameter.POSITIONAL_ONLY),
+                    inspect.Parameter(name, inspect.Parameter.KEYWORD_ONLY, default=9),
+                ])
+                name.owner = self
+
+            def __call__(self, agent, /, **inputs):
+                # Enforce the explicit signature in the actual callable too.
+                bound = self.__signature__.bind(agent, **inputs)
+                bound.apply_defaults()
+                self.received_keys = tuple(inputs)
+                return bound.arguments[self.name]
+
+        for name_type in (Name, IdentityName):
+            for pinned in (False, True):
+                with self.subTest(name_type=name_type, pinned=pinned):
+                    name = name_type("count")
+                    calculate = Calculate(name)
+                    inspected = inspect.signature(calculate)
+                    self.assertIs(list(inspected.parameters.values())[1].name, name)
+                    self.assertEqual(calculate(Host(), **{name: 12}), 12)
+                    self.assertIs(calculate.received_keys[0], name)
+
+                    class Role(Tag):
+                        total = Record(calculate)
+
+                    if pinned:
+                        Role = Pin(Role)
+
+                        class First(Tag):
+                            pass
+
+                        class Second(Tag):
+                            pass
+
+                        first, second = First, Second
+                    else:
+                        first, second = Host(), Host()
+
+                    Role(first)
+                    self.assertEqual(first.total, 9)
+                    self.assertEqual(calculate.received_keys, ())
+                    Role(second, **{name: 12})
+                    self.assertEqual(second.total, 12)
+                    self.assertIs(calculate.received_keys[0], name)
+
+    def test_a_held_uncached_spec_owns_its_native_name_only_until_released(self):
+        class Name(str):
+            pass
+
+        def create():
+            agent = Host()
+
+            def Protocol(receiver, *, count=9):
+                return agent, role, count
 
             name = Name("count")
             name.owner = Protocol
             Protocol.__signature__ = inspect.Signature([
-                inspect.Parameter("agent", inspect.Parameter.POSITIONAL_OR_KEYWORD),
+                inspect.Parameter("receiver", inspect.Parameter.POSITIONAL_ONLY),
                 inspect.Parameter(name, inspect.Parameter.KEYWORD_ONLY, default=9),
             ])
+            role = type("Ephemeral", (Tag,), {"Calculate": Action(Protocol)})
+            agent.protocol = Protocol
             spec = declarations._parameters_of(Protocol)
-            return weakref.ref(Protocol), spec
+            return ((weakref.ref(Protocol), weakref.ref(agent), weakref.ref(role)),
+                    spec, id(Protocol))
 
-        reference, spec = create()
+        references, spec, key = create()
+        gc.collect()
+        self.assertTrue(all(reference() is not None for reference in references))
+        self.assertIs(spec.named[1][0].owner, references[0]())
+        self.assertNotIn(key, declarations._parameter_cache)
+        del spec
         gc.collect()
         gc.collect()
-        self.assertIsNone(reference())
-        self.assertTrue(all(type(name) is str for name, _ in spec.named))
-
-    def test_copied_parameter_identifiers_still_bind_named_inputs_and_defaults(self):
-        class Name(str):
-            def __str__(self):
-                raise AssertionError("an identifier is not a user formatter")
-
-        def Calculate(agent, **inputs):
-            return inputs.get("count", 9)
-
-        name = Name("count")
-        name.owner = Calculate
-        Calculate.__signature__ = inspect.Signature([
-            inspect.Parameter("agent", inspect.Parameter.POSITIONAL_OR_KEYWORD),
-            inspect.Parameter(name, inspect.Parameter.KEYWORD_ONLY, default=9),
-        ])
-
-        class Role(Tag):
-            total = Record(Calculate)
-
-        first, second = Host(), Host()
-        Role(first)
-        Role(second, count=12)
-        self.assertEqual(first.total, 9)
-        self.assertEqual(second.total, 12)
+        self.assertTrue(all(reference() is None for reference in references))
+        self.assertNotIn(key, declarations._parameter_cache)
 
 
 if __name__ == "__main__":

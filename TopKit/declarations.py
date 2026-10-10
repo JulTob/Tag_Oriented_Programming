@@ -1209,7 +1209,7 @@ def _parameters_of(
 
         named.append(
                 (
-                    str.__str__(parameter.name),
+                    parameter.name,
                     parameter.default is not Parameter.empty,
                     )
                 )
@@ -1219,6 +1219,11 @@ def _parameters_of(
             named=tuple(named),
             var_keyword=var_keyword,
             )
+
+    # Preserve native keyword keys without letting their optional payloads
+    # make the global memo own the callable (or its other references).
+    if any(type(name) is not str for name, _ in spec.named):
+        return spec
 
     def Forget(expired: ref[Function], key: int = key) -> None:
         current = _parameter_cache.get(key)

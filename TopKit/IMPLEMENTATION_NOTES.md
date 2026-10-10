@@ -183,11 +183,12 @@ rollback target.
   callable identity, never its custom hash or equality, and hold the
   callable weakly. An expired reference cannot delete a replacement
   entry. An accepted callable without weak-reference support is inspected
-  without memoization or added attributes; weakly memoized callables keep
-  their original first-inspection timing. Parameter identifiers are copied
-  as plain textual strings with `str.__str__`, not a user formatter: custom
-  identifier objects and their attached references are not retained in the
-  global memo. Their text, defaults and input-binding policy are preserved.
+  without memoization or added attributes. Native parameter name objects
+  are preserved for keyword lookup and the keys passed into the callable.
+  When any retained name is a string subclass, inspection is uncached:
+  its attached references cannot become owners through the global memo.
+  Exact-string names remain safely memoized with the original
+  first-inspection timing. Defaults and input-binding policy are preserved.
   This does not choose a different callable introspection profile (#87).
   A Rip drops
   the Tag's view snapshot (a view needs membership). A Field entry is a
