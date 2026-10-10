@@ -4,6 +4,11 @@
 
 ### TopKit
 
+- **Scope retired:** `TopKit.Scope` is removed. A temporary Tagging is written explicitly: tag before `try`, then Rip in `finally`. Rip failures surface normally. TOP assigns `with` no automatic membership or Rip meaning; ordinary Python context protocols remain available to hosts and Agent Actions.
+  STEP-SPEC-15 remains a Brief about recoverable phases, but its
+  `with Try(...)` spelling is now recorded only as a historical candidate;
+  no Trial syntax is reserved.
+
 - **Constant Contributions:** `@Constant` protects Records, Actions,
   Posts, Reports and Operations from replacement, deletion and later
   Layers. Record values remain per Agent and their contents may mutate.
