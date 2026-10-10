@@ -169,7 +169,7 @@ def _call_teardown(
                     teardown,
                     )
             seats = _parameters_of(declared).positional
-            receiver_seats = 2 if _takes_underlay(declared) else 1
+            receiver_seats = 2 if _takes_underlay(declared, name) else 1
 
             if seats > receiver_seats:
                 result = teardown(

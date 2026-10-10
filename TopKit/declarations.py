@@ -1237,6 +1237,7 @@ def _parameters_of(
 
 def _takes_underlay(
         function: Function,
+        name: str,
         ) -> bool:
     """An Action or condition extends the prior contribution when marked
     @Underlay. The mark requires a second positional parameter."""
@@ -1246,7 +1247,7 @@ def _takes_underlay(
 
     if _parameters_of(function).positional < 2:
         raise TagDeclarationError(
-                f"{function.__qualname__} is marked @Underlay but has no"
+                f"{str.__str__(name)!r} is marked @Underlay but has no"
                 " second positional parameter to receive the underlay"
                 )
 
