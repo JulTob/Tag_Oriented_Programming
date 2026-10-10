@@ -1,7 +1,7 @@
-"""Isolated probes for TopKit's Geometry scaling boundaries.
+"""Isolated probes for TopKit's capacity boundaries.
 
-Run one probe in a fresh process so a deep Form does not contaminate a wide
-composition's memory or timing::
+Run one probe in a fresh process so one extreme does not contaminate another's
+memory or timing::
 
     PYTHONPATH=. python3 benchmarks/capacity.py deep 500
     PYTHONPATH=. python3 benchmarks/capacity.py form 1500
@@ -516,7 +516,7 @@ def main() -> None:
             "pin-cycles": Pin_Cycles,
             }
     parser = argparse.ArgumentParser(
-            description="Run one isolated TopKit Geometry capacity probe.",
+            description="Run one isolated TopKit capacity probe.",
             )
     parser.add_argument(
             "probe",
