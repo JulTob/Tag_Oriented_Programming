@@ -782,6 +782,14 @@ several Tags, tag them all before the `try`, and Rip them in the
 This frees `with` for ordinary Python context protocols. A host or an
 Agent may still define `__enter__` and `__exit__` (or the asynchronous
 forms); TOP simply gives those methods no automatic Tagging or Rip rule.
+An Agent-authored hook is still an Action: it may read that Agent's
+Secrets while it runs, through the normal composition door. The door is
+closed before the `with` block starts and after exit returns. For an
+asynchronous hook, it stays open through the hook's await and closes on
+return, error or cancellation. Its authority belongs to the hook's
+execution context: an unrelated sibling task cannot read the Agent's
+Secrets merely because the hook is awaiting. Work the hook deliberately
+delegates into its context shares the door only until that hook closes it.
 
 A role's conditions do **not** leave with it on their own. What the
 Agent *became* stays (pattern 1's Rogue Agent), and so does what the role

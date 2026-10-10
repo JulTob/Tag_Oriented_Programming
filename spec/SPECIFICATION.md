@@ -1368,7 +1368,14 @@ TOP assigns `with` no automatic Tagging or Rip meaning. Ordinary Python
 context protocols remain ordinary Contributions or host behavior: a host,
 or an Agent with `__enter__` / `__exit__` (or their asynchronous forms),
 may still follow `with` without changing membership unless its own code
-does so explicitly.
+does so explicitly. An Agent-authored context hook follows the ordinary
+Action rule (§1.5): its Agent's composition door is open while the hook
+runs, including the awaited execution of an asynchronous hook, and closes
+on return, error or cancellation. Entry does not open the door for the
+user's `with` block. The asynchronous door belongs to the hook's execution
+context: unrelated sibling tasks cannot use it while the hook awaits; work
+deliberately derived from that context shares it only until the hook closes.
+A host-authored hook remains host behavior.
 
 **The Agent's own finalizer is a member in Layers** (STEP-SPEC-18). The
 host's `__del__` is its first Layer, found as the language finds it. A
