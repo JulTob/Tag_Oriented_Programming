@@ -4,6 +4,13 @@
 
 ### TopKit
 
+- **Synchronous view Actions:** `Tag[agent].Action()` opens its bound
+  Agent's composition door while the selected Action runs, including Pin
+  views and Actions that introduce the first Secret Contribution. The
+  snapshot still selects the Action and exceptions close its door. A
+  captured Secret view Action requires an already-open door on that same
+  Agent; a later public Layer does not remove its captured boundary.
+
 - **Constant Contributions:** `@Constant` protects Records, Actions,
   Posts, Reports and Operations from replacement, deletion and later
   Layers. Record values remain per Agent and their contents may mutate.

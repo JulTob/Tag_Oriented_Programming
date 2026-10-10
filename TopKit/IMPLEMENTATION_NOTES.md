@@ -49,6 +49,17 @@ Actions; Agents are built once and play for a long time. So:
   protocols raise it while they run; the secret-gate descriptor checks it.
   Agents without secrets use a plain bound callable and pay nothing.
 
+Synchronous Actions selected through an Agent-bound Tag view use the same
+composition door, even when that snapshot preceded the first Secret
+Contribution. The view still selects its captured Action; reads inside
+that Action resolve against the live Agent unless it explicitly uses a
+view. Bindings keep the Agent weakly. A Secret Action selected through a
+view requires that same Agent's door to be open before invocation, so a
+handle captured during composition cannot authorize itself afterward.
+The guard preserves the captured Secret boundary when a later Layer is
+public. This is a view-specific repair: ordinary captured Agent/Pinned
+handles and lazy execution still need separate review (#93, #103).
+
 ### Presence without evaluation
 
 `"name" @ agent` inspects current bindings rather than asking `hasattr`
