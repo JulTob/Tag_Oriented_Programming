@@ -44,7 +44,14 @@ Actions; Agents are built once and play for a long time. So:
   `isinstance` is answered by the metaclass from the Agent's ever-set.
 - **Runtime types are shared** across every Agent whose host and
   type-level facts match, whatever Tags they carry. Ten thousand Agents of
-  one host normally share one type.
+  one host normally share one type. The cache has weak values and keys use
+  the Host's identity number, not the Host itself. A live runtime type owns
+  its Host through its bases, so that identity cannot be reused while the
+  entry is live. The cache cannot root a cycle from a transient Host's
+  methods or metaclass back to an Agent; Hosts with custom equality or
+  hashing still have independent identity-based entries. An Action body
+  that deliberately captures its Agent remains a strong owner: the weak
+  receiver binding does not undo references inside the function.
 - **Actualization is verified before Field entry.** The Target must retain
   its state and accept the exact runtime type the kit requested. Host
   `__setattr__` and `__init_subclass__` refusals, and metaclasses that

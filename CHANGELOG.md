@@ -4,6 +4,11 @@
 
 ### TopKit
 
+- **Runtime type cache does not own Hosts:** keys use Host identity rather
+  than a strong Host reference. Transient Host/Agent cycles can collect,
+  distinct Hosts with custom equality cannot share the wrong runtime type,
+  and equivalent Agents of one Host still share their runtime type.
+
 - **Host actualization is atomic:** a Target that refuses, ignores or
   substitutes TopKit's runtime type now raises a Composition Failure.
   Runtime-subclass hooks and disposable `__dict__` views are normalized
