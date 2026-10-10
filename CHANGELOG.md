@@ -11,6 +11,16 @@
   captured Secret view Action requires an already-open door on that same
   Agent; a later public Layer does not remove its captured boundary.
 
+- **Scope retired:** `TopKit.Scope` is removed. A temporary Tagging is written explicitly: tag before `try`, then Rip in `finally`. Rip failures surface normally. TOP assigns `with` no automatic membership or Rip meaning; ordinary Python context protocols remain available to hosts and Agent Actions.
+  STEP-SPEC-15 remains a Brief about recoverable phases, but its
+  `with Try(...)` spelling is now recorded only as a historical candidate;
+  no Trial syntax is reserved.
+
+- **Context Actions compose:** Agent-authored context hooks use the
+  ordinary composition door, including across an asynchronous hook's
+  await, without exposing Secrets to the `with` block or sibling tasks.
+  Host contexts keep their ordinary Python behavior.
+
 - **Constant Contributions:** `@Constant` protects Records, Actions,
   Posts, Reports and Operations from replacement, deletion and later
   Layers. Record values remain per Agent and their contents may mutate.

@@ -12,14 +12,16 @@
 
 ## Summary
 
-A **Trial** is a phase during which every tagging on one Agent is
+A **Trial** is a proposed phase during which every tagging on one Agent is
 provisional. Leave it well and everything done in it stays; leave it on
 an error and the Agent is put back exactly as it was when the Trial
-began: same identity, same Tags, same values. The kit already makes one
-tagging call atomic; a Trial is that boundary stretched over many calls.
+began: same identity, same Tags, same values. The original proposal treated
+a Trial as a one-call rollback boundary stretched over many calls. Current
+TOP does not promise whole-Form atomicity: completed Tags remain when a
+later Tag fails, so a future Trial design must define its own boundary.
 
 ```python
-with Try(ari):                  # the hypothetical begins
+with Try(ari):                  # historical candidate; not reserved TOP syntax
     Species(ari)
     Background(ari)
     Feat(ari)                   # refused? the whole draft is undone
@@ -49,10 +51,11 @@ tools, where a candidate is built, inspected, and kept or dropped.
 
 **Vocabulary.** `Tag.Checkpoint(agent)` mixed a Tag-level act into the
 dotted namespace §0.8 leaves to the program, and "checkpoint", "commit",
-"restore" are a database's words. A Trial is one act with two endings, so
-the natural spelling is the language's own block: `with Try(agent):`.
-The word says what the block is (an attempt) and how it ends (it either
-sticks or it did not happen). Candidates and their cost:
+"restore" are a database's words. This STEP originally proposed the
+language's own block, `with Try(agent):`, for a Trial's two endings. That
+spelling is now only a historical candidate: STEP-SPEC-31 leaves `with`
+free, and no recoverable-phase spelling has been selected. Candidates and
+their cost:
 
 | Spelling | For | Against |
 | --- | --- | --- |
@@ -61,12 +64,11 @@ sticks or it did not happen). Candidates and their cost:
 | `with Draft(agent):` | says what the Agent is during the block | a draft is a thing, not a phase |
 | `Tag.Checkpoint(agent)` | the archived spelling | mixes Reports and kernel acts on the Tag; three words for one act |
 
-The Director's word was "try". Whichever noun the STEP settles on, the
-block form is the primary spelling, and the two endings need no names:
-a clean exit keeps, an exception undoes and re-raises. For tools that
-decide later, a handle with two verbs is the secondary spelling:
-`trial = Try(agent)`, then `trial.Keep()` or `trial.Undo()`; a handle
-that is neither kept nor undone by the time it is collected undoes.
+The Director's earlier word was "try". No noun, block protocol or handle
+form is accepted by this Brief. A future design must first establish that
+a recoverable phase fits `with` naturally and preserves ordinary Python
+contexts. The original handle candidate was `trial = Try(agent)`, followed
+by `trial.Keep()` or `trial.Undo()`; it is likewise unselected.
 
 **Fully real while the Trial is on.** The archived version made a
 provisional Tag invisible even to the Agent (`ari not in Species` until
@@ -82,11 +84,11 @@ removes the second visibility rule the review objected to.
 kernel: snapshots of the instance namespace, of slots, of every mutable
 container reachable from the Agent, of the runtime type, of Field
 memberships, with a query object registered in a context variable. Most
-of it is what the call boundary already does for one call. A Trial
-should be written as the call boundary's own snapshot (namespace copy,
-state copy, active Tags, class) held for the length of a block, plus a
-Rip of every Tag joined during the block. That is a few dozen lines on
-top of `_apply` and `_rollback`, not a subsystem.
+of it tried to extend the old call boundary. The proposed implementation
+was a snapshot (namespace copy, state copy, active Tags, class) held for
+the length of a block, plus a Rip of every Tag joined during the block.
+That mechanism is historical too: a future design must start from TOP's
+current per-Tag Gate and failure rules rather than inherit it implicitly.
 
 **Host values.** The hard question. A Record or an Imprint may append to
 a list the Agent already held, or to a list another object shares. The
@@ -100,10 +102,11 @@ surprise: a value shared with another object is restored too. Options:
 | Also restore the contents of lists, dicts and sets the Agent's attributes point to, one level deep | catches the common append | more copying; a container shared with another object is rewound under it |
 | Deep, as archived | nothing escapes | the most copying; the most surprising |
 
-The first rule is the one the kernel already keeps for a single call,
-which is an argument for it: a Trial is many calls under one boundary,
-not a new kind of rollback. A Trial that wants deeper undo asks its Tags
-to write `@Rip` teardowns, which is the law already (STEP-SPEC-12).
+The first rule matched the kernel behavior assumed when this Brief was
+written. It is not accepted merely by appearing here. A future Trial that
+wants deeper undo could ask its Tags to write `@Rip` teardowns, under the
+ordinary teardown law (STEP-SPEC-12), but must settle how that interacts
+with the current failure protocol.
 
 **What a Trial must refuse.** A Trial on a Target that is inside another
 Trial is nested: the inner ending happens first; an inner undo does not
@@ -117,7 +120,10 @@ contributions that were never lost).
 rule with the class namespace as the snapshot, as the archived version
 did.
 
-## Specification (proposed)
+## Historical proposal (not accepted)
+
+The rules below preserve the proposal for later review. They do not reserve
+`with`, `Try`, `Trial`, or a handle API in TOP.
 
 1. `with Try(agent):` opens a Trial on one Target. On a clean exit the
    Trial ends and nothing else happens. On an exception the Target is
@@ -139,9 +145,12 @@ did.
 
 ## Open questions for the Director
 
-1. The noun: `Try`, `Trial`, `Draft`, or another word.
-2. Host containers: rule one (bindings only), one level deep, or deep.
-3. Whether the handle form is wanted at all in the first version, or the
+1. Whether recoverable phases are a natural use of an explicit `with`
+   protocol at all. Any accepted form must coexist with host and Agent
+   context protocols under STEP-SPEC-31.
+2. The noun: `Try`, `Trial`, `Draft`, or another word.
+3. Host containers: rule one (bindings only), one level deep, or deep.
+4. Whether the handle form is wanted at all in the first version, or the
    block form alone.
 
 ## Alternatives considered
@@ -149,7 +158,7 @@ did.
 | Alternative | Verdict |
 | --- | --- |
 | The archived `Tag.Checkpoint` with hidden membership | Rejected by the Director: vocabulary and bloat; and the review's Agency objection |
-| `Scope` with an undo flag | Rejected: Scope is a role for a block; a Trial is an attempt at many acts |
+| `Scope` with an undo flag | Retired by STEP-SPEC-31; no future phase inherits its policy |
 | Leave it out | Rejected by the Director: "highly secure and safe to have the feature" |
 
 ## Acceptance requirements
@@ -165,4 +174,7 @@ the oracle extended with a Trial transition.
 
 ### Decision *(filled by the Director)*
 
-> Status set to **____** on YYYY-MM-DD, because ____.
+> This STEP remains **Brief**. On 2026-10-09 the Director retired `Scope`
+> and asked TOP to leave `with` free unless a use arises naturally. That
+> decision removes the old assumption that `with Try(...)` is the primary
+> spelling; it does not reject the recoverable-phase need recorded here.

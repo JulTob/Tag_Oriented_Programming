@@ -10,8 +10,10 @@ descriptors that gate deleted, secret, published, and Constant names.
 
 from __future__ import annotations
 
+from contextvars import ContextVar
 from dataclasses import dataclass
 from dataclasses import field
+from functools import wraps
 from types import MethodType
 from typing import Any
 from typing import Callable
@@ -115,6 +117,54 @@ class _State:
                 checking=state.checking,
                 words=state.words,
                 )
+
+
+class _Async_Door:
+    """One async Action's execution-local authority to read Secrets."""
+
+    __slots__ = (
+            "active",
+            "state",
+            )
+
+    def __init__(
+            door,
+            state: _State,
+            ) -> None:
+        door.active = True
+        door.state = state
+
+    def Close(
+            door,
+            ) -> None:
+        door.active = False
+        door.state = None
+
+
+_async_doors: ContextVar[tuple[_Async_Door, ...]] = ContextVar(
+        "TopKit_async_composition_doors",
+        default=(),
+        )
+
+
+def _is_composing(
+        state: _State,
+        ) -> bool:
+    """Whether this execution, rather than merely this Agent, has a door."""
+
+    if state.composing:
+        return True
+
+    doors = _async_doors.get()
+
+    if not doors:
+        return False
+
+    return any(
+            door.active
+            and door.state is state
+            for door in reversed(doors)
+            )
 
 
 class _Class_Namespace:
@@ -602,7 +652,7 @@ class _Secret_Bound(_Composing_Bound):
 
         state = _state_of(agent)
 
-        if state is None or state.composing == 0:
+        if state is None or not _is_composing(state):
             raise AttributeError(
                     f"{bound._name!r} is a secret Action; it is reachable"
                     " only from its Agent's composition"
@@ -742,7 +792,7 @@ class _Secret_Gate:
             ) -> dict[str, Any]:
         namespace = _namespace_of(agent)
 
-        if namespace[STATE].composing == 0:
+        if not _is_composing(namespace[STATE]):
             raise AttributeError(
                     f"{gate.name!r} is a secret member of"
                     f" {type(agent).__name__}; it is reachable only from"
@@ -867,6 +917,90 @@ def _dunder_actions(
             }
 
 
+_CONTEXT_ACTIONS = frozenset((
+        "__enter__",
+        "__exit__",
+        "__aenter__",
+        "__aexit__",
+        ))
+_ASYNC_CONTEXT_ACTIONS = frozenset((
+        "__aenter__",
+        "__aexit__",
+        ))
+
+
+def _context_action(
+        name: str,
+        function: Function,
+        ) -> Function:
+    """Run an Agent-authored context hook through its composition door.
+
+    Async hooks keep the door open while their result is awaited.  The
+    wrapper is made only after the runtime-type cache lookup, so the cache
+    continues to identify a composition by the selected Action itself.
+    """
+
+    if name in _ASYNC_CONTEXT_ACTIONS:
+        @wraps(function)
+        async def Async_Context(
+                agent: object,
+                *args: Any,
+                **kwargs: Any,
+                ) -> Any:
+            state = _state_of(agent)
+            door = _Async_Door(state)
+            token = _async_doors.set(
+                    _async_doors.get() + (door,),
+                    )
+
+            try:
+                return await function(
+                        agent,
+                        *args,
+                        **kwargs,
+                        )
+            finally:
+                door.Close()
+                _async_doors.reset(token)
+
+        return Async_Context
+
+    @wraps(function)
+    def Context(
+            agent: object,
+            *args: Any,
+            **kwargs: Any,
+            ) -> Any:
+        state = _state_of(agent)
+        state.composing += 1
+
+        try:
+            return function(
+                    agent,
+                    *args,
+                    **kwargs,
+                    )
+        finally:
+            state.composing -= 1
+
+    return Context
+
+
+def _runtime_dunder_actions(
+        selected: dict[str, Function],
+        ) -> dict[str, Function]:
+    """Prepare selected special Actions for one shared runtime type."""
+
+    return {
+            name: (
+                    _context_action(name, function)
+                    if name in _CONTEXT_ACTIONS
+                    else function
+                    )
+            for name, function in selected.items()
+            }
+
+
 def _type_key_of(
         state: _State,
         ) -> tuple:
@@ -905,7 +1039,10 @@ def _runtime_type_for(
     from .constants import _constant_write_hooks
 
     host_type = state.host_type
-    dunders = _dunder_actions(state)
+    selected_dunders = _dunder_actions(state)
+    dunders = _runtime_dunder_actions(
+            selected_dunders,
+            )
     deleted = key[1]
     secrets = key[2]
     published = key[3]

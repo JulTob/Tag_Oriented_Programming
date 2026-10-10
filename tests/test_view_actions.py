@@ -1,5 +1,6 @@
 """Synchronous view Actions run inside their bound Agent's composition."""
 
+import asyncio
 import gc
 import unittest
 import weakref
@@ -12,6 +13,44 @@ class Host:
 
 
 class ViewActionTests(unittest.TestCase):
+    def test_async_context_actions_can_invoke_secret_view_actions(self):
+        captured = []
+        events = []
+
+        class Context(Tag):
+            @Secret
+            @Record
+            def code(agent):
+                return "private"
+
+            @Secret
+            def Read(agent):
+                return agent.code
+
+            async def __aenter__(agent):
+                await asyncio.sleep(0)
+                captured.append(Context[agent].Read)
+                events.append(captured[-1]())
+                return agent
+
+            async def __aexit__(agent, kind, value, traceback):
+                await asyncio.sleep(0)
+                events.append(captured[-1]())
+                return False
+
+        async def scenario():
+            agent = Host()
+            Context(agent)
+            async with agent:
+                with self.assertRaises(AttributeError):
+                    captured[-1]()
+                self.assert_closed(agent, Context, "Read")
+            with self.assertRaises(AttributeError):
+                captured[-1]()
+            self.assertEqual(events, ["private", "private"])
+
+        asyncio.run(scenario())
+
     def test_a_view_action_reads_the_same_secrets_as_the_current_action(self):
         class Fire(Tag):
             @Secret
