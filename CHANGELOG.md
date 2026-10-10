@@ -8,11 +8,13 @@
   Field's join order when it begins. A member Ripped before its saved turn
   is skipped; if it is tagged again before that turn, it is visited once
   in its original place. A wholly new member waits for that Field's next
-  walk. Each side of a lazy combination starts its own Field walk when
-  reached. Tags, whole and defective Fields, Pins and combinations share
-  the rule, and their truth and length agree with iteration. A one-pass
-  materialization uses a comprehension; Python's `list(population)` may
-  first perform a separate live length-hint walk.
+  walk. If judging soundness Rips a member and leaves it out of that Field,
+  it does not count. Each side of a lazy combination starts its own Field
+  walk when reached.
+  Tags, whole and defective Fields, Pins and combinations share the rule,
+  and their truth and length agree with iteration. A one-pass materialization
+  uses a comprehension; Python's `list(population)` may first perform a
+  separate live length-hint walk.
 
 - **Constant Contributions:** `@Constant` protects Records, Actions,
   Posts, Reports and Operations from replacement, deletion and later

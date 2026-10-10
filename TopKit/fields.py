@@ -357,19 +357,24 @@ class _Partition(_Population):
     def __iter__(
             partition,
             ) -> Iterator[object]:
+        field = partition._field
+
         return (
                 agent
-                for agent in partition._field
-                if partition._holds(agent)
+                for agent in field
+                if partition._holds(agent) and agent in field
                 )
 
     def __contains__(
             partition,
             agent: object,
             ) -> bool:
+        field = partition._field
+
         return (
-                agent in partition._field
+                agent in field
                 and partition._holds(agent)
+                and agent in field
                 )
 
     def __bool__(

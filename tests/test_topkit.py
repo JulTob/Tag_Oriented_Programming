@@ -2907,6 +2907,88 @@ class PopulationWalkTests(unittest.TestCase):
                 self.assertEqual(answer, expected)
                 self.assertEqual(checks, [pair[0]])
 
+    def test_a_sound_view_rechecks_membership_after_its_postcondition(self) -> None:
+        ripping = [False]
+
+        class Wizard(Tag):
+            @Post
+            def Ready(agent):
+                if ripping[0]:
+                    del Wizard[agent]
+
+                return True
+
+        class Fighter(Tag):
+            pass
+
+        ari, bo = Agent(), Agent()
+        Wizard(ari)
+        Wizard(bo)
+        ripping[0] = True
+
+        self.assertEqual([member for member in Wizard], [])
+        self.assertNotIn(ari, Wizard[:])
+
+        cal = Agent()
+        ripping[0] = False
+        Wizard(cal)
+        ripping[0] = True
+        self.assertNotIn(cal, Wizard | Fighter)
+        self.assertNotIn(cal, Wizard[:])
+
+    def test_a_defective_view_rechecks_membership_after_its_postcondition(self) -> None:
+        ripping = [False]
+
+        class Wizard(Tag):
+            @Post
+            def Ready(agent):
+                if ripping[0]:
+                    del Wizard[agent]
+
+                return not ripping[0]
+
+        ari, bo = Agent(), Agent()
+        Wizard(ari)
+        Wizard(bo)
+        ripping[0] = True
+
+        self.assertEqual([member for member in ~Wizard], [])
+        self.assertNotIn(ari, Wizard[:])
+
+        cal = Agent()
+        ripping[0] = False
+        Wizard(cal)
+        ripping[0] = True
+        self.assertNotIn(cal, ~Wizard)
+        self.assertNotIn(cal, Wizard[:])
+
+    def test_retagging_while_judging_soundness_keeps_the_member(self) -> None:
+        ripping = [False]
+        reapplied = [False]
+
+        class Wizard(Tag):
+            @Post
+            def Ready(agent):
+                if ripping[0] and not reapplied[0]:
+                    reapplied[0] = True
+                    del Wizard[agent]
+                    Wizard(agent)
+
+                return True
+
+        class Fighter(Tag):
+            pass
+
+        ari = Agent()
+        Wizard(ari)
+        ripping[0] = True
+
+        self.assertEqual([member for member in Wizard], [ari])
+
+        reapplied[0] = False
+        self.assertIn(ari, Wizard | Fighter)
+        self.assertIn(ari, Wizard[:])
+
     def test_a_one_pass_materialization_uses_a_comprehension(self) -> None:
         checks = []
 
