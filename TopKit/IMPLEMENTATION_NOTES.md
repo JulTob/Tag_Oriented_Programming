@@ -209,6 +209,15 @@ not reinterpret an independent `@Rip` Action called normally as a teardown.
   objects: called, they mark; read, they forward to their failure class.
   Per kind, not per Tag, on purpose: the handler reads the program's own
   word, and the Tag is already in the message.
+- **Imprint diagnostics use the declaration name.** `_imprint` already
+  receives each Imprint's declared name, so a failure or rejected lazy
+  return uses that name rather than inspecting or renaming its callable.
+  The original cause is preserved. Later Imprints still do not run after
+  failure; the applied Tag and its captured view remain, and current Posts
+  alone determine soundness. Shared private helpers bypass exception-type
+  metadata and fall back when ordinary exception-text formatting fails.
+  Synchronous return values are not observed; Python interruptions retain
+  their own type, including interruptions during diagnostic text.
 - **Pins reuse the whole sequence.** A pinned Tag is an Agent whose
   namespace is its class dictionary. `_namespace_of` hands the kernel a
   `_Class_Namespace` adapter (get, set, pop, keys) over the proxy, so
