@@ -229,7 +229,10 @@ def _adapter(
 
     Published.__name__ = name
     Published.__qualname__ = f"{tag.__qualname__}.{name}"
-    Published.__doc__ = operation.__doc__
+    try:
+        Published.__doc__ = operation.__doc__
+    except Exception:
+        pass   # optional documentation must not prevent publication
 
     return Published
 
