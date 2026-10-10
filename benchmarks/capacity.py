@@ -383,7 +383,12 @@ def Cache_Churn(
 def Distinct_Target_Threads(
         count: int,
         ) -> None:
-    """Exercise independent Agents concurrently; one Agent stays in one thread."""
+    """Stress independent Agent ownership with up to sixteen workers.
+
+    Each Agent stays in one worker, but the shared Fields are unsynchronized.
+    This probe records current CPython behavior; it establishes no thread-safety
+    guarantee.
+    """
 
     class Base(Tag):
         @Record
