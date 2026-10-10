@@ -997,13 +997,15 @@ class PublicationTests(unittest.TestCase):
 
         class Leak(self.Fire):
             @Action
-            def leak(agent) -> None:
+            def leak(agent) -> int:
                 captured.append(agent.ignite)
+                return captured[-1]()
 
         Leak(ember)
-        ember.leak()
+        self.assertEqual(ember.leak(), 6)
 
-        self.assertEqual(captured[0](), 6)
+        with self.assertRaises(AttributeError):
+            captured[0]()
 
     def test_contradictory_marks_are_rejected_and_redundant_ones_accepted(self) -> None:
         with self.assertRaises(TagDeclarationError):

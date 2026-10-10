@@ -4,6 +4,13 @@
 
 ### TopKit
 
+- **Captured Secret Actions:** current Secret Action handles on ordinary
+  object Agents, including Constant Actions, require an already-open
+  composition door on that same Agent when invoked. Capturing a handle
+  does not bypass its Secret boundary, even after Rip, a public Layer,
+  deletion, or a change of Contribution kind. Calls from synchronous
+  Actions and async context hooks retain their authorized access.
+
 - **Synchronous view Actions:** `Tag[agent].Action()` opens its bound
   Agent's composition door while the selected Action runs, including Pin
   views and Actions that introduce the first Secret Contribution. The

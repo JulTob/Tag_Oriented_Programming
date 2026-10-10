@@ -622,7 +622,7 @@ class _Composing_Bound(_Bound):
 
 
 class _Secret_Bound(_Composing_Bound):
-    """A Secret view Action needs an open door before it can open its own.
+    """A bound Secret Action needs an open door before it can open its own.
 
     Capturing the callable from inside composition grants no later access.
     Its captured Secret boundary stays even if a newer Layer is public.
@@ -679,8 +679,10 @@ def _bind_to(
                 )
         return
 
-    if state.secrets:
-        bound: _Bound = _Composing_Bound(function, agent)
+    if name in state.secrets:
+        bound: _Bound = _Secret_Bound(function, agent, name)
+    elif state.secrets:
+        bound = _Composing_Bound(function, agent)
     else:
         bound = _Bound(function, agent)
 
