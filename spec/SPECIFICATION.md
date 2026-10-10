@@ -706,7 +706,9 @@ A Constant Post keeps its check after Rip and cannot be replaced or
 deleted through `Contract.Delete`, a protocol or another Layer. Other
 Posts can be added under independent names; all applicable promises must
 hold. Constant does not change when contracts are checked or require a
-Post to return the same answer as the Agent changes.
+Post to return the same answer as the Agent changes. It locks the check's
+binding, but cannot restore `assert` instructions removed by optimized
+Python (§2.1).
 
 Applying an active Tag remains a no-op. Reapplying after Rip preserves
 the same declaration's Constants while rebuilding ordinary Records and
@@ -1012,6 +1014,12 @@ class Wizard(Tag):
     def Has_Spellbook(agent):
         assert agent.spellbook is not None
 ```
+
+**Python profile.** Assertion-style conditions require assertions enabled.
+Python removes `assert` under `-O`, `-OO` or a nonzero `PYTHONOPTIMIZE`
+setting; an assert-only condition then returns `None` and holds. For a
+requirement that must also be checked in those modes, return a Boolean
+explicitly, such as `return agent.spellbook is not None`.
 
 TOP does not coerce truthy and falsy values: a Record of `0` spell slots is
 a real value, not a failure. `return agent.spell_slots` raises a Contract
@@ -1405,6 +1413,8 @@ What TOP does not promise, stated so nobody has to discover it.
   Target and apply its Tags again (`Tags(agent)` lists them). A Python
   implementation refuses `copy.copy` explicitly rather than aliasing state.
 - **Threads.** One Agent, one thread. Fields are not synchronized.
+- **Python optimization.** Assertion-style conditions need assertions
+  enabled; §2.1 describes optimized execution and return-based checks.
 - **Host descriptors.** A Record cannot share a name with a host property
   or slot; the Tagging fails with a Composition Failure.
 - **Raw side effects.** Rollback restores TOP-managed state and the Agent's
