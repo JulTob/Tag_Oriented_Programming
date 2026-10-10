@@ -4,6 +4,12 @@
 
 ### TopKit
 
+- **Invalid Rip declarations fail at the door:** `@Rip` marks an Action,
+  because a teardown remains an ordinary callable Action. Stacking it on
+  a Record, condition, Imprint, Delete, Report, Operation, private name,
+  `classmethod`, `staticmethod` or `property` is now a Declaration Failure
+  instead of silently registering no teardown.
+
 - **Constant Contributions:** `@Constant` protects Records, Actions,
   Posts, Reports and Operations from replacement, deletion and later
   Layers. Record values remain per Agent and their contents may mutate.

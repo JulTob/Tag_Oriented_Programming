@@ -35,6 +35,7 @@ from .declarations import _MISSING
 from .declarations import _check_constant_declarations
 from .declarations import _check_constant_shapes
 from .declarations import _check_pin_bases
+from .declarations import _check_rip_declarations
 from .declarations import _constant_owner
 from .declarations import _is_pin
 from .declarations import _name_checks
@@ -64,6 +65,10 @@ class MetaTag(type):
         namespace.setdefault(
                 "_topkit_field",
                 _Field(),
+                )
+        _check_rip_declarations(
+                name,
+                namespace,
                 )
         _name_checks(namespace)
 
