@@ -16,9 +16,17 @@ memory or timing::
 These are capacity probes, not portable performance budgets.  They assert the
 observable result and report wall-clock time; compare measurements only on a
 controlled machine and interpreter.
+Run without -O/-OO and unset PYTHONOPTIMIZE: assertions validate the result.
+Optimized execution is refused instead of reporting an unchecked PASS.
 """
 
 from __future__ import annotations
+
+if not __debug__:
+    raise SystemExit(
+            "Capacity probes require assertions. Rerun without -O/-OO"
+            " and unset PYTHONOPTIMIZE."
+            )
 
 import argparse
 import gc
