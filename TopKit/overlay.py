@@ -29,6 +29,8 @@ from .declarations import _parameters_of
 from .declarations import _protocol_inputs
 from .declarations import _takes_stored
 from .declarations import _takes_underlay
+from .errors import _exception_text
+from .errors import _type_name
 from .errors import TagCompositionError
 from .errors import TagDeclarationError
 from .errors import TagError
@@ -212,9 +214,9 @@ def _compose(
                     lazy = _discard_lazy_result(result)
                 except Exception as error:
                     failure = TagCompositionError(
-                            f"Rip protocol {underlay.__qualname__} returned a"
+                            f"Rip protocol {str.__str__(guard.name)!r} returned a"
                             " lazy result that could not be disposed of:"
-                            f" {type(error).__name__}: {error}"
+                            f" {_type_name(error)}: {_exception_text(error)}"
                             )
                     guard.failures.append(failure)
 
@@ -223,7 +225,7 @@ def _compose(
                 if lazy is not None:
                     article = "an" if lazy == "async generator" else "a"
                     failure = TagCompositionError(
-                            f"Rip protocol {underlay.__qualname__} returned"
+                            f"Rip protocol {str.__str__(guard.name)!r} returned"
                             f" {article} {lazy}; a Rip protocol must complete"
                             " synchronously. TOP does not await or iterate"
                             " teardown protocols."
@@ -428,7 +430,7 @@ def _install(
 
     if declarations.rips:
         state.rips[tag] = tuple(
-                state.actions[name]
+                (name, state.actions[name])
                 for name in declarations.rips
                 )
 

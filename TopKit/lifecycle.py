@@ -81,9 +81,10 @@ def _teardown(
     state.composing += 1
 
     try:
-        for teardown in teardowns:
+        for name, teardown in teardowns:
             try:
                 _call_teardown(
+                        name,
                         teardown,
                         agent,
                         state,
@@ -91,7 +92,7 @@ def _teardown(
             except Exception as error:
                 failures.append(
                         (
-                            teardown.__name__,
+                            name,
                             error,
                             )
                         )
@@ -123,9 +124,10 @@ def _teardown_all(
 
     try:
         for tag in reversed(list(state.active)):
-            for teardown in state.rips.pop(tag, ()):
+            for name, teardown in state.rips.pop(tag, ()):
                 try:
                     _call_teardown(
+                            name,
                             teardown,
                             agent,
                             state,
@@ -137,6 +139,7 @@ def _teardown_all(
 
 
 def _call_teardown(
+        name: str,
         teardown: Any,
         agent: object,
         state: _State,
@@ -147,6 +150,7 @@ def _call_teardown(
     ``tag.Control = original.Control``."""
 
     guard = _Lazy_Rip_Guard(
+            name,
             getattr(
                 teardown,
                 _ACTION_CHAIN,
@@ -187,7 +191,7 @@ def _call_teardown(
         article = "an" if lazy == "async generator" else "a"
 
         raise TagCompositionError(
-                f"Rip protocol {teardown.__qualname__} returned {article}"
+                f"Rip protocol {str.__str__(name)!r} returned {article}"
                 f" {lazy}; a Rip protocol must complete synchronously."
                 " TOP does not await or iterate teardown protocols."
                 )
