@@ -4,6 +4,11 @@
 
 ### TopKit
 
+- **Deep population algebra:** lazy combinations evaluate walks and
+  membership with explicit stacks, preserving left-first order, live
+  per-leaf walk timing, short circuits and identity-based union ownership
+  without depending on Python's recursion limit.
+
 - **Population walks follow membership at each turn** (STEP-SPEC-35). A walk saves the
   Field's join order when it begins. A member Ripped before its saved turn
   is skipped; if it is tagged again before that turn, it is visited once

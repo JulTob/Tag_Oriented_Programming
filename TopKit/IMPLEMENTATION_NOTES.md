@@ -81,6 +81,18 @@ read 64, plain method call 86, Action call 295, `agent in Tag` 291,
 over a Base costs about 60 µs per Agent; an empty Tag about 22 µs. Peak
 memory about 6 KB per Agent with two Tags.
 
+### Population expression evaluation
+
+Lazy combinations use explicit stacks for walks and membership rather
+than one Python call per expression node. The expression is not flattened:
+each union retains its own left-side identity referents until that node's
+walk ends, and each leaf starts only when its branch is reached. A walk
+frame also retains its last received Agent, as the recursive generator's
+loop variable did. Frames and their ownership end on exhaustion or close;
+the population itself keeps no walked Agents at rest. Membership keeps
+the same left-first short circuits and evaluates each reached predicate
+in its original order.
+
 ## The tagging sequence
 
 `transactions._apply` is the call boundary: it snapshots the instance
