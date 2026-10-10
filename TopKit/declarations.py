@@ -57,15 +57,18 @@ class _Lazy_Rip_Guard:
             "active",
             "chain",
             "failures",
+            "name",
             )
 
     def __init__(
             guard,
+            name: str,
             chain: object | None,
             ) -> None:
         guard.active = True
         guard.chain = chain
         guard.failures: list[TagCompositionError] = []
+        guard.name = name
 
 
 _lazy_rip_guard: ContextVar[_Lazy_Rip_Guard | None] = ContextVar(

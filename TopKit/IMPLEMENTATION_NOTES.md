@@ -108,6 +108,9 @@ not escape as unawaited-coroutine warnings. Composed Actions carry a private
 chain identity: a flow-local Rip guard checks every Underlay in the selected
 teardown chain, remembers a violation even when user code catches it, and does
 not reinterpret an independent `@Rip` Action called normally as a teardown.
+Scheduled teardowns retain the declared Contribution name alongside the
+selected composed Action. The same name labels direct and Underlay failures;
+diagnostics never require callable `__name__` or `__qualname__` metadata.
 
 ## Judgment calls
 
