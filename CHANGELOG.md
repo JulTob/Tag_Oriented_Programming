@@ -13,7 +13,10 @@
   applied, and Rip membership has already ended. Condition Underlays accept
   callable objects without Python naming metadata and keep those same
   verdict and disposal checks, even when an invalid result or disposal error
-  cannot render its own diagnostic text. Record values are unchanged.
+  cannot render its own diagnostic text. Native type checks do not run an
+  ordinary return value's `__class__` hook; optional composition metadata and
+  missing Rip Underlay labels cannot turn accepted work into a failure or
+  conceal a lazy teardown. Record values are unchanged.
 
 - **Accurate Contract Warnings:** replacing a visible Postcondition now
   names whether its origin is a Base, Shape or independent Tag, and points

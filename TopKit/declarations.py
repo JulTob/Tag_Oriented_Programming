@@ -13,11 +13,11 @@ from __future__ import annotations
 
 from contextvars import ContextVar
 from dataclasses import dataclass
-from inspect import isasyncgen
-from inspect import iscoroutine
-from inspect import isgenerator
 from inspect import Parameter
 from inspect import signature
+from types import AsyncGeneratorType
+from types import CoroutineType
+from types import GeneratorType
 from typing import Any
 from typing import Callable
 from typing import NamedTuple
@@ -72,6 +72,15 @@ _lazy_rip_guard: ContextVar[_Lazy_Rip_Guard | None] = ContextVar(
         "topkit_lazy_rip_guard",
         default=None,
         )
+
+
+def _action_chain(function: Function) -> object | None:
+    """Optional composition metadata cannot invalidate an accepted callable."""
+
+    try:
+        return getattr(function, _ACTION_CHAIN, None)
+    except Exception:
+        return None
 
 
 # ------------------------------------------------------------------
@@ -1308,15 +1317,19 @@ def _discard_lazy_result(
     one, so it leaves the unstarted object for Python to reclaim.
     """
 
-    if iscoroutine(result):
+    result_type = type(result)
+
+    # Native lazy types cannot be subclassed. Identity avoids consulting an
+    # ordinary return value's potentially effectful __class__ descriptor.
+    if result_type is CoroutineType:
         result.close()
 
         return "coroutine"
 
-    if isasyncgen(result):
+    if result_type is AsyncGeneratorType:
         return "async generator"
 
-    if isgenerator(result):
+    if result_type is GeneratorType:
         result.close()
 
         return "generator"

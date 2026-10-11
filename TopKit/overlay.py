@@ -23,6 +23,7 @@ from .constants import _constant_overlay
 from .constants import _refuse_constant
 from .declarations import _Declarations
 from .declarations import _ACTION_CHAIN
+from .declarations import _action_chain
 from .declarations import _discard_lazy_result
 from .declarations import _is_flag
 from .declarations import _lazy_rip_guard
@@ -31,6 +32,8 @@ from .declarations import _protocol_inputs
 from .declarations import _takes_stored
 from .declarations import _takes_underlay
 from .errors import TagCompositionError
+from .errors import _exception_text
+from .errors import _type_name
 from .errors import TagDeclarationError
 from .errors import TagError
 from .errors import TagOverwriteWarning
@@ -156,6 +159,15 @@ def _host_data_descriptor(
     return False
 
 
+def _rip_underlay_label(function: Function) -> str:
+    """Keep available diagnostic names without making them a requirement."""
+
+    try:
+        return str.__str__(function.__qualname__)
+    except Exception:
+        return "Underlay"
+
+
 def _compose(
         function: Function,
         underlay: Function | None,
@@ -172,11 +184,7 @@ def _compose(
                 f"{function.__qualname__} requires a visible Underlay"
                 )
 
-    chain = getattr(
-            underlay,
-            _ACTION_CHAIN,
-            None,
-            )
+    chain = _action_chain(underlay)
 
     if chain is None:
         chain = object()
@@ -215,9 +223,9 @@ def _compose(
                     lazy = _discard_lazy_result(result)
                 except Exception as error:
                     failure = TagCompositionError(
-                            f"Rip protocol {underlay.__qualname__} returned a"
+                            f"Rip protocol {_rip_underlay_label(underlay)} returned a"
                             " lazy result that could not be disposed of:"
-                            f" {type(error).__name__}: {error}"
+                            f" {_type_name(error)}: {_exception_text(error)}"
                             )
                     guard.failures.append(failure)
 
@@ -226,7 +234,7 @@ def _compose(
                 if lazy is not None:
                     article = "an" if lazy == "async generator" else "a"
                     failure = TagCompositionError(
-                            f"Rip protocol {underlay.__qualname__} returned"
+                            f"Rip protocol {_rip_underlay_label(underlay)} returned"
                             f" {article} {lazy}; a Rip protocol must complete"
                             " synchronously. TOP does not await or iterate"
                             " teardown protocols."

@@ -104,15 +104,21 @@ before Field entry binds it on the Agent, and the entry snapshot is the only
 rollback target.
 
 `declarations._discard_lazy_result` recognizes coroutines, generators and
-async generators returned from synchronous protocols. It closes only through
-a synchronous disposal operation and never drives the lazy body.
+async generators returned from synchronous protocols by their actual native
+type, without consulting a return object's `__class__` hook. It closes only
+through a synchronous disposal operation and does not start an unentered body.
+Closing an already-started generator or coroutine may run its pending `finally`
+code. Async generators are not driven or synchronously closed.
 Conditions turn the result into a Contract Failure, Imprints into their named
 Imprint Failure, and lifecycle teardown into the collected Composition
 Failure. Best-effort deletion uses the same path, so discarded coroutines do
 not escape as unawaited-coroutine warnings. Composed Actions carry a private
-chain identity: a flow-local Rip guard checks every Underlay in the selected
+chain identity, whose optional lookup cannot invalidate an accepted callable:
+a flow-local Rip guard checks every Underlay in the selected
 teardown chain, remembers a violation even when user code catches it, and does
 not reinterpret an independent `@Rip` Action called normally as a teardown.
+Missing callable labels or broken exception formatting cannot erase a recorded
+lazy Underlay failure; available diagnostic detail and original causes remain.
 
 ## Judgment calls
 
