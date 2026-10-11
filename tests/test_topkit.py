@@ -35,7 +35,6 @@ from TopKit import Precondition
 from TopKit import Public
 from TopKit import Record
 from TopKit import Report
-from TopKit import Requirement
 from TopKit import Rip
 from TopKit import Secret
 from TopKit import Tag
@@ -1374,9 +1373,10 @@ class ConditionTests(unittest.TestCase):
         self.assertIs(Precondition.Alive, TagPreconditionError.Alive)
         self.assertIs(Postcondition.Alive, TagPostconditionError.Alive)
 
-    def test_requirement_is_the_stacked_pair_in_one_word(self) -> None:
+    def test_the_two_marks_stack_in_either_order(self) -> None:
         class Vampire(Tag):
-            @Requirement
+            @Post
+            @Pre
             def Undead(agent):
                 return agent.undead
 
@@ -1394,12 +1394,46 @@ class ConditionTests(unittest.TestCase):
         with self.assertRaises(Postcondition.Undead):
             Contract.Postconditions(nosferatu)
 
-    def test_a_requirement_names_no_failure_of_its_own(self) -> None:
-        with self.assertRaises(AttributeError) as caught:
-            Requirement.Undead
+    def test_a_stacked_condition_fails_under_the_name_of_the_half_that_refused(self) -> None:
+        class Vampire(Tag):
+            @Pre
+            @Post
+            def Undead(agent):
+                return agent.undead
 
-        self.assertIn("Precondition.Undead", str(caught.exception))
-        self.assertIn("Postcondition.Undead", str(caught.exception))
+        mortal = Agent()
+        mortal.undead = False
+
+        with self.assertRaises(Precondition.Undead) as at_the_door:
+            Vampire(mortal)
+
+        self.assertIsInstance(at_the_door.exception, Precondition.Undead)
+        self.assertNotIsInstance(at_the_door.exception, Postcondition.Undead)
+
+        nosferatu = Agent()
+        nosferatu.undead = True
+        Vampire(nosferatu)
+        nosferatu.undead = False
+
+        with self.assertRaises(Postcondition.Undead) as afterwards:
+            Contract.Postconditions(nosferatu)
+
+        self.assertIsInstance(afterwards.exception, Postcondition.Undead)
+        self.assertNotIsInstance(afterwards.exception, Precondition.Undead)
+
+    def test_requirement_is_no_longer_exported(self) -> None:
+        import TopKit
+        import TopKit.declarations
+
+        with self.assertRaises(ImportError):
+            from TopKit import Requirement
+
+        with self.assertRaises(ImportError):
+            from TopKit.declarations import Requirement
+
+        self.assertNotIn("Requirement", TopKit.__all__)
+        self.assertFalse(hasattr(TopKit, "Requirement"))
+        self.assertFalse(hasattr(TopKit.declarations, "Requirement"))
 
 
 class DefectiveTaggingTests(unittest.TestCase):
@@ -2361,9 +2395,10 @@ class StickyConditionTests(unittest.TestCase):
         with self.assertRaises(TagResolutionError):
             Contract.Delete(ari, "Has_Oath")
 
-    def test_deletion_ends_both_halves_of_a_requirement(self) -> None:
+    def test_deletion_ends_both_halves_of_a_stacked_condition(self) -> None:
         class Elf(Tag):
-            @Requirement
+            @Pre
+            @Post
             def Alive(agent):
                 return agent.alive
 
@@ -2934,7 +2969,8 @@ class ConditionMemberTests(unittest.TestCase):
 
     def test_the_member_and_the_status_agree(self) -> None:
         class Elf(Tag):
-            @Requirement
+            @Pre
+            @Post
             def Alive(agent):
                 return agent.alive
 
