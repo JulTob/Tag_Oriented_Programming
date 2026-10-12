@@ -523,9 +523,7 @@ def _needs_new_type(
         ) -> bool:
     """Only type-level facts change the runtime type: the first tagging,
     deletions, secrets, published Reports, dunder Actions, conditions,
-    or a first Flag. The contract truth hook is present from the first
-    Tagging whenever its special-method seat is free; conditions still need
-    a new type to protect their computed names."""
+    or a first Flag."""
 
     if "_TOPKIT_HOST_TYPE" not in type(agent).__dict__:
         return True   # the Agent still wears its host's own class

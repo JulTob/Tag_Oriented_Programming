@@ -45,12 +45,10 @@ replaces it: before and after, it is the same object. Precisely:
   same equality);
 - every attribute and method the Target had keeps working the way it did,
   unless a Tag deliberately contributes a member of that name;
-- the accepted Target's own special methods (`__contains__`, `__len__`,
+- the Target's own special methods (`__contains__`, `__len__`, `__bool__`,
   operators, `__getattr__`) keep working, with one deliberate exception:
-  an ordinary object Agent's `bool(agent)` is its visible Posts from
-  first Tagging, even if the host defines `__len__`; `len(agent)` stays
-  the host's (§2.5). A host with an explicit `__bool__` is refused as a
-  Target before Tagging effects;
+  `bool(agent)` gains contract meaning once a Postcondition is visible
+  (§2.5);
 - the name of the object's type is unchanged.
 
 What TOP does **not** promise is nominal type identity: a Python
@@ -441,7 +439,6 @@ another meaning still relies on.
 
 The same rules bind special methods: a Tag may contribute `__add__`,
 `__eq__` and the like, and they actualize the Agent.
-The Agent truth protocol `__bool__` is reserved for Posts (§2.5).
 
 ## 1.3 Records
 
@@ -1210,20 +1207,9 @@ pinned Tag reads its own conditions the same way (`Wizard.Has_Members`).
 A condition that outlived its Tag (§0.7) still reads by name until the
 author ends it.
 
-An ordinary object Agent with no visible Postcondition is truthy: it has
-no broken promise. A host's `__len__` keeps answering `len(agent)`; its
-length never answers the Agent's truth. Thus an empty Agent whose visible
-promises hold is still truthy.
-
-The Agent's `__bool__` protocol is reserved for that contract question.
-A Tag cannot gain or delete it, including through a Record, Action or
-published Report/Operation; a Declaration Failure refuses such a binding.
-An ordinary Python host defining `__bool__` directly or by inheritance is
-refused as a Target with a Composition Failure before Gates, Gainings or
-Target mutation. Its truth is not evaluated or replaced by Tagging.
-Objects held in Records retain their own truth. A Tag, including a Tag
-receiving a Pin, keeps population truth (§0.8); `Contract.Holds(Tag)` asks
-about its contract as a Pin Agent.
+Truthiness on a plain object is vacuously true, so this fills an empty
+seat. A host that defines its own `__bool__` or `__len__` keeps it until a
+Postcondition becomes visible on that Agent.
 
 ## 2.6 Naming the culprit
 

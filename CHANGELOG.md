@@ -4,13 +4,6 @@
 
 ### TopKit
 
-- **Agent truth is reserved for its Posts.** `bool(agent)` on an ordinary
-  object Agent reads its visible Posts from first Tagging, and is true
-  when it has none. Hosts with an explicit `__bool__` are refused before
-  Tagging effects; truth Gains and deletion are refused at declaration.
-  Host `__len__`, Record-held value truth and Tag population truth retain
-  their own meanings.
-
 - **Ordinary condition names:** Preconditions and Postconditions refuse
   Python dunder names at Tag declaration and before late assignment.
   Their computed boolean verdicts keep ordinary Contribution names.
