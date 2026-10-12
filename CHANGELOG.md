@@ -4,6 +4,10 @@
 
 ### TopKit
 
+- **Ordinary condition names:** Preconditions and Postconditions refuse
+  Python dunder names at Tag declaration and before late assignment.
+  Their computed boolean verdicts keep ordinary Contribution names.
+
 - **Fresh Tagging rebuilds ordinary Records:** the Specification and Guide
   now say explicitly that Rip removes membership, not sticky Contributions.
   Applying the Tag after Rip reruns that Tag's ordinary Record builders.
