@@ -705,6 +705,20 @@ def _kind_of(
             )
 
 
+def _refuse_condition_dunder(
+        owner: str,
+        name: str,
+        kind: str | None,
+        ) -> None:
+    """Conditions expose verdicts; Python's protocol names need callables."""
+
+    if _is_dunder(name) and kind in _CONDITION_KINDS:
+        raise TagDeclarationError(
+                f"{owner}.{name}: a Precondition or Postcondition must have"
+                " an ordinary name; dunder names belong to Python protocols"
+                )
+
+
 def _has_flag(
         attribute: Any,
         name: str,
@@ -906,6 +920,7 @@ _NAMED_FAILURES: dict[str, type] = {
 
 def _name_checks(
         namespace: dict[str, Any],
+        owner: str,
         ) -> None:
     """Give every check in a Tag body its named failure, at class creation.
 
@@ -918,6 +933,7 @@ def _name_checks(
             continue
 
         kind = _kind_of(attribute)
+        _refuse_condition_dunder(owner, name, kind)
 
         if kind == "condition":
             TagPreconditionError.Named(name)
@@ -987,6 +1003,7 @@ def _scan(
             continue
 
         kind = _kind_of(attribute)
+        _refuse_condition_dunder(tag.__name__, name, kind)
         secret = _has_flag(attribute, _SECRET)
         public = _has_flag(attribute, _PUBLIC)
 
