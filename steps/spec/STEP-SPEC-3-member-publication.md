@@ -28,8 +28,9 @@ the Agent does is public; what the Agency keeps is internal.
 
 ## Motivation
 
-STEP-SPEC-2 made Tag members composition-internal unless an Action
-publishes them. Two gaps remained:
+STEP-SPEC-1 §4 and §6 made Tag members stay in Tag scope instead of being
+implicitly projected onto the Agent; Specification §1.4 carries that law.
+Two publication gaps remained:
 
 1. **Repeated adapters.** Field economy (one Report, one Operation) needed a
    hand-written Action for every published name.

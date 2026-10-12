@@ -184,13 +184,22 @@ def Run() -> None:
         warnings.simplefilter("always"); Berserk(b)
     assert any(issubclass(x.category, TagContractWarning) for x in caught)
 
-    # 3.2 scope
+    # 3.2 a block that holds a Tag: tag before try, Rip in finally
     log = []
     class Sentry(Tag):
         @Rip
         def stand_down(agent): log.append("down")
-    with Scope(Character(), Sentry) as s: assert s in Sentry
-    assert log == ["down"]
+        def Patrol(agent): raise LookupError("the gate is breached")
+    guard = Character()
+    try:
+        Sentry(guard)              # the guard joins Sentry
+        try:
+            guard.Patrol()
+        finally:
+            del Sentry[guard]      # the guard leaves, even if Patrol raised
+    except LookupError:
+        pass
+    assert guard not in Sentry and log == ["down"]
 
     # 3.2 deletion in layers
     log = []
