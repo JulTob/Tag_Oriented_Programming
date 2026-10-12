@@ -135,6 +135,45 @@ class ConditionBindingTests(unittest.TestCase):
         self.assertIs(agent.Ready, False)
         object.__delattr__(agent, "Ready")
 
+    def test_write_actions_are_refused_before_their_effects(self):
+        writes = []
+
+        class Qualified(Tag):
+            @Constant
+            @Record
+            def token(agent):
+                return "fixed"
+
+            @Post
+            def Ready(agent):
+                return True
+
+            def __setattr__(agent, name, value):
+                writes.append(("set", name))
+                agent.__dict__[name] = value
+
+            def __delattr__(agent, name):
+                writes.append(("delete", name))
+                del agent.__dict__[name]
+
+        agent = Host()
+        Qualified(agent)
+        writes.clear()
+
+        for name in ("Ready", "token"):
+            with self.subTest(name=name):
+                with self.assertRaises(TagCompositionError):
+                    setattr(agent, name, None)
+                with self.assertRaises(TagCompositionError):
+                    delattr(agent, name)
+        self.assertEqual(writes, [])
+        self.assertIs(agent.Ready, True)
+        self.assertEqual(agent.token, "fixed")
+
+        agent.ordinary = 1
+        del agent.ordinary
+        self.assertEqual(writes, [("set", "ordinary"), ("delete", "ordinary")])
+
     def test_a_precondition_added_to_an_existing_agent_gets_the_same_gate(self):
         class Marked(Tag):
             pass

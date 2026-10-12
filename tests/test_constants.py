@@ -99,6 +99,24 @@ class ConstantTests(unittest.TestCase):
                     object.__delattr__(agent, name)
         self.assertEqual(agent.Work(), "original")
 
+    def test_constant_special_method_rejects_native_assignment_and_deletion(self):
+        class Given(Tag):
+            @Constant
+            def __len__(agent):
+                return 7
+
+        agent = Host()
+        Given(agent)
+        self.assertEqual(len(agent), 7)
+        for assign, delete in ((setattr, delattr),
+                               (object.__setattr__, object.__delattr__)):
+            with self.subTest(assign=assign):
+                with self.assertRaises(TagCompositionError):
+                    assign(agent, "__len__", lambda: 0)
+                with self.assertRaises(TagCompositionError):
+                    delete(agent, "__len__")
+        self.assertEqual(len(agent), 7)
+
     def test_post_survives_rip_and_cannot_be_deleted_or_shadowed(self):
         class Sworn(Tag):
             @Constant
