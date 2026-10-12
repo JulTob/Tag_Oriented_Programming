@@ -52,6 +52,18 @@ storage choices, not Agent identity rules or final public APIs.
 Ada containers own the descriptor and traversal storage. The caller does
 not acquire individually allocated descriptors requiring manual cleanup.
 
+### Declaration domain boundary
+
+These raw ordered graphs include duplicate direct Bases and C3-inconsistent
+Base orders that Python's class frontend refuses before TOP builds a Form.
+C3 governs declaration admission; it is not TOP's Base-first Form traversal.
+[PR #134](https://github.com/JulTob/Tag_Oriented_Programming/pull/134) separates
+the bounded oracle's Python-admissible graphs from experimental-only graphs.
+Whether the Ada profile should enforce Python's declaration restrictions or
+retain a broader graph domain remains the Director's decision. Experimental
+acceptance is not a decision that those declarations are legal in the final
+Ada profile; this Brief chooses neither admission policy.
+
 ## Verification
 
 Compile with GNAT, Ada 2022 and assertions enabled. A runtime assertion
