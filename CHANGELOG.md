@@ -18,6 +18,48 @@
   whole call when a Record builder fails, and enters the Field before
   Imprints. The approved admission follow-up will retain acquired Gains
   outside the Tag on unfinished training, then enter the Field before Posts.
+- **Rip failure names:** Scheduled Rip protocols retain their declared
+  Contribution names, including callable objects and aliased functions.
+  Failure reporting no longer reads Python function-name metadata, so it
+  preserves the original cause and still attempts the remaining cleanup.
+  Lazy Underlay violations retain the same named failure even when caught.
+  Failed exception formatting cannot conceal a lazy disposal failure.
+
+- **Imprint diagnostics name their declaration:** failures and rejected lazy
+  results identify the Imprint's declared name, including callable objects
+  without Python function metadata and aliased functions. The original cause,
+  completed Tagging, and existing stop-at-failure order are preserved.
+  Failing exception text uses a fallback rather than hiding that failure;
+  Python interruptions still propagate.
+
+- **Record diagnostics name their declaration:** builder failures identify
+  the declared Record even for accepted callable objects without Python
+  function metadata. The original cause is retained; exception text that
+  cannot be rendered uses a diagnostic fallback. Record construction order,
+  returned values and the existing failure boundary are unchanged.
+
+- **Synchronous protocol results:** Preconditions, Imprints, Postconditions
+  and Rip teardowns now reject coroutine, generator and async-generator
+  results explicitly instead of silently discarding work that never ran.
+  Closeable lazy results are disposed of without awaiting or iterating them,
+  including on best-effort deletion paths. Each failure retains its existing
+  phase: the refused Tag does not apply, Imprint and Post leave their Tag
+  applied, and Rip membership has already ended. Condition Underlays accept
+  callable objects without Python naming metadata and keep those same
+  verdict and disposal checks, even when an invalid result or disposal error
+  cannot render its own diagnostic text. Native type checks do not run an
+  ordinary return value's `__class__` hook; optional composition metadata and
+  missing Rip Underlay labels cannot turn accepted work into a failure or
+  conceal a lazy teardown. Record values are unchanged.
+
+- **Host actualization is atomic:** a Target that refuses, ignores or
+  substitutes TopKit's runtime type now raises a Composition Failure.
+  Runtime-subclass hooks and disposable `__dict__` views are normalized
+  too; the original host type, namespace, Tags and Fields remain unchanged.
+  Frozen dataclasses remain taggable without unlocking their host fields
+  or bypassing custom host refusals. The proposed representation law is
+  recorded separately in STEP-SPEC-37 for the Director's review.
+
 - **Scope retired:** `TopKit.Scope` is removed. A temporary Tagging is written explicitly: tag before `try`, then Rip in `finally`. Rip failures surface normally. TOP assigns `with` no automatic membership or Rip meaning; ordinary Python context protocols remain available to hosts and Agent Actions.
   STEP-SPEC-15 remains a Brief about recoverable phases, but its
   `with Try(...)` spelling is now recorded only as a historical candidate;

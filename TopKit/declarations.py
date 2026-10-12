@@ -11,9 +11,13 @@ A Tag class is scanned once; the result is cached per class.
 
 from __future__ import annotations
 
+from contextvars import ContextVar
 from dataclasses import dataclass
 from inspect import Parameter
 from inspect import signature
+from types import AsyncGeneratorType
+from types import CoroutineType
+from types import GeneratorType
 from typing import Any
 from typing import Callable
 from typing import NamedTuple
@@ -35,6 +39,7 @@ _PUBLIC = "__topkit_public__"
 _FLAG = "__topkit_flag__"
 _PIN = "__topkit_pin__"
 _CONSTANT = "__topkit_constant__"
+_ACTION_CHAIN = "__topkit_action_chain__"
 
 STATE = "_TOPKIT_STATE"
 
@@ -43,6 +48,42 @@ _flags_declared = 0   # counts every @Flag, so an Agent's gathered words know wh
 _MISSING = object()
 
 Function = Callable[..., Any]
+
+
+class _Lazy_Rip_Guard:
+    """Failures found inside composed Rip Underlays during one teardown."""
+
+    __slots__ = (
+            "active",
+            "chain",
+            "failures",
+            "name",
+            )
+
+    def __init__(
+            guard,
+            name: str,
+            chain: object | None,
+            ) -> None:
+        guard.active = True
+        guard.chain = chain
+        guard.failures: list[TagCompositionError] = []
+        guard.name = name
+
+
+_lazy_rip_guard: ContextVar[_Lazy_Rip_Guard | None] = ContextVar(
+        "topkit_lazy_rip_guard",
+        default=None,
+        )
+
+
+def _action_chain(function: Function) -> object | None:
+    """Optional composition metadata cannot invalidate an accepted callable."""
+
+    try:
+        return getattr(function, _ACTION_CHAIN, None)
+    except Exception:
+        return None
 
 
 # ------------------------------------------------------------------
@@ -1246,3 +1287,35 @@ def _protocol_inputs(
                     )
 
     return bound
+
+
+def _discard_lazy_result(
+        result: Any,
+        ) -> str | None:
+    """Dispose of a lazy result a synchronous protocol cannot use.
+
+    Return its kind for the phase-specific failure message. Coroutines and
+    synchronous generators have a synchronous ``close`` operation that does
+    not start an unentered body. Async generators can only be closed by
+    awaiting ``aclose``; TOP does not invent an event loop merely to reject
+    one, so it leaves the unstarted object for Python to reclaim.
+    """
+
+    result_type = type(result)
+
+    # Native lazy types cannot be subclassed. Identity avoids consulting an
+    # ordinary return value's potentially effectful __class__ descriptor.
+    if result_type is CoroutineType:
+        result.close()
+
+        return "coroutine"
+
+    if result_type is AsyncGeneratorType:
+        return "async generator"
+
+    if result_type is GeneratorType:
+        result.close()
+
+        return "generator"
+
+    return None
