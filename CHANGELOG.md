@@ -4,6 +4,13 @@
 
 ### TopKit
 
+- **Rip failure names:** Scheduled Rip protocols retain their declared
+  Contribution names, including callable objects and aliased functions.
+  Failure reporting no longer reads Python function-name metadata, so it
+  preserves the original cause and still attempts the remaining cleanup.
+  Lazy Underlay violations retain the same named failure even when caught.
+  Failed exception formatting cannot conceal a lazy disposal failure.
+
 - **Synchronous protocol results:** Preconditions, Imprints, Postconditions
   and Rip teardowns now reject coroutine, generator and async-generator
   results explicitly instead of silently discarding work that never ran.
