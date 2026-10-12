@@ -52,8 +52,10 @@ This STEP proposes **one kit addition**, the modifier `@Tool(T, ...)` over
    that is *now* a member of every Tag named, sound or defective, and is
    not the bearer. The kit checks this at Parts (a refusal rolls the whole
    call back) and at every write to the slot (a refusal changes nothing).
-2. **The slot is never empty.** `None` is refused. `del agent.weapon` is
-   the drop, so `"weapon" @ agent` answers "armed?".
+2. **The slot is never empty, unless its kind says so.** `None` is
+   refused, except where the declaration writes it: `@Tool(Weapon | None)`
+   admits the empty hand explicitly. `del agent.weapon` is always the
+   drop. With the default, `"weapon" @ agent` answers "armed?".
 3. **The slot never Tags.** The kit applies no Tag to what the builder
    returns or to what is assigned. The forge Tags the object in plain
    sight, and that tagging keeps its own call boundary.
@@ -97,7 +99,7 @@ Each was reproduced on `main`:
 | # | Found | Why it matters |
 | --- | --- | --- |
 | 1 | **A stick is seated in silence.** `charlie.weapon = "a stick"` is accepted; the bearer turns defective only when a Post is next read, at a boundary or at `bool(charlie)`. | §2.4 is right that conditions never check themselves during play. But a declaration that *says* what the slot holds should refuse what it cannot hold, at the write, with nothing changed: the move §2.5 made for condition names and §1.8 for the `in` seat. |
-| 2 | **`None` is a held nothing.** STEP-SPEC-33 counts `None` as present, so `"weapon" @ charlie` is `True` with nothing in hand, and "armed?" needs two questions. | §2.8 asks to keep "is it there?" apart from "what is its value?". A slot that is never `None` keeps presence meaningful. |
+| 2 | **`None` is a held nothing.** STEP-SPEC-33 counts `None` as present, so `"weapon" @ charlie` is `True` with nothing in hand, and "armed?" needs two questions. | §2.8 asks to keep "is it there?" apart from "what is its value?". A slot that is never `None` keeps presence meaningful; an author who wants an empty hand says so in the kind, `Weapon | None`, instead of every reader assuming it. |
 | 3 | **The bearer can be its own tool.** `charlie.weapon = charlie` is accepted. | The barrier is void by identity; the two contracts fold onto one object. *Tener* and *ser* are different verbs. |
 | 4 | **The orphan.** A tool Tagged inside a builder stays Tagged when the bearer's call rolls back later in the same call (a second Record fails). | For a sword forged in the builder this is harmless: when nothing holds it, it is collected and "vanishes from every Field" (§0.3). For a pre-existing object handed in, it is a Tag the caller did not ask to keep. |
 
@@ -147,8 +149,20 @@ A row for §0.8:
 
 1. `@Tool(T1, ..., Tn)` is a **modifier** over `@Record`, in the manner
    of `@Constant` (STEP-SPEC-34) and `@Secret` (§1.5). It names one or
-   more Tags, in no particular order. It stacks with `@Record`,
-   `@Constant`, `@Secret` and `@Public` in either order.
+   more Tags, in no particular order; the slot holds a member of **all**
+   of them. It stacks with `@Record`, `@Constant`, `@Secret` and `@Public`
+   in either order.
+   - **An emptiable slot is written `@Tool(Weapon | None)`.** `Weapon |
+     None` is the language's own class union (§2.5: "A Tag with anything
+     that is not a population keeps the language's own class union"), so
+     the kind is spelled as Python spells an optional type, and the kit
+     reads the Tags and the `None` from it. Explicit `None` beats an
+     implied one.
+   - **A population is not a kind.** `Weapon | Blessed` is the Field
+     algebra's "sound in either" (§2.5), `~Weapon` and `Weapon[:]` are
+     populations too; any of them as an argument is a Declaration Failure
+     whose message shows the spelling meant: `@Tool(Weapon, Blessed)` for
+     both, `@Tool(Weapon | None)` for an empty hand.
 2. `@Record` is written. STEP-SPEC-34 rule 1 keeps an unqualified method
    an Action under a modifier; this STEP keeps that convention. `@Tool`
    over an unmarked method, or over an Action, Report, Operation,
@@ -200,13 +214,18 @@ bearer.
   and knowing oneself is a sentence, while a self-tool voids the barrier
   by identity.
 
-**Law 2. The slot is never empty.** A builder that returns `None`, or an
-assignment of `None`, is a Composition Failure (Parts refused and the
-call rolled back; or nothing changed). The drop is `del agent.weapon`,
-the language's own deletion of a Record (§1.3). `@Delete` at the name
+**Law 2. The slot is never empty, unless its kind says so.** With a kind
+of Tags alone, a builder that returns `None`, or an assignment of `None`,
+is a Composition Failure (Parts refused and the call rolled back; or
+nothing changed), and `"weapon" @ agent` answers "armed?" with one
+question (STEP-SPEC-33). With a kind written `Weapon | None`, `None` is
+admitted at Parts and at the write: the empty hand is declared, so a
+reader of `Fighter` knows the slot may be empty and writes
+`agent.weapon is not None` where it matters; presence then says only
+that the slot exists. In both cases the drop is `del agent.weapon`, the
+language's own deletion of a Record (§1.3), and `@Delete` at the name
 frees the slot (§1.6) and so drops the tool. Both are refused on a
-Constant slot (§1.5). After a drop, `"weapon" @ agent` is `False`, so
-presence (STEP-SPEC-33) answers "armed?" with one question.
+Constant slot (§1.5).
 
 **Law 3. The slot never Tags.** The kit applies no Tag to what the
 builder returns and none to what is assigned. The forge Tags the object
@@ -351,15 +370,16 @@ enough?) should get one answer for both.
 | class use: `@Tool()` | Declaration Failure | `Fighter.weapon: @Tool names what the held thing is: @Tool(Weapon)` |
 | class use: `@Tool(Sword)`, not a Tag | Declaration Failure | `Fighter.weapon: Sword is not a Tag; a Tool slot holds an Agent of a Tag` |
 | class use: `@Tool(Rare)`, a Pin | Declaration Failure | `Fighter.weapon: Rare is a Pin, whose Agents are Tags; a Tool slot holds an object (§1.9)` |
+| class use: a population as kind, `@Tool(Weapon \| Blessed)`, `@Tool(~Weapon)`, `@Tool(Weapon[:])` | Declaration Failure | `Fighter.weapon: Weapon \| Blessed is a population, not a kind; write @Tool(Weapon, Blessed) for both, @Tool(Weapon \| None) for an empty hand` |
 | class use: `@Tool` over a non-Record, or over an unmarked method | Declaration Failure | `Fighter.Swing: @Tool marks a Record, what the Agent has; write @Tool(Weapon) over @Record` |
 | class use: `@Tool` inside a `@Pin` | Declaration Failure | `Armory.standard: a Pin's Records land as Reports of the pinned Tag; a shared tool is a Report (§1.9)` |
 | Parts: builder returned a non-member | Composition Failure, call rolled back | `Fighter.weapon built 'a stick', which is not an Agent of Weapon; Tag it in the builder, Weapon(stick)` |
-| Parts: builder returned `None` | Composition Failure, call rolled back | `Fighter.weapon returned None; a Tool slot is never empty: return a Target, or drop with del agent.weapon` |
+| Parts: builder returned `None`, kind without `\| None` | Composition Failure, call rolled back | `Fighter.weapon returned None; its slot is never empty: return a Target, drop with del agent.weapon, or declare the empty hand, @Tool(Weapon \| None)` |
 | Parts: builder returned the bearer | Composition Failure, call rolled back | `Fighter.weapon returned Charlie himself; a Tool is something the Agent has, never the Agent. To make Charlie a Weapon, Tag him: Weapon(charlie)` |
 | Parts: the tool's own tagging failed | the tool's own failure, unchanged | as today: `Precondition.Is_Holy`, `Postcondition.Has_An_Edge`, the tool's Composition Failure, with a note naming the slot |
 | write: a non-member | Composition Failure, nothing changed | `charlie.weapon holds a Tool of Weapon; 'a stick' is not a Weapon now. Tag it first, Weapon(stick), or hand over a Weapon` |
 | write: a Rogue of the kind | Composition Failure, nothing changed | `charlie.weapon holds a Tool of Weapon; this Sword left Weapon` |
-| write: `None` | Composition Failure, nothing changed | `charlie.weapon is never empty; drop it with del charlie.weapon` |
+| write: `None`, kind without `\| None` | Composition Failure, nothing changed | `charlie.weapon is never empty; drop it with del charlie.weapon, or declare the empty hand, @Tool(Weapon \| None)` |
 | write: the bearer | Composition Failure, nothing changed | `charlie.weapon: a Tool is something the Agent has, never the Agent` |
 | write or delete on a Constant slot | Composition Failure | STEP-SPEC-34's existing message |
 | step 1: a Tool name over a condition's name, a host property or slot, or an independent Tag's Action | Composition Failure, nothing changed | the existing Record refusals of §1.1, §2.5 and Ring 4 |
@@ -367,7 +387,8 @@ enough?) should get one answer for both.
 Not refused, on purpose: two slots holding one tool; a tool that bears
 tools (`charlie.weapon.gem in Gem`); a defective or cursed tool seated; a
 seated tool Ripped from its Tag (the bearer's Post notices); a Tool whose
-Tag is a Shape of the declared one.
+Tag is a Shape of the declared one; `None` in a slot whose kind says
+`| None`.
 
 ### 6. What this STEP refuses to decide
 
@@ -400,11 +421,17 @@ the kind of clever mechanism that is not maintainable. The honest law is
 law 3, written where readers look, and open question 2 keeps the door
 open for the Director.
 
-**`del`, not `None`, for the empty hand.** STEP-SPEC-33 counts `None` as
+**Explicit `None`, never an implied one.** STEP-SPEC-33 counts `None` as
 present, and §2.8 asks to keep "is it there?" apart from "what is its
-value?". A slot that is never `None` makes `"weapon" @ charlie` the one
-question "armed?", and keeps `if charlie.weapon:` one question too, the
-sword's truth.
+value?". So the default slot is never `None`: `"weapon" @ charlie` is the
+one question "armed?", and `if charlie.weapon:` is one question too, the
+sword's truth. An author who wants an empty hand has control over it,
+and says so where every reader sees it, in the kind: `@Tool(Weapon |
+None)`. That spelling costs nothing new: it is Python's own optional
+type, and §2.5 already makes `Weapon | None` a class union rather than a
+population. What the STEP refuses is the *implied* possibility, a slot
+that may or may not be empty with nothing in the declaration to say
+which.
 
 **Membership at all, spelled `T[:]`.** A kind is what the thing *is*, not
 whether it keeps its promises. A broken sword is still a sword; the
@@ -455,12 +482,28 @@ STEP is Deployed.
   the reasons in Rationale; kept as open question 2.
 - **The kit applies the named Tags at Parts.** Set aside: hidden tagging,
   an inputs rule, and the undo question come with it.
-- **A kinded slot species:** `None` as the empty slot, `del` refused, the
-  `(Agent, name)` slot closed to other kinds, as STEP-SPEC-22 rules 4.3
-  and 4.4 do for Links. Set aside: it amends §1.1, §1.3 and §1.6 for one
-  modifier, borrowing Link rules whose reason (a Link *is* a Tag and ends
-  Contact by Contact) does not hold for a thing one has; and `None` in
-  the slot makes `if charlie.weapon:` two questions in one.
+- **A kinded slot species:** `None` always allowed as the empty slot,
+  `del` refused, the `(Agent, name)` slot closed to other kinds, as
+  STEP-SPEC-22 rules 4.3 and 4.4 do for Links. Set aside: it amends §1.1,
+  §1.3 and §1.6 for one modifier, borrowing Link rules whose reason (a
+  Link *is* a Tag and ends Contact by Contact) does not hold for a thing
+  one has; and an always-possible `None` makes `if charlie.weapon:` two
+  questions in one for every slot, where `@Tool(Weapon | None)` makes it
+  so only where the author chose it.
+- **A nested class as the Tool's declaration** (the Director's
+  suggestion): `@Tool` over a class declared inside the Tag, read as "one
+  object of this class per Agent, built at Parts, scoped to this Tag".
+  It has a real symmetry with Links, where `@Link class Knows(Tag)` is
+  "one Tag per Agent, built at Parts": a nested Tag class would be a Link,
+  a nested plain class a Tool. It is set aside as the *law* and kept as
+  open question 11, for two reasons. First, the kind of a Tool must be a
+  Tag: in TOP what a thing *is* is its Tags, and they travel with the
+  object across a hand-over; a class is the host's inherent structure
+  (§0.1), and making the class the kind would make the slot a nominal
+  type. Second, the kit would then construct and Tag the object itself,
+  which reopens the inputs rule and the undo question that law 3 avoids.
+  The nested class remains a good spelling for the *host* of a tool, as
+  sugar over the Record builder, once the one mechanism is law.
 - **A Link whose Field holds one Contact.** Set aside: see Rationale.
 - **A Pre on a Record,** as the general gain a gated slot would inherit.
   Worth its own STEP; this one names its Tags in the declaration, so the
@@ -503,6 +546,15 @@ STEP is Deployed.
 10. **Issue #74.** This STEP depends on the recommended refusal of
     dunder-named conditions so that "a part's own truth is its contract"
     is the only road. Confirm the refusal and the STEP-SPEC-14 wording.
+11. **A nested-class spelling.** The Director suggested that a Tool could
+    decorate a class declared inside the Tag, limiting its scope to that
+    Tag and building one record-like object per Agent at tagging. Should
+    that be (a) the law instead of the Record builder, (b) sugar over the
+    builder, `@Tool(Weapon) class sword: ...` meaning "build one `sword`
+    per Agent at Parts, then the forge's rules apply", or (c) left out?
+    This STEP proposes (b) as a later addition, once the one mechanism is
+    law, and asks how such a class would state its Tags without the class
+    itself becoming the kind.
 
 ## Validation
 
@@ -510,6 +562,10 @@ Before this STEP is Cleared, the implementation shows:
 
 - the guard at Parts and at the write, including `object.__setattr__`,
   for a non-member, a Rogue of the kind, `None` and the bearer;
+- a kind written `Weapon | None`: `None` admitted at Parts and at the
+  write, presence still `True`, `del` still the drop; and a population
+  (`Weapon | Blessed`, `~Weapon`, `Weapon[:]`) refused as a kind at class
+  use;
 - a Shape's own kind list through the stored seat, and a Shape changing
   the kind to a plain Record as §1.1 allows;
 - `@Constant`, `@Secret` and `@Tool` layered on one name, in every
