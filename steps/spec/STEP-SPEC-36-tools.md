@@ -9,7 +9,9 @@
 - **Created:** 2026-10-12
 - **Refs:** issue #74 (dunder-named conditions), PR #58 (Tags recognised
   by metaclass), STEP-SPEC-22 (Links, Brief), STEP-SPEC-33 (Presence),
-  STEP-SPEC-34 (Constant), STEP-SPEC-29 (Brief; the meaning of `in`)
+  STEP-SPEC-34 (Constant), STEP-SPEC-29 (Brief; the meaning of `in`),
+  issue #30 and STEP-SPEC-39 (Tagging Admission, Cleared, PR #78: the
+  sequence this STEP's failure outcomes follow once it lands)
 
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
@@ -47,10 +49,13 @@ pattern with blocks that run on `main`.
 This STEP proposes **one kit addition**, the mark `@Tool(T, ...)` on a
 Record builder, with **three laws**, and nothing else new:
 
-1. **The slot has a kind.** While present, a Tool slot holds an object
-   that is *now* a member of every Tag named, sound or defective, and is
-   not the bearer. The kit checks this at Parts (a refusal rolls the whole
-   call back) and at every write to the slot (a refusal changes nothing).
+1. **The slot has a kind, checked at admission.** A Tool slot admits only
+   an object that is *now* a member of every Tag named, sound or
+   defective, and is not the bearer. The kit checks this when the slot is
+   gained (step 2 of §0.6) and at every write to the slot. A refused write
+   changes nothing; a refused gaining is that step's failure under §0.6.
+   After admission, presence, membership and soundness stay three
+   separate questions.
 2. **The slot is never empty, unless its kind says so.** `None` is
    refused, except where the declaration writes it: `@Tool(Weapon | None)`
    admits the empty hand explicitly. `del agent.weapon` is always the
@@ -100,13 +105,17 @@ Each was reproduced on `main`:
 | 1 | **A stick is seated in silence.** `charlie.weapon = "a stick"` is accepted; the bearer turns defective only when a Post is next read, at a boundary or at `bool(charlie)`. | §2.4 is right that conditions never check themselves during play. But a declaration that *says* what the slot holds should refuse what it cannot hold, at the write, with nothing changed: the move §2.5 made for condition names and §1.8 for the `in` seat. |
 | 2 | **`None` is a held nothing.** STEP-SPEC-33 counts `None` as present, so `"weapon" @ charlie` is `True` with nothing in hand, and "armed?" needs two questions. | §2.8 asks to keep "is it there?" apart from "what is its value?". A slot that is never `None` keeps presence meaningful; an author who wants an empty hand says so in the kind, `Weapon | None`, instead of every reader assuming it. |
 | 3 | **The bearer can be its own tool.** `charlie.weapon = charlie` is accepted. | The barrier is void by identity; the two contracts fold onto one object. *Tener* and *ser* are different verbs. |
-| 4 | **The orphan.** A tool Tagged inside a builder stays Tagged when the bearer's call rolls back later in the same call (a second Record fails). | For a sword forged in the builder this is harmless: when nothing holds it, it is collected and "vanishes from every Field" (§0.3). For a pre-existing object handed in, it is a Tag the caller did not ask to keep. |
+| 4 | **The forge's tagging outlives the bearer's failure.** A tool Tagged inside a builder stays Tagged when a later gaining of the same call fails. On `main` today the whole call rolls back, so a sword forged in the builder is held by nothing and collected (§0.3). Under the approved sequence (issue #30, STEP-SPEC-39, PR #78) the bearer keeps the sword as an acquired Gain and stands outside the Tag's Field, a Rogue. | In either sequence a pre-existing object handed in keeps the Tag the forge applied, and Rip is not restoration (§0.7). The STEP says so where readers look instead of promising an undo. |
 
 Findings 1 to 3 are what law 1 and law 2 refuse. Finding 4 is **not**
 closed by this STEP: the honest answer is that the tool's tagging is a
 nested call with its own §0.6 boundary (law 3), and the STEP says so
 where readers look. Open question 2 puts the alternative, an undo, to the
-Director.
+Director. The failure outcomes in this STEP are restated from §0.6 and
+follow it: on `main` today that is the whole-call rollback; once PR #78
+lands it is STEP-SPEC-39's sequence, Gate, Gainings, Imprints,
+FieldAdding, Posts, in which a failure before FieldAdding keeps the Gains
+already acquired and leaves the Agent outside the Tag's Field.
 
 ### Issue #74, and where a part's truth lives
 
@@ -187,9 +196,12 @@ A row for §0.8:
 
 ### 3. The three laws
 
-**Law 1. The slot has a kind.** While present, a Tool slot holds an
-object that is *now* a member of every Tag of its kind and is not the
-bearer.
+**Law 1. The slot has a kind, checked at admission.** A Tool slot admits
+only an object that is *now* a member of every Tag of its kind and is not
+the bearer. Admission is asked twice: when the slot is gained, and at
+every write. After admission, three questions stay separate: presence
+(`"weapon" @ agent`), current membership (`agent.weapon in Weapon[:]`)
+and soundness (`Contract.Holds(agent.weapon)`).
 
 - *Member* means membership at all: `value in T[:]`, sound or defective.
   The guard asks membership, never soundness; a cursed or broken sword
@@ -198,17 +210,21 @@ bearer.
   mean sound membership; this law must not change meaning if that lands.
 - Membership is closed upward (§0.3), so an Agent of a Shape of `T` passes
   the guard for `T`.
-- The check runs **at Parts**, on what the builder returns: a refusal is
-  a Composition Failure that refuses Parts and rolls the whole call back
-  (§0.6, "nothing partial is ever published").
+- The check runs **at the slot's gaining** (step 2 of §0.6), on what the
+  builder returns. A refusal is a Composition Failure of that step and the
+  slot is not written. What that means for the rest of the call is §0.6's
+  rule, not this STEP's: on `main` today the whole call rolls back; under
+  STEP-SPEC-39 (Cleared, PR #78) the bearer keeps the Gains it already
+  acquired and does not enter the Tag's Field.
 - The check runs **at every write** to the slot, `object.__setattr__`
   included, the path STEP-SPEC-34 already intercepts: a refusal is a
   Composition Failure and the slot is unchanged.
-- The check is a **gate**: asked at the write, never re-asked (§2.2). A
+- Admission is a **gate**: asked at the write, never re-asked (§2.2). A
   seated tool that later leaves its Tag (`del Weapon[sword]`) stays
-  seated, a Rogue in hand; `charlie.weapon in Weapon[:]` turns `False`
-  and the bearer's Post notices at its next boundary or read (§2.4). Such
-  a Rogue is refused if moved to another slot.
+  seated, a Rogue in hand: presence stays `True`, `charlie.weapon in
+  Weapon[:]` turns `False`, and the bearer's Post notices at its next
+  boundary or read (§2.4). Such a Rogue is refused if moved to another
+  slot.
 - The bearer itself is refused at Parts and at the write. A Tool is
   something the Agent has, never the Agent; to make Charlie a Weapon, Tag
   him: `Weapon(charlie)`. This departs from STEP-SPEC-22, which leaves a
@@ -233,21 +249,39 @@ Constant slot (§1.5).
 builder returns and none to what is assigned. The forge Tags the object
 in plain sight, `Weapon(sword)`, or receives one already Tagged. A
 tagging the builder performs is an ordinary call on another Target with
-its own §0.6 boundary:
+its own §0.6 boundary, and what its failure means for the bearer is the
+bearer's own §0.6 rule for a failure inside a Record builder:
 
-- its gate or Parts failure leaves the tool untouched, propagates under
-  its own name (`except Precondition.Is_Holy:` works at
-  `Fighter(charlie)`, as today), refuses the bearer's Parts and rolls the
-  bearer's call back;
-- its Write or Quality failure leaves the tool Tagged, and defective if a
-  promise broke (§0.6: "the Tags stay"), while the bearer's call rolls
-  back; the failure propagates under its own name;
-- the bearer's rollback restores the **bearer's** TOP-managed state and
-  never the tool's (§0.6 speaks of the Target of the call). A tool forged
-  in the builder and held by nothing is collected and "vanishes from
-  every Field" (§0.3). A pre-existing object handed in keeps the Tag the
-  forge applied; an author who minds writes
-  `except TagError: del Weapon[sword]; raise` in the forge.
+- the tool's gate or Parts failure leaves the tool untouched and
+  propagates under its own name (`except Precondition.Is_Holy:` works at
+  `Fighter(charlie)`, as today); for the bearer it is a failure of the
+  slot's gaining;
+- the tool's Write or Quality failure leaves the tool Tagged, and
+  defective if a promise broke (§0.6: "the Tags stay"); for the bearer,
+  the same;
+- when a later gaining of the bearer's call fails, the forged tool keeps
+  its Tags. On `main` today the whole call rolls back, so a sword forged
+  in the builder is held by nothing and is collected, "vanishing from
+  every Field" (§0.3). Under STEP-SPEC-39 (Cleared, PR #78) the bearer
+  keeps the sword as an acquired Gain and stands outside the Tag's Field.
+  A pre-existing object handed in keeps the Tag the forge applied in
+  either sequence. Rip is not restoration (§0.7, Contributions are
+  sticky), so this STEP offers no cleanup recipe inside the forge: a
+  forge's `except` cannot see a later gaining's failure, and a Rip of a
+  Tag the object never joined would raise a Resolution Failure that masks
+  the named refusal. A caller that must not leave such a Tag behind
+  compensates on its own side, tracking what the call gained, and keeps
+  the primary failure primary:
+
+  ```python
+  was_a_weapon = sword in Weapon[:]
+  try:
+      Fighter(charlie, weapon=sword)
+  except TagError:
+      if not was_a_weapon and sword in Weapon[:]:
+          del Weapon[sword]           # the forge's act, undone by the same kind of act
+      raise
+  ```
 
 ### 4. Restated, with their sections
 
@@ -264,18 +298,25 @@ truth (§2.5: each Agent is truthy exactly when its own visible
 Postconditions hold), not its published members (§1.5: "members only"),
 not its secrets.
 
-4.2 **Two doors.** §1.5: inside composition means "while an Action,
-Imprint, Record builder, condition, or Rip protocol bound to **this**
-Agent is running". The bearer's functions run outside the tool's door:
-`agent.weapon.combination` from a bearer's Action fails closed as a secret
-member, and `agent.weapon.Open()` resolves it. The tool's functions run
-outside the bearer's door. The forge, a Record builder bound to the
-bearer, runs inside the bearer's door and outside the tool's. A `@Secret`
-Tool slot is the bearer's secret: the name resolves inside the bearer's
-functions only; the tool object is an ordinary Agent to anyone holding a
-reference to it. This is a deliberate difference from Links, whose
-functions open the Link's Agent's door and the Pair's (STEP-SPEC-22
-rule 3.6): a Tool has no Pair, so there is no third door.
+4.2 **Two doors, as §1.5 already opens them.** Inside composition means
+"while an Action, Imprint, Record builder, condition, or Rip protocol
+bound to **this** Agent is running" (§1.5). A door belongs to one Agent
+and stays open for as long as that Agent's own function runs. So reading
+`agent.weapon.combination` from a bearer's Action fails closed, because
+the sword's door is shut, while `agent.weapon.Open()` resolves it inside
+the sword's own Action. In the other direction the same rule, and no
+more: a tool's Action called from *outside* the bearer's functions cannot
+read the bearer's secrets; a tool's Action the bearer calls from *inside*
+its own Action, handing itself over (`agent.weapon.Swing(agent)`), runs
+while the bearer's door is open and can read them through that
+reference, as any callback can. Both verified on `main`. This STEP adds
+no isolation between nested receivers; that would be a separate design
+change to §1.5. The forge, a Record builder bound to the bearer, runs
+inside the bearer's door and outside the tool's. A `@Secret` Tool slot is
+the bearer's secret: the name resolves inside the bearer's functions
+only; the tool object is an ordinary Agent to anyone holding a reference
+to it. Links differ on purpose: their functions open the Link's Agent's
+door and the Pair's (STEP-SPEC-22 rule 3.6); a Tool has no Pair.
 
 4.3 **One direction, written back on purpose.** The kit writes nothing of
 the bearer on the tool and keeps no reference, weak or strong, from a
@@ -290,9 +331,13 @@ the forge, an Imprint, or a Link), as STEP-SPEC-22 rule 6.4 writes two
 ways down; the author then owns the cycle it makes.
 
 4.4 **Truth and presence.** `bool(charlie.weapon)` is the sword's own
-contract once a Postcondition is visible on it (§2.5); a host with its
-own `__bool__` or `__len__` keeps it until then, so the spelled-out form
-to teach inside a Post is `Contract.Holds(agent.weapon)`. Conditions on
+contract once a Postcondition is visible on it (§2.5), unless the host
+defines its own `__bool__`: on `main` today the kit never replaces a
+host's `__bool__`, so it stays authoritative even while a Post fails
+(verified: `bool(agent)` `True` with `Contract.Holds(agent)` `False`);
+#71 and #72 settle that rule. So the spelled-out form to teach inside a
+Post is `Contract.Holds(agent.weapon)`, which asks the contract whatever
+the host says. Conditions on
 the tool are written with `return`, not `assert`, so they still hold
 under `python -O` (§2.1 and the Guide's note on optimized Python).
 `"weapon" @ charlie` is presence and never evaluates the tool's contract
@@ -324,8 +369,10 @@ This is the line that separates a Tool from a Link, whose Agent's deletion
 ends it (STEP-SPEC-22 rule 8.3): a Link belongs to its Agent; a Tool
 outlives its bearer, as Excalibur outlives Arthur. Reapplying the
 bearer's Tag after Rip rebuilds an ordinary slot (the stored seat receives
-the sticky tool, so `return stored or forge(agent)` keeps it) and keeps a
-Constant one without running its builder (STEP-SPEC-34 rule 7).
+the sticky tool, so `return forge(agent) if stored is None else stored`
+keeps it; never `stored or forge(agent)`, because a defective tool is
+falsy and `or` would forge its replacement) and keeps a Constant one
+without running its builder (STEP-SPEC-34 rule 7).
 
 4.6 **Overlay on a Tool slot.** The latest applied Layer is the visible
 declaration for the name (§1.2). A Shape that redeclares the name as a
@@ -423,7 +470,9 @@ call boundary is independent of nested tagging by design. It would be
 incomplete, because a forge that Tags with inputs is outside it, and it is
 the kind of clever mechanism that is not maintainable. The honest law is
 law 3, written where readers look, and open question 2 keeps the door
-open for the Director.
+open for the Director. STEP-SPEC-39 narrows the question further: a
+tool forged in the builder is a Gain the bearer keeps, so only a
+pre-existing object handed in is affected.
 
 **Explicit `None`, never an implied one.** STEP-SPEC-33 counts `None` as
 present, and §2.8 asks to keep "is it there?" apart from "what is its
@@ -542,12 +591,15 @@ STEP is Deployed.
 1. **Worth its code?** If the three refusals are not worth about one
    hundred and fifty lines plus tests, the pattern stands as written on
    the wiki page and the mark stays here as an alternative.
-2. **The orphan.** Law 3 as proposed (two honest boundaries, documented),
-   or a narrow undo of the Tags the forge applied, or a kit Rip of them?
-   Links rule 5.6 undoes a linking made in a rolled-back call; a linking
-   is into the Agent's own Link, while `Weapon`'s Field belongs to no
-   bearer, so the two need not answer alike, but the Director may want
-   them to.
+2. **The forge's tagging of a pre-existing object.** Under STEP-SPEC-39
+   a tool forged in the builder is a Gain the bearer keeps, so the old
+   "orphan" question narrows to one case: an object handed in keeps the
+   Tag the forge applied when a later gaining fails. Law 3 as proposed
+   (documented, with caller-side compensation), or a kit undo of the Tags
+   the forge applied? Links rule 5.6 undoes a linking made in a
+   rolled-back call; a linking is into the Agent's own Link, while
+   `Weapon`'s Field belongs to no bearer, so the two need not answer
+   alike, but the Director may want them to.
 3. **The self-tool.** Refused by law as proposed, or left to the author's
    Post as Links leave `Not_Oneself` to a Pre?
 4. **Words.** "Bearer" as the formal word, or "the Tool's Agent" as Links
@@ -602,6 +654,10 @@ Before this STEP is Cleared, the implementation shows:
   write, presence still `True`, `del` still the drop; and a population
   (`Weapon | Blessed`, `~Weapon`, `Weapon[:]`) refused as a kind at class
   use;
+- the failure outcomes under whichever §0.6 is current: on today's
+  `main`, a refused gaining rolls the call back; under STEP-SPEC-39 once
+  PR #78 lands, it leaves the Gains already acquired and keeps the bearer
+  out of the Tag's Field; the wiki's examples hold under both;
 - a Shape's own kind list through the stored seat, and a Shape changing
   the kind to a plain Record as §1.1 allows;
 - `@Constant`, `@Secret` and `@Tool` layered on one name, in every
