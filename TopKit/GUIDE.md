@@ -450,6 +450,11 @@ assert newt                             # sound again
 assert newt in list(Wizard)             # back in the working population
 ```
 
+This assert-style Post needs Python assertions enabled. Optimized Python
+(`-O`, `-OO` or nonzero `PYTHONOPTIMIZE`) removes the check. For a promise
+that must also be checked in those modes, write
+`return agent.spellbook is not None`.
+
 This is the factory rule: a bad product is not melted back to materials. It
 is flagged, repaired, or thrown away (`del Wizard[newt]`).
 
