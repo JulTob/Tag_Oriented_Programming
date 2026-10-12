@@ -33,6 +33,12 @@
   `with Try(...)` spelling is now recorded only as a historical candidate;
   no Trial syntax is reserved.
 
+- **Context Actions compose:** Agent-authored context hooks use the
+  ordinary composition door, including across an asynchronous hook's
+  await, without exposing Secrets to the `with` block or sibling tasks.
+  Closing a suspended async hook in another context revokes its authority
+  without a context-token error or disturbing other active hooks. Host
+  contexts keep their ordinary Python behavior.
 - **Requirement retired:** `TopKit.Requirement` and its export are removed.
   Write `@Pre` and `@Post` on the same condition, in either order, when
   it must hold both at the door and afterwards. Failures keep their own
