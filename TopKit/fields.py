@@ -380,7 +380,7 @@ class _Partition(_Population):
             ) -> "_Partition":
         """``~`` means broken, and broken twice is still broken: on the
         defective half it gives that half back, so ``~~Wizard`` is
-        ``~Wizard`` (STEP-SPEC-29)."""
+        ``~Wizard`` (STEP-SPEC-38)."""
 
         if partition._label == "defective":
             return partition

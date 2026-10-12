@@ -1,6 +1,6 @@
-# STEP-SPEC-29: Absorbing Defective Population
+# STEP-SPEC-38: Absorbing Defective Population
 
-- **STEP:** SPEC-29
+- **STEP:** SPEC-38
 - **Desk:** spec
 - **Title:** Absorbing Defective Population
 - **Author:** Codex, recording the Director's approved design

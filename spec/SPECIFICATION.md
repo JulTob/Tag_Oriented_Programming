@@ -1165,7 +1165,7 @@ the loop is the line, and a defective product is off the line.
 
 `~` reads "broken", never "not". Broken twice is still broken, so `~`
 absorbs: `~~Wizard`, `~~~Wizard` and any longer run are `~Wizard`, the
-same defective population (STEP-SPEC-29).
+same defective population (STEP-SPEC-38).
 
 **Populations combine** (STEP-SPEC-13). `|` is either, `&` is both, `-`
 is the left without the right, on any population: a whole Field, the
