@@ -12,7 +12,7 @@
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
 
-> **Supersession, 2026-10-12:** [STEP-SPEC-36: Tagging Admission](STEP-SPEC-36-tagging-admission.md)
+> **Supersession, 2026-10-12:** [STEP-SPEC-39: Tagging Admission](STEP-SPEC-39-tagging-admission.md)
 > replaces this STEP's training and admission boundaries. Gainings and
 > Imprints now precede FieldAdding; unfinished training leaves actual Gains
 > without membership. Posts still judge admitted members after the completed
