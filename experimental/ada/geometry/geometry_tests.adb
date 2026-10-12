@@ -100,6 +100,7 @@ procedure Geometry_Tests is
       Right : constant Tag_Id := Add_Tag (Graph, List ([Root, Left]));
       Shape : constant Tag_Id := Add_Tag (Graph, List ([Right, Left, Root]));
    begin
+      --  Raw-DAG coverage: Python refuses Right (Root, Left) by C3.
       Check (Graph, Shape, [Root, Left, Right, Shape]);
       Check (Graph, Left, [Root, Left]);
    end Overlapping_Bases;
@@ -109,6 +110,7 @@ procedure Geometry_Tests is
       Root  : constant Tag_Id := Add_Tag (Graph);
       Shape : constant Tag_Id := Add_Tag (Graph, List ([Root, Root]));
    begin
+      --  Raw-DAG coverage: Python refuses repeated direct Bases.
       Check (Graph, Shape, [Root, Shape]);
    end Duplicate_Bases;
 
@@ -184,6 +186,215 @@ procedure Geometry_Tests is
          Reject (New_Graph, Expired);
       end;
    end Ended_Registry;
+
+   procedure Exhaustive_Forms is
+      subtype Position is Positive range 1 .. 5;
+      type Positions is array (Position) of Position;
+      type Declaration is record
+         Length : Natural range 0 .. 4 := 0;
+         Bases  : Positions := [others => 1];
+      end record;
+      Model : array (Position) of Declaration;
+      Graphs_Checked : Natural := 0;
+      Forms_Checked : Natural := 0;
+      Python_Graphs : Natural := 0;
+      Experimental_Only_Graphs : Natural := 0;
+      Python_Forms : Natural := 0;
+
+      --  Admission classifier only: C3 does not define the expected Form,
+      --  filter the enumeration, or change the experimental Registry policy.
+      function Python_Admissible return Boolean is
+         type Linearization is record
+            Length : Natural range 0 .. 5 := 0;
+            Order : Positions := [others => 1];
+         end record;
+         MRO : array (Position) of Linearization;
+      begin
+         for Current in Position loop
+            declare
+               Sequences : array (Position) of Linearization;
+               Heads : array (Position) of Positive := [others => 1];
+               Count : constant Positive := Model (Current).Length + 1;
+            begin
+               for Slot in 1 .. Model (Current).Length loop
+                  Sequences (Slot) := MRO (Model (Current).Bases (Slot));
+               end loop;
+               Sequences (Count).Length := Model (Current).Length;
+               Sequences (Count).Order := Model (Current).Bases;
+               MRO (Current).Length := 1;
+               MRO (Current).Order (1) := Current;
+
+               loop
+                  declare
+                     Active : Boolean := False;
+                     Selected : Boolean := False;
+                  begin
+                     for Slot in 1 .. Count loop
+                        if Heads (Slot) <= Sequences (Slot).Length then
+                           Active := True;
+                           declare
+                              Candidate : constant Position :=
+                                Sequences (Slot).Order (Heads (Slot));
+                              Eligible : Boolean := True;
+                           begin
+                              --  C3 chooses a head absent from every tail.
+                              for Other in 1 .. Count loop
+                                 for Tail in Heads (Other) + 1
+                                   .. Sequences (Other).Length
+                                 loop
+                                    if Sequences (Other).Order (Tail) = Candidate
+                                    then
+                                       Eligible := False;
+                                    end if;
+                                 end loop;
+                              end loop;
+                              if Eligible then
+                                 MRO (Current).Length := MRO (Current).Length + 1;
+                                 MRO (Current).Order (MRO (Current).Length) :=
+                                   Candidate;
+                                 for Other in 1 .. Count loop
+                                    if Heads (Other) <= Sequences (Other).Length
+                                      and then Sequences (Other).Order
+                                        (Heads (Other)) = Candidate
+                                    then
+                                       Heads (Other) := Heads (Other) + 1;
+                                    end if;
+                                 end loop;
+                                 Selected := True;
+                                 exit;
+                              end if;
+                           end;
+                        end if;
+                     end loop;
+                     exit when not Active;
+                     if not Selected then
+                        return False;
+                     end if;
+                  end;
+               end loop;
+            end;
+         end loop;
+         return True;
+      end Python_Admissible;
+
+      procedure Check_Admission_Fixtures is
+      begin
+         Model := [others => (Length => 0, Bases => [others => 1])];
+         Model (2) := (Length => 1, Bases => [others => 1]);
+         Model (3) := (Length => 2, Bases => [1 => 2, 2 => 1, others => 1]);
+         pragma Assert (Python_Admissible, "descendant-first redundant Bases");
+         Model (3).Bases (1) := 1;
+         Model (3).Bases (2) := 2;
+         pragma Assert (not Python_Admissible, "ancestor-first conflicting Bases");
+         Model (3).Bases (2) := 1;
+         pragma Assert (not Python_Admissible, "repeated direct Bases");
+
+         Model := [others => (Length => 0, Bases => [others => 1])];
+         Model (3) := (Length => 2, Bases => [1 => 1, 2 => 2, others => 1]);
+         Model (4) := (Length => 2, Bases => [1 => 2, 2 => 1, others => 1]);
+         pragma Assert (Python_Admissible, "independent opposing Base orders");
+         Model (5) := (Length => 2, Bases => [1 => 3, 2 => 4, others => 1]);
+         pragma Assert (not Python_Admissible, "combined opposing Base orders");
+      end Check_Admission_Fixtures;
+
+      procedure Check_Graph is
+         Graph : Registry;
+         Ids : Tag_Array (Position);
+         Bases, Expected : Tag_Lists.Vector;
+         Order : Positions := [others => 1];
+         Length : Natural := 0;
+         Visited : array (Position) of Boolean := [others => False];
+         Admissible : constant Boolean := Python_Admissible;
+
+         --  A bounded recursive model, independent of the production stack
+         --  and marks. It follows integer Base lists, not Registry internals.
+         procedure Visit (Current : Position) is
+         begin
+            for Slot in 1 .. Model (Current).Length loop
+               Visit (Model (Current).Bases (Slot));
+            end loop;
+            if not Visited (Current) then
+               Visited (Current) := True;
+               Length := Length + 1;
+               Order (Length) := Current;
+            end if;
+         end Visit;
+      begin
+         if Admissible then
+            Python_Graphs := Python_Graphs + 1;
+         else
+            Experimental_Only_Graphs := Experimental_Only_Graphs + 1;
+         end if;
+         for Current in Position loop
+            Bases.Clear;
+            for Slot in 1 .. Model (Current).Length loop
+               Bases.Append (Ids (Model (Current).Bases (Slot)));
+            end loop;
+            Ids (Current) := Add_Tag (Graph, Bases);
+         end loop;
+
+         for Root in Position loop
+            Length := 0;
+            Visited := [others => False];
+            Visit (Root);
+            Expected.Clear;
+            for Slot in 1 .. Length loop
+               Expected.Append (Ids (Order (Slot)));
+            end loop;
+            pragma Assert
+              (Form (Graph, Ids (Root)) = Expected,
+               "Form oracle mismatch at graph" & Natural'Image (Graphs_Checked + 1)
+               & " root" & Position'Image (Root));
+            Forms_Checked := Forms_Checked + 1;
+            if Admissible then
+               Python_Forms := Python_Forms + 1;
+            end if;
+         end loop;
+         Graphs_Checked := Graphs_Checked + 1;
+      end Check_Graph;
+
+      procedure Enumerate (Current : Position) is
+         Used : array (Position) of Boolean := [others => False];
+
+         --  Each prefix is one ordered subset of the earlier positions.
+         --  Stopping here emits it; extending with an unused Base emits the
+         --  longer subsets without repetitions or randomized sampling.
+         procedure Extend is
+         begin
+            if Current = Position'Last then
+               Check_Graph;
+            else
+               Enumerate (Current + 1);
+            end if;
+
+            for Base in 1 .. Current - 1 loop
+               if not Used (Base) then
+                  Used (Base) := True;
+                  Model (Current).Length := Model (Current).Length + 1;
+                  Model (Current).Bases (Model (Current).Length) := Base;
+                  Extend;
+                  Model (Current).Length := Model (Current).Length - 1;
+                  Used (Base) := False;
+               end if;
+            end loop;
+         end Extend;
+      begin
+         Model (Current).Length := 0;
+         Extend;
+      end Enumerate;
+   begin
+      Check_Admission_Fixtures;
+      Enumerate (Position'First);
+      pragma Assert (Graphs_Checked = 10_400 and Forms_Checked = 52_000);
+      pragma Assert (Python_Graphs = 2_422
+                     and Experimental_Only_Graphs = 7_978
+                     and Python_Forms = 12_110);
+      Ada.Text_IO.Put_Line
+        ("Abstract DAG Form oracle: 10400 graphs, 52000 Forms passed");
+      Ada.Text_IO.Put_Line
+        ("Test-only C3 admission: 2422 Python-admissible graphs (12110 Forms),"
+         & " 7978 experimental-only graphs");
+   end Exhaustive_Forms;
 begin
    Check_Assertions;
    Empty_And_Root;
@@ -196,5 +407,7 @@ begin
    Deep_Chain;
    Invalid_Handles;
    Ended_Registry;
-   Ada.Text_IO.Put_Line ("Geometry/Form: 10 tests passed (including depth 3000)");
+   Exhaustive_Forms;
+   Ada.Text_IO.Put_Line
+     ("Geometry/Form: 10 focused tests passed (including depth 3000)");
 end Geometry_Tests;
