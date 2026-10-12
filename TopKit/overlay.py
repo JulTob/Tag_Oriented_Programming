@@ -23,11 +23,17 @@ from .contracts import _guarded
 from .constants import _constant_overlay
 from .constants import _refuse_constant
 from .declarations import _Declarations
+from .declarations import _ACTION_CHAIN
+from .declarations import _action_chain
+from .declarations import _discard_lazy_result
 from .declarations import _is_flag
+from .declarations import _lazy_rip_guard
 from .declarations import _parameters_of
 from .declarations import _protocol_inputs
 from .declarations import _takes_stored
 from .declarations import _takes_underlay
+from .errors import _exception_text
+from .errors import _type_name
 from .errors import TagCompositionError
 from .errors import TagDeclarationError
 from .errors import TagError
@@ -45,10 +51,13 @@ from .declarations import _MISSING
 from .presence import _Presence
 from .state import _Bound
 from .state import _Pinned_Operation
+from .state import _Published
 from .state import _State
 from .state import _name_of
 from .state import _namespace_of
 from .state import _state_of
+from .state import _restore_namespace
+from .state import _set_runtime_type
 
 
 Function = Callable[..., Any]
@@ -170,6 +179,11 @@ def _compose(
                 f"{function.__qualname__} requires a visible Underlay"
                 )
 
+    chain = _action_chain(underlay)
+
+    if chain is None:
+        chain = object()
+
     @wraps(function)
     def Call(
             agent: object,
@@ -181,17 +195,50 @@ def _compose(
                 **next_kwargs: Any,
                 ) -> Any:
             if next_args or next_kwargs:
-                return underlay(
+                result = underlay(
                         agent,
                         *next_args,
                         **next_kwargs,
                         )
+            else:
+                result = underlay(
+                        agent,
+                        *args,
+                        **kwargs,
+                        )
 
-            return underlay(
-                    agent,
-                    *args,
-                    **kwargs,
-                    )
+            guard = _lazy_rip_guard.get()
+
+            if (
+                    guard is not None
+                    and guard.active
+                    and guard.chain is chain
+                    ):
+                try:
+                    lazy = _discard_lazy_result(result)
+                except Exception as error:
+                    failure = TagCompositionError(
+                            f"Rip protocol {str.__str__(guard.name)!r} returned a"
+                            " lazy result that could not be disposed of:"
+                            f" {_type_name(error)}: {_exception_text(error)}"
+                            )
+                    guard.failures.append(failure)
+
+                    raise failure from error
+
+                if lazy is not None:
+                    article = "an" if lazy == "async generator" else "a"
+                    failure = TagCompositionError(
+                            f"Rip protocol {str.__str__(guard.name)!r} returned"
+                            f" {article} {lazy}; a Rip protocol must complete"
+                            " synchronously. TOP does not await or iterate"
+                            " teardown protocols."
+                            )
+                    guard.failures.append(failure)
+
+                    raise failure
+
+            return result
 
         return function(
                 agent,
@@ -199,6 +246,12 @@ def _compose(
                 *args,
                 **kwargs,
                 )
+
+    setattr(
+            Call,
+            _ACTION_CHAIN,
+            chain,
+            )
 
     return Call
 
@@ -289,6 +342,21 @@ def _gains_of(
     """
 
     if not declarations.gain_order:
+        return
+
+    if declarations.gaining_steps and not declarations.constants:
+        for kind, step in declarations.gaining_steps:
+            name = step.gain_order[0]
+            if kind == "action":
+                function = step.actions[0][1]
+            elif kind == "record":
+                function = step.records[0][1]
+            elif kind == "condition":
+                conditions = step.preconditions or step.postconditions
+                function = conditions[0][1]
+            else:
+                function = None
+            yield kind, name, function
         return
 
     actions = dict(declarations.actions)
@@ -414,7 +482,7 @@ def _install(
 
     if declarations.rips:
         state.rips[tag] = tuple(
-                state.actions[name]
+                (name, state.actions[name])
                 for name in declarations.rips
                 )
 
@@ -428,7 +496,7 @@ def _gainings(
         declarations: _Declarations,
         deleted_before: set[str],
         inputs: dict[str, Any],
-        prepare: Callable[[_Declarations], None],
+        prepare: Callable[[_Declarations, bool], None],
         ) -> None:
     """Attach each actual Gain before proceeding to the next declaration.
 
@@ -449,36 +517,53 @@ def _gainings(
             if not one.actions:
                 continue   # the Agent retains this identical Constant
             function = one.actions[0][1]
-            _install_action(state, tag, name, function)
         elif kind == "record":
             if not one.records:
                 continue
             function = one.records[0][1]
             value = _record_value(
-                    agent,
-                    name,
-                    function,
-                    deleted_before,
-                    inputs,
+                    agent, tag, name, function, deleted_before, inputs,
                     )
-            _install_record(state, tag, name, function)
-            _store_record(agent, name, value, one.secrets)
-        else:
-            if kind == "condition" and not (one.preconditions or one.postconditions):
-                continue
-            _install(state, tag, one)
+        elif kind == "condition" and not (one.preconditions or one.postconditions):
+            continue
 
-        if one.secrets:
-            state.secrets.update(one.secrets)
+        # A Gain requiring runtime protection has not stuck until its
+        # representation can be installed. Never leave an exposed Secret
+        # or writable Constant when a host rejects that representation.
+        needs_runtime = (
+                one.runtime
+                or (bool(state.published)
+                    and type(type(agent).__dict__.get(name)) is _Published)
+                )
+        previous = state.Copy() if needs_runtime else None
+        if previous is not None:
+            previous_type = type(agent)
+            previous_namespace = dict(_namespace_of(agent))
 
-        if name in locks:
-            state.constants[name] = locks[name]
+        try:
+            if kind == "action":
+                _install_action(state, tag, name, function)
+            elif kind == "record":
+                _install_record(state, tag, name, function)
+                _store_record(agent, name, value, one.secrets)
+            else:
+                _install(state, tag, one)
 
-        prepare(one)
+            if one.secrets:
+                state.secrets.update(one.secrets)
+            if name in locks:
+                state.constants[name] = locks[name]
+            prepare(one, needs_runtime)
+        except BaseException:
+            if previous is not None:
+                if type(agent) is not previous_type:
+                    _set_runtime_type(agent, previous_type)
+                _restore_namespace(agent, previous_namespace)
+                state.Restore(previous)
+            raise
 
         if state.pinned is not None:
             from .declarations import _scan_cache
-
             _scan_cache.pop(state.pinned, None)
 
 
@@ -1078,6 +1163,7 @@ def _restore(
 
 def _record_value(
         agent: object,
+        tag: type,
         name: str,
         builder: Function,
         deleted_before: set[str],
@@ -1121,9 +1207,11 @@ def _record_value(
     except TagError:
         raise
     except Exception as error:
+        tag_name = str.__str__(type.__dict__["__name__"].__get__(tag))
+        record_name = str.__str__(name)
         raise TagCompositionError(
-                f"Record {builder.__qualname__} could not be"
-                f" materialized: {type(error).__name__}: {error}"
+                f"Record {tag_name}.{record_name} could not be"
+                f" materialized: {_type_name(error)}: {_exception_text(error)}"
                 ) from error
 
     return value

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from functools import partial
 from inspect import getattr_static
-from types import GetSetDescriptorType
 from types import MemberDescriptorType
 from typing import Any
 
@@ -13,22 +12,16 @@ from .declarations import _MISSING
 from .state import _Deleted
 from .state import _Published
 from .state import _Secret_Gate
+from .state import _real_namespace_of
 from .constants import _Constant_Gate
 
 
 def _namespace(agent: object) -> Any:
     """Read real storage even when a host shadows ``__dict__``."""
 
-    if issubclass(type(agent), type):
-        return type.__dict__["__dict__"].__get__(agent)
+    namespace = _real_namespace_of(agent)
 
-    for owner in type(agent).__mro__:
-        member = owner.__dict__.get("__dict__")
-
-        if issubclass(type(member), GetSetDescriptorType):
-            return member.__get__(agent, type(agent))
-
-    return {}
+    return {} if namespace is None else namespace
 
 
 def _binding(agent: object, name: str, namespace: Any) -> tuple[Any, bool]:
