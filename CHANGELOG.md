@@ -10,6 +10,10 @@
   none. A host's `__len__` still answers `len(agent)`. Before, an empty
   container-like Agent with no Posts was false.
 
+- **Ordinary condition names:** Preconditions and Postconditions refuse
+  Python dunder names at Tag declaration and before late assignment.
+  Their computed boolean verdicts keep ordinary Contribution names.
+
 - **Computed conditions keep their names:** while a named Precondition or
   Postcondition is visible, assigning or deleting that name is refused before
   a host setter runs. The name continues to compute its boolean on read;
