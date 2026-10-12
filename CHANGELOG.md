@@ -13,6 +13,14 @@
   Python dunder names at Tag declaration and before late assignment.
   Their computed boolean verdicts keep ordinary Contribution names.
 
+- **Computed conditions keep their names:** while a named Precondition or
+  Postcondition is visible, assigning or deleting that name is refused before
+  a host setter runs. The name continues to compute its boolean on read;
+  `Contract.Delete` ends the condition and returns the name to ordinary
+  attribute behavior. The protection also covers Pins, custom host setters and
+  direct `object.__setattr__` / `object.__delattr__` calls. A multi-name
+  `Contract.Delete` validates every requested condition before ending any.
+
 - **Fresh Tagging rebuilds ordinary Records:** the Specification and Guide
   now say explicitly that Rip removes membership, not sticky Contributions.
   Applying the Tag after Rip reruns that Tag's ordinary Record builders.

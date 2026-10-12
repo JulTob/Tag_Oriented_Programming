@@ -14,6 +14,7 @@ from .state import _Deleted
 from .state import _Published
 from .state import _Secret_Gate
 from .constants import _Constant_Gate
+from .contracts import _Condition_Gate
 
 
 def _namespace(agent: object) -> Any:
@@ -81,6 +82,16 @@ def _present(
 
     if issubclass(type(member), _Constant_Gate):
         if state is not None and state.constants.get(name, (None, None))[1] == "postcondition":
+            return False
+        if member.member is _MISSING:
+            return name in namespace
+        member = member.member
+
+    if issubclass(type(member), _Condition_Gate):
+        if state is not None and (
+                name in state.preconditions
+                or name in state.postconditions
+                ):
             return False
         if member.member is _MISSING:
             return name in namespace
