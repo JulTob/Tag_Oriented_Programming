@@ -4,6 +4,11 @@
 
 ### TopKit
 
+- **Field membership stays behind TOP's doors:** `Tag[:]` no longer
+  exposes public `Add` or `Remove` methods. Membership changes through
+  Tagging and Rip, so the Field and the Agent's active Tags cannot be
+  made to contradict each other through a partial internal operation.
+
 - **Ordinary condition names:** Preconditions and Postconditions refuse
   Python dunder names at Tag declaration and before late assignment.
   Their computed boolean verdicts keep ordinary Contribution names.
