@@ -23,11 +23,17 @@ from .contracts import _guarded
 from .constants import _constant_overlay
 from .constants import _refuse_constant
 from .declarations import _Declarations
+from .declarations import _ACTION_CHAIN
+from .declarations import _action_chain
+from .declarations import _discard_lazy_result
 from .declarations import _is_flag
+from .declarations import _lazy_rip_guard
 from .declarations import _parameters_of
 from .declarations import _protocol_inputs
 from .declarations import _takes_stored
 from .declarations import _takes_underlay
+from .errors import _exception_text
+from .errors import _type_name
 from .errors import TagCompositionError
 from .errors import TagDeclarationError
 from .errors import TagError
@@ -170,6 +176,11 @@ def _compose(
                 f"{function.__qualname__} requires a visible Underlay"
                 )
 
+    chain = _action_chain(underlay)
+
+    if chain is None:
+        chain = object()
+
     @wraps(function)
     def Call(
             agent: object,
@@ -181,17 +192,50 @@ def _compose(
                 **next_kwargs: Any,
                 ) -> Any:
             if next_args or next_kwargs:
-                return underlay(
+                result = underlay(
                         agent,
                         *next_args,
                         **next_kwargs,
                         )
+            else:
+                result = underlay(
+                        agent,
+                        *args,
+                        **kwargs,
+                        )
 
-            return underlay(
-                    agent,
-                    *args,
-                    **kwargs,
-                    )
+            guard = _lazy_rip_guard.get()
+
+            if (
+                    guard is not None
+                    and guard.active
+                    and guard.chain is chain
+                    ):
+                try:
+                    lazy = _discard_lazy_result(result)
+                except Exception as error:
+                    failure = TagCompositionError(
+                            f"Rip protocol {str.__str__(guard.name)!r} returned a"
+                            " lazy result that could not be disposed of:"
+                            f" {_type_name(error)}: {_exception_text(error)}"
+                            )
+                    guard.failures.append(failure)
+
+                    raise failure from error
+
+                if lazy is not None:
+                    article = "an" if lazy == "async generator" else "a"
+                    failure = TagCompositionError(
+                            f"Rip protocol {str.__str__(guard.name)!r} returned"
+                            f" {article} {lazy}; a Rip protocol must complete"
+                            " synchronously. TOP does not await or iterate"
+                            " teardown protocols."
+                            )
+                    guard.failures.append(failure)
+
+                    raise failure
+
+            return result
 
         return function(
                 agent,
@@ -199,6 +243,12 @@ def _compose(
                 *args,
                 **kwargs,
                 )
+
+    setattr(
+            Call,
+            _ACTION_CHAIN,
+            chain,
+            )
 
     return Call
 
@@ -414,7 +464,7 @@ def _install(
 
     if declarations.rips:
         state.rips[tag] = tuple(
-                state.actions[name]
+                (name, state.actions[name])
                 for name in declarations.rips
                 )
 
@@ -456,6 +506,7 @@ def _gainings(
             function = one.records[0][1]
             value = _record_value(
                     agent,
+                    tag,
                     name,
                     function,
                     deleted_before,
@@ -1078,6 +1129,7 @@ def _restore(
 
 def _record_value(
         agent: object,
+        tag: type,
         name: str,
         builder: Function,
         deleted_before: set[str],
@@ -1121,9 +1173,11 @@ def _record_value(
     except TagError:
         raise
     except Exception as error:
+        tag_name = str.__str__(type.__dict__["__name__"].__get__(tag))
+        record_name = str.__str__(name)
         raise TagCompositionError(
-                f"Record {builder.__qualname__} could not be"
-                f" materialized: {type(error).__name__}: {error}"
+                f"Record {tag_name}.{record_name} could not be"
+                f" materialized: {_type_name(error)}: {_exception_text(error)}"
                 ) from error
 
     return value
