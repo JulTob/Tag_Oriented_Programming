@@ -31,6 +31,24 @@ Compiler diagnostic wording is not a verdict: logs explain unexpected outcomes
 for humans. A shared source/toolchain error fails the legal control rather than
 counting as evidence of the intended refusal.
 
+`rosen_probes` exercises a private controlled `Lifetime(Carrier'Access)`
+component in plain and controlled outer carriers. Its current-instance address
+is cached and compared only while the Host is live, including a limited
+build-in-place result and two distinct live Hosts. Each token receives a unique
+scouting ID during initialization. Cleanup uses only that ID and external trace
+events: it never dereferences the owner, reads host extension state, or dispatches
+a host callback. These IDs and addresses are test observations, not TOP identity
+or Registry implementations.
+
+Ordinary component order is observed, not asserted as portable. Ada RM
+§7.6.1(9/3) instead gives priority to components whose access discriminants use
+per-object expressions, with reverse declaration order between such components.
+The probe checks a Rosen token before an ordinary extension, and a later
+dependent extension before that token. It also checks that automatic outer
+`Finalize` precedes components, while repeated explicit Host/ancestor `Finalize`
+calls leave the private token untouched until automatic finalization. Containment
+does not by itself establish a universally safe point for host callbacks.
+
 `escape_dynamic` first attaches a same-scope Target successfully, then requires
 `Program_Error` around only the inner Target's `Attach` call. It does not inspect
 exception text. Allocations accepted by either path are disposed before their
@@ -52,6 +70,12 @@ Checked accessibility is not ownership: it does not force companion and Target
 lifetimes to match, prevent explicit early deallocation, or ensure one companion
 per Target. Limited assignment does not prevent fresh construction. These
 GNAT-specific probes select no supported profile or TOP failure spelling.
+
+The trace and ID counters are sequential scouting fixtures, not task-safe
+shared state. No concurrent Field/query/destruction or Registry synchronization
+contract is implemented. The probes require automatic controlled hooks; a
+`No_Finalization` restriction that disables those hooks cannot provide this
+evidence. No SPARK lifecycle proof or supported SPARK profile is claimed.
 
 Registry lifetime and real Field cleanup remain separate work. Ordinary
 finalization does not guarantee cleanup after
