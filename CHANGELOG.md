@@ -15,6 +15,11 @@
   names: `Precondition.Name` at the door and `Postcondition.Name`
   afterwards.
 
+- **Accurate Contract Warnings:** replacing a visible Postcondition now
+  names whether its origin is a Base, Shape or independent Tag, and points
+  at the tagging line. The warning no longer describes every replacement
+  as weakening a Base promise.
+
 - **Constant Contributions:** `@Constant` protects Records, Actions,
   Posts, Reports and Operations from replacement, deletion and later
   Layers. Record values remain per Agent and their contents may mutate.
