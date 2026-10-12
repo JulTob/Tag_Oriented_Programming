@@ -157,8 +157,14 @@ MI6(bond, code="007")      # every protocol that names `code` receives it
 ```
 
 **Reapplying an active Tag does nothing.** It does not duplicate
-membership, does not rerun Imprints, does not reset Records. Resetting is a
-deliberate act: Rip, then apply again.
+membership, does not rerun Imprints, and does not rebuild Records. Rip ends
+membership but leaves sticky Contributions. Applying the Tag after Rip is
+fresh Tagging: that Tag's ordinary Record builders run again. Bases already
+active are not reapplied. A builder without a second positional seat replaces
+the current binding with its returned value;
+a builder with that seat receives the current stored value and determines
+how to evolve it. As in §1.3, an absent, deleted or Action binding supplies
+`None`; `stored` is the example parameter name, not a required spelling.
 
 ## 0.6 The tagging sequence
 
@@ -259,8 +265,12 @@ Rip is the only exit from a Field, and it obeys three laws:
   is a Resolution Failure. A Constant Post (§1.5) cannot be deleted;
   any membership guard must be part of its original check.
 - **Reapplying a Ripped Tag is a fresh Tagging.** Imprints run again;
-  ordinary Records are rebuilt. Established Constant bindings stay intact;
-  their builders do not run again for the same declaration.
+  that Tag's ordinary Record builders run again. A builder without a second
+  positional seat replaces the current binding; one with that seat receives
+  the current stored value, including a value left by the Tag's earlier
+  application (§1.3).
+  Established Constant bindings stay intact; their builders do not run
+  again for the same declaration.
 
 ## 0.8 Spellings
 
