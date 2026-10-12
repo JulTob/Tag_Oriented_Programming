@@ -12,6 +12,7 @@ from __future__ import annotations
 import collections.abc
 import copy
 import gc
+import inspect
 import unittest
 import warnings
 import weakref
@@ -35,7 +36,6 @@ from TopKit import Precondition
 from TopKit import Public
 from TopKit import Record
 from TopKit import Report
-from TopKit import Requirement
 from TopKit import Rip
 from TopKit import Secret
 from TopKit import Tag
@@ -666,6 +666,27 @@ class HostPreservationTests(unittest.TestCase):
 
 
 class OverlayTests(unittest.TestCase):
+    def test_the_overwrite_warning_points_through_apply(self) -> None:
+        class Guard(Tag):
+            @Action
+            def Patrol(agent):
+                return "guard"
+
+        class Intruder(Tag):
+            @Action
+            def Patrol(agent):
+                return "intruder"
+
+        ari = Agent()
+        Guard(ari)
+
+        with self.assertWarns(TagOverwriteWarning) as caught:
+            expected_line = inspect.currentframe().f_lineno + 1
+            Apply(ari, Intruder)
+
+        self.assertEqual(caught.filename, __file__)
+        self.assertEqual(caught.lineno, expected_line)
+
     def test_underlay_captures_the_visible_overlay_at_tagging_time(self) -> None:
         ari = Agent()
 
@@ -1374,9 +1395,10 @@ class ConditionTests(unittest.TestCase):
         self.assertIs(Precondition.Alive, TagPreconditionError.Alive)
         self.assertIs(Postcondition.Alive, TagPostconditionError.Alive)
 
-    def test_requirement_is_the_stacked_pair_in_one_word(self) -> None:
+    def test_the_two_marks_stack_in_either_order(self) -> None:
         class Vampire(Tag):
-            @Requirement
+            @Post
+            @Pre
             def Undead(agent):
                 return agent.undead
 
@@ -1394,12 +1416,46 @@ class ConditionTests(unittest.TestCase):
         with self.assertRaises(Postcondition.Undead):
             Contract.Postconditions(nosferatu)
 
-    def test_a_requirement_names_no_failure_of_its_own(self) -> None:
-        with self.assertRaises(AttributeError) as caught:
-            Requirement.Undead
+    def test_a_stacked_condition_fails_under_the_name_of_the_half_that_refused(self) -> None:
+        class Vampire(Tag):
+            @Pre
+            @Post
+            def Undead(agent):
+                return agent.undead
 
-        self.assertIn("Precondition.Undead", str(caught.exception))
-        self.assertIn("Postcondition.Undead", str(caught.exception))
+        mortal = Agent()
+        mortal.undead = False
+
+        with self.assertRaises(Precondition.Undead) as at_the_door:
+            Vampire(mortal)
+
+        self.assertIsInstance(at_the_door.exception, Precondition.Undead)
+        self.assertNotIsInstance(at_the_door.exception, Postcondition.Undead)
+
+        nosferatu = Agent()
+        nosferatu.undead = True
+        Vampire(nosferatu)
+        nosferatu.undead = False
+
+        with self.assertRaises(Postcondition.Undead) as afterwards:
+            Contract.Postconditions(nosferatu)
+
+        self.assertIsInstance(afterwards.exception, Postcondition.Undead)
+        self.assertNotIsInstance(afterwards.exception, Precondition.Undead)
+
+    def test_requirement_is_no_longer_exported(self) -> None:
+        import TopKit
+        import TopKit.declarations
+
+        with self.assertRaises(ImportError):
+            from TopKit import Requirement
+
+        with self.assertRaises(ImportError):
+            from TopKit.declarations import Requirement
+
+        self.assertNotIn("Requirement", TopKit.__all__)
+        self.assertFalse(hasattr(TopKit, "Requirement"))
+        self.assertFalse(hasattr(TopKit.declarations, "Requirement"))
 
 
 class DefectiveTaggingTests(unittest.TestCase):
@@ -1537,6 +1593,85 @@ class DefectiveTaggingTests(unittest.TestCase):
 
         ari.strength = 19
         self.assertFalse(bool(ari))
+
+    def test_the_contract_warning_names_the_base_it_weakens(self) -> None:
+        ari = Agent()
+        ari.strength = 15
+
+        with self.assertWarns(TagContractWarning) as caught:
+            Bruiser(ari)
+
+        message = str(caught.warning)
+        self.assertIn("Bruiser.Strength_Capped", message)
+        self.assertIn("its Base Capped", message)
+        self.assertIn("weakens a promise", message)
+
+    def test_the_contract_warning_names_an_independent_tag(self) -> None:
+        class Sworn(Tag):
+            @Post
+            def Honest(agent):
+                return agent.oath
+
+        class Guild(Tag):
+            @Post
+            def Honest(agent):
+                return True
+
+        ari = Agent()
+        ari.oath = True
+        Sworn(ari)
+
+        with self.assertWarns(TagContractWarning) as caught:
+            Guild(ari)
+
+        message = str(caught.warning)
+        self.assertIn("Guild.Honest", message)
+        self.assertIn("independent Tag Sworn", message)
+        self.assertNotIn("Base", message)
+
+        ari.oath = False
+        self.assertTrue(bool(ari))                                    # as the text says: Sworn's promise no longer binds
+
+    def test_the_contract_warning_names_the_shape_a_base_replaces(self) -> None:
+        ari = Agent()
+        ari.strength = 15
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            Bruiser(ari)
+
+        del Bruiser[ari]
+        del Capped[ari]
+
+        with self.assertWarns(TagContractWarning) as caught:
+            Capped(ari)                                               # over Bruiser's sticky promise
+
+        message = str(caught.warning)
+        self.assertIn("Capped.Strength_Capped", message)
+        self.assertIn("its Shape Bruiser", message)
+        self.assertNotIn("weakens", message)
+
+    def test_the_contract_warning_points_at_the_tagging_line(self) -> None:
+        ari = Agent()
+        ari.strength = 15
+
+        with self.assertWarns(TagContractWarning) as caught:
+            expected_line = inspect.currentframe().f_lineno + 1
+            Bruiser(ari)
+
+        self.assertEqual(caught.filename, __file__)
+        self.assertEqual(caught.lineno, expected_line)
+
+    def test_the_contract_warning_points_through_apply(self) -> None:
+        ari = Agent()
+        ari.strength = 15
+
+        with self.assertWarns(TagContractWarning) as caught:
+            expected_line = inspect.currentframe().f_lineno + 1
+            Apply(ari, Bruiser)
+
+        self.assertEqual(caught.filename, __file__)
+        self.assertEqual(caught.lineno, expected_line)
 
     def test_pre_and_post_are_aliases(self) -> None:
         self.assertIs(Pre, Precondition)
@@ -2361,9 +2496,10 @@ class StickyConditionTests(unittest.TestCase):
         with self.assertRaises(TagResolutionError):
             Contract.Delete(ari, "Has_Oath")
 
-    def test_deletion_ends_both_halves_of_a_requirement(self) -> None:
+    def test_deletion_ends_both_halves_of_a_stacked_condition(self) -> None:
         class Elf(Tag):
-            @Requirement
+            @Pre
+            @Post
             def Alive(agent):
                 return agent.alive
 
@@ -3248,7 +3384,8 @@ class ConditionMemberTests(unittest.TestCase):
 
     def test_the_member_and_the_status_agree(self) -> None:
         class Elf(Tag):
-            @Requirement
+            @Pre
+            @Post
             def Alive(agent):
                 return agent.alive
 

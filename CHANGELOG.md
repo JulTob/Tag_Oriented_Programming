@@ -13,6 +13,16 @@
   ordinary composition door, including across an asynchronous hook's
   await, without exposing Secrets to the `with` block or sibling tasks.
   Host contexts keep their ordinary Python behavior.
+- **Requirement retired:** `TopKit.Requirement` and its export are removed.
+  Write `@Pre` and `@Post` on the same condition, in either order, when
+  it must hold both at the door and afterwards. Failures keep their own
+  names: `Precondition.Name` at the door and `Postcondition.Name`
+  afterwards.
+
+- **Accurate Contract Warnings:** replacing a visible Postcondition now
+  names whether its origin is a Base, Shape or independent Tag, and points
+  at the tagging line. The warning no longer describes every replacement
+  as weakening a Base promise.
 
 - **Constant Contributions:** `@Constant` protects Records, Actions,
   Posts, Reports and Operations from replacement, deletion and later

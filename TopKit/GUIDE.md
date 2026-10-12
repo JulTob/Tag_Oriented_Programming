@@ -29,7 +29,7 @@ an adjective, changeable. Wizard is a Tag. Hit points are a Record.
 from TopKit import (
         Action, Contract, Delete, Flag, Form, Imprint, Keyword, Operation,
         Outline, Pin, Post, Postcondition, Pre, Precondition, Public,
-        Record, Report, Requirement, Rip, Secret, Tag, Tags, Underlay,
+        Record, Report, Rip, Secret, Tag, Tags, Underlay,
         TagCompositionError, TagPostconditionError, TagPreconditionError,
         TagResolutionError,
         )
@@ -510,20 +510,10 @@ assert ari in ~Elf
 Being alive is necessary to be an Elf, not sufficient: other living things
 are not Elves. That is the difference between a condition and a Tag.
 
-When the claim reads better as one necessity than as two checks, write
-`@Requirement` instead of the pair. It means exactly the same thing:
-
-```python
-class Elf(Tag):
-
-    @Requirement
-    def Alive(agent):
-        return agent.alive
-```
-
-It still fails under two names, because you repair the two differently:
-`Precondition.Alive` is someone who may not come in, `Postcondition.Alive`
-is an Elf already in and now broken.
+The order of the two marks does not matter: `@Post` above `@Pre` is the
+same condition. It fails under two names, because you repair the two
+differently: `Precondition.Alive` is someone who may not come in,
+`Postcondition.Alive` is an Elf already in and now broken.
 
 **Watch out.** A Shape should promise *at least* what its Base promised.
 Use `@Post @Underlay` and `return base() and ...`. Overriding a Base's
