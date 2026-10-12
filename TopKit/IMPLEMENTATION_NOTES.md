@@ -56,6 +56,10 @@ Actions; Agents are built once and play for a long time. So:
   execution context shares the capability while the hook is active; a
   pre-existing sibling does not, and closing clears the state reference so
   a captured context can neither reuse the door nor retain the Agent state.
+  Closing removes inactive doors from the current context instead of
+  resetting a token: Python may close a suspended coroutine in another
+  context or close interleaved hooks out of order. Other active doors stay
+  intact, and later hook entry prunes inert doors in captured contexts.
   Secret gates accept either form. The type-cache key uses the selected raw
   Actions and wrappers are allocated only on a cache miss, so equal
   compositions still share one runtime type. Ordinary Actions on Agents
