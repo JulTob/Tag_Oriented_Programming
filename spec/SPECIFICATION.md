@@ -74,6 +74,7 @@ Ring 4.
 | **Underlay** | The prior visible contribution of a name, captured for a later Layer to extend. |
 | **Pin** | A Tag marked `@Pin`, whose Targets are Tags (§1.9). |
 | **Pinning** | Applying a Pin to a Tag: `Rare(Wizard)`. The pinned Tag is the Pin's Agent. |
+| **Tool** | A Record whose value is an Agent of the Tags its declaration names (§1.3). Something you *have* (*tener*): what it is stays its own. |
 
 TOP uses **Base** and **Shape**, never *parent* and *child*: the words
 describe a different model. A Tag may be both: `Person` is a Shape of
@@ -157,8 +158,14 @@ MI6(bond, code="007")      # every protocol that names `code` receives it
 ```
 
 **Reapplying an active Tag does nothing.** It does not duplicate
-membership, does not rerun Imprints, does not reset Records. Resetting is a
-deliberate act: Rip, then apply again.
+membership, does not rerun Imprints, and does not rebuild Records. Rip ends
+membership but leaves sticky Contributions. Applying the Tag after Rip is
+fresh Tagging: that Tag's ordinary Record builders run again. Bases already
+active are not reapplied. A builder without a second positional seat replaces
+the current binding with its returned value;
+a builder with that seat receives the current stored value and determines
+how to evolve it. As in §1.3, an absent, deleted or Action binding supplies
+`None`; `stored` is the example parameter name, not a required spelling.
 
 ## 0.6 The tagging sequence
 
@@ -259,8 +266,12 @@ Rip is the only exit from a Field, and it obeys three laws:
   is a Resolution Failure. A Constant Post (§1.5) cannot be deleted;
   any membership guard must be part of its original check.
 - **Reapplying a Ripped Tag is a fresh Tagging.** Imprints run again;
-  ordinary Records are rebuilt. Established Constant bindings stay intact;
-  their builders do not run again for the same declaration.
+  that Tag's ordinary Record builders run again. A builder without a second
+  positional seat replaces the current binding; one with that seat receives
+  the current stored value, including a value left by the Tag's earlier
+  application (§1.3).
+  Established Constant bindings stay intact; their builders do not run
+  again for the same declaration.
 
 ## 0.8 Spellings
 
@@ -283,6 +294,7 @@ language, not a library's naming.
 | one condition, read on the Agent (§2.5) | `agent.Has_Book` |
 | a named Contribution is present (§1.1) | `"Attack" @ agent`, `"Attack" @ Wizard[agent]` |
 | keep a Contribution's binding fixed (§1.5) | `@Constant` with `@Record`, `@Action`, `@Post`, `@Report` or `@Operation` |
+| a Record whose value is an Agent of a kind (§1.3) | `@Tool(Weapon)` on a Record builder; `@Tool(Weapon \| None)` when the slot may be empty; `@Tool(Weapon, Blessed)` for a member of both |
 | the Agent-bound view | `Wizard[agent]` |
 | leave the Field (Rip) | `del Wizard[agent]` |
 | the Form, as Tags | `Form(Wizard)` |
@@ -515,6 +527,84 @@ design; frequent deletion means unclear state ownership.
 
 Mutable Record values must be fresh per Agent unless sharing is the
 explicit intent. Shared values belong in a Report.
+
+### Tools
+
+A **Tool** is a Record whose value is an Agent of its own: something the
+Agent *has* (*tener*), beside what it *is* (a Tag) and what it is
+*currently* (a Record). The tool keeps its own Tags, Field, contract,
+keywords and secrets; nothing it is reaches its bearer, and nothing the
+bearer is reaches it. The curse on the sword is the sword's.
+
+`@Tool(T1, ..., Tn)` marks a Record builder and names the slot's **kind**:
+one or more Tags, in any order; the slot holds a member of all of them.
+`@Tool(...)` alone declares the Record; `@Record` may be written as well
+and restates it. The mark stacks with `@Constant`, `@Secret` and `@Public`
+in either order, and the builder keeps a Record's three seats (§1.3):
+
+```python
+class Fighter(Tag):
+
+    @Tool(Weapon)                       # a Record whose slot holds a Weapon
+    def weapon(agent):
+        sword = Sword(f"{agent.name}'s sword")
+        Weapon(sword)                   # the forge Tags it, in plain sight
+        return sword
+
+
+Fighter(charlie)
+charlie.weapon in Weapon[:]             # True: the tool is a Weapon
+charlie in Weapon[:]                    # False: the bearer is not
+```
+
+Three laws govern the slot:
+
+1. **The slot has a kind, checked at admission.** The slot admits only an
+   object that is *now* a member of every Tag of its kind, sound or
+   defective, and never the bearer itself. Admission is asked when the
+   slot is gained, on what the builder returns, and at every write to it,
+   `object.__setattr__` included. A refusal is a Composition Failure: at
+   the gaining it is a Record failure of §0.6, at a write nothing
+   changes. Admission is a gate, never re-asked: a seated tool that later
+   leaves its Tag stays in hand, a Rogue, and the bearer's own promise
+   notices it (§2.4); such a Rogue is refused if seated anywhere else.
+   Presence (`"weapon" @ agent`), current membership
+   (`agent.weapon in Weapon[:]`) and soundness
+   (`Contract.Holds(agent.weapon)`) stay three questions.
+2. **The slot is never empty, unless its kind says so.** With a kind of
+   Tags alone, a builder that returns `None` and an assignment of `None`
+   are Composition Failures. A kind written `Weapon | None`, the
+   language's own optional type, admits `None` at the gaining and at the
+   write: the empty hand is declared where readers see it. In both cases
+   the drop is `del agent.weapon`, and `@Delete` at the name frees the
+   slot (§1.6). A Constant slot refuses both (§1.5).
+3. **The slot never Tags.** The kit applies no Tag to what the builder
+   returns or to what is assigned. The forge Tags the object in plain
+   sight, or receives one already Tagged. A tagging inside the builder is
+   an ordinary call on another Target with its own §0.6 boundary: its
+   failure keeps its own name and refuses the bearer's gaining; a Tag it
+   applied to a pre-existing object stays applied, since Rip is not
+   restoration (§0.7).
+
+A Tool slot stays a Tool slot. A later Layer may redeclare the name only
+as a Tool, with its own kind list, and receives the held tool in its
+stored seat; a plain Record or an Action at that name, from a Shape or an
+independent Tag, is a Composition Failure, so the guard never goes away
+in silence. `@Delete` frees the slot for any later declaration. Rip of
+the bearer's Tag leaves the slot and its tool in hand, guarded, as
+Contributions are sticky (§0.7); reapplication rebuilds an ordinary slot
+through the builder and keeps a Constant one (§1.5). Two slots may hold
+one tool, a tool may bear tools, and a tool is held strongly, as a Record
+holds its value.
+
+The kind is a declaration-time fact. `@Tool()` without a kind, a kind
+that is not a Tag recognised by its metaclass (a plain class, an
+instance, the root `Tag`), a Pin (§1.9: a Pin's Agents are Tags), a
+population (`Weapon | Blessed`, `~Weapon`, `Weapon[:]`: §2.5's Field
+algebra, not a kind; the refusal shows `@Tool(Weapon, Blessed)` and
+`@Tool(Weapon | None)`), `@Tool` over any other kind of declaration, or
+`@Tool` inside a `@Pin` (a Pin's Records land as Reports, §1.9) is a
+Declaration Failure at class use.
 
 ## 1.4 Reports and Operations
 
@@ -875,7 +965,7 @@ meaning membership once a Flag lands.
 ## 1.9 Pins: Tags as Targets
 
 Categories have categories. A game marks Tags as *Rare* or *Homebrew*; a
-rules engine keeps Tags by *School*; a tool walks every Tag that is
+rules engine keeps Tags by *School*; a program walks every Tag that is
 *Deprecated*. A Tag marked `@Pin` applies to Tags, and the pinned Tag is
 its Agent in every sense of Ring 0: membership, a Field to walk, a gate,
 a promise, a view, a Rip.

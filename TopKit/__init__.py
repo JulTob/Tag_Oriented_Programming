@@ -37,6 +37,7 @@ from .queries import Outline
 from .queries import Tags
 from .tags import Tag
 from .tags import Tagged
+from .tools import Tool
 
 
 __all__ = [
@@ -76,5 +77,6 @@ __all__ = [
         "TagRogueAccessError",
         "Tagged",
         "Tags",
+        "Tool",
         "Underlay",
         ]

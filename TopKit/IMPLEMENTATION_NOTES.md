@@ -21,6 +21,7 @@ tracks splitting them by idea without changing semantics.
 | `overlay.py` | laying one Tag's declarations over a state; materializing Records |
 | `contracts.py` | strict verdicts, binding conditions, `Contract` |
 | `constants.py` | protecting Constant bindings without freezing their values |
+| `tools.py` | Tool slots: a Record's kind, admission at the gaining and at every write |
 | `presence.py` | Contribution presence without evaluating values or conditions |
 | `transactions.py` | the tagging sequence and the call boundary |
 | `lifecycle.py` | Rip, teardown, `At_Exit` |
@@ -254,11 +255,14 @@ rollback target.
   sound partition; `MetaTag.__or__` falls back to `type.__or__` when the
   other side is not a population, so `Wizard | None` stays a typing
   union. No kernel state changes.
-- **Condition members** (STEP-SPEC-14): `_agent_getattr` answers a
-  condition by name on the miss path, after Tag views and before the
-  host's own `__getattr__`, through `contracts._condition_member`, which
-  evaluates one check under the re-entrancy guard and returns a plain
-  bool. Nothing is written to the namespace or the runtime type. The
+- **Condition members** (STEP-SPEC-14): an ordinary Agent answers a
+  condition by name through `_Condition_Gate`; a pinned Tag keeps the
+  metaclass miss path. Both call `contracts._condition_member`, which
+  evaluates under the re-entrancy guard and returns a plain bool. The
+  data gate and `_Binding_Write` refuse assignment
+  or deletion before a host hook runs; `Contract.Delete` rebuilds the
+  runtime type without the ended name, returning it to ordinary
+  attribute behavior. Nothing is written to the Agent's namespace. The
   collision rule lives in three places: `_refuse_condition_collision`
   at install (Actions, Records, host class members),
   `_refuse_member_over_condition` when an Action or Record is installed
@@ -274,6 +278,21 @@ rollback target.
   Rip that failed) and was removed (STEP-SPEC-31). `TryFinallyTests`,
   the oracle's `Exercise_Block` and the fuzz's `Holding` write the
   pattern.
+- **Tool slots ride the Constant path** (STEP-SPEC-36). A `@Tool`
+  Record registers its kind in `state.tools`, keyed by name, and the
+  runtime type gains a `_Tool_Gate` data descriptor for that name, over
+  the Constant or Secret gate when there is one. Every write to the name
+  passes `_refuse_misfit` first, `object.__setattr__` included, exactly
+  where `_Binding_Write` already intercepts a host's own `__setattr__`;
+  `_materialize` asks the same question of what the builder returned.
+  The gate reads the kind from the Agent's state, not from the type, so
+  two Agents whose slots differ only in kind share one runtime type. A
+  Tool slot is closed to a change of kind: `_install_record` and
+  `_install_action` refuse a plain Record or an Action over it before
+  any Overwrite Warning, and `@Delete` is the one way to free it.
+  Admission asks membership (`tag in state.active`), never soundness,
+  and is a gate: a tool that leaves its Tag stays seated.
+
 - **The oracle** (`tests/oracle_topkit.py`): an independent model of
   the laws driven by a random walk; `tests/test_oracle.py` runs a short
   walk under the suite. Run it at size with `--seeds 50 --steps 1200
