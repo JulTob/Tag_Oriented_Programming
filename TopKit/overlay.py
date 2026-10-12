@@ -571,8 +571,12 @@ def _gainings(
             raise
 
         if state.pinned is not None:
-            from .declarations import _scan_cache
-            _scan_cache.pop(state.pinned, None)
+            from . import declarations as declaration_module
+            invalidate = getattr(declaration_module, "_invalidate_declarations", None)
+            if invalidate is None:
+                declaration_module._scan_cache.pop(state.pinned, None)
+            else:
+                invalidate(state.pinned)
 
 
 def _refuse_stored_input_collision(
