@@ -93,23 +93,52 @@ memory about 6 KB per Agent with two Tags.
 
 ## The tagging sequence
 
-`transactions._apply` is the call boundary: it snapshots the instance
-dictionary, the state, and the class on entry. Before each missing Tag,
-`_gate` lays only that Tag over a scratch copy of the completed Overlay and
-runs its Preconditions. A refusal does not remove Tags whose turns already
-finished. `_apply_one` then lays the Tag over the
-**live** state (no second copy) in the order Parts, Field entry, Imprints;
-finally `_inspect` runs every visible Postcondition once. The existing
-whole-call Parts boundary and Field entry before Imprints are transitional
-behavior tracked by #30. The approved follow-up retains acquired Gains
-outside the Tag when training fails, and enters the Field after Imprints,
-before Posts. This Gate change leaves the remaining phases unchanged:
-`TagImprintError` and `TagPostconditionError` currently propagate with
-applied Tags left in place.
+`transactions._apply` walks the missing Tags in Base-first Form order.
+Before each turn, `_gate` lays only that Tag over a scratch copy of the
+current Overlay and runs its own Preconditions. A refusal does not remove
+Tags whose turns already finished. Gainings apply Actions, Records, condition
+definitions and deletions incrementally in declaration order, top to bottom,
+establishing each before the next declaration runs. The Gate has already
+evaluated this Tag's own Preconditions. Imprints run after Gainings and
+before FieldAdding. The Tag's published members remain guarded by membership
+during this training interval.
 
-Laying over the live state is safe because nothing reads the new Overlay
-before Field entry binds it on the Agent. The call-entry snapshot remains
-the Parts rollback target.
+`overlay._gainings` walks the scan's ordered declarations. `_record_value`
+calculates a Record's returned value before installing its declaration or
+Constant lock; a failed builder leaves the previous binding available.
+`transactions._actualize` prepares the acquired runtime behaviour independently
+of membership. Tag-scope published services are prepared after Imprints.
+
+A Gain needing runtime protection is acquired only when its representation
+can be installed. If a Secret or Constant guard cannot be prepared, that
+candidate Gain does not stick; the previous binding and earlier acquired
+Gains remain. Admission-time shared services are also prepared separately:
+if their representation fails before entry, they do not replace services of
+an already active Agency. Acquired Gains and completed Imprint effects remain.
+These are TopKit's current representation boundaries; the wider host policy
+is still a Brief in [STEP-SPEC-37](../steps/spec/STEP-SPEC-37-host-actualization.md).
+
+FieldAdding establishes active membership, history and the Field together,
+then captures the admitted Tag's view. `_inspect` runs visible Posts once
+after the completed Form. A Gainings or Imprint failure leaves actually
+acquired Gains and completed Tags in place without admitting the unfinished
+Tag. A Post failure preserves membership; current Posts determine soundness,
+not a permanent failure marker. Retry passes a fresh Gate, overlays ordinary
+Gains and restarts Imprints, retaining established Constants. Acquired
+conditions, including Posts and Constant Posts, remain even after unfinished
+training. They participate in contract queries and published-member guards;
+ordinary Actions are not automatically wrapped in Post checks.
+
+`_enter_field` admits only after training. For a Pin, `_publication_plans`
+preflights every current Field recipient before admission; `_publish_to_field`
+then applies the admitted publication. The old whole-call rollback path is
+removed: completed independent Tags and acquired Gains are not restored away.
+
+An in-progress Tagging is tracked separately from membership so applying the
+same Tag to the same Agent during its Imprint is a no-op. There is no automatic
+Rip for an unfinished never-member and no automatic rollback of training
+effects. Preconditions and Record builders are observational authoring
+contracts, not sandboxes for arbitrary Python effects.
 
 `declarations._discard_lazy_result` recognizes coroutines, generators and
 async generators returned from synchronous protocols by their actual native
@@ -144,9 +173,9 @@ or settle the Record continuation/failure-boundary design tracked in #30.
 ## Judgment calls
 
 - **`in` vs `isinstance`.** `agent in Tag` is the is-now check; `isinstance`
-  is the has-been check and stays true after Rip. Kept because it is a
-  dependable signal for spotting Rogue Agents. A rolled-back call also
-  rolls the ever-set back.
+  is the has-been check and stays true after Rip. History is established at
+  FieldAdding. A failed never-member may retain Gains while both checks are
+  false; a Rogue who previously entered the Tag retains its has-been history.
 - **Records over host descriptors** are refused with a Composition Failure
   rather than silently bypassing a property.
 - **The Tag's dotted namespace is the program's.** Every Tag-level act is
@@ -205,11 +234,8 @@ or settle the Record continuation/failure-boundary design tracked in #30.
   through the host's own. An object without TOP state whose class is a
   runtime type is reset to its host class when its state is attached;
   if it is never tagged, the finalizer runs its host's `__del__`.
-- **A rollback restores the state in place** (`_State.Restore`), keeping
-  `composing` and `checking`: a door or a check opened before the call
-  that is rolled back closes on the same object. (A copy put in its place
-  used to leave the door open for good.) Known limit: in a reference cycle,
-  Python clears weak references before finalizers run, so a finalizer's
+- **Weak finalization limit.** In a reference cycle, Python clears weak
+  references before finalizers run, so a finalizer's
   Tag code cannot call the Agent's bound Actions there (`ReferenceError`).
 - **What the kit keeps, and for how long.** The Form cache holds a Tag's
   Bases only, never the Tag, so a dropped Tag class is freed. A Rip drops
@@ -252,8 +278,8 @@ or settle the Record continuation/failure-boundary design tracked in #30.
 - **Pins reuse the whole sequence.** A pinned Tag is an Agent whose
   namespace is its class dictionary. `_namespace_of` hands the kernel a
   `_Class_Namespace` adapter (get, set, pop, keys) over the proxy, so
-  `_apply`, `_materialize`, `_commit`, `_snapshot` and `_rollback` are one
-  code path; the class case restores key by key. The runtime type is a
+  Gate, Gainings, Imprints, FieldAdding and view capture use the same
+  code path for objects and pinned Tags. The runtime type is a
   `(MetaTag, Tagged)` metaclass from the same cache. A landed Action is a
   `_Pinned_Operation` descriptor binding to the Tag it is read from (a
   Shape inherits it as it inherits a classmethod); a landed Record is a
