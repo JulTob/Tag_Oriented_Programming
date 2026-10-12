@@ -177,15 +177,21 @@ Pair-scope contributions would be separate topics.
    An untagged compatible object, a deficient Agent and a compatible
    Rogue are all admitted.
 3. Supported Record assignment paths share the check, including
-   `object.__setattr__`. A refused write keeps the prior binding and
-   declaration intact. Existing Secret, Constant and host compatibility
-   checks still apply.
+   `object.__setattr__` for ordinary names. A refused write keeps the
+   prior binding and declaration intact. Existing Secret, Constant and
+   host compatibility checks still apply.
 4. Reading does not revalidate. Tagging or Rip of the held object does
    not update or remove the reference. Reassigning a compatible Rogue is
    permitted: only a separate domain Post requires current membership.
 5. Self-reference is allowed when the bearer satisfies the class. This
    adds no ownership or distinct-identity promise. A Post can require
    `agent.weapon is not agent` when the domain needs it.
+6. A Tool's own Python protocols are ordinary object protocols, or normal
+   Agent protocols after Tagging. A bearer Record with a protocol name
+   follows existing Record rules: its value is not promoted into the
+   bearer's type-level protocol seat. Ordinary assignment is checked,
+   while direct kernel writes to protocol-named Records bypass admission,
+   like raw dictionary writes. Existing reserved Agent names still apply.
 
 ### 4. Gainings, training and failures
 
@@ -379,12 +385,14 @@ recognises dropped bindings without evaluating getters or Posts. Views
 retain ordinary references. Keep host refusal rules and kernel writes,
 including support for taggable frozen dataclasses.
 
-Ordinary writes, object.__setattr__ and supported host/Action setters
-need coherent preflight. Direct mutation of Python's instance dictionary
-is an existing kernel bypass, not a sandbox promise. This modifier
-cannot undo arbitrary external effects of a custom setter. Supported
-paths and their limits must be stated and tested. No line-count or
-performance estimate precedes measurement.
+Ordinary writes and supported host/Action setters need coherent preflight.
+For ordinary names, a descriptor also checks object.__setattr__. Placing
+that descriptor on a protocol name would instead replace Python's type
+hook, so protocol-named Records keep their normal representation and
+kernel-write bypass. Raw instance-dictionary mutation is likewise a
+kernel bypass, not a sandbox promise. This modifier cannot undo external
+effects of a custom setter. State and test supported paths and limits;
+no line-count or performance estimate precedes measurement.
 
 ## Validation
 
@@ -400,6 +408,8 @@ Before proposing implementation for merge, demonstrate:
   STEP-SPEC-39 and declaration-order visibility preserved;
 - ordinary and kernel-path writes preserve old bindings on refusal;
   dropping makes Presence false and reassignment remains guarded;
+- protocol-named Records preserve ordinary lookup, presence and Agent
+  finalization; their stated direct-kernel bypass remains explicit;
 - ordinary and Constant retries, Secret/Constant stacking, frozen hosts,
   Overlay, Delete, sharing and views follow existing patterns;
 - early Posts guard retained unsafe Gains on a Rogue; Tool admission and
