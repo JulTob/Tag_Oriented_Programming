@@ -195,7 +195,9 @@ begin
             null;
          end;
       exception
-         when Error : Host_Failure | Program_Error =>
+         --  Ordinary end-of-master finalization: RM 7.6.1(17.2/1)
+         --  requires Program_Error after the other finalizations.
+         when Error : Program_Error =>
             Raised := True;
             Ada.Text_IO.Put_Line ("raising host Finalize: "
                                  & Ada.Exceptions.Exception_Name (Error));

@@ -9,8 +9,11 @@ or Rip implementation. They make no Ring 0 or other conformance claim.
 cleanup in a private controlled component. It checks omitted/explicit ancestor
 calls, a plain tagged limited containing host, a controlled containing host,
 explicit deallocation, and a raising host finalizer. The counters represent
-finalization events, not TOP membership. GNAT may report the raising finalizer
-as `Program_Error`; the component cleanup is checked independently.
+finalization events, not TOP membership. The raising-finalizer probe leaves
+its master normally and accepts only `Program_Error`, as RM 7.6.1(17.2/1)
+requires for this bounded-error context; component cleanup is checked
+independently. It makes no claim about an explicit `Finalize` call, abort,
+termination, or every finalization-exception context.
 
 `companion_lifetime` checks same-scope declaration ordering, a legal premature
 companion end, and legal explicit deallocation of a heap Target while its
