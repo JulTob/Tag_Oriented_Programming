@@ -7,7 +7,7 @@ security code of their own.
     3. Quarantine for free: one broken promise closes every published door.
     4. Stale handles: a queued command from a relieved officer is refused
        when it runs, not when it was queued.
-    5. Requirements: necessary to enter and necessary to stay, in one word.
+    5. Necessary to enter and necessary to stay: @Pre and @Post, stacked.
     6. The author ends the condition: a guard inside it that decides
        which membership it follows, or an explicit deletion from the
        role's own @Rip protocol. Rip itself never touches a condition.
@@ -30,7 +30,6 @@ from TopKit import Precondition
 from TopKit import Public
 from TopKit import Record
 from TopKit import Report
-from TopKit import Requirement
 from TopKit import Rip
 from TopKit import Tag
 from TopKit import TagPostconditionError
@@ -57,7 +56,8 @@ class Crew:
 
 
 class Crew_Member(Tag):
-    @Requirement
+    @Pre
+    @Post
     def Alive(agent) -> bool:
         return agent.alive
 
@@ -206,11 +206,11 @@ def pattern_stale_handles(worf: Crew) -> None:
     Bridge(worf)
 
 
-# --- Pattern 5 · Requirements ----------------------------------------
+# --- Pattern 5 · Necessary to enter, necessary to stay ---------------
 
 
-def pattern_requirements() -> None:
-    print("5. requirements")
+def pattern_enter_and_stay() -> None:
+    print("5. necessary to enter, necessary to stay")
     ghost = Crew("Ghost")
     ghost.alive = False
     try:
@@ -343,7 +343,7 @@ def main() -> None:
     pattern_repair_table(worf)
     pattern_quarantine(worf)
     pattern_stale_handles(worf)
-    pattern_requirements()
+    pattern_enter_and_stay()
     pattern_author_guard(worf)
     print(f"\n{worf:contract}")
 
