@@ -14,7 +14,9 @@
   Tags, whole and defective Fields, Pins and combinations share the rule,
   and their truth and length agree with iteration. A one-pass materialization
   uses a comprehension; Python's `list(population)` may first perform a
-  separate live length-hint walk.
+  separate live length-hint walk. A union walk keeps the left-side Agents
+  used for deduplication until it ends, so Python cannot reuse an old identity
+  for a distinct Agent on a later side.
 
 - **Scope retired:** `TopKit.Scope` is removed. A temporary Tagging is written explicitly: tag before `try`, then Rip in `finally`. Rip failures surface normally. TOP assigns `with` no automatic membership or Rip meaning; ordinary Python context protocols remain available to hosts and Agent Actions.
   STEP-SPEC-15 remains a Brief about recoverable phases, but its
