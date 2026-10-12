@@ -68,10 +68,11 @@ deletion on rip protocol or a field check in the condition?"
    rebuilt by the kernel.
 4. **Explicit deletion.** `Contract.Delete(agent, *names)` ends the named
    conditions on the Agent (Preconditions and Postconditions alike, so a
-   `@Requirement` ends whole). A name that is not a condition on the
-   Agent raises a Resolution Failure: an author who ends a promise must
-   be ending a real one. It is written to be called from the Tag's own
-   `@Rip` protocol; it works for a pinned Tag as well.
+   condition marked with both `@Pre` and `@Post` ends whole). A name that
+   is not a condition on the Agent raises a Resolution Failure: an author
+   who ends a promise must be ending a real one. It is written to be
+   called from the Tag's own `@Rip` protocol; it works for a pinned Tag as
+   well.
 5. **Spelling.** `Contract.Delete(agent, "Has_Book")` joins §0.8, beside
    the other `Contract` queries. `@Delete` on a Tag member keeps its
    meaning (remove a visible contribution at application); the two share

@@ -57,17 +57,40 @@ def _form_of(
         return cached + (tag,)
 
     form: list[type] = []
+    seen: set[type] = set()
+    pending: list[tuple[type, bool]] = [
+            (
+                tag,
+                False,
+                ),
+            ]
 
-    def Visit(
-            candidate: type,
-            ) -> None:
-        for base in _direct_bases(candidate):
-            Visit(base)
+    while pending:
+        candidate, expanded = pending.pop()
 
-        if candidate not in form:
+        if expanded:
             form.append(candidate)
+            continue
 
-    Visit(tag)
+        if candidate in seen:
+            continue
+
+        seen.add(candidate)
+        pending.append(
+                (
+                    candidate,
+                    True,
+                    )
+                )
+
+        for base in reversed(_direct_bases(candidate)):
+            if base not in seen:
+                pending.append(
+                        (
+                            base,
+                            False,
+                            )
+                        )
 
     result = tuple(form)
     _bases_cache[tag] = result[:-1]
@@ -111,6 +134,19 @@ def _requiring_shapes(
                 other is not tag
                 and issubclass(other, tag)
                 )
+            )
+
+
+def _is_base_of(
+        base: type,
+        shape: type,
+        ) -> bool:
+    """True when ``base`` is a Base in ``shape``'s Form: a strict Base,
+    never ``shape`` itself."""
+
+    return (
+            base is not shape
+            and issubclass(shape, base)
             )
 
 
