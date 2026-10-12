@@ -5,6 +5,11 @@ language profile, a supported library API, or a Ring 0 conformance claim.
 It defines no Target, Agent, Field, Tagging, contribution, or Rip behaviour.
 The final Ada surface remains the Director's decision in STEP-ADA-1 (#5).
 
+The native Ada 2022 probes use standard Ada containers and a full GNAT runtime.
+They provide no SPARK proof or validated `SPARK_Mode` build. Restricted-runtime
+support requires separate build/profile evidence; none is claimed here.
+The sequential tests exercise no shared-task Registry access or synchronization.
+
 A limited `Registry` owns an append-only vector of Tag descriptors. `Add_Tag`
 accepts only existing Bases from that Registry and preserves their order.
 There is no operation to change Bases, so cycles cannot be declared. `Form`
