@@ -29,6 +29,7 @@ from typing import Any
 from typing import Iterator
 
 from .access import _keyword
+from .access import _refuse_host_truth
 from .access import _view_of
 from .contracts import _holds
 from .declarations import _MISSING
@@ -41,6 +42,7 @@ from .declarations import _is_pin
 from .declarations import _kind_of
 from .declarations import _name_checks
 from .declarations import _refuse_condition_dunder
+from .declarations import _refuse_truth_gain
 from .errors import TagCompositionError
 from .fields import _Field
 from .fields import _Partition
@@ -99,6 +101,7 @@ class MetaTag(type):
             name: str,
             value: Any,
             ) -> None:
+        _refuse_truth_gain(tag.__name__, name, value)
         if _is_dunder(name):
             _refuse_condition_dunder(tag.__name__, name, _kind_of(value))
         owner = _constant_owner(tag, name)
@@ -147,6 +150,8 @@ class MetaTag(type):
             raise TypeError(
                     f"{tag.__name__} is applied to objects, not classes"
                     )
+        else:
+            _refuse_host_truth(target)
 
         return _apply(
                 target,

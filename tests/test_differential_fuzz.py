@@ -44,6 +44,11 @@ class DifferentialFuzzTests(unittest.TestCase):
                         )
 
                 self.assertEqual(outcome.base, outcome.new)
+                self.assertTrue(any(
+                        line.startswith("declaration reserved Agent truth ! TagDeclarationError:")
+                        and "__bool__" in line
+                        for line in outcome.new
+                        ))
                 self.assertIn("=== exit ===", outcome.new)       # the program ran to its end
                 self.assertEqual(outcome.new[-1], "exit status 0")
 
