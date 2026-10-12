@@ -62,6 +62,13 @@
 - **Fixed:** resolving a Form deeper than Python's recursion limit raised
   `RecursionError`. Geometry now walks Bases iteratively, preserving the
   same Base-first, declaration-order, duplicate-free result.
+- The archived stress layer's four Geometry capacity probes now run against
+  current TopKit from `benchmarks/capacity.py`: deep Forms, Form resolution,
+  wide independent composition and wide diamonds. Each probe runs alone,
+  asserts its observable result and reports time without treating a
+  workstation measurement as a portable performance budget.
+  Optimized execution (`-O`, `-OO` or `PYTHONOPTIMIZE`) is refused before
+  loading TopKit so removed assertions cannot report an unchecked PASS.
 - **Releases go out through Trusted Publishing.** A GitHub Release runs
   `.github/workflows/release.yml`: the suite on Python 3.12, 3.13 and
   3.14, the oracle at its audited size, a check that the tag names
