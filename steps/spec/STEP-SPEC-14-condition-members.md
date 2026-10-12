@@ -39,7 +39,7 @@ back the Agent member."
    `Name`, `agent.Name` is `True` or `False`: the condition evaluated on
    read, under the same re-entrancy guard as `bool(agent)`. A
    Postcondition is looked up before a Precondition of the same name
-   (a `@Requirement` is one function; both answer the same).
+   (stacked `@Pre` and `@Post` mark one function; both answer the same).
 2. **Plain.** The value is the language's boolean and nothing else. It is
    not stored on the Agent, cannot be assigned, and is not callable.
 3. **A condition that raises reads False.** A condition that returns a
