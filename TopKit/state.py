@@ -994,8 +994,12 @@ def _context_action(
                 ) -> Any:
             state = _state_of(agent)
             door = _Async_Door(state)
-            token = _async_doors.set(
-                    _async_doors.get() + (door,),
+            _async_doors.set(
+                    tuple(
+                            active
+                            for active in _async_doors.get()
+                            if active.active
+                            ) + (door,),
                     )
 
             try:
@@ -1006,7 +1010,17 @@ def _context_action(
                         )
             finally:
                 door.Close()
-                _async_doors.reset(token)
+                # A suspended coroutine can be closed in another Context,
+                # or before another hook opened after it. Revoke its shared
+                # capability first, then keep the current Context's other
+                # live doors; a token reset assumes the original Context
+                # and stack order. Captured contexts retain only an inert
+                # door with no Agent state, pruned at their next entry.
+                _async_doors.set(tuple(
+                        active
+                        for active in _async_doors.get()
+                        if active.active
+                        ))
 
         return Async_Context
 

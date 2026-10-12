@@ -6,7 +6,10 @@ whenever the two disagree.
 
 ## Module map
 
-One idea per module, nothing over 600 lines.
+One idea per module, with 600 physical lines as the migration target. The
+target is not yet met: `declarations.py`, `overlay.py`, and `state.py` are the
+current exceptions. [Issue #15](https://github.com/JulTob/Tag_Oriented_Programming/issues/15)
+tracks splitting them by idea without changing semantics.
 
 | Module | Idea |
 | --- | --- |
@@ -17,11 +20,13 @@ One idea per module, nothing over 600 lines.
 | `state.py` | the per-Agent state, bound Actions, the runtime type and its descriptors |
 | `overlay.py` | laying one Tag's declarations over a state; materializing Records |
 | `contracts.py` | strict verdicts, binding conditions, `Contract` |
+| `constants.py` | protecting Constant bindings without freezing their values |
+| `presence.py` | Contribution presence without evaluating values or conditions |
 | `transactions.py` | the tagging sequence and the call boundary |
 | `lifecycle.py` | Rip, teardown, `At_Exit` |
 | `access.py` | the hooks on the runtime type, Agent-bound views |
 | `tags.py` | `Tag` and its metaclass |
-| `queries.py` | `Apply`, `Has`, `Tags`, `Outline` |
+| `queries.py` | `Apply`, `Form`, `Keyword`, `Tags`, `Outline` |
 
 ## The access design
 
@@ -46,11 +51,20 @@ Actions; Agents are built once and play for a long time. So:
   type-level facts match, whatever Tags they carry. Ten thousand Agents of
   one host normally share one type.
 - **The composition door** uses a counter on the Agent's state for
-  synchronous protocols. An Agent-authored async context hook adds a
+  synchronous protocols. Agent-authored context Actions use that door;
+  host-authored context hooks keep ordinary host behavior. Entry closes
+  its door before the user's `with` block begins. An async context hook adds a
   context-local door while its wrapper awaits. A deliberately derived
   execution context shares the capability while the hook is active; a
   pre-existing sibling does not, and closing clears the state reference so
   a captured context can neither reuse the door nor retain the Agent state.
+  Return, errors and cancellation all close the hook's door. These are
+  TopKit's context-hook implementation mechanics; they assign no automatic
+  Tagging or Rip meaning to `with` and add no rule to STEP-SPEC-31.
+  Closing removes inactive doors from the current context instead of
+  resetting a token: Python may close a suspended coroutine in another
+  context or close interleaved hooks out of order. Other active doors stay
+  intact, and later hook entry prunes inert doors in captured contexts.
   Secret gates accept either form. The type-cache key uses the selected raw
   Actions and wrappers are allocated only on a cache miss, so equal
   compositions still share one runtime type. Ordinary Actions on Agents
@@ -316,12 +330,11 @@ rollback target.
   the laws driven by a random walk; `tests/test_oracle.py` runs a short
   walk under the suite. Run it at size with `--seeds 50 --steps 1200
   --population 18` (about 60,000 transitions, under twenty seconds).
-- **Stacked `@Pre @Post`** marks the function's kind `"condition"`;
-  the scan appends it to both lists and `_name_checks` registers both
-  named failures. `@Requirement` is the same mark written once: it sets
-  the kind `"condition"` directly, so the two spellings meet in the scan
-  and nowhere else. It carries no failure class of its own, and reading
-  `Requirement.Something` says which of the two names to catch.
+- **Stacked `@Pre @Post`** marks the function's kind `"condition"`, in
+  either order; the scan appends it to both lists and `_name_checks`
+  registers both named failures. It is the only spelling: `@Requirement`,
+  which set the same kind in one word, was removed (STEP-SPEC-30), so
+  `_Check_Mark` is back to one failure class per mark.
 - **Assigning a Tag's name on an Agent** (`ari.Elf = 1`) shadows the view by
   name; plain Python, not intercepted. `Elf[ari]` is unaffected.
 - **Inputs and defaults.** A protocol parameter the caller omitted keeps
