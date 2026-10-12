@@ -7,11 +7,13 @@
   Director's brief of 2026-10-12
 - **Status:** Vetting
 - **Created:** 2026-10-12
-- **Refs:** issue #74 (dunder-named conditions), PR #58 (Tags recognised
-  by metaclass), STEP-SPEC-22 (Links, Brief), STEP-SPEC-33 (Presence),
-  STEP-SPEC-34 (Constant), STEP-SPEC-29 (Brief; the meaning of `in`),
-  issue #30 and STEP-SPEC-39 (Tagging Admission, Cleared, PR #78: the
-  sequence this STEP's failure outcomes follow once it lands)
+- **Refs:** issue #74 and STEP-SPEC-42 (Brief, PR #155: conditions
+  refuse dunder names), PR #58 (Tags recognised by metaclass),
+  STEP-SPEC-22 (Links, Brief), STEP-SPEC-33 (Presence), STEP-SPEC-34
+  (Constant), STEP-SPEC-29 (Brief; the meaning of `in`), STEP-SPEC-40
+  (Brief, issue #71: reserved Agent truth), issue #30 and STEP-SPEC-39
+  (Tagging Admission, Cleared, PR #78: the sequence this STEP's failure
+  outcomes follow once it lands); implementation PR #143
 
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
@@ -120,9 +122,11 @@ already acquired and leaves the Agent outside the Tag's Field.
 ### Issue #74, and where a part's truth lives
 
 Issue #74 asks whether a condition may take a dunder name such as
-`__bool__`. The Director's position is to refuse it, and to put boolean
-information in conditions, Records, Actions, "or even record-objects that
-have their own bool method". A Tool is that record-object. The sword's
+`__bool__`. The Director ruled to refuse it (STEP-SPEC-42, PR #155; the
+kit refuses a dunder-named condition at Tag declaration), and to put
+boolean information in conditions, Records, Actions, "or even
+record-objects that have their own bool method". A Tool is that
+record-object. The sword's
 truth is the sword's own contract: `if charlie.weapon:` asks whether the
 sword's promises hold (§2.5). It never becomes a dunder on Charlie, and a
 bearer that needs a sound tool says so in an ordinary, named Post.
@@ -334,10 +338,11 @@ ways down; the author then owns the cycle it makes.
 contract once a Postcondition is visible on it (§2.5), unless the host
 defines its own `__bool__`: on `main` today the kit never replaces a
 host's `__bool__`, so it stays authoritative even while a Post fails
-(verified: `bool(agent)` `True` with `Contract.Holds(agent)` `False`);
-#71 and #72 settle that rule. So the spelled-out form to teach inside a
-Post is `Contract.Holds(agent.weapon)`, which asks the contract whatever
-the host says. Conditions on
+(verified after PR #72 merged: `bool(agent)` `True` with
+`Contract.Holds(agent)` `False`); STEP-SPEC-40 (Brief, issue #71)
+proposes to refuse such a host as a Target. So the spelled-out form to
+teach inside a Post is `Contract.Holds(agent.weapon)`, which asks the
+contract whatever the host says, under either rule. Conditions on
 the tool are written with `return`, not `assert`, so they still hold
 under `python -O` (§2.1 and the Guide's note on optimized Python).
 `"weapon" @ charlie` is presence and never evaluates the tool's contract
@@ -626,9 +631,10 @@ STEP is Deployed.
    `@Tool`, after STEP-SPEC-34's convention. The Director read that as
    redundant on 2026-10-12, and rule 2.2 now makes `@Tool(Weapon)` alone
    the declaration, with `@Record` accepted as a restatement. Confirm.
-10. **Issue #74.** This STEP depends on the recommended refusal of
-    dunder-named conditions so that "a part's own truth is its contract"
-    is the only road. Confirm the refusal and the STEP-SPEC-14 wording.
+10. **Issue #74.** This STEP depends on the refusal of dunder-named
+    conditions so that "a part's own truth is its contract" is the only
+    road. *Decided: STEP-SPEC-42 (Brief, PR #155) records the ruling and
+    the kit refuses them at Tag declaration; nothing remains open here.*
 11. **A nested-class spelling.** The Director suggested that a Tool could
     decorate a class declared inside the Tag, limiting its scope to that
     Tag and building one record-like object per Agent at tagging. Should
