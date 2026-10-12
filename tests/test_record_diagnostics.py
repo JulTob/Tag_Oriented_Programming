@@ -44,6 +44,44 @@ def _target(pinned):
 
 
 class RecordDiagnosticTests(unittest.TestCase):
+    def test_callable_builders_can_store_native_lazy_objects_as_data(self):
+        events = []
+
+        async def deferred():
+            events.append("coroutine ran")
+
+        def stream():
+            events.append("generator ran")
+            yield 1
+
+        async def async_stream():
+            events.append("async generator ran")
+            yield 1
+
+        for pinned in (False, True):
+            for factory in (deferred, stream, async_stream):
+                with self.subTest(pinned=pinned, kind=factory.__name__):
+                    value = factory()
+                    builder = Record(_Builder(lambda agent, seed: value, True))
+                    prepared = type("Prepared", (Tag,), {"payload": builder})
+                    if pinned:
+                        prepared = Pin(prepared)
+                    target = _target(pinned)
+                    try:
+                        prepared(target)
+                        self.assertIn(target, prepared)
+                        self.assertIs(target.payload, value)
+                        self.assertEqual(events, [])
+                        if factory is deferred:
+                            self.assertIsNotNone(value.cr_frame)
+                        elif factory is stream:
+                            self.assertIsNotNone(value.gi_frame)
+                        else:
+                            self.assertFalse(value.ag_running)
+                    finally:
+                        if factory is not async_stream:
+                            value.close()
+
     def test_failing_callable_names_record_and_preserves_original_cause(self):
         for pinned in (False, True):
             for hostile in (False, True):
