@@ -77,7 +77,7 @@ def _apply(
             ):
         return agent   # the whole Form is active: nothing to apply, nothing to undo
 
-    entry_namespace = dict(_namespace_of(agent) or {})
+    entry_namespace = (_namespace_of(agent) or {}).copy()
     entry_copy = entry_state.Copy() if entry_state is not None else None
     entry_tags = tuple(entry_state.active) if entry_state is not None else ()
     entry_class = type(agent)

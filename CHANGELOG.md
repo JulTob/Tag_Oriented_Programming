@@ -4,6 +4,16 @@
 
 ### TopKit
 
+- **Tag memo ownership:** one helper keeps declaration and Form memos
+  on their exact Tag, so a Contribution referring back to its Tag or
+  Shape no longer lets a global cache keep it alive. Empty retained
+  Fields remain weak; returned Form tuples still deliberately retain
+  their Tags. Private-name collisions recompute without replacing
+  program bindings. Namespace scans use snapshots, so first Taggings
+  of different Agents sharing a Tag cannot invalidate one another's
+  class-dictionary iterators while publishing either memo. Base-first
+  order, iterative traversal and ordinary-class Form behavior stay.
+
 - **Constant Contributions:** `@Constant` protects Records, Actions,
   Posts, Reports and Operations from replacement, deletion and later
   Layers. Record values remain per Agent and their contents may mutate.
@@ -22,6 +32,9 @@
 
 ### Project
 
+- **Fixed:** resolving a Form deeper than Python's recursion limit raised
+  `RecursionError`. Geometry now walks Bases iteratively, preserving the
+  same Base-first, declaration-order, duplicate-free result.
 - **Releases go out through Trusted Publishing.** A GitHub Release runs
   `.github/workflows/release.yml`: the suite on Python 3.12, 3.13 and
   3.14, the oracle at its audited size, a check that the tag names

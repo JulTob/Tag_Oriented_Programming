@@ -81,6 +81,33 @@ read 64, plain method call 86, Action call 295, `agent in Tag` 291,
 over a Base costs about 60 µs per Agent; an empty Tag about 22 µs. Peak
 memory about 6 KB per Agent with two Tags.
 
+## Geometry memo ownership
+
+The first Form query memoizes a Tag's ordered Bases on that Tag itself,
+not in a global weak-key table or the public Field. A Base's Contribution
+can refer back to its Shape through a closure, default, annotation or
+callable object; owner-local memoization leaves that cycle collectible
+when the program releases the Tags. Retaining an empty `Tag[:]` does not
+retain this memo. A returned Form tuple intentionally retains its Tags
+until the program releases the tuple.
+
+Each Tag has identity-qualified private keys and owns both Form and
+declaration memos through the same helper. The
+lookup never inherits another Tag's memo; an own or inherited program
+binding at that key is not overwritten or shadowed, and Geometry simply
+recomputes. A foreign internal memo is not accepted as this Tag's memo.
+Memo publication does not hold the helper lock while inspecting user
+metadata. Declaration scans, Base Constant inspection and Tag-as-Agent
+namespace copies use snapshots rather than iterating the live class
+dictionary. Different Agents can therefore share a Tag without memo
+publication invalidating one another's iterators; concurrent mutation
+of one Agent remains outside this profile.
+
+Non-Tag compatibility inputs retain the original global weak-key
+fallback, so ordinary classes and builtins gain no attributes. Form
+order, iterative traversal and lazy caching are unchanged; mutation of
+`__bases__` remains a separate design question (#97).
+
 ## The tagging sequence
 
 `transactions._apply` is the call boundary: it snapshots the instance
@@ -108,9 +135,10 @@ rollback target.
   rather than silently bypassing a property.
 - **The Tag's dotted namespace is the program's.** Every Tag-level act is
   language syntax on the metaclass: `in`, `for`, `~`, `len`, `bool`,
-  `[:]`, `[agent]`, `del Tag[agent]`, `format`. The only class attribute
-  TopKit adds is the private `_topkit_field`. `bool(Tag)` is "any sound
-  member", like a collection.
+  `[:]`, `[agent]`, `del Tag[agent]`, `format`. The population handle is
+  the private `_topkit_field`; Geometry also keeps a private, owner-local
+  Form memo as described above. `bool(Tag)` is "any sound member", like a
+  collection.
 - **The empty-seat rule on Agents.** `__bool__`, `__format__`, `__copy__`
   and `__deepcopy__` are installed on the runtime type only when the host
   defines none of its own (`__bool__` only once a Postcondition is
@@ -169,17 +197,16 @@ rollback target.
   used to leave the door open for good.) Known limit: in a reference cycle,
   Python clears weak references before finalizers run, so a finalizer's
   Tag code cannot call the Agent's bound Actions there (`ReferenceError`).
-- **What the kit keeps, and for how long.** The Form cache holds a Tag's
-  Bases only, never the owning Tag itself. Each Tag owns its declaration
-  memo under an identity-qualified private key, not a global cache or
+- **What the kit keeps, and for how long.** Each Tag owns its Form and
+  declaration memos through one internal helper, never a global root or
   its public Field. A declaration's references to its Tag or Agents thus
-  do not keep them alive through a global memo or a retained population.
-  Distinct Base and Shape memos never reuse the same key. If a programmer
-  already supplies that Tag's key, directly or through a Base,
-  it is left untouched and the Tag is scanned without memoization. Pin
-  publication invalidates only the receiving Tag's internal memo. These
-  ownership rules are not a blanket lifetime guarantee about arbitrary
-  user values that refer back to Tags. A Rip drops
+  leave a collectible local cycle. Each key and memo belongs to its exact
+  Tag; own or inherited program bindings are left untouched and trigger
+  uncached recomputation. Namespace inspection uses a snapshot, so another
+  thread publishing either memo cannot invalidate a scan's iterator.
+  Pin publication invalidates only the receiving Tag's declaration memo.
+  These ownership rules are not a blanket lifetime guarantee about
+  arbitrary user values that refer back to Tags. A Rip drops
   the Tag's view snapshot (a view needs membership). A Field entry is a
   slotted weak reference carrying its key, with one callback per Field;
   `At_Exit` numbers its registrations the same way and drops each one when
