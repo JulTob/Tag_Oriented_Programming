@@ -4,6 +4,22 @@
 
 ### TopKit
 
+- **Scope retired:** `TopKit.Scope` is removed. A temporary Tagging is written explicitly: tag before `try`, then Rip in `finally`. Rip failures surface normally. TOP assigns `with` no automatic membership or Rip meaning; ordinary Python context protocols remain available to hosts and Agent Actions.
+  STEP-SPEC-15 remains a Brief about recoverable phases, but its
+  `with Try(...)` spelling is now recorded only as a historical candidate;
+  no Trial syntax is reserved.
+
+- **Requirement retired:** `TopKit.Requirement` and its export are removed.
+  Write `@Pre` and `@Post` on the same condition, in either order, when
+  it must hold both at the door and afterwards. Failures keep their own
+  names: `Precondition.Name` at the door and `Postcondition.Name`
+  afterwards.
+
+- **Accurate Contract Warnings:** replacing a visible Postcondition now
+  names whether its origin is a Base, Shape or independent Tag, and points
+  at the tagging line. The warning no longer describes every replacement
+  as weakening a Base promise.
+
 - **Constant Contributions:** `@Constant` protects Records, Actions,
   Posts, Reports and Operations from replacement, deletion and later
   Layers. Record values remain per Agent and their contents may mutate.
@@ -20,6 +36,11 @@
   A Post can require the named Contribution; nonstring operands retain
   ordinary `@` behaviour. Pinned Tags support it as Agents.
 
+- **Fixed Field-algebra Tag recognition:** operator seats now recognize a
+  Tag by `MetaTag`, not by a callable named `_sound`. An ordinary Python
+  class with that name keeps normal class-union behaviour, and a Tag may
+  use `_sound` in its own namespace without changing its Field.
+
 ### Project
 
 - **Fixed:** resolving a Form deeper than Python's recursion limit raised
@@ -30,6 +51,8 @@
   wide independent composition and wide diamonds. Each probe runs alone,
   asserts its observable result and reports time without treating a
   workstation measurement as a portable performance budget.
+  Optimized execution (`-O`, `-OO` or `PYTHONOPTIMIZE`) is refused before
+  loading TopKit so removed assertions cannot report an unchecked PASS.
 - Three retention probes join the same isolated runner: a large Field whose
   Agents are released, lifecycle teardown during collection and cache churn
   through transient hosts, Tags, runtime types and Agents.

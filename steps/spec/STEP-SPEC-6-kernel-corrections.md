@@ -38,6 +38,10 @@ Also editorial: duplicated sections merged, examples corrected, "crunch"
 replaced by "override", implementation-specific names removed from the
 normative text.
 
+> **Later spelling:** STEP-SPEC-31 retires `Scope`. The three-tier law
+> remains, but the guaranteed tier is now written directly by the program:
+> tag before `try`, then Rip in `finally`.
+
 ## Rationale
 
 Each choice picks the option that keeps TOP explicit: no hidden protocols
