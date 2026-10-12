@@ -4,7 +4,8 @@ For each Tag in the Form (Bases first), in order:
 
     1. Gate: that Tag's declarations are checked against the current
        Overlay, then its Preconditions inspect the Agent at this turn.
-    2. Its Records are built (each may read the value already stored).
+    2. Its Gains, conditions and deletions take effect in declaration
+       order. Each builder can read or call what is already acquired.
     3. Field entry: membership, Overlay, runtime type.
     4. Its Imprints run.
 
@@ -39,9 +40,10 @@ from .errors import TagPostconditionError
 from .errors import TagPreconditionError
 from .geometry import _form_of
 from .overlay import _install
+from .overlay import _gainings
 from .overlay import _quiet
-from .overlay import _materialize
 from .state import STATE
+from .state import _Published
 from .state import _Snapshot
 from .state import _State
 from .state import _actualize_runtime_type
@@ -218,35 +220,41 @@ def _apply_one(
         ) -> None:
     # The state is laid over in place: the call boundary (_apply) holds the
     # entry copy that a Record failure rolls back to, and nothing reads the
-    # new Overlay before Field entry binds it on the Agent.
+    # new Overlay before preparing its Gains on the Agent.
     boundary.after_commit = False   # #30: Parts still restore the whole call in TopKit
     state = _state_for(agent)
     declarations = _declarations_of(tag)
-    retained_constants = frozenset(state.constants)
     deleted_before = set(state.deleted)
     state.composing += 1
     primary_failure: BaseException | None = None
 
     try:
-        _install(
-                state,
-                tag,
-                declarations,
-                )
+        header = declarations.header
+        if header.runtime or header.reports or header.operations:
+            _install(state, tag, header)
+            _prepare_gains(agent, state, deleted_before, tag, header)
+        else:
+            _actualize(agent, state, tag, header)
 
-        _materialize(
+        def prepare(gaining: _Declarations) -> None:
+            _prepare_gains(agent, state, deleted_before, tag, gaining)
+
+        _gainings(
                 agent,
+                state,
                 tag,
                 declarations,
                 deleted_before,
                 inputs,
-                retained_constants,
+                prepare,
                 )
 
-        _commit(
+        if declarations.rips:
+            state.rips[tag] = tuple((name, state.actions[name]) for name in declarations.rips)
+
+        _enter_field(
                 agent,
                 state,
-                deleted_before,
                 tag,
                 declarations,
                 )
@@ -341,21 +349,19 @@ def _inspect(
         state.composing -= 1
 
 
-def _commit(
+def _prepare_gains(
         agent: object,
         state: _State,
         deleted_before: set[str],
         tag: type,
         declarations: _Declarations,
         ) -> None:
-    namespace = _namespace_of(agent)
+    """Expose each acquired declaration before the next builder runs."""
 
-    for name in state.deleted - deleted_before:
-        namespace.pop(name, None)
-
-    state.active.append(tag)
-    state.words = None
-    state.ever.add(tag)
+    if declarations.deletions:
+        namespace = _namespace_of(agent)
+        for name in state.deleted - deleted_before:
+            namespace.pop(name, None)
 
     if declarations.secrets:
         # A first secret turns every bound Action into a composing one.
@@ -380,14 +386,38 @@ def _commit(
                         name,
                         )
 
-    if _needs_new_type(
+    _actualize(
             agent,
+            state,
             tag,
             declarations,
-            ):
-        next_type = _runtime_type_for(state)
-    else:
-        next_type = type(agent)
+            )
+
+
+def _actualize(
+        agent: object,
+        state: _State,
+        tag: type,
+        declarations: _Declarations,
+        *,
+        entering: bool = False,
+        ) -> None:
+    """Refresh the runtime behavior independently of Field membership."""
+
+    changes_type = (
+            "_TOPKIT_HOST_TYPE" not in type(agent).__dict__
+            or declarations.runtime
+            or (entering and _is_flag(tag))
+            )
+
+    if not changes_type:
+        for name, _function in (*declarations.actions, *declarations.records):
+            if type(type(agent).__dict__.get(name)) is _Published:
+                break
+        else:
+            return
+
+    next_type = _runtime_type_for(state)
 
     if type(agent) is not next_type:
         if type(agent) is state.host_type:
@@ -395,6 +425,26 @@ def _commit(
         else:
             _set_runtime_type(agent, next_type)
 
+
+def _enter_field(
+        agent: object,
+        state: _State,
+        tag: type,
+        declarations: _Declarations,
+        ) -> None:
+    """Establish membership after the Tag's Gains have been prepared."""
+
+    state.active.append(tag)
+    state.words = None
+    state.ever.add(tag)
+
+    if state.pinned is not None:
+        state.published.update(declarations.published)
+
+    # A Flag's keyword behavior depends on active membership. Ordinary
+    # Gains already prepared their runtime behavior before Field entry.
+    if _is_flag(tag) or (state.pinned is not None and declarations.published):
+        _actualize(agent, state, tag, declarations, entering=True)
     tag._topkit_field.Add(agent)
 
     if state.pinned is not None and declarations.published:
@@ -496,29 +546,6 @@ def _publish_into(
                     )
             if name in state.constants:
                 agent_state.constants[name] = (pinned, "operation", state.actions[name])
-
-
-def _needs_new_type(
-        agent: object,
-        tag: type,
-        declarations: _Declarations,
-        ) -> bool:
-    """Only type-level facts change the runtime type: the first tagging,
-    deletions, secrets, published Reports, dunder Actions, a first Post,
-    a first Flag."""
-
-    if "_TOPKIT_HOST_TYPE" not in type(agent).__dict__:
-        return True   # the Agent still wears its host's own class
-
-    return bool(
-            _is_flag(tag)
-            or declarations.deletions
-            or declarations.secrets
-            or declarations.constants
-            or declarations.dunders
-            or declarations.postconditions
-            or any(public for _name, _value, public in declarations.reports)
-            )
 
 
 def _imprint(
