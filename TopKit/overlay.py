@@ -341,6 +341,21 @@ def _gains_of(
     if not declarations.gain_order:
         return
 
+    if declarations.gaining_steps and not declarations.constants:
+        for kind, step in declarations.gaining_steps:
+            name = step.gain_order[0]
+            if kind == "action":
+                function = step.actions[0][1]
+            elif kind == "record":
+                function = step.records[0][1]
+            elif kind == "condition":
+                conditions = step.preconditions or step.postconditions
+                function = conditions[0][1]
+            else:
+                function = None
+            yield kind, name, function
+        return
+
     actions = dict(declarations.actions)
     records = dict(declarations.records)
     preconditions = dict(declarations.preconditions)
