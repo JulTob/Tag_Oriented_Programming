@@ -26,8 +26,7 @@ what you are **currently** (*estar*, §1.3), a Tool is what you **have**
 ```python
 class Fighter(Tag):
 
-    @Tool(Weapon)                       # the slot holds a Weapon
-    @Record
+    @Tool(Weapon)                       # a Record whose slot holds a Weapon
     def weapon(agent):
         sword = Sword(f"{agent.name}'s sword")
         Weapon(sword)                   # the forge Tags it, in plain sight
@@ -45,8 +44,8 @@ Everything a Tool *is* already follows from laws on `main`: identity
 behaviour today, and the wiki page `1.4 TopKit: Tools` teaches that
 pattern with blocks that run on `main`.
 
-This STEP proposes **one kit addition**, the modifier `@Tool(T, ...)` over
-`@Record`, with **three laws**, and nothing else new:
+This STEP proposes **one kit addition**, the mark `@Tool(T, ...)` on a
+Record builder, with **three laws**, and nothing else new:
 
 1. **The slot has a kind.** While present, a Tool slot holds an object
    that is *now* a member of every Tag named, sound or defective, and is
@@ -143,15 +142,15 @@ A row for §0.8:
 
 | Act | Python spelling |
 | --- | --- |
-| what the Agent has | `@Tool(Weapon)` over `@Record`; use it through the slot, `charlie.weapon.Swing()`; hand it over by assignment; drop it with `del charlie.weapon` |
+| what the Agent has | `@Tool(Weapon)` on a builder; use it through the slot, `charlie.weapon.Swing()`; hand it over by assignment; drop it with `del charlie.weapon` |
 
 ### 2. The mark
 
-1. `@Tool(T1, ..., Tn)` is a **modifier** over `@Record`, in the manner
-   of `@Constant` (STEP-SPEC-34) and `@Secret` (§1.5). It names one or
-   more Tags, in no particular order; the slot holds a member of **all**
-   of them. It stacks with `@Record`, `@Constant`, `@Secret` and `@Public`
-   in either order.
+1. `@Tool(T1, ..., Tn)` marks a Record builder and names what its slot
+   holds: one or more Tags, in no particular order; the slot holds a
+   member of **all** of them. It stacks with `@Constant`, `@Secret` and
+   `@Public` in either order, as the modifiers of §1.5 and STEP-SPEC-34
+   do.
    - **An emptiable slot is written `@Tool(Weapon | None)`.** `Weapon |
      None` is the language's own class union (§2.5: "A Tag with anything
      that is not a population keeps the language's own class union"), so
@@ -163,11 +162,14 @@ A row for §0.8:
      populations too; any of them as an argument is a Declaration Failure
      whose message shows the spelling meant: `@Tool(Weapon, Blessed)` for
      both, `@Tool(Weapon | None)` for an empty hand.
-2. `@Record` is written. STEP-SPEC-34 rule 1 keeps an unqualified method
-   an Action under a modifier; this STEP keeps that convention. `@Tool`
-   over an unmarked method, or over an Action, Report, Operation,
-   condition, Imprint, Rip or Delete, is a Declaration Failure at class
-   use.
+2. `@Tool(...)` alone declares the Record. STEP-SPEC-34 rule 1 keeps an
+   unqualified method an Action under `@Constant` because Constant can
+   mark five kinds, so the kind must be said; a Tool can be one kind
+   only, so writing `@Record` as well says nothing new. It is accepted as
+   a restatement, as `@Public @Record` is (§1.5). `@Tool` over an Action,
+   Report, Operation, condition, Imprint, Rip or Delete is a Declaration
+   Failure at class use: a Tool is something the Agent *has*; those are
+   things it does, shares or promises.
 3. Each `Ti` is a Tag **recognised by its metaclass**, the way PR #58
    recognises a Tag in the Field algebra (`isinstance(Ti, MetaTag)`, the
    root `Tag` excluded; on today's `main`, `geometry._is_tag`). A plain
@@ -331,12 +333,14 @@ Tool receives the held tool in its stored seat and guards with **its own
 kind list**; the wiki teaches "say everything the slot holds", because
 `@Tool(Blessed)` alone would admit a Blessed non-Weapon. A Shape that
 redeclares the name as a plain Record or an Action changes the kind as
-§1.1 allows within one Form, and the guard goes with the Tool declaration.
+§1.1 allows within one Form today, and the guard goes with the Tool
+declaration; open question 12 asks whether a Tool slot should refuse the
+change to an Action.
 Across independent Tags the usual cross-kind refusal and Overwrite Warning
 apply (§1.1, §1.3). `@Underlay` has no meaning on a Record; a Tool extends
 through the stored seat. A Constant slot refuses all of it (§1.5).
 
-4.7 **Constant, Secret, Public.** `@Constant @Tool(Weapon) @Record` is a
+4.7 **Constant, Secret, Public.** `@Constant @Tool(Weapon)` is a
 **bonded** tool: the binding cannot be replaced or deleted, so it is never
 handed over or dropped, and it survives Rip; the tool's value and the
 tool's own Tags may still change (STEP-SPEC-34 rules 2, 5 and 7). `@Secret`
@@ -371,7 +375,7 @@ enough?) should get one answer for both.
 | class use: `@Tool(Sword)`, not a Tag | Declaration Failure | `Fighter.weapon: Sword is not a Tag; a Tool slot holds an Agent of a Tag` |
 | class use: `@Tool(Rare)`, a Pin | Declaration Failure | `Fighter.weapon: Rare is a Pin, whose Agents are Tags; a Tool slot holds an object (§1.9)` |
 | class use: a population as kind, `@Tool(Weapon \| Blessed)`, `@Tool(~Weapon)`, `@Tool(Weapon[:])` | Declaration Failure | `Fighter.weapon: Weapon \| Blessed is a population, not a kind; write @Tool(Weapon, Blessed) for both, @Tool(Weapon \| None) for an empty hand` |
-| class use: `@Tool` over a non-Record, or over an unmarked method | Declaration Failure | `Fighter.Swing: @Tool marks a Record, what the Agent has; write @Tool(Weapon) over @Record` |
+| class use: `@Tool` over an Action, Report, Operation, condition, Imprint, Rip or Delete | Declaration Failure | `Fighter.Swing: @Tool declares what the Agent has, a Record; Swing is an Action` |
 | class use: `@Tool` inside a `@Pin` | Declaration Failure | `Armory.standard: a Pin's Records land as Reports of the pinned Tag; a shared tool is a Report (§1.9)` |
 | Parts: builder returned a non-member | Composition Failure, call rolled back | `Fighter.weapon built 'a stick', which is not an Agent of Weapon; Tag it in the builder, Weapon(stick)` |
 | Parts: builder returned `None`, kind without `\| None` | Composition Failure, call rolled back | `Fighter.weapon returned None; its slot is never empty: return a Target, drop with del agent.weapon, or declare the empty hand, @Tool(Weapon \| None)` |
@@ -453,6 +457,20 @@ one vocabulary (one direction, the barrier, granting at Parts,
 stickiness) and five stated differences (seats, reassignment, Pair,
 doors, ending).
 
+**Tools, Actions and the smith.** `@Tool` never marks an Action, and not
+only because an Action is what the Agent *does* rather than *has*. Ring 2
+opens with the law: conditions "never wrap an ordinary Action call". A
+kind on an Action's return value would be exactly that wrap, a check run
+on every call. So a smith is written as what it is, an ordinary Action
+that produces a Tagged object, `sword = smith.Forge()`, and the slot that
+receives it, `charlie.weapon = sword`, is where the kind is checked. The
+two halves keep their meanings: the Action produces, the slot admits. The
+danger the Director sensed is real and belongs to the program: every call
+forges a new object, a new Agent in `Weapon`'s Field, with no slot to give
+it one identity; those nobody holds vanish from the Field (§0.3), those a
+list keeps accumulate. Open question 12 asks whether a Tool slot may be
+turned into such a smith by a Shape.
+
 **Ser, estar, tener.** The Specification chose two Spanish verbs to keep
 Tag and Record apart. The third verb completes the picture a character
 sheet needs: what the hero is, what the hero is currently, what the hero
@@ -512,7 +530,12 @@ STEP is Deployed.
   **move primitive**, **bearer queries**, **Outline display**: each one
   more law; refused here, listed in section 6.
 - **A builder-less spelling,** `weapon = Tool(Weapon)`, for an empty slot
-  to fill later. Set aside: one spelling, and a slot is never empty.
+  to fill later. Set aside: one spelling, and a slot is never empty
+  unless its kind says so.
+- **`@Tool` on an Action,** a kind on the return value, so a smith's
+  `Forge` would be checked to produce a Weapon. Set aside: Ring 2 forbids
+  wrapping an Action call with a check; the slot that receives the
+  product is where the kind is asked (see Rationale).
 
 ## Open questions for the Director
 
@@ -540,9 +563,10 @@ STEP is Deployed.
 8. **Searching from the declaring Tag.** `Fighter[:].weapon == sword`
    finds bearers for anyone who holds `Fighter`. This is STEP-SPEC-22's
    open question 2; one decision should cover both.
-9. **`@Record` written.** As proposed, keeping STEP-SPEC-34's convention,
-   or may `@Tool(Weapon)` alone make the method a Record, since a Tool is
-   only ever a Record?
+9. **`@Record` optional.** The first draft required `@Record` beside
+   `@Tool`, after STEP-SPEC-34's convention. The Director read that as
+   redundant on 2026-10-12, and rule 2.2 now makes `@Tool(Weapon)` alone
+   the declaration, with `@Record` accepted as a restatement. Confirm.
 10. **Issue #74.** This STEP depends on the recommended refusal of
     dunder-named conditions so that "a part's own truth is its contract"
     is the only road. Confirm the refusal and the STEP-SPEC-14 wording.
@@ -555,6 +579,18 @@ STEP is Deployed.
     This STEP proposes (b) as a later addition, once the one mechanism is
     law, and asks how such a class would state its Tags without the class
     itself becoming the kind.
+12. **A Shape that computes a Tool slot with an Action.** §1.1 lets a
+    Shape "compute a Base Record with an Action". On a Tool slot that
+    makes a smith: every call forges a new sword, `charlie.weapon` is no
+    longer one object but a bound Action, and the bearer's Post is the
+    only thing that notices (verified on `main`, 2026-10-12: the Shape
+    applies, the Agent is left applied and defective, two calls give two
+    swords, and `Weapon`'s Field grows by one per call). Should a Tool
+    slot be closed to that change of kind, as STEP-SPEC-22 rule 4.4
+    closes a Link's slot, so that a Shape may redeclare it only as a Tool
+    and rework the tool through the stored seat? This STEP recommends
+    closing it: a thing one has needs one identity. It amends §1.1 for
+    Tool slots only, and is the one place this STEP would touch §1.1.
 
 ## Validation
 
