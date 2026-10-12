@@ -44,8 +44,8 @@ Actions; Agents are built once and play for a long time. So:
   every special method of the host keeps working. Its name is the host's
   name. It carries only what Python requires on a type: special-method
   Actions, and one descriptor per deleted, secret, or published name, plus
-  the contract `__bool__` from the first Tagging when no Tag contributes
-  one, `__getattr__` for views by name, and `__del__` for deletion. Tags
+  the reserved contract `__bool__` from the first Tagging,
+  `__getattr__` for views by name, and `__del__` for deletion. Tags
   are **not** in the MRO;
   `isinstance` is answered by the metaclass from the Agent's ever-set.
 - **Runtime types are shared** across every Agent whose host and
@@ -117,11 +117,13 @@ rollback target.
   `[:]`, `[agent]`, `del Tag[agent]`, `format`. The only class attribute
   TopKit adds is the private `_topkit_field`. `bool(Tag)` is "any sound
   member", like a collection.
-- **The empty-seat rule on Agents.** `__bool__`, `__format__`, `__copy__`
+- **The empty-seat rule on Agents.** `__format__`, `__copy__`
   and `__deepcopy__` are installed on the runtime type only when the host
-  defines none of its own. The contract `__bool__` lands at the first
-  Tagging unless a Tag contributes that special-method Action, so a host's
-  `__len__` keeps `len` but never supplies an Agent's truth. A new
+  defines none of its own. Ordinary object Agents always receive the
+  contract `__bool__` from first Tagging. An explicit host truth seat is
+  refused before Tagging; Agent-scope truth Contributions are refused at
+  declaration or late assignment. Synthesized runtime hooks are recognized
+  without evaluating host truth. A host's `__len__` keeps `len`. A new
   condition name still rebuilds the type for its protective data
   descriptor. Format specs are the display door: `f"{Tag:form}"`,
   `f"{agent:tags}"`,

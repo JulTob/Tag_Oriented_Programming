@@ -4,11 +4,12 @@
 
 ### TopKit
 
-- **An Agent's truth is its contract over a host's length.** When neither
-  the host nor a Tag contributes `__bool__`, `bool(agent)` is true exactly
-  when its visible Posts hold from the first Tagging, and true when it has
-  none. A host's `__len__` still answers `len(agent)`. Before, an empty
-  container-like Agent with no Posts was false.
+- **Agent truth is reserved for its Posts.** `bool(agent)` on an ordinary
+  object Agent reads its visible Posts from first Tagging, and is true
+  when it has none. Hosts with an explicit `__bool__` are refused before
+  Tagging effects; truth Gains and deletion are refused at declaration.
+  Host `__len__`, Record-held value truth and Tag population truth retain
+  their own meanings.
 
 - **Ordinary condition names:** Preconditions and Postconditions refuse
   Python dunder names at Tag declaration and before late assignment.

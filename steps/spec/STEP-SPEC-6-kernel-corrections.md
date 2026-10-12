@@ -30,10 +30,12 @@ said or did:
 4. **Preconditions gate only the current call.** An earlier Tag's gate is
    not re-asked when an unrelated Tag arrives; with inputs it would fail on
    `None`.
-5. **Host behaviour is preserved.** A host's special methods keep working
-   after tagging, with one documented exception: a host's `__len__` keeps
-   answering `len(agent)`, but never supplies an Agent's contract truth.
-   Tag members never leak onto the Agent.
+5. **Accepted host behaviour is preserved.** A host's special methods
+   keep working after tagging, with one documented exception: a host's
+   `__len__` keeps answering `len(agent)`, but never supplies an Agent's
+   contract truth. An explicit host `__bool__` is refused before Tagging;
+   the truth protocol is reserved for Posts (STEP-SPEC-40). Tag members
+   never leak onto the Agent.
 
 Also editorial: duplicated sections merged, examples corrected, "crunch"
 replaced by "override", implementation-specific names removed from the

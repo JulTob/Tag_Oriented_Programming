@@ -912,6 +912,9 @@ def _runtime_type_for(
     if conditions or state.constants or issubclass(host_type, type):
         _binding_write_hooks(namespace, host_type)
 
+    if not issubclass(host_type, type):
+        namespace["__bool__"] = hooks["__bool__"]   # the contract owns this seat
+
     if issubclass(host_type, Tagged):
         bases: tuple[type, ...] = (host_type,)
     else:
