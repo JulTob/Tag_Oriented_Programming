@@ -166,17 +166,18 @@ def _host_data_descriptor(
 def _compose(
         function: Function,
         underlay: Function | None,
+        name: str,
         ) -> Function:
     """Bind an Action to its Underlay (when it asks for one)."""
 
-    uses_underlay = _takes_underlay(function)
+    uses_underlay = _takes_underlay(function, name)
 
     if not uses_underlay:
         return function
 
     if underlay is None:
         raise TagResolutionError(
-                f"{function.__qualname__} requires a visible Underlay"
+                f"{str.__str__(name)!r} requires a visible Underlay"
                 )
 
     chain = _action_chain(underlay)
@@ -414,6 +415,7 @@ def _install(
                         function,
                         prior,
                         True,
+                        name,
                         ),
                 tag,
                 )
@@ -425,7 +427,7 @@ def _install(
         if (
                 origin is not None
                 and origin is not tag
-                and not _takes_underlay(function)
+                and not _takes_underlay(function, name)
                 and not _quiet.get()
                 ):
             warnings.warn(
@@ -443,6 +445,7 @@ def _install(
                         function,
                         prior,
                         False,
+                        name,
                         ),
                 tag,
                 )
@@ -570,6 +573,7 @@ def _gainings(
 def _refuse_stored_input_collision(
         builder: Function,
         inputs: dict[str, Any],
+        name: str,
         ) -> None:
     """A Record's second positional parameter is the stored value. If it is
     named like a supplied input, the author almost certainly meant the
@@ -578,11 +582,14 @@ def _refuse_stored_input_collision(
     second = _parameters_of(builder).named[1][0]
 
     if second in inputs:
+        second = str.__str__(second)
+        name = str.__str__(name)
+
         raise TagDeclarationError(
-                f"{builder.__qualname__}: its second parameter {second!r} is"
+                f"{name!r}: its second parameter {second!r} is"
                 f" the stored value, but an input named {second!r} was"
                 " supplied. Take the input by name after a `*`:"
-                f" `def {builder.__name__}(agent, *, {second})`, or rename"
+                f" `def {name}(agent, *, {second})`, or rename"
                 " the stored parameter."
                 )
 
@@ -1060,7 +1067,7 @@ def _install_action(
 
     if (
             underlay is not None
-            and not _takes_underlay(function)
+            and not _takes_underlay(function, name)
             and _independent(tag, origin)
             and not _quiet.get()
             ):
@@ -1074,6 +1081,7 @@ def _install_action(
     state.actions[name] = _compose(
             function,
             underlay,
+            name,
             )
     state.action_origins[name] = tag
     _restore(state, name)
@@ -1191,7 +1199,7 @@ def _record_value(
     takes_stored = _takes_stored(builder)
 
     if takes_stored:
-        _refuse_stored_input_collision(builder, inputs)
+        _refuse_stored_input_collision(builder, inputs, name)
 
     named = _protocol_inputs(
             builder,

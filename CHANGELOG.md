@@ -21,6 +21,11 @@
   whole call when a Record builder fails, and enters the Field before
   Imprints. The approved admission follow-up will retain acquired Gains
   outside the Tag on unfinished training, then enter the Field before Posts.
+- **Underlay and Record validation names:** Missing Underlays, invalid
+  Underlay signatures and stored-value/input collisions name the declared
+  Contribution without requiring Python callable naming metadata. Their
+  checks, failure phases and TOP exception families remain unchanged.
+
 - **Rip failure names:** Scheduled Rip protocols retain their declared
   Contribution names, including callable objects and aliased functions.
   Failure reporting no longer reads Python function-name metadata, so it
