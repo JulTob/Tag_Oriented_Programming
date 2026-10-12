@@ -16,6 +16,13 @@
   direct `object.__setattr__` / `object.__delattr__` calls. A multi-name
   `Contract.Delete` validates every requested condition before ending any.
 
+- **Fresh Tagging rebuilds ordinary Records:** the Specification and Guide
+  now say explicitly that Rip removes membership, not sticky Contributions.
+  Applying the Tag after Rip reruns that Tag's ordinary Record builders.
+  A builder without a second positional seat replaces the current binding;
+  one with that seat receives the current stored value and decides how to
+  evolve it.
+
 - **Scope retired:** `TopKit.Scope` is removed. A temporary Tagging is written explicitly: tag before `try`, then Rip in `finally`. Rip failures surface normally. TOP assigns `with` no automatic membership or Rip meaning; ordinary Python context protocols remain available to hosts and Agent Actions.
   STEP-SPEC-15 remains a Brief about recoverable phases, but its
   `with Try(...)` spelling is now recorded only as a historical candidate;
