@@ -32,10 +32,13 @@ sh experimental/ada/geometry/run-tests.sh
 ```
 
 The runner enables Ada 2022 and assertions, builds in a temporary directory,
-and removes its build outputs on exit. `GNATMAKE` can select a compiler;
-`GNAT_FLAGS` supplies additional whitespace-separated arguments, such as GNAT
-runtime search paths. A sentinel refuses to report success if assertions were
-disabled. The ten focused tests cover an empty Registry/root, chains,
+and removes its build outputs on exit. Before the evidence run, it compiles
+the same fixture without assertion enabling in a separate build directory
+and requires its assertion sentinel to refuse the run. No source policy
+silently enables assertions for this negative control. `GNATMAKE` can select
+a compiler; `GNAT_FLAGS` supplies additional whitespace-separated arguments,
+such as GNAT runtime search paths. A sentinel refuses to report success if
+assertions were disabled. The ten focused tests cover an empty Registry/root, chains,
 ordered independent Bases, diamonds, overlapping/duplicate Bases, a 3,000-Tag
 chain, detached input/result lists, invalid handles, and handles from ended
 Registries.

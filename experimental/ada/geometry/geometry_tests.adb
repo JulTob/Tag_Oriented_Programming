@@ -3,7 +3,6 @@ with Ada.Text_IO;
 with TOP_Experimental.Geometry;
 
 procedure Geometry_Tests is
-   pragma Assertion_Policy (Check);
    use TOP_Experimental.Geometry;
    use type TOP_Experimental.Tag_Id;
    use type Tag_Lists.Vector;
