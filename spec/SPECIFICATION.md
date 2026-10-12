@@ -26,7 +26,7 @@ ring it claims. Examples are in Python; the laws are language-neutral.
 | **0 · Kernel** | identity, membership, Geometry, the tagging sequence, Rip |
 | **1 · Contributions** | Actions, Records, Operations, Reports, Overlay and Underlay, publication, access |
 | **2 · Contracts** | Preconditions, Imprints, Postconditions, defective Agents |
-| **3 · Lifecycle** | teardown protocols, Scope, deletion |
+| **3 · Lifecycle** | teardown protocols, deletion |
 | **4 · Edges** | what TOP does not promise, and why |
 
 The last sections give the failure model, the conformance obligations, and
@@ -54,9 +54,7 @@ replaces it: before and after, it is the same object. Precisely:
 What TOP does **not** promise is nominal type identity: a Python
 implementation may swap the object's class for a runtime subclass of it.
 `isinstance(agent, Host)` stays true; `type(agent) is Host` may not. See
-Ring 4. If the chosen representation cannot be created or installed
-exactly, Tagging fails with a Composition Failure and leaves the Target
-unchanged.
+Ring 4.
 
 ## 0.2 Vocabulary
 
@@ -263,10 +261,6 @@ Rip is the only exit from a Field, and it obeys three laws:
 - **Reapplying a Ripped Tag is a fresh Tagging.** Imprints run again;
   ordinary Records are rebuilt. Established Constant bindings stay intact;
   their builders do not run again for the same declaration.
-- **A Scope Rips what it applied, and only that.** A Tag the Agent
-  already carried at entry is left as it was on exit; a Tag that applied
-  and reported a broken promise at the Scope's door did apply, and is
-  Ripped on the way out with the rest.
 
 ## 0.8 Spellings
 
@@ -297,7 +291,7 @@ language, not a library's naming.
 | catch one check's failure (§2.6) | `except Precondition.Is_A_Caster:`, `except Postcondition.Has_Book:`, `except Imprint.Arm:` |
 | catch a Rogue Agent's access (§1.5) | `except TagRogueAccessError:` |
 | end a condition explicitly (§0.7), from a `@Rip` protocol | `Contract.Delete(agent, "Has_Book")` |
-| necessary to enter and to stay (§2.7) | `@Pre` + `@Post`, or `@Requirement` |
+| necessary to enter and to stay (§2.7) | `@Pre` + `@Post`, stacked on one function |
 | pin a Tag (§1.9), and every act above with a Tag in the Agent's seat | `Rare(Wizard)`, `Wizard in Rare`, `for tag in Rare`, `Rare[Wizard]`, `del Rare[Wizard]` |
 | a Tag carries a keyword? (Flag Pins, §1.9) | `"Deprecated" in Wizard`, `Keyword(Wizard, "Deprecated")` |
 | a Tag's Pins and contract, as text | `f"{Wizard:pins}"`, `f"{Wizard:contract}"` |
@@ -315,8 +309,8 @@ renders what a Tag or Agent is, without a method on either. On an Agent the
 door follows the empty-seat rule: a host with its own formatting keeps it.
 
 Queries that need a name are functions (`Form`, `Tags`, `Keyword`,
-`Apply`, `Outline`, `Contract`, `Scope`), never members of the Tag or of
-the Agent.
+`Apply`, `Outline`, `Contract`), never members of the Tag or of the
+Agent.
 Another language profile chooses its own native spellings; the acts and
 their distinctions are what must survive.
 
@@ -708,7 +702,9 @@ A Constant Post keeps its check after Rip and cannot be replaced or
 deleted through `Contract.Delete`, a protocol or another Layer. Other
 Posts can be added under independent names; all applicable promises must
 hold. Constant does not change when contracts are checked or require a
-Post to return the same answer as the Agent changes.
+Post to return the same answer as the Agent changes. It locks the check's
+binding, but cannot restore `assert` instructions removed by optimized
+Python (§2.1).
 
 Applying an active Tag remains a no-op. Reapplying after Rip preserves
 the same declaration's Constants while rebuilding ordinary Records and
@@ -1015,6 +1011,12 @@ class Wizard(Tag):
         assert agent.spellbook is not None
 ```
 
+**Python profile.** Assertion-style conditions require assertions enabled.
+Python removes `assert` under `-O`, `-OO` or a nonzero `PYTHONOPTIMIZE`
+setting; an assert-only condition then returns `None` and holds. For a
+requirement that must also be checked in those modes, return a Boolean
+explicitly, such as `return agent.spellbook is not None`.
+
 TOP does not coerce truthy and falsy values: a Record of `0` spell slots is
 a real value, not a failure. `return agent.spell_slots` raises a Contract
 Failure telling you to write the comparison you mean. The absence of a
@@ -1271,33 +1273,27 @@ Being alive is necessary to become an Elf and necessary to remain a sound
 one; it is not sufficient, since other living things are not Elves. A
 condition says *necessary*; membership says *is*.
 
-`@Requirement` is the same mark said in one word, for a claim that reads
-better as a necessity than as a pair of checks:
+The order of the two marks changes nothing: `@Post` above `@Pre` is the
+same condition. The two marks are its only spelling, so the page shows
+that it is a gate and a promise.
 
-```python
-class Elf(Tag):
-
-    @Requirement
-    def Alive(agent):
-        return agent.alive
-```
-
-A Requirement names no failure of its own. It fails at the door as
-`Precondition.Alive` and afterwards as `Postcondition.Alive`, because a
-program repairs the two differently: one is an Agent that may not come
-in, the other an Agent already in and now broken. Reading
-`Requirement.Alive` is a Declaration-time mistake and says so.
+The two failures keep their two names: `Precondition.Alive` at the
+door, `Postcondition.Alive` afterwards. A program repairs the two
+differently. One is an Agent that may not come in; the other is an Agent
+already in and now broken.
 
 ## 2.8 Writing a check
 
-A condition usually asks whether an Agent *has* something. `assert
-agent.spellbook` reads well, but asks two questions at once: *defined* and
-*truthy*. That is fine for a spellbook object; it is a trap for a
-`spell_slots` of `0`. Separate having a contribution from its value:
+A Post can require an Agent to *have* a named Contribution (§1.1).
+Separate presence from its value:
 
-- Is it there at all? `assert agent.spell_slots is not None`, or
-  `assert hasattr(agent, "spell_slots")` when `None` is itself valid.
-- Does it have a particular value? `assert agent.spell_slots > 0`.
+- Is it there at all? `"spell_slots" @ agent` tests the name's presence.
+  Stored `False`, `None` and `0` all count as present.
+- Does it have a particular value? `agent.spell_slots > 0` tests its value.
+
+A Post requiring the name can write `return "spell_slots" @ agent`, or `assert "spell_slots" @ agent`.
+Presence guarantees neither successful value access, callability nor
+successful behaviour; express those requirements separately.
 
 ---
 
@@ -1305,9 +1301,9 @@ agent.spellbook` reads well, but asks two questions at once: *defined* and
 
 ## 3.1 Rip protocols
 
-Imprint and Rip are duals: constructor and destructor, `__enter__` and
-`__exit__`. A `@Rip` Action runs when the Agent leaves the Tag's Field. It
-is also an ordinary, callable Action.
+Imprint and Rip are duals: constructor and destructor. A `@Rip` Action
+runs when the Agent leaves the Tag's Field. It is also an ordinary,
+callable Action.
 
 ```python
 class MI6(Tag):
@@ -1336,15 +1332,45 @@ use: it could keep an Agent from ever leaving a Field.
 ## 3.2 Deleting an Agent
 
 Deletion of an Agent Rips it from its active Tags, so exit protocols run.
-An implementation provides three tiers and says which is which:
+There are three tiers. The implementation provides the first and the
+third; the program writes the second.
 
 | Tier | Guarantee |
 | --- | --- |
 | **Finalizer** (`__del__`) | best effort: when the Agent is collected, its teardowns run, then its `__del__` Layers; at interpreter exit only the `__del__` Layers run; the language may not run finalizers at shutdown or inside reference cycles |
-| **`Scope(agent, *tags)`** | guaranteed: Tags apply on entry and Rip, in reverse, on exit, even if the block raises |
+| **`del Tag[agent]` in a `finally`** | guaranteed: the language runs a `finally` whenever its block ends, by finishing or by raising |
 | **`At_Exit(agent)`** | opt-in: teardowns also run at normal interpreter exit; registration is weak |
 
 Every teardown runs at most once, whichever tier reaches it first.
+
+**A block that holds a Tag** (STEP-SPEC-31) is a tagging and a Rip,
+joined by the language's own `try` and `finally`. The rule: **tag before
+`try`, Rip in `finally`.**
+
+```python
+Sentry(guard)              # the guard joins Sentry
+try:
+    guard.Patrol()
+finally:
+    del Sentry[guard]      # the guard leaves, even if Patrol raised
+```
+
+A Gate refusal raises before the `try`, so the block never runs and there
+is no Tag to Rip. An Imprint failure or broken Post is reported at the
+Tagging statement too, before the `try`, but the Tag has landed and stays
+(§0.6). A Rip in a `finally` that fails raises, as every Rip does (§3.1).
+If the block was raising too, the language keeps the block's error inside
+the Rip's failure, as its context, and shows both.
+TOP adds nothing to this. Each step is a line the program writes: a
+block that should leave a Tag the Agent already carried checks first
+(`was_sentry = guard in Sentry[:]`), and a block that should take away a
+Base its Shape pulled in Rips the Base too.
+
+TOP assigns `with` no automatic Tagging or Rip meaning. Ordinary Python
+context protocols remain ordinary Contributions or host behavior: a host,
+or an Agent with `__enter__` / `__exit__` (or their asynchronous forms),
+may still follow `with` without changing membership unless its own code
+does so explicitly.
 
 **The Agent's own finalizer is a member in Layers** (STEP-SPEC-18). The
 host's `__del__` is its first Layer, found as the language finds it. A
@@ -1387,12 +1413,6 @@ del lamp
 assert log == ["put down", "spell fades", "wick out"]
 ```
 
-```python
-with Scope(agent, Sentry):
-    guard_the_gate(agent)
-# Sentry's teardown has run here, exception or not
-```
-
 ---
 
 # Ring 4 · Edges
@@ -1407,6 +1427,8 @@ What TOP does not promise, stated so nobody has to discover it.
   Target and apply its Tags again (`Tags(agent)` lists them). A Python
   implementation refuses `copy.copy` explicitly rather than aliasing state.
 - **Threads.** One Agent, one thread. Fields are not synchronized.
+- **Python optimization.** Assertion-style conditions need assertions
+  enabled; §2.1 describes optimized execution and return-based checks.
 - **Host descriptors.** A Record cannot share a name with a host property
   or slot; the Tagging fails with a Composition Failure.
 - **Raw side effects.** Rollback restores TOP-managed state and the Agent's
@@ -1434,7 +1456,7 @@ types but must keep these distinct.
 | **Tag Postcondition Failure** | The finished Agent breaks a promise. | Tags stay, Agent defective |
 | **Tag Contract Failure** | A condition returned a non-boolean. | gate: call rolled back; quality check: Tags stay, Agent defective |
 | **Overwrite Warning** | An independent Tag replaced a visible Action or Record without an Underlay. | diagnostic |
-| **Contract Warning** | A Shape weakened a Base Postcondition. | diagnostic |
+| **Contract Warning** | A Tag replaced another Tag’s visible Postcondition without an Underlay (Base, Shape, or independent Tag). | diagnostic |
 
 ---
 
@@ -1477,8 +1499,8 @@ A conforming implementation provides, ring by ring:
 - published members answering members only, and only sound ones: a Rogue
   Access Failure on a Rogue Agent, the broken promise by name on a
   defective one, open again on membership or repair;
-- `@Pre` and `@Post` stacked on one function as one condition, spelled
-  `@Requirement` in one word;
+- `@Pre` and `@Post` stacked on one function as one condition, in
+  either order;
 - populations combined with `|`, `&` and `-` at every level, lazily, a
   Tag in an operator seat meaning its sound population;
 - every condition read on the Agent by its name as a plain boolean, with
@@ -1498,8 +1520,10 @@ A conforming implementation provides, ring by ring:
 
 **Ring 3**
 - `@Rip` protocols run after membership ends, once, composed, failures
-  reported; the three deletion tiers; the Agent's `__del__` as Layers of
-  its Overlay, run after the teardowns, and alone at interpreter exit.
+  reported; the three deletion tiers, the finalizer and `At_Exit` from
+  the implementation, and the guaranteed one written by the program, a
+  Rip in a `finally`; the Agent's `__del__` as Layers of its Overlay,
+  run after the teardowns, and alone at interpreter exit.
 
 **Everywhere**
 - the failure types above, distinct and named.

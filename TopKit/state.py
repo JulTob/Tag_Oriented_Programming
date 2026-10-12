@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from dataclasses import field
+from dataclasses import FrozenInstanceError
+from types import FunctionType
 from types import GetSetDescriptorType
 from types import MethodType
 from typing import Any
@@ -368,7 +370,23 @@ def _actualize_runtime_type(
     host_type = type(agent)
 
     try:
-        agent.__class__ = runtime_type
+        frozen_type = None
+        for owner in host_type.__mro__:
+            setter = owner.__dict__.get("__setattr__", _MISSING)
+            if setter is _MISSING:
+                continue
+            if not _frozen_dataclass_setter(owner, setter):
+                break
+            frozen_type = owner
+
+        if frozen_type is not None:
+            # The generated wrappers protect host bindings, but reject
+            # every write on the exact dataclass, including our internal
+            # class change. Skip only those wrappers: a base's real host
+            # write hook still decides whether to accept actualization.
+            super(frozen_type, agent).__setattr__("__class__", runtime_type)
+        else:
+            agent.__class__ = runtime_type
     except Exception as error:
         raise TagCompositionError(
                 f"{host_type.__name__} cannot be actualized in place"
@@ -383,6 +401,56 @@ def _actualize_runtime_type(
         raise TagCompositionError(
                 f"{host_type.__name__} did not retain TOP state during actualization"
                 )
+
+
+def _frozen_dataclass_setter(
+        host_type: type,
+        setter: Any,
+        ) -> bool:
+    """Recognize the standard frozen-dataclass wrapper conservatively."""
+
+    parameters = host_type.__dict__.get("__dataclass_params__")
+
+    if (
+            parameters is None
+            or not parameters.frozen
+            or type(setter) is not FunctionType
+            or setter.__code__.co_filename != "<string>"
+            or setter.__code__.co_freevars not in (
+                    ("FrozenInstanceError", "cls"),
+                    ("FrozenInstanceError", "__class__"),
+                    )
+            ):
+        return False
+
+    frozen_error, declared_type = (
+            cell.cell_contents
+            for cell in setter.__closure__
+            )
+    if frozen_error is not FrozenInstanceError:
+        return False
+
+    if declared_type is host_type:
+        return True
+
+    # Before Python 3.14, slots=True recreates the dataclass while the
+    # generated frozen setter still captures its original class. Both
+    # classes retain the exact same declaration and dataclass metadata.
+    if not issubclass(type(declared_type), type):
+        return False
+
+    original = type.__getattribute__(declared_type, "__dict__")
+    current = type.__getattribute__(host_type, "__dict__")
+    return (
+            "__slots__" in current
+            and "__slots__" not in original
+            and original.get("__setattr__") is setter
+            and original.get("__dataclass_params__") is parameters
+            and original.get("__dataclass_fields__") is current.get("__dataclass_fields__")
+            and declared_type.__name__ == host_type.__name__
+            and declared_type.__qualname__ == host_type.__qualname__
+            and declared_type.__bases__ == host_type.__bases__
+            )
 
 
 def _set_runtime_type(agent: object, runtime_type: type) -> None:
