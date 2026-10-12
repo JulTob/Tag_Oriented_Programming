@@ -3,7 +3,7 @@
 Ring 0  Kernel: identity, membership, Geometry, Fields.
 Ring 1  Contributions: Overlay, Underlay, Records, publication.
 Ring 2  Contracts: Pre, Imprint, Post, defective taggings.
-Ring 3  Lifecycle: Rip, teardown, Scope, exit.
+Ring 3  Lifecycle: Rip, teardown, try and finally, exit.
 Ring 4  Access and queries.
 """
 
@@ -36,9 +36,7 @@ from TopKit import Precondition
 from TopKit import Public
 from TopKit import Record
 from TopKit import Report
-from TopKit import Requirement
 from TopKit import Rip
-from TopKit import Scope
 from TopKit import Secret
 from TopKit import Tag
 from TopKit import TagCompositionError
@@ -1540,9 +1538,10 @@ class ConditionTests(unittest.TestCase):
         self.assertIs(Precondition.Alive, TagPreconditionError.Alive)
         self.assertIs(Postcondition.Alive, TagPostconditionError.Alive)
 
-    def test_requirement_is_the_stacked_pair_in_one_word(self) -> None:
+    def test_the_two_marks_stack_in_either_order(self) -> None:
         class Vampire(Tag):
-            @Requirement
+            @Post
+            @Pre
             def Undead(agent):
                 return agent.undead
 
@@ -1560,12 +1559,46 @@ class ConditionTests(unittest.TestCase):
         with self.assertRaises(Postcondition.Undead):
             Contract.Postconditions(nosferatu)
 
-    def test_a_requirement_names_no_failure_of_its_own(self) -> None:
-        with self.assertRaises(AttributeError) as caught:
-            Requirement.Undead
+    def test_a_stacked_condition_fails_under_the_name_of_the_half_that_refused(self) -> None:
+        class Vampire(Tag):
+            @Pre
+            @Post
+            def Undead(agent):
+                return agent.undead
 
-        self.assertIn("Precondition.Undead", str(caught.exception))
-        self.assertIn("Postcondition.Undead", str(caught.exception))
+        mortal = Agent()
+        mortal.undead = False
+
+        with self.assertRaises(Precondition.Undead) as at_the_door:
+            Vampire(mortal)
+
+        self.assertIsInstance(at_the_door.exception, Precondition.Undead)
+        self.assertNotIsInstance(at_the_door.exception, Postcondition.Undead)
+
+        nosferatu = Agent()
+        nosferatu.undead = True
+        Vampire(nosferatu)
+        nosferatu.undead = False
+
+        with self.assertRaises(Postcondition.Undead) as afterwards:
+            Contract.Postconditions(nosferatu)
+
+        self.assertIsInstance(afterwards.exception, Postcondition.Undead)
+        self.assertNotIsInstance(afterwards.exception, Precondition.Undead)
+
+    def test_requirement_is_no_longer_exported(self) -> None:
+        import TopKit
+        import TopKit.declarations
+
+        with self.assertRaises(ImportError):
+            from TopKit import Requirement
+
+        with self.assertRaises(ImportError):
+            from TopKit.declarations import Requirement
+
+        self.assertNotIn("Requirement", TopKit.__all__)
+        self.assertFalse(hasattr(TopKit, "Requirement"))
+        self.assertFalse(hasattr(TopKit.declarations, "Requirement"))
 
 
 class DefectiveTaggingTests(unittest.TestCase):
@@ -2606,9 +2639,10 @@ class StickyConditionTests(unittest.TestCase):
         with self.assertRaises(TagResolutionError):
             Contract.Delete(ari, "Has_Oath")
 
-    def test_deletion_ends_both_halves_of_a_requirement(self) -> None:
+    def test_deletion_ends_both_halves_of_a_stacked_condition(self) -> None:
         class Elf(Tag):
-            @Requirement
+            @Pre
+            @Post
             def Alive(agent):
                 return agent.alive
 
@@ -2706,22 +2740,28 @@ class ExitProtocolTests(unittest.TestCase):
         self.assertEqual(seen, ["host del"])
         self.assertEqual(_DEL_LOG, ["stood down"])
 
-    def test_scope_applies_and_rips_with_guaranteed_teardown(self) -> None:
+    def test_a_rip_in_a_finally_is_the_guaranteed_teardown(self) -> None:
         ari = Agent()
 
-        with Scope(ari, Sentry) as scoped:
-            self.assertIs(scoped, ari)
+        held = Sentry(ari)                                            # tag before the try
+        try:
+            self.assertIs(held, ari)
             self.assertIn(ari, Sentry)
+        finally:
+            del Sentry[ari]                                           # Rip in the finally
 
         self.assertNotIn(ari, Sentry)
         self.assertEqual(_DEL_LOG, ["stood down"])
 
-    def test_scope_rips_even_when_the_block_raises(self) -> None:
+    def test_a_rip_in_a_finally_runs_even_when_the_block_raises(self) -> None:
         ari = Agent()
 
         with self.assertRaises(ValueError):
-            with Scope(ari, Sentry):
+            Sentry(ari)
+            try:
                 raise ValueError("boom")
+            finally:
+                del Sentry[ari]
 
         self.assertNotIn(ari, Sentry)
         self.assertEqual(_DEL_LOG, ["stood down"])
@@ -2753,27 +2793,47 @@ class ExitProtocolTests(unittest.TestCase):
         self.assertLess((after - before) / 2000, 16)   # nothing kept per dead registration
 
 
-# ==================================================================
-# Ring 4: Access and queries
-# ==================================================================
+class TryFinallyTests(unittest.TestCase):
+    """A block holds a Tag with Python's own try and finally: tag before
+    try, Rip in finally (STEP-SPEC-31)."""
 
+    def setUp(self) -> None:
+        _DEL_LOG.clear()
 
-class ScopeTests(unittest.TestCase):
-    """Scope Rips only what it applied, and everything it applied."""
-
-    def test_a_tag_the_agent_already_had_survives_the_scope(self) -> None:
-        class Wizard(Tag):
-            pass
-
+    def test_try_finally_rips_when_the_block_raises(self) -> None:
         ari = Agent()
-        Wizard(ari)
 
-        with Scope(ari, Wizard):
-            self.assertIn(ari, Wizard)
+        with self.assertRaises(LookupError):
+            Sentry(ari)
+            try:
+                raise LookupError("the gate is breached")
+            finally:
+                del Sentry[ari]
 
-        self.assertIn(ari, Wizard)                                    # it was Ari's, not the Scope's
+        self.assertNotIn(ari, Sentry)
+        self.assertEqual(_DEL_LOG, ["stood down"])
 
-    def test_a_tag_whose_promise_broke_at_the_door_is_ripped_on_exit(self) -> None:
+    def test_a_refused_gate_raises_before_the_try(self) -> None:
+        class Gated(Tag):
+            @Pre
+            def Ready(agent):
+                return agent.ready
+
+        cal = Agent()
+        cal.ready = False
+        ran: list[str] = []
+
+        with self.assertRaises(Precondition.Ready):
+            Gated(cal)
+            try:
+                ran.append("block")
+            finally:
+                del Gated[cal]
+
+        self.assertEqual(ran, [])
+        self.assertNotIn(cal, Gated[:])
+
+    def test_a_postcondition_failure_before_the_try_leaves_the_tag(self) -> None:
         class Sworn(Tag):
             @Post
             def Has_Oath(agent):
@@ -2781,32 +2841,98 @@ class ScopeTests(unittest.TestCase):
 
         bo = Agent()
         bo.oath = None
+        ran: list[str] = []
 
         with self.assertRaises(Postcondition.Has_Oath):
-            with Scope(bo, Sworn):
-                raise AssertionError("the body must not run")
+            Sworn(bo)
+            try:
+                ran.append("block")
+            finally:
+                del Sworn[bo]
 
-        self.assertNotIn(bo, Sworn)                                   # applied, defective, and Ripped on the way out
-        self.assertTrue(isinstance(bo, Sworn))                        # the history stays
+        self.assertEqual(ran, [])
+        self.assertIn(bo, ~Sworn)                                     # landed, then reported defective
 
-    def test_a_refused_gate_applies_nothing_and_rips_nothing(self) -> None:
-        class Gated(Tag):
-            @Pre
-            def Ready(agent):
-                return agent.ready
+    def test_a_hosts_ordinary_context_protocol_survives_tagging(self) -> None:
+        events: list[str] = []
 
-        class Plain(Tag):
-            pass
+        class Host:
+            def __enter__(self):
+                events.append("enter")
+                return "host value"
 
-        cal = Agent()
-        cal.ready = False
+            def __exit__(self, kind, value, traceback):
+                events.append("exit")
 
-        with self.assertRaises(Precondition.Ready):
-            with Scope(cal, Plain, Gated):
-                pass
+        host = Host()
+        Sentry(host)
 
-        self.assertNotIn(cal, Plain)                                  # Plain was the Scope's: gone
-        self.assertNotIn(cal, Gated)
+        with host as value:
+            self.assertEqual(value, "host value")
+
+        self.assertEqual(events, ["enter", "exit"])
+        self.assertIn(host, Sentry)                                   # `with` does not Rip for TOP
+
+    def test_action_context_dunders_remain_ordinary_python(self) -> None:
+        events: list[str] = []
+
+        class Context(Tag):
+            def __enter__(agent):
+                events.append("enter")
+                return agent
+
+            def __exit__(agent, kind, value, traceback):
+                events.append("exit")
+
+        ari = Agent()
+        Context(ari)
+
+        with ari as value:
+            self.assertIs(value, ari)
+
+        self.assertEqual(events, ["enter", "exit"])
+        self.assertIn(ari, Context)                                   # its Actions decide; TOP adds no Rip
+
+    def test_async_action_context_dunders_remain_ordinary_python(self) -> None:
+        import asyncio
+
+        events: list[str] = []
+
+        class Context(Tag):
+            async def __aenter__(agent):
+                events.append("enter")
+                return agent
+
+            async def __aexit__(agent, kind, value, traceback):
+                events.append("exit")
+
+        ari = Agent()
+        Context(ari)
+
+        async def use_context() -> None:
+            async with ari as value:
+                self.assertIs(value, ari)
+
+        asyncio.run(use_context())
+
+        self.assertEqual(events, ["enter", "exit"])
+        self.assertIn(ari, Context)
+
+    def test_scope_is_no_longer_exported(self) -> None:
+        import TopKit
+        import TopKit.lifecycle
+
+        with self.assertRaises(ImportError):
+            from TopKit import Scope                                  # removed: tag before try, Rip in finally
+
+        self.assertNotIn("Scope", TopKit.__all__)
+        self.assertFalse(hasattr(TopKit, "Scope"))
+        self.assertFalse(hasattr(TopKit.lifecycle, "Scope"))
+
+
+# ==================================================================
+# Ring 4: Access and queries
+# ==================================================================
 
 
 class AccessTests(unittest.TestCase):
@@ -3087,7 +3213,8 @@ class ConditionMemberTests(unittest.TestCase):
 
     def test_the_member_and_the_status_agree(self) -> None:
         class Elf(Tag):
-            @Requirement
+            @Pre
+            @Post
             def Alive(agent):
                 return agent.alive
 
