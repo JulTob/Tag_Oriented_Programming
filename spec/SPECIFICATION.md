@@ -1295,7 +1295,7 @@ Separate presence from its value:
   Stored `False`, `None` and `0` all count as present.
 - Does it have a particular value? `agent.spell_slots > 0` tests its value.
 
-A Post requiring the name can write `return "spell_slots" @ agent`.
+A Post requiring the name can write `return "spell_slots" @ agent`, or `assert "spell_slots" @ agent`.
 Presence guarantees neither successful value access, callability nor
 successful behaviour; express those requirements separately.
 
