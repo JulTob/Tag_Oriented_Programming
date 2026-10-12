@@ -1,6 +1,6 @@
-# STEP-SPEC-36: Tagging Admission
+# STEP-SPEC-39: Tagging Admission
 
-- **STEP:** SPEC-36
+- **STEP:** SPEC-39
 - **Desk:** spec
 - **Title:** Tagging Admission
 - **Author:** Julio Toboso (@JulTob)
