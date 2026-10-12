@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from contextvars import ContextVar
 from functools import wraps
+from os import sep
 from os.path import dirname
 from typing import Any
 from typing import Callable
@@ -57,7 +58,7 @@ from .state import _state_of
 
 
 Function = Callable[..., Any]
-_WARNING_SKIP_PREFIXES = (dirname(__file__),)
+_WARNING_SKIP_PREFIXES = (dirname(__file__) + sep,)
 
 
 # ------------------------------------------------------------------
