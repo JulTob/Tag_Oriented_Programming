@@ -204,7 +204,7 @@ reported as a note when possible.
 An exceptional return does not itself make an Agent permanently defective.
 Its current visible Postconditions determine soundness (§2.5), so a finished
 Agent whose promises hold may be sound despite a failed Imprint or an
-interruption after Commit.
+interruption after Field entry.
 
 ```text
 Citadel(ari)                      Form: Territory, Citadel
