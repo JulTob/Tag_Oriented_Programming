@@ -187,8 +187,11 @@ def _apply_one(
                 _restore_namespace(agent, entry_namespace)
             raise
 
-        def prepare(gaining: _Declarations) -> None:
-            _prepare_gains(agent, state, deleted_before, tag, gaining)
+        def prepare(gaining: _Declarations, needs_runtime: bool) -> None:
+            _prepare_gains(
+                    agent, state, deleted_before, tag, gaining,
+                    refresh=needs_runtime,
+                    )
 
         _gainings(
                 agent,
@@ -202,14 +205,34 @@ def _apply_one(
 
         _imprint(agent, declarations, inputs)
 
-        # Tag-scope services arrive only after successful training.
-        _install(state, tag, declarations.header)
-        _prepare_gains(agent, state, deleted_before, tag, declarations.header)
+        # Tag-scope services arrive with admission. A failed representation
+        # must not replace the services of an already active Agency.
+        header = declarations.header
+        has_header = bool(header.runtime or header.reports or header.operations)
+        previous = state.Copy() if has_header else None
+        if previous is not None:
+            previous_type = type(agent)
+            previous_namespace = dict(_namespace_of(agent))
 
-        if declarations.rips:
-            state.rips[tag] = tuple((name, state.actions[name]) for name in declarations.rips)
+        try:
+            if has_header:
+                _install(state, tag, header)
+                _prepare_gains(agent, state, deleted_before, tag, header)
 
-        _enter_field(agent, state, tag, declarations)
+            if declarations.rips:
+                state.rips[tag] = tuple((name, state.actions[name]) for name in declarations.rips)
+
+            _enter_field(agent, state, tag, declarations)
+        except BaseException:
+            if tag not in state.active:
+                if previous is not None:
+                    if type(agent) is not previous_type:
+                        _set_runtime_type(agent, previous_type)
+                    _restore_namespace(agent, previous_namespace)
+                    state.Restore(previous)
+                else:
+                    state.rips.pop(tag, None)
+            raise
     except BaseException as error:
         primary_failure = error
         raise
@@ -298,6 +321,8 @@ def _prepare_gains(
         deleted_before: set[str],
         tag: type,
         declarations: _Declarations,
+        *,
+        refresh: bool = True,
         ) -> None:
     """Expose each acquired declaration before the next builder runs."""
 
@@ -329,12 +354,8 @@ def _prepare_gains(
                         name,
                         )
 
-    _actualize(
-            agent,
-            state,
-            tag,
-            declarations,
-            )
+    if refresh:
+        _actualize(agent, state, tag, declarations)
 
 
 def _actualize(

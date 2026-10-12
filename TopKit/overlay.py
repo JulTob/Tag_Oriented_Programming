@@ -51,6 +51,7 @@ from .declarations import _MISSING
 from .presence import _Presence
 from .state import _Bound
 from .state import _Pinned_Operation
+from .state import _Published
 from .state import _State
 from .state import _name_of
 from .state import _namespace_of
@@ -495,7 +496,7 @@ def _gainings(
         declarations: _Declarations,
         deleted_before: set[str],
         inputs: dict[str, Any],
-        prepare: Callable[[_Declarations], None],
+        prepare: Callable[[_Declarations, bool], None],
         ) -> None:
     """Attach each actual Gain before proceeding to the next declaration.
 
@@ -529,7 +530,12 @@ def _gainings(
         # A Gain requiring runtime protection has not stuck until its
         # representation can be installed. Never leave an exposed Secret
         # or writable Constant when a host rejects that representation.
-        previous = state.Copy() if one.runtime else None
+        needs_runtime = (
+                one.runtime
+                or (bool(state.published)
+                    and type(type(agent).__dict__.get(name)) is _Published)
+                )
+        previous = state.Copy() if needs_runtime else None
         if previous is not None:
             previous_type = type(agent)
             previous_namespace = dict(_namespace_of(agent))
@@ -547,7 +553,7 @@ def _gainings(
                 state.secrets.update(one.secrets)
             if name in locks:
                 state.constants[name] = locks[name]
-            prepare(one)
+            prepare(one, needs_runtime)
         except BaseException:
             if previous is not None:
                 if type(agent) is not previous_type:
