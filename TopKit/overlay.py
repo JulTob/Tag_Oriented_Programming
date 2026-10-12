@@ -7,6 +7,7 @@ scope a name is one slot: an Action or a Record, never both at once.
 from __future__ import annotations
 
 from contextvars import ContextVar
+from dataclasses import replace
 from functools import wraps
 from os import sep
 from os.path import dirname
@@ -531,6 +532,11 @@ def _gainings(
             value = _record_value(
                     agent, tag, name, function, deleted_before, inputs,
                     )
+            from .tools import _tool_policy
+            policy = _tool_policy(function)
+            if policy is not None:
+                owner = str.__str__(type.__dict__["__name__"].__get__(tag))
+                policy.Check(value, owner, name)
         elif kind == "condition" and not (one.preconditions or one.postconditions):
             continue
 
@@ -539,9 +545,12 @@ def _gainings(
         # or writable Constant when a host rejects that representation.
         needs_runtime = (
                 one.runtime
+                or name in state.tools
                 or (bool(state.published)
                     and type(type(agent).__dict__.get(name)) is _Published)
                 )
+        if name in state.tools and not one.runtime:
+            one = replace(one, runtime=True)
         previous = state.Copy() if needs_runtime else None
         if previous is not None:
             previous_type = type(agent)
@@ -956,6 +965,7 @@ def _delete(
     state.actions.pop(name, None)
     state.action_origins.pop(name, None)
     state.records.pop(name, None)
+    state.tools.pop(name, None)
     state.preconditions.pop(name, None)
     state.postconditions.pop(name, None)
     state.reports.pop(name, None)
@@ -1055,6 +1065,7 @@ def _install_action(
                     )
 
         state.records.pop(name)
+        state.tools.pop(name, None)
 
     underlay = state.actions.get(name)
     origin = state.action_origins.get(name, state.host_type)
@@ -1155,6 +1166,12 @@ def _install_record(
                 )
 
     state.records[name] = tag
+    from .tools import _tool_policy
+    policy = _tool_policy(builder)
+    if policy is None:
+        state.tools.pop(name, None)
+    else:
+        state.tools[name] = (tag, policy)
     _restore(state, name)
     state.published.discard(name)
 

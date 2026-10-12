@@ -12,6 +12,14 @@
 
 ### TopKit
 
+- **Tool class admission (STEP-SPEC-36 review draft):** `@Tool(Sword)`
+  declares a Record admitting compatible Python host instances; native
+  class unions keep OR and explicit `| None` permits an empty value.
+  Initial gains and supported writes are checked without Tagging values
+  or evaluating their Posts. Ordinary Overlay, Constant, Secret, presence
+  and retry retain their existing meanings. Protocol-named Records keep
+  normal Python hooks and their documented direct-kernel write bypass.
+
 - Actions, Records, conditions and deletions now take effect from top to
   bottom in each Tag. Record builders see earlier declarations, while
   successful Constant bindings are protected before later Gainings.

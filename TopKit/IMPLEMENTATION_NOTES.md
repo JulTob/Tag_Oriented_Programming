@@ -21,6 +21,7 @@ tracks splitting them by idea without changing semantics.
 | `overlay.py` | laying one Tag's declarations over a state; materializing Records |
 | `contracts.py` | strict verdicts, binding conditions, `Contract` |
 | `constants.py` | protecting Constant bindings without freezing their values |
+| `tools.py` | opt-in host-class admission for ordinary Record values |
 | `presence.py` | Contribution presence without evaluating values or conditions |
 | `transactions.py` | the tagging sequence and the call boundary |
 | `lifecycle.py` | Rip, teardown, `At_Exit` |
@@ -58,6 +59,40 @@ Actions; Agents are built once and play for a long time. So:
 - **The composition door is a counter** on the Agent's state. Bound
   protocols raise it while they run; the secret-gate descriptor checks it.
   Agents without secrets use a plain bound callable and pay nothing.
+
+### Tool class admission
+
+`@Tool(Sword | None)` is a Record modifier for a Python host class or
+native class union. It implies Record and uses class compatibility,
+not Tag membership: untagged values and compatible Rogues qualify.
+Admission never evaluates the held object's truth or Posts and never
+Tags it. The reviewed proposal and Director's decisions are in
+[STEP-SPEC-36 / #157](https://github.com/JulTob/Tag_Oriented_Programming/pull/157).
+This implementation is prepared for review while that STEP remains Brief.
+
+The effective declaration lives in `state.tools`. Ordinary Tool names
+receive a per-name data descriptor which obtains the receiving Agent's
+policy from state; shared runtime types capture no bearer, held value or
+per-Agent class policy. Builder results are checked before acquisition,
+and supported assignments check before changing the binding. A gaining
+has not stuck until its guarded runtime representation is installed.
+Frozen hosts still use the kernel path for initial storage.
+
+Dropping a value preserves the guard, Rip retains it, and normal Delete
+or permitted plain Record/Action Overlay ends it. Constant protects the
+binding without freezing the held object and skips its established
+builder on retry. Presence recognises a missing guarded binding without
+running its getter or evaluating any promises.
+
+Protocol-named Records keep ordinary Record representation; making their
+value a data descriptor would change Python's type-level protocol hooks.
+Their normal assignments are checked through the writer preflight, while
+direct `object.__setattr__` writes to those names bypass admission.
+For ordinary names the data descriptor also checks `object.__setattr__`.
+Direct dictionary mutation remains a kernel bypass in either case, even
+inside a custom setter that first receives a compatible value. No Python
+sandbox or rollback of arbitrary setter effects is promised. The held
+object's own protocols remain ordinary Python or normal Agent behavior.
 
 ### Presence without evaluation
 

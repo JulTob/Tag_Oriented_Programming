@@ -375,8 +375,9 @@ def _actualize(
             )
 
     if not changes_type:
+        from .tools import _Tool_Gate
         for name, _function in (*declarations.actions, *declarations.records):
-            if type(type(agent).__dict__.get(name)) is _Published:
+            if type(type(agent).__dict__.get(name)) in (_Published, _Tool_Gate):
                 break
         else:
             return

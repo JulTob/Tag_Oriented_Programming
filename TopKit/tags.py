@@ -77,7 +77,7 @@ class MetaTag(type):
                 "_topkit_field",
                 _Field(),
                 )
-        _name_checks(namespace)
+        _name_checks(namespace, name)
 
         tag = super().__new__(
                 meta,
@@ -87,6 +87,10 @@ class MetaTag(type):
                 **kwargs,
                 )
         _check_pin_bases(tag)
+        if _is_pin(tag):
+            from .tools import _validate_tool_binding
+            for member_name, member in namespace.items():
+                _validate_tool_binding(name, member_name, member, pinned=True)
         _check_constant_declarations(tag, namespace)
 
         return tag
@@ -96,6 +100,8 @@ class MetaTag(type):
             name: str,
             value: Any,
             ) -> None:
+        from .tools import _validate_tool_binding
+        _validate_tool_binding(tag.__name__, name, value, pinned=_is_pin(tag))
         owner = _constant_owner(tag, name)
 
         if owner is not None:

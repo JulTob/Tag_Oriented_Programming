@@ -17,6 +17,7 @@ from .declarations import Record
 from .declarations import Report
 from .declarations import Rip
 from .declarations import Secret
+from .declarations import Tool
 from .declarations import Underlay
 from .errors import TagCompositionError
 from .errors import TagContractError
@@ -75,6 +76,7 @@ __all__ = [
         "TagResolutionError",
         "TagRogueAccessError",
         "Tagged",
+        "Tool",
         "Tags",
         "Underlay",
         ]

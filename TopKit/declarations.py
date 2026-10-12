@@ -177,6 +177,20 @@ def Record(
             )
 
 
+def Tool(kind: type = _MISSING) -> Callable[[Function], Function]:
+    """Constrain a Record to a Python host class or native class union.
+
+    ``@Tool(Sword | None)`` permits a Sword (including a tagged Sword)
+    or None. It neither constructs nor Tags the value. Checks run when
+    the Record is gained and on supported writes, never when it is read.
+    ``@Record`` is optional; ordinary Overlay and other Record modifiers
+    keep their existing meaning.
+    """
+
+    from .tools import _tool_mark
+    return _tool_mark(kind)
+
+
 def Underlay(
         function: Function,
         ) -> Function:
@@ -884,6 +898,7 @@ _NAMED_FAILURES: dict[str, type] = {
 
 def _name_checks(
         namespace: dict[str, Any],
+        owner: str,
         ) -> None:
     """Give every check in a Tag body its named failure, at class creation.
 
@@ -891,7 +906,10 @@ def _name_checks(
     ``except Precondition.Is_A_Caster`` is valid as soon as the Tag exists.
     """
 
+    from .tools import _validate_tool_binding
+
     for name, attribute in namespace.items():
+        _validate_tool_binding(owner, name, attribute)
         if _is_private(name):
             continue
 
@@ -938,7 +956,9 @@ def _scan(
                 if name in managed.constants
                 )
 
+    from .tools import _validate_tool_binding
     for name, attribute in tag.__dict__.items():
+        _validate_tool_binding(tag.__name__, name, attribute, pinned=_is_pin(tag))
         if _is_private(name):
             continue
 
@@ -1153,6 +1173,7 @@ def _prepare_declarations(
 
 
 def _runtime_facts(declarations: _Declarations) -> bool:
+    from .tools import _tool_policy
     return bool(
             declarations.deletions
             or declarations.secrets
@@ -1160,6 +1181,7 @@ def _runtime_facts(declarations: _Declarations) -> bool:
             or declarations.published
             or declarations.constants
             or declarations.postconditions
+            or any(_tool_policy(builder) is not None for _name, builder in declarations.records)
             or any(public for _name, _report, public in declarations.reports)
             )
 

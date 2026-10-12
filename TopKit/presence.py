@@ -14,6 +14,7 @@ from .state import _Published
 from .state import _Secret_Gate
 from .state import _real_namespace_of
 from .constants import _Constant_Gate
+from .tools import _Tool_Gate
 
 
 def _namespace(agent: object) -> Any:
@@ -81,6 +82,11 @@ def _present(
 
     if stored:
         return True
+
+    if issubclass(type(member), _Tool_Gate):
+        if member.member is _MISSING:
+            return name in namespace
+        member = member.member
 
     if member is _MISSING:
         return False

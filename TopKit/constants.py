@@ -139,7 +139,7 @@ class _Constant_Gate:
 
 
 class _Constant_Write:
-    """Check before a host/Action setter can write through its own dictionary."""
+    """Preflight protected bindings before a host or Action setter runs."""
 
     def __init__(self, fallback):
         self.fallback = fallback
@@ -148,7 +148,11 @@ class _Constant_Write:
         return self if agent is None else partial(self, agent)
 
     def __call__(self, agent, name, *values):
-        _refuse_constant(_state_of(agent), name)
+        state = _state_of(agent)
+        _refuse_constant(state, name)
+        if values and state is not None and state.tools:
+            from .tools import _check_tool_write
+            _check_tool_write(agent, name, values[0])
         if issubclass(type(agent), type) and _constant_owner(agent, name) is not None:
             raise TagCompositionError(f"{name!r} is Constant on this Tag")
         if values and issubclass(type(agent), type):
