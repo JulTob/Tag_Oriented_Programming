@@ -920,9 +920,11 @@ def Exercise_Transactions(
         target.slipping_allowed = True
         model.slipping_allowed = True
         target.slipping_fails = False
-        Slipping(target)
-        Model_Apply(model, Slipping)
+        Tag_It(target, Slipping, model, context + " retry")
         assert target in Slipping, (context, "successful retry did not enter")
+        assert target in Slipping[:], (context, "completed training did not enter the raw Field")
+        assert (target in list(Slipping)) is model.Sound(), (context, "retry sound Field")
+        assert (target in ~Slipping) is (not model.Sound()), (context, "retry deficient Field")
         assert Slipping[target].Read_Slip() == model.slipping_round, (context, "retry view")
         del Slipping[target]
         Model_Rip(model, Slipping)
