@@ -23,7 +23,7 @@ interruptions keep their original type and follow the same phase boundary.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Any
 
 from .contracts import _evaluate
@@ -225,20 +225,7 @@ def _apply_one(
     primary_failure: BaseException | None = None
 
     try:
-        gain_names = frozenset(declarations.gain_order)
-        header = replace(
-                declarations,
-                actions=(),
-                records=(),
-                preconditions=(),
-                postconditions=(),
-                deletions=(),
-                secrets=declarations.secrets - gain_names,
-                constants=declarations.constants - gain_names,
-                published=declarations.published - gain_names,
-                dunders=declarations.dunders - gain_names,
-                rips=(),
-                )
+        header = declarations.header
         _install(
                 state,
                 tag,
@@ -375,10 +362,10 @@ def _prepare_gains(
         ) -> None:
     """Expose each acquired declaration before the next builder runs."""
 
-    namespace = _namespace_of(agent)
-
-    for name in state.deleted - deleted_before:
-        namespace.pop(name, None)
+    if declarations.deletions:
+        namespace = _namespace_of(agent)
+        for name in state.deleted - deleted_before:
+            namespace.pop(name, None)
 
     if declarations.secrets:
         # A first secret turns every bound Action into a composing one.
@@ -416,22 +403,25 @@ def _actualize(
         state: _State,
         tag: type,
         declarations: _Declarations,
+        *,
+        entering: bool = False,
         ) -> None:
     """Refresh the runtime behavior independently of Field membership."""
 
-    replaces_published = any(
-            type(type(agent).__dict__.get(name)) is _Published
-            for name, _function in (*declarations.actions, *declarations.records)
+    changes_type = (
+            "_TOPKIT_HOST_TYPE" not in type(agent).__dict__
+            or declarations.runtime
+            or (entering and _is_flag(tag))
             )
 
-    if declarations.postconditions or replaces_published or _needs_new_type(
-            agent,
-            tag,
-            declarations,
-            ):
-        next_type = _runtime_type_for(state)
-    else:
-        next_type = type(agent)
+    if not changes_type:
+        for name, _function in (*declarations.actions, *declarations.records):
+            if type(type(agent).__dict__.get(name)) is _Published:
+                break
+        else:
+            return
+
+    next_type = _runtime_type_for(state)
 
     if type(agent) is not next_type:
         try:
@@ -454,8 +444,13 @@ def _enter_field(
     state.words = None
     state.ever.add(tag)
 
-    # A Flag's keyword behavior depends on active membership.
-    _actualize(agent, state, tag, declarations)
+    if state.pinned is not None:
+        state.published.update(declarations.published)
+
+    # A Flag's keyword behavior depends on active membership. Ordinary
+    # Gains already prepared their runtime behavior before Field entry.
+    if _is_flag(tag) or (state.pinned is not None and declarations.published):
+        _actualize(agent, state, tag, declarations, entering=True)
     tag._topkit_field.Add(agent)
 
     if state.pinned is not None and declarations.published:
@@ -557,29 +552,6 @@ def _publish_into(
                     )
             if name in state.constants:
                 agent_state.constants[name] = (pinned, "operation", state.actions[name])
-
-
-def _needs_new_type(
-        agent: object,
-        tag: type,
-        declarations: _Declarations,
-        ) -> bool:
-    """Only type-level facts change the runtime type: the first tagging,
-    deletions, secrets, published Reports, dunder Actions, a first Post,
-    a first Flag."""
-
-    if "_TOPKIT_HOST_TYPE" not in type(agent).__dict__:
-        return True   # the Agent still wears its host's own class
-
-    return bool(
-            _is_flag(tag)
-            or declarations.deletions
-            or declarations.secrets
-            or declarations.constants
-            or declarations.dunders
-            or declarations.postconditions
-            or any(public for _name, _value, public in declarations.reports)
-            )
 
 
 def _imprint(
