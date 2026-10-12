@@ -154,7 +154,9 @@ TOP checks the contract. It is not an always-true result, and it does not
 run continuously between those checks.
 
 Use an explicit Boolean return for a check that must work under
-`python -O`; Python removes `assert` statements in that mode.
+`python -O`, `python -OO` or a nonzero `PYTHONOPTIMIZE` setting; Python
+removes `assert` statements in those modes. Constant still locks the Post's
+binding, but cannot restore the removed check.
 
 ## A later Layer cannot hide a Constant
 

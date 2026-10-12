@@ -49,7 +49,19 @@
 - **Context Actions compose:** Agent-authored context hooks use the
   ordinary composition door, including across an asynchronous hook's
   await, without exposing Secrets to the `with` block or sibling tasks.
-  Host contexts keep their ordinary Python behavior.
+  Closing a suspended async hook in another context revokes its authority
+  without a context-token error or disturbing other active hooks. Host
+  contexts keep their ordinary Python behavior.
+- **Requirement retired:** `TopKit.Requirement` and its export are removed.
+  Write `@Pre` and `@Post` on the same condition, in either order, when
+  it must hold both at the door and afterwards. Failures keep their own
+  names: `Precondition.Name` at the door and `Postcondition.Name`
+  afterwards.
+
+- **Accurate Contract Warnings:** replacing a visible Postcondition now
+  names whether its origin is a Base, Shape or independent Tag, and points
+  at the tagging line. The warning no longer describes every replacement
+  as weakening a Base promise.
 
 - **Constant Contributions:** `@Constant` protects Records, Actions,
   Posts, Reports and Operations from replacement, deletion and later
@@ -67,8 +79,16 @@
   A Post can require the named Contribution; nonstring operands retain
   ordinary `@` behaviour. Pinned Tags support it as Agents.
 
+- **Fixed Field-algebra Tag recognition:** operator seats now recognize a
+  Tag by `MetaTag`, not by a callable named `_sound`. An ordinary Python
+  class with that name keeps normal class-union behaviour, and a Tag may
+  use `_sound` in its own namespace without changing its Field.
+
 ### Project
 
+- **Fixed:** resolving a Form deeper than Python's recursion limit raised
+  `RecursionError`. Geometry now walks Bases iteratively, preserving the
+  same Base-first, declaration-order, duplicate-free result.
 - **Releases go out through Trusted Publishing.** A GitHub Release runs
   `.github/workflows/release.yml`: the suite on Python 3.12, 3.13 and
   3.14, the oracle at its audited size, a check that the tag names

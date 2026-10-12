@@ -291,7 +291,7 @@ language, not a library's naming.
 | catch one check's failure (§2.6) | `except Precondition.Is_A_Caster:`, `except Postcondition.Has_Book:`, `except Imprint.Arm:` |
 | catch a Rogue Agent's access (§1.5) | `except TagRogueAccessError:` |
 | end a condition explicitly (§0.7), from a `@Rip` protocol | `Contract.Delete(agent, "Has_Book")` |
-| necessary to enter and to stay (§2.7) | `@Pre` + `@Post`, or `@Requirement` |
+| necessary to enter and to stay (§2.7) | `@Pre` + `@Post`, stacked on one function |
 | pin a Tag (§1.9), and every act above with a Tag in the Agent's seat | `Rare(Wizard)`, `Wizard in Rare`, `for tag in Rare`, `Rare[Wizard]`, `del Rare[Wizard]` |
 | a Tag carries a keyword? (Flag Pins, §1.9) | `"Deprecated" in Wizard`, `Keyword(Wizard, "Deprecated")` |
 | a Tag's Pins and contract, as text | `f"{Wizard:pins}"`, `f"{Wizard:contract}"` |
@@ -702,7 +702,9 @@ A Constant Post keeps its check after Rip and cannot be replaced or
 deleted through `Contract.Delete`, a protocol or another Layer. Other
 Posts can be added under independent names; all applicable promises must
 hold. Constant does not change when contracts are checked or require a
-Post to return the same answer as the Agent changes.
+Post to return the same answer as the Agent changes. It locks the check's
+binding, but cannot restore `assert` instructions removed by optimized
+Python (§2.1).
 
 Applying an active Tag remains a no-op. Reapplying after Rip preserves
 the same declaration's Constants while rebuilding ordinary Records and
@@ -1009,6 +1011,12 @@ class Wizard(Tag):
         assert agent.spellbook is not None
 ```
 
+**Python profile.** Assertion-style conditions require assertions enabled.
+Python removes `assert` under `-O`, `-OO` or a nonzero `PYTHONOPTIMIZE`
+setting; an assert-only condition then returns `None` and holds. For a
+requirement that must also be checked in those modes, return a Boolean
+explicitly, such as `return agent.spellbook is not None`.
+
 TOP does not coerce truthy and falsy values: a Record of `0` spell slots is
 a real value, not a failure. `return agent.spell_slots` raises a Contract
 Failure telling you to write the comparison you mean. The absence of a
@@ -1265,33 +1273,27 @@ Being alive is necessary to become an Elf and necessary to remain a sound
 one; it is not sufficient, since other living things are not Elves. A
 condition says *necessary*; membership says *is*.
 
-`@Requirement` is the same mark said in one word, for a claim that reads
-better as a necessity than as a pair of checks:
+The order of the two marks changes nothing: `@Post` above `@Pre` is the
+same condition. The two marks are its only spelling, so the page shows
+that it is a gate and a promise.
 
-```python
-class Elf(Tag):
-
-    @Requirement
-    def Alive(agent):
-        return agent.alive
-```
-
-A Requirement names no failure of its own. It fails at the door as
-`Precondition.Alive` and afterwards as `Postcondition.Alive`, because a
-program repairs the two differently: one is an Agent that may not come
-in, the other an Agent already in and now broken. Reading
-`Requirement.Alive` is a Declaration-time mistake and says so.
+The two failures keep their two names: `Precondition.Alive` at the
+door, `Postcondition.Alive` afterwards. A program repairs the two
+differently. One is an Agent that may not come in; the other is an Agent
+already in and now broken.
 
 ## 2.8 Writing a check
 
-A condition usually asks whether an Agent *has* something. `assert
-agent.spellbook` reads well, but asks two questions at once: *defined* and
-*truthy*. That is fine for a spellbook object; it is a trap for a
-`spell_slots` of `0`. Separate having a contribution from its value:
+A Post can require an Agent to *have* a named Contribution (§1.1).
+Separate presence from its value:
 
-- Is it there at all? `assert agent.spell_slots is not None`, or
-  `assert hasattr(agent, "spell_slots")` when `None` is itself valid.
-- Does it have a particular value? `assert agent.spell_slots > 0`.
+- Is it there at all? `"spell_slots" @ agent` tests the name's presence.
+  Stored `False`, `None` and `0` all count as present.
+- Does it have a particular value? `agent.spell_slots > 0` tests its value.
+
+A Post requiring the name can write `return "spell_slots" @ agent`, or `assert "spell_slots" @ agent`.
+Presence guarantees neither successful value access, callability nor
+successful behaviour; express those requirements separately.
 
 ---
 
@@ -1368,14 +1370,7 @@ TOP assigns `with` no automatic Tagging or Rip meaning. Ordinary Python
 context protocols remain ordinary Contributions or host behavior: a host,
 or an Agent with `__enter__` / `__exit__` (or their asynchronous forms),
 may still follow `with` without changing membership unless its own code
-does so explicitly. An Agent-authored context hook follows the ordinary
-Action rule (§1.5): its Agent's composition door is open while the hook
-runs, including the awaited execution of an asynchronous hook, and closes
-on return, error or cancellation. Entry does not open the door for the
-user's `with` block. The asynchronous door belongs to the hook's execution
-context: unrelated sibling tasks cannot use it while the hook awaits; work
-deliberately derived from that context shares it only until the hook closes.
-A host-authored hook remains host behavior.
+does so explicitly.
 
 **The Agent's own finalizer is a member in Layers** (STEP-SPEC-18). The
 host's `__del__` is its first Layer, found as the language finds it. A
@@ -1432,6 +1427,8 @@ What TOP does not promise, stated so nobody has to discover it.
   Target and apply its Tags again (`Tags(agent)` lists them). A Python
   implementation refuses `copy.copy` explicitly rather than aliasing state.
 - **Threads.** One Agent, one thread. Fields are not synchronized.
+- **Python optimization.** Assertion-style conditions need assertions
+  enabled; §2.1 describes optimized execution and return-based checks.
 - **Host descriptors.** A Record cannot share a name with a host property
   or slot; the Tagging fails with a Composition Failure.
 - **Raw side effects.** Rollback restores TOP-managed state and the Agent's
@@ -1459,7 +1456,7 @@ types but must keep these distinct.
 | **Tag Postcondition Failure** | The finished Agent breaks a promise. | Tags stay, Agent defective |
 | **Tag Contract Failure** | A condition returned a non-boolean. | gate: call rolled back; quality check: Tags stay, Agent defective |
 | **Overwrite Warning** | An independent Tag replaced a visible Action or Record without an Underlay. | diagnostic |
-| **Contract Warning** | A Shape weakened a Base Postcondition. | diagnostic |
+| **Contract Warning** | A Tag replaced another Tag’s visible Postcondition without an Underlay (Base, Shape, or independent Tag). | diagnostic |
 
 ---
 
@@ -1502,8 +1499,8 @@ A conforming implementation provides, ring by ring:
 - published members answering members only, and only sound ones: a Rogue
   Access Failure on a Rogue Agent, the broken promise by name on a
   defective one, open again on membership or repair;
-- `@Pre` and `@Post` stacked on one function as one condition, spelled
-  `@Requirement` in one word;
+- `@Pre` and `@Post` stacked on one function as one condition, in
+  either order;
 - populations combined with `|`, `&` and `-` at every level, lazily, a
   Tag in an operator seat meaning its sound population;
 - every condition read on the Agent by its name as a plain boolean, with
