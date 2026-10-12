@@ -48,7 +48,7 @@ class ConditionBindingTests(unittest.TestCase):
         with self.assertRaises(AttributeError):
             agent.Ready
 
-    def test_contract_delete_preflights_names_and_restores_host_truth(self):
+    def test_contract_delete_preflights_names_and_keeps_contract_truth(self):
         class Empty_Host:
             def __len__(agent):
                 return 0
@@ -73,7 +73,8 @@ class ConditionBindingTests(unittest.TestCase):
         Contract.Delete(agent, "Ready")
         self.assertEqual(Contract.Status(agent), {})
         self.assertIsNot(type(agent), guarded_type)
-        self.assertFalse(agent)
+        self.assertEqual(len(agent), 0)
+        self.assertTrue(agent)  # no visible Post is broken
 
     def test_host_write_hooks_are_refused_before_their_effects(self):
         writes = []

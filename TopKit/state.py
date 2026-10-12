@@ -836,7 +836,6 @@ def _type_key_of(
             frozenset(state.secrets),
             frozenset(state.published),
             frozenset(state.preconditions | state.postconditions),
-            bool(state.postconditions),
             any(_is_flag(tag) for tag in state.active),
             tuple(
                     sorted(
@@ -872,12 +871,10 @@ def _runtime_type_for(
     secrets = key[2]
     published = key[3]
     conditions = key[4]
-    has_posts = key[5]
-    has_flags = key[6]
+    has_flags = key[5]
 
     hooks = _hooks_for(
             host_type,
-            has_posts,
             has_flags,
             )
     namespace: dict[str, Any] = dict(hooks)
@@ -914,6 +911,9 @@ def _runtime_type_for(
 
     if conditions or state.constants or issubclass(host_type, type):
         _binding_write_hooks(namespace, host_type)
+
+    if not issubclass(host_type, type):
+        namespace["__bool__"] = hooks["__bool__"]   # the contract owns this seat
 
     if issubclass(host_type, Tagged):
         bases: tuple[type, ...] = (host_type,)
