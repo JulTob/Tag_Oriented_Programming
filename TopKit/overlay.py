@@ -513,7 +513,10 @@ def _gainings(
         return
 
     for kind, planned in declarations.gaining_steps:
-        one, locks = _constant_overlay(state, tag, planned)
+        if not state.constants and not planned.constants and state.pinned is None:
+            one, locks = planned, None
+        else:
+            one, locks = _constant_overlay(state, tag, planned)
         name = one.gain_order[0]
 
         if kind == "action":
@@ -554,9 +557,10 @@ def _gainings(
 
             if one.secrets:
                 state.secrets.update(one.secrets)
-            if name in locks:
+            if locks and name in locks:
                 state.constants[name] = locks[name]
-            prepare(one, needs_runtime)
+            if kind != "record" or needs_runtime:
+                prepare(one, needs_runtime)
         except BaseException:
             if previous is not None:
                 if type(agent) is not previous_type:
