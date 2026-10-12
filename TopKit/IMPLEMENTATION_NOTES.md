@@ -108,6 +108,16 @@ Laying over the live state is safe because nothing reads the new Overlay
 before Field entry binds it on the Agent, and the entry snapshot is the only
 rollback target.
 
+TopKit currently invokes Preconditions, Imprints, Postconditions and Rip
+teardowns synchronously. A native coroutine, generator or async generator
+returned through one of those paths is rejected at its protocol phase rather
+than awaited or iterated. Coroutines and synchronous generators are closed;
+async generators are not driven through a new event loop. Record builder
+returns remain stored data, and ordinary Action returns keep their existing
+semantics. This describes the current Python runtime; making synchronous
+completion a language-wide TOP restriction requires the Director's STEP
+decision.
+
 `declarations._discard_lazy_result` recognizes coroutines, generators and
 async generators returned from synchronous protocols by their actual native
 type, without consulting a return object's `__class__` hook. It closes only
