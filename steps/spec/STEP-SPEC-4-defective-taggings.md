@@ -18,8 +18,8 @@ A Tagging whose Postcondition fails is **applied and defective**: the call
 raises, the Tags stay, and the Agent is a member whose promise is broken.
 An Imprint failure likewise leaves the Tags applied. Each missing Tag now
 passes its own Gate when its turn arrives; a later refusal leaves Tags
-whose turns finished in place. Once a Gate passes, a later failure is not
-a refusal; issue #30 separately governs the unfinished Record path.
+whose turns finished in place. This Gate amendment leaves the remaining
+phases unchanged; issue #30 separately tracks the approved admission order.
 
 Fields partition into the **sound** population (`for a in Tag`) and the
 **defective** one (`for a in ~Tag`); `Tag[:]` is everyone. Membership
@@ -43,8 +43,9 @@ nobody disappears from a plain loop silently.
    Gate, Parts, Field entry and Imprints; then once per call, after the
    whole Form: quality check (every visible Postcondition).
 2. A Gate refusal stops before that Tag's Parts, Contributions, Field entry
-   or Imprints. Tags whose turns already finished stay applied. A failure
-   after the Gate is not a refusal; current Posts decide deficiency.
+   or Imprints. Tags whose turns already finished stay applied. Record
+   failures currently restore the whole call; the admission follow-up
+   changes this boundary separately.
 3. A failure in an Imprint raises a Tag Imprint Failure; the Tags stay.
 4. A failure in quality check raises a Tag Postcondition Failure; the Tags
    stay; the Agent is defective while any visible Postcondition fails.
@@ -106,10 +107,11 @@ is a chain, "not a house of cards": completed Tags stay when a later Tag's
 Gate refuses. The Director then explicitly selected **each Tag passes its own
 Gate**.
 
-This amendment implements only the Gate chain. The Director has also confirmed
-that failure after a successful Gate is not refusal and the current Tag remains;
-issue #30 still needs the Record continuation and failure-precedence choice
-before that separate implementation can land.
+This amendment implements only the Gate chain. On 2026-10-12, the Director
+approved the follow-up order **Gate → Gainings/Imprints → FieldAdding → Posts**.
+Unfinished training leaves acquired Gains outside the Tag; a failure in Posts
+leaves a deficient member. The remaining phases above still describe the
+current implementation until that separate admission change lands.
 
 Covered by `tests/test_topkit.py::PreconditionTests`.
 

@@ -184,10 +184,10 @@ The **call boundary** decides what a failure means:
 
 - A refusal in step 1 stops that Tag before its Parts, Contributions, Field
   entry or Imprints. Earlier Tags completed during this call stay applied.
-- Once a Gate passes, a later failure is not a refusal. The Agent's current
-  Posts determine deficiency. Issue #30 tracks the unfinished Record-builder
-  continuation and failure-precedence rules; this Gate amendment does not
-  choose between them.
+- This Gate amendment leaves the remaining phases unchanged. TopKit still
+  restores the whole call on a Record-builder failure. Issue #30 tracks the
+  approved admission follow-up: retain acquired Gains outside the Tag on
+  unfinished training, then enter the Field after Imprints and before Posts.
 - A failure in steps 4 or 5 **raises, but the Tags stay**. The product left
   the line. A defective product is not melted back to materials: it is
   flagged, repaired, or Ripped (§2.5).
@@ -1437,7 +1437,7 @@ types but must keep these distinct.
 | Failure | Meaning | Effect |
 | --- | --- | --- |
 | **Tag Declaration Failure** | A Tag is written wrong: illegal mark combination, `@Underlay` without a parameter to receive it. | at class use |
-| **Tag Composition Failure** | Contributions cannot form the Overlay: cross-kind collision, Record over a host descriptor, a Record builder or teardown that failed, a Target that cannot carry state, a Base still required. | at the Gate: current Tag absent, earlier turns stay; after the Gate: current Tag stays; or Rip refused |
+| **Tag Composition Failure** | Contributions cannot form the Overlay: cross-kind collision, Record over a host descriptor, a Record builder or teardown that failed, a Target that cannot carry state, a Base still required. | at the Gate: current Tag absent, earlier turns stay; during Parts: the current implementation restores the call (see §0.6); or Rip refused |
 | **Tag Resolution Failure** | A required Underlay, view, or membership is unavailable. | use refused; during Tagging, follows the current phase boundary |
 | **Tag Rogue Access Failure** | A Rogue Agent reached a published member of a Tag it has left. A Resolution Failure, and a TOP failure only: never dressed as a host-language attribute failure. | use refused |
 | **Tag Precondition Failure** | A Gate refused the incoming Agent. | that Tag does not apply; earlier turns stay |
@@ -1460,9 +1460,9 @@ A conforming implementation provides, ring by ring:
 - non-owning, identity-indexed, iterable Fields;
 - Base-first Form application, each Base once, active reapply a no-op;
 - the five-step tagging sequence at each Tag's turn: a failed declaration
-  check or Gate leaves that Tag absent and earlier turns in place; after
-  its Gate passes, later failures leave it tagged and current Posts decide
-  deficiency;
+  check or Gate leaves that Tag absent and earlier turns in place; current
+  Posts decide the deficiency of members. The admission follow-up described
+  in §0.6 separately updates the remaining phase boundaries;
 - Rip: sticky contributions and sticky conditions, ended by the author
   (a guard, or `Contract.Delete` from the `@Rip` protocol), refusal while
   a Shape requires the Base, no cascade;

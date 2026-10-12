@@ -6,7 +6,10 @@ whenever the two disagree.
 
 ## Module map
 
-One idea per module, nothing over 600 lines.
+One idea per module, with 600 physical lines as the migration target. The
+target is not yet met: `declarations.py`, `overlay.py`, and `state.py` are the
+current exceptions. [Issue #15](https://github.com/JulTob/Tag_Oriented_Programming/issues/15)
+tracks splitting them by idea without changing semantics.
 
 | Module | Idea |
 | --- | --- |
@@ -17,11 +20,13 @@ One idea per module, nothing over 600 lines.
 | `state.py` | the per-Agent state, bound Actions, the runtime type and its descriptors |
 | `overlay.py` | laying one Tag's declarations over a state; materializing Records |
 | `contracts.py` | strict verdicts, binding conditions, `Contract` |
+| `constants.py` | protecting Constant bindings without freezing their values |
+| `presence.py` | Contribution presence without evaluating values or conditions |
 | `transactions.py` | the tagging sequence and the call boundary |
 | `lifecycle.py` | Rip, teardown, `Scope`, `At_Exit` |
 | `access.py` | the hooks on the runtime type, Agent-bound views |
 | `tags.py` | `Tag` and its metaclass |
-| `queries.py` | `Apply`, `Has`, `Tags`, `Outline` |
+| `queries.py` | `Apply`, `Form`, `Keyword`, `Tags`, `Outline` |
 
 ## The access design
 
@@ -90,10 +95,12 @@ runs its Preconditions. A refusal does not remove Tags whose turns already
 finished. `_apply_one` then lays the Tag over the
 **live** state (no second copy) in the order Parts, Field entry, Imprints;
 finally `_inspect` runs every visible Postcondition once. The existing
-whole-call Parts boundary is an implementation limitation tracked by #30,
-not the portable contract: a post-Gate Tag must remain, while continuation
-and failure precedence still need a decision. `TagImprintError` and
-`TagPostconditionError` propagate with applied Tags left in place.
+whole-call Parts boundary and Field entry before Imprints are transitional
+behavior tracked by #30. The approved follow-up retains acquired Gains
+outside the Tag when training fails, and enters the Field after Imprints,
+before Posts. This Gate change leaves the remaining phases unchanged:
+`TagImprintError` and `TagPostconditionError` currently propagate with
+applied Tags left in place.
 
 Laying over the live state is safe because nothing reads the new Overlay
 before Field entry binds it on the Agent. The call-entry snapshot remains
