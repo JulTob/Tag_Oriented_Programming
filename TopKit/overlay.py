@@ -27,6 +27,7 @@ from .declarations import _is_flag
 from .declarations import _parameters_of
 from .declarations import _protocol_inputs
 from .declarations import _takes_stored
+from .declarations import _tool_kind_of
 from .declarations import _takes_underlay
 from .errors import TagCompositionError
 from .errors import TagDeclarationError
@@ -810,6 +811,7 @@ def _delete(
     state.operations.pop(name, None)
     state.published.discard(name)
     state.secrets.discard(name)
+    state.tools.pop(name, None)   # Delete frees the slot: the tool is dropped (§1.6)
     state.deleted.add(name)
 
 
@@ -878,6 +880,12 @@ def _install_action(
         ) -> None:
     _refuse_constant(state, name)
     _refuse_member_over_condition(
+            state,
+            tag,
+            name,
+            "an Action",
+            )
+    _refuse_member_over_tool(
             state,
             tag,
             name,
@@ -986,6 +994,16 @@ def _install_record(
         state.actions.pop(name)
         state.action_origins.pop(name)
 
+    kind = _tool_kind_of(builder)
+
+    if kind is None:
+        _refuse_member_over_tool(   # refused before any warning about a replacement
+                state,
+                tag,
+                name,
+                "a plain Record",
+                )
+
     prior = state.records.get(name)
 
     if (
@@ -1001,9 +1019,37 @@ def _install_record(
                 skip_file_prefixes=_WARNING_SKIP_PREFIXES,
                 )
 
+    if kind is not None:
+        state.tools[name] = (tag, kind)   # the latest Tool declaration's kind is the slot's
+
     state.records[name] = tag
     _restore(state, name)
     state.published.discard(name)
+
+
+def _refuse_member_over_tool(
+        state: _State,
+        tag: type,
+        name: str,
+        what: str,
+        ) -> None:
+    """A Tool slot stays a Tool slot (STEP-SPEC-36): a later Layer may
+    redeclare it only as a Tool, with its own kind, or free it with
+    ``@Delete``. A thing one has needs one identity; an Action or a plain
+    Record at that name would drop the guard in silence."""
+
+    slot = state.tools.get(name)
+
+    if slot is None:
+        return
+
+    origin, kind = slot
+    raise TagCompositionError(
+            f"{tag.__name__}.{name}: {origin.__name__}.{name} is a Tool of"
+            f" {kind.Spelled()}; a Tool slot stays a Tool slot, and {what}"
+            " cannot take it. Redeclare it with @Tool(...), or free it with"
+            " @Delete"
+            )
 
 
 def _restore(
@@ -1099,6 +1145,17 @@ def _materialize(
                     f"Record {builder.__qualname__} could not be"
                     f" materialized: {type(error).__name__}: {error}"
                     ) from error
+
+        if _tool_kind_of(builder) is not None:
+            from .tools import _refuse_misfit   # tools imports state, which overlay also feeds
+
+            _refuse_misfit(
+                    _state_of(agent),
+                    name,
+                    value,
+                    agent,
+                    built=True,
+                    )
 
         if pinned and name in declarations.secrets:
             namespace.pop(name, None)

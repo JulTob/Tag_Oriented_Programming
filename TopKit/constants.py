@@ -7,6 +7,7 @@ from typing import Any
 from .declarations import STATE, _MISSING, _check_constant_shapes, _constant_owner
 from .errors import TagCompositionError
 from .state import _namespace_of, _state_of
+from .tools import _refuse_misfit
 
 
 def _refuse_constant(state, name: str) -> None:
@@ -149,6 +150,8 @@ class _Constant_Write:
 
     def __call__(self, agent, name, *values):
         _refuse_constant(_state_of(agent), name)
+        if values:
+            _refuse_misfit(_state_of(agent), name, values[0], agent)   # a Tool slot admits only its kind
         if issubclass(type(agent), type) and _constant_owner(agent, name) is not None:
             raise TagCompositionError(f"{name!r} is Constant on this Tag")
         if values and issubclass(type(agent), type):

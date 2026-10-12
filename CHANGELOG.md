@@ -29,6 +29,20 @@
   Reapplication preserves established Constants and repeats ordinary
   Record building and Imprints. Publication and Secret access stay independent.
 
+- **Tools:** `@Tool(Weapon)` marks a Record whose value is an Agent of
+  the named Tags: something the Agent *has* (STEP-SPEC-36). The slot
+  admits only a current member of every Tag of its kind and never the
+  bearer, checked when the slot is gained and at every write,
+  `object.__setattr__` included; it is never `None` unless declared
+  `@Tool(Weapon | None)`; and it never Tags what it holds: the forge does,
+  in plain sight. `@Record` may restate the mark; `@Constant`, `@Secret`
+  and `@Public` stack with it in either order. A later Layer may
+  redeclare a Tool slot only as a Tool; a plain Record or an Action at
+  that name is refused, and `@Delete` frees it. A population
+  (`Weapon | Blessed`), a Pin, a non-Tag, or `@Tool` inside a `@Pin` is a
+  Declaration Failure. The wiki page "Tools: what an Agent has" runs as
+  one program under the suite.
+
 - **Presence by name:** `"name" @ agent` checks current contributions,
   including host bindings; `"name" @ Tag[agent]` checks the captured view.
   False values and `None` count as present. The query respects Secret and

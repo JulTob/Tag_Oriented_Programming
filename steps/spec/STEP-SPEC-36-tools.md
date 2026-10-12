@@ -5,7 +5,7 @@
 - **Title:** Tools: a Record whose value is an Agent
 - **Author:** Julio Toboso (@JulTob); drafted with Claude Code from the
   Director's brief of 2026-10-12
-- **Status:** Brief
+- **Status:** Vetting
 - **Created:** 2026-10-12
 - **Refs:** issue #74 (dunder-named conditions), PR #58 (Tags recognised
   by metaclass), STEP-SPEC-22 (Links, Brief), STEP-SPEC-33 (Presence),
@@ -378,13 +378,17 @@ without running its builder (STEP-SPEC-34 rule 7).
 declaration for the name (§1.2). A Shape that redeclares the name as a
 Tool receives the held tool in its stored seat and guards with **its own
 kind list**; the wiki teaches "say everything the slot holds", because
-`@Tool(Blessed)` alone would admit a Blessed non-Weapon. A Shape that
-redeclares the name as a plain Record or an Action changes the kind as
-§1.1 allows within one Form today, and the guard goes with the Tool
-declaration; open question 12 asks whether a Tool slot should refuse the
-change to an Action.
-Across independent Tags the usual cross-kind refusal and Overwrite Warning
-apply (§1.1, §1.3). `@Underlay` has no meaning on a Record; a Tool extends
+`@Tool(Blessed)` alone would admit a Blessed non-Weapon. **A Tool slot
+stays a Tool slot**: a plain Record or an Action at that name, from a
+Shape or an independent Tag, is a Composition Failure that names the
+slot and the two ways out, "redeclare it with `@Tool(...)`, or free it
+with `@Delete`". This is the one amendment to §1.1 this STEP makes, for
+Tool slots only (open question 12, implemented as recommended): a thing
+one has needs one identity, and the guard must never go away in silence.
+The refusal comes before any Overwrite Warning, so no warning describes
+a replacement that did not happen. `@Delete` frees the slot for any
+later declaration; a Tool over a plain Record takes the slot and guards
+it from then on. `@Underlay` has no meaning on a Record; a Tool extends
 through the stored seat. A Constant slot refuses all of it (§1.5).
 
 4.7 **Constant, Secret, Public.** `@Constant @Tool(Weapon)` is a
@@ -418,21 +422,24 @@ enough?) should get one answer for both.
 
 | When | Kind | Message |
 | --- | --- | --- |
-| class use: `@Tool()` | Declaration Failure | `Fighter.weapon: @Tool names what the held thing is: @Tool(Weapon)` |
-| class use: `@Tool(Sword)`, not a Tag | Declaration Failure | `Fighter.weapon: Sword is not a Tag; a Tool slot holds an Agent of a Tag` |
-| class use: `@Tool(Rare)`, a Pin | Declaration Failure | `Fighter.weapon: Rare is a Pin, whose Agents are Tags; a Tool slot holds an object (§1.9)` |
-| class use: a population as kind, `@Tool(Weapon \| Blessed)`, `@Tool(~Weapon)`, `@Tool(Weapon[:])` | Declaration Failure | `Fighter.weapon: Weapon \| Blessed is a population, not a kind; write @Tool(Weapon, Blessed) for both, @Tool(Weapon \| None) for an empty hand` |
-| class use: `@Tool` over an Action, Report, Operation, condition, Imprint, Rip or Delete | Declaration Failure | `Fighter.Swing: @Tool declares what the Agent has, a Record; Swing is an Action` |
-| class use: `@Tool` inside a `@Pin` | Declaration Failure | `Armory.standard: a Pin's Records land as Reports of the pinned Tag; a shared tool is a Report (§1.9)` |
-| Parts: builder returned a non-member | Composition Failure, call rolled back | `Fighter.weapon built 'a stick', which is not an Agent of Weapon; Tag it in the builder, Weapon(stick)` |
+| class use: `@Tool()` | Declaration Failure | `@Tool names what the held thing is: @Tool(Weapon)` |
+| class use: `@Tool(Sword)`, not a Tag (a plain class, an instance, the root `Tag`) | Declaration Failure | `@Tool(Sword): Sword is not a Tag; a Tool slot holds an Agent of a Tag` |
+| class use: `@Tool(None)` | Declaration Failure | `@Tool(None): None is not a Tag; a Tool slot holds an Agent of a Tag` |
+| class use: `@Tool(Rare)`, a Pin | Declaration Failure | `@Tool(Rare): Rare is a Pin, whose Agents are Tags; a Tool slot holds an object (§1.9)` |
+| class use: a population as kind, `@Tool(Weapon \| Blessed)`, `@Tool(~Weapon)`, `@Tool(Weapon[:])` | Declaration Failure | `@Tool: a population is not a kind (a Tag in an operator seat, as in Weapon \| Blessed, ~Weapon or Weapon[:]); write @Tool(Weapon, Blessed) for both, @Tool(Weapon \| None) for an empty hand` |
+| class use: `@Tool` over an Action, Report, Operation, condition, Imprint, Rip or Delete | Declaration Failure | `Swing: @Tool declares what the Agent has, a Record; Swing is an Action`; with the marks in the other order, `Fighter.Swing: @Tool declares what the Agent has, a Record; Swing is not one here` |
+| class use: `@Tool` on a value, a classmethod or a staticmethod | Declaration Failure | `@Tool declares what the Agent has, a Record: it marks a builder, def weapon(agent)` |
+| class use: `@Tool` inside a `@Pin`, or in a Shape of one | Declaration Failure | `Armory.standard: a Pin's Records land as Reports of the pinned Tag; a shared tool is a Report (§1.9)` |
+| Parts: builder returned a non-member | Composition Failure, call rolled back | `Fighter.weapon holds a Tool of Weapon; 'a stick' (str) is not a Weapon now. Tag it in the builder, Weapon(...)` |
 | Parts: builder returned `None`, kind without `\| None` | Composition Failure, call rolled back | `Fighter.weapon returned None; its slot is never empty: return a Target, drop with del agent.weapon, or declare the empty hand, @Tool(Weapon \| None)` |
-| Parts: builder returned the bearer | Composition Failure, call rolled back | `Fighter.weapon returned Charlie himself; a Tool is something the Agent has, never the Agent. To make Charlie a Weapon, Tag him: Weapon(charlie)` |
-| Parts: the tool's own tagging failed | the tool's own failure, unchanged | as today: `Precondition.Is_Holy`, `Postcondition.Has_An_Edge`, the tool's Composition Failure, with a note naming the slot |
-| write: a non-member | Composition Failure, nothing changed | `charlie.weapon holds a Tool of Weapon; 'a stick' is not a Weapon now. Tag it first, Weapon(stick), or hand over a Weapon` |
-| write: a Rogue of the kind | Composition Failure, nothing changed | `charlie.weapon holds a Tool of Weapon; this Sword left Weapon` |
-| write: `None`, kind without `\| None` | Composition Failure, nothing changed | `charlie.weapon is never empty; drop it with del charlie.weapon, or declare the empty hand, @Tool(Weapon \| None)` |
-| write: the bearer | Composition Failure, nothing changed | `charlie.weapon: a Tool is something the Agent has, never the Agent` |
+| Parts: builder returned the bearer | Composition Failure, call rolled back | `Fighter.weapon: a Tool is something the Agent has, never the Agent; to make it a Weapon, Tag it: Weapon(agent)` |
+| Parts: the tool's own tagging failed | the tool's own failure, unchanged | as today: `Precondition.Is_Holy`, `Postcondition.Has_An_Edge`, the tool's Composition Failure |
+| write: a non-member | Composition Failure, nothing changed | `Fighter.weapon holds a Tool of Weapon; 'a stick' (str) is not a Weapon now. Tag it first, Weapon(...), or hand over a Weapon` |
+| write: a Rogue of the kind | Composition Failure, nothing changed | `Fighter.weapon holds a Tool of Weapon; this Sword left Weapon` |
+| write: `None`, kind without `\| None` | Composition Failure, nothing changed | `Fighter.weapon is never empty; drop it with del character.weapon, or declare the empty hand, @Tool(Weapon \| None)` |
+| write: the bearer | Composition Failure, nothing changed | `Fighter.weapon: a Tool is something the Agent has, never the Agent; to make it a Weapon, Tag it: Weapon(agent)` |
 | write or delete on a Constant slot | Composition Failure | STEP-SPEC-34's existing message |
+| step 1: a plain Record or an Action over a Tool slot, from a Shape or an independent Tag (rule 4.6) | Composition Failure, call rolled back | `Smith.weapon: Fighter.weapon is a Tool of Weapon; a Tool slot stays a Tool slot, and an Action cannot take it. Redeclare it with @Tool(...), or free it with @Delete` |
 | step 1: a Tool name over a condition's name, a host property or slot, or an independent Tag's Action | Composition Failure, nothing changed | the existing Record refusals of §1.1, §2.5 and Ring 4 |
 
 Not refused, on purpose: two slots holding one tool; a tool that bears
@@ -643,39 +650,73 @@ STEP is Deployed.
     and rework the tool through the stored seat? This STEP recommends
     closing it: a thing one has needs one identity. It amends §1.1 for
     Tool slots only, and is the one place this STEP would touch §1.1.
+    *Implemented as recommended in PR #143, and closed to a plain Record
+    as well as to an Action, since either drops the guard in silence;
+    rule 4.6 states it. The Director may reopen it.*
 
 ## Validation
 
-Before this STEP is Cleared, the implementation shows:
+Implemented in PR #143 (`TopKit/tools.py`, with the gate on the runtime
+type beside the Constant gate; `tests/test_tools.py`, 56 tests). Each
+item below names where it is shown; all pass on 2026-10-12 with the
+full suite (`python3 -m unittest discover -s tests -t .`), the opt-in
+budgets (`TOPKIT_PERF=1`) and the oracle at its audited size.
 
 - the guard at Parts and at the write, including `object.__setattr__`,
-  for a non-member, a Rogue of the kind, `None` and the bearer;
+  for a non-member, a Rogue of the kind, `None` and the bearer:
+  `Admission_Tests`, `Emptiness_Tests`;
 - a kind written `Weapon | None`: `None` admitted at Parts and at the
-  write, presence still `True`, `del` still the drop; and a population
-  (`Weapon | Blessed`, `~Weapon`, `Weapon[:]`) refused as a kind at class
-  use;
-- the failure outcomes under whichever §0.6 is current: on today's
-  `main`, a refused gaining rolls the call back; under STEP-SPEC-39 once
-  PR #78 lands, it leaves the Gains already acquired and keeps the bearer
-  out of the Tag's Field; the wiki's examples hold under both;
-- a Shape's own kind list through the stored seat, and a Shape changing
-  the kind to a plain Record as §1.1 allows;
+  write, presence still `True`, `del` still the drop
+  (`Emptiness_Tests.test_the_declared_empty_hand_...`); a population
+  (`Weapon | Blessed`, `Weapon & Blessed`, `~Weapon`, `Weapon[:]`)
+  refused as a kind at class use, with the spelling meant
+  (`Declaration_Tests.test_a_population_is_not_a_kind`);
+- the failure outcomes under today's §0.6: a refused gaining rolls the
+  whole call back, the bearer outside the Field and the host's own type
+  restored (`test_a_builder_returning_a_non_member_refuses_the_gaining`).
+  Under STEP-SPEC-39 (PR #78, not yet on `main`) the same refusal leaves
+  the Gains already acquired and keeps the bearer out of the Field; the
+  wiki's examples assert only what holds under both, and are to be
+  re-run on that branch when it lands;
+- a Shape's own kind list through the stored seat
+  (`Overlay_Tests.test_a_shape_receives_the_tool_in_the_stored_seat_...`);
+  the slot closed to a plain Record and to an Action, from a Shape and
+  from an independent Tag, with no Overwrite Warning before the refusal,
+  and `@Delete` freeing it (`Overlay_Tests`, rule 4.6 as amended);
 - `@Constant`, `@Secret` and `@Tool` layered on one name, in every
-  stacking order;
-- Rip of the bearer (slot sticky, Post guarded or ended), Rip of the
-  tool's Tag (Rogue in hand, bearer's Post notices), reapplication after
-  Rip for an ordinary and a Constant slot;
-- a tool whose own gate, Parts, Imprint or Post fails inside the forge:
-  the failure's name, the bearer rolled back, the tool's state as law 3
-  says;
-- two bearers of one tool; a tool that bears a tool;
+  stacking order, `@Public` too (`Stacking_Tests`);
+- Rip of the bearer (slot sticky and still guarded; a `@Rip` protocol
+  may disarm), Rip of the tool's Tag (Rogue in hand, the bearer's Post
+  notices, a fresh tagging repairs), reapplication after Rip for an
+  ordinary slot (rebuilt), through the stored seat (kept) and for a
+  Constant slot (kept, builder not run): `Lifecycle_Tests`;
+- a tool whose own gate fails inside the forge: the failure keeps its
+  name, the bearer is rolled back; a later gaining's failure leaves the
+  forge's Tag on a handed-in object, which the caller undoes
+  (`Forge_Tests`);
+- two bearers of one tool, the tool's Tags travelling with it, a tool
+  that bears a tool and guards its own slot (`Sharing_Tests`);
 - the two doors: a bearer's Action reading the tool's secret fails
-  closed;
-- the Record-write budget of `tests/test_performance.py` re-run, since
-  the guard rides the attribute-write path;
-- the oracle, with Tool slots in its model;
-- the wiki page's blocks running as one program, as `tests/test_documents.py`
-  runs every guide.
+  closed, the tool's own Action reads it
+  (`Sharing_Tests.test_a_bearers_action_reads_its_tools_secret_fails_closed`);
+- a host's own `__setattr__` keeps its behaviour and admission runs
+  before it; presence answers for the slot; a Tool slot does not
+  multiply runtime types, since the gate reads the kind from the Agent's
+  state (`Host_Tests`);
+- the Record-write budget of `tests/test_performance.py`: the guard is a
+  data descriptor on the runtime type for the Tool's name only, so an
+  ordinary Record's write path is unchanged; the 13 budgets pass;
+- the oracle: `Exercise_Tools` in `tests/oracle_topkit.py` checks the
+  three laws on every seed's Agents against the model's membership;
+  `PASS seeds=1701..1710 transitions=4000` under the suite, and the
+  audited run passes;
+- the wiki page's 16 blocks run as one program under
+  `tests/test_documents.py`, the `@Tool` blocks included; the
+  Specification's new §1.3 example runs in `tests/spec_examples.py`.
+
+Known limit, shared with `@Constant`: a host whose instances cannot
+change class in place (`__slots__` without a compatible layout) cannot be
+actualized, and the kit says so with the existing Composition Failure.
 
 ---
 

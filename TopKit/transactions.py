@@ -533,6 +533,7 @@ def _needs_new_type(
             or declarations.deletions
             or declarations.secrets
             or declarations.constants
+            or declarations.tools
             or declarations.dunders
             or declarations.postconditions
             or any(public for _name, _value, public in declarations.reports)
