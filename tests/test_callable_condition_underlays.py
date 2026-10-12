@@ -41,11 +41,21 @@ class CallableConditionUnderlayTests(unittest.TestCase):
                 result = base()
                 return True if ignore else result
 
-        base = type("Base", (Tag,), {"Work": mark(prior)})
+        ready = False
+
+        def Deferred_Prior(agent):
+            return prior(agent) if ready else True
+
+        base = type("Base", (Tag,), {"Work": mark(Deferred_Prior)})
         if pinned:
             base = Pin(base)
         shape = type("Shape", (base,), {"Work": mark(Underlay(Added if ordinary else Added()))})
         target = type("Target", (Tag,), {}) if pinned else Host()
+        # Test the Underlay after the Base passed its own neutral Gate/Posts.
+        # Do not depend on a pending Shape overriding the Base's Gate, or
+        # dispose of a lazy prior before the Underlay under test can see it.
+        base(target)
+        ready = True
         return shape, target, calls
 
     def test_boolean_and_fallthrough_underlays_match_function_controls(self):

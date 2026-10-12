@@ -16,6 +16,13 @@
   Lazy Underlay violations retain the same named failure even when caught.
   Failed exception formatting cannot conceal a lazy disposal failure.
 
+- **Imprint diagnostics name their declaration:** failures and rejected lazy
+  results identify the Imprint's declared name, including callable objects
+  without Python function metadata and aliased functions. The original cause,
+  completed Tagging, and existing stop-at-failure order are preserved.
+  Failing exception text uses a fallback rather than hiding that failure;
+  Python interruptions still propagate.
+
 - **Synchronous protocol results:** Preconditions, Imprints, Postconditions
   and Rip teardowns now reject coroutine, generator and async-generator
   results explicitly instead of silently discarding work that never ran.
@@ -25,7 +32,15 @@
   applied, and Rip membership has already ended. Condition Underlays accept
   callable objects without Python naming metadata and keep those same
   verdict and disposal checks, even when an invalid result or disposal error
-  cannot render its own diagnostic text. Record values are unchanged.
+  cannot render its own diagnostic text. Native type checks do not run an
+  ordinary return value's `__class__` hook; optional composition metadata and
+  missing Rip Underlay labels cannot turn accepted work into a failure or
+  conceal a lazy teardown. Record values are unchanged.
+
+- **Accurate Contract Warnings:** replacing a visible Postcondition now
+  names whether its origin is a Base, Shape or independent Tag, and points
+  at the tagging line. The warning no longer describes every replacement
+  as weakening a Base promise.
 
 - **Constant Contributions:** `@Constant` protects Records, Actions,
   Posts, Reports and Operations from replacement, deletion and later

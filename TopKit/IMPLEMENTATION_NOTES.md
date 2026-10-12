@@ -6,7 +6,10 @@ whenever the two disagree.
 
 ## Module map
 
-One idea per module, nothing over 600 lines.
+One idea per module, with 600 physical lines as the migration target. The
+target is not yet met: `declarations.py`, `overlay.py`, and `state.py` are the
+current exceptions. [Issue #15](https://github.com/JulTob/Tag_Oriented_Programming/issues/15)
+tracks splitting them by idea without changing semantics.
 
 | Module | Idea |
 | --- | --- |
@@ -17,11 +20,13 @@ One idea per module, nothing over 600 lines.
 | `state.py` | the per-Agent state, bound Actions, the runtime type and its descriptors |
 | `overlay.py` | laying one Tag's declarations over a state; materializing Records |
 | `contracts.py` | strict verdicts, binding conditions, `Contract` |
+| `constants.py` | protecting Constant bindings without freezing their values |
+| `presence.py` | Contribution presence without evaluating values or conditions |
 | `transactions.py` | the tagging sequence and the call boundary |
 | `lifecycle.py` | Rip, teardown, `Scope`, `At_Exit` |
 | `access.py` | the hooks on the runtime type, Agent-bound views |
 | `tags.py` | `Tag` and its metaclass |
-| `queries.py` | `Apply`, `Has`, `Tags`, `Outline` |
+| `queries.py` | `Apply`, `Form`, `Keyword`, `Tags`, `Outline` |
 
 ## The access design
 
@@ -99,15 +104,21 @@ before Field entry binds it on the Agent, and the entry snapshot is the only
 rollback target.
 
 `declarations._discard_lazy_result` recognizes coroutines, generators and
-async generators returned from synchronous protocols. It closes only through
-a synchronous disposal operation and never drives the lazy body.
+async generators returned from synchronous protocols by their actual native
+type, without consulting a return object's `__class__` hook. It closes only
+through a synchronous disposal operation and does not start an unentered body.
+Closing an already-started generator or coroutine may run its pending `finally`
+code. Async generators are not driven or synchronously closed.
 Conditions turn the result into a Contract Failure, Imprints into their named
 Imprint Failure, and lifecycle teardown into the collected Composition
 Failure. Best-effort deletion uses the same path, so discarded coroutines do
 not escape as unawaited-coroutine warnings. Composed Actions carry a private
-chain identity: a flow-local Rip guard checks every Underlay in the selected
+chain identity, whose optional lookup cannot invalidate an accepted callable:
+a flow-local Rip guard checks every Underlay in the selected
 teardown chain, remembers a violation even when user code catches it, and does
 not reinterpret an independent `@Rip` Action called normally as a teardown.
+Missing callable labels or broken exception formatting cannot erase a recorded
+lazy Underlay failure; available diagnostic detail and original causes remain.
 Scheduled teardowns retain the declared Contribution name alongside the
 selected composed Action. The same name labels direct and Underlay failures;
 diagnostics never require callable `__name__` or `__qualname__` metadata.
@@ -214,6 +225,15 @@ helpers; the exact original error remains the cause even if its text fails.
   objects: called, they mark; read, they forward to their failure class.
   Per kind, not per Tag, on purpose: the handler reads the program's own
   word, and the Tag is already in the message.
+- **Imprint diagnostics use the declaration name.** `_imprint` already
+  receives each Imprint's declared name, so a failure or rejected lazy
+  return uses that name rather than inspecting or renaming its callable.
+  The original cause is preserved. Later Imprints still do not run after
+  failure; the applied Tag and its captured view remain, and current Posts
+  alone determine soundness. Shared private helpers bypass exception-type
+  metadata and fall back when ordinary exception-text formatting fails.
+  Synchronous return values are not observed; Python interruptions retain
+  their own type, including interruptions during diagnostic text.
 - **Pins reuse the whole sequence.** A pinned Tag is an Agent whose
   namespace is its class dictionary. `_namespace_of` hands the kernel a
   `_Class_Namespace` adapter (get, set, pop, keys) over the proxy, so

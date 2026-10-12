@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from contextvars import ContextVar
 from functools import wraps
+from os.path import dirname
 from typing import Any
 from typing import Callable
 import warnings
@@ -22,6 +23,7 @@ from .constants import _constant_overlay
 from .constants import _refuse_constant
 from .declarations import _Declarations
 from .declarations import _ACTION_CHAIN
+from .declarations import _action_chain
 from .declarations import _discard_lazy_result
 from .declarations import _is_flag
 from .declarations import _lazy_rip_guard
@@ -42,6 +44,7 @@ from .errors import TagResolutionError
 from .declarations import STATE
 from .declarations import Report
 from .declarations import _declarations_of
+from .geometry import _is_base_of
 from .geometry import _related
 from .declarations import _MISSING
 from .presence import _Presence
@@ -54,6 +57,7 @@ from .state import _state_of
 
 
 Function = Callable[..., Any]
+_WARNING_SKIP_PREFIXES = (dirname(__file__),)
 
 
 # ------------------------------------------------------------------
@@ -172,11 +176,7 @@ def _compose(
                 f"{str.__str__(name)!r} requires a visible Underlay"
                 )
 
-    chain = getattr(
-            underlay,
-            _ACTION_CHAIN,
-            None,
-            )
+    chain = _action_chain(underlay)
 
     if chain is None:
         chain = object()
@@ -369,18 +369,22 @@ def _install(
 
     for name, function in declarations.postconditions:
         prior = state.postconditions.get(name)
+        origin = _origin_of(prior)
 
         if (
-                prior is not None
+                origin is not None
+                and origin is not tag
                 and not _takes_underlay(function, name)
-                and _origin_of(prior) is not tag
                 and not _quiet.get()
                 ):
             warnings.warn(
-                    f"{tag.__name__}.{name} overrides a Base Postcondition"
-                    " without @Underlay (weakens a promise; see Forward-Post)",
+                    _replaced_promise(
+                            tag,
+                            name,
+                            origin,
+                            ),
                     TagContractWarning,
-                    stacklevel=6,
+                    skip_file_prefixes=_WARNING_SKIP_PREFIXES,
                     )
 
         state.postconditions[name] = _stamp(
@@ -624,12 +628,46 @@ def _stamp(
 
 
 def _origin_of(
-        check: Function,
+        check: Function | None,
         ) -> type | None:
     return getattr(
             check,
             "__topkit_origin__",
             None,
+            )
+
+
+def _replaced_promise(
+        tag: type,
+        name: str,
+        origin: type,
+        ) -> str:
+    """The Contract Warning's text: how ``tag`` stands to ``origin``, the
+    Tag stamped on the visible Postcondition it replaces without
+    @Underlay. Only a Shape over its Base weakens a promise in the sense
+    of §2.4. A Base laid over its Shape's sticky promise, or a Tag laid
+    over an independent Tag's, replaces a promise it never made, and the
+    text says whose promise no longer binds. The replacement policy is a
+    separate design question; this helper reports current behavior."""
+
+    replacing = f"{tag.__name__}.{name}"
+
+    if _is_base_of(origin, tag):
+        return (
+                f"{replacing} overrides the Postcondition of its Base"
+                f" {origin.__name__} without @Underlay (weakens a promise;"
+                " see Forward-Post)"
+                )
+
+    if _is_base_of(tag, origin):
+        relation = f"its Shape {origin.__name__}"
+    else:
+        relation = f"independent Tag {origin.__name__}"
+
+    return (
+            f"{replacing} replaces the Postcondition of {relation} without"
+            f" @Underlay; {origin.__name__}'s promise no longer binds this"
+            " Agent"
             )
 
 
@@ -947,7 +985,7 @@ def _install_action(
                 f"{tag.__name__}.{name} replaces the Action of independent"
                 f" Tag {origin.__name__}",
                 TagOverwriteWarning,
-                stacklevel=6,
+                skip_file_prefixes=_WARNING_SKIP_PREFIXES,
                 )
 
     state.actions[name] = _compose(
@@ -1014,7 +1052,7 @@ def _install_record(
                 f"{tag.__name__}.{name} replaces the Record of independent"
                 f" Tag {prior.__name__}",
                 TagOverwriteWarning,
-                stacklevel=6,
+                skip_file_prefixes=_WARNING_SKIP_PREFIXES,
                 )
 
     state.records[name] = tag

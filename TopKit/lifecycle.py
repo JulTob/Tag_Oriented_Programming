@@ -13,7 +13,7 @@ from typing import Iterator
 import atexit
 
 from .declarations import _parameters_of
-from .declarations import _ACTION_CHAIN
+from .declarations import _action_chain
 from .declarations import _discard_lazy_result
 from .declarations import _Lazy_Rip_Guard
 from .declarations import _lazy_rip_guard
@@ -151,11 +151,7 @@ def _call_teardown(
 
     guard = _Lazy_Rip_Guard(
             name,
-            getattr(
-                teardown,
-                _ACTION_CHAIN,
-                None,
-                )
+            _action_chain(teardown)
             )
     token = _lazy_rip_guard.set(guard)
 
