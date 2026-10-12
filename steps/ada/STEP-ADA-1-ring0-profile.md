@@ -6,7 +6,7 @@
 - **Author:** Julio Toboso (@JulTob); refresh proposed by Codex
 - **Status:** Brief
 - **Created:** 2026-09-13
-- **Updated:** 2026-10-10
+- **Updated:** 2026-10-12
 - **Issue:** [#5](https://github.com/JulTob/Tag_Oriented_Programming/issues/5)
 
 > One STEP, one topic: identify the portable Ring 0 obligations and the
@@ -38,6 +38,10 @@ non-owning Field would overlook object destruction and address reuse.
   [Presence](../../tests/test_contribution_presence.py) and
   [Constant](../../tests/test_constants.py) tests where they touch the kernel.
 - Director clarifications recorded in [#30](https://github.com/JulTob/Tag_Oriented_Programming/issues/30).
+- Lifetime review depends on the proposal in
+  [STEP-ADA-3 / PR #118](https://github.com/JulTob/Tag_Oriented_Programming/pull/118),
+  tracked by [#117](https://github.com/JulTob/Tag_Oriented_Programming/issues/117).
+  This is an external proposal reference, not a requirement to merge #118 first.
 
 The Director's decisions control this proposal. A test is evidence of the
 current Python implementation, not authority to reverse those decisions.
@@ -57,7 +61,8 @@ that mismatch instead of silently adopting it as Ada law.
 | Form (§0.4) | Ordered Base-first closure, each Tag once; direct Bases retain declaration order; TOP Geometry is independent of a Target's Ada nominal inheritance | Established |
 | Apply (§0.5) | Apply pending Tags Base-first; active reapplication does nothing; fresh reapplication after Rip repeats ordinary training | Established |
 | Gate (§0.6) | Each pending Tag passes its own Gate when its turn arrives; completed earlier Taggings remain if a later Gate refuses | Director-approved; Python work tracked in #30 / PR #78 |
-| After Gate (§0.6) | A failure after that Tag's Gate leaves it tagged, not refused; completed gains are not restored to a checkpoint; current Postconditions decide deficiency | Director-approved; exact Record failure flow remains open in #30 |
+| Gainings (§0.6) | After its Gate, each Tag applies gains and Imprints in declaration order, visible to later gains; failed training leaves acquired Actions, Records and Posts on a Rogue outside that Tag's Field | Director-approved; Python implementation tracked in #30 |
+| Admission (§0.6) | After Gainings/Imprints complete, the Agent enters the Field, then Posts judge the member; Reports and Operations become available through the Agent at Field entry | Director-approved sequence: Gate → Gains/Imprints → Field → Posts |
 | Current state (§2.5) | Postconditions define requirements; missing declared gains alone and a past Imprint failure do not permanently mark deficiency | Director-approved; existing Imprint/current-state tests cover part of it |
 | Rip (§0.7) | Rip ends active membership, not history; ordinary gains are sticky; reapplication is fresh; no implicit cascade | Established; several lifecycle extensions remain Brief |
 
@@ -65,6 +70,14 @@ The profile must not import an irreversible-ban feature: a programmer can
 express a ban with a Report and Gate; no such TOP language feature has been
 decided. Existing required-Base Rip refusal is a deployed Python rule, not
 authority to settle the separate spin-off/arrest proposals.
+
+The current Ada Geometry experiment accepts raw ordered graphs that Python's
+class frontend refuses: duplicate direct Bases and C3-inconsistent Base
+orders. [PR #134](https://github.com/JulTob/Tag_Oriented_Programming/pull/134)
+distinguishes traversal evidence from Python declaration admission. C3 is not
+TOP's Base-first Form traversal. Whether the Ada profile should enforce
+Python's declaration restrictions remains open; this Brief adopts neither
+admission policy.
 
 ### 2. Native Ada spellings: candidates, not decisions
 
@@ -109,9 +122,17 @@ Containment offers the stronger automatic-lifetime candidate but constrains
 host types. A companion preserves more existing host structures, but requires
 defined lifetime ordering, uniqueness and deallocation rules; checked
 accessibility alone does not enforce these. The native evidence is recorded
-in [STEP-ADA-3's issue #117](https://github.com/JulTob/Tag_Oriented_Programming/issues/117).
+in [STEP-ADA-3's proposal #118](https://github.com/JulTob/Tag_Oriented_Programming/pull/118)
+and [issue #117](https://github.com/JulTob/Tag_Oriented_Programming/issues/117).
 A raw address registry is useful only as a scoped experiment, not evidence
 that the non-owning Field law has been met.
+
+The controlled arrangements require automatic finalization and are outside
+a pure SPARK implementation. Supporting a restricted runtime such as GNAT
+`No_Finalization`, or SPARK callers through a trusted Ada boundary, requires
+another stated arrangement. Current native probes are sequential; they do
+not establish shared-task Field or Target-access safety. These boundaries
+are developed in STEP-ADA-3, not selected here.
 
 No carrier choice, copying rule, task-safety promise or ownership transfer
 is decided by this STEP. Ada unsupported Targets must fail explicitly rather
@@ -152,7 +173,7 @@ be declared implemented merely because Geometry works.
 3. Implement Tagging and Rip only after their relevant failure boundaries
    are precise; port assertions rather than Python internal mechanisms.
 
-`Scope` is being retired by Director instruction (PR #60); it is not an Ada
+`Scope` was retired by Director instruction (PR #60); it is not an Ada
 requirement. Preconditions and Record builders are observational, with query
 Actions allowed; enforcement remains #40. Whole-Field Rip (#35), failed-Rip
 arrest/retry (#36), safehouse (#37), filters (#38), Links (#39) and deletion
