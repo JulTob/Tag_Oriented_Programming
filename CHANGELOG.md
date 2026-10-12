@@ -13,7 +13,11 @@
   General special-method composition, lazy execution and inherited Pin
   receiver dependencies remain separate concerns. Pin Action handles
   preserve available callable metadata and fall back to the declared name
-  and no documentation when optional metadata cannot be copied.
+  and no documentation when optional metadata cannot be copied. Public
+  Pin Operation handles also retain their original `__self__`, `__func__`
+  and bound `inspect.signature`; signature metadata is inspected only
+  when requested. The composing handle is a TOP callable rather than a
+  Python method object; callable-kind introspection remains separate.
 
 - **Captured Pin-private Operations:** a captured current Secret Action
   landed by a Pin, including a Constant Action, requires its pinned Tag's

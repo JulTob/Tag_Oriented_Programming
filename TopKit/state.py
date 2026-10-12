@@ -14,6 +14,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from dataclasses import field
 from functools import wraps
+from inspect import signature
 from types import MethodType
 from typing import Any
 from typing import Callable
@@ -545,6 +546,59 @@ class _Originals:
         return f"<originals of {', '.join(original._declared) or 'nothing'}>"
 
 
+class _Pinned_Bound:
+    """A public Operation handle with its original callable and receiver.
+
+    Signature inspection is deferred until requested: optional callable
+    introspection must not prevent reading or calling an Operation.
+    """
+
+    __slots__ = ("_function", "_owner", "_state", "_name", "_doc")
+
+    def __init__(
+            bound,
+            function: Function,
+            owner: type,
+            state: "_State",
+            name: str,
+            doc: str | None,
+            ) -> None:
+        bound._function = function
+        bound._owner = owner
+        bound._state = state
+        bound._name = name
+        bound._doc = doc
+
+    def __call__(bound, *args: Any, **kwargs: Any) -> Any:
+        state = bound._state
+        state.composing += 1
+
+        try:
+            return bound._function(bound._owner, *args, **kwargs)
+        finally:
+            state.composing -= 1
+
+    @property
+    def __self__(bound) -> type:
+        return bound._owner
+
+    @property
+    def __func__(bound) -> Function:
+        return bound._function
+
+    @property
+    def __signature__(bound) -> Any:
+        return signature(MethodType(bound._function, bound._owner))
+
+    @property
+    def __name__(bound) -> str:
+        return bound._name
+
+    @property
+    def __doc__(bound) -> str | None:
+        return bound._doc
+
+
 class _Composing_Pinned_Operation(_Pinned_Operation):
     """A pinned Operation that opens the pinned Tag's composition door
     while it runs, so the Pin's @Secret members resolve inside it."""
@@ -570,34 +624,19 @@ class _Composing_Pinned_Operation(_Pinned_Operation):
             owner = type(instance)
 
         function = operation._function
-        state = operation._state
-
-        def Composing(
-                *args: Any,
-                **kwargs: Any,
-                ) -> Any:
-            state.composing += 1
-
-            try:
-                return function(
-                        owner,
-                        *args,
-                        **kwargs,
-                        )
-            finally:
-                state.composing -= 1
+        try:
+            name = function.__name__
+            if not issubclass(type(name), str):
+                name = operation._name
+        except Exception:
+            name = operation._name
 
         try:
-            Composing.__name__ = function.__name__
+            doc = function.__doc__
         except Exception:
-            Composing.__name__ = operation._name
+            doc = None
 
-        try:
-            Composing.__doc__ = function.__doc__
-        except Exception:
-            Composing.__doc__ = None
-
-        return Composing
+        return _Pinned_Bound(function, owner, operation._state, name, doc)
 
 
 class _Secret_Pinned_Operation(_Composing_Pinned_Operation):

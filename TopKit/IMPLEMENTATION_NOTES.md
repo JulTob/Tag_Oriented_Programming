@@ -261,8 +261,12 @@ rollback target.
   code path; the class case restores key by key. The runtime type is a
   `(MetaTag, Tagged)` metaclass from the same cache. A landed Action is a
   `_Pinned_Operation` descriptor binding to the Tag it is read from (a
-  Shape inherits it as it inherits a classmethod); a landed Record is a
-  plain class attribute, which is exactly a Report's value. `_scan` skips
+  Shape inherits it as it inherits a classmethod). Its public composing
+  handle keeps the original callable as `__func__`, the receiving Tag as
+  `__self__`, and the corresponding bound Python signature. Signature
+  inspection is deferred until requested, so optional introspection
+  cannot prevent reading or calling an accepted callable. A landed Record
+  is a plain class attribute, which is exactly a Report's value. `_scan` skips
   names the class state manages, so a pinned Tag never projects them onto
   its Agents. The Tag's own Operations and Reports are host members to a
   Pin (`_pinned_host_function`, `_pinned_stored`); its Agent-scope names
