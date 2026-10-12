@@ -17,7 +17,7 @@ compile_probe() (
         "$@" ${GNAT_FLAGS:-}
 )
 
-for task_probe in carrier_probes companion_lifetime escape_dynamic; do
+for task_probe in carrier_probes companion_lifetime escape_dynamic rosen_probes; do
     compile_probe "$task_probe" -o "$task_build_dir/$task_probe"
     "$task_build_dir/$task_probe"
 done
