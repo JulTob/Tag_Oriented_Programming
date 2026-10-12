@@ -11,6 +11,8 @@ from typing import Any
 
 
 _publication = RLock()
+_type_namespace = type.__dict__["__dict__"]
+_type_mro = type.__dict__["__mro__"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,8 +26,20 @@ def _memo_key(tag: type, kind: str) -> str:
     return f"_TOPKIT_{kind}_{id(tag):#x}"
 
 
+def _class_namespace(tag: type) -> Any:
+    # vars/type.__getattribute__ can still evaluate a metaclass property.
+    return _type_namespace.__get__(tag)
+
+
+def _metaclass_binding(tag: type, name: str) -> bool:
+    return any(name in _class_namespace(base)
+               for base in _type_mro.__get__(type(tag)))
+
+
 def _memo_of(tag: type, name: str) -> Any:
-    memo = vars(tag).get(name)
+    if _metaclass_binding(tag, name):
+        return None
+    memo = _class_namespace(tag).get(name)
     if type(memo) is _Tag_Memo and memo.owner is tag and memo.name == name:
         return memo.value
     return None
@@ -36,7 +50,9 @@ def _remember_memo(tag: type, name: str, value: Any) -> Any:
         existing = _memo_of(tag, name)
         if existing is not None:
             return existing
-        if all(name not in vars(base) for base in tag.__mro__):
+        if not _metaclass_binding(tag, name) and all(
+               name not in _class_namespace(base)
+               for base in _type_mro.__get__(tag)):
             type.__setattr__(tag, name, _Tag_Memo(tag, name, value))
     return value
 
@@ -51,4 +67,4 @@ def _namespace_snapshot(tag: type) -> dict[str, Any]:
     # mappingproxy.copy copies the underlying class dict before user
     # metadata access can yield to another memo reader/publisher.
     with _publication:
-        return vars(tag).copy()
+        return _class_namespace(tag).copy()

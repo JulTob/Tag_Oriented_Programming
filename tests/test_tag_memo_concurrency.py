@@ -146,6 +146,73 @@ class TagMemoConcurrencyTests(unittest.TestCase):
         self.assertIsNot(first, _declarations_of(candidate))
         self.assertIs(vars(candidate)[name], foreign)
 
+    def test_memo_storage_does_not_evaluate_metaclass_namespace_getters(self):
+        from TopKit.declarations import _invalidate_declarations
+        from TopKit.memo import _publication
+
+        getter_calls = []
+
+        class Metadata(type(Tag)):
+            @property
+            def __dict__(tag):
+                getter_calls.append("namespace")
+                if _publication._is_owned():
+                    raise RuntimeError("user dictionary getter ran under memo lock")
+                return type.__dict__["__dict__"].__get__(tag)
+
+            @property
+            def __mro__(tag):
+                getter_calls.append("mro")
+                if _publication._is_owned():
+                    raise RuntimeError("user MRO getter ran under memo lock")
+                return type.__dict__["__mro__"].__get__(tag)
+
+        class Base(Tag, metaclass=Metadata):
+            def Work(agent):
+                return "base"
+
+        class Shape(Base):
+            pass
+
+        getter_calls.clear()
+        self.assertEqual(Form(Shape), (Base, Shape))
+        declarations = _declarations_of(Base)
+        self.assertIs(_declarations_of(Base), declarations)
+        _invalidate_declarations(Base)
+        self.assertIsNot(_declarations_of(Base), declarations)
+        self.assertIn("Work", _Class_Namespace(Base).copy())
+        self.assertEqual(getter_calls, [])
+
+    def test_a_metaclass_descriptor_collision_stays_uncached_without_evaluation(self):
+        from TopKit.declarations import _invalidate_declarations
+
+        class Metadata(type(Tag)):
+            pass
+
+        class Candidate(Tag, metaclass=Metadata):
+            def Work(agent):
+                return "ready"
+
+        calls = []
+
+        def forbidden(*args):
+            calls.append(args)
+            raise RuntimeError("memo evaluated the program's descriptor")
+
+        descriptor = property(forbidden, forbidden, forbidden)
+        declaration_name = _declaration_key(Candidate)
+        form_name = _form_key(Candidate)
+        type.__setattr__(Metadata, declaration_name, descriptor)
+        type.__setattr__(Metadata, form_name, descriptor)
+        first = _declarations_of(Candidate)
+        self.assertIsNot(_declarations_of(Candidate), first)
+        self.assertEqual(Form(Candidate), (Candidate,))
+        _invalidate_declarations(Candidate)
+        physical = type.__dict__["__dict__"].__get__(Candidate)
+        self.assertNotIn(declaration_name, physical)
+        self.assertNotIn(form_name, physical)
+        self.assertEqual(calls, [])
+
     def test_real_tagging_releases_both_memos_with_a_held_field(self):
         def create():
             def Owner(agent):
