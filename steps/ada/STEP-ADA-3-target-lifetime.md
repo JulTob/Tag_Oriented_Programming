@@ -8,7 +8,10 @@
 - **Created:** 2026-10-10
 
 > One topic: how a supported Ada Target carries TOP state for its lifetime.
-> No carrier, public syntax, or implementation has been selected.
+> The Director selected opt-in limited hosts and sequential use for the first
+> implementation, with retained Tag storage and automatic host hooks. The
+> concrete storage mechanism and public syntax remain open; this STEP is
+> still Brief.
 
 ## Summary
 
@@ -16,7 +19,8 @@ This Brief compares two lifetime arrangements for STEP-ADA-1
 ([#5](https://github.com/JulTob/Tag_Oriented_Programming/issues/5)):
 state inside an opt-in limited host type, or a separate controlled companion
 for an existing host. Native Ada probes expose the guarantees and obligations
-of each. The Director still chooses the supported Target profile.
+of each. The Director selected the initial host and task scope below; the
+remaining Target profile decisions still need resolution.
 
 ## Motivation
 
@@ -175,11 +179,83 @@ No SPARK proof or `No_Finalization` support is claimed by the native probes.
 
 TOP needs the state lifetime of the same Target, not merely a pointer that is
 valid at construction. The probes favour containment for automatic cleanup;
-a companion reduces host intrusion but needs additional lifetime rules. That
-trade-off requires the Director's decision, not an inferred choice from Ada's
-accessibility checks.
+a companion reduces host intrusion but needs additional lifetime rules. The
+Director chose containment for the first implementation; the remaining
+storage and public-surface choices do not follow from accessibility checks.
 
-## Alternatives to decide
+## Initial implementation scope confirmed by the Director
+
+On 2026-10-12, the Director chose:
+
+- **Opt-in limited hosts first**, containing private lifetime support.
+  Adapting arbitrary existing hosts through separate companions is deferred.
+- **Sequential implementation first**. Shared-task Field access and Target
+  destruction coordination require a later design and separate evidence.
+- **Retain Tag state while Agents carry it**. Ending the Ada scope of a public
+  Tag handle must not silently end membership or invalidate the internal
+  storage still needed by a live Agent. Fields must never keep Targets alive.
+- **Preserve automatic host hooks** through a controlled limited carrier,
+  with TOP cleanup in a separate private component. Host initialization and
+  finalization remain automatic; a host override cannot omit token cleanup.
+
+These answers choose the first development direction, not the entire profile.
+They do not Clear this STEP, choose public package names, or claim Ring 0
+conformance. Controlled containment still requires a finalization-capable
+Ada runtime and remains outside a pure SPARK implementation.
+
+### Proposed first implementation slices
+
+1. **Target identity and private lifetime support.** Preserve the same host
+   object and give distinct Targets distinct opaque identities. Test limited
+   assignment refusal, build-in-place construction, explicit host-finalizer
+   calls, host initialization/finalization failures and normal deallocation.
+   The selected controlled outer carrier preserves automatic host hooks;
+   a plain outer carrier is a deferred alternative.
+2. **Internal non-owning membership storage.** Connect the token to retained
+   Tag storage that never owns its Target. Eviction
+   removes the registered identity without dereferencing the host or running
+   Actions, Posts or Rip. Repeated internal removal must be harmless, and
+   finalization cleanup must not allocate. This internal eviction does not
+   decide any separate destruction/Rip protocol. Field mutation remains internal
+   to the kernel, rather than a public bypass of Tagging and Rip.
+3. **Field selection and walking.** Design how a walk obtains and uses a live
+   Target after the storage proof. An identity-only membership table does not
+   prove safe Target access. Sequential callbacks can still end a Target or
+   change membership during a walk. Rechecking saved entries before use is
+   necessary but insufficient if a callback destroys the Target it is using.
+   The later design must preserve access for the whole use or explicitly
+   refuse unsupported destruction before selecting a borrowing API.
+
+These are separate reviewable proposals. No Gate, Contribution, Imprint,
+Postcondition, Geometry integration or public Tagging/Rip implementation is
+introduced by this scope record.
+
+### Selected storage-lifetime direction
+
+An Agent may outlive the Ada scope of a public Tag handle. The Director selected
+the first arrangement; the second remains a considered alternative:
+
+- **Retain private Tag/Registry storage while Agents require it.** A public
+  handle can end without silently expelling its live Agents. Retained storage
+  must be reclaimed when no required reference remains, and its Field entries
+  must not keep Targets alive. This follows the existing Python Agent-to-Tag
+  retention pattern, but requires a private storage-lifetime mechanism.
+- **Require Tags/Fields to outlive their Agents in the first Ada profile.**
+  Checked access discriminants can enforce ordinary scope accessibility.
+  This imposes a visible construction/lifetime restriction and still does
+  not make explicit early deallocation of referenced storage safe.
+
+Retained metadata does not retain the host object. The implementation must
+test that a Tag handle can end before its Agent, that the Agent can end before
+the last Tag handle, and that the retained storage is eventually reclaimed.
+Retaining metadata does not itself justify following a saved Target access
+value. It also cannot extend the lifetime/accessibility of local objects,
+host types or nested callbacks referenced by future Contributions. Geometry,
+persistent Posts and has-been history may require metadata after Rip; leaving
+a Field must not silently discard those references. No application-wide
+Registry or unsafe access conversion is implied by the contained-host choice.
+
+## Lifetime arrangements considered
 
 ### 1. Opt-in host with a private lifetime component
 
@@ -190,7 +266,9 @@ that object. The host does not access or replace the component's finalizer.
 A plain tagged limited carrier offers this without an outer controlled
 finalizer. A controlled outer carrier containing the same private component
 also lets the host override `Finalize` without owning the internal cleanup.
-These are two native layouts, not a selected public API.
+These are two native layouts. The Director selected the controlled outer
+carrier containing the private component for the first implementation so
+automatic host hooks remain available. Public package names are still open.
 
 This is the stronger automatic-lifetime candidate from the probes, but it
 requires host types to opt in before Tagging. Existing arbitrary types cannot
@@ -203,8 +281,9 @@ weaker cooperation requirement.
 An existing aliased host can retain its type while a limited companion carries
 TOP state and a checked access discriminant refers to that same Target.
 
-This supports more existing hosts, but a profile must additionally prevent or
-define early companion destruction, multiple independent companions for one
+This deferred alternative supports more existing hosts, but a profile must
+additionally prevent or define early companion destruction, multiple
+independent companions for one
 Target, and deallocation of the Target while a companion survives. A checked
 access discriminant is not an ownership or uniqueness guarantee. Programmer
 discipline alone must not be described as an automatically enforced law.
@@ -218,21 +297,24 @@ third automatic-lifetime guarantee.
 
 ## Remaining decision boundaries
 
-- Does the initial profile support only opt-in limited hosts, or also adapted
-  existing hosts? No unsupported host should silently receive unsafe state.
+- The initial direction is opt-in limited hosts; companion adaptation is
+  deferred. No unsupported host should silently receive unsafe state.
 - For unsupported Targets, is rejection at an Ada generic/type boundary the
   accepted profile diagnostic, or is a distinct named TOP runtime failure also
   required? Native compile errors alone have not been approved as the failure
   model's spelling.
-- Must a Registry outlive all its Agents, with checked references and scope
-  order enforcing ordinary uses, or does an Agent retain the required Tag
-  storage? Opaque IDs alone cannot make a destroyed Registry safe to access.
+- Agents retain the required Tag storage. Its concrete retention/reclamation
+  mechanism must be tested; opaque IDs alone cannot make destroyed storage
+  safe to access.
+- The carrier preserves automatic host hooks with a controlled outer type
+  and private contained cleanup; the concrete experimental surface remains
+  to be reviewed.
 - Which unsafe operations and companion lifetime duties are explicitly outside
   the supported profile? A contained token does not itself solve Registry
   lifetime or every alias held by other code.
-- Is the initial task profile sequential, or does it coordinate shared Field
-  access with Target destruction? Synchronizing Registry storage alone is not
-  a complete answer.
+- The initial implementation is sequential. A later shared-task profile must
+  coordinate Field access with Target destruction; synchronizing Registry
+  storage alone is not a complete answer.
 - Does the initial runtime profile require controlled finalization? A pure
   SPARK or `No_Finalization` arrangement needs different support or a stated
   trusted boundary; none is selected by this Brief.
@@ -273,7 +355,8 @@ separate, small implementation PR after the profile decision.
 ## Backwards compatibility
 
 None: this Brief changes no Python behaviour, Specification, existing STEP
-status, or experimental Geometry API. All alternatives remain open.
+status, or experimental Geometry API. It records the confirmed initial host
+and task scope while leaving the remaining profile choices open.
 
 ---
 
