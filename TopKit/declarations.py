@@ -203,13 +203,12 @@ class _Check_Mark:
     def __init__(
             mark,
             kind: str,
-            failure: type | None,
+            failure: type,
             doc: str,
-            name: str | None = None,
             ) -> None:
         mark.kind = kind
         mark.failure = failure
-        mark.__name__ = name if name is not None else kind.capitalize()
+        mark.__name__ = kind.capitalize()
         mark.__doc__ = doc
 
     def __call__(
@@ -225,14 +224,6 @@ class _Check_Mark:
             mark,
             name: str,
             ) -> type:
-        if mark.failure is None:
-            raise AttributeError(
-                    f"@{mark.__name__} names no failure of its own: it fails"
-                    f" as a Precondition at the door, or as a Postcondition"
-                    f" afterwards. Catch `Precondition.{name}` or"
-                    f" `Postcondition.{name}`, whichever you mean to repair."
-                    )
-
         return getattr(
                 mark.failure,
                 name,
@@ -266,16 +257,6 @@ Postcondition = _Check_Mark(
 
 Pre = Precondition
 Post = Postcondition
-
-
-Requirement = _Check_Mark(
-        "condition",
-        None,
-        "A necessity in both directions: a gate on the incoming Agent and a"
-        " promise about it afterwards. The same as stacking @Pre and @Post"
-        " on one function, said in one word.",
-        "Requirement",
-        )
 
 
 def Delete(
@@ -670,6 +651,7 @@ class _Declarations:
     dunders: frozenset[str]
     published: frozenset[str]   # Agent-scope members marked @Public (Pins)
     constants: frozenset[str]
+    runtime: bool = field(default=False, compare=False, repr=False)
     header: _Declarations | None = field(default=None, compare=False, repr=False)
     gaining_steps: tuple[tuple[str, _Declarations], ...] = field(
             default=(), compare=False, repr=False,
@@ -1092,6 +1074,7 @@ def _prepare_declarations(
             dunders=declarations.dunders - names,
             rips=(),
             )
+    header = replace(header, runtime=_runtime_facts(header))
     actions = dict(declarations.actions)
     records = dict(declarations.records)
     preconditions = dict(declarations.preconditions)
@@ -1122,9 +1105,22 @@ def _prepare_declarations(
                 imprints=(),
                 rips=(),
                 )
+        one = replace(one, runtime=_runtime_facts(one))
         steps.append((kind, one))
 
-    return replace(declarations, header=header, gaining_steps=tuple(steps))
+    return replace(declarations, header=header, gaining_steps=tuple(steps), runtime=_runtime_facts(declarations))
+
+
+def _runtime_facts(declarations: _Declarations) -> bool:
+    return bool(
+            declarations.deletions
+            or declarations.secrets
+            or declarations.dunders
+            or declarations.published
+            or declarations.constants
+            or declarations.postconditions
+            or any(public for _name, _report, public in declarations.reports)
+            )
 
 
 def _emit_published_pins(

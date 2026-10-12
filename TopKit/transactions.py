@@ -345,14 +345,8 @@ def _actualize(
 
     changes_type = (
             "_TOPKIT_HOST_TYPE" not in type(agent).__dict__
-            or declarations.deletions
-            or declarations.secrets
-            or declarations.dunders
-            or declarations.published
-            or declarations.constants
-            or declarations.postconditions
+            or declarations.runtime
             or (entering and _is_flag(tag))
-            or (declarations.reports and any(public for _name, _report, public in declarations.reports))
             )
 
     if not changes_type:
