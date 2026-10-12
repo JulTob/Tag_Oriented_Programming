@@ -4,7 +4,8 @@ For each Tag in the Form (Bases first), in order:
 
     1. Gate: that Tag's declarations are checked against the current
        Overlay, then its Preconditions inspect the Agent at this turn.
-    2. Its Records are built (each may read the value already stored).
+    2. Its Gains, conditions and deletions take effect in declaration
+       order. Each builder can read or call what is already acquired.
     3. Field entry: membership, Overlay, runtime type.
     4. Its Imprints run.
 
@@ -22,7 +23,7 @@ interruptions keep their original type and follow the same phase boundary.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from .contracts import _evaluate
@@ -36,9 +37,10 @@ from .errors import TagPostconditionError
 from .errors import TagPreconditionError
 from .geometry import _form_of
 from .overlay import _install
+from .overlay import _gainings
 from .overlay import _quiet
-from .overlay import _materialize
 from .state import STATE
+from .state import _Published
 from .state import _Snapshot
 from .state import _State
 from .state import _bind_to
@@ -214,34 +216,62 @@ def _apply_one(
         ) -> None:
     # The state is laid over in place: the call boundary (_apply) holds the
     # entry copy that a Record failure rolls back to, and nothing reads the
-    # new Overlay before Field entry binds it on the Agent.
+    # new Overlay before preparing its Gains on the Agent.
     boundary.after_commit = False   # #30: Parts still restore the whole call in TopKit
     state = _state_for(agent)
     declarations = _declarations_of(tag)
-    retained_constants = frozenset(state.constants)
     deleted_before = set(state.deleted)
     state.composing += 1
     primary_failure: BaseException | None = None
 
     try:
+        gain_names = frozenset(declarations.gain_order)
+        header = replace(
+                declarations,
+                actions=(),
+                records=(),
+                preconditions=(),
+                postconditions=(),
+                deletions=(),
+                secrets=declarations.secrets - gain_names,
+                constants=declarations.constants - gain_names,
+                published=declarations.published - gain_names,
+                dunders=declarations.dunders - gain_names,
+                rips=(),
+                )
         _install(
                 state,
                 tag,
-                declarations,
+                header,
                 )
 
-        _materialize(
-                agent,
-                declarations,
-                deleted_before,
-                inputs,
-                retained_constants,
-                )
-
-        _commit(
+        _prepare_gains(
                 agent,
                 state,
                 deleted_before,
+                tag,
+                header,
+                )
+
+        def prepare(gaining: _Declarations) -> None:
+            _prepare_gains(agent, state, deleted_before, tag, gaining)
+
+        _gainings(
+                agent,
+                state,
+                tag,
+                declarations,
+                deleted_before,
+                inputs,
+                prepare,
+                )
+
+        if declarations.rips:
+            state.rips[tag] = tuple(state.actions[name] for name in declarations.rips)
+
+        _enter_field(
+                agent,
+                state,
                 tag,
                 declarations,
                 )
@@ -336,21 +366,19 @@ def _inspect(
         state.composing -= 1
 
 
-def _commit(
+def _prepare_gains(
         agent: object,
         state: _State,
         deleted_before: set[str],
         tag: type,
         declarations: _Declarations,
         ) -> None:
+    """Expose each acquired declaration before the next builder runs."""
+
     namespace = _namespace_of(agent)
 
     for name in state.deleted - deleted_before:
         namespace.pop(name, None)
-
-    state.active.append(tag)
-    state.words = None
-    state.ever.add(tag)
 
     if declarations.secrets:
         # A first secret turns every bound Action into a composing one.
@@ -375,7 +403,28 @@ def _commit(
                         name,
                         )
 
-    if _needs_new_type(
+    _actualize(
+            agent,
+            state,
+            tag,
+            declarations,
+            )
+
+
+def _actualize(
+        agent: object,
+        state: _State,
+        tag: type,
+        declarations: _Declarations,
+        ) -> None:
+    """Refresh the runtime behavior independently of Field membership."""
+
+    replaces_published = any(
+            type(type(agent).__dict__.get(name)) is _Published
+            for name, _function in (*declarations.actions, *declarations.records)
+            )
+
+    if declarations.postconditions or replaces_published or _needs_new_type(
             agent,
             tag,
             declarations,
@@ -392,6 +441,21 @@ def _commit(
                     f"{type(agent).__name__} cannot be actualized in place"
                     ) from error
 
+
+def _enter_field(
+        agent: object,
+        state: _State,
+        tag: type,
+        declarations: _Declarations,
+        ) -> None:
+    """Establish membership after the Tag's Gains have been prepared."""
+
+    state.active.append(tag)
+    state.words = None
+    state.ever.add(tag)
+
+    # A Flag's keyword behavior depends on active membership.
+    _actualize(agent, state, tag, declarations)
     tag._topkit_field.Add(agent)
 
     if state.pinned is not None and declarations.published:

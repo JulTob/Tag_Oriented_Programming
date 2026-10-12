@@ -656,6 +656,7 @@ class Report:
 class _Declarations:
     actions: tuple[tuple[str, Function], ...]
     records: tuple[tuple[str, Function], ...]
+    gain_order: tuple[str, ...]   # Agent declarations, including conditions and deletions
     secrets: frozenset[str]
     imprints: tuple[tuple[str, Function], ...]
     preconditions: tuple[tuple[str, Function], ...]
@@ -883,6 +884,7 @@ def _scan(
         ) -> _Declarations:
     actions: list[tuple[str, Function]] = []
     records: list[tuple[str, Function]] = []
+    gain_order: list[str] = []
     secrets: set[str] = set()
     imprints: list[tuple[str, Function]] = []
     preconditions: list[tuple[str, Function]] = []
@@ -971,6 +973,7 @@ def _scan(
                         attribute,
                         )
                     )
+            gain_order.append(name)
 
             if secret:
                 secrets.add(name)
@@ -1003,10 +1006,12 @@ def _scan(
                     )
 
         if kind in _CONDITION_KINDS:
+            gain_order.append(name)
             continue
 
         if kind == "delete":
             deletions.append(name)
+            gain_order.append(name)
             continue
 
         # Anything else callable is an Action (kind "action" or unmarked).
@@ -1017,6 +1022,7 @@ def _scan(
                     attribute,
                     )
                 )
+        gain_order.append(name)
 
         if secret:
             secrets.add(name)
@@ -1037,6 +1043,7 @@ def _scan(
     declarations = _Declarations(
             actions=tuple(actions),
             records=tuple(records),
+            gain_order=tuple(gain_order),
             secrets=frozenset(secrets),
             imprints=tuple(imprints),
             preconditions=tuple(preconditions),

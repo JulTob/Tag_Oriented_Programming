@@ -12,6 +12,9 @@
 
 ### TopKit
 
+- Actions, Records, conditions and deletions now take effect from top to
+  bottom in each Tag. Record builders see earlier declarations, while
+  successful Constant bindings are protected before later Gainings.
 - Gate and candidate-Overlay evaluation now follow the Base-first Tag chain
   without removing completed Bases when a later Tag refuses or collides.
 - **Known #30 limitation, unchanged here:** TopKit still restores the

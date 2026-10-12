@@ -7,10 +7,12 @@ scope a name is one slot: an Action or a Record, never both at once.
 from __future__ import annotations
 
 from contextvars import ContextVar
+from dataclasses import replace
 from functools import wraps
 from os.path import dirname
 from typing import Any
 from typing import Callable
+from typing import Iterator
 import warnings
 
 from . import state as state_module
@@ -275,6 +277,34 @@ state_module._require_membership = _require_membership   # a published Report's 
 # ------------------------------------------------------------------
 
 
+def _gains_of(
+        declarations: _Declarations,
+        ) -> Iterator[tuple[str, str, Function | None]]:
+    """Walk Agent declarations together, retaining declaration order.
+
+    A Constant already held by the Agent can be omitted from the groups
+    without changing the order recorded by the declaration scanner.
+    """
+
+    actions = dict(declarations.actions)
+    records = dict(declarations.records)
+    preconditions = dict(declarations.preconditions)
+    postconditions = dict(declarations.postconditions)
+    deletions = frozenset(declarations.deletions)
+
+    for name in declarations.gain_order:
+        if name in actions:
+            yield "action", name, actions[name]
+        elif name in records:
+            yield "record", name, records[name]
+        elif name in preconditions:
+            yield "condition", name, preconditions[name]
+        elif name in postconditions:
+            yield "condition", name, postconditions[name]
+        elif name in deletions:
+            yield "delete", name, None
+
+
 def _install(
         state: _State,
         tag: type,
@@ -361,20 +391,15 @@ def _install(
                     _adapter(tag, name, operation),
                     )
 
-    for name, function in declarations.actions:
-        _install_action(
+    for kind, name, function in _gains_of(declarations):
+        if kind not in ("action", "record"):
+            continue   # scratch conditions and deletions were installed above
+        install = _install_action if kind == "action" else _install_record
+        install(
                 state,
                 tag,
                 name,
                 function,
-                )
-
-    for name, builder in declarations.records:
-        _install_record(
-                state,
-                tag,
-                name,
-                builder,
                 )
 
     state.secrets.update(declarations.secrets)
@@ -389,6 +414,84 @@ def _install(
                 )
 
     state.constants.update(new_constants)
+
+
+def _gainings(
+        agent: object,
+        state: _State,
+        tag: type,
+        declarations: _Declarations,
+        deleted_before: set[str],
+        inputs: dict[str, Any],
+        prepare: Callable[[_Declarations], None],
+        ) -> None:
+    """Attach each actual Gain before proceeding to the next declaration.
+
+    Record builders read the previous binding until they return a value.
+    The caller exposes each acquired Gain's binding and runtime behavior
+    through ``prepare``; shared members and protocols belong to the other
+    phases of Tagging.
+    """
+
+    names = frozenset(declarations.gain_order)
+    gains = replace(
+            declarations,
+            reports=(),
+            operations=(),
+            imprints=(),
+            rips=(),
+            published=declarations.published & names,
+            constants=declarations.constants & names,
+            )
+    gains, locks = _constant_overlay(state, tag, gains)
+    preconditions = dict(gains.preconditions)
+    postconditions = dict(gains.postconditions)
+
+    for kind, name, function in _gains_of(gains):
+        selected = frozenset((name,))
+        one = replace(
+                gains,
+                actions=((name, function),) if kind == "action" else (),
+                records=((name, function),) if kind == "record" else (),
+                preconditions=((name, preconditions[name]),) if name in preconditions else (),
+                postconditions=((name, postconditions[name]),) if name in postconditions else (),
+                deletions=(name,) if kind == "delete" else (),
+                gain_order=(name,),
+                secrets=gains.secrets & selected,
+                dunders=gains.dunders & selected,
+                published=gains.published & selected,
+                constants=gains.constants & selected,
+                )
+
+        if kind == "action":
+            _install_action(state, tag, name, function)
+        elif kind == "record":
+            value = _record_value(
+                    agent,
+                    name,
+                    function,
+                    deleted_before,
+                    inputs,
+                    )
+            _install_record(state, tag, name, function)
+            _store_record(agent, name, value, one.secrets)
+        else:
+            _install(state, tag, one)
+
+        state.secrets.update(one.secrets)
+
+        if state.pinned is not None:
+            state.published.update(one.published)
+
+        if name in locks:
+            state.constants[name] = locks[name]
+
+        prepare(one)
+
+        if state.pinned is not None:
+            from .declarations import _scan_cache
+
+            _scan_cache.pop(state.pinned, None)
 
 
 def _refuse_stored_input_collision(
@@ -985,83 +1088,69 @@ def _restore(
 # ------------------------------------------------------------------
 
 
-def _materialize(
+def _record_value(
         agent: object,
-        declarations: _Declarations,
+        name: str,
+        builder: Function,
         deleted_before: set[str],
         inputs: dict[str, Any],
-        retained: frozenset[str] = frozenset(),
-        ) -> None:
-    """Run the Tag's Record builders and store their values on the Agent.
+        ) -> Any:
+    """Calculate a Record's initial value without changing its binding."""
 
-    The builder's optional second positional input is the value already
-    stored under that name, or None when there is none (or the name was
-    deleted). Application inputs bind by name to the parameters after
-    that, so ``def code(agent, *, code)`` stores the input directly.
-    """
+    if isinstance(agent, type):
+        stored = _state_of(agent).secret_values.get(name, _MISSING)
 
-    namespace = _namespace_of(agent)
-    pinned = isinstance(agent, type)
+        if stored is _MISSING:
+            stored = _pinned_stored(agent, name)
+    else:
+        stored = _namespace_of(agent).get(name)
 
-    for name, builder in declarations.records:
-        if name in retained:
-            continue
-        if pinned:
-            stored = _state_of(agent).secret_values.get(name, _MISSING)
+    if name in deleted_before or isinstance(
+            stored,
+            (
+                _Bound,
+                _Pinned_Operation,
+            ),
+            ):
+        stored = None
 
-            if stored is _MISSING:
-                stored = _pinned_stored(
-                        agent,
-                        name,
-                        )
-        else:
-            stored = namespace.get(name)
+    takes_stored = _takes_stored(builder)
 
-        if name in deleted_before or isinstance(
-                stored,
-                (
-                    _Bound,
-                    _Pinned_Operation,
-                ),
-                ):
-            stored = None
+    if takes_stored:
+        _refuse_stored_input_collision(builder, inputs)
 
-        takes_stored = _takes_stored(builder)
+    named = _protocol_inputs(
+            builder,
+            inputs,
+            2 if takes_stored else 1,
+            )
 
+    try:
         if takes_stored:
-            _refuse_stored_input_collision(
-                    builder,
-                    inputs,
-                    )
-
-        named = _protocol_inputs(
-                builder,
-                inputs,
-                2 if takes_stored else 1,
-                )
-
-        try:
-            if takes_stored:
-                value = builder(
-                        agent,
-                        stored,
-                        **named,
-                        )
-            else:
-                value = builder(
-                        agent,
-                        **named,
-                        )
-        except TagError:
-            raise
-        except Exception as error:
-            raise TagCompositionError(
-                    f"Record {builder.__qualname__} could not be"
-                    f" materialized: {type(error).__name__}: {error}"
-                    ) from error
-
-        if pinned and name in declarations.secrets:
-            namespace.pop(name, None)
-            _state_of(agent).secret_values[name] = value
+            value = builder(agent, stored, **named)
         else:
-            namespace[name] = value
+            value = builder(agent, **named)
+    except TagError:
+        raise
+    except Exception as error:
+        raise TagCompositionError(
+                f"Record {builder.__qualname__} could not be"
+                f" materialized: {type(error).__name__}: {error}"
+                ) from error
+
+    return value
+
+
+def _store_record(
+        agent: object,
+        name: str,
+        value: Any,
+        secrets: frozenset[str],
+        ) -> None:
+    namespace = _namespace_of(agent)
+
+    if isinstance(agent, type) and name in secrets:
+        namespace.pop(name, None)
+        _state_of(agent).secret_values[name] = value
+    else:
+        namespace[name] = value
