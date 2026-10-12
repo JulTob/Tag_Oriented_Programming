@@ -45,11 +45,12 @@ replaces it: before and after, it is the same object. Precisely:
   same equality);
 - every attribute and method the Target had keeps working the way it did,
   unless a Tag deliberately contributes a member of that name;
-- the Target's own special methods (`__contains__`, `__len__`, `__bool__`,
+- the accepted Target's own special methods (`__contains__`, `__len__`,
   operators, `__getattr__`) keep working, with one deliberate exception:
-  when neither the host nor a Tag contributes `__bool__`, `bool(agent)`
-  is the Agent's contract from its first Tagging, even if the host defines
-  `__len__`; `len(agent)` stays the host's (§2.5);
+  an ordinary object Agent's `bool(agent)` is its visible Posts from
+  first Tagging, even if the host defines `__len__`; `len(agent)` stays
+  the host's (§2.5). A host with an explicit `__bool__` is refused as a
+  Target before Tagging effects;
 - the name of the object's type is unchanged.
 
 What TOP does **not** promise is nominal type identity: a Python
@@ -1198,11 +1199,20 @@ pinned Tag reads its own conditions the same way (`Wizard.Has_Members`).
 A condition that outlived its Tag (§0.7) still reads by name until the
 author ends it.
 
-When neither its host nor a Tag contributes `__bool__`, an Agent with no
-visible Postcondition is truthy: it has no broken promise. A host that
-defines `__len__`, but not `__bool__`, keeps `len(agent)`; its length
-never answers the Agent's truth. Thus an empty Agent whose visible
+An ordinary object Agent with no visible Postcondition is truthy: it has
+no broken promise. A host's `__len__` keeps answering `len(agent)`; its
+length never answers the Agent's truth. Thus an empty Agent whose visible
 promises hold is still truthy.
+
+The Agent's `__bool__` protocol is reserved for that contract question.
+A Tag cannot gain or delete it, including through a Record, Action or
+published Report/Operation; a Declaration Failure refuses such a binding.
+An ordinary Python host defining `__bool__` directly or by inheritance is
+refused as a Target with a Composition Failure before Gates, Gainings or
+Target mutation. Its truth is not evaluated or replaced by Tagging.
+Objects held in Records retain their own truth. A Tag, including a Tag
+receiving a Pin, keeps population truth (§0.8); `Contract.Holds(Tag)` asks
+about its contract as a Pin Agent.
 
 ## 2.6 Naming the culprit
 

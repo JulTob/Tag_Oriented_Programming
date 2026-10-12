@@ -699,6 +699,37 @@ def _kind_of(
             )
 
 
+def _refuse_truth_gain(
+        owner: str,
+        name: str,
+        member: Any,
+        ) -> None:
+    """The Agent's truth protocol cannot be gained, replaced or deleted."""
+
+    if name != "__bool__":
+        return
+
+    if isinstance(member, Report):
+        gained = member.public
+    elif isinstance(member, (classmethod, staticmethod)):
+        gained = (
+                isinstance(member, classmethod)
+                and _kind_of(member) == "operation"
+                and _has_flag(member, _PUBLIC)
+                )
+    else:
+        gained = callable(member) and _kind_of(member) in (
+                None, "action", "record", "delete",
+                )
+
+    if gained:
+        raise TagDeclarationError(
+                f"{owner}.{name}: an Agent's truth is reserved for its"
+                " visible Postconditions; a Contribution cannot redefine"
+                " or delete it"
+                )
+
+
 def _has_flag(
         attribute: Any,
         name: str,
@@ -835,6 +866,7 @@ _NAMED_FAILURES: dict[str, type] = {
 
 def _name_checks(
         namespace: dict[str, Any],
+        owner: str,
         ) -> None:
     """Give every check in a Tag body its named failure, at class creation.
 
@@ -846,6 +878,7 @@ def _name_checks(
         if _is_private(name):
             continue
 
+        _refuse_truth_gain(owner, name, attribute)
         kind = _kind_of(attribute)
 
         if kind == "condition":
@@ -892,6 +925,7 @@ def _scan(
         if _is_private(name):
             continue
 
+        _refuse_truth_gain(tag.__name__, name, attribute)
         if managed is not None and (
                 name in managed.actions
                 or name in managed.records

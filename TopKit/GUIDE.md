@@ -1059,10 +1059,14 @@ the architecture, with a Field to walk and a history that stays.
 | Are its promises holding? | `if agent:`, `Contract.Status(agent)`, `f"{agent:contract}"` |
 | What did it look like right after Wizard? | `agent.Wizard`, `Wizard[agent]` |
 
-When neither a host nor a Tag contributes `__bool__`, an Agent's truth is
-its visible contract. With no Postconditions it is true: nothing promised
-is broken. A host's `__len__` still answers `len(agent)`, but never
-supplies this truth, so an empty Agent can be sound and truthy.
+An ordinary object Agent's truth is its visible Postconditions. With no
+Posts it is true: nothing promised is broken. The truth seat is reserved:
+a Python host with an explicit `__bool__` is refused as a Target before
+its Gates or Gainings, and a Tag cannot gain or delete that name. A host's
+`__len__` still answers `len(agent)`, so an empty Agent can be sound and
+truthy. Boolean information can live in an ordinary Action or Record;
+objects held in Records keep their own truth. A Tag's truth remains the
+population question described below, even when it receives a Pin.
 
 ## Reading a Tag
 

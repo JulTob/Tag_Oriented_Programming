@@ -93,16 +93,43 @@ def _host_in_seat(
     return None
 
 
+def _refuse_host_truth(
+        target: object,
+        ) -> None:
+    """Refuse custom host truth without evaluating it or changing the Target."""
+
+    host = type(target)
+
+    # Read Python's type data directly: custom metaclass lookup must not
+    # hide a real protocol declaration or run while eligibility is checked.
+    for klass in type.__dict__["__mro__"].__get__(host):
+        namespace = type.__dict__["__dict__"].__get__(klass)
+
+        if "__bool__" not in namespace:
+            continue
+
+        if (
+                namespace.get("_TOPKIT_HOST_TYPE") is not None
+                and namespace["__bool__"] is _agent_bool
+                ):
+            continue   # the kit's hook on a synthesized runtime layer
+
+        raise TagCompositionError(
+                f"{type.__dict__['__name__'].__get__(host)} defines __bool__;"
+                " an Agent's truth is"
+                " reserved for its visible Postconditions"
+                )
+
+
 def _hooks_for(
         host_type: type,
         has_flags: bool,
         ) -> dict[str, Any]:
     """The kit's special methods for one host.
 
-    When the host has no ``__bool__``, the contract hook is prepared from
-    the first Tagging, even when the host has ``__len__``. An explicit
-    special-method Action may replace it under the Overlay's usual rules.
-    The host's length still answers ``len``.
+    Ordinary object Agents use contract truth from the first Tagging.
+    Their hosts may supply ``__len__``, but custom ``__bool__`` is refused
+    before Tagging. Tags retain their metaclass's population truth.
     """
 
     hooks: dict[str, Any] = {
@@ -112,7 +139,7 @@ def _hooks_for(
             "_TOPKIT_HOST_GETATTR": _host_member(host_type, "__getattr__"),
             }
 
-    if _host_member(host_type, "__bool__") is None:
+    if not issubclass(host_type, type):
         hooks["__bool__"] = _agent_bool
 
     if _host_member(host_type, "__format__") is None:
@@ -298,7 +325,7 @@ def _keyword(
 def _agent_bool(
         agent: object,
         ) -> bool:
-    """Contract truth in the host's free ``__bool__`` seat; a plain object
+    """Reserved Agent contract truth; a plain object
     constructed from an Agent's runtime type keeps ordinary host truth."""
 
     state = _state_of(agent)
