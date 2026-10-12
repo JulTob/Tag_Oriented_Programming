@@ -29,8 +29,7 @@ an adjective, changeable. Wizard is a Tag. Hit points are a Record.
 from TopKit import (
         Action, Contract, Delete, Flag, Form, Imprint, Keyword, Operation,
         Outline, Pin, Post, Postcondition, Pre, Precondition, Public,
-        Record, Report, Requirement, Rip, Scope, Secret, Tag, Tags,
-        Underlay,
+        Record, Report, Rip, Secret, Tag, Tags, Underlay,
         TagCompositionError, TagPostconditionError, TagPreconditionError,
         TagResolutionError,
         )
@@ -228,13 +227,16 @@ assert bob.spellbook == []                # not shared
 **Watch out.** A Record builder runs once, when the Tag applies. It is not a
 property; it does not recompute. Reapplying an active Tag does nothing, so
 a Record is never silently rebuilt. Rip removes membership, not the binding.
-Applying the Tag after Rip is fresh Tagging: every ordinary builder runs
-again. A builder without a `stored` seat replaces the current binding with
-its returned value. A builder with that seat receives the current binding,
-including a value left by the Tag's earlier application, and decides how to
-evolve it. Thus Rip alone is not a reset; the builder determines what fresh
-Tagging does with the value. `@Constant @Record` is not rebuilt, though the
-value's contents may still be mutable. [Constant Contributions](CONSTANTS.md)
+Applying the Tag after Rip is fresh Tagging: that Tag's ordinary Record
+builders run again. Bases already active are not trained again.
+A builder without a second positional seat replaces
+the current binding with its returned value. With that seat (`stored` in the
+examples), it receives the current stored value, including a value left by
+the Tag's earlier application, and decides how to evolve it. An absent,
+deleted or Action binding supplies `None`; `stored` is not a required
+parameter name. Thus Rip alone is not a reset; the builder determines what
+fresh Tagging does with the value. `@Constant @Record` is not rebuilt, though
+the value's contents may still be mutable. [Constant Contributions](CONSTANTS.md)
 shows the distinction and the same protection for Actions, Posts and shared
 Contributions.
 
@@ -455,6 +457,11 @@ assert newt                             # sound again
 assert newt in list(Wizard)             # back in the working population
 ```
 
+This assert-style Post needs Python assertions enabled. Optimized Python
+(`-O`, `-OO` or nonzero `PYTHONOPTIMIZE`) removes the check. For a promise
+that must also be checked in those modes, write
+`return agent.spellbook is not None`.
+
 This is the factory rule: a bad product is not melted back to materials. It
 is flagged, repaired, or thrown away (`del Wizard[newt]`).
 
@@ -516,20 +523,10 @@ assert ari in ~Elf
 Being alive is necessary to be an Elf, not sufficient: other living things
 are not Elves. That is the difference between a condition and a Tag.
 
-When the claim reads better as one necessity than as two checks, write
-`@Requirement` instead of the pair. It means exactly the same thing:
-
-```python
-class Elf(Tag):
-
-    @Requirement
-    def Alive(agent):
-        return agent.alive
-```
-
-It still fails under two names, because you repair the two differently:
-`Precondition.Alive` is someone who may not come in, `Postcondition.Alive`
-is an Elf already in and now broken.
+The order of the two marks does not matter: `@Post` above `@Pre` is the
+same condition. It fails under two names, because you repair the two
+differently: `Precondition.Alive` is someone who may not come in,
+`Postcondition.Alive` is an Elf already in and now broken.
 
 **Watch out.** A Shape should promise *at least* what its Base promised.
 Use `@Post @Underlay` and `return base() and ...`. Overriding a Base's
@@ -736,15 +733,58 @@ class Sentry(Tag):
 
 guard = Character("Guard")
 
-with Scope(guard, Sentry):              # applies on entry
+Sentry(guard)                           # the guard joins Sentry
+try:
     assert guard.on_duty
+finally:
+    del Sentry[guard]                   # the guard leaves, even if the block raised
 
-assert not guard.on_duty                # Ripped on exit, even on error
+assert not guard.on_duty
 assert guard not in Sentry
 ```
 
 `@Imprint` runs after the Tag applies; `@Rip` runs after it leaves. They
-are constructor and destructor, `__enter__` and `__exit__`.
+are constructor and destructor.
+
+A role for a block is two acts you already know, the tagging and the Rip,
+joined by Python's own `try` and `finally`. The rule is the one Python
+teaches for a lock: **tag before `try`, Rip in `finally`.** A `finally`
+always runs when its `try` ends, whether the block finished or raised.
+
+Tag *before* the `try`, not inside it. A Gate refusal then raises before
+the block starts and leaves no Tag. An Imprint failure or broken Post is
+also reported at the Tagging statement, before the `try`, but that Tag has
+landed and stays. In either case the `finally` never begins. Inside the
+`try`, a refused Tagging would send the `finally` to Rip a Tag that never
+landed. The caller would get "Sentry is not active on this Agent", and the
+refusal would only be kept inside it.
+
+If the Agent may carry the Tag already, take away only what the block
+gave:
+
+```python
+veteran = Character("Veteran")
+Sentry(veteran)                         # a Sentry before the block
+
+was_sentry = veteran in Sentry[:]       # in the Field already, sound or not?
+Sentry(veteran)                         # does nothing if he was
+try:
+    assert veteran.on_duty
+finally:
+    if not was_sentry:
+        del Sentry[veteran]             # take away only what this block gave
+
+assert veteran in Sentry                # a Sentry before, a Sentry after
+```
+
+Write `Sentry[:]`, with the brackets: it asks the whole Field, sound or
+broken, so a veteran who is a broken Sentry keeps the Tag too. With
+several Tags, tag them all before the `try`, and Rip them in the
+`finally` in reverse order.
+
+This frees `with` for ordinary Python context protocols. A host or an
+Agent may still define `__enter__` and `__exit__` (or the asynchronous
+forms); TOP simply gives those methods no automatic Tagging or Rip rule.
 
 A role's conditions do **not** leave with it on their own. What the
 Agent *became* stays (pattern 1's Rogue Agent), and so does what the role
@@ -783,7 +823,7 @@ return True`, which lets the promise follow any membership you like; the
 Contracts Guide shows both.
 
 **Watch out.** Python does not promise to run finalizers at shutdown, so
-`del agent` is best-effort. `Scope` is the guaranteed path.
+`del agent` is best-effort. A Rip in a `finally` is the guaranteed path.
 
 **An object's own `__del__` is a Layer.** It keeps running when the object
 is tagged. A Tag may replace it, or wrap it with `@Underlay`; the Tags'
@@ -1054,7 +1094,7 @@ your Reports and Operations there.
 | Gate with `@Pre`; promise with `@Post`; repair through `~Tag`. | Roll your own validation after the fact. |
 | Mark word-like Tags `@Flag` and write rules as data. | Match every Tag by name. Only Flags are words. |
 | Say things about a Tag with a `@Pin`. | Keep a side table of Tags outside TOP. |
-| Clean up with `@Rip`, guarantee it with `Scope`. | Rely on `del agent` for anything that matters. |
+| Clean up with `@Rip`; for a block, tag before `try` and Rip in `finally`. | Rely on `del agent` for anything that matters. |
 | Rip, then Tag again when the Record builder should rebuild its value. | Assume Rip itself erases Contributions, or reapply an active Tag hoping it rebuilds. |
 | Expect a Rogue Agent to keep its own Actions and lose the Agency's published ones. | Check membership by hand inside every published Operation. |
 | Catch the named promise, repair what it names, retry. | Catch every failure in one handler and guess. |

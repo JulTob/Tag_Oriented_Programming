@@ -4,7 +4,7 @@ A **STEP** is how Tag-Oriented Programming changes: one deliberate step at a tim
 
 ## One STEP, one thing
 
-A STEP is **one task, one purpose, one topic.** Proposing two changes? Write two STEPs. Atomic STEPs are easy to review, easy to Clear or Burn on their own merits, and easy to point back to later. A sprawling STEP is a STEP that won't move.
+A STEP is **one task, one purpose, one topic.** Proposing two changes? Write two STEPs. Atomic STEPs are easy to review, easy to Clear or Redact on their own merits, and easy to point back to later. A sprawling STEP is a STEP that won't move.
 
 ## The lifecycle
 
