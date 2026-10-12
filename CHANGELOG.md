@@ -24,6 +24,17 @@
   class-dictionary iterators while publishing either memo. Base-first
   order, iterative traversal and ordinary-class Form behavior stay.
 
+- **Scope retired:** `TopKit.Scope` is removed. A temporary Tagging is written explicitly: tag before `try`, then Rip in `finally`. Rip failures surface normally. TOP assigns `with` no automatic membership or Rip meaning; ordinary Python context protocols remain available to hosts and Agent Actions.
+  STEP-SPEC-15 remains a Brief about recoverable phases, but its
+  `with Try(...)` spelling is now recorded only as a historical candidate;
+  no Trial syntax is reserved.
+
+- **Requirement retired:** `TopKit.Requirement` and its export are removed.
+  Write `@Pre` and `@Post` on the same condition, in either order, when
+  it must hold both at the door and afterwards. Failures keep their own
+  names: `Precondition.Name` at the door and `Postcondition.Name`
+  afterwards.
+
 - **Accurate Contract Warnings:** replacing a visible Postcondition now
   names whether its origin is a Base, Shape or independent Tag, and points
   at the tagging line. The warning no longer describes every replacement
