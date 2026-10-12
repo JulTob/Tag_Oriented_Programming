@@ -1456,7 +1456,7 @@ types but must keep these distinct.
 | **Tag Postcondition Failure** | The finished Agent breaks a promise. | Tags stay, Agent defective |
 | **Tag Contract Failure** | A condition returned a non-boolean. | gate: call rolled back; quality check: Tags stay, Agent defective |
 | **Overwrite Warning** | An independent Tag replaced a visible Action or Record without an Underlay. | diagnostic |
-| **Contract Warning** | A Shape weakened a Base Postcondition. | diagnostic |
+| **Contract Warning** | A Tag replaced another Tag’s visible Postcondition without an Underlay (Base, Shape, or independent Tag). | diagnostic |
 
 ---
 
