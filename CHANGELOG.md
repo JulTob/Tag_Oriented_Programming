@@ -8,6 +8,9 @@
   substitutes TopKit's runtime type now raises a Composition Failure.
   Runtime-subclass hooks and disposable `__dict__` views are normalized
   too; the original host type, namespace, Tags and Fields remain unchanged.
+  Frozen dataclasses remain taggable without unlocking their host fields
+  or bypassing custom host refusals. The proposed representation law is
+  recorded separately in STEP-SPEC-37 for the Director's review.
 
 - **Constant Contributions:** `@Constant` protects Records, Actions,
   Posts, Reports and Operations from replacement, deletion and later
