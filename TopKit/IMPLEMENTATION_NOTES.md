@@ -125,6 +125,14 @@ diagnostics never require callable `__name__` or `__qualname__` metadata.
 Lazy-disposal diagnostics use the private safe type-name and exception-text
 helpers; the exact original error remains the cause even if its text fails.
 
+Record builder failures identify the declaration name, not the callable's
+Python function metadata. Existing TOP failures and Python interruptions keep
+their original exception; other builder errors remain Composition Failures
+with the original cause. Shared private diagnostic helpers preserve normal
+exception text, falling back only when that text cannot be rendered. This
+does not change construction order, values (including `False` and `None`),
+or settle the Record continuation/failure-boundary design tracked in #30.
+
 ## Judgment calls
 
 - **`in` vs `isinstance`.** `agent in Tag` is the is-now check; `isinstance`
