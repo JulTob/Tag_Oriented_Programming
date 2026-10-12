@@ -6,24 +6,22 @@ For each Tag in the Form (Bases first), in order:
        Overlay, then its Preconditions inspect the Agent at this turn.
     2. Its Gains, conditions and deletions take effect in declaration
        order. Each builder can read or call what is already acquired.
-    3. Field entry: membership, Overlay, runtime type.
-    4. Its Imprints run.
+    3. Its Imprints run, with acquired Gains but no membership yet.
+    4. Field entry establishes membership and published services.
 
 Once for the whole call:
 
     5. Every visible Postcondition is checked.
 
-A refusal in 1 leaves Tags whose turns completed in place and does not
-start the refused Tag. TopKit's remaining #30 limitation is in Parts: a
-failure in 2 still restores the whole call's entry state. A failure in 4
-or 5 raises but applied Tags stay. Their current Postconditions determine
-soundness; the failure itself is not a permanent defect. Python
-interruptions keep their original type and follow the same phase boundary.
+A refusal in 1 leaves completed Tags and existing Gains in place. A
+failure in 2 or 3 retains acquired Gains and Posts, but never admits the
+unfinished Tag. A failure after 4 retains membership. Current Posts
+determine soundness; failures are not permanent defects. Python
+interruptions keep their original type and follow the same boundary.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any
 
 from .contracts import _evaluate
@@ -58,13 +56,6 @@ from .state import _state_of
 from .state import _set_runtime_type
 
 
-@dataclass(slots=True)
-class _Call_Boundary:
-    """The failure phase of this call, independent of any nested tagging."""
-
-    after_commit: bool = False
-
-
 def _apply(
         agent: object,
         tag: type,
@@ -74,93 +65,50 @@ def _apply(
 
     entry_state = _state_of(agent)
 
-    if entry_state is not None and all(
-            member in entry_state.active
-            for member in _form_of(tag)
+    if entry_state is not None and (
+            tag in entry_state.active or tag in entry_state.training
             ):
-        return agent   # the whole Form is active: nothing to apply, nothing to undo
+        return agent
 
-    entry_namespace = dict(_namespace_of(agent) or {})
-    entry_copy = entry_state.Copy() if entry_state is not None else None
-    entry_tags = tuple(entry_state.active) if entry_state is not None else ()
+    form = _form_of(tag)
+
+    if entry_state is not None:
+        for member in form:
+            if member in entry_state.training:
+                raise TagCompositionError(
+                        f"{tag.__name__} needs {member.__name__}, whose"
+                        " Tagging has not finished"
+                        )
+
     entry_class = type(agent)
-    boundary = _Call_Boundary()
+    state = _state_for(agent)
 
     try:
-        state = _state_for(agent)
-        pending = [
-                member
-                for member in _form_of(tag)
-                if member not in state.active
-                ]
+        for member in form:
+            # An earlier Imprint may have completed this later turn.
+            if member in state.active:
+                continue
 
-        if pending:
-            for member in pending:
-                _gate(
-                        agent,
-                        state,
-                        member,
-                        inputs,
-                        )
+            _gate(agent, state, member, inputs)
+            _apply_one(agent, member, inputs)
 
-                _apply_one(
-                        agent,
-                        member,
-                        inputs,
-                        boundary,
-                        )
-
-            boundary.after_commit = True   # Quality follows the completed Form
-            _inspect(agent)
+        _inspect(agent)   # Posts judge the completed Form, once.
     except BaseException:
-        if not boundary.after_commit:
-            _rollback(
-                    agent,
-                    entry_namespace,
-                    entry_copy,
-                    entry_tags,
-                    entry_class,
-                    )
+        if (
+                entry_state is None
+                and type(agent) is entry_class
+                and not state.active
+                and not state.ever
+                and not state.actions
+                and not state.records
+                and not state.preconditions
+                and not state.postconditions
+                and not state.deleted
+                ):
+            _namespace_of(agent).pop(STATE, None)
         raise
 
     return agent
-
-
-def _rollback(
-        agent: object,
-        entry_namespace: dict[str, Any],
-        entry_copy: _State | None,
-        entry_tags: tuple[type, ...],
-        entry_class: type,
-        ) -> None:
-    if type(agent) is not entry_class:
-        _set_runtime_type(agent, entry_class)
-
-    current = _state_of(agent)   # the refused type may have hidden the namespace
-
-    if current is not None:
-        for tag in current.active:
-            if tag not in entry_tags:
-                tag._topkit_field.Remove(agent)
-
-    _restore_namespace(
-            agent,
-            entry_namespace,
-            )
-    namespace = _namespace_of(agent)
-
-    if namespace is None:
-        return
-
-    if entry_copy is not None:
-        live = namespace.get(STATE)
-
-        if live is None:
-            namespace[STATE] = entry_copy
-        else:
-            live.Restore(entry_copy)   # in place: a door opened before this call closes on it
-    else:
-        namespace.pop(STATE, None)
 
 
 def _gate(
@@ -216,28 +164,34 @@ def _apply_one(
         agent: object,
         tag: type,
         inputs: dict[str, Any],
-        boundary: _Call_Boundary,
         ) -> None:
-    # The state is laid over in place: the call boundary (_apply) holds the
-    # entry copy that a Record failure rolls back to, and nothing reads the
-    # new Overlay before preparing its Gains on the Agent.
-    boundary.after_commit = False   # #30: Parts still restore the whole call in TopKit
     state = _state_for(agent)
     declarations = _declarations_of(tag)
     deleted_before = set(state.deleted)
+    state.training.add(tag)
     state.composing += 1
     primary_failure: BaseException | None = None
 
     try:
-        header = declarations.header
-        if header.runtime or header.reports or header.operations:
-            _install(state, tag, header)
-            _prepare_gains(agent, state, deleted_before, tag, header)
-        else:
-            _actualize(agent, state, tag, header)
+        # Mechanical actualization precedes every builder and Imprint.
+        # A rejected host transition has not acquired any new Gains yet.
+        entry_class = type(agent)
+        first = "_TOPKIT_HOST_TYPE" not in entry_class.__dict__
+        entry_namespace = dict(_namespace_of(agent)) if first else None
+        try:
+            _actualize(agent, state, tag, declarations.header, entering=_is_flag(tag))
+        except BaseException:
+            if entry_namespace is not None:
+                if type(agent) is not entry_class:
+                    _set_runtime_type(agent, entry_class)
+                _restore_namespace(agent, entry_namespace)
+            raise
 
-        def prepare(gaining: _Declarations) -> None:
-            _prepare_gains(agent, state, deleted_before, tag, gaining)
+        def prepare(gaining: _Declarations, needs_runtime: bool) -> None:
+            _prepare_gains(
+                    agent, state, deleted_before, tag, gaining,
+                    refresh=needs_runtime,
+                    )
 
         _gainings(
                 agent,
@@ -249,50 +203,62 @@ def _apply_one(
                 prepare,
                 )
 
-        if declarations.rips:
-            state.rips[tag] = tuple((name, state.actions[name]) for name in declarations.rips)
+        _imprint(agent, declarations, inputs)
 
-        _enter_field(
-                agent,
-                state,
-                tag,
-                declarations,
-                )
-
-        boundary.after_commit = True
+        # Tag-scope services arrive with admission. A failed representation
+        # must not replace the services of an already active Agency.
+        header = declarations.header
+        has_header = bool(header.runtime or header.reports or header.operations)
+        previous = state.Copy() if has_header else None
+        if previous is not None:
+            previous_type = type(agent)
+            previous_namespace = dict(_namespace_of(agent))
 
         try:
-            _imprint(
-                    agent,
-                    declarations,
-                    inputs,
-                    )
-        except BaseException as error:
-            primary_failure = error
-            raise
-        finally:
-            try:
-                state.snapshots[tag] = _snapshot(
-                        agent,
-                        state,
-                        )
-            except BaseException as closing_error:
-                if primary_failure is None:
-                    raise
+            if has_header:
+                _install(state, tag, header)
+                _prepare_gains(agent, state, deleted_before, tag, header)
 
-                # Diagnostics must never replace the primary failure. Custom
-                # exceptions can make even adding a note fail.
-                try:
-                    BaseException.add_note(
-                            primary_failure,
-                            f"The {tag.__name__} view could not be captured after Write:"
-                            f" {type(closing_error).__name__}",
-                            )
-                except BaseException:
-                    pass
+            if declarations.rips:
+                state.rips[tag] = tuple((name, state.actions[name]) for name in declarations.rips)
+
+            _enter_field(agent, state, tag, declarations)
+        except BaseException:
+            if tag not in state.active:
+                if previous is not None:
+                    if type(agent) is not previous_type:
+                        _set_runtime_type(agent, previous_type)
+                    _restore_namespace(agent, previous_namespace)
+                    state.Restore(previous)
+                else:
+                    state.rips.pop(tag, None)
+            raise
+    except BaseException as error:
+        primary_failure = error
+        raise
     finally:
-        primary_failure = None   # do not keep the Agent alive through an exception traceback
-        state.composing -= 1
+        try:
+            if tag in state.active:
+                try:
+                    state.snapshots[tag] = _snapshot(
+                            agent,
+                            state,
+                            )
+                except BaseException as closing_error:
+                    if primary_failure is None:
+                        raise
+                    try:
+                        BaseException.add_note(
+                                primary_failure,
+                                f"The {tag.__name__} view could not be captured after Write:"
+                                f" {type(closing_error).__name__}",
+                                )
+                    except BaseException:
+                        pass
+        finally:
+            primary_failure = None
+            state.training.discard(tag)
+            state.composing -= 1
 
 
 def _refuse_conditions_shadowed_by_the_agent(
@@ -355,6 +321,8 @@ def _prepare_gains(
         deleted_before: set[str],
         tag: type,
         declarations: _Declarations,
+        *,
+        refresh: bool = True,
         ) -> None:
     """Expose each acquired declaration before the next builder runs."""
 
@@ -386,12 +354,8 @@ def _prepare_gains(
                         name,
                         )
 
-    _actualize(
-            agent,
-            state,
-            tag,
-            declarations,
-            )
+    if refresh:
+        _actualize(agent, state, tag, declarations)
 
 
 def _actualize(
@@ -434,6 +398,11 @@ def _enter_field(
         ) -> None:
     """Establish membership after the Tag's Gains have been prepared."""
 
+    plans = None
+    if state.pinned is not None and declarations.published:
+        plans = _publication_plans(state.pinned, declarations.published)
+
+    tag._topkit_field.Add(agent)
     state.active.append(tag)
     state.words = None
     state.ever.add(tag)
@@ -441,28 +410,24 @@ def _enter_field(
     if state.pinned is not None:
         state.published.update(declarations.published)
 
-    # A Flag's keyword behavior depends on active membership. Ordinary
-    # Gains already prepared their runtime behavior before Field entry.
-    if _is_flag(tag) or (state.pinned is not None and declarations.published):
+    # Flag query syntax was prepared during training; answers change only
+    # now. A Pin publishes its acquired Gains only after admission.
+    if state.pinned is not None and declarations.published:
         _actualize(agent, state, tag, declarations, entering=True)
-    tag._topkit_field.Add(agent)
 
     if state.pinned is not None and declarations.published:
         _publish_to_field(
                 state.pinned,
                 declarations.published,
+                plans,
                 )
 
 
-def _publish_to_field(
+def _publication_plans(
         pinned: type,
         names: frozenset[str],
-        ) -> None:
-    """A Pin's @Public members reach the pinned Tag's Field: every present
-    Agent receives them now as the Tag's own published Reports and
-    Operations; every future Agent through the Tag's declarations. The
-    whole Field is checked on copies first, so no Agent is touched unless
-    all can be."""
+        ) -> list[tuple[object, _State]]:
+    """Check publication before admitting the Pin; no recipient is changed."""
 
     from .declarations import _scan_cache
     from .overlay import _adapter
@@ -493,6 +458,19 @@ def _publish_to_field(
     finally:
         _quiet.reset(quiet)
 
+    return plans
+
+
+def _publish_to_field(
+        pinned: type,
+        names: frozenset[str],
+        plans: list[tuple[object, _State]],
+        ) -> None:
+    """Publish an admitted Pin's Gains after every recipient passed preflight."""
+
+    from .overlay import _adapter
+
+    state = _state_of(pinned)
     for agent, candidate in plans:
         agent_state = _state_of(agent)
         _publish_into(

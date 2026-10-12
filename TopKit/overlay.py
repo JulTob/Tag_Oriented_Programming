@@ -51,10 +51,13 @@ from .declarations import _MISSING
 from .presence import _Presence
 from .state import _Bound
 from .state import _Pinned_Operation
+from .state import _Published
 from .state import _State
 from .state import _name_of
 from .state import _namespace_of
 from .state import _state_of
+from .state import _restore_namespace
+from .state import _set_runtime_type
 
 
 Function = Callable[..., Any]
@@ -496,7 +499,7 @@ def _gainings(
         declarations: _Declarations,
         deleted_before: set[str],
         inputs: dict[str, Any],
-        prepare: Callable[[_Declarations], None],
+        prepare: Callable[[_Declarations, bool], None],
         ) -> None:
     """Attach each actual Gain before proceeding to the next declaration.
 
@@ -510,44 +513,64 @@ def _gainings(
         return
 
     for kind, planned in declarations.gaining_steps:
-        one, locks = _constant_overlay(state, tag, planned)
+        if not state.constants and not planned.constants and state.pinned is None:
+            one, locks = planned, None
+        else:
+            one, locks = _constant_overlay(state, tag, planned)
         name = one.gain_order[0]
 
         if kind == "action":
             if not one.actions:
                 continue   # the Agent retains this identical Constant
             function = one.actions[0][1]
-            _install_action(state, tag, name, function)
         elif kind == "record":
             if not one.records:
                 continue
             function = one.records[0][1]
             value = _record_value(
-                    agent,
-                    tag,
-                    name,
-                    function,
-                    deleted_before,
-                    inputs,
+                    agent, tag, name, function, deleted_before, inputs,
                     )
-            _install_record(state, tag, name, function)
-            _store_record(agent, name, value, one.secrets)
-        else:
-            if kind == "condition" and not (one.preconditions or one.postconditions):
-                continue
-            _install(state, tag, one)
+        elif kind == "condition" and not (one.preconditions or one.postconditions):
+            continue
 
-        if one.secrets:
-            state.secrets.update(one.secrets)
+        # A Gain requiring runtime protection has not stuck until its
+        # representation can be installed. Never leave an exposed Secret
+        # or writable Constant when a host rejects that representation.
+        needs_runtime = (
+                one.runtime
+                or (bool(state.published)
+                    and type(type(agent).__dict__.get(name)) is _Published)
+                )
+        previous = state.Copy() if needs_runtime else None
+        if previous is not None:
+            previous_type = type(agent)
+            previous_namespace = dict(_namespace_of(agent))
 
-        if name in locks:
-            state.constants[name] = locks[name]
+        try:
+            if kind == "action":
+                _install_action(state, tag, name, function)
+            elif kind == "record":
+                _install_record(state, tag, name, function)
+                _store_record(agent, name, value, one.secrets)
+            else:
+                _install(state, tag, one)
 
-        prepare(one)
+            if one.secrets:
+                state.secrets.update(one.secrets)
+            if locks and name in locks:
+                state.constants[name] = locks[name]
+            if kind != "record" or needs_runtime:
+                prepare(one, needs_runtime)
+        except BaseException:
+            if previous is not None:
+                if type(agent) is not previous_type:
+                    _set_runtime_type(agent, previous_type)
+                _restore_namespace(agent, previous_namespace)
+                state.Restore(previous)
+            raise
 
         if state.pinned is not None:
             from .declarations import _scan_cache
-
             _scan_cache.pop(state.pinned, None)
 
 
@@ -606,7 +629,7 @@ def _flags_of(
         ) -> list[type]:
     return [
             active
-            for active in state.active
+            for active in (*state.active, *state.training)
             if _is_flag(active)
             ]
 
