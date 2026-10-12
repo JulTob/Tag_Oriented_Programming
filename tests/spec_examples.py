@@ -34,11 +34,33 @@ def Run() -> None:
         def banner(agent): return "raised"
     class Citadel(Territory):
         @Pre
-        def Has_Charter(agent): return hasattr(agent, "charter")
+        def Has_Charter(agent): return "charter" @ agent
     ari = Character()
     try: Citadel(ari); raise SystemExit("expected failure")
     except TagPreconditionError: pass
     assert ari in Territory and ari not in Citadel and ari.banner == "raised"
+
+    # 0.6 unfinished production leaves Gains; a completed broken product
+    # belongs to its Tag and is judged by its Posts.
+    class Assembled(Territory):
+        @Record
+        def attempt(agent, stored): return (stored or 0) + 1
+        @Post
+        def Has_Wheels(agent): return agent.wheels
+        @Imprint
+        def Assemble(agent):
+            if not agent.complete: raise ValueError("unfinished")
+    car = Character(); car.complete = False; car.wheels = False
+    try: Assembled(car); raise SystemExit("expected unfinished training")
+    except TagImprintError.Assemble: pass
+    assert car in Territory and car not in Assembled and car.attempt == 1
+    assert not isinstance(car, Assembled) and list(Assembled[:]) == []
+    assert car.Has_Wheels is False and not Contract.Holds(car)
+    car.complete = True
+    try: Assembled(car); raise SystemExit("expected deficient product")
+    except TagPostconditionError.Has_Wheels: pass
+    assert car in Assembled and car in ~Assembled and car.attempt == 2
+    car.wheels = True; assert car in list(Assembled)
 
     # 0.7 / 3.1 MI6
     class MI6(Tag):

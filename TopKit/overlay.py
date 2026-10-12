@@ -7,7 +7,6 @@ scope a name is one slot: an Action or a Record, never both at once.
 from __future__ import annotations
 
 from contextvars import ContextVar
-from dataclasses import replace
 from functools import wraps
 from os.path import dirname
 from typing import Any
@@ -286,6 +285,9 @@ def _gains_of(
     without changing the order recorded by the declaration scanner.
     """
 
+    if not declarations.gain_order:
+        return
+
     actions = dict(declarations.actions)
     records = dict(declarations.records)
     preconditions = dict(declarations.preconditions)
@@ -433,39 +435,22 @@ def _gainings(
     phases of Tagging.
     """
 
-    names = frozenset(declarations.gain_order)
-    gains = replace(
-            declarations,
-            reports=(),
-            operations=(),
-            imprints=(),
-            rips=(),
-            published=declarations.published & names,
-            constants=declarations.constants & names,
-            )
-    gains, locks = _constant_overlay(state, tag, gains)
-    preconditions = dict(gains.preconditions)
-    postconditions = dict(gains.postconditions)
+    if not declarations.gain_order:
+        return
 
-    for kind, name, function in _gains_of(gains):
-        selected = frozenset((name,))
-        one = replace(
-                gains,
-                actions=((name, function),) if kind == "action" else (),
-                records=((name, function),) if kind == "record" else (),
-                preconditions=((name, preconditions[name]),) if name in preconditions else (),
-                postconditions=((name, postconditions[name]),) if name in postconditions else (),
-                deletions=(name,) if kind == "delete" else (),
-                gain_order=(name,),
-                secrets=gains.secrets & selected,
-                dunders=gains.dunders & selected,
-                published=gains.published & selected,
-                constants=gains.constants & selected,
-                )
+    for kind, planned in declarations.gaining_steps:
+        one, locks = _constant_overlay(state, tag, planned)
+        name = one.gain_order[0]
 
         if kind == "action":
+            if not one.actions:
+                continue   # the Agent retains this identical Constant
+            function = one.actions[0][1]
             _install_action(state, tag, name, function)
         elif kind == "record":
+            if not one.records:
+                continue
+            function = one.records[0][1]
             value = _record_value(
                     agent,
                     name,
@@ -476,12 +461,12 @@ def _gainings(
             _install_record(state, tag, name, function)
             _store_record(agent, name, value, one.secrets)
         else:
+            if kind == "condition" and not (one.preconditions or one.postconditions):
+                continue
             _install(state, tag, one)
 
-        state.secrets.update(one.secrets)
-
-        if state.pinned is not None:
-            state.published.update(one.published)
+        if one.secrets:
+            state.secrets.update(one.secrets)
 
         if name in locks:
             state.constants[name] = locks[name]
@@ -545,7 +530,7 @@ def _flags_of(
         ) -> list[type]:
     return [
             active
-            for active in state.active
+            for active in (*state.active, *state.training)
             if _is_flag(active)
             ]
 

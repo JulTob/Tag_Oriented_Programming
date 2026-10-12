@@ -4,8 +4,9 @@ after every transition.
 The model knows the laws of the Specification and nothing of the kernel:
 Base-first Forms, membership and history, Rip refused while a Shape
 requires the Base, Scope as apply-then-rip, the call boundary (each Tag
-gates at its own turn, a broken promise keeps the Tag and marks the Agent
-defective, a failed Imprint keeps the Tag), sticky conditions ended by
+gates at its own turn, acquired Gains precede admission, a broken promise
+keeps membership, and a failed Imprint leaves Gains without admission),
+sticky conditions ended by
 the author, published members answering sound members only, condition
 members read as booleans, Field algebra, Pins with a Tag in the
 Agent's seat, and keywords: a Flag answers to its name and its words,
@@ -71,6 +72,8 @@ class Agent:
         agent.name = name
         agent.ok = True                     # what the promises read
         agent.events: list[str] = []
+        agent.slipping_allowed = True
+        agent.slipping_fails = True
 
 
 CLOCK = [0]                                 # ticks once per joining: Fields keep application order
@@ -84,9 +87,12 @@ class Model:
     active: list[type] = field(default_factory=list)
     ever: set[type] = field(default_factory=set)
     joined: dict[type, int] = field(default_factory=dict)   # when each active Tag was joined
-    marked_ever: bool = False               # Marked's promise is sticky: once applied, always read
-    gated_ever: bool = False                # Gated's gate is sticky too: it stays on the record
+    marked_ever: bool = False               # Marked's promise is sticky: once acquired, always read
+    gated_ever: bool = False                # Gated's acquired gate is sticky too
     ok: bool = True                         # the value every promise reads
+    gained: set[type] = field(default_factory=set)   # independent of Field entry and history
+    slipping_round: int = 0                 # sticky Record rebuilt on each training attempt
+    slipping_allowed: bool = True          # the retryable Tag's Gate
 
     def Copy(
             model,
@@ -98,12 +104,16 @@ class Model:
                 model.marked_ever,
                 model.gated_ever,
                 model.ok,
+                set(model.gained),
+                model.slipping_round,
+                model.slipping_allowed,
                 )
 
     def Has_Promise(
             model,
             ) -> bool:
-        return model.marked_ever or Promised in model.active
+        return (model.marked_ever or Promised in model.active
+                or Slipping in model.gained)
 
     def Sound(
             model,
@@ -155,23 +165,32 @@ def Leaves(
             )
 
 
+def Model_Gain(
+        model: Model,
+        tag: type,
+        ) -> None:
+    """The actual Gains persist even if the following training fails."""
+
+    model.gained.add(tag)
+    if tag is Marked:
+        model.marked_ever = True
+    if tag is Gated:
+        model.gated_ever = True
+    if tag is Slipping:
+        model.slipping_round += 1
+
+
 def Model_Apply(
         model: Model,
         tag: type,
         ) -> None:
     for current in Form(tag):
         if current not in model.active:
+            Model_Gain(model, current)
             model.active.append(current)
             model.ever.add(current)
             CLOCK[0] += 1
             model.joined[current] = CLOCK[0]
-
-    if tag is Marked:
-        model.marked_ever = True
-
-    if tag is Gated:
-        model.gated_ever = True
-
 
 def Rip_Refused(
         model: Model,
@@ -304,13 +323,29 @@ class Gated(Tag):
         agent.events.append("gated")
 
 
-class Slipping(Tag):
-    """An Imprint that fails after Field entry; the Tag stays."""
+class Slipping(Guild):
+    """Retryable training: failed production keeps Gains, not membership."""
+
+    @Pre
+    def Can_Slip(agent) -> bool:
+        return agent.slipping_allowed
+
+    @Record
+    def slipping_round(agent, stored) -> int:
+        return (stored or 0) + 1
+
+    def Read_Slip(agent) -> int:
+        return agent.slipping_round
+
+    @Post
+    def Slip_Ready(agent) -> bool:
+        return agent.ok
 
     @Imprint
     def Slip(agent) -> None:
         agent.events.append("slipped")
-        raise RuntimeError("deliberate")
+        if agent.slipping_fails:
+            raise RuntimeError("deliberate")
 
 
 class Refused_Guild(Guild):
@@ -327,6 +362,7 @@ class Refused_Guild(Guild):
 
 CONDITION_TAGS = (Promised, Marked)
 FEATURE_TAGS = (Promised, Marked, Guild, Gated)
+OBSERVED_TAGS = FEATURE_TAGS + (Slipping,)
 
 
 # ------------------------------------------------------------------
@@ -409,7 +445,7 @@ def Assert_Target(
 
     assert observed == expected, (context, "Tags", observed, expected)
 
-    for tag in family + FEATURE_TAGS:
+    for tag in family + OBSERVED_TAGS:
         active = tag in model.active
 
         assert (target in tag) is active, (context, "membership", tag.__name__, active)
@@ -482,6 +518,14 @@ def Assert_Contract(
     if model.gated_ever:
         expected["Ready"] = model.ok                                  # sticky: Rip leaves the gate on the record
 
+    if Slipping in model.gained:
+        expected["Can_Slip"] = model.slipping_allowed
+        expected["Slip_Ready"] = model.ok
+        assert "slipping_round" @ target, (context, "missing acquired Record")
+        assert "Read_Slip" @ target, (context, "missing acquired Action")
+        assert target.slipping_round == model.slipping_round, (context, "retry Record")
+        assert target.Read_Slip() == model.slipping_round, (context, "Rogue Action")
+
     assert status == expected, (context, "contract", status, expected)
     assert Contract.Holds(target) is model.Sound(), (context, "soundness", model.Sound())
 
@@ -491,7 +535,7 @@ def Assert_Contract(
     for name, holds in expected.items():
         assert getattr(target, name) is holds, (context, "condition member", name, holds)
 
-    for name in ("Is_Ok", "Still_Ok", "Ready"):
+    for name in ("Is_Ok", "Still_Ok", "Ready", "Can_Slip", "Slip_Ready"):
         if name not in expected:
             assert not hasattr(target, name), (context, "phantom condition member", name)
 
@@ -539,7 +583,7 @@ def Assert_Fields(
     the algebra. The feature Tags are checked with the Agents only: their
     Fields span the Agent population, never the Tags."""
 
-    tags = family if isinstance(targets[0], type) else family + FEATURE_TAGS
+    tags = family if isinstance(targets[0], type) else family + OBSERVED_TAGS
 
     def Population(
             tag: type,
@@ -721,6 +765,9 @@ def Exercise_Scope(
     model.joined = after.joined
     model.marked_ever = after.marked_ever
     model.gated_ever = after.gated_ever
+    model.gained = after.gained
+    model.slipping_round = after.slipping_round
+    model.slipping_allowed = after.slipping_allowed
 
 
 def Exercise_Transactions(
@@ -728,8 +775,7 @@ def Exercise_Transactions(
         model: Model,
         context: str,
         ) -> None:
-    """Per-Tag Gates preserve the completed chain; a failed Imprint keeps
-    the Tag."""
+    """Failed admission, refused retry and fresh training keep actual Gains."""
 
     if not model.Sound():
         return
@@ -773,6 +819,11 @@ def Exercise_Transactions(
             model.ok = True
 
     if Slipping not in model.active:
+        target.slipping_fails = True
+        target.slipping_allowed = True
+        model.slipping_allowed = True
+        clock_before = CLOCK[0]
+        had_guild = Guild in model.active
         try:
             Slipping(target)
         except TagImprintError:
@@ -780,8 +831,44 @@ def Exercise_Transactions(
         else:
             raise AssertionError((context, "failed Imprint did not report"))
 
+        Model_Apply(model, Guild)   # the Base completes independently
+        Model_Gain(model, Slipping)
+        assert target not in Slipping, (context, "failed training entered the Agency")
+        assert target not in Slipping[:], (context, "failed training entered the Field")
+        assert isinstance(target, Slipping) is (Slipping in model.ever), (context, "failed training changed history")
+        try:
+            Slipping[target]
+        except TagResolutionError:
+            pass
+        else:
+            raise AssertionError((context, "unfinished training obtained a view"))
+        assert target.events[-1] == "slipped", (context, "Imprint did not run")
+        assert CLOCK[0] == clock_before + (not had_guild), (context, "failed training advanced join order")
+        Assert_Contract(target, model, context + " failed training")
+
+        # A new refusal must not remove the Gains from the prior attempt.
+        target.slipping_allowed = False
+        model.slipping_allowed = False
+        round_before = model.slipping_round
+        events_before_retry = list(target.events)
+        try:
+            Slipping(target)
+        except TagPreconditionError.Can_Slip:
+            pass
+        else:
+            raise AssertionError((context, "retry Gate accepted"))
+        assert target.slipping_round == round_before, (context, "refusal erased or rebuilt Gains")
+        assert target.events == events_before_retry, (context, "refusal retrained")
+        Assert_Contract(target, model, context + " refused retry")
+
+        # Fresh Tagging restarts training against the current Agent.
+        target.slipping_allowed = True
+        model.slipping_allowed = True
+        target.slipping_fails = False
+        Slipping(target)
         Model_Apply(model, Slipping)
-        assert target in Slipping and target.events[-1] == "slipped", (context, "Imprint failure kept the Tag")
+        assert target in Slipping, (context, "successful retry did not enter")
+        assert Slipping[target].Read_Slip() == model.slipping_round, (context, "retry view")
         del Slipping[target]
         Model_Rip(model, Slipping)
 

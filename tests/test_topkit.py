@@ -1631,7 +1631,7 @@ class DefectiveTaggingTests(unittest.TestCase):
         self.assertIn(bea, Advanced)
         self.assertIn(bea, ~Advanced)
 
-    def test_imprint_failure_keeps_the_tag_and_its_raw_effects(self) -> None:
+    def test_imprint_failure_keeps_raw_effects_without_admitting_the_tag(self) -> None:
         ari = Agent()
 
         Ordered_Imprints(ari)
@@ -1640,7 +1640,9 @@ class DefectiveTaggingTests(unittest.TestCase):
         with self.assertRaises(TagImprintError):
             Broken_Imprint(ari)
 
-        self.assertIn(ari, Broken_Imprint)
+        self.assertNotIn(ari, Broken_Imprint)
+        self.assertNotIn(ari, Broken_Imprint[:])
+        self.assertFalse(isinstance(ari, Broken_Imprint))
         self.assertEqual(ari.events, ["First", "Second", "before failure"])
 
     def test_bool_agent_runs_postconditions(self) -> None:
@@ -2205,8 +2207,10 @@ class PinTests(unittest.TestCase):
         del Patch[Wizard]
         self.assertEqual(Wizard.Greet("x"), "WIZARD:X")               # sticky, like a Rogue Agent
 
-    def test_a_failed_patch_rolls_the_declaration_back(self) -> None:
+    def test_a_failed_patch_keeps_acquired_gain_without_pin_membership(self) -> None:
         Wizard = self.Wizard
+        existing = Agent()
+        Wizard(existing)
 
         @Pin
         class Broken(Tag):
@@ -2221,8 +2225,16 @@ class PinTests(unittest.TestCase):
         with self.assertRaises(TagCompositionError):
             Broken(Wizard)
 
-        self.assertEqual(Wizard.Greet("x"), "Wizard:x")
-        self.assertIsInstance(vars(Wizard)["Greet"], classmethod)
+        self.assertEqual(Wizard.Greet("x"), "patched")
+        self.assertTrue("Greet" @ Wizard)
+        self.assertFalse("boom" @ Wizard)
+        self.assertNotIn(Wizard, Broken[:])
+        self.assertFalse(isinstance(Wizard, Broken))
+        self.assertFalse("Greet" @ existing)
+        future = Agent()
+        Wizard(future)
+        self.assertFalse("Greet" @ future)
+        self.assertFalse("boom" @ future)
 
     def test_a_flag_pin_is_a_keyword_on_the_tag(self) -> None:
         Wizard, Rare = self.Wizard, self.Rare
@@ -2318,6 +2330,8 @@ class PinTests(unittest.TestCase):
 
     def test_a_public_pin_member_that_cannot_reach_every_agent_reaches_none(self) -> None:
         Wizard = self.Wizard
+        unaffected = Agent()
+        Wizard(unaffected)
         ari = Agent()
         Wizard(ari)
 
@@ -2332,6 +2346,11 @@ class PinTests(unittest.TestCase):
         class Engine(Tag):
             @Public
             @Action
+            def Greet(tag, agent):
+                return "patched"
+
+            @Public
+            @Action
             def firmware(tag, agent):
                 return 1
 
@@ -2339,8 +2358,19 @@ class PinTests(unittest.TestCase):
             Engine(Wizard)
 
         self.assertNotIn(Wizard, Engine)
+        self.assertNotIn(Wizard, Engine[:])
+        self.assertFalse(isinstance(Wizard, Engine))
         self.assertEqual(ari.firmware, "own")
-        self.assertFalse(hasattr(Wizard, "firmware"))
+        self.assertTrue("firmware" @ Wizard)
+        self.assertEqual(Wizard.firmware(ari), 1)
+        self.assertEqual(Wizard.Greet("x"), "patched")
+        self.assertFalse("firmware" @ unaffected)
+        self.assertFalse("Greet" @ unaffected)
+        self.assertFalse("Greet" @ ari)
+        future = Agent()
+        Wizard(future)
+        self.assertFalse("firmware" @ future)
+        self.assertFalse("Greet" @ future)
 
     def test_a_pins_teardown_receives_the_originals_for_unpatching(self) -> None:
         Wizard = self.Wizard
