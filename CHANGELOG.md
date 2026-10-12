@@ -2,8 +2,25 @@
 
 ## Unreleased
 
+### Specification
+
+- **Gates run per Tag:** each missing Tag passes its own Preconditions when
+  its turn arrives. A later refusal or Overlay collision leaves completed
+  Base Taggings in place and stops before the current Tag's Records, Field
+  entry or Imprints. A Shape's Precondition no longer suppresses a missing
+  Base's own Gate; active Tags are still not re-asked.
+
 ### TopKit
 
+- Actions, Records, conditions and deletions now take effect from top to
+  bottom in each Tag. Record builders see earlier declarations, while
+  successful Constant bindings are protected before later Gainings.
+- Gate and candidate-Overlay evaluation now follow the Base-first Tag chain
+  without removing completed Bases when a later Tag refuses or collides.
+- **Known #30 limitation, unchanged here:** TopKit still restores the
+  whole call when a Record builder fails, and enters the Field before
+  Imprints. The approved admission follow-up will retain acquired Gains
+  outside the Tag on unfinished training, then enter the Field before Posts.
 - **Underlay and Record validation names:** Missing Underlays, invalid
   Underlay signatures and stored-value/input collisions name the declared
   Contribution without requiring Python callable naming metadata. Their

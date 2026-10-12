@@ -1330,16 +1330,17 @@ class PreconditionTests(unittest.TestCase):
         Recruit(bond)
         self.assertIsNone(bond.code)
 
-    def test_failing_shape_rolls_back_its_bases_atomically(self) -> None:
+    def test_a_later_gate_refusal_keeps_the_completed_base(self) -> None:
         ari = Agent()
 
         with self.assertRaises(TagPreconditionError):
             Citadel(ari)
 
-        self.assertNotIn(ari, Territory)
+        self.assertIn(ari, Territory)
         self.assertNotIn(ari, Citadel)
-        self.assertFalse(hasattr(ari, "banner"))
-        self.assertFalse(isinstance(ari, Territory))
+        self.assertEqual(ari.banner, "raised")
+        self.assertTrue(isinstance(ari, Territory))
+        self.assertFalse(isinstance(ari, Citadel))
 
         ari.charter = "royal"
         Citadel(ari)
@@ -1347,7 +1348,7 @@ class PreconditionTests(unittest.TestCase):
         self.assertIn(ari, Citadel)
         self.assertEqual(ari.banner, "raised")
 
-    def test_atomic_rollback_keeps_earlier_committed_tags(self) -> None:
+    def test_a_refused_tag_keeps_an_already_active_base(self) -> None:
         ari = Agent()
 
         Territory(ari)
@@ -1358,6 +1359,145 @@ class PreconditionTests(unittest.TestCase):
         self.assertIn(ari, Territory)
         self.assertNotIn(ari, Citadel)
         self.assertEqual(ari.banner, "raised")
+
+    def test_each_tag_gates_before_its_own_tagging_begins(self) -> None:
+        events = []
+        observed = {}
+
+        class Foundation(Tag):
+            @Pre
+            def Foundation_Open(agent, code):
+                events.append(f"Foundation Gate:{code}")
+                return code == "007"
+
+            @Record
+            def foundation_record(agent):
+                events.append("Foundation Record")
+                return "built"
+
+            def Foundation_Action(agent):
+                return "ready"
+
+            @Imprint
+            def Foundation_Training(agent):
+                events.append("Foundation Imprint")
+
+        class Refused_Shape(Foundation):
+            @Pre
+            def Shape_Open(agent, code):
+                events.append(f"Shape Gate:{code}")
+                observed.update(
+                        foundation_membership=agent in Foundation,
+                        shape_membership=agent in Refused_Shape,
+                        foundation_record="foundation_record" @ agent,
+                        foundation_action="Foundation_Action" @ agent,
+                        shape_record="shape_record" @ agent,
+                        shape_action="Shape_Action" @ agent,
+                        )
+                return False
+
+            @Record
+            def shape_record(agent):
+                events.append("Shape Record")
+                return "not built"
+
+            def Shape_Action(agent):
+                return "not attached"
+
+            @Imprint
+            def Shape_Training(agent):
+                events.append("Shape Imprint")
+
+        ari = Agent()
+
+        with self.assertRaises(Precondition.Shape_Open):
+            Refused_Shape(ari, code="007")
+
+        self.assertEqual(
+                events,
+                [
+                    "Foundation Gate:007",
+                    "Foundation Record",
+                    "Foundation Imprint",
+                    "Shape Gate:007",
+                    ],
+                )
+        self.assertEqual(
+                observed,
+                {
+                    "foundation_membership": True,
+                    "shape_membership": False,
+                    "foundation_record": True,
+                    "foundation_action": True,
+                    "shape_record": False,
+                    "shape_action": False,
+                    },
+                )
+        self.assertIn(ari, Foundation)
+        self.assertNotIn(ari, Refused_Shape)
+        self.assertEqual(ari.foundation_record, "built")
+        self.assertEqual(ari.Foundation_Action(), "ready")
+
+    def test_a_shape_gate_does_not_replace_its_base_gate(self) -> None:
+        events = []
+
+        class Base(Tag):
+            @Pre
+            def Ready(agent):
+                events.append("Base")
+                return agent.ready
+
+        class Shape(Base):
+            @Pre
+            def Ready(agent):
+                events.append("Shape")
+                return True
+
+        ari = Agent()
+        ari.ready = False
+
+        with self.assertRaises(Precondition.Ready):
+            Shape(ari)
+
+        self.assertEqual(events, ["Base"])
+        self.assertNotIn(ari, Base)
+        self.assertNotIn(ari, Shape)
+
+        ari.ready = True
+        Shape(ari)
+
+        self.assertEqual(events, ["Base", "Base", "Shape"])
+        self.assertIn(ari, Base)
+        self.assertIn(ari, Shape)
+
+    def test_a_later_condition_collision_keeps_the_completed_base(self) -> None:
+        events = []
+
+        class Foundation(Tag):
+            @Record
+            def foundation_record(agent):
+                return "built"
+
+            @Imprint
+            def Foundation_Training(agent) -> None:
+                events.append("Foundation")
+
+        class Colliding_Shape(Foundation):
+            @Post
+            def Taken(agent) -> bool:
+                return True
+
+        ari = Agent()
+        ari.Taken = "host value"
+
+        with self.assertRaises(TagCompositionError):
+            Colliding_Shape(ari)
+
+        self.assertEqual(events, ["Foundation"])
+        self.assertIn(ari, Foundation)
+        self.assertNotIn(ari, Colliding_Shape)
+        self.assertEqual(ari.foundation_record, "built")
+        self.assertEqual(ari.Taken, "host value")
 
     def test_assert_style_precondition_fails_by_raising(self) -> None:
         ari = Agent()
@@ -1382,6 +1522,9 @@ class PreconditionTests(unittest.TestCase):
 
         with self.assertRaises(TagPreconditionError):
             Apprentice(ari)
+
+        self.assertIn(ari, Scholar)
+        self.assertNotIn(ari, Apprentice)
 
         ari.mentor = "Elminster"
         Apprentice(ari)
@@ -1548,7 +1691,7 @@ class DefectiveTaggingTests(unittest.TestCase):
         self.assertIn(bea, Advanced)
         self.assertIn(bea, ~Advanced)
 
-    def test_imprint_failure_keeps_the_tag_and_its_raw_effects(self) -> None:
+    def test_imprint_failure_keeps_raw_effects_without_admitting_the_tag(self) -> None:
         ari = Agent()
 
         Ordered_Imprints(ari)
@@ -1557,7 +1700,9 @@ class DefectiveTaggingTests(unittest.TestCase):
         with self.assertRaises(TagImprintError):
             Broken_Imprint(ari)
 
-        self.assertIn(ari, Broken_Imprint)
+        self.assertNotIn(ari, Broken_Imprint)
+        self.assertNotIn(ari, Broken_Imprint[:])
+        self.assertFalse(isinstance(ari, Broken_Imprint))
         self.assertEqual(ari.events, ["First", "Second", "before failure"])
 
     def test_bool_agent_runs_postconditions(self) -> None:
@@ -2122,8 +2267,10 @@ class PinTests(unittest.TestCase):
         del Patch[Wizard]
         self.assertEqual(Wizard.Greet("x"), "WIZARD:X")               # sticky, like a Rogue Agent
 
-    def test_a_failed_patch_rolls_the_declaration_back(self) -> None:
+    def test_a_failed_patch_keeps_acquired_gain_without_pin_membership(self) -> None:
         Wizard = self.Wizard
+        existing = Agent()
+        Wizard(existing)
 
         @Pin
         class Broken(Tag):
@@ -2138,8 +2285,16 @@ class PinTests(unittest.TestCase):
         with self.assertRaises(TagCompositionError):
             Broken(Wizard)
 
-        self.assertEqual(Wizard.Greet("x"), "Wizard:x")
-        self.assertIsInstance(vars(Wizard)["Greet"], classmethod)
+        self.assertEqual(Wizard.Greet("x"), "patched")
+        self.assertTrue("Greet" @ Wizard)
+        self.assertFalse("boom" @ Wizard)
+        self.assertNotIn(Wizard, Broken[:])
+        self.assertFalse(isinstance(Wizard, Broken))
+        self.assertFalse("Greet" @ existing)
+        future = Agent()
+        Wizard(future)
+        self.assertFalse("Greet" @ future)
+        self.assertFalse("boom" @ future)
 
     def test_a_flag_pin_is_a_keyword_on_the_tag(self) -> None:
         Wizard, Rare = self.Wizard, self.Rare
@@ -2235,6 +2390,8 @@ class PinTests(unittest.TestCase):
 
     def test_a_public_pin_member_that_cannot_reach_every_agent_reaches_none(self) -> None:
         Wizard = self.Wizard
+        unaffected = Agent()
+        Wizard(unaffected)
         ari = Agent()
         Wizard(ari)
 
@@ -2249,6 +2406,11 @@ class PinTests(unittest.TestCase):
         class Engine(Tag):
             @Public
             @Action
+            def Greet(tag, agent):
+                return "patched"
+
+            @Public
+            @Action
             def firmware(tag, agent):
                 return 1
 
@@ -2256,8 +2418,19 @@ class PinTests(unittest.TestCase):
             Engine(Wizard)
 
         self.assertNotIn(Wizard, Engine)
+        self.assertNotIn(Wizard, Engine[:])
+        self.assertFalse(isinstance(Wizard, Engine))
         self.assertEqual(ari.firmware, "own")
-        self.assertFalse(hasattr(Wizard, "firmware"))
+        self.assertTrue("firmware" @ Wizard)
+        self.assertEqual(Wizard.firmware(ari), 1)
+        self.assertEqual(Wizard.Greet("x"), "patched")
+        self.assertFalse("firmware" @ unaffected)
+        self.assertFalse("Greet" @ unaffected)
+        self.assertFalse("Greet" @ ari)
+        future = Agent()
+        Wizard(future)
+        self.assertFalse("firmware" @ future)
+        self.assertFalse("Greet" @ future)
 
     def test_a_pins_teardown_receives_the_originals_for_unpatching(self) -> None:
         Wizard = self.Wizard
@@ -3757,7 +3930,7 @@ class InSeatTests(unittest.TestCase):
             self.assertIn("Wolf", ari)                    # the words keep the seat
             self.assertNotIn(ari, answering)
 
-    def test_a_shape_that_answers_in_over_a_flag_base_rolls_back(self) -> None:
+    def test_a_shape_collision_keeps_its_completed_flag_base(self) -> None:
         Werewolf = self.Werewolf
 
         class Pack_Leader(Werewolf):
@@ -3768,8 +3941,9 @@ class InSeatTests(unittest.TestCase):
 
         self.refused(lambda: Pack_Leader(ari), "Pack_Leader.__iter__", "Flag Werewolf")
 
-        self.assertNotIn(ari, Werewolf)                   # the whole Form rolled back
+        self.assertIn(ari, Werewolf)
         self.assertNotIn(ari, Pack_Leader)
+        self.assertIn("Wolf", ari)
 
     def test_a_flag_cannot_answer_in_itself(self) -> None:
         class Pack(Tag):
@@ -3879,10 +4053,11 @@ class InSeatTests(unittest.TestCase):
             self.refused(lambda: Alpha(fresh), "Alpha", method)
 
             self.assertIn(carrying, answering)            # it keeps what it had
-            self.assertNotIn(fresh, answering)            # the whole Form rolled back
+            self.assertIn(fresh, answering)               # its Base turn completed
             self.assertIn("alice", carrying)
+            self.assertIn("alice", fresh)
 
-    def test_a_form_collides_before_anything_runs(self) -> None:
+    def test_a_later_collision_keeps_the_completed_base(self) -> None:
         log: list[str] = []
 
         @Flag
@@ -3899,8 +4074,10 @@ class InSeatTests(unittest.TestCase):
 
         self.refused(lambda: Alpha(ari), "Alpha.__iter__", "Flag Wolfkin")
 
-        self.assertEqual(log, [])                         # the Base's Imprint never ran
-        self.assertNotIn(ari, Wolfkin)
+        self.assertEqual(log, ["Wolfkin"])
+        self.assertIn(ari, Wolfkin)
+        self.assertNotIn(ari, Alpha)
+        self.assertIn("Wolfkin", ari)
 
     def test_a_form_may_free_the_seat_before_its_flag(self) -> None:
         class Ungate(self.Gate):
