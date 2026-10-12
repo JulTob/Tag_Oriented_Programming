@@ -51,11 +51,16 @@ Actions; Agents are built once and play for a long time. So:
   type-level facts match, whatever Tags they carry. Ten thousand Agents of
   one host normally share one type.
 - **The composition door** uses a counter on the Agent's state for
-  synchronous protocols. An Agent-authored async context hook adds a
+  synchronous protocols. Agent-authored context Actions use that door;
+  host-authored context hooks keep ordinary host behavior. Entry closes
+  its door before the user's `with` block begins. An async context hook adds a
   context-local door while its wrapper awaits. A deliberately derived
   execution context shares the capability while the hook is active; a
   pre-existing sibling does not, and closing clears the state reference so
   a captured context can neither reuse the door nor retain the Agent state.
+  Return, errors and cancellation all close the hook's door. These are
+  TopKit's context-hook implementation mechanics; they assign no automatic
+  Tagging or Rip meaning to `with` and add no rule to STEP-SPEC-31.
   Closing removes inactive doors from the current context instead of
   resetting a token: Python may close a suspended coroutine in another
   context or close interleaved hooks out of order. Other active doors stay
