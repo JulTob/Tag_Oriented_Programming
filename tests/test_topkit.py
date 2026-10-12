@@ -687,6 +687,33 @@ class OverlayTests(unittest.TestCase):
         self.assertEqual(caught.filename, __file__)
         self.assertEqual(caught.lineno, expected_line)
 
+    def test_the_overwrite_warning_keeps_a_sibling_directory_frame(self) -> None:
+        from pathlib import Path
+        import TopKit
+
+        caller_file = Path(TopKit.__file__).parent.with_name("TopKitApp") / "application.py"
+
+        for call in ("tag(agent)", "Apply(agent, tag)"):
+            with self.subTest(call=call):
+                namespace = {"__name__": "topkit_warning_caller", "Apply": Apply}
+                exec(
+                        compile(
+                                "def Tag_Here(agent, tag):\n    " + call + "\n",
+                                str(caller_file),
+                                "exec",
+                                ),
+                        namespace,
+                        )
+                ari = Agent()
+                Elf(ari)
+
+                with self.assertWarns(TagOverwriteWarning) as caught:
+                    namespace["Tag_Here"](ari, Berserker)
+
+                self.assertEqual(caught.filename, str(caller_file))
+                self.assertEqual(caught.lineno, 2)
+                self.assertEqual(ari.Attack(), "Reckless attack!")
+
     def test_underlay_captures_the_visible_overlay_at_tagging_time(self) -> None:
         ari = Agent()
 
