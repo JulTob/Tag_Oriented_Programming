@@ -687,6 +687,33 @@ class OverlayTests(unittest.TestCase):
         self.assertEqual(caught.filename, __file__)
         self.assertEqual(caught.lineno, expected_line)
 
+    def test_the_overwrite_warning_keeps_a_sibling_directory_frame(self) -> None:
+        from pathlib import Path
+        import TopKit
+
+        caller_file = Path(TopKit.__file__).parent.with_name("TopKitApp") / "application.py"
+
+        for call in ("tag(agent)", "Apply(agent, tag)"):
+            with self.subTest(call=call):
+                namespace = {"__name__": "topkit_warning_caller", "Apply": Apply}
+                exec(
+                        compile(
+                                "def Tag_Here(agent, tag):\n    " + call + "\n",
+                                str(caller_file),
+                                "exec",
+                                ),
+                        namespace,
+                        )
+                ari = Agent()
+                Elf(ari)
+
+                with self.assertWarns(TagOverwriteWarning) as caught:
+                    namespace["Tag_Here"](ari, Berserker)
+
+                self.assertEqual(caught.filename, str(caller_file))
+                self.assertEqual(caught.lineno, 2)
+                self.assertEqual(ari.Attack(), "Reckless attack!")
+
     def test_underlay_captures_the_visible_overlay_at_tagging_time(self) -> None:
         ari = Agent()
 
@@ -3112,6 +3139,61 @@ class FieldAlgebraTests(unittest.TestCase):
 
         with self.assertRaises(TypeError):
             self.Wizard & 3
+
+    def test_a_plain_class_with_a_sound_name_stays_a_type_union(self) -> None:
+        class Ordinary:
+            @staticmethod
+            def _sound() -> None:
+                raise AssertionError("a plain class is not a TOP population")
+
+        union = self.Wizard | Ordinary
+        reverse = Ordinary | self.Wizard
+
+        self.assertIsInstance(self.ari, union)
+        self.assertIsInstance(Ordinary(), union)
+        self.assertIsInstance(self.ari, reverse)
+        self.assertIsInstance(Ordinary(), reverse)
+
+    def test_a_tag_may_use_sound_as_its_own_name(self) -> None:
+        class Choir(Tag):
+            @staticmethod
+            def _sound() -> str:
+                return "the program's value"
+
+        solo = Agent()
+        Choir(solo)
+
+        self.assertEqual(Choir._sound(), "the program's value")
+        self.assertEqual(list(Choir), [solo])
+        self.assertEqual(len(Choir), 1)
+        self.assertTrue(Choir)
+        self.assertEqual(
+                list(Choir | self.Wizard),
+                [solo, self.ari, self.bo],
+                )
+
+    def test_a_report_or_operation_named_sound_does_not_replace_the_field(self) -> None:
+        class Reported(Tag):
+            @Report
+            def _sound(tag) -> str:
+                return "the report"
+
+        class Operated(Tag):
+            @Operation
+            def _sound(tag, agent) -> object:
+                return agent
+
+        report_agent = Agent()
+        operation_agent = Agent()
+        Reported(report_agent)
+        Operated(operation_agent)
+
+        self.assertEqual(Reported._sound, "the report")
+        self.assertIs(Operated._sound(operation_agent), operation_agent)
+        self.assertEqual(list(Reported), [report_agent])
+        self.assertEqual(list(Operated), [operation_agent])
+        self.assertEqual(list(~Reported), [])
+        self.assertEqual(list(Operated[:]), [operation_agent])
 
 
 class ConditionMemberTests(unittest.TestCase):

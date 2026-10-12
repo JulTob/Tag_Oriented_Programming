@@ -235,17 +235,6 @@ Agent whose promises hold is sound. A Rogue may also satisfy its visible
 Posts; soundness does not establish membership or complete unfinished
 training.
 
-Preconditions, Imprints, Postconditions and Rip teardowns are synchronous
-protocols. Returning a coroutine, generator or async generator is an explicit
-failure of that protocol: TOP never awaits or iterates the result, and closes
-it synchronously where Python permits that without starting its body. The
-normal phase boundary still applies: a refused Tag does not begin; a failed
-Imprint leaves acquired Gains without admission; a failed Post leaves its
-Tag applied; and a failed Rip is reported after membership has ended. A Record
-builder is different: its return is the Record value, not a discarded protocol
-result. A coroutine or generator returned as a Record value is not rejected
-by this protocol rule.
-
 ```text
 Citadel(ari)                      Form: Territory, Citadel
     Territory  Gate, Gainings, Imprints, FieldAdding
@@ -1398,8 +1387,6 @@ bond.status          # "Former MI6 Agent"
 Teardowns run **after** membership has ended, in declaration order, every
 one of them; failures are collected and reported once as a Composition
 Failure. A `@Rip` Action with an `@Underlay` runs composed, like any Action.
-Like the tagging protocols (§0.6), a teardown must finish synchronously; a
-lazy return is rejected without awaiting or iterating it.
 
 Ripping a Tag may apply another Tag, even itself. That is outside good TOP
 use: it could keep an Agent from ever leaving a Field.

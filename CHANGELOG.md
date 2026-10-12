@@ -100,8 +100,16 @@
   A Post can require the named Contribution; nonstring operands retain
   ordinary `@` behaviour. Pinned Tags support it as Agents.
 
+- **Fixed Field-algebra Tag recognition:** operator seats now recognize a
+  Tag by `MetaTag`, not by a callable named `_sound`. An ordinary Python
+  class with that name keeps normal class-union behaviour, and a Tag may
+  use `_sound` in its own namespace without changing its Field.
+
 ### Project
 
+- **Fixed:** resolving a Form deeper than Python's recursion limit raised
+  `RecursionError`. Geometry now walks Bases iteratively, preserving the
+  same Base-first, declaration-order, duplicate-free result.
 - **Releases go out through Trusted Publishing.** A GitHub Release runs
   `.github/workflows/release.yml`: the suite on Python 3.12, 3.13 and
   3.14, the oracle at its audited size, a check that the tag names
