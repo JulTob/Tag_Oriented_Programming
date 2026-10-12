@@ -38,6 +38,14 @@
   missing Rip Underlay labels cannot turn accepted work into a failure or
   conceal a lazy teardown. Record values are unchanged.
 
+- **Host actualization is atomic:** a Target that refuses, ignores or
+  substitutes TopKit's runtime type now raises a Composition Failure.
+  Runtime-subclass hooks and disposable `__dict__` views are normalized
+  too; the original host type, namespace, Tags and Fields remain unchanged.
+  Frozen dataclasses remain taggable without unlocking their host fields
+  or bypassing custom host refusals. The proposed representation law is
+  recorded separately in STEP-SPEC-37 for the Director's review.
+
 - **Scope retired:** `TopKit.Scope` is removed. A temporary Tagging is written explicitly: tag before `try`, then Rip in `finally`. Rip failures surface normally. TOP assigns `with` no automatic membership or Rip meaning; ordinary Python context protocols remain available to hosts and Agent Actions.
   STEP-SPEC-15 remains a Brief about recoverable phases, but its
   `with Try(...)` spelling is now recorded only as a historical candidate;
