@@ -170,4 +170,9 @@ def _binding_write_hooks(namespace, host_type):
                     break
         if isinstance(fallback, _Binding_Write):
             fallback = fallback.fallback
+        # Native object writes already honor the protected names' data
+        # descriptors. Only custom writers need a preflight before they run.
+        if fallback is object.__dict__[name]:
+            namespace[name] = fallback
+            continue
         namespace[name] = _Binding_Write(fallback)
