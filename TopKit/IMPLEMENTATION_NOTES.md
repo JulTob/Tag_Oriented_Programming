@@ -23,7 +23,7 @@ tracks splitting them by idea without changing semantics.
 | `constants.py` | protecting Constant bindings without freezing their values |
 | `presence.py` | Contribution presence without evaluating values or conditions |
 | `transactions.py` | the tagging sequence and the call boundary |
-| `lifecycle.py` | Rip, teardown, `Scope`, `At_Exit` |
+| `lifecycle.py` | Rip, teardown, `At_Exit` |
 | `access.py` | the hooks on the runtime type, Agent-bound views |
 | `tags.py` | `Tag` and its metaclass |
 | `queries.py` | `Apply`, `Form`, `Keyword`, `Tags`, `Outline` |
@@ -265,19 +265,24 @@ rollback target.
   over a condition's name, and
   `_refuse_conditions_shadowed_by_the_agent` in `_apply_one` for a value
   the Agent's own namespace already holds.
-- **Scope** (§0.7) skips a Tag the Agent already carries and records a
-  Tag whose tagging raised a Postcondition failure as applied, so the
-  teardown Rips exactly what the Scope applied.
+- **The guaranteed tier** (§3.2) is the program's own: it tags before
+  `try` and Rips in `finally`. The kit has no built-in membership context
+  manager and adds
+  nothing to the `finally`: a Rip there that fails raises as any Rip
+  does, with the block's error, if any, as its context. `Scope` made the
+  block's choices out of sight (a Tag already carried, a door failure, a
+  Rip that failed) and was removed (STEP-SPEC-31). `TryFinallyTests`,
+  the oracle's `Exercise_Block` and the fuzz's `Holding` write the
+  pattern.
 - **The oracle** (`tests/oracle_topkit.py`): an independent model of
   the laws driven by a random walk; `tests/test_oracle.py` runs a short
   walk under the suite. Run it at size with `--seeds 50 --steps 1200
   --population 18` (about 60,000 transitions, under twenty seconds).
-- **Stacked `@Pre @Post`** marks the function's kind `"condition"`;
-  the scan appends it to both lists and `_name_checks` registers both
-  named failures. `@Requirement` is the same mark written once: it sets
-  the kind `"condition"` directly, so the two spellings meet in the scan
-  and nowhere else. It carries no failure class of its own, and reading
-  `Requirement.Something` says which of the two names to catch.
+- **Stacked `@Pre @Post`** marks the function's kind `"condition"`, in
+  either order; the scan appends it to both lists and `_name_checks`
+  registers both named failures. It is the only spelling: `@Requirement`,
+  which set the same kind in one word, was removed (STEP-SPEC-30), so
+  `_Check_Mark` is back to one failure class per mark.
 - **Assigning a Tag's name on an Agent** (`ari.Elf = 1`) shadows the view by
   name; plain Python, not intercepted. `Elf[ari]` is unaffected.
 - **Inputs and defaults.** A protocol parameter the caller omitted keeps
