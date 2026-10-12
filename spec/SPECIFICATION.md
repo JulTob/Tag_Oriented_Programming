@@ -431,6 +431,7 @@ another meaning still relies on.
 
 The same rules bind special methods: a Tag may contribute `__add__`,
 `__eq__` and the like, and they actualize the Agent.
+The Agent truth protocol `__bool__` is reserved for Posts (§2.5).
 
 ## 1.3 Records
 

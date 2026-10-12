@@ -54,6 +54,12 @@ at its own time.
 The first two are conditions the Tag declares. The third is not declared
 at all: it is what publication *means*.
 
+A condition uses an ordinary name such as `Commissioned` or `Safe`.
+Preconditions and Postconditions cannot use Python dunder names such as
+`__bool__` or `__enter__`: those names are protocol seats, while a condition
+is read as a computed boolean. TopKit refuses the declaration before any
+Tagging, including either order of stacked `@Pre` and `@Post`.
+
 ---
 
 ## 2. The gate: nothing changes

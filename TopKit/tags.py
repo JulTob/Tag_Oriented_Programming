@@ -37,8 +37,11 @@ from .declarations import _check_constant_declarations
 from .declarations import _check_constant_shapes
 from .declarations import _check_pin_bases
 from .declarations import _constant_owner
+from .declarations import _is_dunder
 from .declarations import _is_pin
+from .declarations import _kind_of
 from .declarations import _name_checks
+from .declarations import _refuse_condition_dunder
 from .declarations import _refuse_truth_gain
 from .errors import TagCompositionError
 from .fields import _Field
@@ -99,6 +102,8 @@ class MetaTag(type):
             value: Any,
             ) -> None:
         _refuse_truth_gain(tag.__name__, name, value)
+        if _is_dunder(name):
+            _refuse_condition_dunder(tag.__name__, name, _kind_of(value))
         owner = _constant_owner(tag, name)
 
         if owner is not None:
