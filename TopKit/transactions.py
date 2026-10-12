@@ -26,9 +26,12 @@ from typing import Any
 
 from .contracts import _evaluate
 from .declarations import _Declarations
+from .declarations import _discard_lazy_result
 from .declarations import _declarations_of
 from .declarations import _is_flag
 from .declarations import _protocol_inputs
+from .errors import _exception_text
+from .errors import _type_name
 from .errors import TagCompositionError
 from .errors import TagImprintError
 from .errors import TagPostconditionError
@@ -41,6 +44,7 @@ from .state import STATE
 from .state import _Published
 from .state import _Snapshot
 from .state import _State
+from .state import _actualize_runtime_type
 from .state import _bind_to
 from .state import _name_of
 from .state import _namespace_of
@@ -183,8 +187,11 @@ def _apply_one(
                 _restore_namespace(agent, entry_namespace)
             raise
 
-        def prepare(gaining: _Declarations) -> None:
-            _prepare_gains(agent, state, deleted_before, tag, gaining)
+        def prepare(gaining: _Declarations, needs_runtime: bool) -> None:
+            _prepare_gains(
+                    agent, state, deleted_before, tag, gaining,
+                    refresh=needs_runtime,
+                    )
 
         _gainings(
                 agent,
@@ -198,14 +205,34 @@ def _apply_one(
 
         _imprint(agent, declarations, inputs)
 
-        # Tag-scope services arrive only after successful training.
-        _install(state, tag, declarations.header)
-        _prepare_gains(agent, state, deleted_before, tag, declarations.header)
+        # Tag-scope services arrive with admission. A failed representation
+        # must not replace the services of an already active Agency.
+        header = declarations.header
+        has_header = bool(header.runtime or header.reports or header.operations)
+        previous = state.Copy() if has_header else None
+        if previous is not None:
+            previous_type = type(agent)
+            previous_namespace = dict(_namespace_of(agent))
 
-        if declarations.rips:
-            state.rips[tag] = tuple(state.actions[name] for name in declarations.rips)
+        try:
+            if has_header:
+                _install(state, tag, header)
+                _prepare_gains(agent, state, deleted_before, tag, header)
 
-        _enter_field(agent, state, tag, declarations)
+            if declarations.rips:
+                state.rips[tag] = tuple((name, state.actions[name]) for name in declarations.rips)
+
+            _enter_field(agent, state, tag, declarations)
+        except BaseException:
+            if tag not in state.active:
+                if previous is not None:
+                    if type(agent) is not previous_type:
+                        _set_runtime_type(agent, previous_type)
+                    _restore_namespace(agent, previous_namespace)
+                    state.Restore(previous)
+                else:
+                    state.rips.pop(tag, None)
+            raise
     except BaseException as error:
         primary_failure = error
         raise
@@ -294,6 +321,8 @@ def _prepare_gains(
         deleted_before: set[str],
         tag: type,
         declarations: _Declarations,
+        *,
+        refresh: bool = True,
         ) -> None:
     """Expose each acquired declaration before the next builder runs."""
 
@@ -325,12 +354,8 @@ def _prepare_gains(
                         name,
                         )
 
-    _actualize(
-            agent,
-            state,
-            tag,
-            declarations,
-            )
+    if refresh:
+        _actualize(agent, state, tag, declarations)
 
 
 def _actualize(
@@ -359,12 +384,10 @@ def _actualize(
     next_type = _runtime_type_for(state)
 
     if type(agent) is not next_type:
-        try:
+        if type(agent) is state.host_type:
+            _actualize_runtime_type(agent, next_type, state)
+        else:
             _set_runtime_type(agent, next_type)
-        except TypeError as error:
-            raise TagCompositionError(
-                    f"{type(agent).__name__} cannot be actualized in place"
-                    ) from error
 
 
 def _enter_field(
@@ -510,15 +533,25 @@ def _imprint(
         ) -> None:
     for name, imprint in declarations.imprints:
         try:
-            imprint(
+            result = imprint(
                     agent,
                     **_protocol_inputs(imprint, inputs, 1),
                     )
+            lazy = _discard_lazy_result(result)
         except Exception as error:
             raise TagImprintError.Named(name)(
-                    f"Imprint {imprint.__qualname__} failed:"
-                    f" {type(error).__name__}: {error}"
+                    f"Imprint {str.__str__(name)!r} failed:"
+                    f" {_type_name(error)}: {_exception_text(error)}"
                     ) from error
+
+        if lazy is not None:
+            article = "an" if lazy == "async generator" else "a"
+
+            raise TagImprintError.Named(name)(
+                    f"Imprint {str.__str__(name)!r} returned {article}"
+                    f" {lazy}; an Imprint must complete synchronously."
+                    " TOP does not await or iterate application protocols."
+                    )
 
 
 _NONE: frozenset[str] = frozenset()   # one empty set for every snapshot that needs none

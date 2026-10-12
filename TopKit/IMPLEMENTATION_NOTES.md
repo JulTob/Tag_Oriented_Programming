@@ -50,6 +50,11 @@ Actions; Agents are built once and play for a long time. So:
 - **Runtime types are shared** across every Agent whose host and
   type-level facts match, whatever Tags they carry. Ten thousand Agents of
   one host normally share one type.
+- **Actualization is verified before Field entry.** The Target must retain
+  its state and accept the exact runtime type the kit requested. Host
+  `__setattr__` and `__init_subclass__` refusals, and metaclasses that
+  substitute another type, become Composition Failures. Rollback restores
+  the host type through the kernel path, not through the refusing hook.
 - **The composition door is a counter** on the Agent's state. Bound
   protocols raise it while they run; the secret-gate descriptor checks it.
   Agents without secrets use a plain bound callable and pay nothing.
@@ -104,6 +109,15 @@ Constant lock; a failed builder leaves the previous binding available.
 `transactions._actualize` prepares the acquired runtime behaviour independently
 of membership. Tag-scope published services are prepared after Imprints.
 
+A Gain needing runtime protection is acquired only when its representation
+can be installed. If a Secret or Constant guard cannot be prepared, that
+candidate Gain does not stick; the previous binding and earlier acquired
+Gains remain. Admission-time shared services are also prepared separately:
+if their representation fails before entry, they do not replace services of
+an already active Agency. Acquired Gains and completed Imprint effects remain.
+These are TopKit's current representation boundaries; the wider host policy
+is still a Brief in [STEP-SPEC-37](../steps/spec/STEP-SPEC-37-host-actualization.md).
+
 FieldAdding establishes active membership, history and the Field together,
 then captures the admitted Tag's view. `_inspect` runs visible Posts once
 after the completed Form. A Gainings or Imprint failure leaves actually
@@ -125,6 +139,36 @@ same Tag to the same Agent during its Imprint is a no-op. There is no automatic
 Rip for an unfinished never-member and no automatic rollback of training
 effects. Preconditions and Record builders are observational authoring
 contracts, not sandboxes for arbitrary Python effects.
+
+`declarations._discard_lazy_result` recognizes coroutines, generators and
+async generators returned from synchronous protocols by their actual native
+type, without consulting a return object's `__class__` hook. It closes only
+through a synchronous disposal operation and does not start an unentered body.
+Closing an already-started generator or coroutine may run its pending `finally`
+code. Async generators are not driven or synchronously closed.
+Conditions turn the result into a Contract Failure, Imprints into their named
+Imprint Failure, and lifecycle teardown into the collected Composition
+Failure. Best-effort deletion uses the same path, so discarded coroutines do
+not escape as unawaited-coroutine warnings. Composed Actions carry a private
+chain identity, whose optional lookup cannot invalidate an accepted callable:
+a flow-local Rip guard checks every Underlay in the selected
+teardown chain, remembers a violation even when user code catches it, and does
+not reinterpret an independent `@Rip` Action called normally as a teardown.
+Missing callable labels or broken exception formatting cannot erase a recorded
+lazy Underlay failure; available diagnostic detail and original causes remain.
+Scheduled teardowns retain the declared Contribution name alongside the
+selected composed Action. The same name labels direct and Underlay failures;
+diagnostics never require callable `__name__` or `__qualname__` metadata.
+Lazy-disposal diagnostics use the private safe type-name and exception-text
+helpers; the exact original error remains the cause even if its text fails.
+
+Record builder failures identify the declaration name, not the callable's
+Python function metadata. Existing TOP failures and Python interruptions keep
+their original exception; other builder errors remain Composition Failures
+with the original cause. Shared private diagnostic helpers preserve normal
+exception text, falling back only when that text cannot be rendered. This
+does not change construction order, values (including `False` and `None`),
+or settle the Record continuation/failure-boundary design tracked in #30.
 
 ## Judgment calls
 
@@ -222,6 +266,15 @@ contracts, not sandboxes for arbitrary Python effects.
   objects: called, they mark; read, they forward to their failure class.
   Per kind, not per Tag, on purpose: the handler reads the program's own
   word, and the Tag is already in the message.
+- **Imprint diagnostics use the declaration name.** `_imprint` already
+  receives each Imprint's declared name, so a failure or rejected lazy
+  return uses that name rather than inspecting or renaming its callable.
+  The original cause is preserved. Later Imprints still do not run after
+  failure; the applied Tag and its captured view remain, and current Posts
+  alone determine soundness. Shared private helpers bypass exception-type
+  metadata and fall back when ordinary exception-text formatting fails.
+  Synchronous return values are not observed; Python interruptions retain
+  their own type, including interruptions during diagnostic text.
 - **Pins reuse the whole sequence.** A pinned Tag is an Agent whose
   namespace is its class dictionary. `_namespace_of` hands the kernel a
   `_Class_Namespace` adapter (get, set, pop, keys) over the proxy, so
