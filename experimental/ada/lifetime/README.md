@@ -17,11 +17,22 @@ companion end, and legal explicit deallocation of a heap Target while its
 companion survives. The last case uses external counters only: it never reads
 the freed Target. These are lifetime observations, not membership cleanup.
 
-`escape_static` must fail compilation with GNAT's checked-accessibility
-diagnostic. `escape_dynamic` must raise the corresponding accessibility
-`Program_Error` through an access parameter. `limited_copy` must fail with
-GNAT's limited-assignment diagnostic. The runner checks those specific source
-diagnostics, not just any compiler failure; unrelated failures fail the run.
+`escape_static` and `limited_copy` each have legal and forbidden variants of
+the same source, selected by GNAT's native `-gnateDIllegal=False/True`
+preprocessing. The static pair changes only the Target's declaration scope;
+the copying pair changes only `Controlled` versus `Limited_Controlled`. Their
+allocator and assignment statements are identical in both variants. The runner
+first requires the legal variant to compile, then requires refusal of the
+forbidden variant, using separate fresh object directories and strict flags.
+Compiler diagnostic wording is not a verdict: logs explain unexpected outcomes
+for humans. A shared source/toolchain error fails the legal control rather than
+counting as evidence of the intended refusal.
+
+`escape_dynamic` first attaches a same-scope Target successfully, then requires
+`Program_Error` around only the inner Target's `Attach` call. It does not inspect
+exception text. Allocations accepted by either path are disposed before their
+Targets end, without dereferencing a ceased Target. These probes still test
+Ada mechanics, not TOP membership or a selected carrier profile.
 
 With a GNAT toolchain on PATH, run from the repository root:
 

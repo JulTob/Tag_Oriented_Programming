@@ -1,8 +1,7 @@
 with Ada.Assertions;
-with Ada.Exceptions;
 with Ada.Finalization;
-with Ada.Strings.Fixed;
 with Ada.Text_IO;
+with Ada.Unchecked_Deallocation;
 
 procedure Escape_Dynamic is
    pragma Assertion_Policy (Check);
@@ -17,12 +16,14 @@ procedure Escape_Dynamic is
    type Companion (Target : not null access Host) is
      new Ada.Finalization.Limited_Controlled with null record;
    type Companion_Access is access Companion;
+   procedure Free is new Ada.Unchecked_Deallocation
+     (Companion, Companion_Access);
    function Attach (Target : not null access Host) return Companion_Access is
    begin
       return new Companion (Target);
    end Attach;
-   Escaped : Companion_Access;
-   pragma Unreferenced (Escaped);
+   Target : aliased Host;
+   Attached : Companion_Access;
 begin
    begin
       pragma Assert (Probe, "assertion-enabled sentinel");
@@ -33,21 +34,24 @@ begin
       raise Program_Error with "Accessibility probe requires enabled assertions";
    end if;
 
+   Attached := Attach (Target'Access);
+   pragma Assert (Attached /= null);
+   Free (Attached);
+   pragma Assert (Attached = null);
+   Ada.Text_IO.Put_Line ("shared scope: Attach accepted");
+
+   declare
+      Inner_Target : aliased Host;
    begin
-      declare
-         Target : aliased Host;
       begin
-         Escaped := Attach (Target'Access);
+         Attached := Attach (Inner_Target'Access);
+      exception
+         when Program_Error => Rejected := True;
       end;
-   exception
-      when Failure : Program_Error =>
-         if Ada.Strings.Fixed.Index
-           (Ada.Exceptions.Exception_Message (Failure),
-            "accessibility check failed") = 0
-         then
-            raise;
-         end if;
-         Rejected := True;
+      --  If a broken check accepts the call, dispose it before Target ends.
+      if not Rejected then
+         Free (Attached);
+      end if;
    end;
    pragma Assert (Rejected, "escaped local Target was accepted");
    Ada.Text_IO.Put_Line ("dynamic escape: Program_Error accessibility rejection");
