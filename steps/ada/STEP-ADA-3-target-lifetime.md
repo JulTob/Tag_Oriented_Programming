@@ -315,9 +315,9 @@ third automatic-lifetime guarantee.
 - The initial implementation is sequential. A later shared-task profile must
   coordinate Field access with Target destruction; synchronizing Registry
   storage alone is not a complete answer.
-- Does the initial runtime profile require controlled finalization? A pure
-  SPARK or `No_Finalization` arrangement needs different support or a stated
-  trusted boundary; none is selected by this Brief.
+- The selected controlled carrier requires finalization-capable Ada. A pure
+  SPARK or `No_Finalization` arrangement is deferred and would need different
+  support or a stated trusted boundary.
 - Is the private token self-referential, and how is its registration identity
   retained without host callbacks during eviction? Public host finalizers must
   not be mistaken for private cleanup entry points.
