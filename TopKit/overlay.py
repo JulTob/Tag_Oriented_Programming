@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from contextvars import ContextVar
 from functools import wraps
+from os import sep
 from os.path import dirname
 from typing import Any
 from typing import Callable
@@ -51,7 +52,7 @@ from .state import _state_of
 
 
 Function = Callable[..., Any]
-_WARNING_SKIP_PREFIXES = (dirname(__file__),)
+_WARNING_SKIP_PREFIXES = (dirname(__file__) + sep,)
 
 
 # ------------------------------------------------------------------
@@ -232,7 +233,10 @@ def _adapter(
 
     Published.__name__ = name
     Published.__qualname__ = f"{tag.__qualname__}.{name}"
-    Published.__doc__ = operation.__doc__
+    try:
+        Published.__doc__ = operation.__doc__
+    except Exception:
+        pass   # optional documentation must not prevent publication
 
     return Published
 
