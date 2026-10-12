@@ -5,7 +5,6 @@ with Ada.Text_IO;
 with Ada.Unchecked_Deallocation;
 
 procedure Carrier_Probes is
-   pragma Assertion_Policy (Check);
    Parent_Cleanups : Natural := 0;
    Parent_Host_Finalizations : Natural := 0;
    Plain_Component_Cleanups : Natural := 0;
