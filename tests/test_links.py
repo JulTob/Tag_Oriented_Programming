@@ -3016,6 +3016,28 @@ class New_Code_Review_Tests(unittest.TestCase):
         bob.Trusts(ruth)                                  # the declaring Tag is unharmed
         self.assertIn(ruth, bob.Knows)
 
+    def test_a_relation_whose_body_was_refused_can_be_declared_again(self):
+        class Elsewhere(Tag):
+            @Link
+            class Likes(Tag):
+                pass
+
+        @Link
+        class Knows(Tag):
+            pass
+
+        relation = Knows
+
+        with self.assertRaises(TagDeclarationError):
+            class Refused(Tag):
+                Knows = relation                          # checked first, then the body is refused
+                Likes = Elsewhere.Likes
+
+        class Circle(Tag):
+            Knows = relation                              # the refused body declared nothing
+
+        self.assertIs(Circle.Knows, relation)
+
     def test_secret_on_a_relations_static_method_is_refused(self):
         with self.assertRaises(TagDeclarationError):
             class Vault(Tag):

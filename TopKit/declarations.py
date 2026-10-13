@@ -1012,29 +1012,46 @@ def _refuse_an_alias(
         tag: type,
         name: str,
         relation: type,
+        seen: dict[type, str],
         ) -> None:
     """A Relation is declared once: in the Tag body that writes it, under
-    its own name. The first Tag body that binds it is that one, since the
-    class is made in it; binding it again, in another Tag or under another
-    name, would grant a second Link of the same template, or slip a Shape
-    Relation in as an extension."""
+    its own name. Binding it again, in another Tag or under another name,
+    would grant a second Link of the same template, or slip a Shape
+    Relation in as an extension. ``seen`` holds the Relations this body
+    bound so far; they are recorded only once the whole body passed."""
 
     home = _relation_homes.get(relation)
 
-    if home is None:
-        _relation_homes[relation] = (
-                ref(tag),
+    if home is not None:
+        owner_reference, declared_name = home
+        owner = owner_reference()
+        owner_name = owner.__name__ if owner is not None else "another Tag"
+        _raise_alias(
+                tag,
                 name,
+                owner_name,
+                declared_name,
                 )
-        return
 
-    owner_reference, declared_name = home
-    owner = owner_reference()
+    first_name = seen.get(relation)
 
-    if owner is tag and declared_name == name:
-        return
+    if first_name is not None:
+        _raise_alias(
+                tag,
+                name,
+                tag.__name__,
+                first_name,
+                )   # one body, two names
 
-    owner_name = owner.__name__ if owner is not None else "another Tag"
+    seen[relation] = name
+
+
+def _raise_alias(
+        tag: type,
+        name: str,
+        owner_name: str,
+        declared_name: str,
+        ) -> None:
     relation_name = f"{owner_name}.{declared_name}"
 
     raise TagDeclarationError(
@@ -1043,6 +1060,19 @@ def _refuse_an_alias(
             " under its own name; declare a new Relation here, or, in a Shape"
             f" of {owner_name}, extend it: @Link class {declared_name}({relation_name})"
             )
+
+
+def _record_homes(
+        tag: type,
+        seen: dict[type, str],
+        ) -> None:
+    """The body passed every check: its Relations are declared here."""
+
+    for relation, name in seen.items():
+        _relation_homes[relation] = (
+                ref(tag),
+                name,
+                )
 
 
 def _check_link_declarations(
@@ -1057,6 +1087,7 @@ def _check_link_declarations(
             for base in tag.__mro__[1:]
             if hasattr(base, "_topkit_field")
             ]
+    seen: dict[type, str] = {}   # the Relations this body binds, by their name here
 
     for name, member in namespace.items():
         if (
@@ -1079,6 +1110,7 @@ def _check_link_declarations(
                 tag,
                 name,
                 member,
+                seen,
                 )
 
         for base in member.__bases__:
@@ -1109,6 +1141,11 @@ def _check_link_declarations(
                 member,
                 forms,
                 )
+
+    _record_homes(
+            tag,
+            seen,
+            )
 
 
 def _check_extension(
