@@ -24,10 +24,12 @@ from .declarations import _MISSING
 from .declarations import _is_flag
 from .declarations import _words_of
 from .lifecycle import _teardown_all
-from .state import _Bound
+from .state import _Composing_Bound
 from .state import _Pinned_Operation
+from .state import _Secret_Bound
 from .state import _Snapshot
 from .state import _State
+from .state import _is_composing
 from .state import _name_of
 from .state import _state_of
 
@@ -178,7 +180,7 @@ def _secret_of_tag(
     """A Pin's @Secret member on a Tag: held in the state, resolved only
     while the Tag's own protocols or pinned Operations run."""
 
-    if state.composing == 0:
+    if not _is_composing(state):
         raise AttributeError(
                 f"{name!r} is a secret member of {tag.__name__}; it is"
                 " reachable only from its Pins' own Actions and protocols"
@@ -438,13 +440,20 @@ class _Tag_View:
                     f"{view._tag.__name__} deleted {name!r}"
                     )
 
-        if name in snapshot.secrets and _state_of(agent).composing == 0:
+        if name in snapshot.secrets and not _is_composing(_state_of(agent)):
             raise AttributeError(
                     f"{name!r} is a secret member of {view._tag.__name__}"
                     )
 
         if name in snapshot.actions:
-            return _Bound(
+            if name in snapshot.secrets:
+                return _Secret_Bound(
+                        snapshot.actions[name],
+                        agent,
+                        name,
+                        )
+
+            return _Composing_Bound(
                     snapshot.actions[name],
                     agent,
                     )
@@ -491,7 +500,7 @@ class _Tag_View:
         if name in snapshot.deleted:
             return False
 
-        if name in snapshot.secrets and _namespace(view._agent)[STATE].composing == 0:
+        if name in snapshot.secrets and not _is_composing(_namespace(view._agent)[STATE]):
             return False
 
         return (

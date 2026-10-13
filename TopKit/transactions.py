@@ -402,7 +402,7 @@ def _enter_field(
     if state.pinned is not None and declarations.published:
         plans = _publication_plans(state.pinned, declarations.published)
 
-    tag._topkit_field.Add(agent)
+    tag._topkit_field._Add(agent)
     state.active.append(tag)
     state.words = None
     state.ever.add(tag)
@@ -429,11 +429,11 @@ def _publication_plans(
         ) -> list[tuple[object, _State]]:
     """Check publication before admitting the Pin; no recipient is changed."""
 
-    from .declarations import _scan_cache
+    from .declarations import _invalidate_declarations
     from .overlay import _adapter
 
     state = _state_of(pinned)
-    _scan_cache.pop(pinned, None)   # the Tag's declarations grew
+    _invalidate_declarations(pinned)   # the Tag's declarations grew
     agents = list(pinned[:])
     plans: list[tuple[object, _State]] = []
 

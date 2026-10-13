@@ -281,3 +281,43 @@ def Run() -> None:
     class Deprecated(Tag): pass
     Deprecated(Wizard)
     assert "Deprecated" in Wizard and "Obsolete" in Wizard and Keyword(Wizard, "Obsolete")
+
+    # 1.3 Tools
+    class Sword:
+        def __init__(sword, name): sword.name = name
+    class Weapon(Tag): pass
+    class Fighter(Tag):
+        @Tool(Weapon)
+        def weapon(agent):
+            sword = Sword(f"{agent.name}'s sword")
+            Weapon(sword)
+            return sword
+    fay = Character("Fay"); Fighter(fay)
+    assert fay.weapon in Weapon[:] and fay not in Weapon[:]
+    held = fay.weapon
+    for misfit in (Sword("a stick"), None, fay):
+        try: fay.weapon = misfit; raise SystemExit("the slot admitted a misfit")
+        except TagCompositionError: pass
+    assert fay.weapon is held
+    del fay.weapon; assert not ("weapon" @ fay)
+    class Squire(Tag):
+        @Tool(Weapon | None)
+        def weapon(agent): return None
+    sam = Character("Sam"); Squire(sam); assert "weapon" @ sam and sam.weapon is None
+    try: Tool(Weapon | Fighter); raise SystemExit("a population is not a kind")
+    except TagDeclarationError: pass
+    class Templar(Tag):
+        @Tool(Sword, Weapon)
+        def weapon(agent, *, weapon): return weapon
+    tess = Character("Tess"); forged = Sword("Tess's sword"); Weapon(forged); Templar(tess, weapon=forged)
+    for misfit in (Sword("plain"), fay):                     # a Sword that is no Weapon; a Weapon that is no Sword
+        if misfit is fay: Weapon(fay)
+        try: tess.weapon = misfit; raise SystemExit("both kinds must hold")
+        except TagCompositionError: pass
+    class Collector(Tag):
+        @Tool(Sword)
+        def weapon(agent, *, weapon): return weapon
+    cole = Character("Cole"); Collector(cole, weapon=Sword("untagged")); assert cole.weapon not in Weapon[:]
+    for root in (Tag, object):
+        try: Tool(root); raise SystemExit("the roots name no kind")
+        except TagDeclarationError: pass

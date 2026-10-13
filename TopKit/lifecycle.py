@@ -58,7 +58,7 @@ def _rip(
     state.active.remove(tag)
     state.words = None
     state.snapshots.pop(tag, None)   # a view needs membership: never read again
-    tag._topkit_field.Remove(agent)
+    tag._topkit_field._Remove(agent)
 
     _teardown(
             agent,

@@ -7,6 +7,7 @@ scope a name is one slot: an Action or a Record, never both at once.
 from __future__ import annotations
 
 from contextvars import ContextVar
+from dataclasses import replace
 from functools import wraps
 from os import sep
 from os.path import dirname
@@ -32,6 +33,7 @@ from .declarations import _lazy_rip_guard
 from .declarations import _parameters_of
 from .declarations import _protocol_inputs
 from .declarations import _takes_stored
+from .declarations import _tool_kind_of
 from .declarations import _takes_underlay
 from .errors import _exception_text
 from .errors import _type_name
@@ -531,12 +533,20 @@ def _gainings(
             value = _record_value(
                     agent, tag, name, function, deleted_before, inputs,
                     )
+            tool_kind = _tool_kind_of(function)
+            if tool_kind is not None:
+                from .tools import _refuse_tool_value
+                _refuse_tool_value(tag, tool_kind, name, value, agent, built=True)
         elif kind == "condition" and not (one.preconditions or one.postconditions):
             continue
 
         # A Gain requiring runtime protection has not stuck until its
         # representation can be installed. Never leave an exposed Secret
         # or writable Constant when a host rejects that representation.
+        if name in state.tools and not one.runtime:
+            # Ordinary Overlay ends the previous Tool rule, including the
+            # descriptor that guarded object.__setattr__.
+            one = replace(one, runtime=True)
         needs_runtime = (
                 one.runtime
                 or (bool(state.published)
@@ -571,12 +581,8 @@ def _gainings(
             raise
 
         if state.pinned is not None:
-            from . import declarations as declaration_module
-            invalidate = getattr(declaration_module, "_invalidate_declarations", None)
-            if invalidate is None:
-                declaration_module._scan_cache.pop(state.pinned, None)
-            else:
-                invalidate(state.pinned)
+            from .declarations import _invalidate_declarations
+            _invalidate_declarations(state.pinned)
 
 
 def _refuse_stored_input_collision(
@@ -962,6 +968,7 @@ def _delete(
     state.operations.pop(name, None)
     state.published.discard(name)
     state.secrets.discard(name)
+    state.tools.pop(name, None)   # Delete frees the slot: the tool is dropped (§1.6)
     state.deleted.add(name)
 
 
@@ -1035,7 +1042,6 @@ def _install_action(
             name,
             "an Action",
             )
-
     if state.pinned is not None:
         _refuse_tag_member(
                 state,
@@ -1093,6 +1099,7 @@ def _install_action(
             name,
             )
     state.action_origins[name] = tag
+    state.tools.pop(name, None)   # an Action at the name ends a Tool slot's rule (ordinary Overlay)
     _restore(state, name)
     state.published.discard(name)
 
@@ -1139,6 +1146,7 @@ def _install_record(
         state.actions.pop(name)
         state.action_origins.pop(name)
 
+    kind = _tool_kind_of(builder)
     prior = state.records.get(name)
 
     if (
@@ -1153,6 +1161,11 @@ def _install_record(
                 TagOverwriteWarning,
                 skip_file_prefixes=_WARNING_SKIP_PREFIXES,
                 )
+
+    if kind is not None:
+        state.tools[name] = (tag, kind)   # the latest Tool declaration's kind is the slot's
+    else:
+        state.tools.pop(name, None)   # a plain Record at the name ends the rule (ordinary Overlay)
 
     state.records[name] = tag
     _restore(state, name)

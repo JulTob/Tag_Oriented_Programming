@@ -21,6 +21,7 @@ tracks splitting them by idea without changing semantics.
 | `overlay.py` | laying one Tag's declarations over a state; materializing Records |
 | `contracts.py` | strict verdicts, binding conditions, `Contract` |
 | `constants.py` | protecting Constant bindings without freezing their values |
+| `tools.py` | Tool slots: a Record's kind, a Tag or a class, admission at the gaining and at every write |
 | `presence.py` | Contribution presence without evaluating values or conditions |
 | `transactions.py` | the tagging sequence and the call boundary |
 | `lifecycle.py` | Rip, teardown, `At_Exit` |
@@ -55,9 +56,80 @@ Actions; Agents are built once and play for a long time. So:
   `__setattr__` and `__init_subclass__` refusals, and metaclasses that
   substitute another type, become Composition Failures. Rollback restores
   the host type through the kernel path, not through the refusing hook.
-- **The composition door is a counter** on the Agent's state. Bound
-  protocols raise it while they run; the secret-gate descriptor checks it.
-  Agents without secrets use a plain bound callable and pay nothing.
+- **The composition door** uses a counter on the Agent's state for
+  synchronous protocols. Agent-authored context Actions use that door;
+  host-authored context hooks keep ordinary host behavior. Entry closes
+  its door before the user's `with` block begins. An async context hook adds a
+  context-local door while its wrapper awaits. A deliberately derived
+  execution context shares the capability while the hook is active; a
+  pre-existing sibling does not, and closing clears the state reference so
+  a captured context can neither reuse the door nor retain the Agent state.
+  Return, errors and cancellation all close the hook's door. These are
+  TopKit's context-hook implementation mechanics; they assign no automatic
+  Tagging or Rip meaning to `with` and add no rule to STEP-SPEC-31.
+  Closing removes inactive doors from the current context instead of
+  resetting a token: Python may close a suspended coroutine in another
+  context or close interleaved hooks out of order. Other active doors stay
+  intact, and later hook entry prunes inert doors in captured contexts.
+  Secret gates accept either form. The type-cache key uses the selected raw
+  Actions and wrappers are allocated only on a cache miss, so equal
+  compositions still share one runtime type. Current synchronous TOP
+  Actions, including Pin Actions, open their composition door even before
+  any Secret exists: an Action may introduce the first Secret while it
+  runs. A public handle captured before that Tagging still composes when
+  called afterward. Ordinary host methods are not wrapped. This does not
+  change general special-method composition (#93), lazy execution (#94),
+  or inherited Pin receiver/authority choices (#98).
+  Public Pin handles use a TOP composing callable rather than Python's
+  `MethodType`. They preserve their receiving Tag as `__self__`, their
+  original callable as `__func__`, strong receiver ownership and available
+  `__name__` / `__doc__` metadata. Their bound Python signature is inspected
+  only when requested. Equality and hashing follow Python bound methods:
+  the callable supplies equality/hash and the receiver is identified by
+  identity. Repeated reads therefore work as dictionary keys and set
+  members, including alongside matching native methods; custom receiver
+  equality/hash hooks are not consulted. A handle's representation names
+  its captured Operation and receiving Tag. Callable-kind identity remains
+  a separate decision (#87).
+  Optional callable metadata does not gate Pin invocation: usable `__name__`
+  and `__doc__` are preserved; ordinary failures reading or assigning them
+  fall back to the declared name and `None`, respectively. Metadata interrupts
+  still propagate. Operation publication is a separate repair (#138).
+
+Synchronous Actions selected through an Agent-bound Tag view use the same
+composition door, even when that snapshot preceded the first Secret
+Contribution. The view still selects its captured Action; reads inside
+that Action resolve against the live Agent unless it explicitly uses a
+view. Bindings keep the Agent weakly. A Secret Action selected through a
+view requires that same Agent's door to be open before invocation, so a
+handle captured during composition cannot authorize itself afterward.
+The guard preserves the captured Secret boundary when a later Layer is
+public.
+
+Ordinary object Agents also bind their current Secret Actions with this
+invocation guard, including Constant Actions. A synchronous call requires
+that same Agent's active synchronous or execution-local async-context
+door; another Agent's composition grants no access. Capturing a handle,
+ending membership, deleting the current binding, or changing the current
+Contribution's kind does not turn its captured implementation public.
+Authorized calls inside composition remain possible, and captured handles
+still hold their Agent weakly. Lazy execution remains a separate concern
+(#94).
+
+Current Secret Actions landed by Pins use a Secret-specific Operation
+descriptor. Its captured callable checks the pinned Tag's existing
+composition before opening its own door; an unrelated pinned Tag's own
+door supplies no authority. Ordinary and Constant Secret Operations share
+this guard.
+Receiver binding and ownership are unchanged: a captured Pin Operation
+retains its pinned Tag as existing Operation handles do, while the Pin's
+Field remains weak. Rip, fresh pinning, and a refused pinning preserve
+the same state, so authorized calls still work across those boundaries.
+Inherited public Operations still open their declaring Base's state even
+when their receiver is a Shape; such a call can therefore authorize that
+Base's captured Secret Operation. This receiver/authority question and
+inherited Secret dependencies remain pending (#98). This repair neither
+introduces private Pin binding deletion nor governs lazy execution (#94).
 
 ### Presence without evaluation
 
@@ -90,6 +162,41 @@ read 64, plain method call 86, Action call 295, `agent in Tag` 291,
 `bool(agent)` with one Post about 1900. Tagging a Record-plus-Post Shape
 over a Base costs about 60 µs per Agent; an empty Tag about 22 µs. Peak
 memory about 6 KB per Agent with two Tags.
+
+## Geometry memo ownership
+
+The first Form query memoizes a Tag's ordered Bases on that Tag itself,
+not in a global weak-key table or the public Field. A Base's Contribution
+can refer back to its Shape through a closure, default, annotation or
+callable object; owner-local memoization leaves that cycle collectible
+when the program releases the Tags. Retaining an empty `Tag[:]` does not
+retain this memo. A returned Form tuple intentionally retains its Tags
+until the program releases the tuple.
+
+Each Tag has identity-qualified private keys and owns both Form and
+declaration memos through the same helper. The
+lookup never inherits another Tag's memo; an own or inherited program
+binding at that key is not overwritten or shadowed, and Geometry simply
+recomputes. A foreign internal memo is not accepted as this Tag's memo.
+Physical type descriptors read class storage and MROs, without evaluating
+metaclass dictionary/MRO properties. Metaclass collisions prevent new memo
+publication. Warm reads reuse an exact owned memo without walking the
+metaclass or evaluating its descriptor. Invalidation retires the stored value
+even when a metaclass descriptor prevents safely deleting the memo attribute.
+After the collision ends, a trusted retired wrapper can receive a fresh value;
+foreign wrappers and program bindings remain untouched. The immutable wrapper
+identifies its owner and key; a private mutable payload holds the cached value.
+Memo publication does not hold the helper lock while inspecting user
+metadata. Declaration scans, Base Constant inspection, Pin Tool validation
+and Tag-as-Agent namespace copies use snapshots rather than iterating the
+live class dictionary. Different Agents can therefore share a Tag without memo
+publication invalidating one another's iterators; concurrent mutation
+of one Agent remains outside this profile.
+
+Non-Tag compatibility inputs retain the original global weak-key
+fallback, so ordinary classes and builtins gain no attributes. Form
+order, iterative traversal and lazy caching are unchanged; mutation of
+`__bases__` remains a separate design question (#97).
 
 ## The tagging sequence
 
@@ -190,9 +297,10 @@ or settle the Record continuation/failure-boundary design tracked in #30.
   rather than silently bypassing a property.
 - **The Tag's dotted namespace is the program's.** Every Tag-level act is
   language syntax on the metaclass: `in`, `for`, `~`, `len`, `bool`,
-  `[:]`, `[agent]`, `del Tag[agent]`, `format`. The only class attribute
-  TopKit adds is the private `_topkit_field`. `bool(Tag)` is "any sound
-  member", like a collection.
+  `[:]`, `[agent]`, `del Tag[agent]`, `format`. The population handle is
+  the private `_topkit_field`; Geometry also keeps a private, owner-local
+  Form memo as described above. `bool(Tag)` is "any sound member", like a
+  collection.
 - **The empty-seat rule on Agents.** `__bool__`, `__format__`, `__copy__`
   and `__deepcopy__` are installed on the runtime type only when the host
   defines none of its own (`__bool__` only once a Postcondition is
@@ -247,8 +355,30 @@ or settle the Record continuation/failure-boundary design tracked in #30.
 - **Weak finalization limit.** In a reference cycle, Python clears weak
   references before finalizers run, so a finalizer's
   Tag code cannot call the Agent's bound Actions there (`ReferenceError`).
-- **What the kit keeps, and for how long.** The Form cache holds a Tag's
-  Bases only, never the Tag, so a dropped Tag class is freed. A Rip drops
+- **What the kit keeps, and for how long.** Each Tag owns its Form and
+  declaration memos through one internal helper, never a global root or
+  its public Field. A declaration's references to its Tag or Agents thus
+  leave a collectible local cycle. Each key and memo belongs to its exact
+  Tag; own or inherited program bindings are left untouched and trigger
+  uncached recomputation. Namespace inspection uses a snapshot, so another
+  thread publishing either memo cannot invalidate a scan's iterator.
+  The Tool checks in `Pin()` use that snapshot too, with callable metadata
+  inspected after releasing the helper lock.
+  Pin publication invalidates only the receiving Tag's declaration memo.
+  These ownership rules are not a blanket lifetime guarantee about
+  arbitrary user values that refer back to Tags.
+  Protocol parameter memos use
+  callable identity, never its custom hash or equality, and hold the
+  callable weakly. An expired reference cannot delete a replacement
+  entry. An accepted callable without weak-reference support is inspected
+  without memoization or added attributes. Native parameter name objects
+  are preserved for keyword lookup and the keys passed into the callable.
+  When any retained name is a string subclass, inspection is uncached:
+  its attached references cannot become owners through the global memo.
+  Exact-string names remain safely memoized with the original
+  first-inspection timing. Defaults and input-binding policy are preserved.
+  This does not choose a different callable introspection profile (#87).
+  A Rip drops
   the Tag's view snapshot (a view needs membership). A Field entry is a
   slotted weak reference carrying its key, with one callback per Field;
   `At_Exit` numbers its registrations the same way and drops each one when
@@ -292,8 +422,13 @@ or settle the Record continuation/failure-boundary design tracked in #30.
   code path for objects and pinned Tags. The runtime type is a
   `(MetaTag, Tagged)` metaclass from the same cache. A landed Action is a
   `_Pinned_Operation` descriptor binding to the Tag it is read from (a
-  Shape inherits it as it inherits a classmethod); a landed Record is a
-  plain class attribute, which is exactly a Report's value. `_scan` skips
+  Shape inherits it as it inherits a classmethod). Its public composing
+  handle keeps the original callable as `__func__`, the receiving Tag as
+  `__self__`, native bound-method equality/hash, and the corresponding bound
+  Python signature. Signature inspection is deferred until requested, so
+  optional introspection cannot prevent reading or calling an accepted
+  callable. A landed Record is a plain class attribute, which is exactly
+  a Report's value. `_scan` skips
   names the class state manages, so a pinned Tag never projects them onto
   its Agents. The Tag's own Operations and Reports are host members to a
   Pin (`_pinned_host_function`, `_pinned_stored`); its Agent-scope names
@@ -336,11 +471,14 @@ or settle the Record continuation/failure-boundary design tracked in #30.
   sound partition; `MetaTag.__or__` falls back to `type.__or__` when the
   other side is not a population, so `Wizard | None` stays a typing
   union. No kernel state changes.
-- **Condition members** (STEP-SPEC-14): `_agent_getattr` answers a
-  condition by name on the miss path, after Tag views and before the
-  host's own `__getattr__`, through `contracts._condition_member`, which
-  evaluates one check under the re-entrancy guard and returns a plain
-  bool. Nothing is written to the namespace or the runtime type. The
+- **Condition members** (STEP-SPEC-14): an ordinary Agent answers a
+  condition by name through `_Condition_Gate`; a pinned Tag keeps the
+  metaclass miss path. Both call `contracts._condition_member`, which
+  evaluates under the re-entrancy guard and returns a plain bool. The
+  data gate and `_Binding_Write` refuse assignment
+  or deletion before a host hook runs; `Contract.Delete` rebuilds the
+  runtime type without the ended name, returning it to ordinary
+  attribute behavior. Nothing is written to the Agent's namespace. The
   collision rule lives in three places: `_refuse_condition_collision`
   at install (Actions, Records, host class members),
   `_refuse_member_over_condition` when an Action or Record is installed
@@ -356,6 +494,27 @@ or settle the Record continuation/failure-boundary design tracked in #30.
   Rip that failed) and was removed (STEP-SPEC-31). `TryFinallyTests`,
   the oracle's `Exercise_Block` and the fuzz's `Holding` write the
   pattern.
+- **Tool slots ride the Constant path** (STEP-SPEC-36). A `@Tool`
+  Record registers its kind in `state.tools`, keyed by name, and the
+  runtime type gains a `_Tool_Gate` data descriptor for that name, over
+  the Constant or Secret gate when there is one. Every write to the name
+  passes `_refuse_misfit` first, `object.__setattr__` included, exactly
+  where `_Binding_Write` already intercepts a host's own `__setattr__`;
+  `_materialize` asks the same question of what the builder returned.
+  A kind is terms, all holding, each a tuple of alternatives: a Tag asks
+  `tag in state.active` (membership now, never soundness, never
+  `isinstance`), a class asks `isinstance`, with a raising instance test
+  wrapped as a Composition Failure and an interrupt left alone. The gate
+  reads the kind from the Agent's state, not from the type, so Agents
+  whose slots differ only in kind share one runtime type. The rule ends
+  as any Record declaration does: a plain Record or an Action at the
+  name pops the entry, as `@Delete` does. A Tool under a protocol name
+  gets no descriptor, since one there would replace the language's own
+  hook (`__rmatmul__` is presence); instead the write hook is forced on
+  (`_binding_write_hooks(..., force=True)`), so ordinary writes are
+  checked and `object.__setattr__` on that name is the documented
+  bypass.
+
 - **The oracle** (`tests/oracle_topkit.py`): an independent model of
   the laws driven by a random walk; `tests/test_oracle.py` runs a short
   walk under the suite. Run it at size with `--seeds 50 --steps 1200

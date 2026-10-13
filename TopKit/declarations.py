@@ -31,6 +31,11 @@ from .errors import TagCompositionError
 from .errors import TagImprintError
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
+from .memo import _forget_memo
+from .memo import _memo_key
+from .memo import _memo_of
+from .memo import _namespace_snapshot
+from .memo import _remember_memo
 
 
 _KIND = "__topkit_kind__"
@@ -42,6 +47,7 @@ _FLAG = "__topkit_flag__"
 _PIN = "__topkit_pin__"
 _CONSTANT = "__topkit_constant__"
 _ACTION_CHAIN = "__topkit_action_chain__"
+_TOOL = "__topkit_tool__"   # a Record's kind: the Tags its slot admits (tools._Kind)
 
 STATE = "_TOPKIT_STATE"
 
@@ -492,6 +498,10 @@ def Pin(
                 "@Pin marks a Tag class"
                 )
 
+    _refuse_tools_on_a_pin(
+            tag,
+            _namespace_snapshot(tag),
+            )
     setattr(
             tag,
             _PIN,
@@ -697,21 +707,34 @@ class _Declarations:
     gaining_steps: tuple[tuple[str, _Declarations], ...] = field(
             default=(), compare=False, repr=False,
             )
-
-
-_scan_cache: "WeakKeyDictionary[type, _Declarations]" = WeakKeyDictionary()
+    tools: frozenset[str] = frozenset()   # Records marked @Tool: their slots admit only their kind
 
 
 def _declarations_of(
         tag: type,
         ) -> _Declarations:
-    cached = _scan_cache.get(tag)
+    # A Tag owns its memo, never its public Field or a global weak-key
+    # cache: declaration values may refer back to the Tag or its Agents.
+    name = _declaration_key(tag)
+    cached = _memo_of(tag, name)
 
-    if cached is None:
-        cached = _scan(tag)
-        _scan_cache[tag] = cached
+    if type(cached) is _Declarations:
+        return cached
 
-    return cached
+    return _remember_memo(tag, name, _scan(tag))
+
+
+def _declaration_key(
+        tag: type,
+        ) -> str:
+    # Distinct Base and Shape memos have different keys.
+    return _memo_key(tag, "DECLARATIONS")
+
+
+def _invalidate_declarations(
+        tag: type,
+        ) -> None:
+    _forget_memo(tag, _declaration_key(tag))
 
 
 def _is_private(
@@ -748,6 +771,20 @@ def _kind_of(
             )
 
 
+def _refuse_condition_dunder(
+        owner: str,
+        name: str,
+        kind: str | None,
+        ) -> None:
+    """Conditions expose verdicts; Python's protocol names need callables."""
+
+    if _is_dunder(name) and kind in _CONDITION_KINDS:
+        raise TagDeclarationError(
+                f"{owner}.{name}: a Precondition or Postcondition must have"
+                " an ordinary name; dunder names belong to Python protocols"
+                )
+
+
 def _has_flag(
         attribute: Any,
         name: str,
@@ -764,6 +801,29 @@ def _has_flag(
                     name,
                     False,
                     )
+            )
+
+
+def _tool_kind_of(
+        attribute: Any,
+        ) -> Any:
+    """The kind a ``@Tool`` declaration names (a ``tools._Kind``), or None.
+    Looks through a classmethod, a staticmethod and a Report's builder, so
+    a mark hidden under another declaration is still seen and refused."""
+
+    if isinstance(attribute, Report):
+        attribute = attribute.builder
+
+    function = getattr(
+            attribute,
+            "__func__",
+            attribute,
+            )
+
+    return getattr(
+            function,
+            _TOOL,
+            None,
             )
 
 
@@ -846,7 +906,7 @@ def _check_constant_declarations(
                     )
 
     for base in tag.__mro__[1:]:
-        base_namespace = vars(base)
+        base_namespace = _namespace_snapshot(base)
         protected = {
                 name
                 for name, member in base_namespace.items()
@@ -875,6 +935,53 @@ def _check_constant_declarations(
                             )
 
 
+def _refuse_tools_on_a_pin(
+        tag: type,
+        namespace: Any,
+        ) -> None:
+    """A Pin's Records land as Reports of the pinned Tag (§1.9): one value
+    on the Tag, which is Tag-scope having and not a Tool."""
+
+    for name, member in namespace.items():
+        if _tool_kind_of(member) is not None:
+            raise TagDeclarationError(
+                    f"{tag.__name__}.{name}: a Pin's Records land as Reports"
+                    " of the pinned Tag; a shared tool is a Report (§1.9)"
+                    )
+
+
+def _check_tool_declarations(
+        tag: type,
+        namespace: dict[str, Any],
+        ) -> None:
+    """A ``@Tool`` marks a Record, whatever the order of its decorators,
+    and never a member of a Pin."""
+
+    for name, member in namespace.items():
+        if _tool_kind_of(member) is None:
+            continue
+
+        if (
+                _is_private(name)
+                or isinstance(member, (classmethod, staticmethod))
+                or _kind_of(member) != "record"
+                or _has_flag(member, _RIP)
+                ):
+            raise TagDeclarationError(
+                    f"{tag.__name__}.{name}: @Tool declares what the Agent"
+                    f" has, a Record; {name} is not one here"
+                    )
+
+    if any(
+            _is_pin(base)
+            for base in tag.__mro__[1:]
+            ):
+        _refuse_tools_on_a_pin(
+                tag,
+                namespace,
+                )
+
+
 _NAMED_FAILURES: dict[str, type] = {
         "imprint": TagImprintError,
         "precondition": TagPreconditionError,
@@ -884,6 +991,7 @@ _NAMED_FAILURES: dict[str, type] = {
 
 def _name_checks(
         namespace: dict[str, Any],
+        owner: str,
         ) -> None:
     """Give every check in a Tag body its named failure, at class creation.
 
@@ -896,6 +1004,7 @@ def _name_checks(
             continue
 
         kind = _kind_of(attribute)
+        _refuse_condition_dunder(owner, name, kind)
 
         if kind == "condition":
             TagPreconditionError.Named(name)
@@ -925,7 +1034,9 @@ def _scan(
     dunders: set[str] = set()
     published: set[str] = set()
     constants: set[str] = set()
-    managed = tag.__dict__.get(STATE)   # names a Pin landed here
+    tools: set[str] = set()
+    namespace = _namespace_snapshot(tag)
+    managed = namespace.get(STATE)   # names a Pin landed here
 
     if managed is not None:
         _emit_published_pins(
@@ -938,7 +1049,7 @@ def _scan(
                 if name in managed.constants
                 )
 
-    for name, attribute in tag.__dict__.items():
+    for name, attribute in namespace.items():
         if _is_private(name):
             continue
 
@@ -965,6 +1076,7 @@ def _scan(
             continue
 
         kind = _kind_of(attribute)
+        _refuse_condition_dunder(tag.__name__, name, kind)
         secret = _has_flag(attribute, _SECRET)
         public = _has_flag(attribute, _PUBLIC)
 
@@ -1006,6 +1118,9 @@ def _scan(
 
             if secret:
                 secrets.add(name)
+
+            if _tool_kind_of(attribute) is not None:
+                tools.add(name)
 
             continue
 
@@ -1084,6 +1199,7 @@ def _scan(
             dunders=frozenset(dunders),
             published=frozenset(published),
             constants=frozenset(constants),
+            tools=frozenset(tools),
             )
 
     if _is_pin(tag):
@@ -1113,6 +1229,7 @@ def _prepare_declarations(
             constants=declarations.constants - names,
             published=declarations.published - names,
             dunders=declarations.dunders - names,
+            tools=declarations.tools - names,
             rips=(),
             )
     header = replace(header, runtime=_runtime_facts(header))
@@ -1141,6 +1258,7 @@ def _prepare_declarations(
                 dunders=declarations.dunders & selected,
                 published=declarations.published & selected,
                 constants=declarations.constants & selected,
+                tools=declarations.tools & selected,
                 reports=(),
                 operations=(),
                 imprints=(),
@@ -1159,7 +1277,9 @@ def _runtime_facts(declarations: _Declarations) -> bool:
             or declarations.dunders
             or declarations.published
             or declarations.constants
+            or declarations.preconditions
             or declarations.postconditions
+            or declarations.tools
             or any(public for _name, _report, public in declarations.reports)
             )
 
@@ -1263,18 +1383,17 @@ class _Parameters:
     var_keyword: bool
 
 
-_parameter_cache: "WeakKeyDictionary[Function, _Parameters]" = (
-        WeakKeyDictionary()
-        )
+_parameter_cache: "dict[int, tuple[ref[Function], _Parameters]]" = {}
 
 
 def _parameters_of(
         function: Function,
         ) -> _Parameters:
-    cached = _parameter_cache.get(function)
+    key = id(function)
+    cached = _parameter_cache.get(key)
 
-    if cached is not None:
-        return cached
+    if cached is not None and cached[0]() is function:
+        return cached[1]
 
     positional = 0
     named: list[tuple[str, bool]] = []
@@ -1303,7 +1422,24 @@ def _parameters_of(
             named=tuple(named),
             var_keyword=var_keyword,
             )
-    _parameter_cache[function] = spec
+
+    # Preserve native keyword keys without letting their optional payloads
+    # make the global memo own the callable (or its other references).
+    if any(type(name) is not str for name, _ in spec.named):
+        return spec
+
+    def Forget(expired: ref[Function], key: int = key) -> None:
+        current = _parameter_cache.get(key)
+
+        if current is not None and current[0] is expired:
+            del _parameter_cache[key]
+
+    try:
+        reference = ref(function, Forget)
+    except TypeError:
+        pass   # valid non-weakrefable callables are inspected without a memo
+    else:
+        _parameter_cache[key] = reference, spec
 
     return spec
 

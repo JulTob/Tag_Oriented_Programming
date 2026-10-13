@@ -5,16 +5,21 @@ live in that dictionary as bound callables, Records as plain values, so
 ordinary attribute access costs what it costs on a plain object. The
 runtime type is neutral (host first, then the ``Tagged`` marker) and only
 carries what Python requires on a type: special-method Actions and the
-descriptors that gate deleted, secret, published, and Constant names.
+descriptors that gate deleted, secret, published, computed-condition,
+and Constant names.
 """
 
 from __future__ import annotations
 
+from contextvars import ContextVar
 from dataclasses import dataclass
 from dataclasses import field
 from dataclasses import FrozenInstanceError
 from types import FunctionType
 from types import GetSetDescriptorType
+
+from functools import wraps
+from inspect import signature
 from types import MethodType
 from typing import Any
 from typing import Callable
@@ -28,6 +33,7 @@ from .declarations import _Words
 from .declarations import _is_dunder
 from .declarations import _is_flag
 from .errors import TagCompositionError
+from .memo import _namespace_snapshot
 
 Function = Callable[..., Any]
 Check = Callable[..., Any]
@@ -71,6 +77,7 @@ class _State:
     secret_values: dict[str, Any] = field(default_factory=dict)   # a pinned Tag's @Secret members
     originals: dict[str, Any] = field(default_factory=dict)       # what a Pin patched, as declared
     constants: dict[str, tuple[type, str, Any]] = field(default_factory=dict)  # origin, kind, declaration
+    tools: dict[str, tuple[type, Any]] = field(default_factory=dict)   # origin, kind: a Tool slot admits only its kind
     composing: int = 0
     checking: bool = False
     words: _Words | None = None   # what its Flags answer to; None after its Tags change
@@ -116,10 +123,59 @@ class _State:
                 secret_values=dict(state.secret_values),
                 originals=dict(state.originals),
                 constants=dict(state.constants),
+                tools=dict(state.tools),
                 composing=state.composing,
                 checking=state.checking,
                 words=state.words,
                 )
+
+
+class _Async_Door:
+    """One async Action's execution-local authority to read Secrets."""
+
+    __slots__ = (
+            "active",
+            "state",
+            )
+
+    def __init__(
+            door,
+            state: _State,
+            ) -> None:
+        door.active = True
+        door.state = state
+
+    def Close(
+            door,
+            ) -> None:
+        door.active = False
+        door.state = None
+
+
+_async_doors: ContextVar[tuple[_Async_Door, ...]] = ContextVar(
+        "TopKit_async_composition_doors",
+        default=(),
+        )
+
+
+def _is_composing(
+        state: _State,
+        ) -> bool:
+    """Whether this execution, rather than merely this Agent, has a door."""
+
+    if state.composing:
+        return True
+
+    doors = _async_doors.get()
+
+    if not doors:
+        return False
+
+    return any(
+            door.active
+            and door.state is state
+            for door in reversed(doors)
+            )
 
 
 class _Class_Namespace:
@@ -197,17 +253,20 @@ class _Class_Namespace:
     def keys(
             namespace,
             ) -> Any:
-        return namespace._owner.__dict__.keys()
+        return namespace.copy().keys()
 
     def items(
             namespace,
             ) -> Any:
-        return namespace._owner.__dict__.items()
+        return namespace.copy().items()
+
+    def copy(namespace) -> dict[str, Any]:
+        return _namespace_snapshot(namespace._owner)
 
     def __iter__(
             namespace,
             ) -> Iterator[str]:
-        return iter(namespace._owner.__dict__)
+        return iter(namespace.copy())
 
     def __len__(
             namespace,
@@ -624,19 +683,88 @@ class _Originals:
         return f"<originals of {', '.join(original._declared) or 'nothing'}>"
 
 
+class _Pinned_Bound:
+    """A public Operation handle with its original callable and receiver.
+
+    Signature inspection is deferred until requested: optional callable
+    introspection must not prevent reading or calling an Operation.
+    """
+
+    __slots__ = ("_function", "_owner", "_state", "_name", "_doc")
+
+    def __init__(
+            bound,
+            function: Function,
+            owner: type,
+            state: "_State",
+            name: str,
+            doc: str | None,
+            ) -> None:
+        bound._function = function
+        bound._owner = owner
+        bound._state = state
+        bound._name = name
+        bound._doc = doc
+
+    def __call__(bound, *args: Any, **kwargs: Any) -> Any:
+        state = bound._state
+        state.composing += 1
+
+        try:
+            return bound._function(bound._owner, *args, **kwargs)
+        finally:
+            state.composing -= 1
+
+    def __eq__(bound, other: object) -> Any:
+        # Use Python's function equality and receiver identity without
+        # consulting the receiving Tag's equality or hash hooks.
+        if isinstance(other, _Pinned_Bound):
+            other = MethodType(other._function, other._owner)
+
+        return MethodType(bound._function, bound._owner).__eq__(other)
+
+    def __hash__(bound) -> int:
+        return hash(MethodType(bound._function, bound._owner))
+
+    def __repr__(bound) -> str:
+        return f"<pinned Operation {bound._name} of {_name_of(bound._owner)}>"
+
+    @property
+    def __self__(bound) -> type:
+        return bound._owner
+
+    @property
+    def __func__(bound) -> Function:
+        return bound._function
+
+    @property
+    def __signature__(bound) -> Any:
+        return signature(MethodType(bound._function, bound._owner))
+
+    @property
+    def __name__(bound) -> str:
+        return bound._name
+
+    @property
+    def __doc__(bound) -> str | None:
+        return bound._doc
+
+
 class _Composing_Pinned_Operation(_Pinned_Operation):
     """A pinned Operation that opens the pinned Tag's composition door
     while it runs, so the Pin's @Secret members resolve inside it."""
 
-    __slots__ = ("_state",)
+    __slots__ = ("_state", "_name")
 
     def __init__(
             operation,
             function: Function,
             state: "_State",
+            name: str,
             ) -> None:
         super().__init__(function)
         operation._state = state
+        operation._name = name
 
     def __get__(
             operation,
@@ -647,27 +775,51 @@ class _Composing_Pinned_Operation(_Pinned_Operation):
             owner = type(instance)
 
         function = operation._function
-        state = operation._state
+        try:
+            name = function.__name__
+            if not issubclass(type(name), str):
+                name = operation._name
+        except Exception:
+            name = operation._name
 
-        def Composing(
+        try:
+            doc = function.__doc__
+        except Exception:
+            doc = None
+
+        return _Pinned_Bound(function, owner, operation._state, name, doc)
+
+
+class _Secret_Pinned_Operation(_Composing_Pinned_Operation):
+    """A captured Pin-private Operation cannot open its own access door."""
+
+    __slots__ = ()
+
+    def __get__(
+            operation,
+            instance: object,
+            owner: type | None = None,
+            ) -> Any:
+        composing = super().__get__(instance, owner)
+        state = operation._state
+        name = operation._name
+
+        def Secret(
                 *args: Any,
                 **kwargs: Any,
                 ) -> Any:
-            state.composing += 1
-
-            try:
-                return function(
-                        owner,
-                        *args,
-                        **kwargs,
+            if not _is_composing(state):
+                raise AttributeError(
+                        f"{name!r} is a secret pinned Operation; it is"
+                        " reachable only from its Tag's composition"
                         )
-            finally:
-                state.composing -= 1
 
-        Composing.__name__ = function.__name__
-        Composing.__doc__ = function.__doc__
+            return composing(*args, **kwargs)
 
-        return Composing
+        Secret.__name__ = composing.__name__
+        Secret.__doc__ = composing.__doc__
+
+        return Secret
 
 
 class _Composing_Bound(_Bound):
@@ -675,6 +827,7 @@ class _Composing_Bound(_Bound):
     @Secret members resolve inside it."""
 
     __slots__ = ()
+    __doc__ = _Bound.__dict__["__doc__"]   # keep the bound Action's metadata
 
     def __call__(
             bound,
@@ -699,6 +852,46 @@ class _Composing_Bound(_Bound):
             state.composing -= 1
 
 
+class _Secret_Bound(_Composing_Bound):
+    """A bound Secret Action needs an open door before it can open its own.
+
+    Capturing the callable from inside composition grants no later access.
+    Its captured Secret boundary stays even if a newer Layer is public.
+    """
+
+    __slots__ = ("_name",)
+    __doc__ = _Bound.__dict__["__doc__"]
+
+    def __init__(
+            bound,
+            function: Function,
+            agent: object,
+            name: str,
+            ) -> None:
+        super().__init__(function, agent)
+        bound._name = name
+
+    def __call__(
+            bound,
+            *args: Any,
+            **kwargs: Any,
+            ) -> Any:
+        agent = bound._reference()
+
+        if agent is None:
+            raise ReferenceError("the Agent of this Action no longer exists")
+
+        state = _state_of(agent)
+
+        if state is None or not _is_composing(state):
+            raise AttributeError(
+                    f"{bound._name!r} is a secret Action; it is reachable"
+                    " only from its Agent's composition"
+                    )
+
+        return super().__call__(*args, **kwargs)
+
+
 def _bind_to(
         agent: object,
         state: _State,
@@ -717,10 +910,10 @@ def _bind_to(
                 )
         return
 
-    if state.secrets:
-        bound: _Bound = _Composing_Bound(function, agent)
+    if name in state.secrets:
+        bound: _Bound = _Secret_Bound(function, agent, name)
     else:
-        bound = _Bound(function, agent)
+        bound = _Composing_Bound(function, agent)
 
     _namespace_of(agent)[name] = bound
 
@@ -734,10 +927,10 @@ def _bind_pinned(
     """A Pin's Action on a Tag: a secret one lives in the state and is
     read through the door; the rest live in the class dictionary."""
 
-    if state.secrets:
-        bound: _Pinned_Operation = _Composing_Pinned_Operation(function, state)
+    if name in state.secrets:
+        bound: _Pinned_Operation = _Secret_Pinned_Operation(function, state, name)
     else:
-        bound = _Pinned_Operation(function)
+        bound = _Composing_Pinned_Operation(function, state, name)
 
     if name in state.secrets:
         _namespace_of(tag).pop(name, None)
@@ -830,7 +1023,7 @@ class _Secret_Gate:
             ) -> dict[str, Any]:
         namespace = _namespace_of(agent)
 
-        if namespace[STATE].composing == 0:
+        if not _is_composing(namespace[STATE]):
             raise AttributeError(
                     f"{gate.name!r} is a secret member of"
                     f" {type(agent).__name__}; it is reachable only from"
@@ -955,6 +1148,104 @@ def _dunder_actions(
             }
 
 
+_CONTEXT_ACTIONS = frozenset((
+        "__enter__",
+        "__exit__",
+        "__aenter__",
+        "__aexit__",
+        ))
+_ASYNC_CONTEXT_ACTIONS = frozenset((
+        "__aenter__",
+        "__aexit__",
+        ))
+
+
+def _context_action(
+        name: str,
+        function: Function,
+        ) -> Function:
+    """Run an Agent-authored context hook through its composition door.
+
+    Async hooks keep the door open while their result is awaited.  The
+    wrapper is made only after the runtime-type cache lookup, so the cache
+    continues to identify a composition by the selected Action itself.
+    """
+
+    if name in _ASYNC_CONTEXT_ACTIONS:
+        @wraps(function)
+        async def Async_Context(
+                agent: object,
+                *args: Any,
+                **kwargs: Any,
+                ) -> Any:
+            state = _state_of(agent)
+            door = _Async_Door(state)
+            _async_doors.set(
+                    tuple(
+                            active
+                            for active in _async_doors.get()
+                            if active.active
+                            ) + (door,),
+                    )
+
+            try:
+                return await function(
+                        agent,
+                        *args,
+                        **kwargs,
+                        )
+            finally:
+                door.Close()
+                # A suspended coroutine can be closed in another Context,
+                # or before another hook opened after it. Revoke its shared
+                # capability first, then keep the current Context's other
+                # live doors; a token reset assumes the original Context
+                # and stack order. Captured contexts retain only an inert
+                # door with no Agent state, pruned at their next entry.
+                _async_doors.set(tuple(
+                        active
+                        for active in _async_doors.get()
+                        if active.active
+                        ))
+
+        return Async_Context
+
+    @wraps(function)
+    def Context(
+            agent: object,
+            *args: Any,
+            **kwargs: Any,
+            ) -> Any:
+        state = _state_of(agent)
+        state.composing += 1
+
+        try:
+            return function(
+                    agent,
+                    *args,
+                    **kwargs,
+                    )
+        finally:
+            state.composing -= 1
+
+    return Context
+
+
+def _runtime_dunder_actions(
+        selected: dict[str, Function],
+        ) -> dict[str, Function]:
+    """Prepare selected special Actions for one shared runtime type."""
+
+    return {
+            name: (
+                    _context_action(name, function)
+                    if name in _CONTEXT_ACTIONS
+                    else function
+                    )
+            for name, function in selected.items()
+            }
+
+
 def _type_key_of(
         state: _State,
         ) -> tuple:
@@ -963,6 +1254,7 @@ def _type_key_of(
             frozenset((state.deleted | state.restored) - {"__del__"}),   # a restored name keeps its gate; __del__ has none
             frozenset(state.secrets),
             frozenset(state.published),
+            frozenset(state.preconditions | state.postconditions),
             bool(state.postconditions),
             any(_is_flag(tag) for tag in (*state.active, *state.training)),
             tuple(
@@ -972,6 +1264,7 @@ def _type_key_of(
                             )
                     ),
             frozenset(state.constants),
+            frozenset(state.tools),
             )
 
 
@@ -988,17 +1281,22 @@ def _runtime_type_for(
         return shared
 
     from .access import _hooks_for   # access imports this module
+    from .contracts import _Condition_Gate
     from .presence import _presence_hook
+    from .constants import _binding_write_hooks
     from .constants import _Constant_Gate
-    from .constants import _constant_write_hooks
 
     host_type = state.host_type
-    dunders = _dunder_actions(state)
+    selected_dunders = _dunder_actions(state)
+    dunders = _runtime_dunder_actions(
+            selected_dunders,
+            )
     deleted = key[1]
     secrets = key[2]
     published = key[3]
-    has_posts = key[4]
-    has_flags = key[5]
+    conditions = key[4]
+    has_posts = key[5]
+    has_flags = key[6]
 
     hooks = _hooks_for(
             host_type,
@@ -1021,6 +1319,12 @@ def _runtime_type_for(
         for name in published:
             namespace[name] = _Published(name)
 
+        for name in conditions:
+            namespace[name] = _Condition_Gate(
+                    name,
+                    namespace.get(name, _MISSING),
+                    )
+
         if "__contains__" in hooks:
             namespace["__contains__"] = hooks["__contains__"]   # the Flag holds the seat
 
@@ -1031,8 +1335,18 @@ def _runtime_type_for(
         for name in state.constants:
             namespace[name] = _Constant_Gate(name, namespace.get(name, _MISSING))
 
-    if state.constants or issubclass(host_type, type):
-        _constant_write_hooks(namespace, host_type)
+        from .tools import _Tool_Gate   # tools imports this module
+
+        for name in state.tools:
+            if _is_dunder(name):
+                continue   # a protocol name keeps the language's own hook; the write hook guards it
+
+            namespace[name] = _Tool_Gate(name, namespace.get(name, _MISSING))   # over a Constant or Secret gate, when both
+
+    ungated_tools = any(_is_dunder(name) for name in state.tools)
+
+    if conditions or state.constants or state.tools or issubclass(host_type, type):
+        _binding_write_hooks(namespace, host_type, force=ungated_tools)
 
     if issubclass(host_type, Tagged):
         bases: tuple[type, ...] = (host_type,)

@@ -429,7 +429,8 @@ class TaggingAdmissionTests(unittest.TestCase):
 
             @Action
             def TurnOnBattery(agent):
-                assert agent.SafetyChecks
+                if not agent.SafetyChecks:
+                    raise AssertionError("SafetyChecks")
                 agent.battery_on = True
 
             @Action
