@@ -188,6 +188,11 @@
   A Post can require the named Contribution; nonstring operands retain
   ordinary `@` behaviour. Pinned Tags support it as Agents.
 
+- **Absorbing defective view** (STEP-SPEC-38): `~` reads "broken", not
+  "not". Applying it again keeps the defective population, so
+  `~~Wizard`, `~~~Wizard` and longer runs all mean `~Wizard`. Inverting a
+  combined population remains refused.
+
 - **Fixed Field-algebra Tag recognition:** operator seats now recognize a
   Tag by `MetaTag`, not by a callable named `_sound`. An ordinary Python
   class with that name keeps normal class-union behaviour, and a Tag may

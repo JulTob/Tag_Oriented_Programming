@@ -71,11 +71,15 @@ assert list(Fighter) == [bo]                # off the line
 assert list(~Fighter) == [cal]              # waiting for repair
 assert cal in Fighter                       # still a member
 assert cal in Fighter[:]                    # still in the Field
+assert list(~~Fighter) == [cal]             # broken twice is still broken
 ```
 
 The plain loop, `for f in Fighter`, is the working population. `~Fighter`
 is the repair queue. `Fighter[:]` is the roster. `if Fighter:` asks
 whether anyone is fit; `len(Fighter[:])` counts everyone.
+
+`~` reads "broken", never "not". It absorbs: `~~Fighter`,
+`~~~Fighter` and any longer run are `~Fighter`, the repair queue again.
 
 ---
 
