@@ -30,7 +30,6 @@ from typing import Iterator
 
 from .access import _keyword
 from .access import _view_of
-from .contracts import _holds
 from .declarations import _MISSING
 from .declarations import _check_constant_declarations
 from .declarations import _check_constant_shapes
@@ -42,9 +41,12 @@ from .declarations import _kind_of
 from .declarations import _name_checks
 from .declarations import _refuse_condition_dunder
 from .errors import TagCompositionError
+from .fields import FIELD_SEAT
 from .fields import _Field
 from .fields import _Partition
+from .fields import _field_of
 from .fields import _population_of
+from .fields import _sound_of
 from .geometry import _form_of
 from .geometry import _is_tag
 from .lifecycle import _rip
@@ -52,18 +54,6 @@ from .state import Tagged
 from .state import _name_of
 from .state import _state_of
 from .transactions import _apply
-
-
-def _sound_of(
-        tag: type,
-        ) -> _Partition:
-    """The Tag's sound population, outside its programmer-owned namespace."""
-
-    return _Partition(
-            tag.__dict__["_topkit_field"],
-            _holds,
-            "sound",
-            )
 
 
 class MetaTag(type):
@@ -77,7 +67,7 @@ class MetaTag(type):
             **kwargs: Any,
             ) -> "MetaTag":
         namespace.setdefault(
-                "_topkit_field",
+                FIELD_SEAT,
                 _Field(),
                 )
         _name_checks(namespace, name)
@@ -262,7 +252,7 @@ class MetaTag(type):
                         " no meaning for a population"
                         )
 
-            return tag._topkit_field
+            return _field_of(tag)
 
         return _view_of(
                 key,
