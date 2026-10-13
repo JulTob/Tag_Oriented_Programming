@@ -1169,14 +1169,17 @@ Pair's gate; the Pair's Records; the Contact enters the Link's Field; the
 Pair's Imprints; the Pair's promises and the Contact's own. A failure up
 to her entry changes nothing; after it, the failure raises and the
 linking stays (§0.6). Reapplying is a no-op, so an Imprint that links
-back ends after one echo. A linking made inside a call that rolls back is
-undone with it, however deep inside the call it was made: in an earlier
-Tag's Imprint, in another Agent's tagging, or at a Pair's Parts. The
-Contact is restored as she was at the linking, and an Agent linked as a
-Contact during its own call is restored as it was at the call. A Contact
-who was not an Agent becomes one; nothing else is written on her. The kit
-never checks the linking Agent's membership or soundness: a gate that
-cares says so.
+back ends after one echo. A linking is undone with a call on the Link's
+Agent or on the Contact that rolls back, however deep inside that call it
+was made: in an earlier Tag's Imprint, inside another Agent's tagging, or
+at a Pair's Parts. A call on any other Agent that rolls back leaves it, as
+it leaves that Agent's other taggings (§0.6). When nothing else has
+changed the Contact's Tags since, she is restored as she was at the
+linking; otherwise she leaves the Link silently, keeping what else she
+gained. An Agent linked as a Contact during its own call is restored as
+it was at the call. A Contact who was not an Agent becomes one; nothing
+else is written on her. The kit never checks the linking Agent's
+membership or soundness: a gate that cares says so.
 
 **The Pair** is reached only through the Link: `charlie.Knows[ruth]`,
 live, holding Records, Actions, conditions read by name, and secrets that
