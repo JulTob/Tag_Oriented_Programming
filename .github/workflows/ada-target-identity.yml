@@ -1,0 +1,41 @@
+# Checks the experimental identity groundwork, not TOP Ring 0 conformance.
+name: Experimental Ada Target Identity
+
+on:
+  push:
+    paths:
+      - "experimental/ada/targets/**"
+      - ".github/workflows/ada-target-identity.yml"
+  pull_request:
+    paths:
+      - "experimental/ada/targets/**"
+      - ".github/workflows/ada-target-identity.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ada-target-identity-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  identity:
+    name: GNAT Target identity (experimental)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Ubuntu's GNAT 14 toolchain
+        run: |
+          sudo apt-get update
+          # Pin the compiler family; Ubuntu package revisions may still update.
+          sudo apt-get install --yes --no-install-recommends gnat-14
+          gnatmake-14 --version
+      - name: Check identity and private lifetime support
+        env:
+          GNATMAKE: gnatmake-14
+          GNAT_FLAGS: "-gnatwa -gnatwe"
+        run: sh experimental/ada/targets/run-tests.sh
