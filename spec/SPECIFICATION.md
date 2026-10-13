@@ -1173,11 +1173,12 @@ back ends after one echo. A linking is undone with a call on the Link's
 Agent or on the Contact that rolls back, however deep inside that call it
 was made: in an earlier Tag's Imprint, inside another Agent's tagging, or
 at a Pair's Parts. A call on any other Agent that rolls back leaves it, as
-it leaves that Agent's other taggings (§0.6). When nothing else has
-changed the Contact's Tags since, she is restored as she was at the
-linking; otherwise she leaves the Link silently, keeping what else she
-gained. An Agent linked as a Contact during its own call is restored as
-it was at the call. A Contact who was not an Agent becomes one; nothing
+it leaves that Agent's other taggings (§0.6). An undone linking takes
+back only what it gave her: she leaves the Link silently, with no
+teardown, and her history of it is forgotten; what else she gained or
+did since stays, and if she was no Agent before and holds nothing else,
+she is a plain object again. An Agent linked as a Contact during its own
+call is restored as it was at the call. A Contact who was not an Agent becomes one; nothing
 else is written on her. The kit never checks the linking Agent's
 membership or soundness: a gate that cares says so.
 

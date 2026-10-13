@@ -39,6 +39,7 @@ _TOOL = "__topkit_tool__"   # a Record's kind: the Tags its slot admits (tools._
 _RELATION = "_topkit_relation"   # on a Tag class marked @Link: a template, never a Tag in play
 _LINK = "_topkit_link"           # on one Agent's Link: a Tag the kit built for that Agent
 _PAIR_TAG = "_topkit_pair_tag"   # on the Tag a Pair receives from a Relation
+KIND = "_topkit_kind"   # None on the root Tag; "relation", "link" or "pair" on the kit's special Tags
 
 STATE = "_TOPKIT_STATE"
 

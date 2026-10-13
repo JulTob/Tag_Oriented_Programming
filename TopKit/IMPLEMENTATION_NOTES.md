@@ -382,9 +382,14 @@ rollback target.
   on a third Agent leaves it, as §0.6 leaves that Agent's other
   taggings. A linking runs its Pair's and its Contact's calls under a
   boundary of its own, which undoes everything inside it when her entry
-  is refused. An undone linking restores the Contact's snapshot when
-  nothing else changed her Tags since (`_undo_linking`); otherwise she
-  leaves those Links silently. A boundary closes when its call returns
+  is refused. An undone linking takes back only what it gave the
+  Contact (`_undo_linking`): membership, history, hooks and views of
+  those Links; she becomes a plain object again only if she was none
+  before and holds nothing else. A boundary drops its Agent when it
+  closes. The hot paths read a Tag's own `_topkit_kind` (None for every
+  ordinary Tag) before any Relation or Pair Tag check, and `ever_links`
+  stays None until an Agent's first Link, so ordinary Tags pay for
+  neither. A boundary closes when its call returns
   (`_close`): an asyncio task that copied the context of a finished call
   links on its own. Extending a held Link runs every Pair's gate first
   (`_gate_form`), then every Pair's Parts (`gated=True`), and defers

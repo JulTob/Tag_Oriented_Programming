@@ -67,10 +67,12 @@ def _sound_of(
     A Link's sound Contacts are those whose own contract holds and whose
     Pair holds (STEP-SPEC-22 rule 7.3)."""
 
-    _refuse_relation(tag)
+    if tag._topkit_kind is not None:
+        _refuse_relation(tag)
+
     holds = _holds
 
-    if _is_link(tag):
+    if _is_link_tag(tag):
         holds = _links()._contact_holds(tag)
 
     return _Partition(
@@ -84,19 +86,33 @@ def _refuse_relation(
         tag: type,
         ) -> None:
     """A Relation is a template, never a Tag in play (STEP-SPEC-22 §9):
-    every act on it is refused and points to a Link."""
+    every act on it is refused and points to a Link; so is every act on
+    the kit's Tag for a Pair. One cached class lookup: an ordinary Tag
+    reads the root's None."""
 
-    if _is_relation(tag):
+    kind = tag._topkit_kind
+
+    if kind is None or kind == "link":
+        return
+
+    if kind == "relation":
         raise TagCompositionError(
                 f"{tag.__name__} is a Relation: link through an Agent,"
                 f" agent.{tag.__name__}(contact)"
                 )
 
-    if _is_pair_tag(tag):
-        raise TagCompositionError(
-                f"{tag.__name__} is the kit's Tag for a Pair: reach a Pair"
-                f" through its Link, agent.{tag.__name__}[contact]"
-                )
+    raise TagCompositionError(
+            f"{tag.__name__} is the kit's Tag for a Pair: reach a Pair"
+            f" through its Link, agent.{tag.__name__}[contact]"
+            )
+
+
+def _is_link_tag(
+        tag: type,
+        ) -> bool:
+    """One Agent's Link, read on the hot paths: one cached class lookup."""
+
+    return tag._topkit_kind == "link"
 
 
 _making_link = 0   # raised by links while it builds one Agent's Link
@@ -128,6 +144,10 @@ class MetaTag(type):
                 "_topkit_field",
                 _Field(),
                 )
+        namespace.setdefault(
+                "_topkit_kind",
+                None,
+                )   # its own, never inherited: a Relation, a Link or a Pair Tag says so itself
         _name_checks(namespace, name)
 
         if not _making_link and any(
@@ -192,7 +212,8 @@ class MetaTag(type):
             /,
             **inputs: Any,
             ) -> object:
-        _refuse_relation(tag)
+        if tag._topkit_kind is not None:
+            _refuse_relation(tag)   # a Relation or a Pair Tag; one attribute read for every other Tag
 
         if target is _MISSING:
             raise TypeError(
@@ -200,7 +221,7 @@ class MetaTag(type):
                     f" {tag.__name__}(target)"
                     )
 
-        if _is_link(tag):
+        if _is_link_tag(tag):
             return _links()._link(
                     tag,
                     target,
@@ -230,7 +251,8 @@ class MetaTag(type):
         """``agent in Wizard``: membership. ``"Deprecated" in Wizard``: a
         keyword among the Tag's Flag Pins; a string is never a member."""
 
-        _refuse_relation(tag)
+        if tag._topkit_kind is not None:
+            _refuse_relation(tag)   # a Relation or a Pair Tag; one attribute read for every other Tag
 
         if isinstance(candidate, str):
             return _keyword(
@@ -249,10 +271,14 @@ class MetaTag(type):
             tag,
             candidate: object,
             ) -> bool:
-        _refuse_relation(tag)
+        if tag._topkit_kind is not None:
+            _refuse_relation(tag)   # a Relation or a Pair Tag; one attribute read for every other Tag
         state = _state_of(candidate)
 
-        if state is not None and (tag in state.ever or tag in state.ever_links):
+        if state is not None and (
+                tag in state.ever
+                or (state.ever_links is not None and tag in state.ever_links)
+                ):
             return True
 
         return super().__instancecheck__(candidate)
@@ -327,7 +353,8 @@ class MetaTag(type):
             tag,
             key: Any,
             ) -> Any:
-        _refuse_relation(tag)
+        if tag._topkit_kind is not None:
+            _refuse_relation(tag)   # a Relation or a Pair Tag; one attribute read for every other Tag
 
         if isinstance(key, slice):
             if key != slice(None):
@@ -338,7 +365,7 @@ class MetaTag(type):
 
             return tag._topkit_field
 
-        if _is_link(tag):
+        if _is_link_tag(tag):
             return _links()._pair_of(
                     tag,
                     key,
@@ -353,9 +380,10 @@ class MetaTag(type):
             tag,
             agent: object,
             ) -> None:
-        _refuse_relation(tag)
+        if tag._topkit_kind is not None:
+            _refuse_relation(tag)   # a Relation or a Pair Tag; one attribute read for every other Tag
 
-        if _is_link(tag) and isinstance(agent, slice):
+        if _is_link_tag(tag) and isinstance(agent, slice):
             _links()._unlink_all(
                     tag,
                     agent,

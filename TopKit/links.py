@@ -46,6 +46,7 @@ from weakref import WeakKeyDictionary
 import weakref
 
 from . import tags as tags_module
+from .declarations import KIND
 from .declarations import STATE
 from .declarations import Report
 from .declarations import _FLAG
@@ -78,6 +79,7 @@ from .state import _Line
 from .state import _State
 from .state import _is_composing
 from .state import _namespace_of
+from .state import _set_runtime_type
 from .state import _state_of
 from .tags import MetaTag
 from .tags import Tag
@@ -160,6 +162,11 @@ def Link(
             relation,
             _RELATION,
             True,
+            )
+    type.__setattr__(
+            relation,
+            KIND,
+            "relation",
             )
 
     return relation
@@ -293,6 +300,7 @@ def _pair_tag(
             "__qualname__": relation.__qualname__,
             "__doc__": relation.__doc__,
             _PAIR_TAG: True,   # the kit's own: reached only through a Link (rule 7.1)
+            KIND: "pair",
             }
 
     for name, member in relation.__dict__.items():
@@ -935,6 +943,7 @@ def _new_link(
             "__qualname__": layers[0].__qualname__,
             "__doc__": layers[0].__doc__,
             _LINK: True,
+            KIND: "link",
             }
 
     for relation in layers:
@@ -1753,22 +1762,16 @@ def _undo_linking(
         entry: Any,
         links: list[type],
         ) -> None:
-    """A linking undone with the call it was part of (rule 5.6). When
-    nothing but this linking has changed her Tags since, she is restored
-    as she was, an Agent no more if she was none. Otherwise she leaves
-    these Links silently, with no teardown, and what else she gained
-    since stays."""
+    """A linking undone with the call it was part of (rule 5.6) takes back
+    only what it gave her: she leaves these Links silently, with no
+    teardown, and her history of them is forgotten. Everything else she
+    gained or did since stays. The lines they published stay on her,
+    sticky, and answer no more, as after an unlink. If she was no Agent
+    before and holds nothing else, she is a plain object again."""
 
     state = _state_of(contact)
 
     if state is None:
-        return
-
-    if list(state.active) == [*entry.tags, *links]:
-        _rollback_to(
-                contact,
-                entry,
-                )
         return
 
     for link in reversed(links):
@@ -1778,9 +1781,61 @@ def _undo_linking(
         link.__dict__["_topkit_field"]._Remove(contact)
         state.rips.pop(link, None)
         state.snapshots.pop(link, None)
-        state.ever_links.discard(link)
+
+        if state.ever_links is not None:
+            state.ever_links.discard(link)
 
     state.words = None
+
+    if entry.state is None and _holds_only_lines(state):
+        _forget_agent(
+                contact,
+                state,
+                entry.host_class,
+                )
+
+
+def _holds_only_lines(
+        state: _State,
+        ) -> bool:
+    """Nothing on her but what Links published: no Tag, no history, no
+    Record, no condition, no teardown."""
+
+    if state.active or state.ever or state.ever_links:
+        return False
+
+    if state.records or state.preconditions or state.postconditions or state.rips:
+        return False
+
+    return all(
+            _is_link(origin)
+            for origin in state.action_origins.values()
+            ) and all(
+            _is_link(origin)
+            for origin, _report in state.reports.values()
+            )
+
+
+def _forget_agent(
+        contact: object,
+        state: _State,
+        host_class: type,
+        ) -> None:
+    """She was no Agent before the undone linking: she is a plain object
+    again, with whatever plain values she holds."""
+
+    namespace = _namespace_of(contact)
+
+    for name in state.actions:
+        namespace.pop(name, None)   # the lines bound on her
+
+    namespace.pop(STATE, None)
+
+    if type(contact) is not host_class:
+        _set_runtime_type(
+                contact,
+                host_class,
+                )
 
 
 def _agent_of(

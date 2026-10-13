@@ -1157,9 +1157,11 @@ implementation follows `main`'s law as it stands, and says so:
   Records, but at the declaring Shape's Parts, after the Shape's own
   Records, not at the Agent's step 1. A refusal still refuses the whole
   call, nothing changed.
-- An undone linking restores the Contact's snapshot only when nothing
-  else changed her Tags since; otherwise she leaves the Links silently,
-  and the lines they published stay on her, sticky, as after an unlink.
+- An undone linking takes back only what it gave the Contact: she
+  leaves the Links silently, her history of them forgotten, and what else
+  she gained or did since stays. The lines they published stay on her,
+  sticky, and answer no more, as after an unlink; if she was no Agent
+  before and holds nothing else, she is a plain object again.
 - Cost, measured on the reviewed code (`benchmarks/compare.py`, section
   j, CPython 3.13, one run): a linking about 78 µs (two taggings: the
   Pair's gated one and the Contact's membership), reading a Pair Record

@@ -2452,6 +2452,100 @@ class Integration_Review_Tests(unittest.TestCase):
                     pick = max
 
 
+# ------------------------------------------------------------------
+# The second round's findings, one regression each
+# ------------------------------------------------------------------
+
+
+class Second_Round_Tests(unittest.TestCase):
+    def test_a_context_copied_during_any_tagging_never_keeps_its_agent(self):
+        captured = []
+        torn = []
+
+        class Monitored(Tag):                             # no Link anywhere
+            @Imprint
+            def Capture(agent):
+                captured.append(contextvars.copy_context())   # as asyncio does for a task started here
+
+            @Rip
+            def Bye(agent):
+                torn.append(agent.name)
+
+        host = Character("Host")
+        Monitored(host)
+        reference = weakref.ref(host)
+        del host
+        gc.collect()
+        self.assertIsNone(reference())                    # the copied context holds no Agent
+        self.assertEqual(torn, ["Host"])
+        self.assertEqual(len(captured), 1)
+
+    def test_an_undone_linking_never_rewinds_her_own_finished_tagging(self):
+        log = []
+        people = {}
+
+        class Trained(Tag):
+            @Record
+            def level(agent):
+                return 1
+
+            @Imprint
+            def Register(agent):
+                people["bob"].Knows(agent)                # bob links her at her own Write
+
+            @Imprint
+            def Train(agent):
+                agent.level = 5
+                log.append("trained")
+
+        class Recruiting(Tag):
+            @Record
+            def recruit(agent, *, recruit=None):
+                Trained(recruit)                          # her own tagging: completes
+                return recruit
+
+            @Record
+            def broken(agent):
+                raise ValueError("Parts fails")
+
+        bob, ruth = People("Bob", "Ruth")
+        people["bob"] = bob
+        Social(bob)
+        with self.assertRaises(TagCompositionError):
+            Recruiting(bob, recruit=ruth)                 # bob's call rolls back: his linking is undone
+        self.assertNotIn(ruth, bob.Knows)
+        self.assertIn(ruth, Trained)
+        self.assertEqual(ruth.level, 5)                   # her Write stays (§0.6)
+        self.assertEqual(Trained[ruth].level, 5)          # and her view of it
+        self.assertEqual(log, ["trained"])
+
+    def test_an_undone_linking_never_erases_a_tag_she_gained_and_left_since(self):
+        class Probation(Tag):
+            @Record
+            def strikes(agent):
+                return 3
+
+        class Supervising(Tag):
+            @Record
+            def ward(agent, *, ward=None):
+                agent.Knows(ward)                         # bob's linking
+                Probation(ward)                           # her own tagging, then her Rip
+                del Probation[ward]
+                return ward
+
+            @Record
+            def broken(agent):
+                raise ValueError("Parts fails")
+
+        bob, ruth = People("Bob", "Ruth")
+        Social(bob)
+        with self.assertRaises(TagCompositionError):
+            Supervising(bob, ward=ruth)
+        self.assertNotIn(ruth, bob.Knows)
+        self.assertTrue(isinstance(ruth, Probation))      # her history stays
+        self.assertEqual(ruth.strikes, 3)                 # and her sticky Record (§0.7)
+
+
 def Agents_Of_Any_Link(contact):
     """The Links a Contact is a member of now, read from her state."""
 

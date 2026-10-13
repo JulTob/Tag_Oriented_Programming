@@ -29,6 +29,7 @@ from dataclasses import dataclass
 from dataclasses import field
 from typing import Any
 from typing import Callable
+import weakref
 
 from .contracts import _evaluate
 from .declarations import _is_link
@@ -154,6 +155,7 @@ def _close(
     nothing (a copied context may keep the object itself)."""
 
     boundary.open = False
+    boundary.agent = None
     boundary.undo.clear()
     boundary.writes.clear()
 
@@ -680,6 +682,9 @@ def _commit(
     state.words = None
 
     if _is_link(tag):
+        if state.ever_links is None:
+            state.ever_links = weakref.WeakSet()
+
         state.ever_links.add(tag)   # weakly: a living Contact never keeps a dead Agent's Link (STEP-SPEC-22)
     else:
         state.ever.add(tag)
