@@ -63,10 +63,12 @@ class _Call_Boundary:
     """The failure phase of this call, independent of any nested tagging.
 
     ``undo`` and ``writes`` belong to this call alone: steps on other
-    Targets that are part of it (a Link's Pairs, when a Shape extends a
-    held Link, STEP-SPEC-22 rule 4.6). ``undo`` runs when the call rolls
-    back; ``writes`` run after the call's Tags are committed, before its
-    Quality check."""
+    Targets that are part of it (a Link's Contacts and Pairs, STEP-SPEC-22
+    rules 4.6 and 5.6). ``undo`` runs, latest first, when the call rolls
+    back; a call that does not roll back hands its ``undo`` to the call
+    around it, so a linking made anywhere inside a call that later rolls
+    back is undone with it. ``writes`` run after the call's Tags are
+    committed, before its Quality check."""
 
     after_commit: bool = False
     undo: list[Callable[[], None]] = field(default_factory=list)
@@ -115,6 +117,27 @@ def _rollback_to(
             )
 
 
+def _undo(
+        boundary: _Call_Boundary,
+        ) -> None:
+    """Undo what this call did on other Targets, latest first."""
+
+    for undo in reversed(boundary.undo):
+        undo()
+
+
+def _hand_over(
+        boundary: _Call_Boundary,
+        outer: _Call_Boundary | None,
+        ) -> None:
+    """This call will not roll back: the call around it, if any, takes
+    its undo steps, and runs them if it rolls back itself (STEP-SPEC-22
+    rule 5.6)."""
+
+    if outer is not None:
+        outer.undo.extend(boundary.undo)
+
+
 def _apply(
         agent: object,
         tag: type,
@@ -134,6 +157,7 @@ def _apply_form(
         form: tuple[type, ...] | list[type],
         inputs: dict[str, Any],
         deferred: list[_Declarations] | None = None,
+        gated: bool = False,
         ) -> object:
     """Apply every Tag of ``form`` the Agent lacks, Bases first, as one call.
 
@@ -141,7 +165,8 @@ def _apply_form(
     of each applied Tag are appended to it instead of running, and the
     Quality check is left to the caller. A Link uses this to put a
     Contact's entry between its Pair's Parts and its Pair's Imprints
-    (STEP-SPEC-22 rule 5.1)."""
+    (STEP-SPEC-22 rule 5.1). With ``gated``, the caller has already run
+    the gate (``_gate_form``), so it is not run twice."""
 
     entry_state = _state_of(agent)
 
@@ -152,6 +177,7 @@ def _apply_form(
         return agent   # the whole Form is active: nothing to apply, nothing to undo
 
     entry = _capture(agent)
+    outer = _current_boundary.get()
     boundary = _Call_Boundary()
     token = _current_boundary.set(boundary)
 
@@ -170,7 +196,7 @@ def _apply_form(
                         pending,
                         )
 
-            if any(
+            if not gated and any(
                     _declarations_of(member).preconditions
                     for member in pending
                     ):
@@ -198,19 +224,70 @@ def _apply_form(
             if deferred is None:
                 _inspect(agent)
     except BaseException:
-        if not boundary.after_commit:
-            _rollback_to(
-                    agent,
-                    entry,
-                    )
-
-            for undo in reversed(boundary.undo):
-                undo()
+        if boundary.after_commit:
+            _hand_over(
+                    boundary,
+                    outer,
+                    )   # the failure raises and what was done stays (§0.6)
+        else:
+            try:
+                _undo(boundary)   # its linkings first, on other Targets ...
+            finally:
+                _rollback_to(
+                        agent,
+                        entry,
+                        )   # ... then the Agent itself, exactly as it was at the call
         raise
+    else:
+        _hand_over(
+                boundary,
+                outer,
+                )
     finally:
         _current_boundary.reset(token)
 
     return agent
+
+
+def _gate_form(
+        agent: object,
+        form: tuple[type, ...] | list[type],
+        inputs: dict[str, Any],
+        ) -> None:
+    """The gate a call over ``form`` would run, and nothing else. A Shape
+    that extends a held Link runs every Pair's gate this way before any
+    Pair's Parts (STEP-SPEC-22 rule 4.6)."""
+
+    state = _state_of(agent)
+
+    if state is None:
+        return
+
+    pending = [
+            member
+            for member in form
+            if member not in state.active
+            ]
+
+    if not pending:
+        return
+
+    if len(pending) > 1:
+        _refuse_in_collisions_of_the_form(
+                state,
+                pending,
+                )
+
+    if any(
+            _declarations_of(member).preconditions
+            for member in pending
+            ):
+        _gate(
+                agent,
+                state,
+                pending,
+                inputs,
+                )
 
 
 def _rollback(

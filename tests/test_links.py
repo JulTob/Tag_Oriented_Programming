@@ -1364,5 +1364,393 @@ class Finding_Tests(unittest.TestCase):
         self.assertNotIn("Charlie", repr(charlie.Knows))
 
 
+# ------------------------------------------------------------------
+# Rollback across Targets (rules 4.6, 5.6, 5.7, 8.2, 8.5): the review's
+# findings, one regression each
+# ------------------------------------------------------------------
+
+
+class Rollback_Tests(unittest.TestCase):
+    def test_an_agent_linked_during_its_own_rolled_back_call_is_as_it_was(self):
+        class Member(Tag):
+            @Record
+            def card(agent):
+                return "member card"
+
+        class Vip(Member):
+            @Record
+            def sponsored(agent, *, sponsor=None):
+                sponsor.Knows(agent)                      # the sponsor links the newcomer at his Parts
+                return True
+
+            @Record
+            def badge(agent):
+                raise ValueError("no badge left")
+
+        bob, charlie = People("Bob", "Charlie")
+        Social(bob)
+        with self.assertRaises(TagCompositionError):
+            Vip(charlie, sponsor=bob)
+        self.assertEqual(Tags(charlie), ())
+        self.assertNotIn(charlie, Member)
+        self.assertFalse(hasattr(charlie, "card"))       # not even an Agent any more
+        self.assertNotIn(charlie, bob.Knows)
+        Member(charlie)                                   # a retry enters the Field
+        self.assertIn(charlie, list(Member[:]))
+
+    def test_a_self_link_at_parts_is_undone_with_the_call(self):
+        class Base(Tag):
+            @Record
+            def base_value(agent):
+                return 1
+
+        class Mirror(Base):
+            @Record
+            def looked(agent):
+                agent.Knows(agent)
+                return True
+
+            @Record
+            def broken(agent):
+                raise ValueError("later Record fails")
+
+        charlie = Character("Charlie")
+        Net(charlie)
+        with self.assertRaises(TagCompositionError):
+            Mirror(charlie)
+        self.assertEqual(Tags(charlie), (Net,))
+        self.assertNotIn(charlie, Base)
+        self.assertNotIn(charlie, list(Base[:]))
+        self.assertNotIn(charlie, charlie.Knows)
+        self.assertFalse("looked" @ charlie)
+
+    def test_a_linking_in_an_earlier_imprint_is_undone_when_a_later_part_fails(self):
+        torn = []
+
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Record
+                def since(agent, contact, *, since=None):
+                    return since
+
+                @Rip
+                def Forget(agent, contact):
+                    torn.append((agent.name, contact.name))
+
+        class Introduced(Circle):
+            @Imprint
+            def Meet(agent, *, friend=None):
+                agent.Knows(friend, since=2020)
+
+        class Sponsored(Introduced):
+            @Record
+            def broken(agent):
+                raise ValueError("Parts of the Shape fail")
+
+        charlie, ruth = People("Charlie", "Ruth")
+        with self.assertRaises(TagCompositionError):
+            Sponsored(charlie, friend=ruth)               # Circle grants the Link in this same call
+        self.assertFalse(hasattr(charlie, "Knows"))       # not even an Agent any more
+        self.assertNotIn(ruth, Agents_Of_Any_Link(ruth))
+        Circle(charlie)
+        self.assertNotIn(ruth, charlie.Knows)
+        del ruth
+        gc.collect()
+        self.assertEqual(torn, [])                        # no teardown for a linking that was undone
+
+    def test_a_linking_through_a_held_link_is_undone_when_a_later_part_fails(self):
+        class Introduced(Tag):
+            @Imprint
+            def Meet(agent, *, friend=None):
+                agent.Knows(friend, since=2020)
+
+        class Sponsored(Introduced):
+            @Record
+            def broken(agent):
+                raise ValueError("Parts of the Shape fail")
+
+        charlie, ruth = People("Charlie", "Ruth")
+        Social(charlie)
+        with self.assertRaises(TagCompositionError):
+            Sponsored(charlie, friend=ruth)
+        self.assertNotIn(ruth, charlie.Knows)
+        self.assertFalse(isinstance(ruth, charlie.Knows))
+        with self.assertRaises(TagResolutionError):
+            charlie.Knows[ruth]
+
+    def test_a_dropped_pair_never_runs_its_teardowns(self):
+        torn = []
+
+        class Greeting(Tag):
+            @Record
+            def Greet(agent):
+                return "her own Record"
+
+        class Club_With_Teardown(Tag):
+            @Link
+            class Member(Tag):
+                @Public
+                def Greet(agent, contact):
+                    return "a line"
+
+                @Rip
+                def Leave(agent, contact):
+                    torn.append("Member")
+
+        class Joining(Tag):
+            @Record
+            def friend(agent, *, friend=None):
+                agent.Knows(friend)
+                return friend
+
+            @Record
+            def broken(agent):
+                raise ValueError("no")
+
+        class Counted(Tag):
+            @Link
+            class Knows(Tag):
+                @Rip
+                def Forget(agent, contact):
+                    torn.append("Knows")
+
+        charlie, ruth, sam = People("Charlie", "Ruth", "Sam")
+        Club_With_Teardown(charlie)
+        Counted(charlie)
+        Greeting(ruth)
+        with self.assertRaises(TagCompositionError):
+            charlie.Member(ruth)                          # her entry is refused after the Pair's call
+        with self.assertRaises(TagCompositionError):
+            Joining(charlie, friend=sam)                  # the linking is undone by the rollback
+        gc.collect()
+        self.assertEqual(torn, [])
+
+    def test_a_nested_linking_at_a_pairs_parts_is_undone_when_her_entry_is_refused(self):
+        class Greeting(Tag):
+            @Record
+            def Greet(agent):
+                return "her own Record"
+
+        class Nesting_Club(Tag):
+            @Link
+            class Member(Tag):
+                @Record
+                def joined(agent, contact):
+                    agent.Knows(contact, since=1999)      # a nested linking, at the Pair's Parts
+                    return 1
+
+                @Public
+                def Greet(agent, contact):
+                    return "a line"
+
+        charlie, ruth = People("Charlie", "Ruth")
+        Social(charlie)
+        Nesting_Club(charlie)
+        Greeting(ruth)
+        with self.assertRaises(TagCompositionError):
+            charlie.Member(ruth)
+        self.assertNotIn(ruth, charlie.Knows)
+        self.assertFalse(isinstance(ruth, charlie.Knows))
+
+    def test_a_nested_linking_in_an_extension_is_undone_when_another_pair_refuses(self):
+        class Registry(Tag):
+            @Link
+            class Listed(Tag):
+                pass
+
+        class Plain(Tag):
+            @Link
+            class Knows(Tag):
+                pass
+
+        class Strict(Plain):
+            @Link
+            class Knows(Plain.Knows):
+                @Pre
+                def Only_Honest(agent, contact):
+                    return contact.honest
+
+                @Record
+                def vetted(agent, contact):
+                    agent.Listed(contact)
+                    return True
+
+        charlie, ruth, sam = People("Charlie", "Ruth", "Sam")
+        sam.honest = False
+        Registry(charlie)
+        Plain(charlie)
+        charlie.Knows(ruth)
+        charlie.Knows(sam)
+        with self.assertRaises(TagPreconditionError):
+            Strict(charlie)
+        self.assertNotIn(charlie, Strict)
+        self.assertNotIn(ruth, charlie.Listed)
+        self.assertFalse("vetted" @ charlie.Knows[ruth])
+
+    def test_every_pairs_gate_runs_before_any_pairs_records(self):
+        log = []
+
+        class Plain(Tag):
+            @Link
+            class Knows(Tag):
+                pass
+
+        class Strict(Plain):
+            @Link
+            class Knows(Plain.Knows):
+                @Pre
+                def Only_Honest(agent, contact):
+                    log.append(f"gate {contact.name}")
+                    return contact.honest
+
+                @Record
+                def vetted(agent, contact):
+                    log.append(f"Record {contact.name}")
+                    return True
+
+        charlie, ruth, sam = People("Charlie", "Ruth", "Sam")
+        sam.honest = False
+        Plain(charlie)
+        charlie.Knows(ruth)
+        charlie.Knows(sam)
+        with self.assertRaises(TagPreconditionError):
+            Strict(charlie)
+        self.assertEqual(log, ["gate Ruth", "gate Sam"])
+
+    def test_a_rolled_back_grant_leaves_independent_links_apart(self):
+        class Two(Tag):
+            @Link
+            class Knows(Tag):
+                @Record
+                def known(agent, contact):
+                    return "known"
+
+            @Link
+            class Likes(Tag):
+                @Record
+                def liked(agent, contact):
+                    return "liked"
+
+        class Close(Two):
+            @Link
+            class Bonded(Two.Knows, Two.Likes):
+                pass
+
+        class Doomed(Close):
+            @Record
+            def broken(agent):
+                raise ValueError("a later Record fails")
+
+        charlie, ruth, sam = People("Charlie", "Ruth", "Sam")
+        Two(charlie)
+        charlie.Knows(ruth)
+        charlie.Likes(sam)
+        with self.assertRaises(TagCompositionError):
+            Doomed(charlie)                               # joins the two families, then rolls back
+        charlie.Likes(ruth)
+        self.assertIsNot(charlie.Likes[ruth], charlie.Knows[ruth])
+        self.assertFalse("known" @ charlie.Likes[ruth])
+        del charlie.Knows[ruth]
+        with self.assertRaises(TagResolutionError):
+            charlie.Knows[ruth]
+
+    def test_a_refused_join_joins_nothing(self):
+        class Three(Tag):
+            @Link
+            class Knows(Tag):
+                pass
+
+            @Link
+            class Likes(Tag):
+                pass
+
+            @Link
+            class Trusts(Tag):
+                pass
+
+        class Close(Three):
+            @Link
+            class Bonded(Three.Knows, Three.Likes, Three.Trusts):
+                pass
+
+        charlie, ruth, sam = People("Charlie", "Ruth", "Sam")
+        Three(charlie)
+        charlie.Knows(sam)
+        charlie.Likes(ruth)
+        charlie.Trusts(ruth)                              # Likes and Trusts hold separate Pairs for her
+        with self.assertRaises(TagCompositionError):
+            Close(charlie)
+        charlie.Likes(sam)
+        self.assertIsNot(charlie.Likes[sam], charlie.Knows[sam])   # Knows and Likes were never joined
+
+    def test_a_teardown_that_links_her_again_keeps_her_pair(self):
+        calls = []
+
+        class Again(Tag):
+            @Link
+            class Knows(Tag):
+                @Record
+                def since(agent, contact, *, since=None):
+                    return since
+
+                @Public
+                def Hello(agent, contact):
+                    return f"hello from {agent.name}"
+
+                @Rip
+                def Relink(agent, contact):
+                    calls.append(contact.name)
+                    if len(calls) == 1:
+                        agent.Knows(contact, since=2024)
+
+        charlie, ruth = People("Charlie", "Ruth")
+        Again(charlie)
+        charlie.Knows(ruth, since=2010)
+        del charlie.Knows[ruth]
+        self.assertIn(ruth, charlie.Knows)
+        self.assertEqual(charlie.Knows[ruth].since, 2024)
+        self.assertEqual(ruth.Hello(), "hello from Charlie")
+        del charlie.Knows[ruth]                           # her teardown runs again
+        self.assertEqual(calls, ["Ruth", "Ruth"])
+        self.assertNotIn(ruth, charlie.Knows)
+
+    def test_unlinking_everyone_skips_a_contact_a_teardown_already_unlinked(self):
+        ran = []
+        people = {}
+
+        class Chain(Tag):
+            @Link
+            class Knows(Tag):
+                @Rip
+                def Forget(agent, contact):
+                    ran.append(contact.name)
+                    if contact.name == "A":
+                        del agent.Knows[people["B"]]
+
+        charlie = Character("Charlie")
+        Chain(charlie)
+        for name in "ABC":
+            people[name] = Character(name)
+            charlie.Knows(people[name])
+        del charlie.Knows[:]
+        self.assertEqual(ran, ["A", "B", "C"])
+        self.assertEqual(list(charlie.Knows[:]), [])
+
+
+def Agents_Of_Any_Link(contact):
+    """The Links a Contact is a member of now, read from her state."""
+
+    from TopKit.declarations import _is_link
+    from TopKit.state import _state_of
+
+    state = _state_of(contact)
+
+    if state is None:
+        return []
+
+    return [tag for tag in state.active if _is_link(tag)]
+
+
 if __name__ == "__main__":
     unittest.main()

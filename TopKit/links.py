@@ -77,12 +77,16 @@ from .state import _namespace_of
 from .state import _state_of
 from .tags import MetaTag
 from .tags import Tag
+from .transactions import _Call_Boundary
 from .transactions import _apply_form
 from .transactions import _capture
 from .transactions import _current_boundary
+from .transactions import _gate_form
+from .transactions import _hand_over
 from .transactions import _imprint
 from .transactions import _inspect
 from .transactions import _rollback_to
+from .transactions import _undo
 
 
 Function = Callable[..., Any]
@@ -752,7 +756,9 @@ def _family_for(
         bases: list[type],
         ) -> _Family:
     """A Link joins the family of its Base Links; a Link with none starts
-    its own. Base Links from separate families are joined into one."""
+    its own. Base Links from separate families are joined into one, after
+    checking that no Contact holds a Pair in two of them. The join is
+    undone with the call if it rolls back (§0.6)."""
 
     families: list[_Family] = []
 
@@ -766,27 +772,95 @@ def _family_for(
     if not families:
         return _Family()
 
+    _refuse_shared_contacts(families)
     kept = families[0]
+    joins = [
+            _join(
+                    kept,
+                    other,
+                    )
+            for other in families[1:]
+            ]
+    boundary = _current_boundary.get()
 
-    for other in families[1:]:
-        shared = set(kept.pairs) & set(other.pairs)
+    if joins and boundary is not None:
+        boundary.undo.append(partial(
+                _split,
+                kept,
+                joins,
+                ))
 
-        if shared:
+    return kept
+
+
+def _refuse_shared_contacts(
+        families: list[_Family],
+        ) -> None:
+    """Two families joined would give one Contact two Pairs: refused,
+    before anything is joined."""
+
+    seen: set[int] = set()
+
+    for family in families:
+        if seen & family.pairs.keys():
             raise TagCompositionError(
                     "this Link would join Links that hold separate Pairs for"
                     " one Contact; unlink her from one of them first"
                     )
 
-        for pair in other.pairs.values():
-            object.__getattribute__(pair, "__dict__")[_PAIR_ENDS].family = kept
+        seen.update(family.pairs)
 
-        kept.pairs.update(other.pairs)
 
-        for link in other.Links():
-            _record_of(link).family = kept
-            kept.links.append(weakref.ref(link))
+def _join(
+        kept: _Family,
+        other: _Family,
+        ) -> tuple[_Family, dict[int, Pair], list[type], int]:
+    """Move ``other``'s Pairs and Links into ``kept``. Returns what
+    ``_split`` needs to move them back."""
 
-    return kept
+    moved_pairs = dict(other.pairs)
+    moved_links = other.Links()
+    links_before = len(kept.links)
+
+    for pair in moved_pairs.values():
+        object.__getattribute__(pair, "__dict__")[_PAIR_ENDS].family = kept
+
+    kept.pairs.update(moved_pairs)
+    other.pairs.clear()
+
+    for link in moved_links:
+        _record_of(link).family = kept
+        kept.links.append(weakref.ref(link))
+
+    return (
+            other,
+            moved_pairs,
+            moved_links,
+            links_before,
+            )
+
+
+def _split(
+        kept: _Family,
+        joins: list[tuple[_Family, dict[int, Pair], list[type], int]],
+        ) -> None:
+    """Undo ``_join``, latest first: each family gets back its own Pairs
+    and Links."""
+
+    for other, moved_pairs, moved_links, links_before in reversed(joins):
+        for key, pair in moved_pairs.items():
+            if kept.pairs.get(key) is pair:
+                del kept.pairs[key]
+                other.pairs[key] = pair
+                object.__getattribute__(pair, "__dict__")[_PAIR_ENDS].family = other
+
+        for link in moved_links:
+            _record_of(link).family = other
+            _record_of(link).pair_form = None
+
+        del kept.links[links_before:]
+
+    _forget_pair_forms(kept)
 
 
 def _tag_scope_of(
@@ -1044,12 +1118,20 @@ def _extend(
                     )
 
         for pair in pairs:
+            _gate_form(
+                    pair,
+                    form,
+                    {},
+                    )   # every Pair's gate first: one refusal refuses the whole call
+
+        for pair in pairs:
             deferred: list[Any] = []
             _apply_form(
                     pair,
                     form,
                     {},
                     deferred,
+                    gated=True,
                     )
             written.append(
                     (
@@ -1233,49 +1315,53 @@ def _link(
                 record.name,
                 )
 
-    boundary = _current_boundary.get()
-    undoable = boundary is not None and not boundary.after_commit   # inside a call that may roll back (rule 5.6)
-    pair_entry = None if created else _capture(pair)   # a new Pair is simply dropped
-    contact_entry = _capture(contact) if undoable else None
+    outer = _current_boundary.get()   # a call this linking is part of (rule 5.6)
+    local = _Call_Boundary()   # nested linkings made at the Pair's Parts report here
+    pair_entry = _capture(pair)
+    contact_entry = _capture(contact) if outer is not None else None
     deferred: list[Any] = []
 
     def Drop_Pair() -> None:
-        if created:
-            family.pairs.pop(id(contact), None)
-        else:
-            _rollback_to(
-                    pair,
-                    pair_entry,
-                    )
-
-    try:
-        _apply_form(
+        _rollback_to(
                 pair,
-                form,
-                inputs,
-                deferred,
-                )
-    except BaseException:
-        Drop_Pair()   # the Pair's own call already rolled its state back; a new one is let go
-        raise
+                pair_entry,
+                )   # a new Pair loses its state, so its teardowns never run (rule 8.5)
+
+        if created and family.pairs.get(id(contact)) is pair:
+            del family.pairs[id(contact)]
+
+    token = _current_boundary.set(local)
 
     try:
-        _apply_form(
-                contact,
-                pending,
-                {},
-                [],
-                )   # a refusal rolls the Contact back by itself
-    except BaseException:
-        Drop_Pair()
-        raise
+        try:
+            _apply_form(
+                    pair,
+                    form,
+                    inputs,
+                    deferred,
+                    )
+            _apply_form(
+                    contact,
+                    pending,
+                    {},
+                    [],
+                    )   # a refusal rolls the Contact back by itself
+        except BaseException:
+            try:
+                _undo(local)   # what the Pair's Parts linked, latest first
+            finally:
+                Drop_Pair()
+
+            raise
+    finally:
+        _current_boundary.reset(token)
 
     _hook(
             contact,
             pending,
             )
 
-    if undoable:
+    if outer is not None:
         def Undo() -> None:
             _rollback_to(
                     contact,
@@ -1283,7 +1369,11 @@ def _link(
                     )
             Drop_Pair()
 
-        boundary.undo.append(Undo)
+        _hand_over(
+                local,
+                outer,
+                )
+        outer.undo.append(Undo)
 
     _write(
             pair,
@@ -1506,12 +1596,6 @@ def _leave(
         return
 
     state = _state_of(contact)
-    still_held = any(
-            other is not link
-            and other in state.active
-            and other in state.rips
-            for other in family.Links()
-            )
     agent = record.agent()
 
     if agent is None:
@@ -1549,14 +1633,31 @@ def _leave(
         ends.held = None
         state.composing = opened
 
-    if not still_held:
-        family.End(contact)
+    if not _still_held(
+            family,
+            state,
+            ):
+        family.End(contact)   # asked after the teardowns: one may have linked her again (rule 5.7)
 
     try:
         if first is not None:
             raise first
     finally:
         first = None   # never keep Agents alive through a traceback that holds this frame
+
+
+def _still_held(
+        family: _Family,
+        state: _State,
+        ) -> bool:
+    """A Link of the family still holds her: active, with its teardown
+    still due on her."""
+
+    return any(
+            link in state.active
+            and link in state.rips
+            for link in family.Links()
+            )
 
 
 def _unlink_all(
@@ -1590,6 +1691,9 @@ def _unlink_all(
     first: BaseException | None = None
 
     for contact in contacts:
+        if link not in _state_of(contact).active:
+            continue   # an earlier Contact's teardown already unlinked her
+
         try:
             _rip(
                     contact,
