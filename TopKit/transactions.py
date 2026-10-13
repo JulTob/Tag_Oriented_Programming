@@ -29,9 +29,12 @@ from typing import Any
 
 from .contracts import _evaluate
 from .declarations import _Declarations
+from .declarations import _discard_lazy_result
 from .declarations import _declarations_of
 from .declarations import _is_flag
 from .declarations import _protocol_inputs
+from .errors import _exception_text
+from .errors import _type_name
 from .errors import TagCompositionError
 from .errors import TagImprintError
 from .errors import TagPostconditionError
@@ -253,6 +256,7 @@ def _apply_one(
 
         _materialize(
                 agent,
+                tag,
                 declarations,
                 deleted_before,
                 inputs,
@@ -548,15 +552,25 @@ def _imprint(
         ) -> None:
     for name, imprint in declarations.imprints:
         try:
-            imprint(
+            result = imprint(
                     agent,
                     **_protocol_inputs(imprint, inputs, 1),
                     )
+            lazy = _discard_lazy_result(result)
         except Exception as error:
             raise TagImprintError.Named(name)(
-                    f"Imprint {imprint.__qualname__} failed:"
-                    f" {type(error).__name__}: {error}"
+                    f"Imprint {str.__str__(name)!r} failed:"
+                    f" {_type_name(error)}: {_exception_text(error)}"
                     ) from error
+
+        if lazy is not None:
+            article = "an" if lazy == "async generator" else "a"
+
+            raise TagImprintError.Named(name)(
+                    f"Imprint {str.__str__(name)!r} returned {article}"
+                    f" {lazy}; an Imprint must complete synchronously."
+                    " TOP does not await or iterate application protocols."
+                    )
 
 
 _NONE: frozenset[str] = frozenset()   # one empty set for every snapshot that needs none

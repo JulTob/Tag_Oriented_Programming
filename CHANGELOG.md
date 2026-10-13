@@ -4,6 +4,18 @@
 
 ### TopKit
 
+- **Synchronous protocol failures:** TopKit rejects native coroutine,
+  generator and async-generator returns from Pre, Imprint, Post and Rip
+  calls, including composed Rip Underlays. It attempts synchronous disposal
+  without awaiting or iterating the work. Ordinary teardown failures retain
+  their declared names and original causes, and later Rip protocols still
+  run. Record, Imprint and Underlay diagnostics also use Contribution names
+  rather than callable metadata; broken diagnostic formatting cannot hide
+  the failure. Record values and ordinary Action returns are unchanged.
+  This is the Python runtime boundary; STEP-SPEC-41 separately proposes a
+  language-wide rule. Tagging admission and host actualization are unchanged
+  in this focused repair.
+
 - **Protocol signature identity:** different callable objects that compare
   equal no longer reuse each other's parameter seats. Unhashable and
   non-weakrefable accepted callables work without custom equality or hash
