@@ -250,46 +250,6 @@ Rip for an unfinished never-member and no automatic rollback of training
 effects. Preconditions and Record builders are observational authoring
 contracts, not sandboxes for arbitrary Python effects.
 
-TopKit currently invokes Preconditions, Imprints, Postconditions and Rip
-teardowns synchronously. A native coroutine, generator or async generator
-returned through one of those paths is rejected at its protocol phase rather
-than awaited or iterated. Coroutines and synchronous generators are closed;
-async generators are not driven through a new event loop. Record builder
-returns remain stored data, and ordinary Action returns keep their existing
-semantics. This describes the current Python runtime; making synchronous
-completion a language-wide TOP restriction requires the Director's STEP
-decision.
-
-`declarations._discard_lazy_result` recognizes coroutines, generators and
-async generators returned from synchronous protocols by their actual native
-type, without consulting a return object's `__class__` hook. It closes only
-through a synchronous disposal operation and does not start an unentered body.
-Closing an already-started generator or coroutine may run its pending `finally`
-code. Async generators are not driven or synchronously closed.
-Conditions turn the result into a Contract Failure, Imprints into their named
-Imprint Failure, and lifecycle teardown into the collected Composition
-Failure. Best-effort deletion uses the same path, so discarded coroutines do
-not escape as unawaited-coroutine warnings. Composed Actions carry a private
-chain identity, whose optional lookup cannot invalidate an accepted callable:
-a flow-local Rip guard checks every Underlay in the selected
-teardown chain, remembers a violation even when user code catches it, and does
-not reinterpret an independent `@Rip` Action called normally as a teardown.
-Missing callable labels or broken exception formatting cannot erase a recorded
-lazy Underlay failure; available diagnostic detail and original causes remain.
-Scheduled teardowns retain the declared Contribution name alongside the
-selected composed Action. The same name labels direct and Underlay failures;
-diagnostics never require callable `__name__` or `__qualname__` metadata.
-Lazy-disposal diagnostics use the private safe type-name and exception-text
-helpers; the exact original error remains the cause even if its text fails.
-
-Record builder failures identify the declaration name, not the callable's
-Python function metadata. Existing TOP failures and Python interruptions keep
-their original exception; other builder errors remain Composition Failures
-with the original cause. Shared private diagnostic helpers preserve normal
-exception text, falling back only when that text cannot be rendered. This
-does not change construction order, values (including `False` and `None`),
-or settle the Record continuation/failure-boundary design tracked in #30.
-
 ## Synchronous protocol results
 
 Preconditions, Imprints, Postconditions and scheduled Rip teardowns are
@@ -437,15 +397,6 @@ Tagging sequence or expand its rollback boundary.
   objects: called, they mark; read, they forward to their failure class.
   Per kind, not per Tag, on purpose: the handler reads the program's own
   word, and the Tag is already in the message.
-- **Imprint diagnostics use the declaration name.** `_imprint` already
-  receives each Imprint's declared name, so a failure or rejected lazy
-  return uses that name rather than inspecting or renaming its callable.
-  The original cause is preserved. Later Imprints still do not run after
-  failure; the applied Tag and its captured view remain, and current Posts
-  alone determine soundness. Shared private helpers bypass exception-type
-  metadata and fall back when ordinary exception-text formatting fails.
-  Synchronous return values are not observed; Python interruptions retain
-  their own type, including interruptions during diagnostic text.
 - **Pins reuse the whole sequence.** A pinned Tag is an Agent whose
   namespace is its class dictionary. `_namespace_of` hands the kernel a
   `_Class_Namespace` adapter (get, set, pop, keys) over the proxy, so
