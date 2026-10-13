@@ -1149,10 +1149,15 @@ implementation follows `main`'s law as it stands, and says so:
   an async door she opened in her own context is not shut by it.
 - Doors otherwise follow the call (§1.5): when a Contact's own Action
   calls into a Link about another Contact, or calls a Link Operation
-  without passing herself, her door is open beneath that call, as it is
-  for any code she calls. A Link's Reports are the exception: they are
-  kept and served to all, so they are built with every Contact's door
-  shut.
+  without passing herself, or calls one of its static methods, her door
+  is open beneath that call, as it is for any code she calls. A Link's
+  Reports are the exception: they are kept and served to all, so they are
+  built with every Contact's door shut.
+- A Pair's Layers lie in the order they reached it: two Pairs of one
+  Field can differ in which Layer is on top when one Contact was linked
+  to the Base Link before an extension and the other after it.
+- A Contact's record of a published line keeps the last Link that
+  published its name, after that Link's Agent is gone.
 - Extending a held Link runs every Pair's gate before any Pair's
   Records, but at the declaring Shape's Parts, after the Shape's own
   Records, not at the Agent's step 1. A refusal still refuses the whole
@@ -1186,7 +1191,8 @@ skeptic then re-ran every probe and tried to refute it. A second round
 re-checked every fix for variants. Every confirmed finding is fixed with
 a regression test that fails before its fix (`Rollback_Tests`,
 `Ownership_Tests`, `Law_Review_Tests`, `Lifetime_Review_Tests`,
-`Door_Review_Tests`, `Integration_Review_Tests`).
+`Door_Review_Tests`, `Integration_Review_Tests`, `Second_Round_Tests`,
+`Variant_Tests`), save two the review settled as rules instead (below).
 
 **What it found, in short.**
 
@@ -1206,6 +1212,14 @@ a regression test that fails before its fix (`Rollback_Tests`,
   one Field could be overlaid two ways; the Pair's own Tag was reachable;
   a Link could arrive over the Agent's own value; `@Pin` over `@Link`, a
   Pin of a Relation, and a late Pin of a declaring Tag were accepted.
+- *The second round's variants.* The undo steps ran for other Agents'
+  finished calls; an undone linking rewound the Contact's own finished
+  tagging; a Pin member named like a Relation replaced it; undoing a
+  linking stripped a Layer another call laid; an Operation given the
+  Contact by name ran inside her door; an extension made during a linking
+  missed the Pair in flight; a Link's Operations could not read its
+  Agent's secrets; an interrupt at the Contact's deletion skipped her
+  other Links.
 
 **What it settled, beyond fixing.**
 
@@ -1213,15 +1227,28 @@ a regression test that fails before its fix (`Rollback_Tests`,
   Link's Agent or on the Contact, however deep inside it the linking
   was made. A call on any other Agent leaves it, as §0.6 leaves that
   Agent's other taggings: undo steps name their owners.
-- *The order of a Pair's Layers.* The order the Agent gained them: Form
-  order, with a later extension on top, as on any Agent (§1.2). Every
-  Pair of a Field is overlaid alike. Laying an extension beneath a Shape
-  Link on Pairs already held would mean rebuilding Records already built.
+- *The order of a Pair's Layers.* The order they reached that Pair, as
+  on any Agent (§1.2): a Pair linked fresh takes them in the order the
+  Agent gained them, Form order with a later extension on top; a Layer
+  that reaches a Pair already held goes on top of what it carries. Every
+  Pair holds every Layer. So a Contact linked to a Base Link before an
+  extension and to its Shape Link after it carries the Shape's Layer on
+  top of the extension, while one linked to both after it carries the
+  extension on top. The two differ only where both Layers declare one
+  name, with the usual Overwrite Warning; laying a Layer beneath others a
+  Pair already carries would mean rebuilding Records already built.
+- *A line's record.* The lines a Link publishes onto a Contact are
+  sticky, and her record of each line keeps the last Link that published
+  its name, so a living Contact may keep a dead Agent's Link: at most one
+  per name she was given, never one per Agent. Holding that record weakly
+  would change how every Agent records its lines.
 - *`@Secret` on a Link's own Report or Operation* means in-house, as the
   Director asked in rule 2.7: it answers only inside the Agent's code.
 - *The doors*, as the known limits above state.
 - *A Relation's plain values and class methods* belong to the Link; its
-  special methods are refused (a Pair's teardown is a `@Rip`).
+  special methods are refused (a Pair's teardown is a `@Rip`). Its static
+  methods are plain functions the kit never wraps, so their doors follow
+  the call.
 
 ## Validation
 

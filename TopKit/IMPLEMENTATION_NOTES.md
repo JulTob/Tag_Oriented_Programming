@@ -365,7 +365,11 @@ rollback target.
   receives three things only: membership, the `@Public` lines
   (`_publish_lines`), and a teardown in `state.rips[link]` that unlinks
   her when she is deleted. A line shuts her composition door while the
-  Link's code runs. The kit holds the Link's Agent weakly (on the
+  Link's code runs. The Link's Operations and class methods
+  (`_door_shut_operation`) shut the door of every Contact passed in, by
+  position or by name, and its Report builders (`_door_shut_builder`)
+  shut every Contact's; both open the Agent's door, since the Link's
+  code is its Agent's code. Static methods are copied as they are. The kit holds the Link's Agent weakly (on the
   Link's record and on each Pair's ends), and every `finally` that held
   an error sets its local to `None`, so a traceback cycle never keeps
   the Agent alive.
@@ -385,8 +389,12 @@ rollback target.
   is refused. An undone linking takes back only what it gave the
   Contact (`_undo_linking`): membership, history, hooks and views of
   those Links; she becomes a plain object again only if she was none
-  before and holds nothing else. A boundary drops its Agent when it
-  closes. The hot paths read a Tag's own `_topkit_kind` (None for every
+  before and holds nothing else. A Pair that existed before the linking
+  loses only the Pair Tags the linking gave it, recorded right after its
+  Parts (`_added_since`, `_undo_pair_layers`), so a Layer another call
+  laid since stays. The Pair's form is applied a second time after its
+  Parts, so an extension made by those Parts reaches it too. A boundary
+  drops its Agent when it closes. The hot paths read a Tag's own `_topkit_kind` (None for every
   ordinary Tag) before any Relation or Pair Tag check, and `ever_links`
   stays None until an Agent's first Link, so ordinary Tags pay for
   neither. A boundary closes when its call returns
@@ -395,7 +403,9 @@ rollback target.
   (`_gate_form`), then every Pair's Parts (`gated=True`), and defers
   their Imprints and promises until the Agent's Commit. A Contact's
   history of Links is `State.ever_links`, a weak set, so a living Contact
-  never keeps a dead Agent's Link. Pair Tags carry their own mark
+  never keeps a dead Agent's Link through her history; her line records
+  (`state.action_origins`, `state.reports`) still keep the last Link
+  that published each name, as for any Agent. Pair Tags carry their own mark
   (`_is_pair_tag`): out of `Tags`, `Outline` and views, and refused every
   Tag-level act, as a Relation is. A Link name gets a read-only `_Link_Gate`
   descriptor and the binding write hooks, so `object.__setattr__` is

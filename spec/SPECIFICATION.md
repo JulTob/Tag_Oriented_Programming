@@ -1204,9 +1204,11 @@ of its Bases, resolved per Agent: with `class Trusts(Knows)`,
 `charlie.Trusts` is a Shape of `charlie.Knows`, never of Bob's. Linking
 through a Shape Link links through its Base Links first, and a Link and
 its Base Links share **one Pair** for each Contact, its members overlaid
-in the order the Agent gained them: Form order, with a later extension on
-top, as on any Agent (§1.2). Every Pair of a Field is overlaid alike.
-Unlinking a Base Link is refused while a Shape Link holds
+in the order its Layers reached it, as on any Agent (§1.2): a Pair linked
+fresh takes them in the order the Agent gained them, Form order with a
+later extension on top, and a Layer that reaches a Pair already held goes
+on top of what it carries. Every Pair holds every Layer of the Links that
+hold it. Unlinking a Base Link is refused while a Shape Link holds
 her (§0.7). An ordinary Tag is never a Base of a Relation, and a Relation
 or a Link is never a Base of an ordinary Tag: a Link that writes a Tag on
 its Contact says so in an Imprint.
@@ -1238,12 +1240,13 @@ Agent's own code, the Link's functions included.
 Link's Agent and of the Pair, never the door of the Contact they are
 about, on every path: a line she calls, a Pair function called from her
 own code, a linking she asks for from her own Action, an Operation of the
-Link called with her, and a teardown her own deletion runs, included. A
-Link's Report is built with every Contact's door shut, since its value is
-kept and served to all. Otherwise doors follow the call, as §1.5 says for
-every Agent: when a Contact's own Action calls into a Link about another
-Contact, her door is open beneath that call, as it is for any code she
-calls.
+Link called with her, by position or by name, and a teardown her own
+deletion runs, included. A Link's Report is built with every Contact's
+door shut, since its value is kept and served to all. A Relation's static
+methods are plain functions the kit never wraps. Otherwise doors follow
+the call, as §1.5 says for every Agent: when a Contact's own Action calls
+into a Link about another Contact, her door is open beneath that call, as
+it is for any code she calls.
 
 **One direction.** A Link points from its Agent to its Contacts. Nothing
 public on a Contact names an Agent who links her: her `Tags`, `Outline`,
@@ -1252,8 +1255,10 @@ is her own Link or nothing. Nothing public on a Link or a Pair names its
 Agent, and the kit holds that Agent weakly, so a Link never keeps it
 alive. `isinstance(ruth, charlie.Knows)` answers, asked with the Link in
 hand, and a Contact's history keeps a Link weakly: a living Contact never
-keeps the Link of an Agent that is gone. A Link that should answer back
-says so in its own Imprint.
+keeps the Link of an Agent that is gone, save one. For each name a Link
+published onto her, her record of that line keeps the last Link that
+published it: at most one Link per name, never one per Agent. A Link that
+should answer back says so in its own Imprint.
 
 **Ending.** `del charlie.Knows[ruth]` ends her membership; the Link's
 teardowns run with `(charlie, ruth)`; the Pair ends unless another Link

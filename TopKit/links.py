@@ -464,14 +464,26 @@ def _door_shut_operation(
                     "Operation",
                     )
 
-        contact = args[0] if args else None
-        opened = None
+        record = link.__dict__.get(_RECORD)
+        agent = None if record is None else record.agent()
+        agent_state = None if agent is None else _state_of(agent)
+        saved: list[tuple[_State, int]] = []
 
-        if contact is not None and _is_contact_of(link, contact):
-            opened = _shut_door(
-                    contact,
-                    _record_of(link).agent(),
-                    )
+        for value in (*args, *kwargs.values()):
+            if value is not agent and _is_contact_of(link, value):
+                state = _state_of(value)
+
+                if state.composing:
+                    saved.append(
+                            (
+                                state,
+                                state.composing,
+                                )
+                            )
+                    state.composing = 0   # the Contact it is called with: her door stays shut (rule 3.6)
+
+        if agent_state is not None:
+            agent_state.composing += 1   # the Link's code is its Agent's code
 
         try:
             return function(
@@ -480,10 +492,10 @@ def _door_shut_operation(
                     **kwargs,
                     )
         finally:
-            _reopen_door(
-                    contact,
-                    opened,
-                    )
+            if agent_state is not None:
+                agent_state.composing -= 1
+
+            _reopen_every(saved)
 
     Operation.__signature__ = signature(function)
     Operation.__name__ = function.__name__
@@ -559,6 +571,12 @@ def _door_shut_builder(
             *args: Any,
             ) -> Any:
         saved = _shut_every_contact(link)
+        record = link.__dict__.get(_RECORD)
+        agent = None if record is None else record.agent()
+        agent_state = None if agent is None else _state_of(agent)
+
+        if agent_state is not None:
+            agent_state.composing += 1   # the Link's code is its Agent's code
 
         try:
             return builder(
@@ -566,6 +584,9 @@ def _door_shut_builder(
                     *args,
                     )
         finally:
+            if agent_state is not None:
+                agent_state.composing -= 1
+
             _reopen_every(saved)
 
     Build.__signature__ = signature(builder)
@@ -1682,17 +1703,26 @@ def _link(
     contact_entry = _capture(contact) if outer is not None else None
     deferred: list[Any] = []
 
+    applied: list[list[type]] = []   # the Pair Tags this linking gave the Pair, once its Parts are done
+
     def Drop_Pair() -> None:
+        if not created:
+            given = applied[0] if applied else _added_since(pair, pair_entry)   # a failure during its Parts: all of it is this linking's
+            _undo_pair_layers(
+                    pair,
+                    pair_entry,
+                    given,
+                    )   # an older Pair keeps what other calls gave it since
+            return
+
         _rollback_to(
                 pair,
                 pair_entry,
                 )   # a new Pair loses its state, so its teardowns never run (rule 8.5)
+        current = object.__getattribute__(pair, "__dict__")[_PAIR_ENDS].family   # a join may have moved it
 
-        if created:
-            current = object.__getattribute__(pair, "__dict__")[_PAIR_ENDS].family   # a join may have moved it
-
-            if current.pairs.get(id(contact)) is pair:
-                del current.pairs[id(contact)]
+        if current.pairs.get(id(contact)) is pair:
+            del current.pairs[id(contact)]
 
     token = _current_boundary.set(local)
 
@@ -1704,6 +1734,16 @@ def _link(
                     inputs,
                     deferred,
                     )
+            _apply_form(
+                    pair,
+                    _pair_form(link),
+                    inputs,
+                    deferred,
+                    )   # a Layer added meanwhile (an extension from the Pair's own Parts) reaches this Pair too
+            applied.append(_added_since(
+                    pair,
+                    pair_entry,
+                    ))
             _apply_form(
                     contact,
                     pending,
@@ -1755,6 +1795,59 @@ def _link(
     _inspect(contact)
 
     return contact
+
+
+def _added_since(
+        pair: Pair,
+        entry: Any,
+        ) -> list[type]:
+    state = _state_of(pair)
+
+    if state is None:
+        return []
+
+    return [
+            tag
+            for tag in state.active
+            if tag not in entry.tags
+            ]
+
+
+def _undo_pair_layers(
+        pair: Pair,
+        entry: Any,
+        applied: list[type],
+        ) -> None:
+    """Take back from a Pair that existed before the linking only the
+    Pair Tags the linking applied. When nothing else reached the Pair
+    since (its Tags and its history are what the linking left), its
+    snapshot is restored; otherwise those Tags leave it silently, with no
+    teardown, and what other calls gave it stays."""
+
+    state = _state_of(pair)
+
+    if state is None or entry.state is None:
+        return
+
+    if list(state.active) == [*entry.tags, *applied] and state.ever == entry.state.ever | set(applied):
+        _rollback_to(
+                pair,
+                entry,
+                )
+        return
+
+    for tag in reversed(applied):
+        if tag in state.ever and tag not in entry.state.ever:
+            state.ever.discard(tag)
+
+        if tag in state.active:
+            state.active.remove(tag)
+
+        tag.__dict__["_topkit_field"]._Remove(pair)
+        state.rips.pop(tag, None)
+        state.snapshots.pop(tag, None)
+
+    state.words = None
 
 
 def _undo_linking(

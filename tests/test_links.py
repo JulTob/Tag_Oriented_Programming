@@ -2546,6 +2546,224 @@ class Second_Round_Tests(unittest.TestCase):
         self.assertEqual(ruth.strikes, 3)                 # and her sticky Record (§0.7)
 
 
+class Variant_Tests(unittest.TestCase):
+    """The second review round's variants of the first round's findings."""
+
+    def test_a_pin_member_named_like_a_relation_is_refused(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Record
+                def since(agent, contact, *, since=None):
+                    return since
+
+        @Pin
+        class Notes(Tag):
+            @Public
+            @Record
+            def Knows(tag):
+                return "the Pin's Report"
+
+        with self.assertRaises(TagCompositionError):
+            Notes(Circle)                                 # the Relation is Agent scope: no Pin overlays it
+        self.assertTrue(Circle.Knows is Circle.__dict__["Knows"])
+        bob, sam = People("Bob", "Sam")
+        Circle(bob)                                       # an Agent tagged afterwards still gets his Link
+        bob.Knows(sam, since=2)
+        self.assertEqual(bob.Knows[sam].since, 2)
+
+    def test_an_owned_undo_keeps_the_layer_an_unowned_extension_laid(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Record
+                def since(agent, contact, *, since=None):
+                    return since
+
+            @Link
+            class Trusts(Knows):
+                pass
+
+        class Vetting(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Record
+                def vetted(agent, contact):
+                    return "vetted"
+
+                def Report_In(agent, contact):
+                    return f"{contact.name} is vetted"
+
+        class Joining(Tag):                               # a call on Ruth
+            @Record
+            def trusted(agent, *, by=None):
+                by.Trusts(agent)                          # Bob and Ruth own this linking
+                return True
+
+            @Record
+            def promoted(agent, *, by=None):
+                Vetting(by)                               # Bob's own call: it succeeds, Bob owns it
+                return True
+
+            @Record
+            def broken(agent):
+                raise ValueError("Ruth's later Record fails")
+
+        bob, ruth, sam = People("Bob", "Ruth", "Sam")
+        Circle(bob)
+        bob.Knows(ruth, since=1)
+        bob.Knows(sam, since=2)
+        with self.assertRaises(TagCompositionError):
+            Joining(ruth, by=bob)                         # Ruth's call rolls back: her linking is undone
+        self.assertIn(bob, Vetting)                       # Bob's call stays
+        self.assertNotIn(ruth, bob.Trusts)
+        self.assertIn(ruth, bob.Knows)
+        for contact in (ruth, sam):                       # every Pair of the Field is overlaid alike
+            self.assertEqual(bob.Knows[contact].vetted, "vetted")
+            self.assertEqual(bob.Knows[contact].Report_In(), f"{contact.name} is vetted")
+
+    def test_an_operation_given_the_contact_by_keyword_runs_with_her_door_shut(self):
+        class Circle(Tag):
+            @Link
+            class Member(Tag):
+                @Operation
+                def Peek(link, contact):
+                    return Read_Or_Shut(contact, "diary")
+
+        class Writer(Tag):
+            @Secret
+            @Record
+            def diary(agent):
+                return "her secret"
+
+            def Ask_By_Position(agent, link):
+                return link.Peek(agent)
+
+            def Ask_By_Keyword(agent, link):
+                return link.Peek(contact=agent)
+
+        charlie, ruth = People("Charlie", "Ruth")
+        Circle(charlie)
+        Writer(ruth)
+        charlie.Member(ruth)
+        self.assertEqual(ruth.Ask_By_Position(charlie.Member), "shut")
+        self.assertEqual(ruth.Ask_By_Keyword(charlie.Member), "shut")
+        self.assertEqual(charlie.Member.Peek(contact=ruth), "shut")
+
+    def test_an_extension_made_during_a_linking_reaches_the_pair_in_flight(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Record
+                def since(agent, contact, *, since=None):
+                    if since == "promote" and agent not in Popular:
+                        Popular(agent)                    # the Agent gains the Shape that extends Knows
+                    return since
+
+        class Popular(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Record
+                def vip(agent, contact):
+                    return True
+
+                def Greet(agent, contact):
+                    return "a popular greeting"
+
+        charlie, ruth, sam, tom = People("Charlie", "Ruth", "Sam", "Tom")
+        Circle(charlie)
+        charlie.Knows(ruth, since=1)
+        charlie.Knows(sam, since="promote")               # Popular(charlie) happens inside this linking
+        charlie.Knows(tom, since=3)
+        self.assertIn(charlie, Popular)
+        for contact in (ruth, sam, tom):
+            self.assertTrue(charlie.Knows[contact].vip)
+            self.assertEqual(charlie.Knows[contact].Greet(), "a popular greeting")
+
+    def test_link_operations_and_report_builders_read_the_agents_secrets(self):
+        holder = {}
+
+        class Keeper(Tag):
+            @Secret
+            @Record
+            def journal(agent):
+                return "his secret"
+
+        class Circle(Tag):
+            @Link
+            class Member(Tag):
+                @Secret
+                @Report
+                def quota(link):
+                    return 3
+
+                @Public
+                @Report
+                def summary(link):
+                    return Read_Or_Shut(holder["agent"], "journal")
+
+                @Operation
+                def Room_Left(link):
+                    return link.quota - len(link[:])
+
+                @Operation
+                def Journal(link):
+                    return Read_Or_Shut(holder["agent"], "journal")
+
+        charlie, ruth = People("Charlie", "Ruth")
+        holder["agent"] = charlie
+        Keeper(charlie)
+        Circle(charlie)
+        charlie.Member(ruth)
+        self.assertEqual(charlie.Member.Room_Left(), 2)   # the Link's own @Secret Report
+        self.assertEqual(charlie.Member.Journal(), "his secret")
+        self.assertEqual(charlie.Member.summary, "his secret")
+        self.assertEqual(Read_Or_Shut(charlie, "journal"), "shut")   # outside his code, still shut
+
+    def test_an_interrupted_teardown_at_a_contacts_deletion_still_leaves_her_other_links(self):
+        import sys
+
+        torn = []
+        unraisable = []
+
+        class Payload:
+            pass
+
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Record
+                def memo(agent, contact, *, memo=None):
+                    return memo
+
+                @Rip
+                def Forget(agent, contact):
+                    torn.append(agent.name)
+                    if agent.name == "Bob":
+                        raise KeyboardInterrupt
+
+        charlie, bob, ruth = People("Charlie", "Bob", "Ruth")
+        Circle(charlie)
+        Circle(bob)
+        payload = Payload()
+        payload_reference = weakref.ref(payload)
+        charlie.Knows(ruth, memo=payload)
+        bob.Knows(ruth)
+        del payload
+        hook = sys.unraisablehook
+        sys.unraisablehook = lambda report: unraisable.append(type(report.exc_value))
+        try:
+            del ruth
+            gc.collect()
+        finally:
+            sys.unraisablehook = hook
+        self.assertEqual(sorted(torn), ["Bob", "Charlie"])   # the interrupt stops no other Link's exit
+        self.assertEqual(unraisable, [KeyboardInterrupt])     # and is still reported
+        self.assertEqual(len(charlie.Knows[:]), 0)
+        self.assertEqual(len(bob.Knows[:]), 0)
+        self.assertIsNone(payload_reference())            # no living Agent's family keeps her Pair
+
+
 def Agents_Of_Any_Link(contact):
     """The Links a Contact is a member of now, read from her state."""
 

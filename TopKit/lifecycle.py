@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import Any
 import atexit
 
+from .declarations import _is_link
 from .declarations import _parameters_of
 from .declarations import _takes_underlay
 from .errors import TagCompositionError
@@ -124,9 +125,13 @@ def _teardown_all(
                 )   # the Agent in hand fills the first seat of its own Links (STEP-SPEC-22 rule 8.3)
 
     state.composing += 1   # teardowns run inside the composition door, as on a Rip
+    interrupted: BaseException | None = None
 
     try:
         for tag in reversed(list(state.active)):
+            if interrupted is not None and not _is_link(tag):
+                continue   # after an interruption only its exits from Links still run (STEP-SPEC-22 rule 8.4)
+
             for teardown in state.rips.pop(tag, ()):
                 try:
                     _call_teardown(
@@ -136,6 +141,9 @@ def _teardown_all(
                             )
                 except Exception:
                     pass
+                except BaseException as error:
+                    if interrupted is None:
+                        interrupted = error
     finally:
         state.composing -= 1
 
@@ -146,6 +154,12 @@ def _teardown_all(
                     agent,
                     state,
                     )   # after its own teardowns, its exits from other Links included (STEP-SPEC-22 rules 8.3, 8.6)
+
+    try:
+        if interrupted is not None:
+            raise interrupted
+    finally:
+        interrupted = None   # never keep the Agent alive through a traceback that holds this frame
 
 
 def _call_teardown(

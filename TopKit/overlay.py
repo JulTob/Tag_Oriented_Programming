@@ -692,8 +692,10 @@ def _own_declaration(
 
         if any(name == n for n, _f in declarations.actions) or any(
                 name == n for n, _f in declarations.records
+                ) or any(
+                name == n for n, _r in declarations.links
                 ):
-            return (klass, "agent", declared)
+            return (klass, "agent", declared)   # a Relation is Agent scope too: each Agent's Link (STEP-SPEC-22)
 
         if (
                 any(name == n for n, _f in declarations.preconditions)
