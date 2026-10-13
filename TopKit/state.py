@@ -467,7 +467,15 @@ def _state_for(
         if host_of_runtime is not None and not issubclass(type(agent), type):
             # Built from an Agent's runtime type (dataclasses.replace,
             # type(self)(...)): until tagged, it is a plain host object.
-            agent.__class__ = host_of_runtime
+            # Removing an inherited internal representation is a kernel
+            # change. The host decides on its later first actualization,
+            # after the Gate, rather than being asked twice.
+            try:
+                _set_runtime_type(agent, host_of_runtime)
+            except Exception as error:
+                raise TagCompositionError(
+                        f"{host_type.__name__} cannot restore its host runtime type"
+                        ) from error
             host_type = host_of_runtime
 
         state = _State(
