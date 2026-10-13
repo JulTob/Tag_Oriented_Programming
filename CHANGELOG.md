@@ -4,6 +4,13 @@
 
 ### TopKit
 
+- **Synchronous view Actions:** `Tag[agent].Action()` opens its bound
+  Agent's composition door while the selected Action runs, including Pin
+  views and Actions that introduce the first Secret Contribution. The
+  snapshot still selects the Action and exceptions close its door. A
+  captured Secret view Action requires an already-open door on that same
+  Agent; a later public Layer does not remove its captured boundary.
+
 - **Field membership stays behind TOP's doors:** `Tag[:]` no longer
   exposes public `Add` or `Remove` methods. Membership changes through
   Tagging and Rip, so the Field and the Agent's active Tags cannot be
