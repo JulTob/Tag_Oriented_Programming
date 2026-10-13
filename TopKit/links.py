@@ -570,6 +570,7 @@ class _Link_Record:
             "hook",
             "ending",
             "ended",
+            "pair_form",
             )
 
     def __init__(
@@ -586,15 +587,16 @@ class _Link_Record:
         record.hook = None
         record.ending = False
         record.ended = False
+        record.pair_form = None   # the Pair Tags a linking gives, once computed
 
 
-_records: "WeakKeyDictionary[type, _Link_Record]" = WeakKeyDictionary()
+_RECORD = "_topkit_link_record"   # on the Link class itself: read on every Pair lookup
 
 
 def _record_of(
         link: type,
         ) -> _Link_Record:
-    return _records[link]
+    return link.__dict__[_RECORD]
 
 
 def _grant(
@@ -681,7 +683,11 @@ def _new_link(
             list(layers),
             family,
             )
-    _records[link] = record
+    type.__setattr__(
+            link,
+            _RECORD,
+            record,
+            )   # the record holds its Agent weakly, so the Link never keeps it alive
     family.links.append(weakref.ref(link))
 
     for relation in layers:
@@ -1010,6 +1016,7 @@ def _extend(
                     )
 
         record.layers[:] = previous_layers
+        _forget_pair_forms(record.family)
 
         for name, value in previous_members.items():
             if value is _MISSING:
@@ -1022,6 +1029,7 @@ def _extend(
 
     try:
         record.layers.extend(added)
+        _forget_pair_forms(record.family)
 
         for relation in added:
             for name, member in _tag_scope_of(relation).items():
@@ -1096,7 +1104,13 @@ def _pair_form(
         link: type,
 ) -> list[type]:
     """Every Pair Tag a linking through ``link`` gives: the Layers of each
-    Link in its Form, Bases first (rules 5.2 and 5.3)."""
+    Link in its Form, Bases first (rules 5.2 and 5.3). Kept on the record
+    until a Layer is added to any Link of the family."""
+
+    record = _record_of(link)
+
+    if record.pair_form is not None:
+        return record.pair_form
 
     relations: list[type] = []
 
@@ -1105,7 +1119,16 @@ def _pair_form(
             if relation not in relations:
                 relations.append(relation)
 
-    return _pair_tags_of(relations)
+    record.pair_form = _pair_tags_of(relations)
+
+    return record.pair_form
+
+
+def _forget_pair_forms(
+        family: "_Family",
+        ) -> None:
+    for link in family.Links():
+        _record_of(link).pair_form = None
 
 
 def _write_all(
@@ -1133,8 +1156,11 @@ def _write_all(
         except Exception as error:
             first = first or error
 
-    if first is not None:
-        raise first
+    try:
+        if first is not None:
+            raise first
+    finally:
+        first = None   # never keep Agents alive through a traceback that holds this frame
 
 
 def _write(
@@ -1207,9 +1233,20 @@ def _link(
                 record.name,
                 )
 
-    pair_entry = _capture(pair)
-    contact_entry = _capture(contact)
+    boundary = _current_boundary.get()
+    undoable = boundary is not None and not boundary.after_commit   # inside a call that may roll back (rule 5.6)
+    pair_entry = None if created else _capture(pair)   # a new Pair is simply dropped
+    contact_entry = _capture(contact) if undoable else None
     deferred: list[Any] = []
+
+    def Drop_Pair() -> None:
+        if created:
+            family.pairs.pop(id(contact), None)
+        else:
+            _rollback_to(
+                    pair,
+                    pair_entry,
+                    )
 
     try:
         _apply_form(
@@ -1218,47 +1255,35 @@ def _link(
                 inputs,
                 deferred,
                 )
+    except BaseException:
+        Drop_Pair()   # the Pair's own call already rolled its state back; a new one is let go
+        raise
+
+    try:
         _apply_form(
                 contact,
                 pending,
                 {},
                 [],
-                )
-        _hook(
-                contact,
-                pending,
-                )
+                )   # a refusal rolls the Contact back by itself
     except BaseException:
-        _rollback_to(
-                contact,
-                contact_entry,
-                )
-        _rollback_to(
-                pair,
-                pair_entry,
-                )
-
-        if created:
-            family.pairs.pop(id(contact), None)
+        Drop_Pair()
         raise
 
-    boundary = _current_boundary.get()
+    _hook(
+            contact,
+            pending,
+            )
 
-    if boundary is not None and not boundary.after_commit:
+    if undoable:
         def Undo() -> None:
             _rollback_to(
                     contact,
                     contact_entry,
                     )
-            _rollback_to(
-                    pair,
-                    pair_entry,
-                    )
+            Drop_Pair()
 
-            if created:
-                family.pairs.pop(id(contact), None)
-
-        boundary.undo.append(Undo)   # made inside a call that may still roll back (rule 5.6)
+        boundary.undo.append(Undo)
 
     _write(
             pair,
@@ -1332,11 +1357,7 @@ def _refuse_inputs_in_seats(
         return
 
     for pair_tag in form:
-        for name, member in pair_tag.__dict__.items():
-            if _kind_of(member) not in _TAKES_INPUTS:
-                continue
-
-            seats = getattr(member, "_topkit_seats", frozenset())
+        for name, seats in _seats_of(pair_tag):
             taken = sorted(seats & inputs.keys())
 
             if taken:
@@ -1346,6 +1367,31 @@ def _refuse_inputs_in_seats(
                         " inputs by name after `*`:"
                         f" def {name}(agent, contact, *, {taken[0]})"
                         )
+
+
+_seats: "WeakKeyDictionary[type, tuple[tuple[str, frozenset[str]], ...]]" = WeakKeyDictionary()
+
+
+def _seats_of(
+        pair_tag: type,
+        ) -> tuple[tuple[str, frozenset[str]], ...]:
+    """The seats of each Pair function that takes inputs, by name."""
+
+    cached = _seats.get(pair_tag)
+
+    if cached is None:
+        cached = tuple(
+                (
+                    name,
+                    member._topkit_seats,
+                    )
+                for name, member in pair_tag.__dict__.items()
+                if _kind_of(member) in _TAKES_INPUTS
+                and hasattr(member, "_topkit_seats")
+                )
+        _seats[pair_tag] = cached
+
+    return cached
 
 
 def _hook(
@@ -1370,18 +1416,17 @@ def _hook(
 def _leaving(
         link: type,
         ) -> Function:
-    link_reference = weakref.ref(link)
+    """The Contact's teardown for one Link. It holds the Link strongly:
+    in a reference cycle the language clears weak references before any
+    finalizer runs, and the Link already keys this teardown on her."""
 
     def Unlink(
             contact: object,
             ) -> None:
-        held = link_reference()
-
-        if held is not None:
-            _leave(
-                    held,
-                    contact,
-                    )
+        _leave(
+                link,
+                contact,
+                )
 
     Unlink.__name__ = "Unlink"
 
@@ -1400,7 +1445,7 @@ def _pair_of(
     """``charlie.Knows[ruth]``: the Pair, live. It needs a linking, not
     active membership: it lives until the Link's teardowns have run."""
 
-    record = _records.get(link)
+    record = link.__dict__.get(_RECORD)
     pair = None if record is None else record.family.Pair_Of(contact)
 
     if pair is None:
@@ -1507,8 +1552,11 @@ def _leave(
     if not still_held:
         family.End(contact)
 
-    if first is not None:
-        raise first
+    try:
+        if first is not None:
+            raise first
+    finally:
+        first = None   # never keep Agents alive through a traceback that holds this frame
 
 
 def _unlink_all(
@@ -1550,8 +1598,47 @@ def _unlink_all(
         except TagCompositionError as error:
             first = first or error
 
-    if first is not None:
-        raise first
+    contacts = held = None   # the Contacts are not ours to keep
+
+    try:
+        if first is not None:
+            raise first
+    finally:
+        first = None   # never keep Agents alive through a traceback that holds this frame
+
+
+def _own_records(
+        state: _State,
+        ) -> list[_Link_Record]:
+    """The records of the Agent's own Links, Shape Links first."""
+
+    records = []
+
+    for name in reversed(list(state.links)):
+        link = state.links[name][0]
+
+        if link is None:
+            continue
+
+        record = link.__dict__.get(_RECORD)
+
+        if record is not None and not record.ended:
+            records.append(record)
+
+    return records
+
+
+def _begin_ending(
+        agent: object,
+        state: _State,
+        ) -> None:
+    """The Agent's finalizer holds it: from now on it fills the first seat
+    of its own Links, even when the language has already cleared every
+    weak reference to it (a reference cycle, rule 8.3). Its own
+    teardowns, its exits from Links that hold it included, run next."""
+
+    for record in _own_records(state):
+        record.family.dying = agent
 
 
 def _end_links(
@@ -1564,22 +1651,19 @@ def _end_links(
     teardown at deletion is (§3.2). Linking through them is refused from
     then on."""
 
-    for name in reversed(list(state.links)):
-        link = state.links[name][0]
+    records = _own_records(state)
 
-        if link is None:
-            continue
+    try:
+        for record in records:
+            record.family.dying = agent
+            record.ending = True
 
-        record = _records.get(link)
+        for name in reversed(list(state.links)):
+            link = state.links[name][0]
 
-        if record is None or record.ended:
-            continue
+            if link is None or link.__dict__.get(_RECORD) not in records:
+                continue
 
-        family = record.family
-        record.ending = True
-        family.dying = agent
-
-        try:
             for contact in list(link.__dict__["_topkit_field"]):
                 try:
                     _rip(
@@ -1588,8 +1672,9 @@ def _end_links(
                             )
                 except Exception:
                     pass
-        finally:
-            family.dying = None
+    finally:
+        for record in records:
+            record.family.dying = None
             record.ending = False
             record.ended = True
 

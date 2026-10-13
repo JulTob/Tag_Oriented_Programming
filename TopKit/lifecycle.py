@@ -115,6 +115,14 @@ def _teardown_all(
     if state is None:
         return
 
+    if state.links:
+        from .links import _begin_ending   # links builds on this module
+
+        _begin_ending(
+                agent,
+                state,
+                )   # the Agent in hand fills the first seat of its own Links (STEP-SPEC-22 rule 8.3)
+
     state.composing += 1   # teardowns run inside the composition door, as on a Rip
 
     try:

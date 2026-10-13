@@ -40,6 +40,7 @@ from TopKit import Contract
 from TopKit import Flag
 from TopKit import Imprint
 from TopKit import Keyword
+from TopKit import Link
 from TopKit import Operation
 from TopKit import Pin
 from TopKit import Post
@@ -915,6 +916,256 @@ def Exercise_Tools(
     del target.pack
 
 
+# ------------------------------------------------------------------
+# Links (STEP-SPEC-22): a walk of its own, against a model of Pairs
+# ------------------------------------------------------------------
+
+
+LINK_LOG: list[tuple[str, str, str]] = []   # (agent, contact, teardown) as the kit ran them
+
+
+class Circle(Tag):
+    """A declaring Tag with a Link and a Shape Link."""
+
+    @Link
+    class Knows(Tag):
+
+        @Pre
+        def Not_Oneself(agent, contact) -> bool:
+            return contact is not agent or not agent.picky
+
+        @Record
+        def since(agent, contact, *, since=None) -> object:
+            return since
+
+        @Rip
+        def Forget(agent, contact) -> None:
+            LINK_LOG.append((agent.name, contact.name, "Forget"))
+
+    @Link
+    class Trusts(Knows):
+
+        @Post
+        def Still_Ok(agent, contact) -> bool:
+            return contact.ok
+
+        @Rip
+        def Distrust(agent, contact) -> None:
+            LINK_LOG.append((agent.name, contact.name, "Distrust"))
+
+
+class Undercover(Circle):
+    """A Shape of the declaring Tag that extends a held Link (rule 4.6)."""
+
+    @Link
+    class Knows(Circle.Knows):
+
+        @Record
+        def cover(agent, contact) -> str:
+            return f"cover of {agent.name}"
+
+
+@dataclass
+class Link_Model:
+    """What the paradigm says about one holder's Links."""
+
+    knows: dict[str, object] = field(default_factory=dict)   # contact name -> since
+    trusts: set[str] = field(default_factory=set)
+    promised: set[str] = field(default_factory=set)         # Pairs carrying Still_Ok: once trusted, sticky until the Pair ends
+    covered: bool = False                                   # the holder carries Undercover
+
+
+def Run_Links(
+        seed: int,
+        steps: int,
+        population: int,
+        ) -> int:
+    """Holders link, trust, unlink, extend and die; Contacts change and
+    die; after every step the Links, Pairs, populations and teardowns
+    are what the model says."""
+
+    randomizer = random.Random(seed * 7919)
+    people: dict[str, Agent] = {}
+
+    for index in range(population):
+        person = Agent(f"link-{seed}-{index}")
+        person.picky = index % 2 == 0
+        people[person.name] = person
+
+    del person   # only `people` may hold them: deaths are part of the walk
+    holders: dict[str, Link_Model] = {}
+    transitions = 0
+
+    for step in range(steps):
+        context = f"links seed={seed} step={step}"
+        names = sorted(people)
+
+        if not names:
+            break
+
+        holder_name = randomizer.choice(names)
+        contact_name = randomizer.choice(names)
+        holder = people[holder_name]
+        contact = people[contact_name]
+        model = holders.get(holder_name)
+        choice = randomizer.randrange(10)
+        expected_log: list[tuple[str, str, str]] = []
+        LINK_LOG.clear()
+
+        if model is None or choice == 0:
+            Circle(holder)
+            holders.setdefault(holder_name, Link_Model())
+        elif choice in (1, 2):
+            refused = holder is contact and holder.picky
+
+            try:
+                holder.Knows(contact, since=step)
+            except TagPreconditionError:
+                assert refused, (context, "a gate refused what the model admits")
+            else:
+                assert not refused, (context, "the gate admitted a self-link of a picky holder")
+                model.knows.setdefault(contact_name, step)
+        elif choice == 3:
+            refused = holder is contact and holder.picky
+
+            try:
+                holder.Trusts(contact, since=step)
+            except TagPreconditionError:
+                assert refused, (context, "Trusts refused at the gate")
+            except TagPostconditionError:
+                assert contact.ok is False and contact_name not in model.trusts, (context, "a Pair promise broke unexpectedly")
+                model.knows.setdefault(contact_name, step)
+                model.trusts.add(contact_name)                  # the linking stays
+                model.promised.add(contact_name)
+            else:
+                assert not refused, (context, "Trusts admitted a self-link of a picky holder")
+
+                if contact_name not in model.trusts:
+                    assert contact.ok, (context, "a broken Pair promise did not raise")
+
+                model.knows.setdefault(contact_name, step)
+                model.trusts.add(contact_name)
+                model.promised.add(contact_name)
+        elif choice == 4:
+            if contact_name in model.trusts:
+                try:
+                    del holder.Knows[contact]
+                except TagCompositionError:
+                    pass
+                else:
+                    raise AssertionError((context, "unlinking a Base Link held by a Shape was not refused"))
+            elif contact_name in model.knows:
+                del holder.Knows[contact]
+                del model.knows[contact_name]
+                model.promised.discard(contact_name)               # the Pair ends
+                expected_log.append((holder_name, contact_name, "Forget"))
+            else:
+                try:
+                    del holder.Knows[contact]
+                except TagResolutionError:
+                    pass
+                else:
+                    raise AssertionError((context, "unlinking a stranger did not raise"))
+        elif choice == 5:
+            if contact_name in model.trusts:
+                del holder.Trusts[contact]
+                model.trusts.discard(contact_name)
+                expected_log.append((holder_name, contact_name, "Distrust"))
+        elif choice == 6:
+            if not model.covered:
+                broken = any(not people[name].ok for name in model.promised)
+
+                try:
+                    Undercover(holder)
+                except TagPostconditionError:
+                    assert broken, (context, "extending raised with every Pair sound")
+                else:
+                    assert not broken, (context, "extending did not check every Pair's promises (rule 4.6)")
+
+                model.covered = True                                  # the Layers stay either way
+        elif choice == 7:
+            contact.ok = not contact.ok
+        elif choice == 8 and len(people) > 2:
+            del people[contact_name]                             # a Contact (and maybe a holder) dies
+
+            for other_name, other in sorted(holders.items()):
+                if other_name == contact_name:
+                    continue
+
+                if contact_name in other.trusts:
+                    expected_log.append((other_name, contact_name, "Distrust"))
+
+                if contact_name in other.knows:
+                    expected_log.append((other_name, contact_name, "Forget"))
+
+                other.knows.pop(contact_name, None)
+                other.trusts.discard(contact_name)
+                other.promised.discard(contact_name)
+
+            dying = holders.pop(contact_name, None)
+
+            if dying is not None:
+                for name in sorted(dying.trusts):
+                    if name != contact_name:
+                        expected_log.append((contact_name, name, "Distrust"))
+
+                for name in sorted(dying.knows):
+                    if name != contact_name:
+                        expected_log.append((contact_name, name, "Forget"))
+
+                if contact_name in dying.trusts:
+                    expected_log.append((contact_name, contact_name, "Distrust"))
+
+                if contact_name in dying.knows:
+                    expected_log.append((contact_name, contact_name, "Forget"))
+
+            del contact, holder
+            gc.collect()
+
+        assert sorted(LINK_LOG) == sorted(expected_log), (context, "teardowns", sorted(LINK_LOG), sorted(expected_log))
+        Assert_Links(people, holders, context)
+        transitions += 1
+
+    return transitions
+
+
+def Assert_Links(
+        people: dict[str, Agent],
+        holders: dict[str, Link_Model],
+        context: str,
+        ) -> None:
+    for holder_name, model in holders.items():
+        holder = people[holder_name]
+        knows = holder.Knows
+        trusts = holder.Trusts
+        linked = sorted(contact.name for contact in knows[:])
+        trusted = sorted(contact.name for contact in trusts[:])
+
+        assert linked == sorted(model.knows), (context, "Knows Field", holder_name, linked, sorted(model.knows))
+        assert trusted == sorted(model.trusts), (context, "Trusts Field", holder_name, trusted, sorted(model.trusts))
+        assert issubclass(trusts, knows), (context, "Trusts is a Shape of the holder's own Knows")
+
+        for contact in knows[:]:
+            pair = knows[contact]
+            assert pair is trusts[contact] or contact.name not in model.trusts, (context, "one Pair across the Form")
+            assert pair.since == model.knows[contact.name], (context, "the Pair's since", holder_name, contact.name)
+            assert (getattr(pair, "cover", None) is not None) is model.covered, (context, "the Undercover Layer on every Pair")
+            assert Tags(contact) == Tags(contact), (context, "Tags readable")
+            assert all(not issubclass(tag, (knows, trusts)) for tag in Tags(contact)), (context, "a Contact's Tags name a Link")
+
+        sound = sorted(contact.name for contact in trusts)
+        expected = sorted(name for name in model.trusts if people[name].ok)
+        assert sound == expected, (context, "Trusts sound population", sound, expected)
+
+        sound = sorted(contact.name for contact in knows)
+        expected = sorted(
+                name
+                for name in model.knows
+                if people[name].ok or name not in model.promised
+                )
+        assert sound == expected, (context, "Knows sound population: a Pair's sticky promise counts", sound, expected)
+
+
 def Weak_Field_Probe(
         count: int,
         ) -> None:
@@ -948,6 +1199,7 @@ def Main() -> None:
 
     for seed in range(arguments.first_seed, arguments.first_seed + arguments.seeds):
         transitions += Run_Seed(seed, arguments.steps, arguments.population)
+        transitions += Run_Links(seed, arguments.steps, arguments.population)
 
     Weak_Field_Probe(max(200, arguments.population * 20))
     duration = time.perf_counter() - started

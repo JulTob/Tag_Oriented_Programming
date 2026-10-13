@@ -1194,6 +1194,15 @@ class Ending_Tests(unittest.TestCase):
         gc.collect()
         self.assertEqual(read, [2010])
 
+    def test_a_self_link_in_a_reference_cycle_runs_its_teardowns_once(self):
+        charlie = Character("Charlie")
+        charlie.me = charlie                              # the language clears weak references first
+        Net(charlie)
+        charlie.Knows(charlie)
+        del charlie
+        gc.collect()
+        self.assertEqual(Net.log, [("Charlie", "Charlie")])   # the Agent in hand fills both seats
+
     def test_agent_and_contact_collected_together_end_silently(self):
         charlie, ruth = People("Charlie", "Ruth")
         Net(charlie)

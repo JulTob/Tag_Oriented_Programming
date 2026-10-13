@@ -70,9 +70,7 @@ def _sound_of(
     holds = _holds
 
     if _is_link(tag):
-        from .links import _contact_holds   # links builds on this module
-
-        holds = _contact_holds(tag)
+        holds = _links()._contact_holds(tag)
 
     return _Partition(
             tag.__dict__["_topkit_field"],
@@ -95,6 +93,18 @@ def _refuse_relation(
 
 
 _making_link = 0   # raised by links while it builds one Agent's Link
+_links_module: Any = None   # links builds on this module: bound on first use
+
+
+def _links() -> Any:
+    global _links_module
+
+    if _links_module is None:
+        from . import links
+
+        _links_module = links
+
+    return _links_module
 
 
 class MetaTag(type):
@@ -184,9 +194,7 @@ class MetaTag(type):
                     )
 
         if _is_link(tag):
-            from .links import _link   # links builds on this module
-
-            return _link(
+            return _links()._link(
                     tag,
                     target,
                     inputs,
@@ -324,9 +332,7 @@ class MetaTag(type):
             return tag._topkit_field
 
         if _is_link(tag):
-            from .links import _pair_of   # links builds on this module
-
-            return _pair_of(
+            return _links()._pair_of(
                     tag,
                     key,
                     )
@@ -343,9 +349,7 @@ class MetaTag(type):
         _refuse_relation(tag)
 
         if _is_link(tag) and isinstance(agent, slice):
-            from .links import _unlink_all   # links builds on this module
-
-            _unlink_all(
+            _links()._unlink_all(
                     tag,
                     agent,
                     )
