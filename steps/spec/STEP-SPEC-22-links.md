@@ -1181,11 +1181,14 @@ implementation follows `main`'s law as it stands, and says so:
   sticky, and answer no more, as after an unlink; if she was no Agent
   before and holds nothing else, she is a plain object again, with the
   values she held before.
-- Cost, measured on the reviewed code (`benchmarks/compare.py`, section
-  j, CPython 3.13, one run): a linking about 78 µs (two taggings: the
-  Pair's gated one and the Contact's membership), reading a Pair Record
-  about 1.3 µs, extending a Link about 35 µs per Contact it holds. The
-  hand-made workaround of the Motivation cost about 72 µs per linking.
+- Cost (`benchmarks/compare.py`, section j, CPython 3.13), as ratios to
+  plain Python, which held from run to run: a linking about 140 times a
+  guarded weak-dictionary entry (about 75 µs on a quiet machine; it is
+  two taggings, the Pair's gated one and the Contact's membership),
+  reading a Pair Record 6 to 9 times a dictionary read (about 1 µs),
+  extending a Link about 100 times per Contact it holds (about 30 µs).
+  The hand-made workaround of the Motivation cost about 72 µs per
+  linking.
 
 **A Tool or a Link?** (STEP-SPEC-36, on `main`.) A Tool is one object the
 Agent has, held strongly under a Record's name, admitted by kind at each
