@@ -1145,10 +1145,11 @@ implementation follows `main`'s law as it stands, and says so:
 
 - A `@Public` line that an extension Layer adds reaches the Contacts
   linked after the extension; Contacts already linked keep their lines.
-- A Link's code shuts the synchronous door of the Contact it is about,
-  at its call and at every later step of a generator or coroutine it
-  returns; an async door she opened in her own context is not shut by
-  it. An async generator in a Relation's body is refused.
+- A Link's code shuts the synchronous door of the Contact it is about
+  for as long as it runs; an async door she opened in her own context is
+  not shut by it. Generator and coroutine functions are refused in a
+  Relation's body; what a Link's code hands back to run later, a closure
+  or a generator made elsewhere, runs under the doors of whoever runs it.
 - Doors otherwise follow the call (§1.5): when a Contact's own Action
   calls into a Link about another Contact, or calls a Link Operation
   without passing herself, or calls one of its static methods, her door
@@ -1167,6 +1168,13 @@ implementation follows `main`'s law as it stands, and says so:
   Records, but at the declaring Shape's Parts, after the Shape's own
   Records, not at the Agent's step 1. A refusal still refuses the whole
   call, nothing changed.
+- While a linking or an extension of a family is under way, from a
+  Pair's gate to the Contact's entry, the family gains no Layer: a Shape
+  gained by the Pair's own gate or Records ("promote on the n-th
+  friend") is refused; the Pair's Imprint may grant it.
+- An undone linking on a Pair another Link still holds restores the
+  Pair when nothing reached it since; otherwise its Layers leave the Pair
+  as an unlinking does, their contributions sticky (§0.7).
 - An undone linking takes back only what it gave the Contact: she
   leaves the Links silently, her history of them forgotten, and what else
   she gained or did since stays. The lines they published stay on her,
@@ -1194,12 +1202,14 @@ On 2026-10-13 five reviewers attacked the implementation, each from one
 angle (rollback, the law of §1.10, lifetime, doors and secrets, mixing
 with every other feature), each finding backed by a probe that ran; a
 skeptic then re-ran every probe and tried to refute it. A second round
-re-checked every fix for variants and attacked the newest code. Every
+re-checked every fix for variants and attacked the newest code, and a
+third round attacked what the second round's fixes added. Every
 confirmed finding is fixed with a regression test that fails before its
 fix (`Rollback_Tests`, `Ownership_Tests`, `Law_Review_Tests`,
 `Lifetime_Review_Tests`, `Door_Review_Tests`, `Integration_Review_Tests`,
-`Second_Round_Tests`, `Variant_Tests`, `New_Code_Review_Tests`), save the
-few the review settled as rules instead (below).
+`Second_Round_Tests`, `Variant_Tests`, `New_Code_Review_Tests`,
+`Third_Round_Tests`), save the few the review settled as rules instead
+(below).
 
 **What it found, in short.**
 
@@ -1235,6 +1245,15 @@ few the review settled as rules instead (below).
   declaration; `@Secret` on a static method and `@Public` on a Pair
   condition or Imprint were accepted and did nothing useful; an
   extension's member of the Link could silently replace a Base's line.
+- *The third round.* Keeping a generator's doors at every step, the
+  second round's answer, wrapped generators other code wrote, opened the
+  Agent's door to them and kept Agents alive: generator and coroutine
+  functions are now refused instead. An extension made inside a linking
+  left the Agent holding a Shape whose Layer the Link lacked, and a
+  refused linking undid other calls' finished work. An undo reverted
+  values another call wrote, a value she wrote since, and her earlier
+  history. A second interrupt replaced the first. The name check refused
+  an extension of a Shape Relation and missed sibling extensions.
 
 **What it settled, beyond fixing.**
 
@@ -1259,11 +1278,23 @@ few the review settled as rules instead (below).
   would change how every Agent records its lines.
 - *`@Secret` on a Link's own Report or Operation* means in-house, as the
   Director asked in rule 2.7: it answers only inside the Agent's code.
-- *The doors*, as the known limits above state. A generator or a
-  coroutine of a Link keeps its doors at every step, not only at its
-  call.
+- *The doors*, as the known limits above state. They hold while the
+  Link's code runs. A generator or coroutine function is refused in a
+  Relation's body rather than stepped behind the doors: stepping needed
+  its own protocol machinery, and the third round found it wrapped code
+  the Link never wrote. A later STEP may bring it back.
+- *A family gains no Layer while a linking or an extension of it is
+  under way.* Laying it on the Pair in flight made one undo take back
+  the other's work.
+- *A refused linking* undoes the linkings made at its Pair's Parts that
+  belong to its Agent or its Contact; a call that finished inside it
+  keeps what it did, as §0.6 says.
+- *An undone linking on a shared Pair* restores the Pair when nothing
+  reached it since, and otherwise leaves it as an unlinking does, sticky.
+  Taking some Layers off a Pair while keeping others' work would need a
+  way to rebuild an overlay that the kit has for no Agent.
 - *A Relation is declared once*, in its declaring Tag's body, under its
-  own name. The template itself answers its own Reports and Operations,
+  own name, while that Tag lives. The template itself answers its own Reports and Operations,
   as any Tag does, with no Agent behind them; `@Secret` binds on each
   Link, where an Agent exists.
 - *A Relation's plain values and class methods* belong to the Link; its
@@ -1292,10 +1323,10 @@ Shown by `tests/test_links.py`, by the Acceptance list above:
 - every finding of the review, each a regression that fails before its
   fix: `Rollback_Tests`, `Ownership_Tests`, `Law_Review_Tests`,
   `Lifetime_Review_Tests`, `Door_Review_Tests`, `Integration_Review_Tests`,
-  `Second_Round_Tests`, `Variant_Tests`, `New_Code_Review_Tests`;
-- generators and coroutines of a Link, step by step (send, throw, close,
-  a failure, a cancelled task), with every door back as it was after:
-  `New_Code_Review_Tests`.
+  `Second_Round_Tests`, `Variant_Tests`, `New_Code_Review_Tests`,
+  `Third_Round_Tests`;
+- generator and coroutine functions refused, and a generator handed
+  through a Link left alone: `New_Code_Review_Tests`.
 
 Also: `tests/spec_examples.py` runs §1.10's examples; the oracle's
 `Run_Links` walks Links, Shape Links, extensions, and Agents and Contacts

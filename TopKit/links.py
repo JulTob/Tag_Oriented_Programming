@@ -39,10 +39,10 @@ from __future__ import annotations
 
 from functools import partial
 from inspect import isasyncgenfunction
+from inspect import iscoroutinefunction
+from inspect import isgeneratorfunction
 from inspect import signature
 from itertools import count
-from types import CoroutineType
-from types import GeneratorType
 from typing import Any
 from typing import Callable
 from weakref import WeakKeyDictionary
@@ -67,6 +67,7 @@ from .declarations import _is_link
 from .declarations import _is_pin
 from .declarations import _is_private
 from .declarations import _is_relation
+from .declarations import _relation_homes
 from .declarations import _kind_of
 from .declarations import _mark_flag
 from .declarations import _parameters_of
@@ -80,6 +81,7 @@ from .geometry import _is_tag
 from .geometry import _requiring_shapes
 from .lifecycle import _rip
 from .overlay import _require_membership
+from .state import _Bound
 from .state import _Line
 from .state import _State
 from .state import _is_composing
@@ -100,7 +102,7 @@ from .transactions import _open_boundary
 from .transactions import _imprint
 from .transactions import _inspect
 from .transactions import _rollback_to
-from .transactions import _undo
+from .transactions import _undo_refused_linking
 
 
 Function = Callable[..., Any]
@@ -222,6 +224,44 @@ def _is_pair_member(
     return callable(member)
 
 
+def _refuse_code_that_runs_later(
+        relation: type,
+        name: str,
+        member: Any,
+        ) -> None:
+    """A Link's code keeps its doors while it runs (rule 3.6). The body of
+    a generator or a coroutine runs later, when it is iterated or awaited,
+    outside them: it would read the Contact's secrets from her own code,
+    and never its Agent's. So a Pair function, an Operation or another
+    class method, or a Report builder is an ordinary function. A static
+    method is plain Python, and a private helper is the Relation's own:
+    neither is a Link's function."""
+
+    if _is_private(name) or name in _CLASS_MACHINERY or isinstance(member, staticmethod):
+        return
+
+    if isinstance(member, Report):
+        function = member.builder
+    else:
+        function = getattr(
+                member,
+                "__func__",
+                member,
+                )
+
+    if not callable(function):
+        return
+
+    if isgeneratorfunction(function) or iscoroutinefunction(function) or isasyncgenfunction(function):
+        raise TagDeclarationError(
+                f"{relation.__name__}.{name}: a Link's code keeps its doors"
+                " only while it runs, and the body of a generator or a"
+                " coroutine runs later, when it is iterated or awaited;"
+                " make it an ordinary function that returns what it"
+                " computes, and await or iterate outside the Link"
+                )
+
+
 def _check_seats(
         relation: type,
         name: str,
@@ -244,12 +284,11 @@ def _check_seats(
                 " it in-house"
                 )
 
-    if not isinstance(member, staticmethod) and isasyncgenfunction(getattr(member, "__func__", member)):
-        raise TagDeclarationError(
-                f"{relation.__name__}.{name}: a Link's code runs behind its"
-                " doors at every step, and an async generator's steps cannot"
-                " be; write a coroutine or a generator"
-                )
+    _refuse_code_that_runs_later(
+            relation,
+            name,
+            member,
+            )
 
     if not _is_pair_member(name, member) or _kind_of(member) == "delete":
         return
@@ -395,7 +434,7 @@ def _two_seats(
                 )   # her door stays shut on every path; the Link is the Agent's code (rule 3.6)
 
         try:
-            result = function(
+            return function(
                     agent,
                     contact,
                     *args,
@@ -403,15 +442,6 @@ def _two_seats(
                     )
         finally:
             _leave_doors(entered)
-
-        if isinstance(result, _STEPPED):
-            return _stepped_behind(
-                    agent,
-                    contacts,
-                    result,
-                    )
-
-        return result
 
     Two_Seats.__signature__ = signature(function).replace(
             parameters=[parameters[0], *parameters[2:]],
@@ -647,12 +677,6 @@ def _leave_doors(
         state.composing = opened
 
 
-_STEPPED = (
-        GeneratorType,
-        CoroutineType,
-        )   # a body that runs later, one step at a time, when iterated or awaited
-
-
 def _run_behind(
         agent: object | None,
         contacts: Any,
@@ -660,7 +684,7 @@ def _run_behind(
         *args: Any,
         **kwargs: Any,
         ) -> Any:
-    """Call a Link's function behind its doors."""
+    """Call a Link's function behind its doors, for as long as it runs."""
 
     entered = _enter_doors(
             agent,
@@ -668,137 +692,12 @@ def _run_behind(
             )
 
     try:
-        result = function(
+        return function(
                 *args,
                 **kwargs,
                 )
     finally:
         _leave_doors(entered)
-
-    if isinstance(result, _STEPPED):
-        return _stepped_behind(
-                agent,
-                contacts,
-                result,
-                )
-
-    return result
-
-
-def _stepped_behind(
-        agent: object | None,
-        contacts: Any,
-        result: Any,
-        ) -> Any:
-    """A generator or a coroutine the Link's code returned. Its body runs
-    when it is iterated or awaited, long after the call returned, so each
-    of its steps runs behind the same doors; between steps every door is
-    as the caller left it."""
-
-    if isinstance(result, GeneratorType):
-        return _each_step_behind(
-                agent,
-                contacts,
-                result,
-                )
-
-    return _awaited_behind(
-            agent,
-            contacts,
-            result,
-            )
-
-
-def _each_step_behind(
-        agent: object | None,
-        contacts: Any,
-        steps: Any,
-        ) -> Any:
-    """Drive a generator, or a coroutine's awaiting, one step at a time,
-    each step behind the doors; pass on what is sent or thrown in."""
-
-    sent: Any = None
-    thrown: BaseException | None = None
-
-    while True:
-        entered = _enter_doors(
-                agent,
-                contacts,
-                )
-
-        try:
-            if thrown is None:
-                step = steps.send(sent)
-            else:
-                step = steps.throw(thrown)
-        except StopIteration as stop:
-            return stop.value
-        finally:
-            _leave_doors(entered)
-
-        thrown = None
-
-        try:
-            sent = yield step
-        except GeneratorExit:
-            entered = _enter_doors(
-                    agent,
-                    contacts,
-                    )
-
-            try:
-                steps.close()
-            finally:
-                _leave_doors(entered)
-
-            raise
-        except BaseException as error:
-            thrown = error   # thrown into the Link's code at its next step
-            sent = None
-
-
-class _Awaiting_Behind:
-    """A coroutine of a Link, awaited one step at a time behind its doors."""
-
-    __slots__ = (
-            "agent",
-            "contacts",
-            "coroutine",
-            )
-
-    def __init__(
-            awaiting,
-            agent: object | None,
-            contacts: Any,
-            coroutine: Any,
-            ) -> None:
-        awaiting.agent = agent
-        awaiting.contacts = contacts
-        awaiting.coroutine = coroutine
-
-    def __await__(
-            awaiting,
-            ) -> Any:
-        return _each_step_behind(
-                awaiting.agent,
-                awaiting.contacts,
-                awaiting.coroutine,
-                )
-
-
-async def _awaited_behind(
-        agent: object | None,
-        contacts: Any,
-        coroutine: Any,
-        ) -> Any:
-    """A coroutine of a Link, as a coroutine: awaitable, and accepted by
-    ``asyncio.run`` and by tasks, each of its steps behind the doors."""
-
-    return await _Awaiting_Behind(
-            agent,
-            contacts,
-            coroutine,
-            )
 
 
 def _is_contact_of(
@@ -900,6 +799,7 @@ class _Family:
             "pairs",
             "links",
             "dying",
+            "busy",
             "__weakref__",
             )
 
@@ -909,6 +809,7 @@ class _Family:
         family.pairs: dict[int, Pair] = {}
         family.links: list[weakref.ref] = []
         family.dying: object | None = None
+        family.busy = 0   # linkings and extensions under way: no Layer is added meanwhile
 
     def Pair_Of(
             family,
@@ -1110,6 +1011,11 @@ def _new_link(
     """A distinct Tag for this Agent (rule 4.2), with this Agent's own
     Links as its Bases (rule 2.4)."""
 
+    _refuse_mixed_layers(
+            list(layers),
+            name,
+            TagCompositionError,
+            )
     bases = _base_links(
             state,
             layers,
@@ -1256,6 +1162,13 @@ def _family_for(
     if not families:
         return _Family()
 
+    if len(families) > 1:
+        for family in families:
+            _refuse_while_busy(
+                    family,
+                    "its Links are not joined with another family's",
+                    )
+
     _refuse_shared_contacts(families)
     kept = families[0]
     joins = [
@@ -1278,6 +1191,24 @@ def _family_for(
                 ))
 
     return kept
+
+
+def _refuse_while_busy(
+        family: "_Family",
+        what: str,
+        ) -> None:
+    """While a linking or an extension of a family is under way, from a
+    Pair's gate to the Contact's entry, nothing adds a Layer to its Pairs:
+    the Pair in flight would hold a Layer its linking did not give it, and
+    undoing one would take back the other's work."""
+
+    if family.busy:
+        raise TagCompositionError(
+                f"a linking or an extension is under way in this Link's"
+                f" family, so {what} until it is done; give the Agent the"
+                " Shape before or after it, or from the Pair's Imprint,"
+                " which runs after her entry"
+                )
 
 
 def _refuse_shared_contacts(
@@ -1408,6 +1339,55 @@ def _is_tag_scope_member(
     return isinstance(member, (classmethod, staticmethod)) or not callable(member)
 
 
+def _layer_names(
+        layer: type,
+        ) -> tuple[set[str], set[str]]:
+    """A Relation's line names (its ``@Public`` Pair members) and the
+    names it declares for the Link itself."""
+
+    lines = set(_published_names(layer))
+    members = {
+            member_name
+            for member_name, member in layer.__dict__.items()
+            if _is_tag_scope_member(member_name, member)
+            }
+
+    return (
+            lines,
+            members,
+            )
+
+
+def _extension_chain(
+        inherited: type,
+        name: str,
+        ) -> list[type]:
+    """The Layers of one Link an extension joins: the Relation it extends,
+    and the Relations that one extends in turn under the same name. A
+    Relation Base under another name is a Shape Relation's Base: another
+    Link, whose lines stay on its own class."""
+
+    chain: list[type] = []
+    layer: type | None = inherited
+
+    while layer is not None:
+        chain.append(layer)
+        relation_bases = [
+                base
+                for base in layer.__bases__
+                if _is_relation(base)
+                ]
+        layer = None
+
+        if len(relation_bases) == 1:
+            home = _relation_homes.get(relation_bases[0])
+
+            if home is not None and home[1] == name:
+                layer = relation_bases[0]
+
+    return chain
+
+
 def _refuse_a_name_both_ways(
         tag: type,
         name: str,
@@ -1417,38 +1397,51 @@ def _refuse_a_name_both_ways(
     """One Link holds the lines and the Tag-scope members of all its Layers
     in one class. So across a Relation and its extensions, a name is a line
     or a Tag-scope member, never both: one would silently replace the
-    other on every Agent's Link. Checked when the extending Shape is made."""
+    other on every Agent's Link. Checked when the extending Shape is made;
+    extensions declared side by side meet only on an Agent, and are
+    checked there (``_refuse_mixed_layers``)."""
 
-    own_lines = set(_published_names(extension))
-    own_scope = {
-            member_name
-            for member_name, member in extension.__dict__.items()
-            if _is_tag_scope_member(member_name, member)
-            }
+    _refuse_mixed_layers(
+            [*reversed(_extension_chain(inherited, name)), extension],
+            f"{tag.__name__}.{name}",
+            TagDeclarationError,
+            )
 
-    for layer in inherited.__mro__:
-        if not _is_relation(layer):
-            continue
 
-        layer_lines = set(_published_names(layer))
-        layer_scope = {
-                member_name
-                for member_name, member in layer.__dict__.items()
-                if _is_tag_scope_member(member_name, member)
-                }
-        clashes = sorted((own_scope & layer_lines) | (own_lines & layer_scope))
+def _refuse_mixed_layers(
+        layers: list[type],
+        where: str,
+        failure: type,
+        ) -> None:
+    """No name is a line in one Layer of a Link and a member of the Link in
+    another."""
 
-        if clashes:
-            clash = clashes[0]
-            line_owner = layer if clash in layer_lines else extension
+    lines: dict[str, type] = {}
+    members: dict[str, type] = {}
 
-            raise TagDeclarationError(
-                    f"{tag.__name__}.{name}.{clash}: {line_owner.__qualname__}"
-                    f" publishes '{clash}' as a line onto its Contacts, and the"
-                    " other Layer of this Link declares it for the Link itself;"
-                    " one Link holds both side by side, so give one of them"
-                    " another name"
-                    )
+    for layer in layers:
+        layer_lines, layer_members = _layer_names(layer)
+
+        for line_name in layer_lines:
+            lines.setdefault(line_name, layer)
+
+        for member_name in layer_members:
+            members.setdefault(member_name, layer)
+
+    clashes = sorted(set(lines) & set(members))
+
+    if not clashes:
+        return
+
+    clash = clashes[0]
+
+    raise failure(
+            f"{where}.{clash}: {lines[clash].__qualname__} publishes"
+            f" '{clash}' as a line onto its Contacts, and"
+            f" {members[clash].__qualname__} declares it for the Link itself;"
+            " one Link holds both side by side, so give one of them another"
+            " name"
+            )
 
 
 def _publish_lines(
@@ -1625,6 +1618,15 @@ def _extend(
     nothing changed); their Imprints and promises after the Agent's
     Commit. Linkings made after that get every Layer."""
 
+    _refuse_while_busy(
+            record.family,
+            f"{link.__name__} gains no Layer",
+            )
+    _refuse_mixed_layers(
+            [*record.layers, *added],
+            link.__name__,
+            TagCompositionError,
+            )
     boundary = _open_boundary()
     field = link.__dict__["_topkit_field"]
     pairs = [
@@ -1668,6 +1670,8 @@ def _extend(
                 type.__setattr__(link, name, value)
 
         _scan_cache.pop(link, None)
+
+    record.family.busy += 1   # until every Pair has the Layer, the family gains no other
 
     try:
         record.layers.extend(added)
@@ -1714,6 +1718,8 @@ def _extend(
     except BaseException:
         Undo()
         raise
+    finally:
+        record.family.busy -= 1
 
     def Write() -> None:
         _write_all(
@@ -1920,6 +1926,7 @@ def _link(
     deferred: list[Any] = []
 
     applied: list[list[type]] = []   # the Pair Tags this linking gave the Pair, once its Parts are done
+    settled: list[dict[str, Any]] = []   # the Pair's values once the linking is done, Imprints included
 
     def Drop_Pair() -> None:
         if not created:
@@ -1928,6 +1935,7 @@ def _link(
                     pair,
                     pair_entry,
                     given,
+                    settled[0] if settled else None,
                     )   # an older Pair keeps what other calls gave it since
             return
 
@@ -1941,6 +1949,7 @@ def _link(
             del current.pairs[id(contact)]
 
     token = _current_boundary.set(local)
+    family.busy += 1   # until her entry, the family gains no Layer (rule 4.6)
 
     try:
         try:
@@ -1950,22 +1959,6 @@ def _link(
                     inputs,
                     deferred,
                     )
-            latest = _pair_form(link)   # the same list unless a Layer was added meanwhile
-
-            while latest is not form:   # an extension made by the Pair's own Parts reaches this Pair too
-                form = latest
-                _refuse_inputs_in_seats(
-                        form,
-                        inputs,
-                        )
-                _apply_form(
-                        pair,
-                        form,
-                        inputs,
-                        deferred,
-                        )
-                latest = _pair_form(link)
-
             applied.append(_added_since(
                     pair,
                     pair_entry,
@@ -1978,12 +1971,18 @@ def _link(
                     )   # a refusal rolls the Contact back by itself
         except BaseException:
             try:
-                _undo(local)   # what the Pair's Parts linked, latest first
+                _undo_refused_linking(
+                        local,
+                        agent,
+                        contact,
+                        outer,
+                        )   # its own linkings at the Pair's Parts, latest first
             finally:
                 Drop_Pair()
 
             raise
     finally:
+        family.busy -= 1
         _current_boundary.reset(token)
         local.open = False   # a task that copied this context links on its own from now on
 
@@ -2008,6 +2007,7 @@ def _link(
         outer.undo.append(_Undo_Step(
                 (agent, contact),
                 Undo,
+                linking=True,
                 ))
 
     _close(local)
@@ -2017,6 +2017,7 @@ def _link(
             deferred,
             inputs,
             )
+    settled.append(dict(_namespace_of(pair)))
     _inspect(pair)
     _inspect(contact)
 
@@ -2043,19 +2044,28 @@ def _undo_pair_layers(
         pair: Pair,
         entry: Any,
         applied: list[type],
+        settled: dict[str, Any] | None,
         ) -> None:
     """Take back from a Pair that existed before the linking only the
     Pair Tags the linking applied. When nothing else reached the Pair
-    since (its Tags and its history are what the linking left), its
-    snapshot is restored; otherwise those Tags leave it silently, with no
-    teardown, and what other calls gave it stays."""
+    since (its Tags, its history and its values are what the linking
+    left), its snapshot is restored. Otherwise those Tags leave it as an
+    unlinking leaves it, silently and with no teardown, their history
+    forgotten and what they gave sticky (§0.7), and what other calls gave
+    it or wrote on it stays."""
 
     state = _state_of(pair)
 
     if state is None or entry.state is None:
         return
 
-    if list(state.active) == [*entry.tags, *applied] and state.ever == entry.state.ever | set(applied):
+    untouched = (
+            list(state.active) == [*entry.tags, *applied]
+            and state.ever == entry.state.ever | set(applied)
+            and (settled is None or _same_values(_namespace_of(pair), settled))
+            )
+
+    if untouched:
         _rollback_to(
                 pair,
                 entry,
@@ -2074,6 +2084,21 @@ def _undo_pair_layers(
         state.snapshots.pop(tag, None)
 
     state.words = None
+
+
+def _same_values(
+        namespace: dict[str, Any],
+        settled: dict[str, Any],
+        ) -> bool:
+    """The very same values under the very same names."""
+
+    if namespace.keys() != settled.keys():
+        return False
+
+    return all(
+            namespace[name] is settled[name]
+            for name in namespace
+            )
 
 
 def _undo_linking(
@@ -2101,8 +2126,8 @@ def _undo_linking(
         state.rips.pop(link, None)
         state.snapshots.pop(link, None)
 
-        if state.ever_links is not None:
-            state.ever_links.discard(link)
+        if state.ever_links is not None and not _was_in(link, entry):
+            state.ever_links.discard(link)   # the history this linking gave her; an earlier one stays
 
     state.words = None
 
@@ -2112,6 +2137,18 @@ def _undo_linking(
                 state,
                 entry,
                 )
+
+
+def _was_in(
+        link: type,
+        entry: Any,
+        ) -> bool:
+    """She was a Contact of this Link before the call began."""
+
+    if entry.state is None or entry.state.ever_links is None:
+        return False
+
+    return link in entry.state.ever_links
 
 
 def _holds_only_lines(
@@ -2147,6 +2184,9 @@ def _forget_agent(
     namespace = _namespace_of(contact)
 
     for name in state.actions:
+        if not isinstance(namespace.get(name), _Bound):
+            continue   # a value she wrote since stays
+
         if name in entry.namespace:
             namespace[name] = entry.namespace[name]   # her own value, which the line covered
         else:

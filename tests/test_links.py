@@ -7,7 +7,6 @@ doors, the Relation's refused spellings, ending in reference cycles, and
 the barrier.
 """
 
-import asyncio
 import contextvars
 import copy
 import gc
@@ -2651,15 +2650,20 @@ class Variant_Tests(unittest.TestCase):
         self.assertEqual(ruth.Ask_By_Keyword(charlie.Member), "shut")
         self.assertEqual(charlie.Member.Peek(contact=ruth), "shut")
 
-    def test_an_extension_made_during_a_linking_reaches_the_pair_in_flight(self):
+    def test_an_extension_waits_until_the_linking_is_done(self):
         class Circle(Tag):
             @Link
             class Knows(Tag):
                 @Record
                 def since(agent, contact, *, since=None):
-                    if since == "promote" and agent not in Popular:
-                        Popular(agent)                    # the Agent gains the Shape that extends Knows
+                    if since == "promote":
+                        Popular(agent)                    # inside the linking: refused
                     return since
+
+                @Imprint
+                def Celebrate(agent, contact):
+                    if agent.Knows[contact].since == "celebrate" and agent not in Popular:
+                        Popular(agent)                    # after her entry: allowed
 
         class Popular(Circle):
             @Link
@@ -2668,18 +2672,64 @@ class Variant_Tests(unittest.TestCase):
                 def vip(agent, contact):
                     return True
 
-                def Greet(agent, contact):
-                    return "a popular greeting"
-
         charlie, ruth, sam, tom = People("Charlie", "Ruth", "Sam", "Tom")
         Circle(charlie)
         charlie.Knows(ruth, since=1)
-        charlie.Knows(sam, since="promote")               # Popular(charlie) happens inside this linking
+        with self.assertRaises(TagCompositionError):
+            charlie.Knows(sam, since="promote")
+        self.assertNotIn(charlie, Popular)                # nothing changed
+        self.assertNotIn(sam, charlie.Knows)
+        self.assertFalse(hasattr(charlie.Knows[ruth], "vip"))
+        charlie.Knows(sam, since="celebrate")             # the Pair's Imprint extends the Link
         charlie.Knows(tom, since=3)
         self.assertIn(charlie, Popular)
-        for contact in (ruth, sam, tom):
+        for contact in (ruth, sam, tom):                  # every Pair holds every Layer
             self.assertTrue(charlie.Knows[contact].vip)
-            self.assertEqual(charlie.Knows[contact].Greet(), "a popular greeting")
+
+    def test_a_refused_linking_keeps_what_finished_calls_inside_it_did(self):
+        holder = {}
+
+        class Club(Tag):
+            @Link
+            class Member(Tag):
+                @Public
+                @Report
+                def gossip(link):
+                    return Read_Or_Shut(holder["contact"], "diary")   # built with every Contact's door shut
+
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Record
+                def joined(agent, contact):
+                    Club(agent)                           # the Agent's own call: it finishes
+                    agent.Member(contact)                 # a linking at the Pair's Parts: the refusal's own
+                    return True
+
+                @Record
+                def broken(agent, contact):
+                    raise ValueError("the linking is refused")
+
+        class Writer(Tag):
+            @Secret
+            @Record
+            def diary(agent):
+                return "her secret"
+
+            def Read_Gossip(agent):
+                return agent.gossip                       # the Report, first built from her own code
+
+        charlie, ruth, sam = People("Charlie", "Ruth", "Sam")
+        Circle(charlie)
+        with self.assertRaises(TagCompositionError):
+            charlie.Knows(ruth)
+        self.assertNotIn(ruth, charlie.Knows)
+        self.assertIn(charlie, Club)                      # his finished call stays (§0.6)
+        self.assertNotIn(ruth, charlie.Member)            # the linking made inside the refusal is undone
+        Writer(sam)
+        holder["contact"] = sam
+        charlie.Member(sam)                               # the Link his call granted is whole
+        self.assertEqual(sam.Read_Gossip(), "shut")
 
     def test_link_operations_and_report_builders_read_the_agents_secrets(self):
         holder = {}
@@ -2834,73 +2884,55 @@ class New_Code_Review_Tests(unittest.TestCase):
         charlie.Knows(ruth, nickname="Ru2")
         self.assertEqual(charlie.Knows[ruth].nickname, "Ru2")   # a new linking builds a new Pair
 
-    def test_a_generator_line_runs_each_step_behind_the_doors(self):
-        from TopKit.state import _state_of
+    def test_a_generator_or_coroutine_is_never_a_links_function(self):
+        import types
 
-        closed = []
+        def Declare(body):
+            return type("Holder", (Tag,), {"Member": Link(type("Member", (Tag,), body))})
 
-        class Circle(Tag):
-            @Secret
-            @Record
-            def ledger(agent):
-                return "his ledger"
+        def generator_action(agent, contact):
+            yield 1
 
-            @Link
-            class Member(Tag):
-                @Public
-                def Stream(agent, contact):
-                    received = yield (Read_Or_Shut(contact, "diary"), Read_Or_Shut(agent, "ledger"))
-                    yield received
-                    return "done"
+        async def coroutine_action(agent, contact):
+            return 1
 
-                @Public
-                def Guarded(agent, contact):
-                    try:
-                        yield 1
-                    except ValueError:
-                        yield Read_Or_Shut(contact, "diary")   # handling a throw is a step too
-                    finally:
-                        closed.append(Read_Or_Shut(contact, "diary"))
+        async def async_generator_action(agent, contact):
+            yield 1
 
-        class Writer(Tag):
-            @Secret
-            @Record
-            def diary(agent):
-                return "her secret"
+        @types.coroutine
+        def old_style_coroutine(agent, contact):
+            yield
 
-            def Drive(agent):
-                steps = agent.Stream()
-                first = next(steps)
-                between = agent.diary                     # her own code between steps: her door is open
-                echoed = steps.send("hello")
-                try:
-                    next(steps)
-                except StopIteration as stop:
-                    final = stop.value
-                return first, between, echoed, final
+        def generator_operation(link):
+            yield 1
 
-            def Drive_Guarded(agent):
-                steps = agent.Guarded()
-                next(steps)
-                handled = steps.throw(ValueError("thrown in"))
-                steps.close()
-                return handled
+        async def coroutine_builder(link):
+            return 1
 
-        charlie, ruth = People("Charlie", "Ruth")
-        Circle(charlie)
-        Writer(ruth)
-        charlie.Member(ruth)
-        self.assertEqual(
-                ruth.Drive(),
-                (("shut", "his ledger"), "her secret", "hello", "done"),
-                )
-        self.assertEqual(ruth.Drive_Guarded(), "shut")
-        self.assertEqual(closed, ["shut"])
-        self.assertEqual(_state_of(ruth).composing, 0)    # every door is back as it was
-        self.assertEqual(_state_of(charlie).composing, 0)
+        refused = {
+                "a generator Pair Action": {"Stream": generator_action},
+                "a coroutine Pair Action": {"Fetch": coroutine_action},
+                "an async generator Pair Action": {"Feed": async_generator_action},
+                "a types.coroutine Pair Action": {"Old": old_style_coroutine},
+                "a generator Operation": {"Scan": Operation(generator_operation)},
+                "a coroutine Report builder": {"total": Report(coroutine_builder)},
+                }
 
-    def test_a_coroutine_line_runs_each_step_behind_the_doors(self):
-        from TopKit.state import _state_of
+        for label, body in refused.items():
+            with self.subTest(label):
+                with self.assertRaises(TagDeclarationError):
+                    Declare(body)
+
+        async def _helper(value):
+            yield value
+
+        def numbers():
+            yield 1
+
+        Declare({"_helper": _helper, "numbers": staticmethod(numbers)})   # the Relation's own, plain Python
+
+    def test_a_generator_handed_through_a_link_is_left_alone(self):
+        holder = {}
 
         class Circle(Tag):
             @Secret
@@ -2909,19 +2941,14 @@ class New_Code_Review_Tests(unittest.TestCase):
                 return "his ledger"
 
             @Link
-            class Member(Tag):
-                @Public
-                async def Fetch(agent, contact):
-                    await asyncio.sleep(0)
-                    return (Read_Or_Shut(contact, "diary"), Read_Or_Shut(agent, "ledger"))
+            class Knows(Tag):
+                @Record
+                def since(agent, contact, *, since=None):
+                    return since
 
                 @Public
-                async def Fail(agent, contact):
-                    await asyncio.sleep(0)
-                    raise ValueError("refused")
-
-                async def Wait(agent, contact):
-                    await asyncio.sleep(10)
+                def Hand_Back(agent, contact, thing):
+                    return thing
 
         class Writer(Tag):
             @Secret
@@ -2929,61 +2956,20 @@ class New_Code_Review_Tests(unittest.TestCase):
             def diary(agent):
                 return "her secret"
 
-            def Sync_Fetch(agent):
-                return asyncio.run(agent.Fetch())
+            def Round_Trip(agent):
+                own = (Read_Or_Shut(agent, "diary") for _ in range(1))
+                return list(agent.Hand_Back(own))         # her own generator, iterated in her own code
 
-            def Sync_Fail(agent):
-                return asyncio.run(agent.Fail())
-
-        charlie, ruth = People("Charlie", "Ruth")
+        charlie, dora, ruth = People("Charlie", "Dora", "Ruth")
+        holder["agent"] = charlie
         Circle(charlie)
         Writer(ruth)
-        charlie.Member(ruth)
-        self.assertEqual(ruth.Sync_Fetch(), ("shut", "his ledger"))
-        with self.assertRaises(ValueError):
-            ruth.Sync_Fail()
-
-        async def Cancel_It():
-            task = asyncio.ensure_future(charlie.Member[ruth].Wait())
-            await asyncio.sleep(0)
-            task.cancel()
-            await task
-
-        with self.assertRaises(asyncio.CancelledError):
-            asyncio.run(Cancel_It())
-        self.assertEqual(_state_of(ruth).composing, 0)
-        self.assertEqual(_state_of(charlie).composing, 0)
-
-    def test_a_generator_operation_keeps_her_door_shut_at_each_step(self):
-        class Circle(Tag):
-            @Link
-            class Member(Tag):
-                @Operation
-                def Scan(link, contact):
-                    yield Read_Or_Shut(contact, "diary")
-
-        class Writer(Tag):
-            @Secret
-            @Record
-            def diary(agent):
-                return "her secret"
-
-            def Ask(agent, link):
-                return list(link.Scan(contact=agent))
-
-        charlie, ruth = People("Charlie", "Ruth")
-        Circle(charlie)
-        Writer(ruth)
-        charlie.Member(ruth)
-        self.assertEqual(ruth.Ask(charlie.Member), ["shut"])
-
-    def test_an_async_generator_in_a_relation_is_refused(self):
-        with self.assertRaises(TagDeclarationError):
-            class Circle(Tag):
-                @Link
-                class Member(Tag):
-                    async def Stream(agent, contact):
-                        yield 1
+        stranger = (Read_Or_Shut(holder["agent"], "ledger") for _ in range(1))
+        charlie.Knows(dora, since=stranger)
+        self.assertIs(charlie.Knows[dora].since, stranger)   # the Record keeps what it was given
+        self.assertEqual(list(stranger), ["shut"])        # a stranger's code never runs inside his door
+        charlie.Knows(ruth)
+        self.assertEqual(ruth.Round_Trip(), ["her secret"])
 
     def test_a_relation_bound_a_second_time_is_refused(self):
         class Circle(Tag):
@@ -3126,6 +3112,263 @@ class New_Code_Review_Tests(unittest.TestCase):
         self.assertEqual(ruth.Greet(), "the line")
         self.assertEqual(charlie.Knows.capacity, 150)
         self.assertEqual(charlie.Knows.motto, "kind words")
+
+
+class Third_Round_Tests(unittest.TestCase):
+    """The third review round, on the newest code."""
+
+    def test_an_undone_linking_keeps_what_another_call_wrote_on_the_pair(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Record
+                def since(agent, contact, *, since=None):
+                    return since
+
+            @Link
+            class Trusts(Knows):
+                pass
+
+        class Annotating(Tag):                            # Bob's own call: it finishes
+            @Record
+            def note(agent, *, about=None):
+                agent.Knows[about].since = "annotated by Bob"
+                return True
+
+        class Joining(Tag):                               # a call on Ruth
+            @Record
+            def trusted(agent, *, by=None):
+                by.Trusts(agent)
+                return True
+
+            @Record
+            def annotated(agent, *, by=None):
+                Annotating(by, about=agent)
+                return True
+
+            @Record
+            def broken(agent):
+                raise ValueError("Ruth's later Record fails")
+
+        bob, ruth = People("Bob", "Ruth")
+        Circle(bob)
+        bob.Knows(ruth, since=1)
+        with self.assertRaises(TagCompositionError):
+            Joining(ruth, by=bob)
+        self.assertIn(bob, Annotating)
+        self.assertNotIn(ruth, bob.Trusts)
+        self.assertEqual(bob.Knows[ruth].since, "annotated by Bob")
+
+    def test_an_undone_linking_keeps_a_value_she_wrote_since(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Public
+                def Greet(agent, contact):
+                    return "the line"
+
+        class Introducing(Tag):
+            @Record
+            def friend(agent, *, friend=None):
+                agent.Knows(friend)
+                friend.Greet = "written after the linking"
+                return friend
+
+            @Record
+            def broken(agent):
+                raise ValueError("refused at Parts")
+
+        charlie, ruth = People("Charlie", "Ruth")
+        Circle(charlie)
+        with self.assertRaises(TagCompositionError):
+            Introducing(charlie, friend=ruth)
+        self.assertEqual(ruth.Greet, "written after the linking")
+
+    def test_an_undone_relinking_keeps_her_earlier_history(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                pass
+
+        class Reintroducing(Tag):
+            @Record
+            def friend(agent, *, friend=None):
+                agent.Knows(friend)
+                return friend
+
+            @Record
+            def broken(agent):
+                raise ValueError("refused at Parts")
+
+        charlie, ruth = People("Charlie", "Ruth")
+        Circle(charlie)
+        charlie.Knows(ruth)
+        del charlie.Knows[ruth]
+        self.assertTrue(isinstance(ruth, charlie.Knows))
+        with self.assertRaises(TagCompositionError):
+            Reintroducing(charlie, friend=ruth)
+        self.assertTrue(isinstance(ruth, charlie.Knows))  # the linking undone gave her none of it
+
+    def test_the_first_interrupt_at_a_deletion_is_the_one_raised(self):
+        class First(KeyboardInterrupt):
+            pass
+
+        class Second(KeyboardInterrupt):
+            pass
+
+        log = []
+
+        class Guard(Tag):
+            @Rip
+            def Stand_Down(agent):
+                log.append("guard")
+                raise First("her own teardown")
+
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Rip
+                def Forget(agent, contact):
+                    log.append(contact.name)
+                    if contact.name == "Ruth":
+                        raise Second("a Link's exit")
+
+        charlie, ruth, sam = People("Charlie", "Ruth", "Sam")
+        Circle(charlie)
+        charlie.Knows(ruth)
+        charlie.Knows(sam)
+        Guard(charlie)
+        raised = None
+        try:
+            _teardown_all(charlie)
+        except BaseException as error:                    # an interrupt must not stop the test run
+            raised = type(error)
+        self.assertIs(raised, First)
+        self.assertEqual(log[0], "guard")
+        self.assertEqual(sorted(log[1:]), ["Ruth", "Sam"])   # every Link exit still runs
+
+    def test_extending_a_shape_relation_checks_its_own_link_only(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Public
+                def x(agent, contact):
+                    return "the Knows line"
+
+            @Link
+            class Trusts(Knows):
+                @Report
+                def x(link):
+                    return "the Trusts Report"
+
+        class Undercover(Circle):                         # Trusts' Link holds no Knows line
+            @Link
+            class Trusts(Circle.Trusts):
+                @Report
+                def x(link):
+                    return "the extended Report"
+
+        charlie, ruth = People("Charlie", "Ruth")
+        Undercover(charlie)
+        charlie.Trusts(ruth)
+        self.assertEqual(ruth.x(), "the Knows line")
+        self.assertEqual(charlie.Trusts.x, "the extended Report")
+
+    def test_sibling_extensions_that_mix_a_line_and_a_link_member_meet_refused(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                pass
+
+        class Spy(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Public
+                def x(agent, contact):
+                    return "a line"
+
+        class Clerk(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Report
+                def x(link):
+                    return "a Report"
+
+        charlie, ruth = People("Charlie", "Ruth")
+        Spy(charlie)
+        charlie.Knows(ruth)
+        with self.assertRaises(TagCompositionError):
+            Clerk(charlie)                                # the two meet on Charlie's Link
+        self.assertNotIn(charlie, Clerk)                  # nothing changed
+        self.assertEqual(ruth.x(), "a line")
+
+        bob = Character("Bob")
+        Clerk(bob)
+        with self.assertRaises(TagCompositionError):
+            Spy(bob)                                      # in the other order too
+        self.assertEqual(bob.Knows.x, "a Report")
+
+    def test_a_relation_whose_declaring_tag_is_gone_can_be_declared_again(self):
+        @Link
+        class Knows(Tag):
+            pass
+
+        relation = Knows
+
+        def Declare_And_Drop():
+            class Gone(Tag):
+                Knows = relation
+
+        Declare_And_Drop()
+        gc.collect()                                      # the first declaring Tag is gone
+
+        class Circle(Tag):
+            Knows = relation
+
+        self.assertIs(Circle.Knows, relation)
+
+    def test_an_undone_linking_on_a_shared_pair_leaves_it_as_an_unlinking_does(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                pass
+
+            @Link
+            class Trusts(Knows):
+                @Record
+                def level(agent, contact, *, level=None):
+                    return level
+
+        class Vetting(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Record
+                def vetted(agent, contact):
+                    return True
+
+        class Joining(Tag):                               # a call on Ruth
+            @Record
+            def trusted(agent, *, by=None):
+                by.Trusts(agent, level=5)
+                return True
+
+            @Record
+            def promoted(agent, *, by=None):
+                Vetting(by)                               # Bob's own call reaches her Pair since
+                return True
+
+            @Record
+            def broken(agent):
+                raise ValueError("Ruth's later Record fails")
+
+        bob, ruth = People("Bob", "Ruth")
+        Circle(bob)
+        bob.Knows(ruth)
+        with self.assertRaises(TagCompositionError):
+            Joining(ruth, by=bob)
+        self.assertNotIn(ruth, bob.Trusts)                # she left Trusts silently
+        self.assertTrue(bob.Knows[ruth].vetted)           # what Bob's call gave stays
+        self.assertEqual(bob.Knows[ruth].level, 5)        # and what Trusts gave stays, sticky (§0.7)
 
 
 def Agents_Of_Any_Link(contact):

@@ -371,13 +371,21 @@ rollback target.
   shut every Contact's; both open the Agent's door, since the Link's
   code is its Agent's code. Static methods are copied as they are. All
   of them, and every Pair function (`_two_seats`), enter and leave the
-  same doors (`_enter_doors`, `_leave_doors`). A generator or coroutine
-  one returns is driven a step at a time behind those doors
-  (`_stepped_behind`, `_each_step_behind`), so its body, which runs when
-  it is iterated or awaited, never sees the Contact's door open; between
-  steps every door is as the caller left it. A Relation's first binding
-  is recorded (`declarations._relation_homes`, weakly): the Tag body that
-  made it, under its own name. A later binding is refused as an alias. The kit holds the Link's Agent weakly (on the
+  same doors (`_enter_doors`, `_leave_doors`) for as long as they run.
+  Generator and coroutine functions are refused in a Relation's body
+  (`_refuse_code_that_runs_later`): their bodies run after the doors
+  close. A Relation's first binding
+  is recorded (`declarations._relation_homes`, weakly) once its whole
+  body passed: the Tag body that made it, under its own name. A later
+  binding is refused as an alias while that Tag lives. A `_Family`
+  counts the linkings and extensions under way (`busy`); while it is
+  above zero, `_extend` and a join in `_family_for` are refused. A
+  refused linking runs only its own linking steps (`_Undo_Step.linking`,
+  `_undo_refused_linking`) and hands the rest outward. A name that is a
+  line in one Layer and a member of the Link in another is refused at
+  class use along one Link's extension chain (`_refuse_a_name_both_ways`)
+  and at tagging for extensions that meet only on an Agent
+  (`_refuse_mixed_layers`). The kit holds the Link's Agent weakly (on the
   Link's record and on each Pair's ends), and every `finally` that held
   an error sets its local to `None`, so a traceback cycle never keeps
   the Agent alive.
@@ -398,12 +406,15 @@ rollback target.
   Contact (`_undo_linking`): membership, history, hooks and views of
   those Links; she becomes a plain object again only if she was none
   before and holds nothing else, and then a value she held under a
-  line's name comes back from the call's snapshot (`_forget_agent`). A Pair that existed before the linking
+  line's name comes back from the call's snapshot, unless she wrote a
+  value there since (`_forget_agent`). Her history of a Link from before
+  the call stays (`_was_in`). A Pair that existed before the linking
   loses only the Pair Tags the linking gave it, recorded right after its
-  Parts (`_added_since`, `_undo_pair_layers`), so a Layer another call
-  laid since stays. The Pair's form is applied a second time after its
-  Parts, so an extension made by those Parts reaches it too. A boundary
-  drops its Agent when it closes. The hot paths read a Tag's own `_topkit_kind` (None for every
+  Parts (`_added_since`, `_undo_pair_layers`). Its snapshot is restored
+  only when its Tags, history and values are what the linking left
+  (`settled`, `_same_values`); otherwise the Tags leave as at an
+  unlinking, sticky, and a Layer or value another call gave stays. A
+  boundary drops its Agent when it closes. The hot paths read a Tag's own `_topkit_kind` (None for every
   ordinary Tag) before any Relation or Pair Tag check, and `ever_links`
   stays None until an Agent's first Link, so ordinary Tags pay for
   neither. A boundary closes when its call returns

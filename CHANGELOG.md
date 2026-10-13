@@ -120,8 +120,10 @@
   or its Contact, however deep inside it was made; a call on any other
   Agent leaves it. Nothing unpublished of a Link reaches its Contact, her
   own views included; a Link's Reports are built with every Contact's
-  door shut, and a generator or coroutine of a Link keeps its doors at
-  every step; a Contact's history holds Links weakly. A Relation is
+  door shut; a generator or coroutine function in a Relation is refused,
+  since its body would run outside the doors; a family gains no Layer
+  while one of its linkings is under way; a Contact's history holds
+  Links weakly. A Relation is
   declared once, in its declaring Tag's body under its own name; binding
   it again is a Declaration Failure. The wiki page "Links: a Tag of
   one's own" runs as one program under the suite.

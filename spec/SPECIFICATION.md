@@ -1164,14 +1164,21 @@ Relation take the Link alone and belong to it, one Link per Agent:
 `charlie.Knows.capacity`. So do its plain values and its other class and
 static methods, as an ordinary Tag keeps them on the class. Across a
 Relation and its extensions a name is a line (below) or a member of the
-Link, never both; and a static method is never `@Secret`. Both are
-Declaration Failures at class use.
+Link, never both, and a static method is never `@Secret`: Declaration
+Failures at class use. Extensions declared side by side meet only on an
+Agent, and a clash between them is a Composition Failure when the Agent
+gains the second. A Pair function, an Operation or another class method,
+and a Report builder are ordinary functions: a generator or a coroutine
+there is a Declaration Failure, since its body would run later, when
+iterated or awaited, outside the Link's doors (below).
 
 **Linking** is a tagging of the Contact with the Pair as receiver: the
 Pair's gate; the Pair's Records; the Contact enters the Link's Field; the
 Pair's Imprints; the Pair's promises and the Contact's own. A failure up
-to her entry changes nothing; after it, the failure raises and the
-linking stays (§0.6). Reapplying is a no-op, so an Imprint that links
+to her entry changes nothing: the linkings made at the Pair's Parts that
+belong to the Link's Agent or to the Contact are undone with it, while a
+call that finished inside it keeps what it did (§0.6). After her entry,
+the failure raises and the linking stays (§0.6). Reapplying is a no-op, so an Imprint that links
 back ends after one echo. A linking is undone with a call on the Link's
 Agent or on the Contact that rolls back, however deep inside that call it
 was made: in an earlier Tag's Imprint, inside another Agent's tagging, or
@@ -1180,7 +1187,11 @@ it leaves that Agent's other taggings (§0.6). An undone linking takes
 back only what it gave her: she leaves the Link silently, with no
 teardown, and her history of it is forgotten; what else she gained or
 did since stays, and if she was no Agent before and holds nothing else,
-she is a plain object again, with the values she held before. An Agent
+she is a plain object again, with the values she held before. A Pair
+another Link still holds goes back to its state before the linking when
+nothing reached it since; otherwise the undone Layers leave it as an
+unlinking leaves it, their contributions sticky (§0.7), and what other
+calls gave it or wrote on it stays. An Agent
 linked as a Contact during its own call is restored as it was at the
 call. A Contact who was not an Agent becomes one; nothing else is written
 on her. The kit never checks the linking Agent's membership or soundness:
@@ -1226,6 +1237,11 @@ identity, its Field and its history, and the Layer applies to every Pair
 it holds in the same call: every Pair's gate, then every Pair's Records,
 one refusal refusing the whole call; then every Pair's Imprints and
 promises, after the Agent's Commit. Later linkings get every Layer.
+While a linking or an extension of a Link's family is under way, from a
+Pair's gate to the Contact's entry, the family gains no Layer: an
+extension of one of its Links, or a join of it with another family, is a
+Composition Failure then. A Pair's Imprint runs after her entry, so it
+may extend the Link.
 
 **Seen by the Contact, or in-house.** A `@Public` Pair member is a line
 onto the Contact: `ruth.Greet()` runs the Pair's `Greet(charlie, ruth)`,
@@ -1236,8 +1252,8 @@ publish one name onto her, the latest linking is what she sees, with the
 usual Overwrite Warning; once unlinked, a line raises a Rogue Access
 Failure. A published Pair Record over her own Action is refused, as an
 Action line over her Record is. A Pair condition or Imprint is never a
-line: `@Public` on one is a Declaration Failure. Nothing unpublished of the Link reaches
-her, her own views included. A `@Secret` member, of the Pair or of the
+line: `@Public` on one is a Declaration Failure. Nothing unpublished of
+the Link reaches her, her own views included. A `@Secret` member, of the Pair or of the
 Link, belongs to the Link's Agent alone: it answers only inside the
 Agent's own code, the Link's functions included.
 
@@ -1246,17 +1262,14 @@ Link's Agent and of the Pair, never the door of the Contact they are
 about, on every path: a line she calls, a Pair function called from her
 own code, a linking she asks for from her own Action, an Operation of the
 Link called with her, by position or by name, and a teardown her own
-deletion runs, included. A generator or coroutine a Link's function
-returns runs each of its steps behind the same doors, whoever iterates
-or awaits it; between steps every door is as that code left it. An async
-generator in a Relation's body is a Declaration Failure: its steps
-cannot be kept behind the doors. A Link's Report is built with every
-Contact's door shut, since its value is kept and served to all. A
-Relation's static methods are plain functions the kit never wraps.
-Otherwise doors follow
-the call, as §1.5 says for every Agent: when a Contact's own Action calls
-into a Link about another Contact, her door is open beneath that call, as
-it is for any code she calls.
+deletion runs, included. The doors hold for as long as the Link's code
+runs; what it hands back to run later, a closure or a generator made
+elsewhere, runs under the doors of whoever runs it. A Link's Report is
+built with every Contact's door shut, since its value is kept and served
+to all. A Relation's static methods are plain functions the kit never
+wraps. Otherwise doors follow the call, as §1.5 says for every Agent:
+when a Contact's own Action calls into a Link about another Contact, her
+door is open beneath that call, as it is for any code she calls.
 
 **One direction.** A Link points from its Agent to its Contacts. Nothing
 public on a Contact names an Agent who links her: her `Tags`, `Outline`,
@@ -1286,7 +1299,8 @@ and `k[ruth]` and `del k[ruth]` are Resolution Failures.
 **The Relation itself** is a template with no Field, declared once: in
 its declaring Tag's body, under its own name. Binding it again, in
 another Tag or under another name (`Knows = Social.Trusts`), is a
-Declaration Failure; a Shape extends it by naming it as its only Base.
+Declaration Failure while that Tag lives; a Shape extends it by naming it
+as its only Base.
 Like any Tag, it answers its own Reports and Operations, with no Agent
 behind them; `@Secret` binds on each Link, where an Agent exists. Every
 Tag-level act

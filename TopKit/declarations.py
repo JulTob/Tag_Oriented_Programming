@@ -1021,17 +1021,15 @@ def _refuse_an_alias(
     bound so far; they are recorded only once the whole body passed."""
 
     home = _relation_homes.get(relation)
+    owner = None if home is None else home[0]()
 
-    if home is not None:
-        owner_reference, declared_name = home
-        owner = owner_reference()
-        owner_name = owner.__name__ if owner is not None else "another Tag"
+    if owner is not None:
         _raise_alias(
                 tag,
                 name,
-                owner_name,
-                declared_name,
-                )
+                owner.__name__,
+                home[1],
+                )   # a Relation whose declaring Tag is gone is free again
 
     first_name = seen.get(relation)
 

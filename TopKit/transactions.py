@@ -90,6 +90,7 @@ class _Undo_Step:
 
     owners: tuple[object, ...]
     run: Callable[[], None]
+    linking: bool = False   # a linking, rather than a Link granted, extended or joined
 
 
 _current_boundary: ContextVar[_Call_Boundary | None] = ContextVar(
@@ -160,14 +161,37 @@ def _close(
     boundary.writes.clear()
 
 
-def _undo(
+def _undo_refused_linking(
         boundary: _Call_Boundary,
+        agent: object,
+        contact: object,
+        outer: _Call_Boundary | None,
         ) -> None:
-    """Undo every step taken inside this boundary, latest first: a refused
-    linking changes nothing (STEP-SPEC-22 rule 5.1)."""
+    """A refused linking changes nothing (STEP-SPEC-22 rule 5.1): the
+    linkings made at its Pair's Parts that belong to its Agent or to its
+    Contact are undone, latest first. Every other step there belongs to
+    a call that finished and stays with its Agent (§0.6), so it goes on
+    to the call around this linking, as a finished call's steps do."""
 
-    for step in reversed(boundary.undo):
+    undone = [
+            step
+            for step in boundary.undo
+            if step.linking and (_owns(agent, step) or _owns(contact, step))
+            ]
+    others = [
+            step
+            for step in boundary.undo
+            if step not in undone
+            ]
+    boundary.undo.clear()
+
+    for step in reversed(undone):
         step.run()
+
+    _hand_over_steps(
+            others,
+            outer,
+            )
 
 
 def _undo_owned(
