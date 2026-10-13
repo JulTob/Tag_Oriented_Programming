@@ -1195,9 +1195,9 @@ implementation follows `main`'s law as it stands, and says so:
   The hand-made workaround of the Motivation cost about 72 µs per
   linking.
 - Every program pays for the call boundary, Links or not: tagging an
-  ordinary Tag takes about 20% longer than on `main`, `agent in Tag`
-  about 8% longer, `isinstance` the same (median of six alternating
-  runs). The speed budgets pass. Building the boundary only once a Link
+  ordinary Tag takes about 17% longer than on `main`, `agent in Tag`
+  about 4% longer, `isinstance` the same (median of six alternating
+  runs against `main` at 108eb35). The speed budgets pass. Building the boundary only once a Link
   exists would win most of it back, at the price of a second path
   through the kernel.
 
