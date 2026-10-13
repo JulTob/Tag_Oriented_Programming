@@ -343,44 +343,36 @@ def _agent_bool(
 def _host_truth(
         agent: object,
         ) -> bool:
-    """Python's fallback truth for an untagged host without ``__bool__``.
+    """An untagged runtime object keeps its host's native truth.
 
-    The object's synthesized runtime type may still carry a Tag's
-    ``__len__``. Walk through that type to the underlying host so a plain
-    object never executes TOP behaviour merely by being tested for truth.
+    The actual MRO already contains the underlying host classes. Skip the
+    synthesized layers without moving an older host ahead of an override.
     """
 
-    candidates = list(type(agent).__mro__)
-    checked: set[type] = set()
+    host = type(agent)
 
-    while candidates:
-        klass = candidates.pop(0)
+    for klass in type.__dict__["__mro__"].__get__(host):
+        namespace = type.__dict__["__dict__"].__get__(klass)
 
-        if klass in checked:
+        if namespace.get("_TOPKIT_HOST_TYPE") is not None:
             continue
 
-        checked.add(klass)
-        host_type = klass.__dict__.get("_TOPKIT_HOST_TYPE")
-
-        if host_type is not None:
-            candidates[:0] = host_type.__mro__
-            continue   # a runtime layer: none of its members belong to the host
-
-        if "__len__" not in klass.__dict__:
+        if "__len__" not in namespace:
             continue
 
-        length = klass.__dict__["__len__"]
+        length = namespace["__len__"]
 
-        try:
-            bind = type(length).__get__
-        except AttributeError:
-            call = length
+        # Python's descriptor slot reads __get__ from the real type data,
+        # independently of a metaclass's attribute lookup or class equality.
+        for descriptor_type in type.__dict__["__mro__"].__get__(type(length)):
+            descriptor_namespace = type.__dict__["__dict__"].__get__(descriptor_type)
+
+            if "__get__" in descriptor_namespace:
+                call = descriptor_namespace["__get__"](length, agent, host)
+                break
+
         else:
-            call = bind(
-                    length,
-                    agent,
-                    type(agent),
-                    )
+            call = length
 
         result = operator.index(call())
 

@@ -14,7 +14,8 @@
   when it has none. Hosts with an explicit `__bool__` are refused before
   Tagging effects; truth Gains and deletion are refused at declaration.
   Host `__len__`, Record-held value truth and Tag population truth retain
-  their own meanings.
+  their own meanings. Plain objects created from an Agent's runtime type
+  keep native host truth, including inheritance order and descriptor binding.
 
 - **Ordinary condition names:** Preconditions and Postconditions refuse
   Python dunder names at Tag declaration and before late assignment.
