@@ -4,6 +4,16 @@
 
 ### TopKit
 
+- **Protocol signature identity:** different callable objects that compare
+  equal no longer reuse each other's parameter seats. Unhashable and
+  non-weakrefable accepted callables work without custom equality or hash
+  calls from the memo. Weak entries expire safely. Native parameter names
+  retain their keyword-binding behavior; names supplied as string subclasses
+  use uncached inspection so their payloads cannot root a callable through
+  the memo. Defaults and named-input policy stay unchanged. Non-weakrefable
+  callables also use uncached inspection; safely memoized callables keep
+  their original first-inspection timing.
+
 - **Tag memo ownership:** one helper keeps declaration and Form memos
   on their exact Tag, so a Contribution referring back to its Tag or
   Shape no longer lets a global cache keep it alive. Empty retained
