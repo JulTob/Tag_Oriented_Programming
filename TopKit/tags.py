@@ -409,6 +409,15 @@ def _check_pin_target(
                 f" {_name_of(target)}"
                 )
 
+    _refuse_relation(target)   # a template, or the kit's Tag for a Pair
+
+    if _is_link(target):
+        raise TagCompositionError(
+                f"{pin.__name__} is a Pin, and {target.__name__} is one"
+                " Agent's Link: Links between Tags need their own receiver"
+                " rule (STEP-SPEC-22)"
+                )
+
     if target in _form_of(pin):
         raise TagCompositionError(
                 f"{pin.__name__} cannot pin itself"

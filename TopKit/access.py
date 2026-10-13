@@ -474,6 +474,9 @@ class _Tag_View:
                     origin,
                     )
 
+        if name in snapshot.links:
+            return snapshot.links[name]   # the Agent's own Link: one identity, read-only
+
         raise AttributeError(
                 f"{view._tag.__name__} view has no member {name!r}"
                 )
@@ -510,6 +513,7 @@ class _Tag_View:
                 or name in snapshot.records
                 or name in snapshot.reports
                 or name in snapshot.operations
+                or name in snapshot.links
                 )
 
     def __repr__(

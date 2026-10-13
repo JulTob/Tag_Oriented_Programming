@@ -900,11 +900,18 @@ def _snapshot(
             if not _is_link(entry[0])
             }
 
+    links = {
+            name: link
+            for name, (link, _layers) in state.links.items()
+            if link is not None
+            }
+
     return _Snapshot(
             actions=dict(state.actions),
             records=records,
             reports=reports,
             operations=operations,
+            links=links,
             deleted=frozenset(state.deleted) if state.deleted else _NONE,
             secrets=frozenset(state.secrets) if state.secrets else _NONE,
             )

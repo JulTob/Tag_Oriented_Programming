@@ -1192,7 +1192,11 @@ defective anywhere else. A Link marked `@Flag` answers its words on the
 Pair, never on the Contact. The Tags a Pair carries are the kit's own:
 `Tags(pair)` lists none, and every Tag-level act on one is a Composition
 Failure. A Pair held by a name after it ended, or after its Agent or
-Contact is gone, answers with a Resolution Failure.
+Contact is gone, keeps its stored Records as they were, and its functions
+answer with a Resolution Failure. A Pair's members have ordinary names: a
+Relation declares no special methods, and a Pair's teardown is a `@Rip`.
+The view of the declaring Tag shows the Link it granted:
+`Social[charlie].Knows is charlie.Knows`.
 
 **Bases.** A Relation's Bases are Relations of the same declaring Tag or
 of its Bases, resolved per Agent: with `class Trusts(Knows)`,
@@ -1268,8 +1272,10 @@ on it (apply, `in`, `isinstance`, walk, `len`, truth, `~`, `[:]`, `[x]`,
 the population operators, `del`) is a Composition Failure that points to
 a Link: "Knows is a Relation: link through an Agent". `Social.Knows |
 None` keeps the language's own union. A Relation is no Tool kind, never a
-Pin (in either decorator order), and a `@Link` inside a `@Pin` is
-refused: Links between Tags need their own receiver rule.
+Pin (in either decorator order), never a Pin's Target, and a `@Link`
+inside a `@Pin`, or in a Tag marked a Pin later, is refused: Links between
+Tags need their own receiver rule. One Agent's Link is never a Pin's
+Target either.
 
 Peers at the same level are not a Link: they are members of one ordinary
 Tag whose gate keeps its Field at two, or Contacts of one Link held by the

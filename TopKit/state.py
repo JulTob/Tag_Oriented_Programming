@@ -46,6 +46,7 @@ class _Snapshot:
     operations: dict[str, tuple[type, Function]]
     deleted: frozenset[str]
     secrets: frozenset[str]
+    links: dict[str, type] = field(default_factory=dict)   # the Agent's own Links, by name (STEP-SPEC-22)
 
 
 @dataclass(slots=True)

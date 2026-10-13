@@ -2369,6 +2369,89 @@ class Ownership_Tests(unittest.TestCase):
         self.assertIn(ruth, list(Wizard[:]))
 
 
+# ------------------------------------------------------------------
+# The integration review's findings, one regression each
+# ------------------------------------------------------------------
+
+
+class Integration_Review_Tests(unittest.TestCase):
+    def test_a_tag_that_declares_a_relation_is_never_marked_a_pin_later(self):
+        class Later_Social(Tag):
+            @Link
+            class Knows(Tag):
+                pass
+
+        Later_Social(Character("Charlie"))                # its scan is cached as an ordinary Tag
+        with self.assertRaises(TagDeclarationError):
+            Pin(Later_Social)
+        charlie = Character("Charlie")
+        Later_Social(charlie)                             # still an ordinary Tag
+        self.assertIn(charlie, Later_Social)
+
+    def test_a_pin_never_pins_a_relation_or_a_link(self):
+        @Pin
+        class Rare(Tag):
+            @Record
+            def rarity(tag):
+                return 3
+
+        with self.assertRaises(TagCompositionError):
+            Rare(Social.Knows)
+        self.assertNotIn(Social.Knows, list(Rare[:]))
+        charlie = Character("Charlie")
+        Social(charlie)
+        with self.assertRaises(TagCompositionError):
+            Rare(charlie.Knows)
+        self.assertFalse(hasattr(charlie.Knows, "rarity"))
+
+    def test_an_unpublished_report_at_the_name_never_refuses_a_link(self):
+        class Census(Tag):
+            @Report
+            def Knows(tag):
+                return "a Tag-scope Report"
+
+            @Operation
+            def Follows(tag):
+                return "a Tag-scope Operation"
+
+        class Counted(Census):
+            @Link
+            class Knows(Tag):
+                pass
+
+            @Link
+            class Follows(Tag):
+                pass
+
+        charlie, ruth = People("Charlie", "Ruth")
+        Counted(charlie)                                  # Tag scope and Agent scope never collide (rule 4.4)
+        charlie.Knows(ruth)
+        self.assertIn(ruth, charlie.Knows)
+
+    def test_a_relation_has_no_special_methods(self):
+        for name in ("__del__", "__len__"):
+            with self.subTest(name=name):
+                with self.assertRaises(TagDeclarationError):
+                    type(
+                            "Holder",
+                            (Tag,),
+                            {"Knows": Link(type("Knows", (Tag,), {name: lambda agent, contact: None}))},
+                            )
+
+    def test_the_declaring_tags_view_shows_its_link(self):
+        charlie = Character("Charlie")
+        Social(charlie)
+        self.assertIs(Social[charlie].Knows, charlie.Knows)
+        self.assertTrue("Knows" @ Social[charlie])
+
+    def test_a_builtin_in_a_relation_is_a_declaration_failure(self):
+        with self.assertRaises(TagDeclarationError):
+            class With_Builtin(Tag):
+                @Link
+                class Knows(Tag):
+                    pick = max
+
+
 def Agents_Of_Any_Link(contact):
     """The Links a Contact is a member of now, read from her state."""
 

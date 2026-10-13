@@ -990,8 +990,8 @@ def _install_link(
             taken = "a Record"
         elif name in state.preconditions or name in state.postconditions:
             taken = "a condition"
-        elif name in state.reports or name in state.operations:
-            taken = "a published member"
+        elif name in state.published:
+            taken = "a published member"   # Tag scope does not collide with Agent scope (rule 4.4)
         elif (
                 state.pinned is None
                 and _host_declares(state.host_type, name)

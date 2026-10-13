@@ -227,12 +227,27 @@ def _check_seats(
     if not _is_pair_member(name, member) or _kind_of(member) == "delete":
         return
 
+    if _is_dunder(name):
+        raise TagDeclarationError(
+                f"{relation.__name__}.{name}: a Pair's members have ordinary"
+                " names; a Pair has no special methods, and its teardown is"
+                " @Rip def Forget(agent, contact)"
+                )
+
     function = getattr(
             member,
             "__func__",
             member,
             )
-    spec = _parameters_of(function)
+
+    try:
+        spec = _parameters_of(function)
+    except (TypeError, ValueError) as error:
+        raise TagDeclarationError(
+                f"{relation.__name__}.{name}: a Link's function for the Pair"
+                " takes the Agent and the Contact, in that order:"
+                f" def {name}(agent, contact)"
+                ) from error
     underlay = _has_flag(function, _UNDERLAY)
     needed = 3 if underlay else 2
     contact_has_default = len(spec.named) >= 2 and spec.named[1][1]

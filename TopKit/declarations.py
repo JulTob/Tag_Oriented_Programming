@@ -463,6 +463,7 @@ def Pin(
             tag,
             vars(tag),
             )
+    _refuse_links_on_a_pin(tag)
     setattr(
             tag,
             _PIN,
@@ -473,6 +474,28 @@ def Pin(
     _declarations_of(tag)   # validate the members now, not at first pinning
 
     return tag
+
+
+def _refuse_links_on_a_pin(
+        tag: type,
+        ) -> None:
+    """A Pin's Agents are Tags: a Relation in its body would grant a Link
+    to a Tag. Checked before the mark, from the class itself, so a scan
+    made before the mark cannot hide it (STEP-SPEC-22)."""
+
+    relations = [
+            name
+            for name, member in vars(tag).items()
+            if _is_relation(member)
+            ]
+
+    if relations:
+        raise TagDeclarationError(
+                f"{tag.__name__} is a Pin; its members are plain: @Link "
+                + ", ".join(relations)
+                + " (Links between Tags need their own receiver rule)"
+                  " (STEP-SPEC-9 §5)"
+                )
 
 
 def _is_pin(
