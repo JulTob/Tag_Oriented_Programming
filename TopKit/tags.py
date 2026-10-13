@@ -34,6 +34,7 @@ from .declarations import _MISSING
 from .declarations import _check_constant_declarations
 from .declarations import _check_constant_shapes
 from .declarations import _check_pin_bases
+from .declarations import _check_tool_declarations
 from .declarations import _constant_owner
 from .declarations import _is_dunder
 from .declarations import _is_pin
@@ -81,6 +82,7 @@ class MetaTag(type):
                 )
         _check_pin_bases(tag)
         _check_constant_declarations(tag, namespace)
+        _check_tool_declarations(tag, namespace)
 
         return tag
 

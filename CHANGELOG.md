@@ -33,6 +33,12 @@
   `with Try(...)` spelling is now recorded only as a historical candidate;
   no Trial syntax is reserved.
 
+- **Context Actions compose:** Agent-authored context hooks use the
+  ordinary composition door, including across an asynchronous hook's
+  await, without exposing Secrets to the `with` block or sibling tasks.
+  Closing a suspended async hook in another context revokes its authority
+  without a context-token error or disturbing other active hooks. Host
+  contexts keep their ordinary Python behavior.
 - **Requirement retired:** `TopKit.Requirement` and its export are removed.
   Write `@Pre` and `@Post` on the same condition, in either order, when
   it must hold both at the door and afterwards. Failures keep their own
@@ -52,6 +58,23 @@
   Constant Posts survive Rip and cannot be ended with `Contract.Delete`.
   Reapplication preserves established Constants and repeats ordinary
   Record building and Imprints. Publication and Secret access stay independent.
+
+- **Tools:** `@Tool(Kind)` marks a Record whose value is an object of a
+  declared kind: something the Agent *has* (STEP-SPEC-36, Vetting). A
+  kind is a specific Tag, asked as membership now (`@Tool(Weapon)`), a
+  Python class, asked as the instance test (`@Tool(Sword)`), or both
+  (`@Tool(Sword, Weapon)`); the language's own union names alternatives
+  (`@Tool(Sword | Staff)`) and `| None` declares the empty hand. The slot
+  is checked when gained and at every write, `object.__setattr__`
+  included; it is never `None` unless declared; it never Tags what it
+  holds. `@Record` may restate the mark; `@Constant`, `@Secret` and
+  `@Public` stack with it in either order; a later plain Record or
+  Action replaces it as any Record, and `@Delete` frees it. The root
+  `Tag`, `object`, a Pin, a population (`Weapon | Blessed`), a typing
+  construct, an instance, or `@Tool` inside a `@Pin` is a Declaration
+  Failure. A slot under a protocol name keeps the language's hook. The
+  wiki page "Tools: what an Agent has" runs as one program under the
+  suite.
 
 - **Presence by name:** `"name" @ agent` checks current contributions,
   including host bindings; `"name" @ Tag[agent]` checks the captured view.

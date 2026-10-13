@@ -56,6 +56,7 @@ from TopKit import TagPreconditionError
 from TopKit import TagResolutionError
 from TopKit import TagRogueAccessError
 from TopKit import Tags
+from TopKit import Tool
 
 
 # ------------------------------------------------------------------
@@ -332,6 +333,30 @@ class Gated(Tag):
     @Imprint
     def Note(agent) -> None:
         agent.events.append("gated")
+
+
+class Gear(Tag):
+    """What a tool IS: the kind an Armed Agent's slot admits."""
+
+
+class Armed(Tag):
+    """A Tool slot (STEP-SPEC-36): the forge Tags the gear in plain
+    sight; the slot admits only a Gear, never None, never the bearer."""
+
+    @Tool(Gear)
+    def gear(agent) -> object:
+        gear = Agent(f"{agent.name}'s gear")
+        Gear(gear)
+        return gear
+
+
+class Carrying(Tag):
+    """A Tool slot kinded by a class (STEP-SPEC-36): any Agent-hosted
+    object, tagged or not; the bearer itself included."""
+
+    @Tool(Agent)
+    def pack(agent) -> object:
+        return Agent(f"{agent.name}'s pack")
 
 
 class Slipping(Tag):
@@ -651,6 +676,7 @@ def Run_Seed(
             model.ok = target.ok
         elif choice == 9 and not use_pins:
             Exercise_Transactions(target, model, context)
+            Exercise_Tools(target, model, context)
         elif choice == 10:
             tag = randomizer.choice(family)
             Tag_It(target, tag, model, context)
@@ -814,6 +840,79 @@ def Exercise_Transactions(
         assert target in Slipping and target.events[-1] == "slipped", (context, "Imprint failure kept the Tag")
         del Slipping[target]
         Model_Rip(model, Slipping)
+
+
+def Exercise_Tools(
+        target: object,
+        model: Model,
+        context: str,
+        ) -> None:
+    """The three laws of a Tool slot (STEP-SPEC-36): the slot holds a
+    member of its kind and never the bearer, admission is asked at the
+    gaining and at every write, the slot is never empty, and the slot
+    never Tags. The bearer's membership follows the model as any Tag's."""
+
+    if not model.Sound() or Armed in model.active:
+        return
+
+    Armed(target)
+    Model_Apply(model, Armed)
+    gear = target.gear
+
+    assert gear in Gear[:] and target not in Gear[:], (context, "the forge Tags the gear, never the bearer")
+    assert "gear" @ target, (context, "the slot is present")
+
+    for misfit in (Agent("a stick"), None, target):
+        try:
+            target.gear = misfit
+        except TagCompositionError:
+            pass
+        else:
+            raise AssertionError((context, "the slot admitted", misfit))
+
+        assert target.gear is gear, (context, "a refused write changed the slot")
+
+    stick = Agent("a stick")
+    assert stick not in Gear[:], (context, "the slot Tagged what it refused")
+
+    Gear(stick)
+    target.gear = stick                                               # a member is admitted
+    assert target.gear is stick, (context, "an admitted write did not land")
+
+    del Gear[stick]                                                   # a Rogue in hand stays in hand
+    assert target.gear is stick and "gear" @ target, (context, "a Rogue in hand was dropped")
+
+    del Armed[target]
+    Model_Rip(model, Armed)
+    assert "gear" @ target, (context, "Rip of the bearer dropped the slot")
+    del target.gear                                                   # the drop, so the next exercise starts clean
+
+    if Carrying in model.active:
+        return
+
+    Carrying(target)
+    Model_Apply(model, Carrying)
+    pack = target.pack
+    assert type(pack) is Agent and "pack" @ target, (context, "a class kind did not build its value")
+
+    for misfit in (object(), None, "a stick"):
+        try:
+            target.pack = misfit
+        except TagCompositionError:
+            pass
+        else:
+            raise AssertionError((context, "a class kind admitted", misfit))
+
+        assert target.pack is pack, (context, "a refused write changed the slot")
+
+    target.pack = target                                              # self-reference: the bearer is an Agent instance
+    assert target.pack is target, (context, "self-reference by class was refused")
+    target.pack = stick                                               # a Rogue Gear is still an Agent instance
+    assert target.pack is stick, (context, "a class kind refused a Rogue of some Tag")
+
+    del Carrying[target]
+    Model_Rip(model, Carrying)
+    del target.pack
 
 
 def Weak_Field_Probe(

@@ -31,6 +31,22 @@ Compiler diagnostic wording is not a verdict: logs explain unexpected outcomes
 for humans. A shared source/toolchain error fails the legal control rather than
 counting as evidence of the intended refusal.
 
+`private_cleanup` adds two independent client-boundary pairs. Ordinary client
+code outside the fixture package can call its public identity query, but
+cannot read its private lifetime component or name the private finalizer.
+Each forbidden access has its own legal control and fresh build directory.
+Taking a private finalizer's address tests its visibility without relying on
+the component-access refusal. These fixtures test ordinary Ada privacy;
+unchecked operations and arbitrary host finalizer behavior are outside this
+evidence. They introduce no public TOP carrier or cleanup API.
+
+`no_finalization` changes only whether GNAT's implementation-defined
+`No_Finalization` restriction is enabled. With the selected GNAT 14 toolchain,
+the ordinary controlled fixture must compile and the restricted variant must
+be rejected. This checks that exact source and compiler profile, not portable
+Ada type availability, every restricted runtime, or a SPARK verification
+boundary. The result uses compiler exit status, not diagnostic wording.
+
 `rosen_probes` exercises a private controlled `Lifetime(Carrier'Access)`
 component in plain and controlled outer carriers. Its current-instance address
 is cached and compared only while the Host is live, including a limited
