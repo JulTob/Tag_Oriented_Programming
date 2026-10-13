@@ -210,6 +210,34 @@ Laying over the live state is safe because nothing reads the new Overlay
 before commit binds it on the Agent, and the entry snapshot is the only
 rollback target.
 
+## Synchronous protocol results
+
+Preconditions, Imprints, Postconditions and scheduled Rip teardowns are
+synchronous in the current Python runtime. Native coroutine, generator and
+async-generator results fail at their protocol boundary; ordinary Action
+returns and stored Record values retain their usual meanings. This does not
+amend the Specification: [STEP-SPEC-41](../steps/spec/STEP-SPEC-41-synchronous-protocol-results.md)
+separately proposes a language-wide rule.
+
+`declarations._discard_lazy_result` uses actual native types without reading
+an ordinary return value's `__class__` hook. It closes coroutines and
+synchronous generators, without starting an unentered body. Closing a started
+object can run `finally` code and can fail; the failure is reported with its
+original cause. Async generators are not driven through a new event loop.
+
+Scheduled Rips retain their declared names alongside the composed Actions.
+A flow-local guard checks only the selected teardown's Underlay chain and
+remembers a lazy-result failure even if user code catches it. Other Actions
+called during cleanup retain their ordinary return semantics. Ordinary
+failures are collected after remaining teardowns run; Python interruptions
+keep their propagation behavior. Best-effort deletion uses the same checks.
+
+Record and Imprint failures, and invalid Underlay declarations, use their
+Contribution names instead of requiring callable naming metadata. Private
+helpers retain ordinary exception detail and fall back when formatting it
+fails, preserving the original cause. These diagnostics do not alter the
+Tagging sequence or expand its rollback boundary.
+
 ## Judgment calls
 
 - **`in` vs `isinstance`.** `agent in Tag` is the is-now check; `isinstance`
