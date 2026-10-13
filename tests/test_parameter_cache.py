@@ -241,6 +241,26 @@ class ParameterCacheTests(unittest.TestCase):
         finally:
             declarations._parameter_cache.pop(key, None)
 
+    def test_an_expired_callback_tolerates_an_entry_already_removed(self):
+        builder = Evolving()
+        declarations._parameters_of(builder)
+        key = id(builder)
+        reference = declarations._parameter_cache[key][0]
+
+        class Racing(dict):
+            def get(self, key, default=None):
+                entry = super().get(key, default)
+                super().pop(key, None)   # a peer removes the entry after the lookup
+                return entry
+
+        racing = Racing(declarations._parameter_cache)
+
+        with patch.object(declarations, "_parameter_cache", racing):
+            reference.__callback__(reference)
+
+        self.assertNotIn(key, racing)
+        self.assertIn(key, declarations._parameter_cache)
+
     def test_a_callable_closure_and_its_owners_are_collectible(self):
         def create():
             agent = Host()

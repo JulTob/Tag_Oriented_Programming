@@ -1206,7 +1206,7 @@ def _parameters_of(
         current = _parameter_cache.get(key)
 
         if current is not None and current[0] is expired:
-            del _parameter_cache[key]
+            _parameter_cache.pop(key, None)   # a peer may have removed it first
 
     try:
         reference = ref(function, Forget)
