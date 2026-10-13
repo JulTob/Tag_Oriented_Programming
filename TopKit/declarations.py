@@ -25,6 +25,11 @@ from .errors import TagCompositionError
 from .errors import TagImprintError
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
+from .memo import _forget_memo
+from .memo import _memo_key
+from .memo import _memo_of
+from .memo import _namespace_snapshot
+from .memo import _remember_memo
 
 
 _KIND = "__topkit_kind__"
@@ -452,7 +457,7 @@ def Pin(
 
     _refuse_tools_on_a_pin(
             tag,
-            vars(tag),
+            _namespace_snapshot(tag),
             )
     setattr(
             tag,
@@ -656,19 +661,31 @@ class _Declarations:
     tools: frozenset[str] = frozenset()   # Records marked @Tool: their slots admit only their kind
 
 
-_scan_cache: "WeakKeyDictionary[type, _Declarations]" = WeakKeyDictionary()
-
-
 def _declarations_of(
         tag: type,
         ) -> _Declarations:
-    cached = _scan_cache.get(tag)
+    # A Tag owns its memo, never its public Field or a global weak-key
+    # cache: declaration values may refer back to the Tag or its Agents.
+    name = _declaration_key(tag)
+    cached = _memo_of(tag, name)
 
-    if cached is None:
-        cached = _scan(tag)
-        _scan_cache[tag] = cached
+    if type(cached) is _Declarations:
+        return cached
 
-    return cached
+    return _remember_memo(tag, name, _scan(tag))
+
+
+def _declaration_key(
+        tag: type,
+        ) -> str:
+    # Distinct Base and Shape memos have different keys.
+    return _memo_key(tag, "DECLARATIONS")
+
+
+def _invalidate_declarations(
+        tag: type,
+        ) -> None:
+    _forget_memo(tag, _declaration_key(tag))
 
 
 def _is_private(
@@ -840,7 +857,7 @@ def _check_constant_declarations(
                     )
 
     for base in tag.__mro__[1:]:
-        base_namespace = vars(base)
+        base_namespace = _namespace_snapshot(base)
         protected = {
                 name
                 for name, member in base_namespace.items()
@@ -968,7 +985,8 @@ def _scan(
     published: set[str] = set()
     constants: set[str] = set()
     tools: set[str] = set()
-    managed = tag.__dict__.get(STATE)   # names a Pin landed here
+    namespace = _namespace_snapshot(tag)
+    managed = namespace.get(STATE)   # names a Pin landed here
 
     if managed is not None:
         _emit_published_pins(
@@ -981,7 +999,7 @@ def _scan(
                 if name in managed.constants
                 )
 
-    for name, attribute in tag.__dict__.items():
+    for name, attribute in namespace.items():
         if _is_private(name):
             continue
 

@@ -4,6 +4,19 @@
 
 ### TopKit
 
+- **Tag memo ownership:** one helper keeps declaration and Form memos
+  on their exact Tag, so a Contribution referring back to its Tag or
+  Shape no longer lets a global cache keep it alive. Empty retained
+  Fields remain weak; returned Form tuples still deliberately retain
+  their Tags. Private-name collisions prevent new memo publication over
+  program bindings. Invalidation retires an owned memo's value even when a
+  metaclass descriptor blocks attribute deletion, so public Pin publication
+  reaches future Agents and removing the collision cannot revive stale data.
+  Namespace scans, including the Tool checks in `Pin()`, use snapshots,
+  so first Taggings of different Agents sharing a Tag cannot invalidate one another's
+  class-dictionary iterators while publishing either memo. Base-first
+  order, iterative traversal and ordinary-class Form behavior stay.
+
 - **Actions before the first Secret:** current synchronous TOP Actions
   on ordinary objects and pinned Tags open their composition door even
   when no Secret existed at binding. They can introduce and read the

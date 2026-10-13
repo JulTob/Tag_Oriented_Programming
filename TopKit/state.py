@@ -29,6 +29,7 @@ from .declarations import _Words
 from .declarations import _is_dunder
 from .declarations import _is_flag
 from .errors import TagCompositionError
+from .memo import _namespace_snapshot
 
 Function = Callable[..., Any]
 Check = Callable[..., Any]
@@ -246,17 +247,20 @@ class _Class_Namespace:
     def keys(
             namespace,
             ) -> Any:
-        return namespace._owner.__dict__.keys()
+        return namespace.copy().keys()
 
     def items(
             namespace,
             ) -> Any:
-        return namespace._owner.__dict__.items()
+        return namespace.copy().items()
+
+    def copy(namespace) -> dict[str, Any]:
+        return _namespace_snapshot(namespace._owner)
 
     def __iter__(
             namespace,
             ) -> Iterator[str]:
-        return iter(namespace._owner.__dict__)
+        return iter(namespace.copy())
 
     def __len__(
             namespace,
