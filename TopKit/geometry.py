@@ -15,21 +15,29 @@ _bases_cache: "WeakKeyDictionary[type, tuple[type, ...]]" = WeakKeyDictionary()
 # a Tag's Bases, Base-first; never the Tag itself, which would keep its own key alive
 
 
+def _tag_classes(
+        ) -> tuple[type, type]:
+    """``MetaTag`` and the root ``Tag``, bound on first use: ``tags``
+    imports this module, so they cannot be imported at the top."""
+
+    global _tag_types
+
+    if _tag_types is None:
+        from .tags import MetaTag
+        from .tags import Tag
+
+        _tag_types = (MetaTag, Tag)
+
+    return _tag_types
+
+
 def _is_tag_class(
         candidate: object,
         ) -> bool:
     """A class made by ``MetaTag``, the root ``Tag`` included. A Tag is
     identified by its metaclass, never by a lookalike name."""
 
-    global _tag_types
-
-    if _tag_types is None:
-        from .tags import MetaTag   # tags imports this module: bound on first use
-        from .tags import Tag
-
-        _tag_types = (MetaTag, Tag)
-
-    meta, _root = _tag_types
+    meta, _root = _tag_classes()
 
     return isinstance(candidate, meta)
 
@@ -40,9 +48,11 @@ def _is_tag(
     """A Tag below the root: the root is the only Tag with no Tag among
     its Bases."""
 
+    _meta, root = _tag_classes()
+
     return (
             _is_tag_class(candidate)
-            and candidate is not _tag_types[1]
+            and candidate is not root
             )
 
 
