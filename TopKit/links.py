@@ -1548,9 +1548,10 @@ def _pair_form(
     """Every Pair Tag a linking through ``link`` gives: the Layers of each
     Link in its Form (rules 5.2 and 5.3), in the order the Agent gained
     them. That is Form order, with a later extension on top, which is
-    where an extension lands on the Pairs it already holds (rule 4.6):
-    every Pair of a Field is overlaid alike (§1.2, latest Layer). Kept on
-    the record until a Layer is added to any Link of the family."""
+    where an extension lands on the Pairs it already holds (rule 4.6). A
+    Pair already held receives the Layers it lacks on top of what it
+    carries (§1.2, latest Layer). Kept on the record until a Layer is
+    added to any Link of the family: a new list then."""
 
     record = _record_of(link)
 
@@ -1734,12 +1735,22 @@ def _link(
                     inputs,
                     deferred,
                     )
-            _apply_form(
-                    pair,
-                    _pair_form(link),
-                    inputs,
-                    deferred,
-                    )   # a Layer added meanwhile (an extension from the Pair's own Parts) reaches this Pair too
+            latest = _pair_form(link)   # the same list unless a Layer was added meanwhile
+
+            while latest is not form:   # an extension made by the Pair's own Parts reaches this Pair too
+                form = latest
+                _refuse_inputs_in_seats(
+                        form,
+                        inputs,
+                        )
+                _apply_form(
+                        pair,
+                        form,
+                        inputs,
+                        deferred,
+                        )
+                latest = _pair_form(link)
+
             applied.append(_added_since(
                     pair,
                     pair_entry,

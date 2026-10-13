@@ -2763,6 +2763,35 @@ class Variant_Tests(unittest.TestCase):
         self.assertEqual(len(bob.Knows[:]), 0)
         self.assertIsNone(payload_reference())            # no living Agent's family keeps her Pair
 
+    def test_a_layer_that_reaches_a_held_pair_goes_on_top_with_a_warning(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                def Greet(agent, contact):
+                    return "knows"
+
+            @Link
+            class Trusts(Knows):
+                def Greet(agent, contact):
+                    return "trusts"
+
+        class Undercover(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                def Greet(agent, contact):
+                    return "undercover"
+
+        charlie, ruth, sam = People("Charlie", "Ruth", "Sam")
+        Circle(charlie)
+        charlie.Knows(ruth)                               # her Pair is held before the extension
+        Undercover(charlie)
+        with self.assertWarns(TagOverwriteWarning):
+            charlie.Trusts(ruth)                          # Trusts reaches her Pair last: on top
+        with self.assertWarns(TagOverwriteWarning):
+            charlie.Trusts(sam)                           # a fresh Pair: the order the Agent gained them
+        self.assertEqual(charlie.Trusts[ruth].Greet(), "trusts")
+        self.assertEqual(charlie.Trusts[sam].Greet(), "undercover")
+
 
 def Agents_Of_Any_Link(contact):
     """The Links a Contact is a member of now, read from her state."""
