@@ -11,6 +11,7 @@ from typing import Any
 from .declarations import STATE
 from .declarations import _MISSING
 from .state import _Deleted
+from .state import _Link_Gate
 from .state import _Published
 from .state import _Secret_Gate
 from .state import _is_composing
@@ -81,6 +82,9 @@ def _present(
             return name in state.secret_values
 
     member, stored = _binding(agent, name, namespace)
+
+    if issubclass(type(member), _Link_Gate):
+        return name in namespace   # a held Link
 
     if issubclass(type(member), _Tool_Gate):
         if member.member is _MISSING:

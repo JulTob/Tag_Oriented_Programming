@@ -297,7 +297,21 @@ def _install(
             )
 
     for name in declarations.deletions:
+        _refuse_member_over_link(
+                state,
+                tag,
+                name,
+                "a @Delete",
+                )
         _delete(state, name)
+
+    for name, relation in declarations.links:
+        _install_link(
+                state,
+                tag,
+                name,
+                relation,
+                )
 
     for name, _function in (
             *declarations.preconditions,
@@ -826,7 +840,9 @@ def _refuse_condition_collision(
 
     taken = None
 
-    if name in state.actions:
+    if name in state.links:
+        taken = "a Link"
+    elif name in state.actions:
         taken = "an Action"
     elif name in state.records:
         taken = "a Record"
@@ -872,6 +888,90 @@ def _host_declares(
     return False
 
 
+def _refuse_member_over_link(
+        state: _State,
+        tag: type,
+        name: str,
+        kind: str,
+        ) -> None:
+    """One name, one Link (STEP-SPEC-22 rule 4.4): a held Link's slot is
+    closed to every other Agent-scope contribution, in either order."""
+
+    if name in state.links:
+        raise TagCompositionError(
+                f"{tag.__name__}.{name} is {kind}, but {name!r} holds a Link"
+                " on this Agent; a Link's name is its own, and a Link is"
+                " never replaced"
+                )
+
+
+def _install_link(
+        state: _State,
+        tag: type,
+        name: str,
+        relation: type,
+        ) -> None:
+    """Record the Relation an Agent's Link at ``name`` is made from.
+
+    A new name is refused when anything already holds it (rule 4.4). A
+    held Link gains a Relation that extends one of its own as a new
+    Layer (rule 2.6); reapplying a Relation it already has is a no-op.
+    The Link itself is built, or extended, at Parts (links._grant)."""
+
+    slot = state.links.get(name)
+
+    if slot is None:
+        taken = None
+
+        if name in state.actions:
+            taken = "an Action"
+        elif name in state.records:
+            taken = "a Record"
+        elif name in state.preconditions or name in state.postconditions:
+            taken = "a condition"
+        elif name in state.reports or name in state.operations:
+            taken = "a published member"
+        elif (
+                state.pinned is None
+                and _host_declares(state.host_type, name)
+                ):
+            taken = f"a member of the host {state.host_type.__name__}"
+
+        if taken is not None:
+            raise TagCompositionError(
+                    f"{tag.__name__}.{name} is a Link, but {name!r} is"
+                    f" already {taken} on this Agent; a Link's name is its"
+                    " own"
+                    )
+
+        state.links[name] = (
+                None,
+                (relation,),
+                )
+        return
+
+    link, layers = slot
+
+    if relation in layers:
+        return   # reapplied: the Link keeps its identity, its Field and its Pairs
+
+    if not any(
+            issubclass(relation, layer)
+            for layer in layers
+            ):
+        raise TagCompositionError(
+                f"{tag.__name__}.{name} is a Link, but this Agent already"
+                f" holds the Link {name} from {layers[0].__qualname__}; a"
+                " Relation of the same name extends it by naming it as a"
+                f" Base, class {name}({layers[0].__qualname__})"
+                )
+
+    state.links[name] = (
+            link,
+            layers + (relation,),
+            )
+
+
 def _install_action(
         state: _State,
         tag: type,
@@ -879,6 +979,12 @@ def _install_action(
         function: Function,
         ) -> None:
     _refuse_constant(state, name)
+    _refuse_member_over_link(
+            state,
+            tag,
+            name,
+            "an Action",
+            )
     _refuse_member_over_condition(
             state,
             tag,
@@ -953,6 +1059,12 @@ def _install_record(
         builder: Function,
         ) -> None:
     _refuse_constant(state, name)
+    _refuse_member_over_link(
+            state,
+            tag,
+            name,
+            "a Record",
+            )
     _refuse_member_over_condition(
             state,
             tag,

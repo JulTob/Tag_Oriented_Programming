@@ -408,10 +408,16 @@ def _title_of(
     if state is None or not state.active:
         return host
 
+    from .declarations import _is_link
+
     leaves = ", ".join(
             tag.__name__
             for tag in _leaves(state.active)
+            if not _is_link(tag)   # never the Links that hold this Agent (STEP-SPEC-22 rule 6.2)
             )
+
+    if not leaves:
+        return host
 
     return f"{host}[{leaves}]"
 

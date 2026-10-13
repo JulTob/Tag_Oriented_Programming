@@ -146,6 +146,16 @@ def _refuse_as_kind(
     """Why ``part`` cannot be an alternative of a kind, if it cannot."""
 
     if _is_tag(part):
+        from .declarations import _is_relation
+
+        if _is_relation(part):
+            raise TagDeclarationError(
+                    f"@Tool({part.__name__}): {part.__name__} is a Relation, a"
+                    " template with no Field, so no membership to ask; hold"
+                    " what the Agent relates to through a Link,"
+                    f" agent.{part.__name__}(contact)"
+                    )
+
         if _is_pin(part):
             raise TagDeclarationError(
                     f"@Tool({part.__name__}): {part.__name__} is a Pin, whose"

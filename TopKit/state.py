@@ -71,6 +71,7 @@ class _State:
     originals: dict[str, Any] = field(default_factory=dict)       # what a Pin patched, as declared
     constants: dict[str, tuple[type, str, Any]] = field(default_factory=dict)  # origin, kind, declaration
     tools: dict[str, tuple[type, Any]] = field(default_factory=dict)   # origin, kind: a Tool slot admits only its kind
+    links: dict[str, tuple[type | None, tuple[type, ...]]] = field(default_factory=dict)   # the Link (once built), its Relations
     composing: int = 0
     checking: bool = False
     words: _Words | None = None   # what its Flags answer to; None after its Tags change
@@ -116,6 +117,7 @@ class _State:
                 originals=dict(state.originals),
                 constants=dict(state.constants),
                 tools=dict(state.tools),
+                links=dict(state.links),
                 composing=state.composing,
                 checking=state.checking,
                 words=state.words,
@@ -802,6 +804,79 @@ class _Secret_Gate:
                 )
 
 
+class _Line:
+    """A published read that needs the Agent it is read on: a Link's
+    @Public Pair Record, read on a Contact (STEP-SPEC-22 rule 2.7)."""
+
+    def Read(
+            line,
+            agent: object,
+            ) -> Any:
+        raise NotImplementedError
+
+
+class _Link_Gate:
+    """A held Link's name (STEP-SPEC-22 rule 4.3): read like a Record,
+    never reassigned or deleted. A Link ends Contact by Contact."""
+
+    __slots__ = ("name",)
+
+    def __init__(
+            gate,
+            name: str,
+            ) -> None:
+        gate.name = name
+
+    def __get__(
+            gate,
+            agent: object,
+            owner: type | None = None,
+            ) -> Any:
+        if agent is None:
+            return gate
+
+        value = _namespace_of(agent).get(
+                gate.name,
+                _MISSING,
+                )
+
+        if value is _MISSING:
+            raise AttributeError(gate.name)
+
+        return value
+
+    def __set__(
+            gate,
+            agent: object,
+            value: Any,
+            ) -> None:
+        _refuse_link_binding(
+                _namespace_of(agent).get(STATE),
+                gate.name,
+                )
+
+    def __delete__(
+            gate,
+            agent: object,
+            ) -> None:
+        _refuse_link_binding(
+                _namespace_of(agent).get(STATE),
+                gate.name,
+                )
+
+
+def _refuse_link_binding(
+        state: "_State | None",
+        name: str,
+        ) -> None:
+    if state is not None and name in state.links:
+        raise TagCompositionError(
+                f"{name} is a Link: a held Link is read-only. It ends Contact"
+                f" by Contact, del agent.{name}[contact], or all at once,"
+                f" del agent.{name}[:]"
+                )
+
+
 _require_membership: Callable[..., None] | None = None
 # overlay's membership check for published members. overlay imports this
 # module, so it hands the check over when it loads (see overlay.py).
@@ -827,13 +902,16 @@ class _Published:
             return gate
 
         state = _namespace_of(agent)[STATE]
-        origin, _declared = state.reports[gate.name]
+        origin, declared = state.reports[gate.name]
         _require_membership(
                 agent,
                 origin,
                 gate.name,
                 "Report",
                 )
+
+        if isinstance(declared, _Line):
+            return declared.Read(agent)   # a Pair Record, read through its line
 
         return getattr(
                 origin,
@@ -996,6 +1074,7 @@ def _type_key_of(
                     ),
             frozenset(state.constants),
             frozenset(state.tools),
+            frozenset(state.links),
             )
 
 
@@ -1074,9 +1153,18 @@ def _runtime_type_for(
 
             namespace[name] = _Tool_Gate(name, namespace.get(name, _MISSING))   # over a Constant or Secret gate, when both
 
+        for name in state.links:
+            namespace[name] = _Link_Gate(name)   # a held Link is read-only
+
     ungated_tools = any(_is_dunder(name) for name in state.tools)
 
-    if conditions or state.constants or state.tools or issubclass(host_type, type):
+    if (
+            conditions
+            or state.constants
+            or state.tools
+            or state.links
+            or issubclass(host_type, type)
+            ):
         _binding_write_hooks(namespace, host_type, force=ungated_tools)
 
     if issubclass(host_type, Tagged):

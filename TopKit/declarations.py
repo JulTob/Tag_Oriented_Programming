@@ -36,6 +36,8 @@ _FLAG = "__topkit_flag__"
 _PIN = "__topkit_pin__"
 _CONSTANT = "__topkit_constant__"
 _TOOL = "__topkit_tool__"   # a Record's kind: the Tags its slot admits (tools._Kind)
+_RELATION = "_topkit_relation"   # on a Tag class marked @Link: a template, never a Tag in play
+_LINK = "_topkit_link"           # on one Agent's Link: a Tag the kit built for that Agent
 
 STATE = "_TOPKIT_STATE"
 
@@ -654,6 +656,7 @@ class _Declarations:
     published: frozenset[str]   # Agent-scope members marked @Public (Pins)
     constants: frozenset[str]
     tools: frozenset[str] = frozenset()   # Records marked @Tool: their slots admit only their kind
+    links: tuple[tuple[str, type], ...] = ()   # Relations marked @Link: each Agent receives its own Link
 
 
 _scan_cache: "WeakKeyDictionary[type, _Declarations]" = WeakKeyDictionary()
@@ -669,6 +672,29 @@ def _declarations_of(
         _scan_cache[tag] = cached
 
     return cached
+
+
+def _is_relation(
+        candidate: object,
+        ) -> bool:
+    """A Tag class marked @Link: the template every Agent's Link is made
+    from (STEP-SPEC-22). Read from the class itself, never inherited."""
+
+    return (
+            isinstance(candidate, type)
+            and candidate.__dict__.get(_RELATION) is True
+            )
+
+
+def _is_link(
+        candidate: object,
+        ) -> bool:
+    """One Agent's Link: a Tag the kit built from a Relation."""
+
+    return (
+            isinstance(candidate, type)
+            and candidate.__dict__.get(_LINK) is True
+            )
 
 
 def _is_private(
@@ -916,6 +942,90 @@ def _check_tool_declarations(
                 )
 
 
+def _refuse_relation_bases(
+        tag: type,
+        ) -> None:
+    """A Relation, or one Agent's Link, as a Base of an ordinary Tag would
+    write the Link on whoever that Tag is applied to, without a word
+    (STEP-SPEC-22 rules 2.5 and 2.8). A Relation's own Bases are Relations."""
+
+    if _is_relation(tag) or _is_link(tag):
+        return
+
+    for base in tag.__mro__[1:]:
+        if _is_relation(base) or _is_link(base):
+            raise TagDeclarationError(
+                    f"{tag.__name__}: {base.__name__} is a"
+                    f" {'Relation' if _is_relation(base) else 'Link'}, never"
+                    " the Base of an ordinary Tag; a Link that writes a Tag"
+                    " on its Contact says so in an Imprint"
+                    )
+
+
+def _check_link_declarations(
+        tag: type,
+        namespace: dict[str, Any],
+        ) -> None:
+    """Relations declared in a Tag's body, checked at class use
+    (STEP-SPEC-22 rules 2.4 to 2.6)."""
+
+    forms = [
+            base
+            for base in tag.__mro__[1:]
+            if hasattr(base, "_topkit_field")
+            ]
+
+    for name, member in namespace.items():
+        if (
+                isinstance(member, type)
+                and hasattr(member, "_topkit_field")
+                and not _is_relation(member)
+                ):
+            _refuse_relation_bases(member)   # a nested Tag over a Relation, unmarked
+
+        if not _is_relation(member):
+            continue
+
+        if _is_dunder(name) or _is_private(name):
+            raise TagDeclarationError(
+                    f"{tag.__name__}.{name}: a Link is held under an ordinary"
+                    " name, read on the Agent: agent.Knows"
+                    )
+
+        for base in member.__bases__:
+            if not _is_relation(base):
+                continue
+
+            declared_here = any(
+                    value is base
+                    for value in namespace.values()
+                    )
+            declared_by_a_base = any(
+                    value is base
+                    for owner in forms
+                    for value in vars(owner).values()
+                    )
+
+            if not (declared_here or declared_by_a_base):
+                raise TagDeclarationError(
+                        f"{tag.__name__}.{name}: its Base {base.__qualname__}"
+                        " is a Relation of another Tag; a Relation's Bases"
+                        " are Relations of the same declaring Tag or of its"
+                        " Bases, so every Agent already holds them"
+                        )
+
+        for owner in forms:
+            inherited = vars(owner).get(name)
+
+            if _is_relation(inherited) and not issubclass(member, inherited):
+                raise TagDeclarationError(
+                        f"{tag.__name__}.{name}: {owner.__name__} already"
+                        f" declares the Relation {name}; a Relation of the"
+                        " same name extends it by naming it as a Base:"
+                        f" class {name}({owner.__name__}.{name})"
+                        )
+
+
 _NAMED_FAILURES: dict[str, type] = {
         "imprint": TagImprintError,
         "precondition": TagPreconditionError,
@@ -968,7 +1078,10 @@ def _scan(
     published: set[str] = set()
     constants: set[str] = set()
     tools: set[str] = set()
+    links: list[tuple[str, type]] = []
     managed = tag.__dict__.get(STATE)   # names a Pin landed here
+
+    _refuse_relation_bases(tag)
 
     if managed is not None:
         _emit_published_pins(
@@ -993,6 +1106,15 @@ def _scan(
 
         if _is_constant(attribute):
             constants.add(name)
+
+        if _is_relation(attribute):
+            links.append(
+                    (
+                        name,
+                        attribute,
+                        )
+                    )
+            continue
 
         if isinstance(attribute, Report):
             if attribute.public and _has_flag(attribute.builder, _SECRET):
@@ -1127,6 +1249,7 @@ def _scan(
             published=frozenset(published),
             constants=frozenset(constants),
             tools=frozenset(tools),
+            links=tuple(links),
             )
 
     if _is_pin(tag):
@@ -1200,6 +1323,12 @@ def _validate_pin(
     if declarations.dunders:
         problems.append(
                 "special-method Actions " + ", ".join(sorted(declarations.dunders))
+                )
+
+    if declarations.links:
+        problems.append(
+                "@Link " + ", ".join(name for name, _relation in declarations.links)
+                + " (Links between Tags need their own receiver rule)"
                 )
 
     if problems:

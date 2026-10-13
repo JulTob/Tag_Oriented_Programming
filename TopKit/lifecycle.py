@@ -131,6 +131,14 @@ def _teardown_all(
     finally:
         state.composing -= 1
 
+        if state.links:
+            from .links import _end_links   # links builds on this module
+
+            _end_links(
+                    agent,
+                    state,
+                    )   # after its own teardowns, its exits from other Links included (STEP-SPEC-22 rules 8.3, 8.6)
+
 
 def _call_teardown(
         teardown: Any,

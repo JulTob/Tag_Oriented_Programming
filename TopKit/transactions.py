@@ -24,8 +24,11 @@ interruptions keep their original type and follow the same phase boundary.
 
 from __future__ import annotations
 
+from contextvars import ContextVar
 from dataclasses import dataclass
+from dataclasses import field
 from typing import Any
+from typing import Callable
 
 from .contracts import _evaluate
 from .declarations import _Declarations
@@ -57,9 +60,59 @@ from .state import _set_runtime_type
 
 @dataclass(slots=True)
 class _Call_Boundary:
-    """The failure phase of this call, independent of any nested tagging."""
+    """The failure phase of this call, independent of any nested tagging.
+
+    ``undo`` and ``writes`` belong to this call alone: steps on other
+    Targets that are part of it (a Link's Pairs, when a Shape extends a
+    held Link, STEP-SPEC-22 rule 4.6). ``undo`` runs when the call rolls
+    back; ``writes`` run after the call's Tags are committed, before its
+    Quality check."""
 
     after_commit: bool = False
+    undo: list[Callable[[], None]] = field(default_factory=list)
+    writes: list[Callable[[], None]] = field(default_factory=list)
+
+
+_current_boundary: ContextVar[_Call_Boundary | None] = ContextVar(
+        "TopKit_call_boundary",
+        default=None,
+        )
+
+
+@dataclass(slots=True)
+class _Entry:
+    """An Agent as it was when a call began: what a rollback restores."""
+
+    namespace: dict[str, Any]
+    state: _State | None
+    tags: tuple[type, ...]
+    host_class: type
+
+
+def _capture(
+        agent: object,
+        ) -> _Entry:
+    state = _state_of(agent)
+
+    return _Entry(
+            namespace=dict(_namespace_of(agent) or {}),
+            state=state.Copy() if state is not None else None,
+            tags=tuple(state.active) if state is not None else (),
+            host_class=type(agent),
+            )
+
+
+def _rollback_to(
+        agent: object,
+        entry: _Entry,
+        ) -> None:
+    _rollback(
+            agent,
+            entry.namespace,
+            entry.state,
+            entry.tags,
+            entry.host_class,
+            )
 
 
 def _apply(
@@ -69,25 +122,44 @@ def _apply(
         ) -> object:
     """Apply ``tag`` and its missing Bases to ``agent`` as one call."""
 
+    return _apply_form(
+            agent,
+            _form_of(tag),
+            inputs,
+            )
+
+
+def _apply_form(
+        agent: object,
+        form: tuple[type, ...] | list[type],
+        inputs: dict[str, Any],
+        deferred: list[_Declarations] | None = None,
+        ) -> object:
+    """Apply every Tag of ``form`` the Agent lacks, Bases first, as one call.
+
+    With ``deferred`` (a list), the call stops after Commit: the Imprints
+    of each applied Tag are appended to it instead of running, and the
+    Quality check is left to the caller. A Link uses this to put a
+    Contact's entry between its Pair's Parts and its Pair's Imprints
+    (STEP-SPEC-22 rule 5.1)."""
+
     entry_state = _state_of(agent)
 
     if entry_state is not None and all(
             member in entry_state.active
-            for member in _form_of(tag)
+            for member in form
             ):
         return agent   # the whole Form is active: nothing to apply, nothing to undo
 
-    entry_namespace = dict(_namespace_of(agent) or {})
-    entry_copy = entry_state.Copy() if entry_state is not None else None
-    entry_tags = tuple(entry_state.active) if entry_state is not None else ()
-    entry_class = type(agent)
+    entry = _capture(agent)
     boundary = _Call_Boundary()
+    token = _current_boundary.set(boundary)
 
     try:
         state = _state_for(agent)
         pending = [
                 member
-                for member in _form_of(tag)
+                for member in form
                 if member not in state.active
                 ]
 
@@ -115,20 +187,28 @@ def _apply(
                         member,
                         inputs,
                         boundary,
+                        deferred,
                         )
 
             boundary.after_commit = True   # Quality follows the completed Form
-            _inspect(agent)
+
+            for write in boundary.writes:
+                write()
+
+            if deferred is None:
+                _inspect(agent)
     except BaseException:
         if not boundary.after_commit:
-            _rollback(
+            _rollback_to(
                     agent,
-                    entry_namespace,
-                    entry_copy,
-                    entry_tags,
-                    entry_class,
+                    entry,
                     )
+
+            for undo in reversed(boundary.undo):
+                undo()
         raise
+    finally:
+        _current_boundary.reset(token)
 
     return agent
 
@@ -226,6 +306,7 @@ def _apply_one(
         tag: type,
         inputs: dict[str, Any],
         boundary: _Call_Boundary,
+        deferred: list[_Declarations] | None = None,
         ) -> None:
     # The state is laid over in place: the call boundary (_apply) holds the
     # entry copy that a Record failure rolls back to, and nothing reads the
@@ -259,6 +340,15 @@ def _apply_one(
                 retained_constants,
                 )
 
+        if declarations.links:
+            from .links import _grant   # links builds on this module
+
+            _grant(
+                    agent,
+                    state,
+                    declarations,
+                    )
+
         _commit(
                 agent,
                 state,
@@ -270,11 +360,14 @@ def _apply_one(
         boundary.after_commit = True
 
         try:
-            _imprint(
-                    agent,
-                    declarations,
-                    inputs,
-                    )
+            if deferred is None:
+                _imprint(
+                        agent,
+                        declarations,
+                        inputs,
+                        )
+            else:
+                deferred.append(declarations)   # the caller runs them, after its other Commits
         except BaseException as error:
             primary_failure = error
             raise
@@ -534,6 +627,7 @@ def _needs_new_type(
             or declarations.secrets
             or declarations.constants
             or declarations.tools
+            or declarations.links
             or declarations.dunders
             or declarations.preconditions
             or declarations.postconditions

@@ -22,6 +22,7 @@ from .errors import TagResolutionError
 from .declarations import STATE
 from .declarations import _MISSING
 from .declarations import _is_flag
+from .declarations import _is_link
 from .declarations import _words_of
 from .lifecycle import _teardown_all
 from .state import _Bound
@@ -141,7 +142,7 @@ def _agent_getattr(
                     )
 
         for tag in reversed(state.active):
-            if tag.__name__ == name:
+            if tag.__name__ == name and not _is_link(tag):   # a Contact never reads another Agent's Link by name
                 return _view_of(
                         agent,
                         tag,

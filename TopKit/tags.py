@@ -34,15 +34,19 @@ from .contracts import _holds
 from .declarations import _MISSING
 from .declarations import _check_constant_declarations
 from .declarations import _check_constant_shapes
+from .declarations import _check_link_declarations
 from .declarations import _check_pin_bases
 from .declarations import _check_tool_declarations
 from .declarations import _constant_owner
 from .declarations import _is_dunder
+from .declarations import _is_link
 from .declarations import _is_pin
+from .declarations import _is_relation
 from .declarations import _kind_of
 from .declarations import _name_checks
 from .declarations import _refuse_condition_dunder
 from .errors import TagCompositionError
+from .errors import TagDeclarationError
 from .fields import _Field
 from .fields import _Partition
 from .fields import _population_of
@@ -58,13 +62,39 @@ from .transactions import _apply
 def _sound_of(
         tag: type,
         ) -> _Partition:
-    """The Tag's sound population, outside its programmer-owned namespace."""
+    """The Tag's sound population, outside its programmer-owned namespace.
+    A Link's sound Contacts are those whose own contract holds and whose
+    Pair holds (STEP-SPEC-22 rule 7.3)."""
+
+    _refuse_relation(tag)
+    holds = _holds
+
+    if _is_link(tag):
+        from .links import _contact_holds   # links builds on this module
+
+        holds = _contact_holds(tag)
 
     return _Partition(
             tag.__dict__["_topkit_field"],
-            _holds,
+            holds,
             "sound",
             )
+
+
+def _refuse_relation(
+        tag: type,
+        ) -> None:
+    """A Relation is a template, never a Tag in play (STEP-SPEC-22 §9):
+    every act on it is refused and points to a Link."""
+
+    if _is_relation(tag):
+        raise TagCompositionError(
+                f"{tag.__name__} is a Relation: link through an Agent,"
+                f" agent.{tag.__name__}(contact)"
+                )
+
+
+_making_link = 0   # raised by links while it builds one Agent's Link
 
 
 class MetaTag(type):
@@ -83,6 +113,16 @@ class MetaTag(type):
                 )
         _name_checks(namespace, name)
 
+        if not _making_link and any(
+                _is_link(base)
+                for base in bases
+                ):
+            raise TagDeclarationError(
+                    f"{name}: an Agent's Link is never the Base of a Tag;"
+                    " a Shape of a Link is declared as a Relation,"
+                    " @Link class Trusts(Knows)"
+                    )
+
         tag = super().__new__(
                 meta,
                 name,
@@ -93,6 +133,7 @@ class MetaTag(type):
         _check_pin_bases(tag)
         _check_constant_declarations(tag, namespace)
         _check_tool_declarations(tag, namespace)
+        _check_link_declarations(tag, namespace)
 
         return tag
 
@@ -134,10 +175,21 @@ class MetaTag(type):
             /,
             **inputs: Any,
             ) -> object:
+        _refuse_relation(tag)
+
         if target is _MISSING:
             raise TypeError(
                     f"{tag.__name__} is a Tag: apply it to a Target,"
                     f" {tag.__name__}(target)"
+                    )
+
+        if _is_link(tag):
+            from .links import _link   # links builds on this module
+
+            return _link(
+                    tag,
+                    target,
+                    inputs,
                     )
 
         if _is_pin(tag):
@@ -163,6 +215,8 @@ class MetaTag(type):
         """``agent in Wizard``: membership. ``"Deprecated" in Wizard``: a
         keyword among the Tag's Flag Pins; a string is never a member."""
 
+        _refuse_relation(tag)
+
         if isinstance(candidate, str):
             return _keyword(
                     tag,
@@ -180,6 +234,7 @@ class MetaTag(type):
             tag,
             candidate: object,
             ) -> bool:
+        _refuse_relation(tag)
         state = _state_of(candidate)
 
         if state is not None and tag in state.ever:
@@ -257,6 +312,8 @@ class MetaTag(type):
             tag,
             key: Any,
             ) -> Any:
+        _refuse_relation(tag)
+
         if isinstance(key, slice):
             if key != slice(None):
                 raise TypeError(
@@ -265,6 +322,14 @@ class MetaTag(type):
                         )
 
             return tag._topkit_field
+
+        if _is_link(tag):
+            from .links import _pair_of   # links builds on this module
+
+            return _pair_of(
+                    tag,
+                    key,
+                    )
 
         return _view_of(
                 key,
@@ -275,6 +340,17 @@ class MetaTag(type):
             tag,
             agent: object,
             ) -> None:
+        _refuse_relation(tag)
+
+        if _is_link(tag) and isinstance(agent, slice):
+            from .links import _unlink_all   # links builds on this module
+
+            _unlink_all(
+                    tag,
+                    agent,
+                    )
+            return
+
         _rip(
                 agent,
                 tag,
