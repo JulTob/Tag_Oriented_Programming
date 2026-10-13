@@ -1080,9 +1080,10 @@ name: `Link`. No parameter name is reserved.
 ## Implementation, and the points it had to settle
 
 Built in TopKit on 2026-10-13 (`TopKit/links.py`, with small hooks in the
-tagging core), tested by `tests/test_links.py` (87 tests), the oracle's
-`Run_Links` walk, and the Specification's new §1.10, which states the
-law as built.
+tagging core), tested by `tests/test_links.py`, the oracle's `Run_Links`
+walk, and the Specification's new §1.10, which states the law as built.
+An adversarial review followed the same day; *The review, and what it
+settled* below lists what it found and how each point was settled.
 
 **How it is built.** Each Agent's Link is a real Tag, built for that
 Agent at the Parts of the declaring Tag, whose Field holds the Contacts:
@@ -1144,13 +1145,26 @@ implementation follows `main`'s law as it stands, and says so:
 
 - A `@Public` line that an extension Layer adds reaches the Contacts
   linked after the extension; Contacts already linked keep their lines.
-- A line shuts the Contact's synchronous door while the Link's code
-  runs; an async door she opened in her own context is not shut by it.
-- Cost, measured once (`benchmarks/compare.py`, section j, CPython 3.13):
-  a linking about 75 µs (two taggings: the Pair's gated one and the
-  Contact's membership), reading a Pair Record about 1.2 µs, extending a
-  Link about 24 µs per Contact it holds. The hand-made workaround of the
-  Motivation cost about 72 µs per linking.
+- A Link's code shuts the synchronous door of the Contact it is about;
+  an async door she opened in her own context is not shut by it.
+- Doors otherwise follow the call (§1.5): when a Contact's own Action
+  calls into a Link about another Contact, or calls a Link Operation
+  without passing herself, her door is open beneath that call, as it is
+  for any code she calls. A Link's Reports are the exception: they are
+  kept and served to all, so they are built with every Contact's door
+  shut.
+- Extending a held Link runs every Pair's gate before any Pair's
+  Records, but at the declaring Shape's Parts, after the Shape's own
+  Records, not at the Agent's step 1. A refusal still refuses the whole
+  call, nothing changed.
+- An undone linking restores the Contact's snapshot only when nothing
+  else changed her Tags since; otherwise she leaves the Links silently,
+  and the lines they published stay on her, sticky, as after an unlink.
+- Cost, measured on the reviewed code (`benchmarks/compare.py`, section
+  j, CPython 3.13, one run): a linking about 78 µs (two taggings: the
+  Pair's gated one and the Contact's membership), reading a Pair Record
+  about 1.3 µs, extending a Link about 35 µs per Contact it holds. The
+  hand-made workaround of the Motivation cost about 72 µs per linking.
 
 **A Tool or a Link?** (STEP-SPEC-36, on `main`.) A Tool is one object the
 Agent has, held strongly under a Record's name, admitted by kind at each
@@ -1160,6 +1174,52 @@ linking runs the Relation's gate, the Contact receives only membership
 and what the Relation publishes, and the slot is closed and read-only. A
 Relation is refused as a Tool kind. Neither leads back from the held
 thing to its holder.
+
+## The review, and what it settled
+
+On 2026-10-13 five reviewers attacked the implementation, each from one
+angle (rollback, the law of §1.10, lifetime, doors and secrets, mixing
+with every other feature), each finding backed by a probe that ran; a
+skeptic then re-ran every probe and tried to refute it. A second round
+re-checked every fix for variants. Every confirmed finding is fixed with
+a regression test that fails before its fix (`Rollback_Tests`,
+`Ownership_Tests`, `Law_Review_Tests`, `Lifetime_Review_Tests`,
+`Door_Review_Tests`, `Integration_Review_Tests`).
+
+**What it found, in short.**
+
+- *Rollback across Targets.* A failure could leave a linking, a dropped
+  Pair's teardowns, a join of two families, or a Contact mid-call
+  behind; a teardown that linked her again lost her Pair; `del k[:]`
+  stopped at a Contact another teardown had unlinked.
+- *Secrets and direction.* Her own Tag views carried the Link's
+  unpublished members and a handle to the Link itself, through which
+  code holding only her reached the Agent's other Contacts and secret;
+  the kit built a Link Report inside her open door at the linking; Pair
+  functions ran inside her door when the call started in her own code.
+- *Lifetime.* A living Contact kept the Link of every Agent that died;
+  a task that copied a finished call's context kept its Contacts alive;
+  an interrupted teardown at deletion skipped the other Contacts.
+- *The law.* Extensions through a Shape Relation were accepted; Pairs of
+  one Field could be overlaid two ways; the Pair's own Tag was reachable;
+  a Link could arrive over the Agent's own value; `@Pin` over `@Link`, a
+  Pin of a Relation, and a late Pin of a declaring Tag were accepted.
+
+**What it settled, beyond fixing.**
+
+- *Which rolled-back calls undo a linking (rule 5.6).* A call on the
+  Link's Agent or on the Contact, however deep inside it the linking
+  was made. A call on any other Agent leaves it, as §0.6 leaves that
+  Agent's other taggings: undo steps name their owners.
+- *The order of a Pair's Layers.* The order the Agent gained them: Form
+  order, with a later extension on top, as on any Agent (§1.2). Every
+  Pair of a Field is overlaid alike. Laying an extension beneath a Shape
+  Link on Pairs already held would mean rebuilding Records already built.
+- *`@Secret` on a Link's own Report or Operation* means in-house, as the
+  Director asked in rule 2.7: it answers only inside the Agent's code.
+- *The doors*, as the known limits above state.
+- *A Relation's plain values and class methods* belong to the Link; its
+  special methods are refused (a Pair's teardown is a `@Rip`).
 
 ## Validation
 
