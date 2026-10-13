@@ -76,6 +76,14 @@
   wiki page "Tools: what an Agent has" runs as one program under the
   suite.
 
+- **A Pin is marked at its declaration:** `Pin(Tag)` applied later is
+  refused, nothing changed, when the Tag already has a Shape (the Shape
+  would become a Pin unchecked, its Tools landing on Tags), an Agent (its
+  Field would mix objects and Tags), or a place as a Tool's kind (the
+  slot would admit Tags). A refused mark no longer stays on the class,
+  and a Tag scanned before its mark is validated as a Pin at the mark.
+  Restating the mark is a no-op.
+
 - **Presence by name:** `"name" @ agent` checks current contributions,
   including host bindings; `"name" @ Tag[agent]` checks the captured view.
   False values and `None` count as present. The query respects Secret and

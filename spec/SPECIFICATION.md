@@ -1009,7 +1009,9 @@ fails with a Composition Failure. An ordinary Tag applies to objects only;
 on a class it is refused, as before. A Pin may not pin itself or any Tag
 of its own Form. A Shape of a Pin is a Pin, and one Form is all Pins or
 no Pins: mixing them is a Declaration Failure. Fields therefore never mix
-Agents and Tags.
+Agents and Tags. `@Pin` marks a Tag at its declaration: marking one that
+already has a Shape, an Agent, or a place as a Tool's kind (§1.3) is a
+Declaration Failure, and a refused mark leaves the Tag ordinary.
 
 **The receiver rule** (§1.1). The first parameter of a Pin's Agent-scope
 member is the pinned Tag; write it `tag`. A Pin's Record lands as a

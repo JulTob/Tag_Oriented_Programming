@@ -18,6 +18,7 @@ from typing import Any
 from typing import Callable
 from typing import NamedTuple
 from weakref import WeakKeyDictionary
+from weakref import WeakSet
 from weakref import ref
 
 from .errors import TagDeclarationError
@@ -450,6 +451,10 @@ def Pin(
                 "@Pin marks a Tag class"
                 )
 
+    if tag.__dict__.get(_PIN, False):
+        return tag   # restating the mark changes nothing
+
+    _refuse_late_pin(tag)
     _refuse_tools_on_a_pin(
             tag,
             vars(tag),
@@ -460,10 +465,52 @@ def Pin(
             True,
             )
 
-    _check_pin_bases(tag)
-    _declarations_of(tag)   # validate the members now, not at first pinning
+    try:
+        _check_pin_bases(tag)
+        _scan_cache.pop(tag, None)   # a scan made before the mark never validated it as a Pin
+        _declarations_of(tag)        # validate the members now, not at first pinning
+    except BaseException:
+        delattr(tag, _PIN)           # refused: nothing changed
+        _scan_cache.pop(tag, None)
+        raise
 
     return tag
+
+
+def _refuse_late_pin(
+        tag: type,
+        ) -> None:
+    """``@Pin`` marks a Tag at its declaration, before anything relies on
+    it being an ordinary Tag. Marked later, it would change three things
+    without a check: its Shapes would become Pins (a Shape of a Pin is a
+    Pin), its Agents would sit in a Field of Tags, and a Tool that names
+    it would hold Tags (§1.3, §1.9)."""
+
+    shapes = type.__subclasses__(tag)
+
+    if shapes:
+        raise TagDeclarationError(
+                f"@Pin marks {tag.__name__} at its declaration, and it"
+                f" already has the Shape {shapes[0].__name__}: a Shape of a"
+                f" Pin is a Pin. Write @Pin over class {tag.__name__},"
+                " before its Shapes"
+                )
+
+    agents = list(tag.__dict__["_topkit_field"])
+
+    if agents:
+        raise TagDeclarationError(
+                f"@Pin marks {tag.__name__} at its declaration, and it"
+                " already has Agents: a Pin's Field holds Tags, never"
+                " objects (§1.9)"
+                )
+
+    if tag in _kinds_named:
+        raise TagDeclarationError(
+                f"@Pin marks {tag.__name__} at its declaration, and a @Tool"
+                f" already names {tag.__name__} as its kind: a Pin is no"
+                " Tool kind, its Agents are Tags (§1.3)"
+                )
 
 
 def _is_pin(
@@ -884,6 +931,21 @@ def _refuse_tools_on_a_pin(
                     )
 
 
+_kinds_named: "WeakSet[type]" = WeakSet()   # the Tags a declared @Tool names as its kind
+
+
+def _note_kinds(
+        kind: Any,
+        ) -> None:
+    """Remember the Tags a declared Tool names, so marking one of them a
+    Pin later is refused (``_refuse_late_pin``)."""
+
+    for term in kind.terms:
+        for alternative in term:
+            if hasattr(alternative, "_topkit_field"):
+                _kinds_named.add(alternative)
+
+
 def _check_tool_declarations(
         tag: type,
         namespace: dict[str, Any],
@@ -914,6 +976,12 @@ def _check_tool_declarations(
                 tag,
                 namespace,
                 )
+
+    for member in namespace.values():
+        kind = _tool_kind_of(member)
+
+        if kind is not None:
+            _note_kinds(kind)
 
 
 _NAMED_FAILURES: dict[str, type] = {

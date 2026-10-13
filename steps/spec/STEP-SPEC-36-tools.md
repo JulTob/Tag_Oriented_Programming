@@ -227,6 +227,16 @@ The order is STEP-SPEC-39's **Gate → Gainings/Imprints → Field → Posts**.
 Gains are acquired in declaration order and visible to subsequent Gains.
 The class check runs at this Record's turn, not in a preliminary pass.
 
+> **On `main` today.** STEP-SPEC-39 is Cleared but not yet on `main`
+> (PR #78, implemented in PR #89). Until it lands, the kit follows the
+> Specification's §0.6: **Gate → Parts → Commit → Write → Quality**.
+> A builder or admission failure is a Record failure at Parts, so the
+> whole call rolls back and an occupied slot keeps the Tool it held.
+> Field entry is at Commit, before the Imprints: an Imprint failure
+> raises with the Agent in the Field and the gained Tool kept. The
+> bullets below describe STEP-SPEC-39's sequence; `tests/test_tools.py`
+> (`Sequence_Tests`) pins today's.
+
 - A refused Gate gains nothing for that Tag; completed independent
   Taggings remain.
 - If the builder or its class check fails, that value is not acquired.
@@ -300,8 +310,10 @@ STEP-SPEC-42, with implementation in PRs #155 and #156:
 - For ordinary object Agents, bool asks whether visible Posts hold,
   including before Field entry when Posts have already been gained.
 - Hosts with explicit or inherited `__bool__` are refused before Tagging
-  effects. Tool admission alone does not Tag a host, so it does not
-  trigger that eligibility check.
+  effects, once STEP-SPEC-40's implementation lands (PR #160; not on
+  `main` yet, where a host keeps its own `__bool__`). Tool admission
+  alone does not Tag a host, so it does not trigger that eligibility
+  check. Admission never asks the held thing's truth.
 - Plain objects retain Python truth, including their own `__bool__`.
   Holding one does not make it an Agent or give it TOP contract truth.
 - Conditions cannot use dunder names, and ordinary Agent truth cannot be
