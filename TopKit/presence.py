@@ -13,7 +13,6 @@ from .state import _Deleted
 from .state import _Published
 from .state import _Secret_Gate
 from .state import _real_namespace_of
-
 from .state import _is_composing
 from .constants import _Constant_Gate
 from .contracts import _Condition_Gate

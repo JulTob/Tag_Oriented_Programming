@@ -46,8 +46,8 @@ _PUBLIC = "__topkit_public__"
 _FLAG = "__topkit_flag__"
 _PIN = "__topkit_pin__"
 _CONSTANT = "__topkit_constant__"
-_ACTION_CHAIN = "__topkit_action_chain__"
 _TOOL = "__topkit_tool__"   # a Record's kind: the Tags its slot admits (tools._Kind)
+_ACTION_CHAIN = "__topkit_action_chain__"
 
 STATE = "_TOPKIT_STATE"
 
