@@ -47,11 +47,15 @@ from .overlay import _materialize
 from .state import STATE
 from .state import _Snapshot
 from .state import _State
+from .state import _Host_Bindings
+from .state import _actualize_runtime_type
 from .state import _bind_to
+from .state import _host_bindings_of
 from .state import _name_of
 from .state import _namespace_of
 from .state import _rebind_all
 from .state import _restore_namespace
+from .state import _restore_host_bindings
 from .state import _runtime_type_for
 from .state import _state_for
 from .state import _state_of
@@ -80,7 +84,15 @@ def _apply(
             ):
         return agent   # the whole Form is active: nothing to apply, nothing to undo
 
-    entry_namespace = (_namespace_of(agent) or {}).copy()
+    entry_host = (
+            _host_bindings_of(agent)
+            if entry_state is None and not issubclass(type(agent), type)
+            else None
+            )
+    entry_namespace = (
+            entry_host.contents if entry_host is not None
+            else (_namespace_of(agent) or {}).copy()
+            )
     entry_copy = entry_state.Copy() if entry_state is not None else None
     entry_tags = tuple(entry_state.active) if entry_state is not None else ()
     entry_class = type(agent)
@@ -130,6 +142,7 @@ def _apply(
                     entry_copy,
                     entry_tags,
                     entry_class,
+                    entry_host,
                     )
         raise
 
@@ -142,13 +155,24 @@ def _rollback(
         entry_copy: _State | None,
         entry_tags: tuple[type, ...],
         entry_class: type,
+        entry_host: _Host_Bindings | None,
         ) -> None:
-    current = _state_of(agent)
+    # A rejected provisional class may hide or replace __dict__. Restore
+    # the original type before consulting any Agent namespace.
+    if type(agent) is not entry_class:
+        _set_runtime_type(agent, entry_class)
+
+    namespace = entry_host.namespace if entry_host is not None else _namespace_of(agent)
+    current = namespace.get(STATE) if namespace is not None else None
 
     if current is not None:
         for tag in current.active:
             if tag not in entry_tags:
                 tag._topkit_field._Remove(agent)
+
+    if entry_host is not None:
+        _restore_host_bindings(agent, entry_host)
+        return
 
     _restore_namespace(
             agent,
@@ -168,9 +192,6 @@ def _rollback(
             live.Restore(entry_copy)   # in place: a door opened before this call closes on it
     else:
         namespace.pop(STATE, None)
-
-    if type(agent) is not entry_class:
-        _set_runtime_type(agent, entry_class)
 
 
 def _gate(
@@ -248,6 +269,11 @@ def _apply_one(
     primary_failure: BaseException | None = None
 
     try:
+        # Prepare the host after its Gate and before any builder runs.
+        # Later runtime refreshes are internal changes of an existing Agent.
+        if type(agent) is state.host_type:
+            _actualize_runtime_type(agent, _runtime_type_for(state), state)
+
         _install(
                 state,
                 tag,
