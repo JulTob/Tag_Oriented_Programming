@@ -53,19 +53,22 @@
   Reapplication preserves established Constants and repeats ordinary
   Record building and Imprints. Publication and Secret access stay independent.
 
-- **Tools:** `@Tool(Weapon)` marks a Record whose value is an Agent of
-  the named Tags: something the Agent *has* (STEP-SPEC-36). The slot
-  admits only a current member of every Tag of its kind and never the
-  bearer, checked when the slot is gained and at every write,
-  `object.__setattr__` included; it is never `None` unless declared
-  `@Tool(Weapon | None)`; and it never Tags what it holds: the forge does,
-  in plain sight. `@Record` may restate the mark; `@Constant`, `@Secret`
-  and `@Public` stack with it in either order. A later Layer may
-  redeclare a Tool slot only as a Tool; a plain Record or an Action at
-  that name is refused, and `@Delete` frees it. A population
-  (`Weapon | Blessed`), a Pin, a non-Tag, or `@Tool` inside a `@Pin` is a
-  Declaration Failure. The wiki page "Tools: what an Agent has" runs as
-  one program under the suite.
+- **Tools:** `@Tool(Kind)` marks a Record whose value is an object of a
+  declared kind: something the Agent *has* (STEP-SPEC-36, Vetting). A
+  kind is a specific Tag, asked as membership now (`@Tool(Weapon)`), a
+  Python class, asked as the instance test (`@Tool(Sword)`), or both
+  (`@Tool(Sword, Weapon)`); the language's own union names alternatives
+  (`@Tool(Sword | Staff)`) and `| None` declares the empty hand. The slot
+  is checked when gained and at every write, `object.__setattr__`
+  included; it is never `None` unless declared; it never Tags what it
+  holds. `@Record` may restate the mark; `@Constant`, `@Secret` and
+  `@Public` stack with it in either order; a later plain Record or
+  Action replaces it as any Record, and `@Delete` frees it. The root
+  `Tag`, `object`, a Pin, a population (`Weapon | Blessed`), a typing
+  construct, an instance, or `@Tool` inside a `@Pin` is a Declaration
+  Failure. A slot under a protocol name keeps the language's hook. The
+  wiki page "Tools: what an Agent has" runs as one program under the
+  suite.
 
 - **Presence by name:** `"name" @ agent` checks current contributions,
   including host bindings; `"name" @ Tag[agent]` checks the captured view.

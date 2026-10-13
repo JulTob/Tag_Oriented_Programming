@@ -163,7 +163,10 @@ class _Binding_Write:
         return bound(name, *values)
 
 
-def _binding_write_hooks(namespace, host_type):
+def _binding_write_hooks(namespace, host_type, force=False):
+    """``force`` installs the preflight even over the native writers: a
+    Tool slot under a protocol name has no descriptor to guard it."""
+
     for name in ("__setattr__", "__delattr__"):
         fallback = namespace.get(name, _MISSING)
         if fallback is _MISSING:
@@ -175,7 +178,7 @@ def _binding_write_hooks(namespace, host_type):
             fallback = fallback.fallback
         # Native object writes already honor the protected names' data
         # descriptors. Only custom writers need a preflight before they run.
-        if fallback is object.__dict__[name]:
+        if fallback is object.__dict__[name] and not force:
             namespace[name] = fallback
             continue
         namespace[name] = _Binding_Write(fallback)

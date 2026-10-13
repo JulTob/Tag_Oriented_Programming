@@ -1,18 +1,25 @@
-"""Tools: a Record whose value is an Agent of the Tags its declaration
-names (STEP-SPEC-36). What an Agent *has*, beside what it *is* and what
-it is *currently*.
+"""Tools: a Record whose value is an object of a declared kind
+(STEP-SPEC-36). What an Agent *has*, beside what it *is* and what it is
+*currently*.
 
-Three laws: the slot has a kind, checked at admission (at Parts and at
-every write, ``object.__setattr__`` included); the slot is never empty
-unless its kind says ``| None``; the slot never Tags, the forge does.
+A kind is a specific Tag (a member, now), a Python class (an instance),
+or several of them, all holding; ``| None`` declares the empty hand.
+Three laws: the slot has a kind, checked at admission (at the gaining
+and at every write, ``object.__setattr__`` included); the slot is never
+empty unless its kind says ``| None``; the slot never Tags, the forge
+does.
 """
 
+import gc
 import unittest
 import warnings
+import weakref
+from dataclasses import dataclass
+from typing import Any, Protocol, runtime_checkable
 
-from TopKit import (Action, Constant, Contract, Delete, Keyword, Pin, Post,
-                    Pre, Public, Record, Report, Rip, Secret, Tag,
-                    TagCompositionError, TagDeclarationError,
+from TopKit import (Action, Constant, Contract, Delete, Imprint, Keyword,
+                    Operation, Pin, Post, Pre, Public, Record, Report, Rip,
+                    Secret, Tag, TagCompositionError, TagDeclarationError,
                     TagOverwriteWarning, TagPreconditionError, Tool)
 
 
@@ -24,6 +31,11 @@ class Character:
 class Sword:
     def __init__(sword, name="a sword"):
         sword.name = name
+
+
+class Staff:
+    def __init__(staff, name="a staff"):
+        staff.name = name
 
 
 class Weapon(Tag):
@@ -64,12 +76,18 @@ class Squire(Tag):
         return None
 
 
+class Swordsman(Tag):
+    @Tool(Sword)
+    def weapon(agent, *, weapon):
+        return weapon
+
+
 # ------------------------------------------------------------------
-# Law 1: the slot has a kind, checked at admission
+# Law 1, a Tag kind: a member now
 # ------------------------------------------------------------------
 
 
-class Admission_Tests(unittest.TestCase):
+class Tag_Kind_Tests(unittest.TestCase):
     def test_the_gained_slot_holds_a_member_of_its_kind(self):
         charlie = Character("Charlie")
         Fighter(charlie)
@@ -82,9 +100,8 @@ class Admission_Tests(unittest.TestCase):
         charlie = Character("Charlie")
         Fighter(charlie)
         held = charlie.weapon
-        stick = Sword("a stick")
         with self.assertRaises(TagCompositionError) as refusal:
-            charlie.weapon = stick
+            charlie.weapon = Sword("a stick")
         self.assertIn("not a Weapon now", str(refusal.exception))
         self.assertIs(charlie.weapon, held)
         with self.assertRaises(TagCompositionError):
@@ -143,14 +160,6 @@ class Admission_Tests(unittest.TestCase):
             bob.weapon = held                             # moved to another slot: refused
         self.assertIn("left Weapon", str(refusal.exception))
 
-    def test_the_bearer_is_refused_at_the_write(self):
-        charlie = Character("Charlie")
-        Fighter(charlie)
-        Weapon(charlie)                                   # even as a Weapon himself
-        with self.assertRaises(TagCompositionError) as refusal:
-            charlie.weapon = charlie
-        self.assertIn("never the Agent", str(refusal.exception))
-
     def test_a_kind_of_two_tags_asks_for_both(self):
         class Holy(Tag):
             @Tool(Weapon, Blessed)
@@ -183,18 +192,14 @@ class Admission_Tests(unittest.TestCase):
         self.assertFalse(hasattr(charlie, "weapon"))
         self.assertIs(type(charlie), Character)          # the whole call rolled back
 
-    def test_a_builder_returning_the_bearer_refuses_the_gaining(self):
-        class Selfish(Tag):
-            @Tool(Weapon)
-            def weapon(agent):
-                Weapon(agent)
-                return agent
-
+    def test_the_bearer_is_admitted_only_when_it_is_of_the_kind(self):
         charlie = Character("Charlie")
+        Fighter(charlie)
         with self.assertRaises(TagCompositionError):
-            Selfish(charlie)
-        self.assertNotIn(charlie, Selfish)
-        self.assertNotIn(charlie, Weapon)                 # the builder's own tagging of the bearer rolled back too
+            charlie.weapon = charlie                      # not a Weapon: refused as any non-member
+        Weapon(charlie)
+        charlie.weapon = charlie                          # self-reference is the author's business
+        self.assertIs(charlie.weapon, charlie)
 
     def test_membership_presence_and_soundness_stay_three_questions(self):
         class Sharp(Tag):
@@ -209,6 +214,193 @@ class Admission_Tests(unittest.TestCase):
         self.assertTrue("weapon" @ charlie)
         self.assertIn(charlie.weapon, Weapon[:])
         self.assertFalse(Contract.Holds(charlie.weapon))
+
+
+# ------------------------------------------------------------------
+# Law 1, a class kind: an instance
+# ------------------------------------------------------------------
+
+
+class Class_Kind_Tests(unittest.TestCase):
+    def test_a_class_kind_admits_untagged_and_tagged_instances_and_subclasses(self):
+        class Broadsword(Sword):
+            pass
+
+        sam = Character("Sam")
+        plain = Sword("plain")
+        Swordsman(sam, weapon=plain)
+        self.assertIs(sam.weapon, plain)
+        self.assertNotIn(plain, Weapon[:])                # admission Tags nothing
+        sam.weapon = Forge(sam)                           # a tagged Sword is still a Sword
+        sam.weapon = Broadsword("broad")
+        self.assertIsInstance(sam.weapon, Broadsword)
+
+    def test_a_class_kind_refuses_another_class_even_when_tagged_weapon(self):
+        sam = Character("Sam")
+        Swordsman(sam, weapon=Sword())
+        held = sam.weapon
+        staff = Staff()
+        Weapon(staff)
+        with self.assertRaises(TagCompositionError) as refusal:
+            sam.weapon = staff
+        self.assertIn("not a Sword now", str(refusal.exception))
+        self.assertIn("Hand over a Sword", str(refusal.exception))
+        self.assertIs(sam.weapon, held)
+        with self.assertRaises(TagCompositionError):
+            object.__setattr__(sam, "weapon", "a stick")
+        self.assertIs(sam.weapon, held)
+
+    def test_a_class_kind_admits_a_rogue_of_any_tag(self):
+        sam = Character("Sam")
+        Swordsman(sam, weapon=Sword())
+        rogue = Forge(sam, "rogue")
+        del Weapon[rogue]
+        sam.weapon = rogue                                # the class still holds; membership is a Post's question
+        self.assertIs(sam.weapon, rogue)
+
+    def test_a_class_and_a_tag_together_ask_both(self):
+        class Armed(Tag):
+            @Tool(Sword, Weapon)
+            def weapon(agent, *, weapon):
+                return weapon
+
+        sam = Character("Sam")
+        sword = Forge(sam)
+        Armed(sam, weapon=sword)
+        plain = Sword("plain")
+        with self.assertRaises(TagCompositionError) as refusal:
+            sam.weapon = plain                            # a Sword, not a Weapon
+        self.assertIn("not a Weapon now", str(refusal.exception))
+        staff = Staff()
+        Weapon(staff)
+        with self.assertRaises(TagCompositionError) as refusal:
+            sam.weapon = staff                            # a Weapon, not a Sword
+        self.assertIn("not a Sword now", str(refusal.exception))
+        self.assertIs(sam.weapon, sword)
+        with self.assertRaises(TagCompositionError):
+            Armed(Character("Pat"), weapon=plain)         # the same at the gaining
+
+    def test_a_union_of_classes_admits_either(self):
+        class Wielder(Tag):
+            @Tool(Sword | Staff)
+            def item(agent):
+                return Sword("start")
+
+        sam = Character("Sam")
+        Wielder(sam)
+        sam.item = Staff()
+        self.assertIsInstance(sam.item, Staff)
+        with self.assertRaises(TagCompositionError) as refusal:
+            sam.item = "a stick"
+        self.assertIn("Sword | Staff", str(refusal.exception))
+
+    def test_a_union_of_a_tag_and_a_class_admits_either(self):
+        class Wielder(Tag):
+            @Tool(Weapon | Staff)
+            def item(agent, *, item):
+                return item
+
+        sam = Character("Sam")
+        Wielder(sam, item=Staff())                        # an instance of the class
+        sam.item = Forge(sam)                             # a member of the Tag
+        with self.assertRaises(TagCompositionError):
+            sam.item = Sword("plain")                     # neither
+
+    def test_self_reference_by_class_is_allowed(self):
+        class Buddy(Tag):
+            @Tool(Character)
+            def buddy(agent):
+                return agent
+
+        sam = Character("Sam")
+        Buddy(sam)
+        self.assertIs(sam.buddy, sam)
+
+    def test_a_kind_of_type_may_hold_a_tag_without_changing_its_truth(self):
+        class Catalogued(Tag):
+            @Tool(type)
+            def listed(agent):
+                return Weapon
+
+        sam = Character("Sam")
+        Catalogued(sam)
+        self.assertIs(sam.listed, Weapon)
+        self.assertEqual(bool(sam.listed), bool(Weapon))  # population truth, untouched
+        with self.assertRaises(TagCompositionError):
+            sam.listed = Sword()
+
+    def test_a_plain_class_with_a_protocol_marker_is_still_a_class(self):
+        class Marked:
+            _is_protocol = True
+
+        class Holding(Tag):
+            @Tool(Marked)
+            def thing(agent, *, thing):
+                return thing
+
+        sam = Character("Sam")
+        value = Marked()
+        Holding(sam, thing=value)
+        self.assertIs(sam.thing, value)
+
+    def test_a_failing_instance_test_is_a_named_composition_failure(self):
+        failure = RuntimeError("the instance test refused")
+
+        class CheckedMeta(type):
+            def __instancecheck__(kind, value):
+                if getattr(value, "reject", False):
+                    raise failure
+                return isinstance(value, Sword)
+
+        class Checked(metaclass=CheckedMeta):
+            pass
+
+        class Equipped(Tag):
+            @Tool(Checked)
+            def weapon(agent, *, weapon):
+                return weapon
+
+        rejected = Sword()
+        rejected.reject = True
+        sam = Character("Sam")
+        with self.assertRaises(TagCompositionError) as caught:
+            Equipped(sam, weapon=rejected)
+        self.assertIs(caught.exception.__cause__, failure)
+        self.assertIn("Equipped.weapon", str(caught.exception))
+        self.assertNotIn(sam, Equipped[:])
+        original = Sword()
+        Equipped(sam, weapon=original)
+        with self.assertRaises(TagCompositionError) as caught:
+            sam.weapon = rejected
+        self.assertIs(caught.exception.__cause__, failure)
+        self.assertIs(sam.weapon, original)
+
+    def test_an_interrupt_inside_the_instance_test_propagates_unchanged(self):
+        interruption = KeyboardInterrupt("stop")
+
+        class CheckedMeta(type):
+            def __instancecheck__(kind, value):
+                if getattr(value, "interrupt", False):
+                    raise interruption
+                return isinstance(value, Sword)
+
+        class Checked(metaclass=CheckedMeta):
+            pass
+
+        class Equipped(Tag):
+            @Tool(Checked)
+            def weapon(agent, *, weapon):
+                return weapon
+
+        sam = Character("Sam")
+        Equipped(sam, weapon=Sword())
+        held = sam.weapon
+        interrupted = Sword()
+        interrupted.interrupt = True
+        with self.assertRaises(KeyboardInterrupt) as caught:
+            sam.weapon = interrupted
+        self.assertIs(caught.exception, interruption)
+        self.assertIs(sam.weapon, held)
 
 
 # ------------------------------------------------------------------
@@ -240,17 +432,17 @@ class Emptiness_Tests(unittest.TestCase):
         self.assertNotIn(charlie, Empty_Handed)
         self.assertFalse(hasattr(charlie, "weapon"))
 
-    def test_del_is_the_drop(self):
+    def test_del_is_the_drop_and_the_kind_stays(self):
         charlie = Character("Charlie")
         Fighter(charlie)
         del charlie.weapon
         self.assertFalse("weapon" @ charlie)
         self.assertIn(charlie, Fighter)
-        charlie.weapon = Forge(charlie, "new")            # the slot keeps its kind after the drop
+        charlie.weapon = Forge(charlie, "new")
         with self.assertRaises(TagCompositionError):
             charlie.weapon = Sword("a stick")
 
-    def test_the_declared_empty_hand_admits_none_at_parts_and_at_the_write(self):
+    def test_the_declared_empty_hand_admits_none_at_the_gaining_and_at_the_write(self):
         sam = Character("Sam")
         Squire(sam)
         self.assertTrue("weapon" @ sam)                   # the slot exists
@@ -264,15 +456,21 @@ class Emptiness_Tests(unittest.TestCase):
         del sam.weapon
         self.assertFalse("weapon" @ sam)
 
-    def test_the_empty_hand_may_be_written_after_the_tags(self):
+    def test_the_empty_hand_may_be_written_in_any_position(self):
         class Optional(Tag):
             @Tool(None | Weapon)
             def weapon(agent):
                 return None
 
-        sam = Character("Sam")
-        Optional(sam)
-        self.assertIsNone(sam.weapon)
+        class Optional_Class(Tag):
+            @Tool(Sword | None)
+            def weapon(agent):
+                return None
+
+        for tag in (Optional, Optional_Class):
+            sam = Character(tag.__name__)
+            tag(sam)
+            self.assertIsNone(sam.weapon)
 
 
 # ------------------------------------------------------------------
@@ -286,9 +484,12 @@ class Forge_Tests(unittest.TestCase):
         Fighter(charlie)
         plain = Sword("plain")
         with self.assertRaises(TagCompositionError):
-            charlie.weapon = plain                        # assignment Tags nothing: refused, not Tagged
+            charlie.weapon = plain                        # refused, not Tagged
         self.assertNotIn(plain, Weapon[:])
         self.assertFalse(isinstance(plain, Weapon))
+        sam = Character("Sam")
+        Swordsman(sam, weapon=plain)                      # admitted by class, still not Tagged
+        self.assertNotIn(plain, Weapon[:])
 
     def test_the_tools_own_gate_failure_keeps_its_name_and_refuses_the_bearer(self):
         class Holy(Tag):
@@ -366,17 +567,49 @@ class Declaration_Tests(unittest.TestCase):
         with self.assertRaises(TagDeclarationError) as refusal:
             Tool()
         self.assertIn("@Tool(Weapon)", str(refusal.exception))
+        self.assertIn("@Tool(Sword)", str(refusal.exception))
 
-    def test_a_kind_is_a_tag_recognised_by_its_metaclass(self):
-        for not_a_tag in (Sword, int, Sword("x"), Tag, "Weapon"):
-            with self.subTest(kind=not_a_tag):
+    def test_a_bare_tool_on_a_builder_is_refused_with_the_spelling(self):
+        with self.assertRaises(TagDeclarationError) as refusal:
+            class Invalid(Tag):
+                @Tool
+                def weapon(agent):
+                    return Forge(agent)
+        self.assertIn("parentheses", str(refusal.exception))
+
+    def test_the_roots_name_no_kind(self):
+        with self.assertRaises(TagDeclarationError) as refusal:
+            Tool(Tag)
+        self.assertIn("root Tag", str(refusal.exception))
+        with self.assertRaises(TagDeclarationError) as refusal:
+            Tool(object)
+        self.assertIn("plain @Record", str(refusal.exception))
+
+    def test_a_kind_is_a_tag_or_a_class(self):
+        for not_a_kind in (7, Sword(), "Weapon", list[int], Weapon[:], ~Weapon):
+            with self.subTest(kind=not_a_kind):
+                with self.assertRaises(TagDeclarationError):
+                    Tool(not_a_kind)
+
+    def test_typing_constructs_are_refused(self):
+        class SwordProtocol(Protocol):
+            def Swing(sword): ...
+
+        @runtime_checkable
+        class RuntimeSwordProtocol(Protocol):
+            def Swing(sword): ...
+
+        for construct in (Any, Protocol, SwordProtocol, RuntimeSwordProtocol):
+            with self.subTest(construct=construct):
                 with self.assertRaises(TagDeclarationError) as refusal:
-                    Tool(not_a_tag)
-                self.assertIn("not a Tag", str(refusal.exception))
+                    Tool(construct)
+                self.assertIn("typing construct", str(refusal.exception))
 
     def test_none_alone_names_no_kind(self):
         with self.assertRaises(TagDeclarationError):
             Tool(None)
+        with self.assertRaises(TagDeclarationError):
+            Tool(type(None))
 
     def test_a_pin_is_not_a_kind(self):
         @Pin
@@ -393,66 +626,22 @@ class Declaration_Tests(unittest.TestCase):
                 with self.assertRaises(TagDeclarationError) as refusal:
                     Tool(population)
                 self.assertIn("@Tool(Weapon, Blessed)", str(refusal.exception))
-                self.assertIn("@Tool(Weapon | None)", str(refusal.exception))
+                self.assertIn("Base Tag", str(refusal.exception))
 
-    def test_tool_over_other_kinds_is_refused(self):
-        with self.assertRaises(TagDeclarationError) as refusal:
-            class Doing(Tag):
-                @Tool(Weapon)
-                @Action
-                def weapon(agent):
-                    return Forge(agent)
-        self.assertIn("an Action", str(refusal.exception))
+    def test_tool_over_other_kinds_is_refused_in_either_order(self):
+        for kind in (Action, Report, Operation, Pre, Post, Imprint, Rip, Delete):
+            for tool_outside in (False, True):
+                with self.subTest(kind=kind.__name__, tool_outside=tool_outside):
+                    with self.assertRaises(TagDeclarationError):
+                        def weapon(agent):
+                            return Forge(agent)
 
-        with self.assertRaises(TagDeclarationError):
-            class Promising(Tag):
-                @Tool(Weapon)
-                @Post
-                def weapon(agent):
-                    return True
+                        if tool_outside:
+                            member = Tool(Sword)(kind(weapon))
+                        else:
+                            member = kind(Tool(Sword)(weapon))
 
-        with self.assertRaises(TagDeclarationError):
-            class Sharing(Tag):
-                @Tool(Weapon)
-                @Report
-                def weapon(tag):
-                    return Forge(tag)
-
-        with self.assertRaises(TagDeclarationError):
-            class Leaving(Tag):
-                @Tool(Weapon)
-                @Rip
-                def weapon(agent):
-                    pass
-
-        with self.assertRaises(TagDeclarationError):
-            class Freeing(Tag):
-                @Tool(Weapon)
-                @Delete
-                def weapon(agent):
-                    pass
-
-    def test_other_kinds_over_tool_are_refused(self):
-        with self.assertRaises(TagDeclarationError):
-            class Doing(Tag):
-                @Action
-                @Tool(Weapon)
-                def weapon(agent):
-                    return Forge(agent)
-
-        with self.assertRaises(TagDeclarationError):
-            class Promising(Tag):
-                @Post
-                @Tool(Weapon)
-                def weapon(agent):
-                    return True
-
-        with self.assertRaises(TagDeclarationError):
-            class Leaving(Tag):
-                @Rip
-                @Tool(Weapon)
-                def weapon(agent):
-                    return Forge(agent)
+                        type("Invalid", (Tag,), {"weapon": member})
 
     def test_tool_on_a_value_or_a_classmethod_is_refused(self):
         with self.assertRaises(TagDeclarationError):
@@ -595,7 +784,7 @@ class Stacking_Tests(unittest.TestCase):
 
 
 # ------------------------------------------------------------------
-# Overlay on a Tool slot
+# Overlay on a Tool slot: ordinary, as any Record
 # ------------------------------------------------------------------
 
 
@@ -615,31 +804,44 @@ class Overlay_Tests(unittest.TestCase):
         with self.assertRaises(TagCompositionError):
             pat.weapon = plain                            # Blessed is asked now
 
-    def test_a_tool_slot_stays_a_tool_slot_against_a_plain_record(self):
+    def test_a_shape_may_change_the_kind_to_a_class(self):
+        class Collector(Fighter):
+            @Tool(Sword)
+            def weapon(agent, stored):
+                return stored
+
+        pat = Character("Pat")
+        Collector(pat)
+        del Weapon[pat.weapon]
+        rogue = pat.weapon
+        pat.weapon = Sword("plain")                       # the Shape's kind is the slot's now
+        pat.weapon = rogue
+        with self.assertRaises(TagCompositionError):
+            pat.weapon = Staff()
+
+    def test_a_plain_record_from_a_shape_ends_the_rule(self):
         class Rearmed(Fighter):
             @Record
             def weapon(agent, stored):
                 return stored
 
-        charlie = Character("Charlie")
-        with self.assertRaises(TagCompositionError) as refusal:
-            Rearmed(charlie)
-        self.assertIn("a Tool slot stays a Tool slot", str(refusal.exception))
-        self.assertIn("@Delete", str(refusal.exception))
-        self.assertNotIn(charlie, Fighter)                # the whole call rolled back
+        pat = Character("Pat")
+        Rearmed(pat)
+        self.assertIn(pat.weapon, Weapon[:])
+        pat.weapon = "a stick"                            # a Record is a Record again
+        self.assertEqual(pat.weapon, "a stick")
 
-    def test_a_tool_slot_stays_a_tool_slot_against_an_action(self):
+    def test_an_action_from_a_shape_ends_the_rule(self):
         class Smith(Fighter):
             @Action
             def weapon(agent):
                 return Forge(agent)
 
-        charlie = Character("Charlie")
-        with self.assertRaises(TagCompositionError) as refusal:
-            Smith(charlie)
-        self.assertIn("an Action cannot take it", str(refusal.exception))
+        pat = Character("Pat")
+        Smith(pat)
+        self.assertIn(pat.weapon(), Weapon[:])            # a smith: every call forges
 
-    def test_an_independent_tag_cannot_take_the_slot_either_and_no_warning_precedes_the_refusal(self):
+    def test_an_independent_record_replaces_with_the_usual_warning_and_ends_the_rule(self):
         class Other(Tag):
             @Record
             def weapon(agent):
@@ -647,15 +849,29 @@ class Overlay_Tests(unittest.TestCase):
 
         charlie = Character("Charlie")
         Fighter(charlie)
-        held = charlie.weapon
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", TagOverwriteWarning)
-            with self.assertRaises(TagCompositionError):
-                Other(charlie)
-        self.assertIs(charlie.weapon, held)
-        self.assertNotIn(charlie, Other)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", TagOverwriteWarning)
+            Other(charlie)
+        self.assertTrue(any(issubclass(w.category, TagOverwriteWarning) for w in caught))
+        self.assertEqual(charlie.weapon, "a stick")
+        charlie.weapon = 3                                # no kind any more
 
-    def test_delete_frees_the_slot_and_a_later_record_may_take_the_name(self):
+    def test_an_independent_action_over_the_record_keeps_the_cross_kind_refusal(self):
+        class Other(Tag):
+            @Action
+            def weapon(agent):
+                return "a stick"
+
+        charlie = Character("Charlie")
+        Fighter(charlie)
+        held = charlie.weapon
+        with self.assertRaises(TagCompositionError):
+            Other(charlie)
+        self.assertIs(charlie.weapon, held)
+        with self.assertRaises(TagCompositionError):
+            charlie.weapon = Sword("a stick")             # the rule stands after the refused call
+
+    def test_delete_frees_the_slot(self):
         class Unarmed(Fighter):
             @Delete
             def weapon(agent):
@@ -809,6 +1025,21 @@ class Lifecycle_Tests(unittest.TestCase):
         del Conscript[charlie]
         self.assertFalse("weapon" @ charlie)
 
+    def test_an_imprint_may_fill_an_empty_hand(self):
+        class Trained(Tag):
+            @Tool(Weapon | None)
+            def weapon(agent, stored=None):
+                return stored
+
+            @Imprint
+            def Equip(agent):
+                if agent.weapon is None:
+                    agent.weapon = Forge(agent)
+
+        erin = Character("Erin")
+        Trained(erin)
+        self.assertIn(erin.weapon, Weapon[:])
+
 
 # ------------------------------------------------------------------
 # Sharing, nesting, and the two doors
@@ -857,7 +1088,7 @@ class Sharing_Tests(unittest.TestCase):
         with self.assertRaises(TagCompositionError):
             charlie.weapon.gem = Gem()
 
-    def test_a_bearers_action_reads_its_tools_secret_fails_closed(self):
+    def test_a_bearers_action_reading_its_tools_secret_fails_closed(self):
         class Vault(Tag):
             @Secret
             @Record
@@ -885,14 +1116,36 @@ class Sharing_Tests(unittest.TestCase):
         with self.assertRaises(AttributeError):
             ann.Crack()
 
+    def test_the_slot_holds_strongly_and_the_type_retains_nothing(self):
+        first, second = Character("First"), Character("Second")
+        sword, staff = Sword(), Staff()
+
+        class Staffed(Tag):
+            @Tool(Staff)
+            def weapon(agent, *, weapon):
+                return weapon
+
+        Swordsman(first, weapon=sword)
+        Staffed(second, weapon=staff)
+        with self.assertRaises(TagCompositionError):
+            first.weapon = staff
+        with self.assertRaises(TagCompositionError):
+            second.weapon = sword
+        first_ref, sword_ref = weakref.ref(first), weakref.ref(sword)
+        del first, sword
+        gc.collect()
+        self.assertIsNone(first_ref())
+        self.assertIsNone(sword_ref())                    # the slot held it; nothing else does
+        self.assertIs(second.weapon, staff)
+
 
 # ------------------------------------------------------------------
-# Hosts, presence, runtime types
+# Hosts, presence, runtime types, protocol names
 # ------------------------------------------------------------------
 
 
 class Host_Tests(unittest.TestCase):
-    def test_a_host_write_hook_keeps_its_behaviour_and_admission_still_runs(self):
+    def test_a_host_write_hook_keeps_its_behaviour_and_admission_runs_first(self):
         writes = []
 
         class Logging_Host:
@@ -909,6 +1162,19 @@ class Host_Tests(unittest.TestCase):
         self.assertEqual(writes, [])                      # refused before the host's hook ran
         lou.weapon = Forge(lou, "two")
         self.assertEqual(writes, ["weapon"])
+
+    def test_a_frozen_dataclass_host_gains_through_the_kernel_path(self):
+        @dataclass(frozen=True)
+        class Frozen:
+            name: str
+
+        fay = Frozen("Fay")
+        sword = Sword()
+        Swordsman(fay, weapon=sword)
+        self.assertIs(fay.weapon, sword)
+        with self.assertRaises(TagCompositionError):
+            object.__setattr__(fay, "weapon", Staff())
+        self.assertIs(fay.weapon, sword)
 
     def test_presence_answers_for_the_slot_without_running_anything(self):
         charlie = Character("Charlie")
@@ -943,6 +1209,49 @@ class Host_Tests(unittest.TestCase):
         charlie.weapon.damage = 0
         self.assertFalse(Contract.Holds(charlie.weapon))
         self.assertTrue(Contract.Holds(charlie))          # nothing on Charlie promised about the sword
+
+    def test_a_tool_under_a_protocol_name_keeps_the_languages_hook(self):
+        class Given(Tag):
+            @Tool(Sword)
+            def __rmatmul__(agent, *, tool):
+                return tool
+
+            @Record
+            def visible(agent):
+                return None
+
+        sam = Character("Sam")
+        sword = Sword()
+        Given(sam, tool=sword)
+        self.assertIs(sam.__rmatmul__, sword)
+        self.assertTrue("__rmatmul__" @ sam)              # presence still answers through the type's hook
+        self.assertTrue("visible" @ sam)
+        self.assertFalse("missing" @ sam)
+        with self.assertRaises(TagCompositionError):
+            sam.__rmatmul__ = Staff()                     # an ordinary write is checked
+        self.assertIs(sam.__rmatmul__, sword)
+        object.__setattr__(sam, "__rmatmul__", None)      # the documented kernel bypass on a protocol name
+        self.assertIsNone(sam.__rmatmul__)
+        self.assertTrue("__rmatmul__" @ sam)
+
+    def test_a_tool_under_getattribute_does_not_replace_lookup(self):
+        class Given(Tag):
+            @Tool(Sword)
+            def __getattribute__(agent, *, tool):
+                return tool
+
+            @Record
+            def visible(agent):
+                return "ordinary lookup"
+
+        sam = Character("Sam")
+        sword = Sword()
+        Given(sam, tool=sword)
+        self.assertIs(sam.__getattribute__, sword)
+        self.assertEqual(sam.visible, "ordinary lookup")
+        with self.assertRaises(TagCompositionError):
+            sam.__getattribute__ = Staff()
+        self.assertEqual(sam.visible, "ordinary lookup")
 
 
 if __name__ == "__main__":

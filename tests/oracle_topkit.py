@@ -350,6 +350,15 @@ class Armed(Tag):
         return gear
 
 
+class Carrying(Tag):
+    """A Tool slot kinded by a class (STEP-SPEC-36): any Agent-hosted
+    object, tagged or not; the bearer itself included."""
+
+    @Tool(Agent)
+    def pack(agent) -> object:
+        return Agent(f"{agent.name}'s pack")
+
+
 class Slipping(Tag):
     """An Imprint that fails after commit; the Tag stays."""
 
@@ -877,6 +886,33 @@ def Exercise_Tools(
     Model_Rip(model, Armed)
     assert "gear" @ target, (context, "Rip of the bearer dropped the slot")
     del target.gear                                                   # the drop, so the next exercise starts clean
+
+    if Carrying in model.active:
+        return
+
+    Carrying(target)
+    Model_Apply(model, Carrying)
+    pack = target.pack
+    assert type(pack) is Agent and "pack" @ target, (context, "a class kind did not build its value")
+
+    for misfit in (object(), None, "a stick"):
+        try:
+            target.pack = misfit
+        except TagCompositionError:
+            pass
+        else:
+            raise AssertionError((context, "a class kind admitted", misfit))
+
+        assert target.pack is pack, (context, "a refused write changed the slot")
+
+    target.pack = target                                              # self-reference: the bearer is an Agent instance
+    assert target.pack is target, (context, "self-reference by class was refused")
+    target.pack = stick                                               # a Rogue Gear is still an Agent instance
+    assert target.pack is stick, (context, "a class kind refused a Rogue of some Tag")
+
+    del Carrying[target]
+    Model_Rip(model, Carrying)
+    del target.pack
 
 
 def Weak_Field_Probe(

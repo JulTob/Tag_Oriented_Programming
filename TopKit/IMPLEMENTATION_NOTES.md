@@ -21,7 +21,7 @@ tracks splitting them by idea without changing semantics.
 | `overlay.py` | laying one Tag's declarations over a state; materializing Records |
 | `contracts.py` | strict verdicts, binding conditions, `Contract` |
 | `constants.py` | protecting Constant bindings without freezing their values |
-| `tools.py` | Tool slots: a Record's kind, admission at the gaining and at every write |
+| `tools.py` | Tool slots: a Record's kind, a Tag or a class, admission at the gaining and at every write |
 | `presence.py` | Contribution presence without evaluating values or conditions |
 | `transactions.py` | the tagging sequence and the call boundary |
 | `lifecycle.py` | Rip, teardown, `At_Exit` |
@@ -285,13 +285,19 @@ rollback target.
   passes `_refuse_misfit` first, `object.__setattr__` included, exactly
   where `_Binding_Write` already intercepts a host's own `__setattr__`;
   `_materialize` asks the same question of what the builder returned.
-  The gate reads the kind from the Agent's state, not from the type, so
-  two Agents whose slots differ only in kind share one runtime type. A
-  Tool slot is closed to a change of kind: `_install_record` and
-  `_install_action` refuse a plain Record or an Action over it before
-  any Overwrite Warning, and `@Delete` is the one way to free it.
-  Admission asks membership (`tag in state.active`), never soundness,
-  and is a gate: a tool that leaves its Tag stays seated.
+  A kind is terms, all holding, each a tuple of alternatives: a Tag asks
+  `tag in state.active` (membership now, never soundness, never
+  `isinstance`), a class asks `isinstance`, with a raising instance test
+  wrapped as a Composition Failure and an interrupt left alone. The gate
+  reads the kind from the Agent's state, not from the type, so Agents
+  whose slots differ only in kind share one runtime type. The rule ends
+  as any Record declaration does: a plain Record or an Action at the
+  name pops the entry, as `@Delete` does. A Tool under a protocol name
+  gets no descriptor, since one there would replace the language's own
+  hook (`__rmatmul__` is presence); instead the write hook is forced on
+  (`_binding_write_hooks(..., force=True)`), so ordinary writes are
+  checked and `object.__setattr__` on that name is the documented
+  bypass.
 
 - **The oracle** (`tests/oracle_topkit.py`): an independent model of
   the laws driven by a random walk; `tests/test_oracle.py` runs a short

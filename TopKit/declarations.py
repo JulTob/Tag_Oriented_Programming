@@ -741,7 +741,12 @@ def _has_flag(
 def _tool_kind_of(
         attribute: Any,
         ) -> Any:
-    """The kind a ``@Tool`` declaration names (a ``tools._Kind``), or None."""
+    """The kind a ``@Tool`` declaration names (a ``tools._Kind``), or None.
+    Looks through a classmethod, a staticmethod and a Report's builder, so
+    a mark hidden under another declaration is still seen and refused."""
+
+    if isinstance(attribute, Report):
+        attribute = attribute.builder
 
     function = getattr(
             attribute,

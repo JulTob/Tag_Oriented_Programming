@@ -885,13 +885,6 @@ def _install_action(
             name,
             "an Action",
             )
-    _refuse_member_over_tool(
-            state,
-            tag,
-            name,
-            "an Action",
-            )
-
     if state.pinned is not None:
         _refuse_tag_member(
                 state,
@@ -948,6 +941,7 @@ def _install_action(
             underlay,
             )
     state.action_origins[name] = tag
+    state.tools.pop(name, None)   # an Action at the name ends a Tool slot's rule (ordinary Overlay)
     _restore(state, name)
     state.published.discard(name)
 
@@ -995,15 +989,6 @@ def _install_record(
         state.action_origins.pop(name)
 
     kind = _tool_kind_of(builder)
-
-    if kind is None:
-        _refuse_member_over_tool(   # refused before any warning about a replacement
-                state,
-                tag,
-                name,
-                "a plain Record",
-                )
-
     prior = state.records.get(name)
 
     if (
@@ -1021,35 +1006,12 @@ def _install_record(
 
     if kind is not None:
         state.tools[name] = (tag, kind)   # the latest Tool declaration's kind is the slot's
+    else:
+        state.tools.pop(name, None)   # a plain Record at the name ends the rule (ordinary Overlay)
 
     state.records[name] = tag
     _restore(state, name)
     state.published.discard(name)
-
-
-def _refuse_member_over_tool(
-        state: _State,
-        tag: type,
-        name: str,
-        what: str,
-        ) -> None:
-    """A Tool slot stays a Tool slot (STEP-SPEC-36): a later Layer may
-    redeclare it only as a Tool, with its own kind, or free it with
-    ``@Delete``. A thing one has needs one identity; an Action or a plain
-    Record at that name would drop the guard in silence."""
-
-    slot = state.tools.get(name)
-
-    if slot is None:
-        return
-
-    origin, kind = slot
-    raise TagCompositionError(
-            f"{tag.__name__}.{name}: {origin.__name__}.{name} is a Tool of"
-            f" {kind.Spelled()}; a Tool slot stays a Tool slot, and {what}"
-            " cannot take it. Redeclare it with @Tool(...), or free it with"
-            " @Delete"
-            )
 
 
 def _restore(

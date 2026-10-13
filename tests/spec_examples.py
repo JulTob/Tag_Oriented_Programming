@@ -282,3 +282,18 @@ def Run() -> None:
     sam = Character("Sam"); Squire(sam); assert "weapon" @ sam and sam.weapon is None
     try: Tool(Weapon | Fighter); raise SystemExit("a population is not a kind")
     except TagDeclarationError: pass
+    class Templar(Tag):
+        @Tool(Sword, Weapon)
+        def weapon(agent, *, weapon): return weapon
+    tess = Character("Tess"); forged = Sword("Tess's sword"); Weapon(forged); Templar(tess, weapon=forged)
+    for misfit in (Sword("plain"), fay):                     # a Sword that is no Weapon; a Weapon that is no Sword
+        if misfit is fay: Weapon(fay)
+        try: tess.weapon = misfit; raise SystemExit("both kinds must hold")
+        except TagCompositionError: pass
+    class Collector(Tag):
+        @Tool(Sword)
+        def weapon(agent, *, weapon): return weapon
+    cole = Character("Cole"); Collector(cole, weapon=Sword("untagged")); assert cole.weapon not in Weapon[:]
+    for root in (Tag, object):
+        try: Tool(root); raise SystemExit("the roots name no kind")
+        except TagDeclarationError: pass

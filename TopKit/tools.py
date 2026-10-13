@@ -1,12 +1,21 @@
-"""Tools: a Record whose value is an Agent of the Tags its declaration
-names. What an Agent *has* (STEP-SPEC-36), beside what it *is* (a Tag)
-and what it is *currently* (a Record).
+"""Tools: a Record whose value is an object of a declared kind. What an
+Agent *has* (STEP-SPEC-36), beside what it *is* (a Tag) and what it is
+*currently* (a Record).
+
+A kind is one or more **terms**, every one of which must hold; a term is
+one or more alternatives, any of which admits the value:
+
+    @Tool(Weapon)                # a member of the Tag Weapon, now
+    @Tool(Sword)                 # an instance of the Python class Sword
+    @Tool(Sword, Weapon)         # both: a Sword that is a Weapon
+    @Tool(Sword | Staff)         # either class (Python's own union)
+    @Tool(Weapon | None)         # the empty hand, declared
 
 Three laws, and nothing else:
 
 1. the slot has a kind, checked at admission: when the slot is gained,
-   and at every write, including ``object.__setattr__``;
-2. the slot is never empty unless its kind says so, ``@Tool(Weapon | None)``;
+   and at every write, ``object.__setattr__`` included;
+2. the slot is never empty unless its kind says so, ``| None``;
 3. the slot never Tags: the forge Tags the object, in plain sight.
 """
 
@@ -16,6 +25,7 @@ from types import NoneType
 from types import UnionType
 from typing import Any
 from typing import NamedTuple
+from typing import Protocol
 from typing import Union
 from typing import get_args
 from typing import get_origin
@@ -38,21 +48,41 @@ from .state import _state_of
 
 
 class _Kind(NamedTuple):
-    """What a Tool slot admits: a member of every Tag named, and the empty
-    hand only when the declaration wrote ``| None``."""
+    """What a Tool slot admits. Every term holds; a term holds when any
+    of its alternatives admits the value. An alternative is a Tag (a
+    member now) or a class (an instance). ``empty`` admits None."""
 
-    tags: tuple[type, ...]
+    terms: tuple[tuple[Any, ...], ...]
     empty: bool
 
     def Spelled(
             kind,
             ) -> str:
-        names = ", ".join(
-                tag.__name__
-                for tag in kind.tags
+        spelled = ", ".join(
+                _spelled_term(term)
+                for term in kind.terms
                 )
 
-        return f"{names} | None" if kind.empty else names
+        return f"{spelled} | None" if kind.empty else spelled
+
+
+def _spelled_term(
+        term: tuple[Any, ...],
+        ) -> str:
+    return " | ".join(
+            _spelled(alternative)
+            for alternative in term
+            )
+
+
+def _spelled(
+        part: Any,
+        ) -> str:
+    return getattr(
+            part,
+            "__name__",
+            repr(part),
+            )
 
 
 _DESCRIBED = {
@@ -68,6 +98,8 @@ _DESCRIBED = {
         "rip": "a Rip protocol",
         }
 
+_SPELLINGS = "a Tag, @Tool(Weapon), or a class, @Tool(Sword)"
+
 
 # ------------------------------------------------------------------
 # Declaring
@@ -77,7 +109,7 @@ _DESCRIBED = {
 def _parts_of(
         given: Any,
         ) -> tuple[Any, ...]:
-    """``Weapon | None`` is the language's own class union: its parts."""
+    """``Sword | None`` is the language's own class union: its parts."""
 
     if get_origin(given) in (UnionType, Union):
         return get_args(given)
@@ -85,27 +117,86 @@ def _parts_of(
     return (given,)
 
 
-def _spelled(
+def _is_root_tag(
         part: Any,
-        ) -> str:
-    return getattr(
+        ) -> bool:
+    from .tags import Tag   # tags imports this module's neighbours
+
+    return part is Tag
+
+
+def _is_typing_construct(
+        part: Any,
+        ) -> bool:
+    """``Any`` and ``Protocol`` classes have no plain instance test."""
+
+    if part is Any:
+        return True
+
+    return Protocol in getattr(
             part,
-            "__name__",
-            repr(part),
+            "__mro__",
+            (),
             )
+
+
+def _refuse_as_kind(
+        part: Any,
+        ) -> None:
+    """Why ``part`` cannot be an alternative of a kind, if it cannot."""
+
+    if _is_tag(part):
+        if _is_pin(part):
+            raise TagDeclarationError(
+                    f"@Tool({part.__name__}): {part.__name__} is a Pin, whose"
+                    " Agents are Tags; a Tool slot holds an object (§1.9)"
+                    )
+
+        return
+
+    if _is_root_tag(part):
+        raise TagDeclarationError(
+                "@Tool(Tag): the root Tag names no kind; name the Tag the"
+                " held thing is, @Tool(Weapon)"
+                )
+
+    if part is object:
+        raise TagDeclarationError(
+                "@Tool(object): a plain @Record already holds any object;"
+                " name the class the held thing is, @Tool(Sword)"
+                )
+
+    if _is_typing_construct(part):
+        raise TagDeclarationError(
+                f"@Tool({_spelled(part)}): a typing construct has no instance"
+                f" test; name {_SPELLINGS}"
+                )
+
+    if not isinstance(part, type):
+        raise TagDeclarationError(
+                f"@Tool({_spelled(part)}): {_spelled(part)} is not a Tag or a"
+                f" class; a Tool slot holds an object of a kind: {_SPELLINGS}"
+                )
 
 
 def _kind_from(
         kinds: tuple[Any, ...],
         ) -> _Kind:
-    """Read the Tags, and the ``None``, a ``@Tool(...)`` names."""
+    """Read the terms, their alternatives, and the ``None``, that a
+    ``@Tool(...)`` names."""
 
     if not kinds:
         raise TagDeclarationError(
-                "@Tool names what the held thing is: @Tool(Weapon)"
+                f"@Tool names what the held thing is: {_SPELLINGS}"
                 )
 
-    tags: list[type] = []
+    if len(kinds) == 1 and _is_builder_like(kinds[0]):
+        raise TagDeclarationError(
+                f"@Tool needs its kind in parentheses, {_SPELLINGS}, above"
+                " the builder"
+                )
+
+    terms: list[tuple[Any, ...]] = []
     empty = False
 
     for given in kinds:
@@ -113,59 +204,69 @@ def _kind_from(
             raise TagDeclarationError(
                     "@Tool: a population is not a kind (a Tag in an operator"
                     " seat, as in Weapon | Blessed, ~Weapon or Weapon[:]);"
-                    " write @Tool(Weapon, Blessed) for both, @Tool(Weapon | None)"
-                    " for an empty hand"
+                    " write @Tool(Weapon, Blessed) for both, a common Base Tag"
+                    " for either, @Tool(Weapon | None) for an empty hand"
                     )
+
+        alternatives: list[Any] = []
 
         for part in _parts_of(given):
             if part is NoneType:
                 empty = True
                 continue
 
-            if not _is_tag(part):
-                raise TagDeclarationError(
-                        f"@Tool({_spelled(part)}): {_spelled(part)} is not a"
-                        " Tag; a Tool slot holds an Agent of a Tag"
-                        )
+            _refuse_as_kind(part)
 
-            if _is_pin(part):
-                raise TagDeclarationError(
-                        f"@Tool({part.__name__}): {part.__name__} is a Pin,"
-                        " whose Agents are Tags; a Tool slot holds an object"
-                        " (§1.9)"
-                        )
+            if part not in alternatives:
+                alternatives.append(part)
 
-            if part not in tags:
-                tags.append(part)
+        if alternatives:
+            terms.append(tuple(alternatives))
 
-    if not tags:
+    if not terms:
         raise TagDeclarationError(
-                "@Tool(None) names no Tag; a kind is one or more Tags,"
-                " @Tool(Weapon | None) for an empty hand"
+                "@Tool(None) names no kind; a kind is a Tag or a class,"
+                " @Tool(Weapon | None) or @Tool(Sword | None) for an empty"
+                " hand"
                 )
 
     return _Kind(
-            tuple(tags),
+            tuple(terms),
             empty,
+            )
+
+
+def _is_builder_like(
+        given: Any,
+        ) -> bool:
+    """A bare ``@Tool`` on a def hands the def itself to ``Tool``."""
+
+    if isinstance(given, (classmethod, staticmethod, Report)):
+        return True
+
+    return (
+            callable(given)
+            and not isinstance(given, type)
+            and not _is_tag(given)
+            and hasattr(given, "__code__")
             )
 
 
 def Tool(
         *kinds: Any,
         ) -> Any:
-    """Mark a Record whose value is an Agent of the Tags named: what the
+    """Mark a Record whose value is an object of the kinds named: what the
     Agent *has*. ``@Tool(Weapon)`` alone declares the Record; ``@Record``
-    may be written as well and restates it. ``@Tool(Weapon | None)``
-    declares a slot that may be empty. Stacks with ``@Constant``,
-    ``@Secret`` and ``@Public`` in either order::
+    may be written as well and restates it. A kind is a Tag (a member,
+    now) or a Python class (an instance); several kinds all hold;
+    ``| None`` declares a slot that may be empty. Stacks with
+    ``@Constant``, ``@Secret`` and ``@Public`` in either order::
 
         class Fighter(Tag):
 
-            @Tool(Weapon)
-            def weapon(agent):
-                sword = Sword(f"{agent.name}'s sword")
-                Weapon(sword)                   # the forge Tags it; the slot never does
-                return sword
+            @Tool(Sword, Weapon)        # a Sword that is a Weapon
+            def weapon(agent, *, weapon):
+                return weapon           # the forge Tagged it; the slot never does
     """
 
     kind = _kind_from(kinds)
@@ -225,6 +326,70 @@ def _shown(
     return f"{text} ({type(value).__name__})"
 
 
+def _admits(
+        alternative: Any,
+        value: Any,
+        where: str,
+        ) -> bool:
+    """One alternative's answer: a Tag asks membership now, a class asks
+    the language's own instance test."""
+
+    if _is_tag(alternative):
+        held = _state_of(value)
+
+        return (
+                held is not None
+                and alternative in held.active
+                )
+
+    try:
+        return isinstance(value, alternative)
+    except Exception as error:   # a metaclass's own __instancecheck__ may refuse
+        raise TagCompositionError(
+                f"{where}: the instance test of {alternative.__name__} failed:"
+                f" {type(error).__name__}: {error}"
+                ) from error
+
+
+def _left(
+        term: tuple[Any, ...],
+        value: Any,
+        ) -> Any:
+    """The Tag of the term the value once belonged to, if any: a Rogue."""
+
+    held = _state_of(value)
+
+    if held is None:
+        return None
+
+    for alternative in term:
+        if _is_tag(alternative) and alternative in held.ever:
+            return alternative
+
+    return None
+
+
+def _advice(
+        term: tuple[Any, ...],
+        built: bool,
+        ) -> str:
+    tags = [
+            alternative
+            for alternative in term
+            if _is_tag(alternative)
+            ]
+
+    if tags:
+        first = tags[0].__name__
+
+        if built:
+            return f"Tag it in the builder, {first}(...)"
+
+        return f"Tag it first, {first}(...), or hand over a {first}"
+
+    return f"Hand over a {_spelled_term(term)}"
+
+
 def _refuse_misfit(
         state: Any,
         name: str,
@@ -232,9 +397,9 @@ def _refuse_misfit(
         agent: object,
         built: bool = False,
         ) -> None:
-    """Admit only the slot's kind: a member of every Tag, never the
-    bearer, and None only where the kind says so. ``built`` words the
-    refusal for what a builder returned rather than for a write."""
+    """Admit only the slot's kind, and None only where the kind says so.
+    ``built`` words the refusal for what a builder returned rather than
+    for a write."""
 
     slot = None if state is None else state.tools.get(name)
 
@@ -251,7 +416,7 @@ def _refuse_misfit(
         if built:
             raise TagCompositionError(
                     f"{where} returned None; its slot is never empty: return"
-                    f" a Target, drop with del agent.{name}, or declare the"
+                    f" a value, drop with del agent.{name}, or declare the"
                     f" empty hand, @Tool({kind.Spelled()} | None)"
                     )
 
@@ -261,36 +426,24 @@ def _refuse_misfit(
                 f" hand, @Tool({kind.Spelled()} | None)"
                 )
 
-    if value is agent:
-        first = kind.tags[0].__name__
-        raise TagCompositionError(
-                f"{where}: a Tool is something the Agent has, never the"
-                f" Agent; to make it a {first}, Tag it: {first}(agent)"
-                )
-
-    held = _state_of(value)
-
-    for tag in kind.tags:
-        if held is not None and tag in held.active:
+    for term in kind.terms:
+        if any(
+                _admits(alternative, value, where)
+                for alternative in term
+                ):
             continue
 
-        if held is not None and tag in held.ever:
-            raise TagCompositionError(
-                    f"{where} holds a Tool of {tag.__name__}; this"
-                    f" {type(value).__name__} left {tag.__name__}"
-                    )
+        left = _left(term, value)
 
-        if built:
-            advice = f"Tag it in the builder, {tag.__name__}(...)"
-        else:
-            advice = (
-                    f"Tag it first, {tag.__name__}(...), or hand over a"
-                    f" {tag.__name__}"
+        if left is not None:
+            raise TagCompositionError(
+                    f"{where} holds a Tool of {kind.Spelled()}; this"
+                    f" {type(value).__name__} left {left.__name__}"
                     )
 
         raise TagCompositionError(
-                f"{where} holds a Tool of {tag.__name__}; {_shown(value)} is"
-                f" not a {tag.__name__} now. {advice}"
+                f"{where} holds a Tool of {kind.Spelled()}; {_shown(value)} is"
+                f" not a {_spelled_term(term)} now. {_advice(term, built)}"
                 )
 
 
@@ -302,7 +455,12 @@ def _refuse_misfit(
 class _Tool_Gate:
     """A data descriptor for a Tool slot: every write passes admission,
     ``object.__setattr__`` included. Reads and deletions go to the member
-    beneath (a Constant or Secret gate) or to the Agent's own binding."""
+    beneath (a Constant or Secret gate) or to the Agent's own binding.
+
+    A slot under a protocol name (``__rmatmul__``) gets no gate, since a
+    descriptor there would replace the language's own hook; the write
+    hook guards its ordinary writes, and ``object.__setattr__`` on such a
+    name is a documented bypass, like writing the instance dictionary."""
 
     __slots__ = ("name", "member")
 

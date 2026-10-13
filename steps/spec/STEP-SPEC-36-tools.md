@@ -2,13 +2,16 @@
 
 - **STEP:** SPEC-36
 - **Desk:** spec
-- **Title:** Tools: class admission for a Record that holds an object
+- **Title:** Tools: admission by Tag or class for a Record that holds an object
 - **Author:** Julio Toboso (@JulTob); originally drafted with Claude Code
   from the Director's brief of 2026-10-12
-- **Review refinement:** Codex, 2026-10-12
-- **Status:** Brief
+- **Review refinement:** Codex, 2026-10-12; the Tag-or-class kind and
+  the implementation with Claude Code, 2026-10-13
+- **Status:** Vetting
 - **Created:** 2026-10-12
-- **Refs:** PR #143; STEP-SPEC-33 (Presence), STEP-SPEC-34 (Constant),
+- **Refs:** PR #143 (this STEP and its implementation); PR #159 (Codex's
+  class-admission runtime on #89's base, whose fate the Director decides);
+  STEP-SPEC-33 (Presence), STEP-SPEC-34 (Constant),
   STEP-SPEC-39 (Tagging Admission, Cleared, PR #78), STEP-SPEC-40
   (Agent contract truth, Brief, PR #151), STEP-SPEC-42 (condition names,
   Brief, PR #155), issues #30, #71 and #74, and PR #156
@@ -23,13 +26,15 @@ an Agent in its own right: a Fighter holds a sword, the sword may be
 Cursed, and the Fighter does not thereby become Cursed. This is *tener*,
 beside a Tag's *ser* and a Record's *estar*.
 
-An ordinary Record already holds such an object. This STEP proposes the
-modifier `@Tool(Class)` to check its **Python host class** when that
-Record is gained or assigned. It does not require Tag membership, create
-an object, or train it. Records read and calculate initial values;
-Actions and Imprints perform training and other effects.
+An ordinary Record already holds such an object. This STEP adds the
+modifier `@Tool(Kind)` to check the value's **kind** when that Record is
+gained or assigned. A kind is a **specific Tag**, asked as membership
+now, or a **Python class**, asked as the language's own instance test;
+several kinds all hold, and `| None` declares the empty hand. The mark
+does not create an object or train it. Records read and calculate
+initial values; Actions and Imprints perform training and other effects.
 
-```python proposed
+```python
 class Sword:
     def __init__(self, name):
         self.name = name
@@ -37,9 +42,9 @@ class Sword:
 
 class Fighter(Tag):
 
-    @Tool(Sword)                 # implies Record; @Record may restate it
+    @Tool(Sword, Weapon)         # a Sword that is a Weapon; @Record may restate it
     def weapon(agent, *, weapon):
-        return weapon           # a Sword instance, tagged or untagged
+        return weapon           # admitted if it is both, now
 
     @Post
     def Armed(agent):
@@ -58,15 +63,17 @@ sword = smith.Forge()            # an Action creates and Tags the Sword
 Fighter(charlie, weapon=sword)
 ```
 
-Here `Sword` is a Python class and `Weapon` is a Tag. A plain Sword passes
-Tool admission. The optional Post `Armed` additionally requires that it
-be a current, sound Weapon. Tagging does not change its host identity.
-A Weapon made from a different host class fails this Tool declaration.
+Here `Sword` is a Python class and `Weapon` is a Tag, and the slot asks
+both. `@Tool(Sword)` alone admits any Sword, tagged or not; `@Tool(Weapon)`
+alone admits any member of Weapon, whatever its class. The optional Post
+`Armed` additionally requires that the sword be a sound Weapon when it
+matters. Tagging does not change the sword's host identity.
 
-The added rule is **class compatibility at admission**, not continuous
-Tag membership or validity. A seated object that later leaves Weapon's
-Field stays held. Its host class still qualifies; the bearer's Posts
-control whether it can be used.
+The added rule is **kind at admission**, not continuous membership or
+validity. A seated object that later leaves Weapon's Field stays held: a
+class term still holds, and a Tag term is not re-asked. The bearer's
+Posts control whether it can be used; a Tag term refuses such a Rogue
+only if it is seated again.
 
 | Question | Spelling | Meaning |
 | --- | --- | --- |
@@ -75,29 +82,40 @@ control whether it can be used.
 | Do its promises hold? | `Contract.Holds(agent.weapon)` | Its visible Posts, independently of the bearer. |
 | Is an Agent Tool valid? | `bool(agent.weapon)` | Agent contract truth; plain objects retain Python truth. |
 
-**Implementation status.** `@Tool` is proposed, not exported by TopKit.
-The [wiki pattern](https://github.com/JulTob/Tag_Oriented_Programming/wiki/1.4-TopKit-Tools)
-uses ordinary Records today. This proposal follows the Director's approved
-Tagging order and truth decisions. Main may still implement earlier
-behavior until the prerequisite changes land; that history is not a
-second normative law for Tools.
+**Implementation status.** Implemented in PR #143 (`TopKit/tools.py`,
+exported as `TopKit.Tool`), with `tests/test_tools.py`, a Tool exercise
+in the oracle, the Specification's §1.3 "Tools" subsection, and the
+[wiki page](https://github.com/JulTob/Tag_Oriented_Programming/wiki/1.4-TopKit-Tools)
+running its `@Tool` blocks. The failure outcomes follow the tagging
+sequence the kit runs: whole-call rollback on `main` today, STEP-SPEC-39's
+retained Gains once PR #78 lands; the laws of this STEP do not change
+between the two.
 
 ## Director's decisions recorded in this revision
 
 The Director confirmed:
 
+- **Tag or class (2026-10-12, later the same day):** "a tool could be a
+  specific tag or a python class, not just the root class. Probably tags
+  are more flexible, but I also want to control by any object." A kind
+  is a specific Tag, asked as membership now, a Python class, asked as
+  the instance test, or both at once; the root `Tag` and `object` name no
+  kind. This revises the "Class, not Tag" bullet below: a Tag is a kind
+  again, and the distinction from a Tag's `isinstance` history is kept by
+  asking `value in T[:]`, never `isinstance(value, T)`.
 - **Ordinary Overlay:** Rip and dropping a value preserve the Tool rule;
   `@Delete` or a permitted plain Record/Action Overlay ends it. Constant
   provides stronger protection.
 - **Self-reference:** allowed when the bearer satisfies the declared
-  host class. An author may forbid it with a Post.
-- **Class, not Tag:** `@Tool(Weapon | None)` means instances of the Python
-  host class named Weapon, or None; no Weapon Tag membership is required.
+  kind. An author may forbid it with a Post.
+- **Class, not Tag** (revised the same day, above): a Python class is a
+  kind, and no Tag membership is implied by naming one.
 
 The names in the examples deliberately distinguish the host `Sword`
-from the Tag `Weapon`. This supersedes the first draft's Field-based
-admission rule and its automatic self-reference refusal. It does not
-reopen the meaning of `in`, Agent truth, or the accepted Tagging order.
+from the Tag `Weapon`, so that a reader sees which question each kind
+asks. This revision supersedes the first draft's automatic self-reference
+refusal and its closed slot. It does not reopen the meaning of `in`,
+Agent truth, or the accepted Tagging order.
 
 ## Motivation
 
@@ -112,8 +130,8 @@ when the value is incompatible with the declared class, preserving the
 old binding. It also makes None an explicit choice.
 
 Presence still does not mean "armed and safe". A non-optional, present
-Tool can be untagged, Rogue or deficient. Those questions belong to
-membership and Posts, not class admission.
+Tool can be deficient, and under a class kind untagged or Rogue. Those
+questions belong to membership and Posts, not to admission.
 
 ## Specification
 
@@ -123,7 +141,7 @@ membership and Posts, not class admission.
 | --- | --- |
 | **Tool** | An object held as the value of a Tool-marked Record; it may itself be an Agent. |
 | **Bearer** | The Agent receiving the Record; ownership is a domain question. |
-| **Declared class** | The Python host class admitted by the Record. It is not a Tag or population. |
+| **Declared kind** | What the Record admits: one or more terms, all holding. A term is a specific Tag (a member now) or a Python class (an instance), or alternatives of either joined by `\|`. Never a population. |
 | **Use** | Calling the held object's behavior, for example `charlie.weapon.Swing()`. |
 
 The Record occupies the existing `(Agent, name)` slot. There is no new
@@ -139,21 +157,26 @@ Pair-scope contributions would be separate topics.
    An explicitly marked Action, Report, Operation, Pre, Post, Imprint,
    Rip or Delete cannot also be a Tool. Conflicting marks are refused by
    the declaring Tag and Contribution name, in either decorator order.
-2. The initial spelling takes one Python host class or Python class
-   union. Union alternatives retain Python's **or** meaning:
-   `@Tool(Sword | Staff)` admits either class. `@Tool(Sword | None)` also
-   admits None. A declared base class admits its subclasses, including
-   the runtime classes TOP uses to actualize its instances.
-3. Tag classes, including the root Tag and Pins, are not host-class
-   requirements. Populations such as `Weapon | Blessed`, `~Weapon` and
-   `Weapon[:]` are refused too. This distinction prevents accidental use
-   of a Tag's historical `isinstance` behavior as a membership check.
-   Required current Tags belong in Posts.
-4. No argument, None alone, a non-class, or a union containing a Tag or
-   unsupported non-class is a Declaration Failure. The initial spelling
-   does not add multiple positional class requirements or reinterpret
-   class unions as conjunctions. Parameterized typing expressions and
-   protocols with no runtime instance test are outside this first scope.
+2. `@Tool(K1, ..., Kn)` takes one or more kinds, **all** of which must
+   hold: `@Tool(Sword, Weapon)` admits a Sword that is a Weapon now. Each
+   `Ki` is a specific Tag, a Python class, or the language's own union of
+   either, whose alternatives retain Python's **or** meaning:
+   `@Tool(Sword | Staff)` admits either class, `@Tool(Weapon | Staff)` a
+   member of Weapon or an instance of Staff. `| None` admits None. A
+   declared class admits its subclasses, including the runtime classes
+   TOP uses to actualize its instances; a declared Tag admits members of
+   its Shapes (§0.3, membership closed upward).
+3. A Tag term asks **membership now**, `value in T[:]`, sound or
+   defective, never a Tag's `isinstance` history. The root `Tag` and
+   `object` name no kind ("not just the root class"), nor does a Pin
+   (§1.9: a Pin's Agents are Tags). Populations such as `Weapon | Blessed`,
+   `~Weapon` and `Weapon[:]` are refused with the spelling meant:
+   `@Tool(Weapon, Blessed)` for both, a common Base Tag for either, since
+   `|` between Tags is the Field algebra (§2.5).
+4. No argument, None alone, a bare `@Tool` on the builder, an instance,
+   a non-class, or a typing construct with no plain instance test (`Any`,
+   a `Protocol`, a subscripted generic) is a Declaration Failure that
+   shows the spellings meant.
 5. Tool inside a Pin is refused: the pinned Tag receives a Report there,
    not an ordinary object Agent's Record.
 6. Secret, Public and Constant stack with Tool in either order, retaining
@@ -170,20 +193,25 @@ Pair-scope contributions would be separate topics.
 
 1. At the Record's gaining, validate the returned value before writing
    it. At assignment, validate the new value before replacing the old
-   binding. Class acceptance follows Python's runtime instance check;
-   None is accepted only when explicitly included.
-2. Admission does not require that the object be an Agent, inspect its
-   Field membership, evaluate its Posts, or invoke its truth protocol.
-   An untagged compatible object, a deficient Agent and a compatible
-   Rogue are all admitted.
+   binding. A class term follows Python's runtime instance check; a Tag
+   term asks current membership; None is accepted only when explicitly
+   included. A term's own instance test that raises is a Composition
+   Failure naming the slot, with the cause kept; an interrupt propagates.
+2. Admission never evaluates the object's Posts or invokes its truth
+   protocol. A class term does not inspect Field membership: an untagged
+   compatible object, a deficient Agent and a compatible Rogue are all
+   admitted. A Tag term asks membership and nothing more: a deficient
+   member is admitted; a Rogue of that Tag is refused, and the refusal
+   names the Tag it left.
 3. Supported Record assignment paths share the check, including
    `object.__setattr__` for ordinary names. A refused write keeps the
    prior binding and declaration intact. Existing Secret, Constant and
    host compatibility checks still apply.
 4. Reading does not revalidate. Tagging or Rip of the held object does
-   not update or remove the reference. Reassigning a compatible Rogue is
-   permitted: only a separate domain Post requires current membership.
-5. Self-reference is allowed when the bearer satisfies the class. This
+   not update or remove the reference. Reassigning a Rogue is permitted
+   under a class term and refused under a Tag term; a domain Post is what
+   requires current membership continuously.
+5. Self-reference is allowed when the bearer satisfies the kind. This
    adds no ownership or distinct-identity promise. A Post can require
    `agent.weapon is not agent` when the domain needs it.
 6. A Tool's own Python protocols are ordinary object protocols, or normal
@@ -248,7 +276,7 @@ falsy; a deficient Agent must not be mistaken for an absent one. The
 builder does not train a replacement.
 
 Established Constant reapplication skips the builder and retains its
-binding. It also skips fresh class admission. Constant protects the
+binding. It also skips fresh admission. Constant protects the
 binding, not the held object's contents, Tags or contract. Another
 bearer may hold the same object while this bearer cannot drop it.
 
@@ -280,7 +308,7 @@ STEP-SPEC-42, with implementation in PRs #155 and #156:
   replaced by another Contribution.
 - `bool(Tag)` keeps population truth even when a Pin makes the Tag an
   Agent. `Contract.Holds(Tag)` asks its Pin contract. This proposal does
-  not change Tag population truth. A host-class rule such as `@Tool(type)`
+  not change Tag population truth. A class kind such as `@Tool(type)`
   may admit a Tag value; holding it does not change either truth question.
 
 The Tool's contract is not transferred to its bearer. A bearer Post can
@@ -323,10 +351,10 @@ and causes rather than exact prose.
 
 | When | Failure | Required information |
 | --- | --- | --- |
-| Invalid class, union, population or scope | Declaration | Tool name and an accepted spelling such as `@Tool(Sword | None)`. |
-| Conflicting Contribution marks | Declaration | Name and conflicting kind, in either decorator order. |
-| Builder returns incompatible value or disallowed None | Composition | `Fighter.weapon`, unsatisfied class; value not acquired. |
-| Incompatible assignment or disallowed None | Composition | Tool name and requirement; old binding unchanged. |
+| Invalid kind (root `Tag`, `object`, a Pin, a population, a typing construct, an instance), union or scope | Declaration | the spellings meant, `@Tool(Weapon)`, `@Tool(Sword)`, `@Tool(Weapon, Blessed)`, `@Tool(Sword | None)` |
+| Conflicting Contribution marks, a Report wrapping a Tool builder included | Declaration | Name and conflicting kind, in either decorator order. |
+| Builder returns a value outside the kind, or disallowed None | Composition | `Fighter.weapon`, the kind, the term unsatisfied ("is not a Weapon now", "Tag it in the builder"); value not acquired. |
+| Incompatible assignment, a Rogue under a Tag term ("this Sword left Weapon"), or disallowed None | Composition | Tool name and requirement; old binding unchanged. |
 | Constant replacement or deletion | Existing Constant failure | Existing protection and diagnostics. |
 | Existing Record collision | Existing composition failure | Ordinary Record collision rules. |
 
@@ -335,15 +363,18 @@ sharing are permitted. None requires an explicit nullable union.
 
 ## Rationale and alternatives
 
-**Ordinary Record, class admission.** Existing storage, Overlay, presence
+**Ordinary Record, kind admission.** Existing storage, Overlay, presence
 and protection supply the held value's structure. A permanently closed
 Tool species would duplicate Constant's deliberate name protection.
-Class checks and TOP Posts answer different questions; this modifier
-must not silently substitute Field membership for a Python class.
+Class checks, Tag membership and TOP Posts answer different questions;
+this modifier must not silently substitute one for another, so the
+author says which question the slot asks by naming a class, a Tag, or
+both, and a Tag term is spelled as membership (`in T[:]`), never as
+`isinstance`.
 
 **Explicit effects.** A smith is an Action and training is an Imprint.
 Automatic construction or Tagging behind a Record would require new
-input and failure rules. The proposed modifier needs neither.
+input and failure rules. The modifier needs neither.
 
 **Record-only scope.** Return-value requirements on Actions are a
 separate feature. This bounded choice is not a claim that the law against
@@ -369,15 +400,18 @@ This revision records the Director's choices; the STEP remains Brief
 until the Director changes its status. Implementation can be prepared
 for review without representing that formal decision as already made.
 
-1. **Proposal and patterns:** this STEP and the runnable wiki; distinguish
-   available Record patterns from proposed Tool syntax.
-2. **Complete opt-in core:** metadata, declaration validation, class
-   admission at gaining, guarded assignment and deletion, Presence,
-   Secret/Constant, Overlay and retry, with regression tests. Do not
-   export a modifier that checks initial values but leaves writes open.
-3. **Capacity evidence:** extend the oracle and performance checks on
-   the agreed implementation, including retained Gains and runtime-type
-   sharing. Defer new construction syntax and scopes.
+1. **Proposal and patterns** (done): this STEP and the runnable wiki,
+   the ordinary Record patterns and the `@Tool` blocks alike.
+2. **Complete opt-in core** (done in PR #143): metadata, declaration
+   validation, kind admission at gaining, guarded assignment and
+   deletion, Presence, Secret/Constant, Overlay and retry, with
+   `tests/test_tools.py`. The modifier guards writes, `object.__setattr__`
+   included, on ordinary names; protocol names keep the language's hook
+   and their documented kernel bypass.
+3. **Capacity evidence** (done): the oracle's `Exercise_Tools` checks a
+   Tag kind and a class kind on every seed; the opt-in budgets pass; the
+   runtime type is shared across Agents whose slots differ only in kind.
+   Retained Gains under STEP-SPEC-39 are re-checked when PR #78 lands.
 
 Runtime descriptors must obtain the effective policy from Agent state,
 not capture bearers or values in shared classes or cache keys. Presence
@@ -396,30 +430,67 @@ no line-count or performance estimate precedes measurement.
 
 ## Validation
 
-Before proposing implementation for merge, demonstrate:
+Implemented in PR #143. Each item names where it is shown; all pass on
+2026-10-13 with the full suite (`PYTHONPATH=. python3 -m unittest discover
+-s tests -t .`), the opt-in budgets (`TOPKIT_PERF=1`) and the oracle at
+its audited size (`--seeds 50 --steps 1200 --population 18`).
 
-- invalid classes, Tag classes, populations, unions, scope and conflicting
-  marks fail by declared name in both decorator orders;
-- untagged and actualized host instances, subclasses, class alternatives,
-  optional None, and compatible self-reference are admitted;
-- a different host class is refused even when tagged Weapon, while a
-  compatible Rogue remains admissible;
-- bad initial values are not gained, with earlier Gains retained under
-  STEP-SPEC-39 and declaration-order visibility preserved;
-- ordinary and kernel-path writes preserve old bindings on refusal;
-  dropping makes Presence false and reassignment remains guarded;
-- protocol-named Records preserve ordinary lookup, presence and Agent
-  finalization; their stated direct-kernel bypass remains explicit;
-- ordinary and Constant retries, Secret/Constant stacking, frozen hosts,
-  Overlay, Delete, sharing and views follow existing patterns;
-- early Posts guard retained unsafe Gains on a Rogue; Tool admission and
-  reads never evaluate the held object's truth or Posts;
-- plain objects with __bool__ can be held, while later Tagging still
-  enforces the independent Host eligibility rule;
-- runtime-type sharing with different class policies does not mix rules
-  or retain bearers or held values;
-- executable documentation and the full suite pass; the oracle and opt-in
-  budgets measure the changed paths.
+- invalid kinds (the root `Tag`, `object`, a Pin, a population, a typing
+  construct, an instance, `None` alone, a bare `@Tool`) and conflicting
+  marks fail by declared name in both decorator orders, a Report
+  wrapping a Tool builder included: `Declaration_Tests`;
+- a class kind admits untagged and actualized instances, subclasses,
+  class alternatives, optional None and compatible self-reference; a
+  different class is refused even when tagged Weapon, while a compatible
+  Rogue remains admissible: `Class_Kind_Tests`;
+- a Tag kind admits a member now, a member of a Shape and a deficient
+  member; it refuses a non-member, a Rogue ("left Weapon") and the
+  bearer until the bearer is of the kind; a kind of two Tags, and of a
+  class and a Tag, asks for all; a union of a Tag and a class admits
+  either: `Tag_Kind_Tests`, `Class_Kind_Tests`;
+- bad initial values are not gained; on `main` today the whole call rolls
+  back and the host keeps its own type
+  (`test_a_builder_returning_a_non_member_refuses_the_gaining`); under
+  STEP-SPEC-39 the same refusal leaves the Gains already acquired, to be
+  re-run on that branch when PR #78 lands;
+- ordinary and kernel-path writes preserve the old binding on refusal;
+  dropping makes Presence false and reassignment stays guarded; a host's
+  own setter runs only after admission; a frozen dataclass host gains
+  through the kernel path: `Emptiness_Tests`, `Host_Tests`;
+- a Tool under a protocol name keeps the language's hook (presence through
+  `__rmatmul__`, lookup through `__getattribute__`), its ordinary writes
+  are checked, and `object.__setattr__` on it is the documented bypass:
+  `Host_Tests`;
+- ordinary and Constant retries, Secret, Constant and Public stacking in
+  either order, Overlay (a Shape's own kind, a plain Record or an Action
+  ending the rule, an independent Record with the usual warning, the
+  cross-kind refusal kept), `@Delete`, sharing and a tool that bears a
+  tool: `Stacking_Tests`, `Overlay_Tests`, `Lifecycle_Tests`,
+  `Sharing_Tests`;
+- Rip of the bearer keeps the slot and its rule; Rip of the tool's Tag
+  leaves a Rogue in hand that the bearer's Post notices; a `@Rip`
+  protocol may disarm; an Imprint may fill a declared empty hand:
+  `Lifecycle_Tests`;
+- admission never evaluates the held object's truth or Posts: a defective
+  member is admitted (`test_a_defective_member_is_admitted_the_promise_judges_it`);
+  a failing instance test is a named Composition Failure with its cause,
+  and an interrupt propagates unchanged: `Class_Kind_Tests`;
+- the two doors: a bearer's Action reading its tool's Secret fails closed
+  (`Sharing_Tests`);
+- runtime-type sharing: Agents whose slots differ only in kind share one
+  type, the gate reads each Agent's own kind, and the type retains no
+  bearer or value (`Host_Tests`, `Sharing_Tests`);
+- the Record-write budget and the other twelve of `tests/test_performance.py`
+  pass: the gate is a descriptor for the Tool's name only;
+- the oracle's `Exercise_Tools` checks a Tag kind (`Armed`, `Gear`) and a
+  class kind (`Carrying`, `Agent`) on every seed, 60,000 transitions;
+- the wiki page's 15 blocks run as one program under
+  `tests/test_documents.py`; the Specification's §1.3 example runs in
+  `tests/spec_examples.py`.
+
+Known limit, shared with `@Constant`: a host whose instances cannot
+change class in place (`__slots__` without a compatible layout) cannot be
+actualized, and the kit says so with the existing Composition Failure.
 
 ### Decision *(filled by the Director)*
 

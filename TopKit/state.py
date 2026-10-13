@@ -918,10 +918,15 @@ def _runtime_type_for(
         from .tools import _Tool_Gate   # tools imports this module
 
         for name in state.tools:
+            if _is_dunder(name):
+                continue   # a protocol name keeps the language's own hook; the write hook guards it
+
             namespace[name] = _Tool_Gate(name, namespace.get(name, _MISSING))   # over a Constant or Secret gate, when both
 
+    ungated_tools = any(_is_dunder(name) for name in state.tools)
+
     if conditions or state.constants or state.tools or issubclass(host_type, type):
-        _binding_write_hooks(namespace, host_type)
+        _binding_write_hooks(namespace, host_type, force=ungated_tools)
 
     if issubclass(host_type, Tagged):
         bases: tuple[type, ...] = (host_type,)
