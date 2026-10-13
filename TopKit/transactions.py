@@ -31,6 +31,7 @@ from typing import Any
 from typing import Callable
 
 from .contracts import _evaluate
+from .declarations import _is_link
 from .declarations import _Declarations
 from .declarations import _declarations_of
 from .declarations import _is_flag
@@ -73,6 +74,7 @@ class _Call_Boundary:
     after_commit: bool = False
     undo: list[Callable[[], None]] = field(default_factory=list)
     writes: list[Callable[[], None]] = field(default_factory=list)
+    open: bool = True   # False once its call has returned: a task that copied the context takes no steps here
 
 
 _current_boundary: ContextVar[_Call_Boundary | None] = ContextVar(
@@ -115,6 +117,31 @@ def _rollback_to(
             entry.tags,
             entry.host_class,
             )
+
+
+def _open_boundary(
+        ) -> _Call_Boundary | None:
+    """The call this code runs inside, if it is still running. An asyncio
+    task or callback started inside a call copies its context, and with
+    it a boundary whose call may have returned long ago."""
+
+    boundary = _current_boundary.get()
+
+    if boundary is None or not boundary.open:
+        return None
+
+    return boundary
+
+
+def _close(
+        boundary: _Call_Boundary,
+        ) -> None:
+    """The call has returned: its boundary takes no more steps and holds
+    nothing (a copied context may keep the object itself)."""
+
+    boundary.open = False
+    boundary.undo.clear()
+    boundary.writes.clear()
 
 
 def _undo(
@@ -177,7 +204,7 @@ def _apply_form(
         return agent   # the whole Form is active: nothing to apply, nothing to undo
 
     entry = _capture(agent)
-    outer = _current_boundary.get()
+    outer = _open_boundary()
     boundary = _Call_Boundary()
     token = _current_boundary.set(boundary)
 
@@ -245,6 +272,7 @@ def _apply_form(
                 )
     finally:
         _current_boundary.reset(token)
+        _close(boundary)
 
     return agent
 
@@ -581,7 +609,11 @@ def _commit(
 
     state.active.append(tag)
     state.words = None
-    state.ever.add(tag)
+
+    if _is_link(tag):
+        state.ever_links.add(tag)   # weakly: a living Contact never keeps a dead Agent's Link (STEP-SPEC-22)
+    else:
+        state.ever.add(tag)
 
     if declarations.secrets:
         # A first secret turns every bound Action into a composing one.

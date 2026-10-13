@@ -252,7 +252,7 @@ class MetaTag(type):
         _refuse_relation(tag)
         state = _state_of(candidate)
 
-        if state is not None and tag in state.ever:
+        if state is not None and (tag in state.ever or tag in state.ever_links):
             return True
 
         return super().__instancecheck__(candidate)

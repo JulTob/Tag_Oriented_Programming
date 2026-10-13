@@ -7,6 +7,7 @@ doors, the Relation's refused spellings, ending in reference cycles, and
 the barrier.
 """
 
+import contextvars
 import copy
 import gc
 import unittest
@@ -1991,6 +1992,123 @@ class Law_Review_Tests(unittest.TestCase):
         charlie.Chats(contacts[1])
         with self.assertRaises(TagPreconditionError):
             charlie.Chats(contacts[2])                    # the gate reads the plain value
+
+
+# ------------------------------------------------------------------
+# The lifetime review's findings, one regression each
+# ------------------------------------------------------------------
+
+
+class Lifetime_Review_Tests(unittest.TestCase):
+    def setUp(self):
+        Net.log.clear()
+
+    def test_a_linking_in_a_context_copied_from_a_finished_call_holds_nothing(self):
+        captured = []
+
+        class Scheduler(Tag):
+            @Imprint
+            def Capture(agent):
+                captured.append(contextvars.copy_context())   # as asyncio does for a task started here
+
+        charlie = Character("Charlie")
+        Net(charlie)
+        Scheduler(charlie)
+
+        def Link_A_Stranger():
+            stranger = Character("Stranger")
+            charlie.Knows(stranger)
+            return weakref.ref(stranger)
+
+        reference = captured[0].run(Link_A_Stranger)      # after the call has returned
+        gc.collect()
+        self.assertIsNone(reference())                    # the Field never keeps her alive
+        self.assertEqual(Net.log, [("Charlie", "Stranger")])
+        self.assertEqual(list(charlie.Knows[:]), [])
+
+    def test_a_living_contact_never_keeps_a_dead_agents_link(self):
+        ruth = Character("Ruth")
+        references = []
+
+        for index in range(20):
+            agent = Character(f"A{index}")
+            Social(agent)
+            agent.Knows(ruth)
+            references.append(weakref.ref(agent.Knows))
+            del agent
+
+        gc.collect()
+        self.assertEqual(sum(1 for reference in references if reference() is not None), 0)
+
+        charlie = Character("Charlie")
+        Social(charlie)
+        charlie.Knows(ruth)
+        held = charlie.Knows
+        del charlie.Knows[ruth]
+        self.assertTrue(isinstance(ruth, held))           # history answers while the Link is held
+
+    def test_an_interrupted_teardown_at_deletion_still_unlinks_every_contact(self):
+        ran = []
+
+        class Touchy(Tag):
+            @Link
+            class Knows(Tag):
+                @Rip
+                def Forget(agent, contact):
+                    ran.append(contact.name)
+                    if contact.name == "R1":
+                        raise KeyboardInterrupt
+
+        charlie = Character("Charlie")
+        contacts = People("R1", "R2", "R3")
+        Touchy(charlie)
+        for contact in contacts:
+            charlie.Knows(contact)
+        held = charlie.Knows
+        with self.assertRaises(KeyboardInterrupt):
+            _teardown_all(charlie)                        # what the finalizer runs
+        self.assertEqual(ran, ["R1", "R2", "R3"])
+        self.assertEqual(list(held[:]), [])
+
+    def test_an_interrupted_unlink_still_ends_her_pair(self):
+        class Touchy(Tag):
+            @Link
+            class Knows(Tag):
+                @Rip
+                def Forget(agent, contact):
+                    raise KeyboardInterrupt
+
+        charlie, ruth = People("Charlie", "Ruth")
+        Touchy(charlie)
+        charlie.Knows(ruth)
+        with self.assertRaises(KeyboardInterrupt):
+            del charlie.Knows[ruth]
+        self.assertNotIn(ruth, charlie.Knows)
+        with self.assertRaises(TagResolutionError):
+            charlie.Knows[ruth]
+
+    def test_a_refused_shape_grant_leaves_the_family_as_it_was(self):
+        from TopKit.links import _record_of
+
+        class Widened(Social):
+            @Link
+            class Admires(Social.Knows):                  # joins the family of charlie.Knows
+                pass
+
+        class Doomed(Widened):
+            @Record
+            def broken(agent):
+                raise ValueError("refused at Parts, after Widened granted its Link")
+
+        charlie = Character("Charlie")
+        Social(charlie)
+        family = _record_of(charlie.Knows).family
+        before = len(family.links)
+        for _attempt in range(10):
+            with self.assertRaises(TagCompositionError):
+                Doomed(charlie)
+        self.assertEqual(len(family.links), before)
+        self.assertFalse("Admires" @ charlie)
 
 
 def Agents_Of_Any_Link(contact):

@@ -82,9 +82,11 @@ from .tags import Tag
 from .transactions import _Call_Boundary
 from .transactions import _apply_form
 from .transactions import _capture
+from .transactions import _close
 from .transactions import _current_boundary
 from .transactions import _gate_form
 from .transactions import _hand_over
+from .transactions import _open_boundary
 from .transactions import _imprint
 from .transactions import _inspect
 from .transactions import _rollback_to
@@ -812,7 +814,16 @@ def _new_link(
             _RECORD,
             record,
             )   # the record holds its Agent weakly, so the Link never keeps it alive
-    family.links.append(weakref.ref(link))
+    reference = weakref.ref(link)
+    family.links.append(reference)
+    boundary = _open_boundary()
+
+    if boundary is not None:
+        boundary.undo.append(partial(
+                _forget_link,
+                record,
+                reference,
+                ))   # a call that rolls back leaves no trace in the family (§0.6)
 
     for relation in layers:
         _publish_lines(
@@ -821,6 +832,18 @@ def _new_link(
                 )
 
     return link
+
+
+def _forget_link(
+        record: _Link_Record,
+        reference: weakref.ref,
+        ) -> None:
+    family = record.family
+
+    if reference in family.links:
+        family.links.remove(reference)
+
+    _forget_pair_forms(family)
 
 
 def _base_links(
@@ -901,7 +924,7 @@ def _family_for(
                     )
             for other in families[1:]
             ]
-    boundary = _current_boundary.get()
+    boundary = _open_boundary()
 
     if joins and boundary is not None:
         boundary.undo.append(partial(
@@ -934,13 +957,13 @@ def _refuse_shared_contacts(
 def _join(
         kept: _Family,
         other: _Family,
-        ) -> tuple[_Family, dict[int, Pair], list[type], int]:
+        ) -> tuple[_Family, dict[int, Pair], list[type], list[weakref.ref]]:
     """Move ``other``'s Pairs and Links into ``kept``. Returns what
     ``_split`` needs to move them back."""
 
     moved_pairs = dict(other.pairs)
     moved_links = other.Links()
-    links_before = len(kept.links)
+    added: list[weakref.ref] = []
 
     for pair in moved_pairs.values():
         object.__getattribute__(pair, "__dict__")[_PAIR_ENDS].family = kept
@@ -950,24 +973,26 @@ def _join(
 
     for link in moved_links:
         _record_of(link).family = kept
-        kept.links.append(weakref.ref(link))
+        reference = weakref.ref(link)
+        kept.links.append(reference)
+        added.append(reference)
 
     return (
             other,
             moved_pairs,
             moved_links,
-            links_before,
+            added,
             )
 
 
 def _split(
         kept: _Family,
-        joins: list[tuple[_Family, dict[int, Pair], list[type], int]],
+        joins: list[tuple[_Family, dict[int, Pair], list[type], list[weakref.ref]]],
         ) -> None:
     """Undo ``_join``, latest first: each family gets back its own Pairs
     and Links."""
 
-    for other, moved_pairs, moved_links, links_before in reversed(joins):
+    for other, moved_pairs, moved_links, added in reversed(joins):
         for key, pair in moved_pairs.items():
             if kept.pairs.get(key) is pair:
                 del kept.pairs[key]
@@ -978,7 +1003,9 @@ def _split(
             _record_of(link).family = other
             _record_of(link).pair_form = None
 
-        del kept.links[links_before:]
+        for reference in added:
+            if reference in kept.links:
+                kept.links.remove(reference)
 
     _forget_pair_forms(kept)
 
@@ -1190,7 +1217,7 @@ def _extend(
     nothing changed); their Imprints and promises after the Agent's
     Commit. Linkings made after that get every Layer."""
 
-    boundary = _current_boundary.get()
+    boundary = _open_boundary()
     field = link.__dict__["_topkit_field"]
     pairs = [
             pair
@@ -1474,7 +1501,7 @@ def _link(
                 record.name,
                 )
 
-    outer = _current_boundary.get()   # a call this linking is part of (rule 5.6)
+    outer = _open_boundary()   # a call this linking is part of (rule 5.6)
     local = _Call_Boundary()   # nested linkings made at the Pair's Parts report here
     pair_entry = _capture(pair)
     contact_entry = _capture(contact) if outer is not None else None
@@ -1514,6 +1541,7 @@ def _link(
             raise
     finally:
         _current_boundary.reset(token)
+        local.open = False   # a task that copied this context links on its own from now on
 
     _hook(
             contact,
@@ -1533,6 +1561,8 @@ def _link(
                 outer,
                 )
         outer.undo.append(Undo)
+
+    _close(local)
 
     _write(
             pair,
@@ -1792,11 +1822,11 @@ def _leave(
         ends.held = None
         state.composing = opened
 
-    if not _still_held(
-            family,
-            state,
-            ):
-        family.End(contact)   # asked after the teardowns: one may have linked her again (rule 5.7)
+        if not _still_held(
+                family,
+                state,
+                ):
+            family.End(contact)   # asked after the teardowns, even an interrupted one: one may have linked her again (rule 5.7)
 
     try:
         if first is not None:
@@ -1915,6 +1945,7 @@ def _end_links(
     then on."""
 
     records = _own_records(state)
+    interrupted: BaseException | None = None
 
     try:
         for record in records:
@@ -1934,12 +1965,20 @@ def _end_links(
                             link,
                             )
                 except Exception:
-                    pass
+                    pass   # best effort (§3.2)
+                except BaseException as error:
+                    interrupted = interrupted or error   # every other Contact still leaves (rule 8.3)
     finally:
         for record in records:
             record.family.dying = None
             record.ending = False
             record.ended = True
+
+    try:
+        if interrupted is not None:
+            raise interrupted
+    finally:
+        interrupted = None   # never keep Agents alive through a traceback that holds this frame
 
 
 __all__ = [

@@ -54,6 +54,7 @@ class _State:
     pinned: type | None = None   # the Tag itself, when the Agent is a Tag
     active: list[type] = field(default_factory=list)
     ever: set[type] = field(default_factory=set)
+    ever_links: "weakref.WeakSet[type]" = field(default_factory=weakref.WeakSet)   # the Links it was ever a Contact of, held weakly
     actions: dict[str, Function] = field(default_factory=dict)
     action_origins: dict[str, type] = field(default_factory=dict)
     records: dict[str, type] = field(default_factory=dict)
@@ -100,6 +101,7 @@ class _State:
                 pinned=state.pinned,
                 active=list(state.active),
                 ever=set(state.ever),
+                ever_links=weakref.WeakSet(state.ever_links),
                 actions=dict(state.actions),
                 action_origins=dict(state.action_origins),
                 records=dict(state.records),
