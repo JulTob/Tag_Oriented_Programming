@@ -29,9 +29,12 @@ from typing import Any
 
 from .contracts import _evaluate
 from .declarations import _Declarations
+from .declarations import _discard_lazy_result
 from .declarations import _declarations_of
 from .declarations import _is_flag
 from .declarations import _protocol_inputs
+from .errors import _exception_text
+from .errors import _type_name
 from .errors import TagCompositionError
 from .errors import TagImprintError
 from .errors import TagPostconditionError
@@ -44,11 +47,15 @@ from .overlay import _materialize
 from .state import STATE
 from .state import _Snapshot
 from .state import _State
+from .state import _Host_Bindings
+from .state import _actualize_runtime_type
 from .state import _bind_to
+from .state import _host_bindings_of
 from .state import _name_of
 from .state import _namespace_of
 from .state import _rebind_all
 from .state import _restore_namespace
+from .state import _restore_host_bindings
 from .state import _runtime_type_for
 from .state import _state_for
 from .state import _state_of
@@ -77,7 +84,15 @@ def _apply(
             ):
         return agent   # the whole Form is active: nothing to apply, nothing to undo
 
-    entry_namespace = dict(_namespace_of(agent) or {})
+    entry_host = (
+            _host_bindings_of(agent)
+            if entry_state is None and not issubclass(type(agent), type)
+            else None
+            )
+    entry_namespace = (
+            entry_host.contents if entry_host is not None
+            else (_namespace_of(agent) or {}).copy()
+            )
     entry_copy = entry_state.Copy() if entry_state is not None else None
     entry_tags = tuple(entry_state.active) if entry_state is not None else ()
     entry_class = type(agent)
@@ -127,6 +142,7 @@ def _apply(
                     entry_copy,
                     entry_tags,
                     entry_class,
+                    entry_host,
                     )
         raise
 
@@ -139,13 +155,24 @@ def _rollback(
         entry_copy: _State | None,
         entry_tags: tuple[type, ...],
         entry_class: type,
+        entry_host: _Host_Bindings | None,
         ) -> None:
-    current = _state_of(agent)
+    # A rejected provisional class may hide or replace __dict__. Restore
+    # the original type before consulting any Agent namespace.
+    if type(agent) is not entry_class:
+        _set_runtime_type(agent, entry_class)
+
+    namespace = entry_host.namespace if entry_host is not None else _namespace_of(agent)
+    current = namespace.get(STATE) if namespace is not None else None
 
     if current is not None:
         for tag in current.active:
             if tag not in entry_tags:
-                tag._topkit_field.Remove(agent)
+                tag._topkit_field._Remove(agent)
+
+    if entry_host is not None:
+        _restore_host_bindings(agent, entry_host)
+        return
 
     _restore_namespace(
             agent,
@@ -165,9 +192,6 @@ def _rollback(
             live.Restore(entry_copy)   # in place: a door opened before this call closes on it
     else:
         namespace.pop(STATE, None)
-
-    if type(agent) is not entry_class:
-        _set_runtime_type(agent, entry_class)
 
 
 def _gate(
@@ -245,6 +269,11 @@ def _apply_one(
     primary_failure: BaseException | None = None
 
     try:
+        # Prepare the host after its Gate and before any builder runs.
+        # Later runtime refreshes are internal changes of an existing Agent.
+        if type(agent) is state.host_type:
+            _actualize_runtime_type(agent, _runtime_type_for(state), state)
+
         _install(
                 state,
                 tag,
@@ -253,6 +282,7 @@ def _apply_one(
 
         _materialize(
                 agent,
+                tag,
                 declarations,
                 deleted_before,
                 inputs,
@@ -413,7 +443,7 @@ def _commit(
                     f"{type(agent).__name__} cannot be actualized in place"
                     ) from error
 
-    tag._topkit_field.Add(agent)
+    tag._topkit_field._Add(agent)
 
     if state.pinned is not None and declarations.published:
         _publish_to_field(
@@ -432,11 +462,11 @@ def _publish_to_field(
     whole Field is checked on copies first, so no Agent is touched unless
     all can be."""
 
-    from .declarations import _scan_cache
+    from .declarations import _invalidate_declarations
     from .overlay import _adapter
 
     state = _state_of(pinned)
-    _scan_cache.pop(pinned, None)   # the Tag's declarations grew
+    _invalidate_declarations(pinned)   # the Tag's declarations grew
     agents = list(pinned[:])
     plans: list[tuple[object, _State]] = []
 
@@ -522,8 +552,8 @@ def _needs_new_type(
         declarations: _Declarations,
         ) -> bool:
     """Only type-level facts change the runtime type: the first tagging,
-    deletions, secrets, published Reports, dunder Actions, a first Post,
-    a first Flag."""
+    deletions, secrets, published Reports, dunder Actions, conditions,
+    or a first Flag."""
 
     if "_TOPKIT_HOST_TYPE" not in type(agent).__dict__:
         return True   # the Agent still wears its host's own class
@@ -533,7 +563,9 @@ def _needs_new_type(
             or declarations.deletions
             or declarations.secrets
             or declarations.constants
+            or declarations.tools
             or declarations.dunders
+            or declarations.preconditions
             or declarations.postconditions
             or any(public for _name, _value, public in declarations.reports)
             )
@@ -546,15 +578,25 @@ def _imprint(
         ) -> None:
     for name, imprint in declarations.imprints:
         try:
-            imprint(
+            result = imprint(
                     agent,
                     **_protocol_inputs(imprint, inputs, 1),
                     )
+            lazy = _discard_lazy_result(result)
         except Exception as error:
             raise TagImprintError.Named(name)(
-                    f"Imprint {imprint.__qualname__} failed:"
-                    f" {type(error).__name__}: {error}"
+                    f"Imprint {str.__str__(name)!r} failed:"
+                    f" {_type_name(error)}: {_exception_text(error)}"
                     ) from error
+
+        if lazy is not None:
+            article = "an" if lazy == "async generator" else "a"
+
+            raise TagImprintError.Named(name)(
+                    f"Imprint {str.__str__(name)!r} returned {article}"
+                    f" {lazy}; an Imprint must complete synchronously."
+                    " TOP does not await or iterate application protocols."
+                    )
 
 
 _NONE: frozenset[str] = frozenset()   # one empty set for every snapshot that needs none

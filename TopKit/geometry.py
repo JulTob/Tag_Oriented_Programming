@@ -9,10 +9,18 @@ from __future__ import annotations
 from typing import Iterable
 from weakref import WeakKeyDictionary
 
+from .memo import _memo_key
+from .memo import _memo_of
+from .memo import _remember_memo
+
 
 _tag_types: tuple[type, type] | None = None
+# Compatibility fallback for non-Tags; ordinary classes have no TOP Bases.
 _bases_cache: "WeakKeyDictionary[type, tuple[type, ...]]" = WeakKeyDictionary()
-# a Tag's Bases, Base-first; never the Tag itself, which would keep its own key alive
+
+
+def _form_key(tag: type) -> str:
+    return _memo_key(tag, "BASES")
 
 
 def _is_tag(
@@ -51,10 +59,19 @@ def _form_of(
         ) -> tuple[type, ...]:
     """Base-first closure of one Tag: every required Base once, then the Tag."""
 
-    cached = _bases_cache.get(tag)
+    owned = _is_tag(tag)
 
-    if cached is not None:
-        return cached + (tag,)
+    if owned:
+        name = _form_key(tag)
+        bases = _memo_of(tag, name)
+
+        if bases is not None:
+            return bases + (tag,)
+    else:
+        cached = _bases_cache.get(tag)
+
+        if cached is not None:
+            return cached + (tag,)
 
     form: list[type] = []
     seen: set[type] = set()
@@ -93,7 +110,13 @@ def _form_of(
                         )
 
     result = tuple(form)
-    _bases_cache[tag] = result[:-1]
+
+    if owned:
+        # A Base's Contributions may point back to its Shape. Keep that
+        # cycle on the Tag, never in a global cache or its public Field.
+        return _remember_memo(tag, name, result[:-1]) + (tag,)
+    else:
+        _bases_cache[tag] = result[:-1]
 
     return result
 
