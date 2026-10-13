@@ -369,7 +369,15 @@ rollback target.
   (`_door_shut_operation`) shut the door of every Contact passed in, by
   position or by name, and its Report builders (`_door_shut_builder`)
   shut every Contact's; both open the Agent's door, since the Link's
-  code is its Agent's code. Static methods are copied as they are. The kit holds the Link's Agent weakly (on the
+  code is its Agent's code. Static methods are copied as they are. All
+  of them, and every Pair function (`_two_seats`), enter and leave the
+  same doors (`_enter_doors`, `_leave_doors`). A generator or coroutine
+  one returns is driven a step at a time behind those doors
+  (`_stepped_behind`, `_each_step_behind`), so its body, which runs when
+  it is iterated or awaited, never sees the Contact's door open; between
+  steps every door is as the caller left it. A Relation's first binding
+  is recorded (`declarations._relation_homes`, weakly): the Tag body that
+  made it, under its own name. A later binding is refused as an alias. The kit holds the Link's Agent weakly (on the
   Link's record and on each Pair's ends), and every `finally` that held
   an error sets its local to `None`, so a traceback cycle never keeps
   the Agent alive.
@@ -389,7 +397,8 @@ rollback target.
   is refused. An undone linking takes back only what it gave the
   Contact (`_undo_linking`): membership, history, hooks and views of
   those Links; she becomes a plain object again only if she was none
-  before and holds nothing else. A Pair that existed before the linking
+  before and holds nothing else, and then a value she held under a
+  line's name comes back from the call's snapshot (`_forget_agent`). A Pair that existed before the linking
   loses only the Pair Tags the linking gave it, recorded right after its
   Parts (`_added_since`, `_undo_pair_layers`), so a Layer another call
   laid since stays. The Pair's form is applied a second time after its

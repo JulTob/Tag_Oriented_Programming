@@ -40,9 +40,7 @@ from .declarations import _check_tool_declarations
 from .declarations import _constant_owner
 from .declarations import _is_dunder
 from .declarations import _is_link
-from .declarations import _is_pair_tag
 from .declarations import _is_pin
-from .declarations import _is_relation
 from .declarations import _kind_of
 from .declarations import _name_checks
 from .declarations import _refuse_condition_dunder

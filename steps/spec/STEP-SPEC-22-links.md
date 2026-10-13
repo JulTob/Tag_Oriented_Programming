@@ -1145,8 +1145,10 @@ implementation follows `main`'s law as it stands, and says so:
 
 - A `@Public` line that an extension Layer adds reaches the Contacts
   linked after the extension; Contacts already linked keep their lines.
-- A Link's code shuts the synchronous door of the Contact it is about;
-  an async door she opened in her own context is not shut by it.
+- A Link's code shuts the synchronous door of the Contact it is about,
+  at its call and at every later step of a generator or coroutine it
+  returns; an async door she opened in her own context is not shut by
+  it. An async generator in a Relation's body is refused.
 - Doors otherwise follow the call (§1.5): when a Contact's own Action
   calls into a Link about another Contact, or calls a Link Operation
   without passing herself, or calls one of its static methods, her door
@@ -1154,8 +1156,11 @@ implementation follows `main`'s law as it stands, and says so:
   Reports are the exception: they are kept and served to all, so they are
   built with every Contact's door shut.
 - A Pair's Layers lie in the order they reached it: two Pairs of one
-  Field can differ in which Layer is on top when one Contact was linked
-  to the Base Link before an extension and the other after it.
+  Field can differ in which Layer is on top when their Layers reached
+  them in different orders: one Contact linked to the Base Link before an
+  extension and the other after it, or, in a family joined by a Shape
+  Link of two Bases, one Contact linked first through one Base and the
+  other through the other.
 - A Contact's record of a published line keeps the last Link that
   published its name, after that Link's Agent is gone.
 - Extending a held Link runs every Pair's gate before any Pair's
@@ -1166,7 +1171,8 @@ implementation follows `main`'s law as it stands, and says so:
   leaves the Links silently, her history of them forgotten, and what else
   she gained or did since stays. The lines they published stay on her,
   sticky, and answer no more, as after an unlink; if she was no Agent
-  before and holds nothing else, she is a plain object again.
+  before and holds nothing else, she is a plain object again, with the
+  values she held before.
 - Cost, measured on the reviewed code (`benchmarks/compare.py`, section
   j, CPython 3.13, one run): a linking about 78 µs (two taggings: the
   Pair's gated one and the Contact's membership), reading a Pair Record
@@ -1188,11 +1194,12 @@ On 2026-10-13 five reviewers attacked the implementation, each from one
 angle (rollback, the law of §1.10, lifetime, doors and secrets, mixing
 with every other feature), each finding backed by a probe that ran; a
 skeptic then re-ran every probe and tried to refute it. A second round
-re-checked every fix for variants. Every confirmed finding is fixed with
-a regression test that fails before its fix (`Rollback_Tests`,
-`Ownership_Tests`, `Law_Review_Tests`, `Lifetime_Review_Tests`,
-`Door_Review_Tests`, `Integration_Review_Tests`, `Second_Round_Tests`,
-`Variant_Tests`), save two the review settled as rules instead (below).
+re-checked every fix for variants and attacked the newest code. Every
+confirmed finding is fixed with a regression test that fails before its
+fix (`Rollback_Tests`, `Ownership_Tests`, `Law_Review_Tests`,
+`Lifetime_Review_Tests`, `Door_Review_Tests`, `Integration_Review_Tests`,
+`Second_Round_Tests`, `Variant_Tests`, `New_Code_Review_Tests`), save the
+few the review settled as rules instead (below).
 
 **What it found, in short.**
 
@@ -1220,6 +1227,14 @@ a regression test that fails before its fix (`Rollback_Tests`,
   missed the Pair in flight; a Link's Operations could not read its
   Agent's secrets; an interrupt at the Contact's deletion skipped her
   other Links.
+- *The newest code.* Undoing the linking of a plain object whose Link
+  published a line crashed with a `NameError`, left her Pair behind and
+  lost her own value under the line's name; a generator or coroutine of a
+  Link ran its body with her door open and the Agent's shut; a Relation
+  bound a second time (`Knows = Social.Trusts`) was taken for a
+  declaration; `@Secret` on a static method and `@Public` on a Pair
+  condition or Imprint were accepted and did nothing useful; an
+  extension's member of the Link could silently replace a Base's line.
 
 **What it settled, beyond fixing.**
 
@@ -1244,11 +1259,18 @@ a regression test that fails before its fix (`Rollback_Tests`,
   would change how every Agent records its lines.
 - *`@Secret` on a Link's own Report or Operation* means in-house, as the
   Director asked in rule 2.7: it answers only inside the Agent's code.
-- *The doors*, as the known limits above state.
+- *The doors*, as the known limits above state. A generator or a
+  coroutine of a Link keeps its doors at every step, not only at its
+  call.
+- *A Relation is declared once*, in its declaring Tag's body, under its
+  own name. The template itself answers its own Reports and Operations,
+  as any Tag does, with no Agent behind them; `@Secret` binds on each
+  Link, where an Agent exists.
 - *A Relation's plain values and class methods* belong to the Link; its
   special methods are refused (a Pair's teardown is a `@Rip`). Its static
   methods are plain functions the kit never wraps, so their doors follow
-  the call.
+  the call and `@Secret` on one is refused. Across a Relation and its
+  extensions a name is a line or a member of the Link, never both.
 
 ## Validation
 
@@ -1266,7 +1288,14 @@ Shown by `tests/test_links.py`, by the Acceptance list above:
 - the Agent in a reference cycle, built before and after its Link; a
   Contact in a cycle reading her Pair; a self-link in a cycle; a Link held
   after its Agent is gone: `Ending_Tests`;
-- the barrier: `Finding_Tests`.
+- the barrier: `Finding_Tests`;
+- every finding of the review, each a regression that fails before its
+  fix: `Rollback_Tests`, `Ownership_Tests`, `Law_Review_Tests`,
+  `Lifetime_Review_Tests`, `Door_Review_Tests`, `Integration_Review_Tests`,
+  `Second_Round_Tests`, `Variant_Tests`, `New_Code_Review_Tests`;
+- generators and coroutines of a Link, step by step (send, throw, close,
+  a failure, a cancelled task), with every door back as it was after:
+  `New_Code_Review_Tests`.
 
 Also: `tests/spec_examples.py` runs §1.10's examples; the oracle's
 `Run_Links` walks Links, Shape Links, extensions, and Agents and Contacts

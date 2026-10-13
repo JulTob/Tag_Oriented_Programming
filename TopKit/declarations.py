@@ -1005,6 +1005,46 @@ def _refuse_relation_bases(
                     )
 
 
+_relation_homes: "WeakKeyDictionary[type, tuple[ref, str]]" = WeakKeyDictionary()   # where each Relation was declared
+
+
+def _refuse_an_alias(
+        tag: type,
+        name: str,
+        relation: type,
+        ) -> None:
+    """A Relation is declared once: in the Tag body that writes it, under
+    its own name. The first Tag body that binds it is that one, since the
+    class is made in it; binding it again, in another Tag or under another
+    name, would grant a second Link of the same template, or slip a Shape
+    Relation in as an extension."""
+
+    home = _relation_homes.get(relation)
+
+    if home is None:
+        _relation_homes[relation] = (
+                ref(tag),
+                name,
+                )
+        return
+
+    owner_reference, declared_name = home
+    owner = owner_reference()
+
+    if owner is tag and declared_name == name:
+        return
+
+    owner_name = owner.__name__ if owner is not None else "another Tag"
+    relation_name = f"{owner_name}.{declared_name}"
+
+    raise TagDeclarationError(
+            f"{tag.__name__}.{name}: binds the Relation {relation_name},"
+            f" declared in {owner_name}'s body. A Relation is declared once,"
+            " under its own name; declare a new Relation here, or, in a Shape"
+            f" of {owner_name}, extend it: @Link class {declared_name}({relation_name})"
+            )
+
+
 def _check_link_declarations(
         tag: type,
         namespace: dict[str, Any],
@@ -1034,6 +1074,12 @@ def _check_link_declarations(
                     f"{tag.__name__}.{name}: a Link is held under an ordinary"
                     " name, read on the Agent: agent.Knows"
                     )
+
+        _refuse_an_alias(
+                tag,
+                name,
+                member,
+                )
 
         for base in member.__bases__:
             if not _is_relation(base):
@@ -1096,6 +1142,15 @@ def _check_extension(
                     " same name extends it by naming it as its only Base:"
                     f" class {name}({owner.__name__}.{name})"
                     )
+
+        from .links import _refuse_a_name_both_ways   # here, not above: links imports this module
+
+        _refuse_a_name_both_ways(
+                tag,
+                name,
+                member,
+                inherited,
+                )
 
         return
 

@@ -7,6 +7,7 @@ doors, the Relation's refused spellings, ending in reference cycles, and
 the barrier.
 """
 
+import asyncio
 import contextvars
 import copy
 import gc
@@ -2791,6 +2792,318 @@ class Variant_Tests(unittest.TestCase):
             charlie.Trusts(sam)                           # a fresh Pair: the order the Agent gained them
         self.assertEqual(charlie.Trusts[ruth].Greet(), "trusts")
         self.assertEqual(charlie.Trusts[sam].Greet(), "undercover")
+
+
+class New_Code_Review_Tests(unittest.TestCase):
+    """The second round's review of the newest code."""
+
+    def test_an_undone_linking_gives_a_plain_object_back_her_own_values(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Public
+                @Record
+                def nickname(agent, contact, *, nickname=None):
+                    return nickname
+
+                @Public
+                def Greet(agent, contact):
+                    return "the line"
+
+        class Introducing(Tag):
+            @Record
+            def friend(agent, *, friend=None):
+                agent.Knows(friend, nickname="Ru")
+                return friend
+
+            @Record
+            def broken(agent):
+                raise ValueError("refused at Parts")
+
+        charlie, ruth = People("Charlie", "Ruth")
+        ruth.nickname = "her own nickname"
+        ruth.Greet = "her own greeting"
+        before = dict(vars(ruth))
+        Circle(charlie)
+        with self.assertRaises(TagCompositionError):      # the call's own failure, never a NameError
+            Introducing(charlie, friend=ruth)
+        self.assertEqual(vars(ruth), before)              # she is a plain object again, her values back
+        self.assertEqual(Tags(ruth), ())
+        with self.assertRaises(TagResolutionError):
+            charlie.Knows[ruth]                           # no Pair is left behind
+        charlie.Knows(ruth, nickname="Ru2")
+        self.assertEqual(charlie.Knows[ruth].nickname, "Ru2")   # a new linking builds a new Pair
+
+    def test_a_generator_line_runs_each_step_behind_the_doors(self):
+        from TopKit.state import _state_of
+
+        closed = []
+
+        class Circle(Tag):
+            @Secret
+            @Record
+            def ledger(agent):
+                return "his ledger"
+
+            @Link
+            class Member(Tag):
+                @Public
+                def Stream(agent, contact):
+                    received = yield (Read_Or_Shut(contact, "diary"), Read_Or_Shut(agent, "ledger"))
+                    yield received
+                    return "done"
+
+                @Public
+                def Guarded(agent, contact):
+                    try:
+                        yield 1
+                    except ValueError:
+                        yield Read_Or_Shut(contact, "diary")   # handling a throw is a step too
+                    finally:
+                        closed.append(Read_Or_Shut(contact, "diary"))
+
+        class Writer(Tag):
+            @Secret
+            @Record
+            def diary(agent):
+                return "her secret"
+
+            def Drive(agent):
+                steps = agent.Stream()
+                first = next(steps)
+                between = agent.diary                     # her own code between steps: her door is open
+                echoed = steps.send("hello")
+                try:
+                    next(steps)
+                except StopIteration as stop:
+                    final = stop.value
+                return first, between, echoed, final
+
+            def Drive_Guarded(agent):
+                steps = agent.Guarded()
+                next(steps)
+                handled = steps.throw(ValueError("thrown in"))
+                steps.close()
+                return handled
+
+        charlie, ruth = People("Charlie", "Ruth")
+        Circle(charlie)
+        Writer(ruth)
+        charlie.Member(ruth)
+        self.assertEqual(
+                ruth.Drive(),
+                (("shut", "his ledger"), "her secret", "hello", "done"),
+                )
+        self.assertEqual(ruth.Drive_Guarded(), "shut")
+        self.assertEqual(closed, ["shut"])
+        self.assertEqual(_state_of(ruth).composing, 0)    # every door is back as it was
+        self.assertEqual(_state_of(charlie).composing, 0)
+
+    def test_a_coroutine_line_runs_each_step_behind_the_doors(self):
+        from TopKit.state import _state_of
+
+        class Circle(Tag):
+            @Secret
+            @Record
+            def ledger(agent):
+                return "his ledger"
+
+            @Link
+            class Member(Tag):
+                @Public
+                async def Fetch(agent, contact):
+                    await asyncio.sleep(0)
+                    return (Read_Or_Shut(contact, "diary"), Read_Or_Shut(agent, "ledger"))
+
+                @Public
+                async def Fail(agent, contact):
+                    await asyncio.sleep(0)
+                    raise ValueError("refused")
+
+                async def Wait(agent, contact):
+                    await asyncio.sleep(10)
+
+        class Writer(Tag):
+            @Secret
+            @Record
+            def diary(agent):
+                return "her secret"
+
+            def Sync_Fetch(agent):
+                return asyncio.run(agent.Fetch())
+
+            def Sync_Fail(agent):
+                return asyncio.run(agent.Fail())
+
+        charlie, ruth = People("Charlie", "Ruth")
+        Circle(charlie)
+        Writer(ruth)
+        charlie.Member(ruth)
+        self.assertEqual(ruth.Sync_Fetch(), ("shut", "his ledger"))
+        with self.assertRaises(ValueError):
+            ruth.Sync_Fail()
+
+        async def Cancel_It():
+            task = asyncio.ensure_future(charlie.Member[ruth].Wait())
+            await asyncio.sleep(0)
+            task.cancel()
+            await task
+
+        with self.assertRaises(asyncio.CancelledError):
+            asyncio.run(Cancel_It())
+        self.assertEqual(_state_of(ruth).composing, 0)
+        self.assertEqual(_state_of(charlie).composing, 0)
+
+    def test_a_generator_operation_keeps_her_door_shut_at_each_step(self):
+        class Circle(Tag):
+            @Link
+            class Member(Tag):
+                @Operation
+                def Scan(link, contact):
+                    yield Read_Or_Shut(contact, "diary")
+
+        class Writer(Tag):
+            @Secret
+            @Record
+            def diary(agent):
+                return "her secret"
+
+            def Ask(agent, link):
+                return list(link.Scan(contact=agent))
+
+        charlie, ruth = People("Charlie", "Ruth")
+        Circle(charlie)
+        Writer(ruth)
+        charlie.Member(ruth)
+        self.assertEqual(ruth.Ask(charlie.Member), ["shut"])
+
+    def test_an_async_generator_in_a_relation_is_refused(self):
+        with self.assertRaises(TagDeclarationError):
+            class Circle(Tag):
+                @Link
+                class Member(Tag):
+                    async def Stream(agent, contact):
+                        yield 1
+
+    def test_a_relation_bound_a_second_time_is_refused(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                pass
+
+            @Link
+            class Trusts(Knows):
+                pass
+
+        with self.assertRaises(TagDeclarationError):
+            class Undercover(Circle):
+                Knows = Circle.Trusts                     # a Shape Relation passed off as an extension
+
+        with self.assertRaises(TagDeclarationError):
+            class Fans(Tag):
+                Follows = Circle.Knows                    # another Tag's Relation, under another name
+
+        with self.assertRaises(TagDeclarationError):
+            class Twice(Tag):
+                @Link
+                class Likes(Tag):
+                    pass
+
+                Adores = Likes                            # one body, two names
+
+        bob, ruth = People("Bob", "Ruth")
+        Circle(bob)
+        bob.Trusts(ruth)                                  # the declaring Tag is unharmed
+        self.assertIn(ruth, bob.Knows)
+
+    def test_secret_on_a_relations_static_method_is_refused(self):
+        with self.assertRaises(TagDeclarationError):
+            class Vault(Tag):
+                @Link
+                class Member(Tag):
+                    @Secret
+                    @staticmethod
+                    def code():
+                        return "static secret"
+
+        with self.assertRaises(TagDeclarationError):
+            class Vault_Again(Tag):
+                @Link
+                class Member(Tag):
+                    @staticmethod
+                    @Secret
+                    def code():
+                        return "static secret"
+
+    def test_public_on_a_pair_condition_or_imprint_is_refused(self):
+        with self.assertRaises(TagDeclarationError):
+            class Watching(Tag):
+                @Link
+                class Knows(Tag):
+                    @Public
+                    @Post
+                    def Still_Honest(agent, contact):
+                        return contact.honest
+
+        with self.assertRaises(TagDeclarationError):
+            class Welcoming(Tag):
+                @Link
+                class Knows(Tag):
+                    @Public
+                    @Imprint
+                    def Welcome(agent, contact):
+                        pass
+
+        class Parting(Tag):                               # a teardown is callable, as on any Tag
+            @Link
+            class Knows(Tag):
+                @Public
+                @Rip
+                def Forget(agent, contact):
+                    return "forgotten"
+
+        charlie, ruth = People("Charlie", "Ruth")
+        Parting(charlie)
+        charlie.Knows(ruth)
+        self.assertEqual(ruth.Forget(), "forgotten")
+
+    def test_a_name_is_a_line_or_a_link_member_never_both(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Public
+                def Greet(agent, contact):
+                    return "the line"
+
+                @Report
+                def capacity(link):
+                    return 150
+
+        with self.assertRaises(TagDeclarationError):
+            class Plain_Over_Line(Circle):
+                @Link
+                class Knows(Circle.Knows):
+                    Greet = "a plain value of the extension"
+
+        with self.assertRaises(TagDeclarationError):
+            class Line_Over_Report(Circle):
+                @Link
+                class Knows(Circle.Knows):
+                    @Public
+                    def capacity(agent, contact):
+                        return "a line"
+
+        class Fine(Circle):                               # other names extend as before
+            @Link
+            class Knows(Circle.Knows):
+                motto = "kind words"
+
+        charlie, ruth = People("Charlie", "Ruth")
+        Fine(charlie)
+        charlie.Knows(ruth)
+        self.assertEqual(ruth.Greet(), "the line")
+        self.assertEqual(charlie.Knows.capacity, 150)
+        self.assertEqual(charlie.Knows.motto, "kind words")
 
 
 def Agents_Of_Any_Link(contact):

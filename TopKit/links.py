@@ -38,8 +38,11 @@ How the kit builds it, from parts it already has:
 from __future__ import annotations
 
 from functools import partial
+from inspect import isasyncgenfunction
 from inspect import signature
 from itertools import count
+from types import CoroutineType
+from types import GeneratorType
 from typing import Any
 from typing import Callable
 from weakref import WeakKeyDictionary
@@ -49,6 +52,7 @@ from . import tags as tags_module
 from .declarations import KIND
 from .declarations import STATE
 from .declarations import Report
+from .declarations import _CONDITION_KINDS
 from .declarations import _FLAG
 from .declarations import _LINK
 from .declarations import _MISSING
@@ -59,6 +63,7 @@ from .declarations import _SECRET
 from .declarations import _UNDERLAY
 from .declarations import _has_flag
 from .declarations import _is_dunder
+from .declarations import _is_link
 from .declarations import _is_pin
 from .declarations import _is_private
 from .declarations import _is_relation
@@ -231,8 +236,30 @@ def _check_seats(
                 " no seat; declare Relations in the declaring Tag's body"
                 )
 
+    if isinstance(member, staticmethod) and (_has_flag(member, _SECRET) or getattr(member, _SECRET, False)):
+        raise TagDeclarationError(
+                f"{relation.__name__}.{name}: a static method is plain Python,"
+                " which the kit never wraps, so @Secret on it would promise"
+                " nothing; an @Operation takes the Link, and its @Secret keeps"
+                " it in-house"
+                )
+
+    if not isinstance(member, staticmethod) and isasyncgenfunction(getattr(member, "__func__", member)):
+        raise TagDeclarationError(
+                f"{relation.__name__}.{name}: a Link's code runs behind its"
+                " doors at every step, and an async generator's steps cannot"
+                " be; write a coroutine or a generator"
+                )
+
     if not _is_pair_member(name, member) or _kind_of(member) == "delete":
         return
+
+    if _has_flag(member, _PUBLIC) and _kind_of(member) in (*_CONDITION_KINDS, "imprint"):
+        raise TagDeclarationError(
+                f"{relation.__name__}.{name}: a @Public Pair member is a line"
+                " the Contact calls or reads; a condition or an Imprint is the"
+                " kit's to run, so it is never a line"
+                )
 
     if _is_dunder(name):
         raise TagDeclarationError(
@@ -361,30 +388,30 @@ def _two_seats(
             **kwargs: Any,
             ) -> Any:
         agent, contact = _ends_of(pair)
-        agent_state = _state_of(agent)
-        opened = _shut_door(
-                contact,
+        contacts = (contact,)
+        entered = _enter_doors(
                 agent,
-                )   # her door stays shut on every path (rule 3.6)
-
-        if agent_state is not None:
-            agent_state.composing += 1   # the Link is the Agent's code about a Pair
+                contacts,
+                )   # her door stays shut on every path; the Link is the Agent's code (rule 3.6)
 
         try:
-            return function(
+            result = function(
                     agent,
                     contact,
                     *args,
                     **kwargs,
                     )
         finally:
-            if agent_state is not None:
-                agent_state.composing -= 1
+            _leave_doors(entered)
 
-            _reopen_door(
-                    contact,
-                    opened,
+        if isinstance(result, _STEPPED):
+            return _stepped_behind(
+                    agent,
+                    contacts,
+                    result,
                     )
+
+        return result
 
     Two_Seats.__signature__ = signature(function).replace(
             parameters=[parameters[0], *parameters[2:]],
@@ -405,41 +432,6 @@ def _two_seats(
     Two_Seats._topkit_seats = frozenset(seats)
 
     return Two_Seats
-
-
-def _shut_door(
-        contact: object,
-        agent: object,
-        ) -> int | None:
-    """Shut the Contact's composition door while the Link's code runs, and
-    return how far it was open. None when there is nothing to shut: she
-    is no Agent, or she is the Link's Agent herself (a self-link)."""
-
-    if contact is agent:
-        return None
-
-    state = _state_of(contact)
-
-    if state is None:
-        return None
-
-    opened = state.composing
-    state.composing = 0
-
-    return opened
-
-
-def _reopen_door(
-        contact: object,
-        opened: int | None,
-        ) -> None:
-    if opened is None:
-        return
-
-    state = _state_of(contact)
-
-    if state is not None:
-        state.composing = opened
 
 
 def _door_shut_operation(
@@ -466,36 +458,20 @@ def _door_shut_operation(
 
         record = link.__dict__.get(_RECORD)
         agent = None if record is None else record.agent()
-        agent_state = None if agent is None else _state_of(agent)
-        saved: list[tuple[_State, int]] = []
+        contacts = tuple(
+                value
+                for value in (*args, *kwargs.values())
+                if _is_contact_of(link, value)
+                )   # the Contacts it is called with, by position or by name: their doors stay shut (rule 3.6)
 
-        for value in (*args, *kwargs.values()):
-            if value is not agent and _is_contact_of(link, value):
-                state = _state_of(value)
-
-                if state.composing:
-                    saved.append(
-                            (
-                                state,
-                                state.composing,
-                                )
-                            )
-                    state.composing = 0   # the Contact it is called with: her door stays shut (rule 3.6)
-
-        if agent_state is not None:
-            agent_state.composing += 1   # the Link's code is its Agent's code
-
-        try:
-            return function(
-                    link,
-                    *args,
-                    **kwargs,
-                    )
-        finally:
-            if agent_state is not None:
-                agent_state.composing -= 1
-
-            _reopen_every(saved)
+        return _run_behind(
+                agent,
+                contacts,
+                function,
+                link,
+                *args,
+                **kwargs,
+                )
 
     Operation.__signature__ = signature(function)
     Operation.__name__ = function.__name__
@@ -570,24 +546,16 @@ def _door_shut_builder(
             link: type,
             *args: Any,
             ) -> Any:
-        saved = _shut_every_contact(link)
         record = link.__dict__.get(_RECORD)
         agent = None if record is None else record.agent()
-        agent_state = None if agent is None else _state_of(agent)
 
-        if agent_state is not None:
-            agent_state.composing += 1   # the Link's code is its Agent's code
-
-        try:
-            return builder(
-                    link,
-                    *args,
-                    )
-        finally:
-            if agent_state is not None:
-                agent_state.composing -= 1
-
-            _reopen_every(saved)
+        return _run_behind(
+                agent,
+                _every_contact(link),
+                builder,
+                link,
+                *args,
+                )
 
     Build.__signature__ = signature(builder)
     Build.__name__ = builder.__name__
@@ -606,44 +574,231 @@ def _door_shut_builder(
     return Build
 
 
-def _shut_every_contact(
+def _every_contact(
         link: type,
-        ) -> list[tuple[_State, int]]:
-    """Shut the door of every Contact of the Link's family; return how
-    far each was open."""
+        ) -> list[object]:
+    """Every Contact of the Link's family, now."""
 
     record = link.__dict__.get(_RECORD)
 
     if record is None:
         return []
 
-    agent = record.agent()
-    saved: list[tuple[_State, int]] = []
+    contacts: list[object] = []
 
     for member in record.family.Links():
-        for contact in member.__dict__["_topkit_field"]:
-            if contact is agent:
-                continue
+        contacts.extend(member.__dict__["_topkit_field"])
 
-            state = _state_of(contact)
+    return contacts
 
-            if state is not None and state.composing:
-                saved.append(
-                        (
-                            state,
-                            state.composing,
-                            )
+
+def _enter_doors(
+        agent: object | None,
+        contacts: Any,
+        ) -> tuple[_State | None, list[tuple[_State, int]] | None]:
+    """Enter the doors a Link's code runs behind (rule 3.6): every Contact
+    it is about has her door shut, and the Link's Agent has his open,
+    since the Link's code is its Agent's code. Return what
+    ``_leave_doors`` needs to put every door back as it was."""
+
+    saved: list[tuple[_State, int]] | None = None
+
+    for contact in contacts:
+        if contact is agent:
+            continue   # a self-link: she is the Agent, whose door opens
+
+        state = _state_of(contact)
+
+        if state is not None and state.composing:
+            if saved is None:
+                saved = []
+
+            saved.append(
+                    (
+                        state,
+                        state.composing,
                         )
-                state.composing = 0
+                    )
+            state.composing = 0   # her door stays shut
 
-    return saved
+    agent_state = None if agent is None else _state_of(agent)
+
+    if agent_state is not None:
+        agent_state.composing += 1   # his door opens
+
+    return (
+            agent_state,
+            saved,
+            )
 
 
-def _reopen_every(
-        saved: list[tuple[_State, int]],
+def _leave_doors(
+        entered: tuple[_State | None, list[tuple[_State, int]] | None],
         ) -> None:
+    agent_state, saved = entered
+
+    if agent_state is not None:
+        agent_state.composing -= 1
+
+    if saved is None:
+        return
+
     for state, opened in saved:
         state.composing = opened
+
+
+_STEPPED = (
+        GeneratorType,
+        CoroutineType,
+        )   # a body that runs later, one step at a time, when iterated or awaited
+
+
+def _run_behind(
+        agent: object | None,
+        contacts: Any,
+        function: Function,
+        *args: Any,
+        **kwargs: Any,
+        ) -> Any:
+    """Call a Link's function behind its doors."""
+
+    entered = _enter_doors(
+            agent,
+            contacts,
+            )
+
+    try:
+        result = function(
+                *args,
+                **kwargs,
+                )
+    finally:
+        _leave_doors(entered)
+
+    if isinstance(result, _STEPPED):
+        return _stepped_behind(
+                agent,
+                contacts,
+                result,
+                )
+
+    return result
+
+
+def _stepped_behind(
+        agent: object | None,
+        contacts: Any,
+        result: Any,
+        ) -> Any:
+    """A generator or a coroutine the Link's code returned. Its body runs
+    when it is iterated or awaited, long after the call returned, so each
+    of its steps runs behind the same doors; between steps every door is
+    as the caller left it."""
+
+    if isinstance(result, GeneratorType):
+        return _each_step_behind(
+                agent,
+                contacts,
+                result,
+                )
+
+    return _awaited_behind(
+            agent,
+            contacts,
+            result,
+            )
+
+
+def _each_step_behind(
+        agent: object | None,
+        contacts: Any,
+        steps: Any,
+        ) -> Any:
+    """Drive a generator, or a coroutine's awaiting, one step at a time,
+    each step behind the doors; pass on what is sent or thrown in."""
+
+    sent: Any = None
+    thrown: BaseException | None = None
+
+    while True:
+        entered = _enter_doors(
+                agent,
+                contacts,
+                )
+
+        try:
+            if thrown is None:
+                step = steps.send(sent)
+            else:
+                step = steps.throw(thrown)
+        except StopIteration as stop:
+            return stop.value
+        finally:
+            _leave_doors(entered)
+
+        thrown = None
+
+        try:
+            sent = yield step
+        except GeneratorExit:
+            entered = _enter_doors(
+                    agent,
+                    contacts,
+                    )
+
+            try:
+                steps.close()
+            finally:
+                _leave_doors(entered)
+
+            raise
+        except BaseException as error:
+            thrown = error   # thrown into the Link's code at its next step
+            sent = None
+
+
+class _Awaiting_Behind:
+    """A coroutine of a Link, awaited one step at a time behind its doors."""
+
+    __slots__ = (
+            "agent",
+            "contacts",
+            "coroutine",
+            )
+
+    def __init__(
+            awaiting,
+            agent: object | None,
+            contacts: Any,
+            coroutine: Any,
+            ) -> None:
+        awaiting.agent = agent
+        awaiting.contacts = contacts
+        awaiting.coroutine = coroutine
+
+    def __await__(
+            awaiting,
+            ) -> Any:
+        return _each_step_behind(
+                awaiting.agent,
+                awaiting.contacts,
+                awaiting.coroutine,
+                )
+
+
+async def _awaited_behind(
+        agent: object | None,
+        contacts: Any,
+        coroutine: Any,
+        ) -> Any:
+    """A coroutine of a Link, as a coroutine: awaitable, and accepted by
+    ``asyncio.run`` and by tasks, each of its steps behind the doors."""
+
+    return await _Awaiting_Behind(
+            agent,
+            contacts,
+            coroutine,
+            )
 
 
 def _is_contact_of(
@@ -1211,7 +1366,7 @@ def _tag_scope_of(
     members: dict[str, Any] = {}
 
     for name, member in relation.__dict__.items():
-        if _is_private(name) or name in _CLASS_MACHINERY:
+        if not _is_tag_scope_member(name, member):
             continue
 
         if isinstance(member, Report):
@@ -1222,18 +1377,78 @@ def _tag_scope_of(
 
             copy.public = member.public
             members[name] = copy
-        elif isinstance(member, classmethod) and _kind_of(member) == "operation":
-            members[name] = _door_shut_operation(member)
-        elif _is_dunder(name):
-            continue   # the kit's marks and the language's machinery stay on the Relation
         elif isinstance(member, classmethod):
-            members[name] = _door_shut_operation(member)
-        elif isinstance(member, staticmethod):
-            members[name] = member
-        elif not callable(member):
-            members[name] = member   # a plain value of the Relation, capacity = 150
+            members[name] = _door_shut_operation(member)   # an Operation, or another class method
+        else:
+            members[name] = member   # a static method, or a plain value: capacity = 150
 
     return members
+
+
+def _is_tag_scope_member(
+        name: str,
+        member: Any,
+        ) -> bool:
+    """What a Relation declares for the Link itself (rule 2.3): Reports,
+    Operations and other class methods, static methods, plain values.
+    The kit's marks and the language's machinery stay on the Relation."""
+
+    if _is_private(name) or name in _CLASS_MACHINERY:
+        return False
+
+    if isinstance(member, Report):
+        return True
+
+    if isinstance(member, classmethod) and _kind_of(member) == "operation":
+        return True
+
+    if _is_dunder(name):
+        return False
+
+    return isinstance(member, (classmethod, staticmethod)) or not callable(member)
+
+
+def _refuse_a_name_both_ways(
+        tag: type,
+        name: str,
+        extension: type,
+        inherited: type,
+        ) -> None:
+    """One Link holds the lines and the Tag-scope members of all its Layers
+    in one class. So across a Relation and its extensions, a name is a line
+    or a Tag-scope member, never both: one would silently replace the
+    other on every Agent's Link. Checked when the extending Shape is made."""
+
+    own_lines = set(_published_names(extension))
+    own_scope = {
+            member_name
+            for member_name, member in extension.__dict__.items()
+            if _is_tag_scope_member(member_name, member)
+            }
+
+    for layer in inherited.__mro__:
+        if not _is_relation(layer):
+            continue
+
+        layer_lines = set(_published_names(layer))
+        layer_scope = {
+                member_name
+                for member_name, member in layer.__dict__.items()
+                if _is_tag_scope_member(member_name, member)
+                }
+        clashes = sorted((own_scope & layer_lines) | (own_lines & layer_scope))
+
+        if clashes:
+            clash = clashes[0]
+            line_owner = layer if clash in layer_lines else extension
+
+            raise TagDeclarationError(
+                    f"{tag.__name__}.{name}.{clash}: {line_owner.__qualname__}"
+                    f" publishes '{clash}' as a line onto its Contacts, and the"
+                    " other Layer of this Link declares it for the Link itself;"
+                    " one Link holds both side by side, so give one of them"
+                    " another name"
+                    )
 
 
 def _publish_lines(
@@ -1895,7 +2110,7 @@ def _undo_linking(
         _forget_agent(
                 contact,
                 state,
-                entry.host_class,
+                entry,
                 )
 
 
@@ -1923,22 +2138,26 @@ def _holds_only_lines(
 def _forget_agent(
         contact: object,
         state: _State,
-        host_class: type,
+        entry: Any,
         ) -> None:
     """She was no Agent before the undone linking: she is a plain object
-    again, with whatever plain values she holds."""
+    again, with whatever plain values she holds. A value she held before
+    under a line's name comes back, as a rollback gives it back."""
 
     namespace = _namespace_of(contact)
 
     for name in state.actions:
-        namespace.pop(name, None)   # the lines bound on her
+        if name in entry.namespace:
+            namespace[name] = entry.namespace[name]   # her own value, which the line covered
+        else:
+            namespace.pop(name, None)   # the line bound on her
 
     namespace.pop(STATE, None)
 
-    if type(contact) is not host_class:
+    if type(contact) is not entry.host_class:
         _set_runtime_type(
                 contact,
-                host_class,
+                entry.host_class,
                 )
 
 
