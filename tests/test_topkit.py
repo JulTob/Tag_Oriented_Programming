@@ -1819,6 +1819,33 @@ class DefectiveTaggingTests(unittest.TestCase):
 
 
 class ContractNamespaceTests(unittest.TestCase):
+    def test_native_truth_replaces_holds_and_keeps_named_diagnostics(self) -> None:
+        self.assertNotIn("Holds", vars(Contract))
+
+        class Checked(Tag):
+            @Record
+            def contents(agent):
+                return []
+
+            @Post
+            def Ready(agent):
+                return agent.contents is not None
+
+        agent = Agent()
+        Checked(agent)
+        self.assertFalse(agent.contents)     # held values keep Python truth
+        self.assertTrue(agent)              # the empty list satisfies Ready
+        self.assertTrue(Contract.Postconditions(agent))
+
+        agent.contents = None
+        self.assertFalse(agent)
+        with self.assertRaises(TagPostconditionError.Ready):
+            Contract.Postconditions(agent)
+        self.assertEqual(Contract.Status(agent), {"Ready": False})
+
+        Contract.Delete(agent, "Ready")
+        self.assertTrue(agent)
+
     def test_contract_namespace_checks_pre_post_and_both(self) -> None:
         ari = Agent()
         ari.level = 1
@@ -1828,7 +1855,7 @@ class ContractNamespaceTests(unittest.TestCase):
         self.assertTrue(Contract.Preconditions(ari))
         self.assertTrue(Contract.Postconditions(ari))
         self.assertTrue(Contract.Conditions(ari))
-        self.assertTrue(Contract.Holds(ari))
+        self.assertTrue(bool(ari))
 
         del ari.spellbook
 
@@ -2562,7 +2589,7 @@ class StickyConditionTests(unittest.TestCase):
         ari.book = None
 
         self.assertEqual(Contract.Status(ari), {"Has_Book": False})   # the promise stays, and fails loud
-        self.assertFalse(Contract.Holds(ari))
+        self.assertFalse(bool(ari))
 
     def test_a_ripped_gate_stays_on_the_record(self) -> None:
         class Gated(Tag):
@@ -2598,7 +2625,7 @@ class StickyConditionTests(unittest.TestCase):
         ari.oath = None
 
         self.assertEqual(Contract.Status(ari), {})
-        self.assertTrue(Contract.Holds(ari))
+        self.assertTrue(bool(ari))
 
     def test_the_author_guards_a_promise_with_membership(self) -> None:
         class Sworn(Tag):
@@ -2615,12 +2642,12 @@ class StickyConditionTests(unittest.TestCase):
         ari.oath = None
 
         self.assertEqual(Contract.Status(ari), {"Has_Oath": True})    # still listed, holds by the guard
-        self.assertTrue(Contract.Holds(ari))
+        self.assertTrue(bool(ari))
 
         with self.assertRaises(Postcondition.Has_Oath):
             Sworn(ari)                                                # back in: the promise bites again
 
-        self.assertFalse(Contract.Holds(ari))
+        self.assertFalse(bool(ari))
 
     def test_deleting_a_condition_that_is_not_there_is_refused(self) -> None:
         ari = Agent()
@@ -2675,7 +2702,7 @@ class StickyConditionTests(unittest.TestCase):
         del Alive[ari]
         ari.alive = False
 
-        self.assertTrue(Contract.Holds(ari))                          # the guard skipped the dead beat
+        self.assertTrue(bool(ari))                          # the guard skipped the dead beat
 
     def test_a_pins_promise_is_sticky_and_the_pin_may_end_it(self) -> None:
         class Wizard(Tag):

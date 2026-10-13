@@ -213,7 +213,7 @@ class Tag_Kind_Tests(unittest.TestCase):
         charlie.weapon.damage = 0
         self.assertTrue("weapon" @ charlie)
         self.assertIn(charlie.weapon, Weapon[:])
-        self.assertFalse(Contract.Holds(charlie.weapon))
+        self.assertFalse(bool(charlie.weapon))
 
 
 # ------------------------------------------------------------------
@@ -1016,18 +1016,18 @@ class Lifecycle_Tests(unittest.TestCase):
 
             @Post
             def Sound_Weapon(agent):
-                return agent.weapon in Weapon[:] and Contract.Holds(agent.weapon)
+                return agent.weapon in Weapon[:] and bool(agent.weapon)
 
         charlie = Character("Charlie")
         Armed(charlie)
-        self.assertTrue(Contract.Holds(charlie))
+        self.assertTrue(bool(charlie))
         del Weapon[charlie.weapon]
         self.assertTrue("weapon" @ charlie)
         self.assertNotIn(charlie.weapon, Weapon[:])
         self.assertTrue(isinstance(charlie.weapon, Weapon))
-        self.assertFalse(Contract.Holds(charlie))
+        self.assertFalse(bool(charlie))
         Weapon(charlie.weapon)                            # a fresh tagging repairs it
-        self.assertTrue(Contract.Holds(charlie))
+        self.assertTrue(bool(charlie))
 
     def test_a_rip_protocol_may_disarm(self):
         class Conscript(Tag):
@@ -1230,8 +1230,8 @@ class Host_Tests(unittest.TestCase):
         Fighter(charlie)
         Sharp(charlie.weapon)
         charlie.weapon.damage = 0
-        self.assertFalse(Contract.Holds(charlie.weapon))
-        self.assertTrue(Contract.Holds(charlie))          # nothing on Charlie promised about the sword
+        self.assertFalse(bool(charlie.weapon))
+        self.assertTrue(bool(charlie))          # nothing on Charlie promised about the sword
 
     def test_a_tool_under_a_protocol_name_keeps_the_languages_hook(self):
         class Given(Tag):

@@ -28,7 +28,7 @@ class ConditionBindingTests(unittest.TestCase):
         with self.assertRaises(TagCompositionError):
             del agent.Ready
         self.assertIs(agent.Ready, True)
-        self.assertTrue(Contract.Holds(agent))
+        self.assertTrue(bool(agent))
 
     def test_ordinary_attribute_behavior_returns_after_contract_delete(self):
         class Qualified(Tag):

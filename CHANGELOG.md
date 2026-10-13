@@ -4,6 +4,12 @@
 
 ### TopKit
 
+- **Native contract truth:** removed `Contract.Holds` without an alias
+  (STEP-SPEC-40). Use `bool(agent)` or `if agent:`, including for Tags.
+  Named checks and diagnostic Contract tools remain. Held untagged values
+  keep ordinary Python truth; retain any required membership check before
+  interpreting a held value's truth as an Agent's contract.
+
 - **Deep population algebra:** lazy combinations evaluate walks and
   membership with explicit stacks, preserving left-first order, live
   per-leaf walk timing, short circuits and identity-based union ownership
