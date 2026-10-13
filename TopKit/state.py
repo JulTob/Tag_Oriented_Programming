@@ -15,6 +15,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from dataclasses import field
 from functools import wraps
+from inspect import signature
 from types import MethodType
 from typing import Any
 from typing import Callable
@@ -548,19 +549,88 @@ class _Originals:
         return f"<originals of {', '.join(original._declared) or 'nothing'}>"
 
 
+class _Pinned_Bound:
+    """A public Operation handle with its original callable and receiver.
+
+    Signature inspection is deferred until requested: optional callable
+    introspection must not prevent reading or calling an Operation.
+    """
+
+    __slots__ = ("_function", "_owner", "_state", "_name", "_doc")
+
+    def __init__(
+            bound,
+            function: Function,
+            owner: type,
+            state: "_State",
+            name: str,
+            doc: str | None,
+            ) -> None:
+        bound._function = function
+        bound._owner = owner
+        bound._state = state
+        bound._name = name
+        bound._doc = doc
+
+    def __call__(bound, *args: Any, **kwargs: Any) -> Any:
+        state = bound._state
+        state.composing += 1
+
+        try:
+            return bound._function(bound._owner, *args, **kwargs)
+        finally:
+            state.composing -= 1
+
+    def __eq__(bound, other: object) -> Any:
+        # Use Python's function equality and receiver identity without
+        # consulting the receiving Tag's equality or hash hooks.
+        if isinstance(other, _Pinned_Bound):
+            other = MethodType(other._function, other._owner)
+
+        return MethodType(bound._function, bound._owner).__eq__(other)
+
+    def __hash__(bound) -> int:
+        return hash(MethodType(bound._function, bound._owner))
+
+    def __repr__(bound) -> str:
+        return f"<pinned Operation {bound._name} of {_name_of(bound._owner)}>"
+
+    @property
+    def __self__(bound) -> type:
+        return bound._owner
+
+    @property
+    def __func__(bound) -> Function:
+        return bound._function
+
+    @property
+    def __signature__(bound) -> Any:
+        return signature(MethodType(bound._function, bound._owner))
+
+    @property
+    def __name__(bound) -> str:
+        return bound._name
+
+    @property
+    def __doc__(bound) -> str | None:
+        return bound._doc
+
+
 class _Composing_Pinned_Operation(_Pinned_Operation):
     """A pinned Operation that opens the pinned Tag's composition door
     while it runs, so the Pin's @Secret members resolve inside it."""
 
-    __slots__ = ("_state",)
+    __slots__ = ("_state", "_name")
 
     def __init__(
             operation,
             function: Function,
             state: "_State",
+            name: str,
             ) -> None:
         super().__init__(function)
         operation._state = state
+        operation._name = name
 
     def __get__(
             operation,
@@ -571,42 +641,25 @@ class _Composing_Pinned_Operation(_Pinned_Operation):
             owner = type(instance)
 
         function = operation._function
-        state = operation._state
+        try:
+            name = function.__name__
+            if not issubclass(type(name), str):
+                name = operation._name
+        except Exception:
+            name = operation._name
 
-        def Composing(
-                *args: Any,
-                **kwargs: Any,
-                ) -> Any:
-            state.composing += 1
+        try:
+            doc = function.__doc__
+        except Exception:
+            doc = None
 
-            try:
-                return function(
-                        owner,
-                        *args,
-                        **kwargs,
-                        )
-            finally:
-                state.composing -= 1
-
-        Composing.__name__ = function.__name__
-        Composing.__doc__ = function.__doc__
-
-        return Composing
+        return _Pinned_Bound(function, owner, operation._state, name, doc)
 
 
 class _Secret_Pinned_Operation(_Composing_Pinned_Operation):
     """A captured Pin-private Operation cannot open its own access door."""
 
-    __slots__ = ("_name",)
-
-    def __init__(
-            operation,
-            function: Function,
-            state: "_State",
-            name: str,
-            ) -> None:
-        super().__init__(function, state)
-        operation._name = name
+    __slots__ = ()
 
     def __get__(
             operation,
@@ -725,10 +778,8 @@ def _bind_to(
 
     if name in state.secrets:
         bound: _Bound = _Secret_Bound(function, agent, name)
-    elif state.secrets:
-        bound = _Composing_Bound(function, agent)
     else:
-        bound = _Bound(function, agent)
+        bound = _Composing_Bound(function, agent)
 
     _namespace_of(agent)[name] = bound
 
@@ -744,10 +795,8 @@ def _bind_pinned(
 
     if name in state.secrets:
         bound: _Pinned_Operation = _Secret_Pinned_Operation(function, state, name)
-    elif state.secrets:
-        bound = _Composing_Pinned_Operation(function, state)
     else:
-        bound = _Pinned_Operation(function)
+        bound = _Composing_Pinned_Operation(function, state, name)
 
     if name in state.secrets:
         _namespace_of(tag).pop(name, None)

@@ -68,9 +68,28 @@ Actions; Agents are built once and play for a long time. So:
   intact, and later hook entry prunes inert doors in captured contexts.
   Secret gates accept either form. The type-cache key uses the selected raw
   Actions and wrappers are allocated only on a cache miss, so equal
-  compositions still share one runtime type. Ordinary Actions on Agents
-  without Secrets use plain callables; context Actions are wrapped even
-  then, because a hook may introduce the first Secret while it runs.
+  compositions still share one runtime type. Current synchronous TOP
+  Actions, including Pin Actions, open their composition door even before
+  any Secret exists: an Action may introduce the first Secret while it
+  runs. A public handle captured before that Tagging still composes when
+  called afterward. Ordinary host methods are not wrapped. This does not
+  change general special-method composition (#93), lazy execution (#94),
+  or inherited Pin receiver/authority choices (#98).
+  Public Pin handles use a TOP composing callable rather than Python's
+  `MethodType`. They preserve their receiving Tag as `__self__`, their
+  original callable as `__func__`, strong receiver ownership and available
+  `__name__` / `__doc__` metadata. Their bound Python signature is inspected
+  only when requested. Equality and hashing follow Python bound methods:
+  the callable supplies equality/hash and the receiver is identified by
+  identity. Repeated reads therefore work as dictionary keys and set
+  members, including alongside matching native methods; custom receiver
+  equality/hash hooks are not consulted. A handle's representation names
+  its captured Operation and receiving Tag. Callable-kind identity remains
+  a separate decision (#87).
+  Optional callable metadata does not gate Pin invocation: usable `__name__`
+  and `__doc__` are preserved; ordinary failures reading or assigning them
+  fall back to the declared name and `None`, respectively. Metadata interrupts
+  still propagate. Operation publication is a separate repair (#138).
 
 Synchronous Actions selected through an Agent-bound Tag view use the same
 composition door, even when that snapshot preceded the first Secret
@@ -263,8 +282,13 @@ rollback target.
   code path; the class case restores key by key. The runtime type is a
   `(MetaTag, Tagged)` metaclass from the same cache. A landed Action is a
   `_Pinned_Operation` descriptor binding to the Tag it is read from (a
-  Shape inherits it as it inherits a classmethod); a landed Record is a
-  plain class attribute, which is exactly a Report's value. `_scan` skips
+  Shape inherits it as it inherits a classmethod). Its public composing
+  handle keeps the original callable as `__func__`, the receiving Tag as
+  `__self__`, native bound-method equality/hash, and the corresponding bound
+  Python signature. Signature inspection is deferred until requested, so
+  optional introspection cannot prevent reading or calling an accepted
+  callable. A landed Record is a plain class attribute, which is exactly
+  a Report's value. `_scan` skips
   names the class state manages, so a pinned Tag never projects them onto
   its Agents. The Tag's own Operations and Reports are host members to a
   Pin (`_pinned_host_function`, `_pinned_stored`); its Agent-scope names

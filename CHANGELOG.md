@@ -4,6 +4,24 @@
 
 ### TopKit
 
+- **Actions before the first Secret:** current synchronous TOP Actions
+  on ordinary objects and pinned Tags open their composition door even
+  when no Secret existed at binding. They can introduce and read the
+  first Secret during their own body; previously captured public handles
+  also compose. Secret invocation guards, host methods, weak object
+  binding and existing Pin receiver/ownership behavior stay unchanged.
+  General special-method composition, lazy execution and inherited Pin
+  receiver dependencies remain separate concerns. Pin Action handles
+  preserve available callable metadata and fall back to the declared name
+  and no documentation when optional metadata cannot be copied. Public
+  Pin Operation handles also retain their original `__self__`, `__func__`
+  and bound `inspect.signature`. Their equality and hashing follow Python
+  bound methods, so repeated reads work as set members and dictionary keys;
+  their representation names the Operation and receiving Tag. Signature
+  metadata is inspected only when requested. The composing handle is a TOP
+  callable rather than a Python method object; callable-kind introspection
+  remains separate.
+
 - **Captured Pin-private Operations:** a captured current Secret Action
   landed by a Pin, including a Constant Action, requires its pinned Tag's
   already-open composition door before invocation. Rip, fresh pinning,
