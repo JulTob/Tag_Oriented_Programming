@@ -1194,6 +1194,12 @@ implementation follows `main`'s law as it stands, and says so:
   extending a Link about 100 times per Contact it holds (about 30 µs).
   The hand-made workaround of the Motivation cost about 72 µs per
   linking.
+- Every program pays for the call boundary, Links or not: tagging an
+  ordinary Tag takes about 20% longer than on `main`, `agent in Tag`
+  about 8% longer, `isinstance` the same (median of six alternating
+  runs). The speed budgets pass. Building the boundary only once a Link
+  exists would win most of it back, at the price of a second path
+  through the kernel.
 
 **A Tool or a Link?** (STEP-SPEC-36, on `main`.) A Tool is one object the
 Agent has, held strongly under a Record's name, admitted by kind at each
