@@ -35,9 +35,13 @@ from .declarations import _MISSING
 from .declarations import _check_constant_declarations
 from .declarations import _check_constant_shapes
 from .declarations import _check_pin_bases
+from .declarations import _check_tool_declarations
 from .declarations import _constant_owner
+from .declarations import _is_dunder
 from .declarations import _is_pin
+from .declarations import _kind_of
 from .declarations import _name_checks
+from .declarations import _refuse_condition_dunder
 from .errors import TagCompositionError
 from .fields import _Field
 from .fields import _Partition
@@ -77,7 +81,7 @@ class MetaTag(type):
                 "_topkit_field",
                 _Field(),
                 )
-        _name_checks(namespace)
+        _name_checks(namespace, name)
 
         tag = super().__new__(
                 meta,
@@ -88,6 +92,7 @@ class MetaTag(type):
                 )
         _check_pin_bases(tag)
         _check_constant_declarations(tag, namespace)
+        _check_tool_declarations(tag, namespace)
 
         return tag
 
@@ -96,6 +101,8 @@ class MetaTag(type):
             name: str,
             value: Any,
             ) -> None:
+        if _is_dunder(name):
+            _refuse_condition_dunder(tag.__name__, name, _kind_of(value))
         owner = _constant_owner(tag, name)
 
         if owner is not None:

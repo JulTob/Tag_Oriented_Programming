@@ -11,6 +11,30 @@
   captured Secret view Action requires an already-open door on that same
   Agent; a later public Layer does not remove its captured boundary.
 
+- **Field membership stays behind TOP's doors:** `Tag[:]` no longer
+  exposes public `Add` or `Remove` methods. Membership changes through
+  Tagging and Rip, so the Field and the Agent's active Tags cannot be
+  made to contradict each other through a partial internal operation.
+
+- **Ordinary condition names:** Preconditions and Postconditions refuse
+  Python dunder names at Tag declaration and before late assignment.
+  Their computed boolean verdicts keep ordinary Contribution names.
+
+- **Computed conditions keep their names:** while a named Precondition or
+  Postcondition is visible, assigning or deleting that name is refused before
+  a host setter runs. The name continues to compute its boolean on read;
+  `Contract.Delete` ends the condition and returns the name to ordinary
+  attribute behavior. The protection also covers Pins, custom host setters and
+  direct `object.__setattr__` / `object.__delattr__` calls. A multi-name
+  `Contract.Delete` validates every requested condition before ending any.
+
+- **Fresh Tagging rebuilds ordinary Records:** the Specification and Guide
+  now say explicitly that Rip removes membership, not sticky Contributions.
+  Applying the Tag after Rip reruns that Tag's ordinary Record builders.
+  A builder without a second positional seat replaces the current binding;
+  one with that seat receives the current stored value and decides how to
+  evolve it.
+
 - **Scope retired:** `TopKit.Scope` is removed. A temporary Tagging is written explicitly: tag before `try`, then Rip in `finally`. Rip failures surface normally. TOP assigns `with` no automatic membership or Rip meaning; ordinary Python context protocols remain available to hosts and Agent Actions.
   STEP-SPEC-15 remains a Brief about recoverable phases, but its
   `with Try(...)` spelling is now recorded only as a historical candidate;
@@ -42,6 +66,23 @@
   Reapplication preserves established Constants and repeats ordinary
   Record building and Imprints. Publication and Secret access stay independent.
 
+- **Tools:** `@Tool(Kind)` marks a Record whose value is an object of a
+  declared kind: something the Agent *has* (STEP-SPEC-36, Vetting). A
+  kind is a specific Tag, asked as membership now (`@Tool(Weapon)`), a
+  Python class, asked as the instance test (`@Tool(Sword)`), or both
+  (`@Tool(Sword, Weapon)`); the language's own union names alternatives
+  (`@Tool(Sword | Staff)`) and `| None` declares the empty hand. The slot
+  is checked when gained and at every write, `object.__setattr__`
+  included; it is never `None` unless declared; it never Tags what it
+  holds. `@Record` may restate the mark; `@Constant`, `@Secret` and
+  `@Public` stack with it in either order; a later plain Record or
+  Action replaces it as any Record, and `@Delete` frees it. The root
+  `Tag`, `object`, a Pin, a population (`Weapon | Blessed`), a typing
+  construct, an instance, or `@Tool` inside a `@Pin` is a Declaration
+  Failure. A slot under a protocol name keeps the language's hook. The
+  wiki page "Tools: what an Agent has" runs as one program under the
+  suite.
+
 - **Presence by name:** `"name" @ agent` checks current contributions,
   including host bindings; `"name" @ Tag[agent]` checks the captured view.
   False values and `None` count as present. The query respects Secret and
@@ -59,6 +100,16 @@
 - **Fixed:** resolving a Form deeper than Python's recursion limit raised
   `RecursionError`. Geometry now walks Bases iteratively, preserving the
   same Base-first, declaration-order, duplicate-free result.
+- The archived stress layer's four Geometry capacity probes now run against
+  current TopKit from `benchmarks/capacity.py`: deep Forms, Form resolution,
+  wide independent composition and wide diamonds. Each probe runs alone,
+  asserts its observable result and reports time without treating a
+  workstation measurement as a portable performance budget.
+  Optimized execution (`-O`, `-OO` or `PYTHONOPTIMIZE`) is refused before
+  loading TopKit so removed assertions cannot report an unchecked PASS.
+- Three retention probes join the same isolated runner: a large Field whose
+  Agents are released, lifecycle teardown during collection and cache churn
+  through transient hosts, Tags, runtime types and Agents.
 - **Releases go out through Trusted Publishing.** A GitHub Release runs
   `.github/workflows/release.yml`: the suite on Python 3.12, 3.13 and
   3.14, the oracle at its audited size, a check that the tag names

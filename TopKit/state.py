@@ -5,7 +5,8 @@ live in that dictionary as bound callables, Records as plain values, so
 ordinary attribute access costs what it costs on a plain object. The
 runtime type is neutral (host first, then the ``Tagged`` marker) and only
 carries what Python requires on a type: special-method Actions and the
-descriptors that gate deleted, secret, published, and Constant names.
+descriptors that gate deleted, secret, published, computed-condition,
+and Constant names.
 """
 
 from __future__ import annotations
@@ -69,6 +70,7 @@ class _State:
     secret_values: dict[str, Any] = field(default_factory=dict)   # a pinned Tag's @Secret members
     originals: dict[str, Any] = field(default_factory=dict)       # what a Pin patched, as declared
     constants: dict[str, tuple[type, str, Any]] = field(default_factory=dict)  # origin, kind, declaration
+    tools: dict[str, tuple[type, Any]] = field(default_factory=dict)   # origin, kind: a Tool slot admits only its kind
     composing: int = 0
     checking: bool = False
     words: _Words | None = None   # what its Flags answer to; None after its Tags change
@@ -113,6 +115,7 @@ class _State:
                 secret_values=dict(state.secret_values),
                 originals=dict(state.originals),
                 constants=dict(state.constants),
+                tools=dict(state.tools),
                 composing=state.composing,
                 checking=state.checking,
                 words=state.words,
@@ -1023,6 +1026,7 @@ def _type_key_of(
             frozenset((state.deleted | state.restored) - {"__del__"}),   # a restored name keeps its gate; __del__ has none
             frozenset(state.secrets),
             frozenset(state.published),
+            frozenset(state.preconditions | state.postconditions),
             bool(state.postconditions),
             any(_is_flag(tag) for tag in state.active),
             tuple(
@@ -1032,6 +1036,7 @@ def _type_key_of(
                             )
                     ),
             frozenset(state.constants),
+            frozenset(state.tools),
             )
 
 
@@ -1048,9 +1053,10 @@ def _runtime_type_for(
         return shared
 
     from .access import _hooks_for   # access imports this module
+    from .contracts import _Condition_Gate
     from .presence import _presence_hook
+    from .constants import _binding_write_hooks
     from .constants import _Constant_Gate
-    from .constants import _constant_write_hooks
 
     host_type = state.host_type
     selected_dunders = _dunder_actions(state)
@@ -1060,8 +1066,9 @@ def _runtime_type_for(
     deleted = key[1]
     secrets = key[2]
     published = key[3]
-    has_posts = key[4]
-    has_flags = key[5]
+    conditions = key[4]
+    has_posts = key[5]
+    has_flags = key[6]
 
     hooks = _hooks_for(
             host_type,
@@ -1084,6 +1091,12 @@ def _runtime_type_for(
         for name in published:
             namespace[name] = _Published(name)
 
+        for name in conditions:
+            namespace[name] = _Condition_Gate(
+                    name,
+                    namespace.get(name, _MISSING),
+                    )
+
         if "__contains__" in hooks:
             namespace["__contains__"] = hooks["__contains__"]   # the Flag holds the seat
 
@@ -1094,8 +1107,18 @@ def _runtime_type_for(
         for name in state.constants:
             namespace[name] = _Constant_Gate(name, namespace.get(name, _MISSING))
 
-    if state.constants or issubclass(host_type, type):
-        _constant_write_hooks(namespace, host_type)
+        from .tools import _Tool_Gate   # tools imports this module
+
+        for name in state.tools:
+            if _is_dunder(name):
+                continue   # a protocol name keeps the language's own hook; the write hook guards it
+
+            namespace[name] = _Tool_Gate(name, namespace.get(name, _MISSING))   # over a Constant or Secret gate, when both
+
+    ungated_tools = any(_is_dunder(name) for name in state.tools)
+
+    if conditions or state.constants or state.tools or issubclass(host_type, type):
+        _binding_write_hooks(namespace, host_type, force=ungated_tools)
 
     if issubclass(host_type, Tagged):
         bases: tuple[type, ...] = (host_type,)
