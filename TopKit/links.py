@@ -82,6 +82,7 @@ from .state import _state_of
 from .tags import MetaTag
 from .tags import Tag
 from .transactions import _Call_Boundary
+from .transactions import _Undo_Step
 from .transactions import _apply_form
 from .transactions import _capture
 from .transactions import _close
@@ -935,7 +936,10 @@ def _new_link(
     finally:
         tags_module._making_link -= 1
 
-    family = _family_for(bases)
+    family = _family_for(
+            bases,
+            agent,
+            )
     record = _Link_Record(
             name,
             agent,
@@ -952,11 +956,14 @@ def _new_link(
     boundary = _open_boundary()
 
     if boundary is not None:
-        boundary.undo.append(partial(
-                _forget_link,
-                record,
-                reference,
-                ))   # a call that rolls back leaves no trace in the family (§0.6)
+        boundary.undo.append(_Undo_Step(
+                (agent,),
+                partial(
+                        _forget_link,
+                        record,
+                        reference,
+                        ),
+                ))   # a call on the Agent that rolls back leaves no trace in the family (§0.6)
 
     for relation in layers:
         _publish_lines(
@@ -1030,6 +1037,7 @@ def _link_holding(
 
 def _family_for(
         bases: list[type],
+        agent: object,
         ) -> _Family:
     """A Link joins the family of its Base Links; a Link with none starts
     its own. Base Links from separate families are joined into one, after
@@ -1060,10 +1068,13 @@ def _family_for(
     boundary = _open_boundary()
 
     if joins and boundary is not None:
-        boundary.undo.append(partial(
-                _split,
-                kept,
-                joins,
+        boundary.undo.append(_Undo_Step(
+                (agent,),
+                partial(
+                        _split,
+                        kept,
+                        joins,
+                        ),
                 ))
 
     return kept
@@ -1454,7 +1465,10 @@ def _extend(
         Write()
         return
 
-    boundary.undo.append(Undo)
+    boundary.undo.append(_Undo_Step(
+            (record.agent(),),
+            Undo,
+            ))
     boundary.writes.append(Write)
 
 
@@ -1650,8 +1664,11 @@ def _link(
                 pair_entry,
                 )   # a new Pair loses its state, so its teardowns never run (rule 8.5)
 
-        if created and family.pairs.get(id(contact)) is pair:
-            del family.pairs[id(contact)]
+        if created:
+            current = object.__getattribute__(pair, "__dict__")[_PAIR_ENDS].family   # a join may have moved it
+
+            if current.pairs.get(id(contact)) is pair:
+                del current.pairs[id(contact)]
 
     token = _current_boundary.set(local)
 
@@ -1687,9 +1704,10 @@ def _link(
 
     if outer is not None:
         def Undo() -> None:
-            _rollback_to(
+            _undo_linking(
                     contact,
                     contact_entry,
+                    pending,
                     )
             Drop_Pair()
 
@@ -1697,7 +1715,10 @@ def _link(
                 local,
                 outer,
                 )
-        outer.undo.append(Undo)
+        outer.undo.append(_Undo_Step(
+                (agent, contact),
+                Undo,
+                ))
 
     _close(local)
 
@@ -1710,6 +1731,41 @@ def _link(
     _inspect(contact)
 
     return contact
+
+
+def _undo_linking(
+        contact: object,
+        entry: Any,
+        links: list[type],
+        ) -> None:
+    """A linking undone with the call it was part of (rule 5.6). When
+    nothing but this linking has changed her Tags since, she is restored
+    as she was, an Agent no more if she was none. Otherwise she leaves
+    these Links silently, with no teardown, and what else she gained
+    since stays."""
+
+    state = _state_of(contact)
+
+    if state is None:
+        return
+
+    if list(state.active) == [*entry.tags, *links]:
+        _rollback_to(
+                contact,
+                entry,
+                )
+        return
+
+    for link in reversed(links):
+        if link in state.active:
+            state.active.remove(link)
+
+        link.__dict__["_topkit_field"]._Remove(contact)
+        state.rips.pop(link, None)
+        state.snapshots.pop(link, None)
+        state.ever_links.discard(link)
+
+    state.words = None
 
 
 def _agent_of(

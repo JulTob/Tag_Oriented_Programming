@@ -2268,6 +2268,107 @@ class Door_Review_Tests(unittest.TestCase):
             charlie.Member.purge()
 
 
+# ------------------------------------------------------------------
+# Undo steps belong to Agents: what another Agent's call keeps, stays
+# ------------------------------------------------------------------
+
+
+class Ownership_Tests(unittest.TestCase):
+    def test_a_successful_nested_tagging_keeps_its_linking_when_the_outer_call_fails(self):
+        class Member(Tag):
+            @Record
+            def card(agent):
+                return "member card"
+
+        class Vip(Member):
+            @Record
+            def sponsored(agent, *, sponsor=None):
+                sponsor.Knows(agent)
+                return True
+
+        class Host(Tag):
+            @Record
+            def guest(agent, *, guest=None, sponsor=None):
+                Vip(guest, sponsor=sponsor)               # charlie's own tagging succeeds
+                return guest
+
+            @Record
+            def broken(agent):
+                raise ValueError("the host's call fails after it")
+
+        hall, bob, charlie = People("Hall", "Bob", "Charlie")
+        Social(bob)
+        with self.assertRaises(TagCompositionError):
+            Host(hall, guest=charlie, sponsor=bob)
+        self.assertIn(charlie, list(Vip[:]))              # another Agent's tagging stays (§0.6)
+        self.assertIn(charlie, bob.Knows)                 # and the linking it made, consistent
+        self.assertIn(charlie, list(bob.Knows[:]))
+        bob.Knows[charlie]                                # her Pair is there
+
+    def test_a_link_granted_in_a_nested_tagging_keeps_its_family(self):
+        class Two(Tag):
+            @Link
+            class Knows(Tag):
+                @Record
+                def known(agent, contact):
+                    return "known"
+
+            @Link
+            class Likes(Tag):
+                @Record
+                def liked(agent, contact):
+                    return "liked"
+
+        class Close(Two):
+            @Link
+            class Bonded(Two.Knows, Two.Likes):
+                pass
+
+        class Host(Tag):
+            @Record
+            def guest(agent, *, guest=None):
+                Close(guest)
+                return guest
+
+            @Record
+            def broken(agent):
+                raise ValueError("the host's call fails after it")
+
+        hall, charlie, dave = People("Hall", "Charlie", "Dave")
+        with self.assertRaises(TagCompositionError):
+            Host(hall, guest=charlie)
+        self.assertIn(charlie, Close)
+        charlie.Bonded(dave)
+        self.assertIs(charlie.Likes[dave], charlie.Knows[dave])   # one family, one Pair
+        self.assertEqual(charlie.Likes[dave].known, "known")
+
+    def test_an_undone_linking_leaves_what_she_gained_since(self):
+        class Wizard(Tag):
+            pass
+
+        class Introducing(Tag):
+            @Record
+            def friend(agent, *, friend=None):
+                agent.Knows(friend)                       # charlie's linking: undone with his call
+                Wizard(friend)                            # her own tagging: independent, stays
+                return friend
+
+            @Record
+            def broken(agent):
+                raise ValueError("refused at Parts")
+
+        charlie, ruth = People("Charlie", "Ruth")
+        Social(charlie)
+        with self.assertRaises(TagCompositionError):
+            Introducing(charlie, friend=ruth)
+        self.assertNotIn(ruth, charlie.Knows)
+        self.assertNotIn(ruth, list(charlie.Knows[:]))
+        with self.assertRaises(TagResolutionError):
+            charlie.Knows[ruth]
+        self.assertIn(ruth, Wizard)
+        self.assertIn(ruth, list(Wizard[:]))
+
+
 def Agents_Of_Any_Link(contact):
     """The Links a Contact is a member of now, read from her state."""
 

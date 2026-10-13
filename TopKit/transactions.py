@@ -72,9 +72,23 @@ class _Call_Boundary:
     committed, before its Quality check."""
 
     after_commit: bool = False
-    undo: list[Callable[[], None]] = field(default_factory=list)
+    undo: list["_Undo_Step"] = field(default_factory=list)
     writes: list[Callable[[], None]] = field(default_factory=list)
     open: bool = True   # False once its call has returned: a task that copied the context takes no steps here
+    agent: object | None = None   # the call's Agent; None for a linking's own boundary
+
+
+@dataclass(slots=True)
+class _Undo_Step:
+    """One step a call took on other Targets, and the Agents it belongs
+    to. A linking belongs to the Link's Agent and to the Contact; a Link
+    granted or extended belongs to its Agent. A call that rolls back
+    undoes the steps its own Agent owns; the others belong to taggings of
+    other Agents, which stay independent (§0.6), and go to the call
+    around it (STEP-SPEC-22 rule 5.6)."""
+
+    owners: tuple[object, ...]
+    run: Callable[[], None]
 
 
 _current_boundary: ContextVar[_Call_Boundary | None] = ContextVar(
@@ -147,10 +161,45 @@ def _close(
 def _undo(
         boundary: _Call_Boundary,
         ) -> None:
-    """Undo what this call did on other Targets, latest first."""
+    """Undo every step taken inside this boundary, latest first: a refused
+    linking changes nothing (STEP-SPEC-22 rule 5.1)."""
 
-    for undo in reversed(boundary.undo):
-        undo()
+    for step in reversed(boundary.undo):
+        step.run()
+
+
+def _undo_owned(
+        boundary: _Call_Boundary,
+        agent: object,
+        ) -> list[_Undo_Step]:
+    """Undo, latest first, the steps this call's Agent owns; return the
+    others, which belong to other Agents."""
+
+    owned = [
+            step
+            for step in boundary.undo
+            if _owns(agent, step)
+            ]
+    others = [
+            step
+            for step in boundary.undo
+            if not _owns(agent, step)
+            ]
+
+    for step in reversed(owned):
+        step.run()
+
+    return others
+
+
+def _owns(
+        agent: object,
+        step: _Undo_Step,
+        ) -> bool:
+    return any(
+            owner is agent
+            for owner in step.owners
+            )
 
 
 def _hand_over(
@@ -158,11 +207,21 @@ def _hand_over(
         outer: _Call_Boundary | None,
         ) -> None:
     """This call will not roll back: the call around it, if any, takes
-    its undo steps, and runs them if it rolls back itself (STEP-SPEC-22
-    rule 5.6)."""
+    its undo steps, and runs the ones it owns if it rolls back itself
+    (STEP-SPEC-22 rule 5.6)."""
 
+    _hand_over_steps(
+            boundary.undo,
+            outer,
+            )
+
+
+def _hand_over_steps(
+        steps: list[_Undo_Step],
+        outer: _Call_Boundary | None,
+        ) -> None:
     if outer is not None:
-        outer.undo.extend(boundary.undo)
+        outer.undo.extend(steps)
 
 
 def _apply(
@@ -205,7 +264,7 @@ def _apply_form(
 
     entry = _capture(agent)
     outer = _open_boundary()
-    boundary = _Call_Boundary()
+    boundary = _Call_Boundary(agent=agent)
     token = _current_boundary.set(boundary)
 
     try:
@@ -257,13 +316,23 @@ def _apply_form(
                     outer,
                     )   # the failure raises and what was done stays (§0.6)
         else:
+            others: list[_Undo_Step] = []
+
             try:
-                _undo(boundary)   # its linkings first, on other Targets ...
+                others = _undo_owned(
+                        boundary,
+                        agent,
+                        )   # its own steps first, on other Targets ...
             finally:
                 _rollback_to(
                         agent,
                         entry,
                         )   # ... then the Agent itself, exactly as it was at the call
+
+            _hand_over_steps(
+                    others,
+                    outer,
+                    )   # the rest belongs to other Agents: the call around decides
         raise
     else:
         _hand_over(
