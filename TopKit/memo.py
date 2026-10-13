@@ -6,7 +6,7 @@ User declaration inspection runs outside the lock, over a copied namespace.
 """
 
 from dataclasses import dataclass
-from _thread import RLock
+from threading import RLock
 from typing import Any
 
 
@@ -15,11 +15,16 @@ _type_namespace = type.__dict__["__dict__"]
 _type_mro = type.__dict__["__mro__"]
 
 
+@dataclass(slots=True)
+class _Memo_Payload:
+    value: Any
+
+
 @dataclass(frozen=True, slots=True)
 class _Tag_Memo:
     owner: type
     name: str
-    value: Any
+    payload: _Memo_Payload
 
 
 def _memo_key(tag: type, kind: str) -> str:
@@ -42,7 +47,7 @@ def _memo_of(tag: type, name: str) -> Any:
     # before assigning or deleting through the type.
     memo = _class_namespace(tag).get(name)
     if type(memo) is _Tag_Memo and memo.owner is tag and memo.name == name:
-        return memo.value
+        return memo.payload.value
     return None
 
 
@@ -51,17 +56,36 @@ def _remember_memo(tag: type, name: str, value: Any) -> Any:
         existing = _memo_of(tag, name)
         if existing is not None:
             return existing
-        if not _metaclass_binding(tag, name) and all(
-               name not in _class_namespace(base)
-               for base in _type_mro.__get__(tag)):
-            type.__setattr__(tag, name, _Tag_Memo(tag, name, value))
+        if _metaclass_binding(tag, name):
+            return value
+        memo = _class_namespace(tag).get(name)
+        if type(memo) is _Tag_Memo and memo.owner is tag and memo.name == name:
+            # A retired owner-local wrapper may remain behind a program
+            # descriptor. Once that collision is gone, reuse it only if
+            # no Base has acquired a binding at the same key.
+            if all(name not in _class_namespace(base)
+                   for base in _type_mro.__get__(tag)[1:]):
+                memo.payload.value = value
+        elif all(name not in _class_namespace(base)
+                 for base in _type_mro.__get__(tag)):
+            type.__setattr__(tag, name, _Tag_Memo(tag, name, _Memo_Payload(value)))
     return value
 
 
 def _forget_memo(tag: type, name: str) -> None:
     with _publication:
-        if _memo_of(tag, name) is not None and not _metaclass_binding(tag, name):
-            type.__delattr__(tag, name)
+        memo = _class_namespace(tag).get(name)
+        if type(memo) is _Tag_Memo and memo.owner is tag and memo.name == name:
+            # Retire the value even when deleting the class binding would
+            # call a program's metaclass descriptor. A later warm read
+            # must miss, and the old scan must release its references.
+            memo.payload.value = None
+            # Releasing the old value may run a finalizer or weakref
+            # callback that replaces the class binding. Delete only the
+            # same wrapper we just retired.
+            if (not _metaclass_binding(tag, name)
+                    and _class_namespace(tag).get(name) is memo):
+                type.__delattr__(tag, name)
 
 
 def _namespace_snapshot(tag: type) -> dict[str, Any]:

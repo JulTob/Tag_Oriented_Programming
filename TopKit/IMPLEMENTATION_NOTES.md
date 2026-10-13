@@ -102,9 +102,13 @@ lookup never inherits another Tag's memo; an own or inherited program
 binding at that key is not overwritten or shadowed, and Geometry simply
 recomputes. A foreign internal memo is not accepted as this Tag's memo.
 Physical type descriptors read class storage and MROs, without evaluating
-metaclass dictionary/MRO properties. A metaclass binding at the memo key
-also causes uncached inspection, so its descriptor is never called by
-memo publication or invalidation.
+metaclass dictionary/MRO properties. Metaclass collisions prevent new memo
+publication. Warm reads reuse an exact owned memo without walking the
+metaclass or evaluating its descriptor. Invalidation retires the stored value
+even when a metaclass descriptor prevents safely deleting the memo attribute.
+After the collision ends, a trusted retired wrapper can receive a fresh value;
+foreign wrappers and program bindings remain untouched. The immutable wrapper
+identifies its owner and key; a private mutable payload holds the cached value.
 Memo publication does not hold the helper lock while inspecting user
 metadata. Declaration scans, Base Constant inspection and Tag-as-Agent
 namespace copies use snapshots rather than iterating the live class

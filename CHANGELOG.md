@@ -8,8 +8,11 @@
   on their exact Tag, so a Contribution referring back to its Tag or
   Shape no longer lets a global cache keep it alive. Empty retained
   Fields remain weak; returned Form tuples still deliberately retain
-  their Tags. Private-name collisions recompute without replacing
-  program bindings. Namespace scans use snapshots, so first Taggings
+  their Tags. Private-name collisions prevent new memo publication over
+  program bindings. Invalidation retires an owned memo's value even when a
+  metaclass descriptor blocks attribute deletion, so public Pin publication
+  reaches future Agents and removing the collision cannot revive stale data.
+  Namespace scans use snapshots, so first Taggings
   of different Agents sharing a Tag cannot invalidate one another's
   class-dictionary iterators while publishing either memo. Base-first
   order, iterative traversal and ordinary-class Form behavior stay.
