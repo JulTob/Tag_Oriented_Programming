@@ -54,6 +54,7 @@ from .declarations import _MISSING
 from .declarations import _PAIR_TAG
 from .declarations import _PUBLIC
 from .declarations import _RELATION
+from .declarations import _SECRET
 from .declarations import _UNDERLAY
 from .declarations import _has_flag
 from .declarations import _is_dunder
@@ -75,6 +76,7 @@ from .lifecycle import _rip
 from .overlay import _require_membership
 from .state import _Line
 from .state import _State
+from .state import _is_composing
 from .state import _namespace_of
 from .state import _state_of
 from .tags import MetaTag
@@ -424,12 +426,20 @@ def _door_shut_operation(
     with her door shut, as a line does (rule 3.6)."""
 
     function = member.__func__
+    secret = _has_flag(function, _SECRET)
 
     def Operation(
             link: type,
             *args: Any,
             **kwargs: Any,
             ) -> Any:
+        if secret:
+            _require_agents_door(
+                    link,
+                    function.__name__,
+                    "Operation",
+                    )
+
         contact = args[0] if args else None
         opened = None
 
@@ -466,6 +476,129 @@ def _door_shut_operation(
                     )   # its marks: kind, Public, Secret, Constant
 
     return classmethod(Operation)
+
+
+def _require_agents_door(
+        link: type,
+        name: str,
+        kind: str,
+        ) -> None:
+    """A ``@Secret`` member of the Link belongs to its Agent alone (rule
+    2.7): it answers only inside the Agent's own code, the Link's
+    functions included."""
+
+    record = link.__dict__.get(_RECORD)
+    agent = None if record is None else record.agent()
+    state = None if agent is None else _state_of(agent)
+
+    if state is None or not _is_composing(state):
+        raise AttributeError(
+                f"{name!r} is a secret {kind} of {link.__name__}; it answers"
+                " only inside its Agent's own code"
+                )
+
+
+class _Secret_Link_Report(Report):
+    """A Relation's ``@Secret`` Report, on one Agent's Link: read only
+    inside the Agent's own code (rule 2.7)."""
+
+    def __get__(
+            report,
+            instance: object,
+            owner: type | None = None,
+            ) -> Any:
+        if owner is None:
+            owner = type(instance)
+
+        if _RECORD in owner.__dict__:
+            _require_agents_door(
+                    owner,
+                    report._name,
+                    "Report",
+                    )
+
+        return super().__get__(
+                instance,
+                owner,
+                )
+
+
+def _door_shut_builder(
+        builder: Function,
+        ) -> Function:
+    """A Relation's Report builder, on one Agent's Link. A built Report is
+    kept and served to everyone who reads it, so it is built with every
+    Contact's door shut, whoever's code first read it (rule 3.6)."""
+
+    def Build(
+            link: type,
+            *args: Any,
+            ) -> Any:
+        saved = _shut_every_contact(link)
+
+        try:
+            return builder(
+                    link,
+                    *args,
+                    )
+        finally:
+            _reopen_every(saved)
+
+    Build.__signature__ = signature(builder)
+    Build.__name__ = builder.__name__
+    Build.__qualname__ = builder.__qualname__
+    Build.__doc__ = builder.__doc__
+    Build.__module__ = builder.__module__
+
+    for key, value in vars(builder).items():
+        if key.startswith("__topkit_"):
+            setattr(
+                    Build,
+                    key,
+                    value,
+                    )   # its marks: Public, Secret, Constant
+
+    return Build
+
+
+def _shut_every_contact(
+        link: type,
+        ) -> list[tuple[_State, int]]:
+    """Shut the door of every Contact of the Link's family; return how
+    far each was open."""
+
+    record = link.__dict__.get(_RECORD)
+
+    if record is None:
+        return []
+
+    agent = record.agent()
+    saved: list[tuple[_State, int]] = []
+
+    for member in record.family.Links():
+        for contact in member.__dict__["_topkit_field"]:
+            if contact is agent:
+                continue
+
+            state = _state_of(contact)
+
+            if state is not None and state.composing:
+                saved.append(
+                        (
+                            state,
+                            state.composing,
+                            )
+                        )
+                state.composing = 0
+
+    return saved
+
+
+def _reopen_every(
+        saved: list[tuple[_State, int]],
+        ) -> None:
+    for state, opened in saved:
+        state.composing = opened
 
 
 def _is_contact_of(
@@ -1026,7 +1159,11 @@ def _tag_scope_of(
             continue
 
         if isinstance(member, Report):
-            copy = Report(member.builder)   # one Report per Link: each builds for its own Link
+            if _has_flag(member.builder, _SECRET):
+                copy = _Secret_Link_Report(_door_shut_builder(member.builder))
+            else:
+                copy = Report(_door_shut_builder(member.builder))   # one Report per Link: each builds for its own Link
+
             copy.public = member.public
             members[name] = copy
         elif isinstance(member, classmethod) and _kind_of(member) == "operation":

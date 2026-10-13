@@ -24,6 +24,7 @@ from .constants import _constant_overlay
 from .constants import _refuse_constant
 from .declarations import _Declarations
 from .declarations import _is_flag
+from .declarations import _is_link
 from .declarations import _is_relation
 from .declarations import _parameters_of
 from .declarations import _protocol_inputs
@@ -364,7 +365,12 @@ def _install(
                 tag,
                 )
 
+    link_tag = _is_link(tag)   # a Link applied to its Contact: only what it publishes lands on her (STEP-SPEC-22 rule 3.7)
+
     for name, report, public in declarations.reports:
+        if link_tag and not public:
+            continue
+
         if public:
             _refuse_member_over_link(
                     state,
@@ -373,13 +379,21 @@ def _install(
                     "a published Report",
                     )
 
+        if link_tag:
+            _check_published_by_a_link(
+                    state,
+                    tag,
+                    name,
+                    )
+
         state.reports[name] = (tag, report)
 
         if public:
             state.published.add(name)
 
     for name, operation, public in declarations.operations:
-        state.operations[name] = (tag, operation)
+        if not link_tag:
+            state.operations[name] = (tag, operation)   # on a Contact, never: a view would hand her the Link
 
         if public:
             _install_action(
@@ -911,6 +925,44 @@ def _refuse_member_over_link(
                 f"{tag.__name__}.{name} is {kind}, but {name!r} holds a Link"
                 " on this Agent; a Link's name is its own, and a Link is"
                 " never replaced"
+                )
+
+
+def _check_published_by_a_link(
+        state: _State,
+        tag: type,
+        name: str,
+        ) -> None:
+    """A Link publishes a Pair Record line or a Report onto its Contact
+    (STEP-SPEC-22 rule 2.7). Over her Action it is refused, as an Action
+    line over her Record is; over a visible Record or another published
+    member it replaces it, with the usual Overwrite Warning."""
+
+    action_origin = state.action_origins.get(name)
+
+    if action_origin is not None and _independent(tag, action_origin):
+        raise TagCompositionError(
+                f"{tag.__name__}.{name} is a published Record but"
+                f" {action_origin.__name__} already contributes an Action of"
+                " that name; independent Tags cannot share one Agent name"
+                " across kinds"
+                )
+
+    if name in state.records:
+        prior = state.records[name]
+        kind = "the Record"
+    elif name in state.published and name in state.reports:
+        prior = state.reports[name][0]
+        kind = "the published member"
+    else:
+        return
+
+    if prior is not tag and _independent(tag, prior) and not _quiet.get():
+        warnings.warn(
+                f"{tag.__name__}.{name} replaces {kind} of independent Tag"
+                f" {prior.__name__}",
+                TagOverwriteWarning,
+                skip_file_prefixes=_WARNING_SKIP_PREFIXES,
                 )
 
 

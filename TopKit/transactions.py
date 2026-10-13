@@ -823,13 +823,19 @@ def _snapshot(
     reports = {
             name: (origin, getattr(origin, name))
             for name, (origin, _report) in state.reports.items()
+            if not _is_link(origin)   # never built here, inside her door, nor shown in her views (STEP-SPEC-22 rule 3.6)
+            }
+    operations = {
+            name: entry
+            for name, entry in state.operations.items()
+            if not _is_link(entry[0])
             }
 
     return _Snapshot(
             actions=dict(state.actions),
             records=records,
             reports=reports,
-            operations=dict(state.operations),
+            operations=operations,
             deleted=frozenset(state.deleted) if state.deleted else _NONE,
             secrets=frozenset(state.secrets) if state.secrets else _NONE,
             )

@@ -2111,6 +2111,163 @@ class Lifetime_Review_Tests(unittest.TestCase):
         self.assertFalse("Admires" @ charlie)
 
 
+# ------------------------------------------------------------------
+# The doors review's findings, one regression each
+# ------------------------------------------------------------------
+
+
+class Door_Review_Tests(unittest.TestCase):
+    def test_her_own_views_never_carry_the_links_members_or_the_link(self):
+        class Rostered(Tag):
+            @Link
+            class Member(Tag):
+                @Report
+                def roster_size(link):
+                    return "the Link's own"
+
+                @Operation
+                def audit(link):
+                    return "the Link's own"
+
+                @Public
+                @Operation
+                def ping(link, contact):
+                    return "a published Operation"
+
+        class Wizard(Tag):
+            @Record
+            def mana(agent):
+                return 3
+
+        charlie, ruth = People("Charlie", "Ruth")
+        Rostered(charlie)
+        charlie.Member(ruth)
+        Wizard(ruth)                                      # her own Tag, gained after the linking
+        view = ruth.Wizard
+        for name in ("roster_size", "audit"):
+            with self.subTest(name=name):
+                self.assertFalse(name @ view)
+                with self.assertRaises(AttributeError):
+                    getattr(view, name)
+        self.assertFalse("audit" @ ruth)
+        self.assertEqual(ruth.ping(), "a published Operation")
+        self.assertEqual(view.ping(), "a published Operation")   # what she already sees, as an Action
+        self.assertFalse(hasattr(view.ping, "args"))      # never a handle that carries the Link
+
+    def test_a_link_report_is_never_built_inside_a_contacts_door(self):
+        class Keeper(Tag):
+            @Secret
+            @Record
+            def diary(agent):
+                return "her secret"
+
+            def Read_It(agent, leader):
+                return leader.Member.first_impression    # first read from her own Action: her door is open
+
+        class Impressed(Tag):
+            @Link
+            class Member(Tag):
+                @Public
+                @Report
+                def first_impression(link):
+                    return [Read_Or_Shut(contact, "diary") for contact in link[:]]
+
+        charlie, ruth, sam = People("Charlie", "Ruth", "Sam")
+        Impressed(charlie)
+        Keeper(ruth)
+        charlie.Member(ruth)                              # her door is open while the Link is applied to her
+        self.assertEqual(ruth.Read_It(charlie), ["shut"])
+        Keeper(sam)
+        charlie.Member(sam)
+        self.assertEqual(sam.first_impression, ["shut"])  # the kept value never carries her secret
+
+    def test_an_unpublished_link_report_never_replaces_her_own(self):
+        class Guild(Tag):
+            @Public
+            @Report
+            def capacity(tag):
+                return "her guild's"
+
+        class Sized(Tag):
+            @Link
+            class Member(Tag):
+                @Report
+                def capacity(link):
+                    return "the Link's own"
+
+        charlie, ruth = People("Charlie", "Ruth")
+        Guild(ruth)
+        Sized(charlie)
+        charlie.Member(ruth)
+        self.assertEqual(ruth.capacity, "her guild's")
+        del charlie.Member[ruth]
+        self.assertEqual(ruth.capacity, "her guild's")
+
+    def test_a_record_line_over_her_action_is_refused_and_over_her_record_warns(self):
+        class Own(Tag):
+            def rank(agent):
+                return "her own Action"
+
+            @Record
+            def title(agent):
+                return "her own Record"
+
+        class Ranked(Tag):
+            @Link
+            class Member(Tag):
+                @Public
+                @Record
+                def rank(agent, contact):
+                    return "the Pair's rank"
+
+        class Titled(Tag):
+            @Link
+            class Member(Tag):
+                @Public
+                @Record
+                def title(agent, contact):
+                    return "the Pair's title"
+
+        charlie, bob, ruth = People("Charlie", "Bob", "Ruth")
+        Own(ruth)
+        Ranked(charlie)
+        Titled(bob)
+        with self.assertRaises(TagCompositionError):
+            charlie.Member(ruth)                          # a value over her Action: refused, nothing changed
+        self.assertEqual(ruth.rank(), "her own Action")
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            bob.Member(ruth)
+        self.assertTrue(any(issubclass(w.category, TagOverwriteWarning) for w in caught))
+        self.assertEqual(ruth.title, "the Pair's title")
+
+    def test_a_secret_link_member_answers_only_in_its_agents_code(self):
+        class Vaulted(Tag):
+            @Link
+            class Member(Tag):
+                @Secret
+                @Report
+                def vault(link):
+                    return "the vault"
+
+                @Secret
+                @Operation
+                def purge(link):
+                    return "purged"
+
+                def Inside(agent, contact):
+                    return (agent.Member.vault, agent.Member.purge())
+
+        charlie, ruth = People("Charlie", "Ruth")
+        Vaulted(charlie)
+        charlie.Member(ruth)
+        self.assertEqual(charlie.Member[ruth].Inside(), ("the vault", "purged"))
+        with self.assertRaises(AttributeError):
+            charlie.Member.vault
+        with self.assertRaises(AttributeError):
+            charlie.Member.purge()
+
+
 def Agents_Of_Any_Link(contact):
     """The Links a Contact is a member of now, read from her state."""
 
