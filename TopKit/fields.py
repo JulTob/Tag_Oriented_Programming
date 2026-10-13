@@ -499,7 +499,7 @@ class _Partition(_Population):
     def __bool__(
             partition,
             ) -> bool:
-        """Anyone? Stops at the first member that counts (``while Enemy:``)."""
+        """Anyone? Stops at the first member that counts (``while ~Enemy:``)."""
 
         return any(
                 True

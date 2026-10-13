@@ -131,7 +131,7 @@ def _hooks_for(
 
     Ordinary object Agents use contract truth from the first Tagging.
     Their hosts may supply ``__len__``, but custom ``__bool__`` is refused
-    before Tagging. Tags retain their metaclass's population truth.
+    before Tagging. Tags use their metaclass's own-contract truth.
     """
 
     hooks: dict[str, Any] = {
