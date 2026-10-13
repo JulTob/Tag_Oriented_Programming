@@ -76,6 +76,24 @@ class Granting_Tests(unittest.TestCase):
         self.assertTrue("Knows" @ charlie)
         self.assertEqual(charlie.Knows.__name__, "Knows")
 
+    def test_a_link_is_the_whole_of_its_agents_link_and_the_name_alone_is_no_tag(self):
+        charlie, ruth, bob = People("Charlie", "Ruth", "Bob")
+        Social(charlie)
+        Social(ruth)
+        charlie.Knows(bob)
+        with self.assertRaises(TagCompositionError):
+            bob in Social.Knows                           # 'Knows' by itself is no Tag
+        self.assertIn(bob, charlie.Knows)                 # Charlie's Link answers
+        self.assertNotIn(bob, ruth.Knows)                 # Ruth's is another Tag
+        self.assertTrue(isinstance(bob, charlie.Knows))
+        self.assertFalse(isinstance(bob, ruth.Knows))
+        self.assertIsNot(charlie.Knows, ruth.Knows)
+        self.assertEqual(list(charlie.Knows), [bob])
+        self.assertEqual(list(ruth.Knows), [])
+        for link in (charlie.Knows, ruth.Knows):          # printed alike: no Agent is named
+            self.assertNotIn("Charlie", repr(link))
+            self.assertNotIn("Ruth", repr(link))
+
     def test_a_link_is_built_at_parts_and_rolled_back_with_the_call(self):
         class Failing(Tag):
             @Link

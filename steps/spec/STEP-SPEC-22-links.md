@@ -1162,6 +1162,10 @@ implementation follows `main`'s law as it stands, and says so:
   extension and the other after it, or, in a family joined by a Shape
   Link of two Bases, one Contact linked first through one Base and the
   other through the other.
+- Two Agents' Links print alike (`repr`, `__qualname__`): nothing
+  public on a Link names its Agent (rule 7), so a printed Link does not
+  say whose it is. Hold it through its Agent, `charlie.Knows`, or compare
+  with `is`.
 - A Contact's record of a published line keeps the last Link that
   published its name, after that Link's Agent is gone.
 - A Pair's own Record that links the same Contact again through a Shape

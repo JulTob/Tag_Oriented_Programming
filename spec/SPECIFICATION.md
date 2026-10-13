@@ -1154,6 +1154,16 @@ Agent itself holds included. Links are sticky (§0.7): Rip of `Social`
 leaves `charlie.Knows` with Charlie, and reapplying `Social` keeps the
 same Link, its Field and its Pairs.
 
+**A Link is its Agent's.** The Relation is only the declaration; the Tag
+is each Agent's own, built for that Agent at its Parts. So a Link is the
+whole of `charlie.Knows`, and the name `Knows` alone is no Tag:
+`bob in Social.Knows` has no answer and is refused (below), while
+`bob in ruth.Knows` is a question Ruth's Link answers by itself, never
+Charlie's. Two Agents' Links share a name and a template and nothing
+else: two Fields, two Pairs for Bob, and `isinstance(bob, charlie.Knows)`
+says nothing of `ruth.Knows`. Printed, they look alike, since nothing
+public on a Link names its Agent (One direction, below).
+
 **The seats.** Every function a Relation declares for the Pair takes the
 Link's Agent and the Contact, in that order; after the two seats, each
 kind reads its own (§1.2, §1.3, §2.2, §2.3): an Underlay, a stored value,
