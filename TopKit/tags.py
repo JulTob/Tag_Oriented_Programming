@@ -35,9 +35,13 @@ from .declarations import _MISSING
 from .declarations import _check_constant_declarations
 from .declarations import _check_constant_shapes
 from .declarations import _check_pin_bases
+from .declarations import _check_tool_declarations
 from .declarations import _constant_owner
+from .declarations import _is_dunder
 from .declarations import _is_pin
+from .declarations import _kind_of
 from .declarations import _name_checks
+from .declarations import _refuse_condition_dunder
 from .errors import TagCompositionError
 from .fields import _Field
 from .fields import _Partition
@@ -49,6 +53,18 @@ from .state import Tagged
 from .state import _name_of
 from .state import _state_of
 from .transactions import _apply
+
+
+def _sound_of(
+        tag: type,
+        ) -> _Partition:
+    """The Tag's sound population, outside its programmer-owned namespace."""
+
+    return _Partition(
+            tag.__dict__["_topkit_field"],
+            _holds,
+            "sound",
+            )
 
 
 class MetaTag(type):
@@ -65,7 +81,7 @@ class MetaTag(type):
                 "_topkit_field",
                 _Field(),
                 )
-        _name_checks(namespace)
+        _name_checks(namespace, name)
 
         tag = super().__new__(
                 meta,
@@ -76,6 +92,7 @@ class MetaTag(type):
                 )
         _check_pin_bases(tag)
         _check_constant_declarations(tag, namespace)
+        _check_tool_declarations(tag, namespace)
 
         return tag
 
@@ -84,6 +101,8 @@ class MetaTag(type):
             name: str,
             value: Any,
             ) -> None:
+        if _is_dunder(name):
+            _refuse_condition_dunder(tag.__name__, name, _kind_of(value))
         owner = _constant_owner(tag, name)
 
         if owner is not None:
@@ -168,34 +187,25 @@ class MetaTag(type):
 
         return super().__instancecheck__(candidate)
 
-    def _sound(
-            tag,
-            ) -> _Partition:
-        return _Partition(
-                tag._topkit_field,
-                _holds,
-                "sound",
-                )
-
     def __iter__(
             tag,
             ) -> Iterator[object]:
-        return iter(tag._sound())
+        return iter(_sound_of(tag))
 
     def __len__(
             tag,
             ) -> int:
-        return len(tag._sound())
+        return len(_sound_of(tag))
 
     def __bool__(
             tag,
             ) -> bool:
-        return bool(tag._sound())
+        return bool(_sound_of(tag))
 
     def __invert__(
             tag,
             ) -> _Partition:
-        return ~tag._sound()
+        return ~_sound_of(tag)
 
     def __or__(
             tag,
@@ -208,7 +218,7 @@ class MetaTag(type):
         if _population_of(other) is NotImplemented:
             return super().__or__(other)
 
-        return tag._sound() | other
+        return _sound_of(tag) | other
 
     def __ror__(
             tag,
@@ -217,31 +227,31 @@ class MetaTag(type):
         if _population_of(other) is NotImplemented:
             return super().__ror__(other)
 
-        return other | tag._sound()
+        return other | _sound_of(tag)
 
     def __and__(
             tag,
             other: Any,
             ) -> Any:
-        return tag._sound() & other
+        return _sound_of(tag) & other
 
     def __rand__(
             tag,
             other: Any,
             ) -> Any:
-        return other & tag._sound()
+        return other & _sound_of(tag)
 
     def __sub__(
             tag,
             other: Any,
             ) -> Any:
-        return tag._sound() - other
+        return _sound_of(tag) - other
 
     def __rsub__(
             tag,
             other: Any,
             ) -> Any:
-        return other - tag._sound()
+        return other - _sound_of(tag)
 
     def __getitem__(
             tag,

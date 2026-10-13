@@ -21,6 +21,7 @@ tracks splitting them by idea without changing semantics.
 | `overlay.py` | laying one Tag's declarations over a state; materializing Records |
 | `contracts.py` | strict verdicts, binding conditions, `Contract` |
 | `constants.py` | protecting Constant bindings without freezing their values |
+| `tools.py` | Tool slots: a Record's kind, a Tag or a class, admission at the gaining and at every write |
 | `presence.py` | Contribution presence without evaluating values or conditions |
 | `transactions.py` | the tagging sequence and the call boundary |
 | `lifecycle.py` | Rip, teardown, `At_Exit` |
@@ -50,9 +51,26 @@ Actions; Agents are built once and play for a long time. So:
 - **Runtime types are shared** across every Agent whose host and
   type-level facts match, whatever Tags they carry. Ten thousand Agents of
   one host normally share one type.
-- **The composition door is a counter** on the Agent's state. Bound
-  protocols raise it while they run; the secret-gate descriptor checks it.
-  Agents without secrets use a plain bound callable and pay nothing.
+- **The composition door** uses a counter on the Agent's state for
+  synchronous protocols. Agent-authored context Actions use that door;
+  host-authored context hooks keep ordinary host behavior. Entry closes
+  its door before the user's `with` block begins. An async context hook adds a
+  context-local door while its wrapper awaits. A deliberately derived
+  execution context shares the capability while the hook is active; a
+  pre-existing sibling does not, and closing clears the state reference so
+  a captured context can neither reuse the door nor retain the Agent state.
+  Return, errors and cancellation all close the hook's door. These are
+  TopKit's context-hook implementation mechanics; they assign no automatic
+  Tagging or Rip meaning to `with` and add no rule to STEP-SPEC-31.
+  Closing removes inactive doors from the current context instead of
+  resetting a token: Python may close a suspended coroutine in another
+  context or close interleaved hooks out of order. Other active doors stay
+  intact, and later hook entry prunes inert doors in captured contexts.
+  Secret gates accept either form. The type-cache key uses the selected raw
+  Actions and wrappers are allocated only on a cache miss, so equal
+  compositions still share one runtime type. Ordinary Actions on Agents
+  without Secrets use plain callables; context Actions are wrapped even
+  then, because a hook may introduce the first Secret while it runs.
 
 ### Presence without evaluation
 
@@ -254,11 +272,14 @@ rollback target.
   sound partition; `MetaTag.__or__` falls back to `type.__or__` when the
   other side is not a population, so `Wizard | None` stays a typing
   union. No kernel state changes.
-- **Condition members** (STEP-SPEC-14): `_agent_getattr` answers a
-  condition by name on the miss path, after Tag views and before the
-  host's own `__getattr__`, through `contracts._condition_member`, which
-  evaluates one check under the re-entrancy guard and returns a plain
-  bool. Nothing is written to the namespace or the runtime type. The
+- **Condition members** (STEP-SPEC-14): an ordinary Agent answers a
+  condition by name through `_Condition_Gate`; a pinned Tag keeps the
+  metaclass miss path. Both call `contracts._condition_member`, which
+  evaluates under the re-entrancy guard and returns a plain bool. The
+  data gate and `_Binding_Write` refuse assignment
+  or deletion before a host hook runs; `Contract.Delete` rebuilds the
+  runtime type without the ended name, returning it to ordinary
+  attribute behavior. Nothing is written to the Agent's namespace. The
   collision rule lives in three places: `_refuse_condition_collision`
   at install (Actions, Records, host class members),
   `_refuse_member_over_condition` when an Action or Record is installed
@@ -274,6 +295,27 @@ rollback target.
   Rip that failed) and was removed (STEP-SPEC-31). `TryFinallyTests`,
   the oracle's `Exercise_Block` and the fuzz's `Holding` write the
   pattern.
+- **Tool slots ride the Constant path** (STEP-SPEC-36). A `@Tool`
+  Record registers its kind in `state.tools`, keyed by name, and the
+  runtime type gains a `_Tool_Gate` data descriptor for that name, over
+  the Constant or Secret gate when there is one. Every write to the name
+  passes `_refuse_misfit` first, `object.__setattr__` included, exactly
+  where `_Binding_Write` already intercepts a host's own `__setattr__`;
+  `_materialize` asks the same question of what the builder returned.
+  A kind is terms, all holding, each a tuple of alternatives: a Tag asks
+  `tag in state.active` (membership now, never soundness, never
+  `isinstance`), a class asks `isinstance`, with a raising instance test
+  wrapped as a Composition Failure and an interrupt left alone. The gate
+  reads the kind from the Agent's state, not from the type, so Agents
+  whose slots differ only in kind share one runtime type. The rule ends
+  as any Record declaration does: a plain Record or an Action at the
+  name pops the entry, as `@Delete` does. A Tool under a protocol name
+  gets no descriptor, since one there would replace the language's own
+  hook (`__rmatmul__` is presence); instead the write hook is forced on
+  (`_binding_write_hooks(..., force=True)`), so ordinary writes are
+  checked and `object.__setattr__` on that name is the documented
+  bypass.
+
 - **The oracle** (`tests/oracle_topkit.py`): an independent model of
   the laws driven by a random walk; `tests/test_oracle.py` runs a short
   walk under the suite. Run it at size with `--seeds 50 --steps 1200

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from contextvars import ContextVar
 from functools import wraps
+from os import sep
 from os.path import dirname
 from typing import Any
 from typing import Callable
@@ -26,6 +27,7 @@ from .declarations import _is_flag
 from .declarations import _parameters_of
 from .declarations import _protocol_inputs
 from .declarations import _takes_stored
+from .declarations import _tool_kind_of
 from .declarations import _takes_underlay
 from .errors import TagCompositionError
 from .errors import TagDeclarationError
@@ -51,7 +53,7 @@ from .state import _state_of
 
 
 Function = Callable[..., Any]
-_WARNING_SKIP_PREFIXES = (dirname(__file__),)
+_WARNING_SKIP_PREFIXES = (dirname(__file__) + sep,)
 
 
 # ------------------------------------------------------------------
@@ -809,6 +811,7 @@ def _delete(
     state.operations.pop(name, None)
     state.published.discard(name)
     state.secrets.discard(name)
+    state.tools.pop(name, None)   # Delete frees the slot: the tool is dropped (§1.6)
     state.deleted.add(name)
 
 
@@ -882,7 +885,6 @@ def _install_action(
             name,
             "an Action",
             )
-
     if state.pinned is not None:
         _refuse_tag_member(
                 state,
@@ -939,6 +941,7 @@ def _install_action(
             underlay,
             )
     state.action_origins[name] = tag
+    state.tools.pop(name, None)   # an Action at the name ends a Tool slot's rule (ordinary Overlay)
     _restore(state, name)
     state.published.discard(name)
 
@@ -985,6 +988,7 @@ def _install_record(
         state.actions.pop(name)
         state.action_origins.pop(name)
 
+    kind = _tool_kind_of(builder)
     prior = state.records.get(name)
 
     if (
@@ -999,6 +1003,11 @@ def _install_record(
                 TagOverwriteWarning,
                 skip_file_prefixes=_WARNING_SKIP_PREFIXES,
                 )
+
+    if kind is not None:
+        state.tools[name] = (tag, kind)   # the latest Tool declaration's kind is the slot's
+    else:
+        state.tools.pop(name, None)   # a plain Record at the name ends the rule (ordinary Overlay)
 
     state.records[name] = tag
     _restore(state, name)
@@ -1098,6 +1107,17 @@ def _materialize(
                     f"Record {builder.__qualname__} could not be"
                     f" materialized: {type(error).__name__}: {error}"
                     ) from error
+
+        if _tool_kind_of(builder) is not None:
+            from .tools import _refuse_misfit   # tools imports state, which overlay also feeds
+
+            _refuse_misfit(
+                    _state_of(agent),
+                    name,
+                    value,
+                    agent,
+                    built=True,
+                    )
 
         if pinned and name in declarations.secrets:
             namespace.pop(name, None)
