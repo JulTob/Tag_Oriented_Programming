@@ -58,6 +58,17 @@ implementation may swap the object's class for a runtime subclass of it.
 `isinstance(agent, Host)` stays true; `type(agent) is Host` may not. See
 Ring 4.
 
+If preparation of that runtime representation fails, the Target keeps its
+original identity, class and instance bindings, with no new Field entry
+(STEP-SPEC-37). TopKit's Python host profile covers physical dictionary and
+declared Python slot bindings; native extension fields and removed slot
+declarations are outside its initial restoration profile. A custom host's
+deliberate refusal is respected; ordinary frozen
+dataclass field protection is not a refusal to prepare the representation.
+This bounded restoration does not undo external effects or changes inside
+mutable values, and does not prescribe rollback of later Gainings or
+Imprints.
+
 ## 0.2 Vocabulary
 
 | Term | Meaning |
@@ -1287,6 +1298,13 @@ for c in Wizard | Fighter:            # sound in either, each once
 for b in Wizard & Fighter:            # sound in both
 for u in (Wizard[:] | Fighter[:]) - Sworn:   # anyone with a role who has not sworn
 ```
+
+**A population walk** (STEP-SPEC-35) checks current Field membership at
+each member's turn. A member Ripped before its turn is skipped. If the
+same Agent or Tag is tagged again before its turn, it belongs again and
+must not be skipped merely because it was previously Ripped. TopKit's
+saved-turn ordering and lazy operand timing are documented in its
+[Field guide](../TopKit/FIELDS.md).
 
 **A condition is read on the Agent by its name** (STEP-SPEC-14).
 `agent.Has_Book` is `True` while the promise called `Has_Book` holds and

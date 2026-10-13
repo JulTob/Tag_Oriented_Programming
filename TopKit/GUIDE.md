@@ -425,6 +425,12 @@ and it will refuse the raw value. Write the comparison you mean, such as
 `return agent.slots > 0`. This keeps a real zero from being mistaken for
 a refusal.
 
+**Protocol work finishes now.** In TopKit's current Python runtime,
+`@Pre`, `@Imprint`, `@Post` and `@Rip` are synchronous. A native coroutine,
+generator or async generator returned by a protocol is rejected without
+awaiting or iterating it. Put async or streaming behavior in Actions or
+Operations; a Record may also store such an object as its value.
+
 ### Pattern 6 · Promise, then repair
 
 **When you want** a Tag to guarantee something about the finished Agent.

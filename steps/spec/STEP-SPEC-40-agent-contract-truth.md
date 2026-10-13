@@ -7,7 +7,7 @@
 - **Status:** Brief
 - **Created:** 2026-10-12
 - **Issue:** [#71](https://github.com/JulTob/Tag_Oriented_Programming/issues/71)
-- **Implementation proposal:** [#72](https://github.com/JulTob/Tag_Oriented_Programming/pull/72)
+- **Implementation proposal:** [#160](https://github.com/JulTob/Tag_Oriented_Programming/pull/160)
 
 ## Summary
 

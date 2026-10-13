@@ -96,8 +96,8 @@ and defective contracts, and no Posts.
 
 The Director was asked whether a container-like host should keep
 `len(agent)` while `bool(agent)` answers the visible contract from the
-first Tagging, and answered **"Yes"** on 2026-10-09. Rule 5 records only
-that ruling: no visible Postconditions means true, and the host's
+first Tagging, and answered **"Yes"** on 2026-10-09. That ruling established
+that no visible Postconditions means true, and the host's
 `__len__` remains its length only. On 2026-10-12 the Director clarified
 that Agent truth is reserved for Posts and chose **“Refuse hosts with an
 explicit __bool__”**. STEP-SPEC-40 records this amendment and preserves

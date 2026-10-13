@@ -1151,6 +1151,10 @@ class Host_Tests(unittest.TestCase):
         class Logging_Host:
             def __init__(self, name): self.name = name
             def __setattr__(agent, name, value):
+                if name == "__class__":
+                    object.__setattr__(agent, name, value)
+                    return
+
                 writes.append(name)
                 agent.__dict__[name] = value
 
