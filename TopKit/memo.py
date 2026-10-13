@@ -6,7 +6,7 @@ User declaration inspection runs outside the lock, over a copied namespace.
 """
 
 from dataclasses import dataclass
-from threading import RLock
+from _thread import RLock
 from typing import Any
 
 
@@ -37,8 +37,9 @@ def _metaclass_binding(tag: type, name: str) -> bool:
 
 
 def _memo_of(tag: type, name: str) -> Any:
-    if _metaclass_binding(tag, name):
-        return None
+    # A physical read never evaluates a metaclass descriptor, so the warm
+    # path needs no metaclass walk; publication and invalidation check it
+    # before assigning or deleting through the type.
     memo = _class_namespace(tag).get(name)
     if type(memo) is _Tag_Memo and memo.owner is tag and memo.name == name:
         return memo.value
@@ -59,7 +60,7 @@ def _remember_memo(tag: type, name: str, value: Any) -> Any:
 
 def _forget_memo(tag: type, name: str) -> None:
     with _publication:
-        if _memo_of(tag, name) is not None:
+        if _memo_of(tag, name) is not None and not _metaclass_binding(tag, name):
             type.__delattr__(tag, name)
 
 
