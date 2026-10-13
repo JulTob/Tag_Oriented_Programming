@@ -3371,6 +3371,229 @@ class Third_Round_Tests(unittest.TestCase):
         self.assertEqual(bob.Knows[ruth].level, 5)        # and what Trusts gave stays, sticky (§0.7)
 
 
+class Final_Round_Tests(unittest.TestCase):
+    """The last review round, on the third round's fixes."""
+
+    def test_an_undone_extension_never_brings_back_what_a_refusal_took(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                pass
+
+            @Link
+            class Trusts(Knows):
+                @Record
+                def level(agent, contact, *, level=None):
+                    return level
+
+        class Vetting(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Record
+                def vetted(agent, contact):
+                    return True
+
+        class Elsewhere(Tag):
+            @Link
+            class Other(Tag):
+                @Record
+                def trusted(agent, contact, *, ruth=None):
+                    agent.Trusts(ruth, level=5)           # undone with the refusal
+                    return True
+
+                @Record
+                def vetted(agent, contact, *, ruth=None):
+                    Vetting(agent)                        # his own call, handed outward
+                    return True
+
+                @Record
+                def broken(agent, contact, *, ruth=None):
+                    raise ValueError("the Other linking is refused")
+
+        class Outer(Tag):
+            @Record
+            def first(agent, *, sam=None, ruth=None):
+                agent.Other(sam, ruth=ruth)               # the refusal rolls Outer back too
+                return True
+
+        bob, ruth, sam = People("Bob", "Ruth", "Sam")
+        Circle(bob)
+        Elsewhere(bob)
+        bob.Knows(ruth)
+        with self.assertRaises(TagCompositionError):
+            Outer(bob, sam=sam, ruth=ruth)
+        self.assertNotIn(bob, Vetting)
+        self.assertNotIn(ruth, bob.Trusts)
+        bob.Trusts(ruth, level=7)                         # the Trusts Layer is off: a new linking builds it
+        self.assertEqual(bob.Trusts[ruth].level, 7)
+
+    def test_an_undone_extension_never_revives_a_dropped_pair(self):
+        torn = []
+
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Rip
+                def Forget(agent, contact):
+                    torn.append(contact.name)
+
+        class Vetting(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Record
+                def vetted(agent, contact):
+                    return True
+
+        class Elsewhere(Tag):
+            @Link
+            class Other(Tag):
+                @Record
+                def a(agent, contact, *, ruth=None):
+                    agent.Knows(ruth)                     # a new Pair, dropped with the refusal
+                    return True
+
+                @Record
+                def b(agent, contact, *, ruth=None):
+                    Vetting(agent)
+                    return True
+
+                @Record
+                def broken(agent, contact, *, ruth=None):
+                    raise ValueError("refused")
+
+        class Outer(Tag):
+            @Record
+            def first(agent, *, sam=None, ruth=None):
+                agent.Other(sam, ruth=ruth)
+                return True
+
+        bob, ruth, sam = People("Bob", "Ruth", "Sam")
+        Circle(bob)
+        Elsewhere(bob)
+        with self.assertRaises(TagCompositionError):
+            Outer(bob, sam=sam, ruth=ruth)
+        gc.collect()
+        self.assertNotIn(ruth, bob.Knows)
+        self.assertEqual(torn, [])                        # no teardown for a linking that never happened
+
+    def test_a_failed_imprint_still_lets_an_undo_keep_another_calls_write(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Record
+                def since(agent, contact, *, since=None):
+                    return since
+
+            @Link
+            class Trusts(Knows):
+                @Imprint
+                def Welcome(agent, contact):
+                    raise ValueError("after her entry: the linking stays")
+
+        class Annotating(Tag):
+            @Record
+            def note(agent, *, about=None):
+                agent.Knows[about].since = "annotated by Bob"
+                return True
+
+        class Joining(Tag):                               # a call on Ruth
+            @Record
+            def trusted(agent, *, by=None):
+                try:
+                    by.Trusts(agent)
+                except TagImprintError:
+                    pass
+                return True
+
+            @Record
+            def annotated(agent, *, by=None):
+                Annotating(by, about=agent)
+                return True
+
+            @Record
+            def broken(agent):
+                raise ValueError("Ruth's later Record fails")
+
+        bob, ruth = People("Bob", "Ruth")
+        Circle(bob)
+        bob.Knows(ruth, since=1)
+        with self.assertRaises(TagCompositionError):
+            Joining(ruth, by=bob)
+        self.assertNotIn(ruth, bob.Trusts)
+        self.assertEqual(bob.Knows[ruth].since, "annotated by Bob")
+
+    def test_an_undone_linking_keeps_another_agents_action_she_holds(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Public
+                def Greet(agent, contact):
+                    return "the line"
+
+        class Speaker(Tag):
+            def Speak(agent):
+                return f"{agent.name} speaks"
+
+        class Introducing(Tag):
+            @Record
+            def friend(agent, *, friend=None, other=None):
+                agent.Knows(friend)
+                friend.Greet = other.Speak                # another Agent's Action, written on her since
+                return friend
+
+            @Record
+            def broken(agent):
+                raise ValueError("refused at Parts")
+
+        charlie, ruth, sam = People("Charlie", "Ruth", "Sam")
+        Circle(charlie)
+        Speaker(sam)
+        with self.assertRaises(TagCompositionError):
+            Introducing(charlie, friend=ruth, other=sam)
+        self.assertEqual(ruth.Greet(), "Sam speaks")
+
+    def test_a_refusal_never_calls_an_agents_own_equality(self):
+        class Strict:
+            def __init__(strict, name):
+                strict.name = name
+
+            def __eq__(strict, other):
+                if strict is other:
+                    return True
+                raise TypeError(f"{strict.name} is not comparable")
+
+            __hash__ = object.__hash__
+
+        class Club(Tag):
+            @Link
+            class Member(Tag):
+                pass
+
+        holder = {}
+
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Record
+                def joined(agent, contact):
+                    agent.Member(contact)
+                    Club(holder["dora"])
+                    return True
+
+                @Record
+                def broken(agent, contact):
+                    raise ValueError("the linking is refused")
+
+        charlie, ruth, dora = Strict("charlie"), Strict("ruth"), Strict("dora")
+        holder["dora"] = dora
+        Club(charlie)
+        Circle(charlie)
+        with self.assertRaises(TagCompositionError):
+            charlie.Knows(ruth)
+        self.assertNotIn(ruth, charlie.Member)
+        self.assertIn(dora, Club)
+
+
 def Agents_Of_Any_Link(contact):
     """The Links a Contact is a member of now, read from her state."""
 

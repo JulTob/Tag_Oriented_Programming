@@ -1650,13 +1650,24 @@ def _extend(
             for name in (*_tag_scope_of(relation), *_published_names(relation))
             }
     written: list[tuple[Pair, list[Any]]] = []
+    given: dict[int, list[type]] = {}   # the Pair Tags this extension gave each Pair, once its Parts are done
+    settled: dict[int, dict[str, Any]] = {}   # each Pair's values once its Imprints ran
 
     def Undo() -> None:
         for pair, entry in reversed(entries):
-            _rollback_to(
+            if id(pair) not in given:
+                _rollback_to(
+                        pair,
+                        entry,
+                        )   # not reached yet, or refused: as it was
+                continue
+
+            _undo_pair_layers(
                     pair,
                     entry,
-                    )
+                    given[id(pair)],
+                    settled.get(id(pair)),
+                    )   # a Pair dropped since stays dropped; what other calls gave it stays
 
         record.layers[:] = previous_layers
         record.gained = previous_gained
@@ -1700,7 +1711,7 @@ def _extend(
                     {},
                     )   # every Pair's gate first: one refusal refuses the whole call
 
-        for pair in pairs:
+        for pair, entry in entries:
             deferred: list[Any] = []
             _apply_form(
                     pair,
@@ -1708,6 +1719,10 @@ def _extend(
                     {},
                     deferred,
                     gated=True,
+                    )
+            given[id(pair)] = _added_since(
+                    pair,
+                    entry,
                     )
             written.append(
                     (
@@ -1722,10 +1737,17 @@ def _extend(
         record.family.busy -= 1
 
     def Write() -> None:
-        _write_all(
-                written,
-                {},
-                )
+        try:
+            _write_all(
+                    written,
+                    {},
+                    )
+        finally:
+            for pair, _deferred in written:
+                namespace = _namespace_of(pair)
+
+                if namespace is not None:
+                    settled[id(pair)] = dict(namespace)
 
     if boundary is None:
         Write()
@@ -2012,12 +2034,14 @@ def _link(
 
     _close(local)
 
-    _write(
-            pair,
-            deferred,
-            inputs,
-            )
-    settled.append(dict(_namespace_of(pair)))
+    try:
+        _write(
+                pair,
+                deferred,
+                inputs,
+                )
+    finally:
+        settled.append(dict(_namespace_of(pair)))   # whatever the Imprints do, the linking stays (§0.6)
     _inspect(pair)
     _inspect(contact)
 
@@ -2184,8 +2208,10 @@ def _forget_agent(
     namespace = _namespace_of(contact)
 
     for name in state.actions:
-        if not isinstance(namespace.get(name), _Bound):
-            continue   # a value she wrote since stays
+        bound = namespace.get(name)
+
+        if not (isinstance(bound, _Bound) and bound._reference() is contact):
+            continue   # a value she wrote since stays, another Agent's Action included
 
         if name in entry.namespace:
             namespace[name] = entry.namespace[name]   # her own value, which the line covered

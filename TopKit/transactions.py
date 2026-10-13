@@ -79,7 +79,7 @@ class _Call_Boundary:
     agent: object | None = None   # the call's Agent; None for a linking's own boundary
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, eq=False)   # compared by identity: never by an owner's own __eq__
 class _Undo_Step:
     """One step a call took on other Targets, and the Agents it belongs
     to. A linking belongs to the Link's Agent and to the Contact; a Link
@@ -176,12 +176,12 @@ def _undo_refused_linking(
     undone = [
             step
             for step in boundary.undo
-            if step.linking and (_owns(agent, step) or _owns(contact, step))
+            if _undone_with_the_refusal(step, agent, contact)
             ]
     others = [
             step
             for step in boundary.undo
-            if step not in undone
+            if not _undone_with_the_refusal(step, agent, contact)
             ]
     boundary.undo.clear()
 
@@ -192,6 +192,14 @@ def _undo_refused_linking(
             others,
             outer,
             )
+
+
+def _undone_with_the_refusal(
+        step: _Undo_Step,
+        agent: object,
+        contact: object,
+        ) -> bool:
+    return step.linking and (_owns(agent, step) or _owns(contact, step))
 
 
 def _undo_owned(

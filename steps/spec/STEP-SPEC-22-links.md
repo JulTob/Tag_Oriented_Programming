@@ -1164,6 +1164,11 @@ implementation follows `main`'s law as it stands, and says so:
   other through the other.
 - A Contact's record of a published line keeps the last Link that
   published its name, after that Link's Agent is gone.
+- A Pair's own Record that links the same Contact again through a Shape
+  Link of the family applies the Layer in flight twice. This is the
+  kernel's behaviour for any Tag applied again to an Agent during its
+  own Parts (`main` does the same for ordinary Tags), reported to be
+  settled for every Tag at once.
 - Extending a held Link runs every Pair's gate before any Pair's
   Records, but at the declaring Shape's Parts, after the Shape's own
   Records, not at the Agent's step 1. A refusal still refuses the whole
@@ -1205,14 +1210,15 @@ On 2026-10-13 five reviewers attacked the implementation, each from one
 angle (rollback, the law of §1.10, lifetime, doors and secrets, mixing
 with every other feature), each finding backed by a probe that ran; a
 skeptic then re-ran every probe and tried to refute it. A second round
-re-checked every fix for variants and attacked the newest code, and a
-third round attacked what the second round's fixes added. Every
+re-checked every fix for variants and attacked the newest code, a third
+round attacked what the second round's fixes added, and a last, small
+round checked the third round's fixes. Every
 confirmed finding is fixed with a regression test that fails before its
 fix (`Rollback_Tests`, `Ownership_Tests`, `Law_Review_Tests`,
 `Lifetime_Review_Tests`, `Door_Review_Tests`, `Integration_Review_Tests`,
 `Second_Round_Tests`, `Variant_Tests`, `New_Code_Review_Tests`,
-`Third_Round_Tests`), save the few the review settled as rules instead
-(below).
+`Third_Round_Tests`, `Final_Round_Tests`), save the few the review
+settled as rules instead (below).
 
 **What it found, in short.**
 
@@ -1257,6 +1263,12 @@ fix (`Rollback_Tests`, `Ownership_Tests`, `Law_Review_Tests`,
   values another call wrote, a value she wrote since, and her earlier
   history. A second interrupt replaced the first. The name check refused
   an extension of a Shape Relation and missed sibling extensions.
+- *The last round.* An extension's undo restored whole-Pair snapshots,
+  bringing back a Layer a refusal had taken off or a Pair it had dropped;
+  it now takes off only the Pair Tags it gave. A refusal compared undo
+  steps by value, calling the Agents' own `__eq__`. A failed Imprint
+  skipped recording the Pair's values, and an undo took another Agent's
+  Action she held for her line.
 
 **What it settled, beyond fixing.**
 
@@ -1327,7 +1339,7 @@ Shown by `tests/test_links.py`, by the Acceptance list above:
   fix: `Rollback_Tests`, `Ownership_Tests`, `Law_Review_Tests`,
   `Lifetime_Review_Tests`, `Door_Review_Tests`, `Integration_Review_Tests`,
   `Second_Round_Tests`, `Variant_Tests`, `New_Code_Review_Tests`,
-  `Third_Round_Tests`;
+  `Third_Round_Tests`, `Final_Round_Tests`;
 - generator and coroutine functions refused, and a generator handed
   through a Link left alone: `New_Code_Review_Tests`.
 

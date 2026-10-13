@@ -381,7 +381,11 @@ rollback target.
   counts the linkings and extensions under way (`busy`); while it is
   above zero, `_extend` and a join in `_family_for` are refused. A
   refused linking runs only its own linking steps (`_Undo_Step.linking`,
-  `_undo_refused_linking`) and hands the rest outward. A name that is a
+  `_undo_refused_linking`) and hands the rest outward; undo steps compare
+  by identity (`eq=False`), never by an owner's own `__eq__`. An
+  extension's undo takes off each Pair only the Pair Tags it gave
+  (`_undo_pair_layers` with the extension's `given` and `settled`), so a
+  Pair dropped since stays dropped. A name that is a
   line in one Layer and a member of the Link in another is refused at
   class use along one Link's extension chain (`_refuse_a_name_both_ways`)
   and at tagging for extensions that meet only on an Agent
