@@ -81,6 +81,10 @@ The plain loop, `for f in Fighter`, is the working population. `~Fighter`
 is the repair queue. `Fighter[:]` is the roster. `len(Fighter) > 0` asks
 whether anyone is fit; `len(Fighter[:])` counts everyone.
 
+When migrating an old population guard, remember that `len(Fighter) > 0`
+counts the whole sound population. The former `bool(Fighter)` stopped at
+the first sound member, so the number of Post evaluations can differ.
+
 `if Fighter:` checks the Tag's own visible Posts, received from Pins.
 Without such Posts it is true, even with an empty Field. Population
 views keep their existence question: `if Fighter[:]` asks whether the

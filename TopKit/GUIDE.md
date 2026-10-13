@@ -59,7 +59,7 @@ Wizard(ari)
 
 assert ari in Wizard                 # Ari is a Wizard now
 assert list(Wizard) == [ari]         # the Field: everyone who is one
-assert Wizard                        # "is anyone a Wizard?" (yes)
+assert len(Wizard) > 0               # "is anyone a Wizard?" (yes)
 ```
 
 An empty Tag is already useful. It defines a category and a population, and
@@ -189,7 +189,7 @@ corruption = 0
 for creature in Undead:                 # every sound member
     corruption += creature.level
 
-if not Undead:                          # nobody is Undead: nothing to do
+if len(Undead) == 0:                    # no sound Undead members: nothing to do
     print("This area is safe")
 else:
     print(f"This area is corrupted by a level of {corruption}")
