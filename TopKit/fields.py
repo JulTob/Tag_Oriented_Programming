@@ -22,6 +22,24 @@ import weakref
 from .errors import TagCompositionError
 
 
+_MetaTag: type | None = None   # imported on first use: tags imports this module
+
+
+def _is_tag_type(
+        candidate: object,
+        ) -> bool:
+    """A Tag is identified by its metaclass, never by a lookalike name."""
+
+    global _MetaTag
+
+    if _MetaTag is None:
+        from .tags import MetaTag
+
+        _MetaTag = MetaTag
+
+    return isinstance(candidate, _MetaTag)
+
+
 class _Population:
     """What every population answers: walk, ``in``, ``len``, truth, and
     the algebra. ``__iter__`` and ``__contains__`` come from the subclass."""
@@ -130,14 +148,10 @@ def _population_of(
     if isinstance(candidate, _Population):
         return candidate
 
-    sound = getattr(
-            candidate,
-            "_sound",
-            None,
-            )
+    if _is_tag_type(candidate):
+        from .tags import _sound_of
 
-    if callable(sound) and isinstance(candidate, type):
-        return sound()
+        return _sound_of(candidate)
 
     return NotImplemented
 
@@ -243,10 +257,14 @@ class _Field(_Population):
         field._members: dict[int, _Member] = {}
         field._expire = field._Forget   # one callback for every member
 
-    def Add(
+    def _Add(
             field,
             agent: object,
             ) -> None:
+        """The Field-entry half of membership: hold the Agent weakly
+        in the Field. Private: by itself it would skip the Gate, Records
+        and Imprints while leaving the Agent's state unchanged."""
+
         key = id(agent)
 
         if key in field._members:
@@ -265,10 +283,13 @@ class _Field(_Population):
         reference.key = key
         field._members[key] = reference
 
-    def Remove(
+    def _Remove(
             field,
             agent: object,
             ) -> None:
+        """Rip's and rollback's half of leaving. Private: by itself it
+        would skip the Agent's state change and every teardown."""
+
         field._members.pop(id(agent), None)
 
     def _Forget(

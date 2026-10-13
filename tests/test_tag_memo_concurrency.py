@@ -37,6 +37,23 @@ class PausingAction:
         return "ready"
 
 
+class PausingToolInspectionAction(PausingAction):
+    """Yield specifically while the Pin inspects Tool metadata."""
+
+    @property
+    def __func__(self):
+        return self
+
+    @property
+    def __topkit_tool__(self):
+        from TopKit.memo import _publication
+
+        if _publication._is_owned():
+            raise RuntimeError("Tool metadata was inspected under the memo lock")
+        PausingAction.__func__.fget(self)
+        return None
+
+
 class TagMemoConcurrencyTests(unittest.TestCase):
     def interleave(self, action, first, peer):
         results = []
@@ -82,6 +99,28 @@ class TagMemoConcurrencyTests(unittest.TestCase):
                                        lambda: Form(candidate))
         self.assertIs(pinned, candidate)
         self.assertEqual(form, (candidate,))
+
+    def test_pin_tool_inspection_can_overlap_either_memo_publication(self):
+        for kind in ("form", "declarations"):
+            with self.subTest(kind=kind):
+                action = PausingToolInspectionAction()
+                candidate = type("Candidate", (Tag,), {"Work": action})
+                if kind == "form":
+                    publish = lambda: Form(candidate)
+                else:
+                    publish = lambda: _declarations_of(candidate)
+
+                pinned, _ = self.interleave(
+                    action, lambda: Pin(candidate), publish,
+                )
+                self.assertIs(pinned, candidate)
+
+                class Receiver(Tag):
+                    pass
+
+                candidate(Receiver)
+                self.assertIn(Receiver, candidate)
+                self.assertEqual(Receiver.Work(), "ready")
 
     def test_base_constant_validation_can_overlap_memo_publication(self):
         candidate, action = self.candidate()

@@ -67,7 +67,10 @@ class DocumentTests(unittest.TestCase):
         self.assertGreater(Run_Blocks(ROOT / "TopKit" / "FIELDS.md"), 8)
 
     def test_the_presence_wiki_page(self) -> None:
-        self.assertGreater(Run_Blocks(ROOT / "wiki" / "1.3-TopKit:-Presence.md"), 5)
+        self.assertGreater(Run_Blocks(ROOT / "wiki" / "1.3-TopKit-Presence.md"), 5)
+
+    def test_the_tools_wiki_page(self) -> None:
+        self.assertGreater(Run_Blocks(ROOT / "wiki" / "1.4-TopKit-Tools.md"), 8)
 
     def test_the_constants_guide(self) -> None:
         self.assertGreater(Run_Blocks(ROOT / "TopKit" / "CONSTANTS.md"), 5)
