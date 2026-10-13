@@ -115,7 +115,7 @@ def _capture(
     state = _state_of(agent)
 
     return _Entry(
-            namespace=dict(_namespace_of(agent) or {}),
+            namespace=(_namespace_of(agent) or {}).copy(),   # a pinned Tag's namespace copies itself safely
             state=state.Copy() if state is not None else None,
             tags=tuple(state.active) if state is not None else (),
             host_class=type(agent),
@@ -780,11 +780,11 @@ def _publish_to_field(
     whole Field is checked on copies first, so no Agent is touched unless
     all can be."""
 
-    from .declarations import _scan_cache
+    from .declarations import _invalidate_declarations
     from .overlay import _adapter
 
     state = _state_of(pinned)
-    _scan_cache.pop(pinned, None)   # the Tag's declarations grew
+    _invalidate_declarations(pinned)   # the Tag's declarations grew
     agents = list(pinned[:])
     plans: list[tuple[object, _State]] = []
 

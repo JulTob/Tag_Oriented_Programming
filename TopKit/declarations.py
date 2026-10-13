@@ -25,6 +25,13 @@ from .errors import TagCompositionError
 from .errors import TagImprintError
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
+from .memo import _class_namespace
+from .memo import _forget_memo
+from .memo import _memo_key
+from .memo import _memo_of
+from .memo import _namespace_snapshot
+from .memo import _remember_memo
+from .memo import _type_mro
 
 
 _KIND = "__topkit_kind__"
@@ -462,7 +469,7 @@ def Pin(
 
     _refuse_tools_on_a_pin(
             tag,
-            vars(tag),
+            _namespace_snapshot(tag),
             )
     _refuse_links_on_a_pin(tag)
     setattr(
@@ -690,19 +697,31 @@ class _Declarations:
     links: tuple[tuple[str, type], ...] = ()   # Relations marked @Link: each Agent receives its own Link
 
 
-_scan_cache: "WeakKeyDictionary[type, _Declarations]" = WeakKeyDictionary()
-
-
 def _declarations_of(
         tag: type,
         ) -> _Declarations:
-    cached = _scan_cache.get(tag)
+    # A Tag owns its memo, never its public Field or a global weak-key
+    # cache: declaration values may refer back to the Tag or its Agents.
+    name = _declaration_key(tag)
+    cached = _memo_of(tag, name)
 
-    if cached is None:
-        cached = _scan(tag)
-        _scan_cache[tag] = cached
+    if type(cached) is _Declarations:
+        return cached
 
-    return cached
+    return _remember_memo(tag, name, _scan(tag))
+
+
+def _declaration_key(
+        tag: type,
+        ) -> str:
+    # Distinct Base and Shape memos have different keys.
+    return _memo_key(tag, "DECLARATIONS")
+
+
+def _invalidate_declarations(
+        tag: type,
+        ) -> None:
+    _forget_memo(tag, _declaration_key(tag))
 
 
 def _is_relation(
@@ -713,8 +732,8 @@ def _is_relation(
 
     return (
             isinstance(candidate, type)
-            and candidate.__dict__.get(_RELATION) is True
-            )
+            and _class_namespace(candidate).get(_RELATION) is True
+            )   # never through a metaclass's own __dict__
 
 
 def _is_link(
@@ -724,8 +743,8 @@ def _is_link(
 
     return (
             isinstance(candidate, type)
-            and candidate.__dict__.get(_LINK) is True
-            )
+            and _class_namespace(candidate).get(_LINK) is True
+            )   # never through a metaclass's own __dict__
 
 
 def _is_pair_tag(
@@ -736,8 +755,8 @@ def _is_pair_tag(
 
     return (
             isinstance(candidate, type)
-            and candidate.__dict__.get(_PAIR_TAG) is True
-            )
+            and _class_namespace(candidate).get(_PAIR_TAG) is True
+            )   # never through a metaclass's own __dict__
 
 
 def _is_private(
@@ -909,7 +928,7 @@ def _check_constant_declarations(
                     )
 
     for base in tag.__mro__[1:]:
-        base_namespace = vars(base)
+        base_namespace = _namespace_snapshot(base)
         protected = {
                 name
                 for name, member in base_namespace.items()
@@ -995,7 +1014,7 @@ def _refuse_relation_bases(
     if _is_relation(tag) or _is_link(tag):
         return
 
-    for base in tag.__mro__[1:]:
+    for base in _type_mro.__get__(tag)[1:]:   # never through a metaclass's own __mro__
         if _is_relation(base) or _is_link(base):
             raise TagDeclarationError(
                     f"{tag.__name__}: {base.__name__} is a"
@@ -1243,7 +1262,8 @@ def _scan(
     constants: set[str] = set()
     tools: set[str] = set()
     links: list[tuple[str, type]] = []
-    managed = tag.__dict__.get(STATE)   # names a Pin landed here
+    namespace = _namespace_snapshot(tag)
+    managed = namespace.get(STATE)   # names a Pin landed here
 
     _refuse_relation_bases(tag)
 
@@ -1258,7 +1278,7 @@ def _scan(
                 if name in managed.constants
                 )
 
-    for name, attribute in tag.__dict__.items():
+    for name, attribute in namespace.items():
         if _is_private(name):
             continue
 
@@ -1530,18 +1550,17 @@ class _Parameters:
     var_keyword: bool
 
 
-_parameter_cache: "WeakKeyDictionary[Function, _Parameters]" = (
-        WeakKeyDictionary()
-        )
+_parameter_cache: "dict[int, tuple[ref[Function], _Parameters]]" = {}
 
 
 def _parameters_of(
         function: Function,
         ) -> _Parameters:
-    cached = _parameter_cache.get(function)
+    key = id(function)
+    cached = _parameter_cache.get(key)
 
-    if cached is not None:
-        return cached
+    if cached is not None and cached[0]() is function:
+        return cached[1]
 
     positional = 0
     named: list[tuple[str, bool]] = []
@@ -1570,7 +1589,24 @@ def _parameters_of(
             named=tuple(named),
             var_keyword=var_keyword,
             )
-    _parameter_cache[function] = spec
+
+    # Preserve native keyword keys without letting their optional payloads
+    # make the global memo own the callable (or its other references).
+    if any(type(name) is not str for name, _ in spec.named):
+        return spec
+
+    def Forget(expired: ref[Function], key: int = key) -> None:
+        current = _parameter_cache.get(key)
+
+        if current is not None and current[0] is expired:
+            del _parameter_cache[key]
+
+    try:
+        reference = ref(function, Forget)
+    except TypeError:
+        pass   # valid non-weakrefable callables are inspected without a memo
+    else:
+        _parameter_cache[key] = reference, spec
 
     return spec
 

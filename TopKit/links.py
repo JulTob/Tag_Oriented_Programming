@@ -62,6 +62,7 @@ from .declarations import _RELATION
 from .declarations import _SECRET
 from .declarations import _UNDERLAY
 from .declarations import _has_flag
+from .declarations import _invalidate_declarations
 from .declarations import _is_dunder
 from .declarations import _is_link
 from .declarations import _is_pin
@@ -71,7 +72,6 @@ from .declarations import _relation_homes
 from .declarations import _kind_of
 from .declarations import _mark_flag
 from .declarations import _parameters_of
-from .declarations import _scan_cache
 from .errors import TagCompositionError
 from .errors import TagDeclarationError
 from .errors import TagResolutionError
@@ -1473,7 +1473,7 @@ def _publish_lines(
                             ),
                     )
 
-    _scan_cache.pop(link, None)
+    _invalidate_declarations(link)
 
 
 def _line_action(
@@ -1680,7 +1680,7 @@ def _extend(
             else:
                 type.__setattr__(link, name, value)
 
-        _scan_cache.pop(link, None)
+        _invalidate_declarations(link)
 
     record.family.busy += 1   # until every Pair has the Layer, the family gains no other
 

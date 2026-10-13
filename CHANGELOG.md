@@ -4,6 +4,47 @@
 
 ### TopKit
 
+- **Protocol signature identity:** different callable objects that compare
+  equal no longer reuse each other's parameter seats. Unhashable and
+  non-weakrefable accepted callables work without custom equality or hash
+  calls from the memo. Weak entries expire safely. Native parameter names
+  retain their keyword-binding behavior; names supplied as string subclasses
+  use uncached inspection so their payloads cannot root a callable through
+  the memo. Defaults and named-input policy stay unchanged. Non-weakrefable
+  callables also use uncached inspection; safely memoized callables keep
+  their original first-inspection timing.
+
+- **Tag memo ownership:** one helper keeps declaration and Form memos
+  on their exact Tag, so a Contribution referring back to its Tag or
+  Shape no longer lets a global cache keep it alive. Empty retained
+  Fields remain weak; returned Form tuples still deliberately retain
+  their Tags. Private-name collisions prevent new memo publication over
+  program bindings. Invalidation retires an owned memo's value even when a
+  metaclass descriptor blocks attribute deletion, so public Pin publication
+  reaches future Agents and removing the collision cannot revive stale data.
+  Namespace scans, including the Tool checks in `Pin()`, use snapshots,
+  so first Taggings of different Agents sharing a Tag cannot invalidate one another's
+  class-dictionary iterators while publishing either memo. Base-first
+  order, iterative traversal and ordinary-class Form behavior stay.
+
+- **Actions before the first Secret:** current synchronous TOP Actions
+  on ordinary objects and pinned Tags open their composition door even
+  when no Secret existed at binding. They can introduce and read the
+  first Secret during their own body; previously captured public handles
+  also compose. Secret invocation guards, host methods, weak object
+  binding and existing Pin receiver/ownership behavior stay unchanged.
+  General special-method composition, lazy execution and inherited Pin
+  receiver dependencies remain separate concerns. Pin Action handles
+  preserve available callable metadata and fall back to the declared name
+  and no documentation when optional metadata cannot be copied. Public
+  Pin Operation handles also retain their original `__self__`, `__func__`
+  and bound `inspect.signature`. Their equality and hashing follow Python
+  bound methods, so repeated reads work as set members and dictionary keys;
+  their representation names the Operation and receiving Tag. Signature
+  metadata is inspected only when requested. The composing handle is a TOP
+  callable rather than a Python method object; callable-kind introspection
+  remains separate.
+
 - **Captured Pin-private Operations:** a captured current Secret Action
   landed by a Pin, including a Constant Action, requires its pinned Tag's
   already-open composition door before invocation. Rip, fresh pinning,
@@ -123,9 +164,8 @@
   door shut; a generator or coroutine function in a Relation is refused,
   since its body would run outside the doors; a family gains no Layer
   while one of its linkings is under way; a Contact's history holds
-  Links weakly. A Relation is
-  declared once, in its declaring Tag's body under its own name; binding
-  it again is a Declaration Failure. The wiki page "Links: a Tag of
+  Links weakly. A Relation is declared once, in its declaring Tag's body
+  under its own name; binding it again is a Declaration Failure. The wiki page "Links: a Tag of
   one's own" runs as one program under the suite.
 
 - **Presence by name:** `"name" @ agent` checks current contributions,

@@ -69,9 +69,28 @@ Actions; Agents are built once and play for a long time. So:
   intact, and later hook entry prunes inert doors in captured contexts.
   Secret gates accept either form. The type-cache key uses the selected raw
   Actions and wrappers are allocated only on a cache miss, so equal
-  compositions still share one runtime type. Ordinary Actions on Agents
-  without Secrets use plain callables; context Actions are wrapped even
-  then, because a hook may introduce the first Secret while it runs.
+  compositions still share one runtime type. Current synchronous TOP
+  Actions, including Pin Actions, open their composition door even before
+  any Secret exists: an Action may introduce the first Secret while it
+  runs. A public handle captured before that Tagging still composes when
+  called afterward. Ordinary host methods are not wrapped. This does not
+  change general special-method composition (#93), lazy execution (#94),
+  or inherited Pin receiver/authority choices (#98).
+  Public Pin handles use a TOP composing callable rather than Python's
+  `MethodType`. They preserve their receiving Tag as `__self__`, their
+  original callable as `__func__`, strong receiver ownership and available
+  `__name__` / `__doc__` metadata. Their bound Python signature is inspected
+  only when requested. Equality and hashing follow Python bound methods:
+  the callable supplies equality/hash and the receiver is identified by
+  identity. Repeated reads therefore work as dictionary keys and set
+  members, including alongside matching native methods; custom receiver
+  equality/hash hooks are not consulted. A handle's representation names
+  its captured Operation and receiving Tag. Callable-kind identity remains
+  a separate decision (#87).
+  Optional callable metadata does not gate Pin invocation: usable `__name__`
+  and `__doc__` are preserved; ordinary failures reading or assigning them
+  fall back to the declared name and `None`, respectively. Metadata interrupts
+  still propagate. Operation publication is a separate repair (#138).
 
 Synchronous Actions selected through an Agent-bound Tag view use the same
 composition door, even when that snapshot preceded the first Secret
@@ -140,6 +159,41 @@ read 64, plain method call 86, Action call 295, `agent in Tag` 291,
 over a Base costs about 60 µs per Agent; an empty Tag about 22 µs. Peak
 memory about 6 KB per Agent with two Tags.
 
+## Geometry memo ownership
+
+The first Form query memoizes a Tag's ordered Bases on that Tag itself,
+not in a global weak-key table or the public Field. A Base's Contribution
+can refer back to its Shape through a closure, default, annotation or
+callable object; owner-local memoization leaves that cycle collectible
+when the program releases the Tags. Retaining an empty `Tag[:]` does not
+retain this memo. A returned Form tuple intentionally retains its Tags
+until the program releases the tuple.
+
+Each Tag has identity-qualified private keys and owns both Form and
+declaration memos through the same helper. The
+lookup never inherits another Tag's memo; an own or inherited program
+binding at that key is not overwritten or shadowed, and Geometry simply
+recomputes. A foreign internal memo is not accepted as this Tag's memo.
+Physical type descriptors read class storage and MROs, without evaluating
+metaclass dictionary/MRO properties. Metaclass collisions prevent new memo
+publication. Warm reads reuse an exact owned memo without walking the
+metaclass or evaluating its descriptor. Invalidation retires the stored value
+even when a metaclass descriptor prevents safely deleting the memo attribute.
+After the collision ends, a trusted retired wrapper can receive a fresh value;
+foreign wrappers and program bindings remain untouched. The immutable wrapper
+identifies its owner and key; a private mutable payload holds the cached value.
+Memo publication does not hold the helper lock while inspecting user
+metadata. Declaration scans, Base Constant inspection, Pin Tool validation
+and Tag-as-Agent namespace copies use snapshots rather than iterating the
+live class dictionary. Different Agents can therefore share a Tag without memo
+publication invalidating one another's iterators; concurrent mutation
+of one Agent remains outside this profile.
+
+Non-Tag compatibility inputs retain the original global weak-key
+fallback, so ordinary classes and builtins gain no attributes. Form
+order, iterative traversal and lazy caching are unchanged; mutation of
+`__bases__` remains a separate design question (#97).
+
 ## The tagging sequence
 
 `transactions._apply` is the call boundary: it snapshots the instance
@@ -167,9 +221,10 @@ rollback target.
   rather than silently bypassing a property.
 - **The Tag's dotted namespace is the program's.** Every Tag-level act is
   language syntax on the metaclass: `in`, `for`, `~`, `len`, `bool`,
-  `[:]`, `[agent]`, `del Tag[agent]`, `format`. The only class attribute
-  TopKit adds is the private `_topkit_field`. `bool(Tag)` is "any sound
-  member", like a collection.
+  `[:]`, `[agent]`, `del Tag[agent]`, `format`. The population handle is
+  the private `_topkit_field`; Geometry also keeps a private, owner-local
+  Form memo as described above. `bool(Tag)` is "any sound member", like a
+  collection.
 - **The empty-seat rule on Agents.** `__bool__`, `__format__`, `__copy__`
   and `__deepcopy__` are installed on the runtime type only when the host
   defines none of its own (`__bool__` only once a Postcondition is
@@ -228,8 +283,30 @@ rollback target.
   used to leave the door open for good.) Known limit: in a reference cycle,
   Python clears weak references before finalizers run, so a finalizer's
   Tag code cannot call the Agent's bound Actions there (`ReferenceError`).
-- **What the kit keeps, and for how long.** The Form cache holds a Tag's
-  Bases only, never the Tag, so a dropped Tag class is freed. A Rip drops
+- **What the kit keeps, and for how long.** Each Tag owns its Form and
+  declaration memos through one internal helper, never a global root or
+  its public Field. A declaration's references to its Tag or Agents thus
+  leave a collectible local cycle. Each key and memo belongs to its exact
+  Tag; own or inherited program bindings are left untouched and trigger
+  uncached recomputation. Namespace inspection uses a snapshot, so another
+  thread publishing either memo cannot invalidate a scan's iterator.
+  The Tool checks in `Pin()` use that snapshot too, with callable metadata
+  inspected after releasing the helper lock.
+  Pin publication invalidates only the receiving Tag's declaration memo.
+  These ownership rules are not a blanket lifetime guarantee about
+  arbitrary user values that refer back to Tags.
+  Protocol parameter memos use
+  callable identity, never its custom hash or equality, and hold the
+  callable weakly. An expired reference cannot delete a replacement
+  entry. An accepted callable without weak-reference support is inspected
+  without memoization or added attributes. Native parameter name objects
+  are preserved for keyword lookup and the keys passed into the callable.
+  When any retained name is a string subclass, inspection is uncached:
+  its attached references cannot become owners through the global memo.
+  Exact-string names remain safely memoized with the original
+  first-inspection timing. Defaults and input-binding policy are preserved.
+  This does not choose a different callable introspection profile (#87).
+  A Rip drops
   the Tag's view snapshot (a view needs membership). A Field entry is a
   slotted weak reference carrying its key, with one callback per Field;
   `At_Exit` numbers its registrations the same way and drops each one when
@@ -264,8 +341,13 @@ rollback target.
   code path; the class case restores key by key. The runtime type is a
   `(MetaTag, Tagged)` metaclass from the same cache. A landed Action is a
   `_Pinned_Operation` descriptor binding to the Tag it is read from (a
-  Shape inherits it as it inherits a classmethod); a landed Record is a
-  plain class attribute, which is exactly a Report's value. `_scan` skips
+  Shape inherits it as it inherits a classmethod). Its public composing
+  handle keeps the original callable as `__func__`, the receiving Tag as
+  `__self__`, native bound-method equality/hash, and the corresponding bound
+  Python signature. Signature inspection is deferred until requested, so
+  optional introspection cannot prevent reading or calling an accepted
+  callable. A landed Record is a plain class attribute, which is exactly
+  a Report's value. `_scan` skips
   names the class state manages, so a pinned Tag never projects them onto
   its Agents. The Tag's own Operations and Reports are host members to a
   Pin (`_pinned_host_function`, `_pinned_stored`); its Agent-scope names
