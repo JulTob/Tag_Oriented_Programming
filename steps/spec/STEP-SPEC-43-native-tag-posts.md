@@ -205,7 +205,7 @@ After the design is Cleared, the implementation must:
 
 ## Acceptance for the eventual implementation
 
-- Both decorator orders enforce an initially false Tag Post without a Pin;
+- Both decorator orders evaluate an initially false Tag Post without a Pin;
   a state repair makes truth true. No-Post Tags remain true under STEP-SPEC-40.
 - Named reads, truth and diagnostics agree, including errors, non-boolean
   verdicts, assertion fall-through, recursive checks and lazy results.
