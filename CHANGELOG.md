@@ -115,9 +115,13 @@
   `del charlie.Knows[ruth]` and `del charlie.Knows[:]` unlink, as does
   either one's deletion and `At_Exit`; each Pair's teardowns run at most
   once. Every Tag-level act on a Relation is a Composition Failure that
-  points to a Link, and a Relation is never a Tool kind or a Pin. The
-  wiki page "Links: a Tag of one's own" runs as one program under the
-  suite.
+  points to a Link, and a Relation is never a Tool kind, a Pin or a
+  Pin's Target. A linking is undone with a rolled-back call on its Agent
+  or its Contact, however deep inside it was made; a call on any other
+  Agent leaves it. Nothing unpublished of a Link reaches its Contact, her
+  own views included; a Link's Reports are built with every Contact's
+  door shut; a Contact's history holds Links weakly. The wiki page
+  "Links: a Tag of one's own" runs as one program under the suite.
 
 - **Presence by name:** `"name" @ agent` checks current contributions,
   including host bindings; `"name" @ Tag[agent]` checks the captured view.
