@@ -316,16 +316,35 @@ class Class_Kind_Tests(unittest.TestCase):
         Buddy(sam)
         self.assertIs(sam.buddy, sam)
 
-    def test_a_kind_of_type_may_hold_a_tag_without_changing_its_truth(self):
+    def test_a_kind_of_type_preserves_the_held_tags_own_pin_truth(self):
+        class Listed(Tag):
+            pass
+
+        @Pin
+        class Checked(Tag):
+            @Record
+            def approved(tag):
+                return True
+
+            @Post
+            def Approved(tag):
+                return tag.approved
+
+        Checked(Listed)
+
         class Catalogued(Tag):
             @Tool(type)
             def listed(agent):
-                return Weapon
+                return Listed
 
         sam = Character("Sam")
         Catalogued(sam)
-        self.assertIs(sam.listed, Weapon)
-        self.assertEqual(bool(sam.listed), bool(Weapon))  # population truth, untouched
+        self.assertIs(sam.listed, Listed)
+        self.assertEqual(len(Listed), 0)
+        self.assertTrue(sam.listed)                    # its own Pin Posts hold
+        Listed.approved = False
+        self.assertFalse(sam.listed)                   # the held Tag's contract changed
+        self.assertTrue(sam)                          # the bearer made no such promise
         with self.assertRaises(TagCompositionError):
             sam.listed = Sword()
 

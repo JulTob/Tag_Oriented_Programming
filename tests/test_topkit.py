@@ -511,7 +511,7 @@ class KernelTests(unittest.TestCase):
         self.assertEqual(list(Field_Member), [ari])
         self.assertEqual(len(Field_Member[:]), 1)
         self.assertEqual(len(Field_Member), 1)
-        self.assertTrue(Field_Member)
+        self.assertGreater(len(Field_Member), 0)
         self.assertTrue(Field_Member[:])
         self.assertFalse(~Field_Member)
 
@@ -520,7 +520,7 @@ class KernelTests(unittest.TestCase):
 
         self.assertIsNone(reference())
         self.assertEqual(list(Field_Member[:]), [])
-        self.assertFalse(Field_Member)
+        self.assertEqual(len(Field_Member), 0)
         self.assertFalse(Field_Member[:])
 
     def test_fields_index_by_identity_not_equality(self) -> None:
@@ -1635,7 +1635,7 @@ class DefectiveTaggingTests(unittest.TestCase):
         self.assertEqual(len(Candidate_Record), 1)
         self.assertEqual(len(~Candidate_Record), 1)
         self.assertEqual(len(Candidate_Record[:]), 2)
-        self.assertTrue(Candidate_Record)          # someone sound
+        self.assertGreater(len(Candidate_Record), 0)  # someone sound
         self.assertTrue(~Candidate_Record)         # someone broken
         self.assertTrue(Candidate_Record[:])       # anyone
 
@@ -2006,7 +2006,7 @@ class PinTests(unittest.TestCase):
         self.assertEqual(list(Rare), [Wizard])
         self.assertEqual(list(Rare[:]), [Wizard])
         self.assertEqual(len(Rare), 1)
-        self.assertTrue(Rare)
+        self.assertGreater(len(Rare), 0)
         self.assertTrue(isinstance(Wizard, Rare))
         self.assertEqual(identity, (id(Wizard), hash(Wizard), Wizard.__name__, Form(Wizard)))
         self.assertIs(type(self.War_Caster), type(Tag))
@@ -2045,10 +2045,10 @@ class PinTests(unittest.TestCase):
         self.assertEqual(Tags(Wizard), (Rare,))
         self.assertEqual(Outline(Wizard), "Wizard\n  Rare")
         self.assertTrue(f"{Wizard:contract}".startswith("Wizard[Rare]"))
-        self.assertFalse(Wizard)                                      # still "any sound member"
+        self.assertEqual(len(Wizard), 0)                              # no sound members
         ari = Agent()
         Wizard(ari)
-        self.assertTrue(Wizard)
+        self.assertGreater(len(Wizard), 0)
 
     def test_refusals(self) -> None:
         Wizard, Rare = self.Wizard, self.Rare
@@ -3456,7 +3456,7 @@ class FieldAlgebraTests(unittest.TestCase):
         self.assertEqual(Choir._sound(), "the program's value")
         self.assertEqual(list(Choir), [solo])
         self.assertEqual(len(Choir), 1)
-        self.assertTrue(Choir)
+        self.assertGreater(len(Choir), 0)
         self.assertEqual(
                 list(Choir | self.Wizard),
                 [solo, self.ari, self.bo],
@@ -3669,7 +3669,7 @@ class PopulationWalkTests(unittest.TestCase):
         self.assertEqual(self.walked(Wizard[:], Return_Ari), [ari, bo, cal])
         self.assertEqual(list(Wizard[:]), [bo, cal, ari])
 
-    def test_truth_length_and_iteration_share_membership_at_turn(self) -> None:
+    def test_population_queries_share_membership_at_turn(self) -> None:
         def ask(question):
             checks = []
             changing = [False]
@@ -3695,7 +3695,7 @@ class PopulationWalkTests(unittest.TestCase):
             return question(Enemy), checks, pair
 
         questions = (
-                ("truth", bool, False),
+                ("population truth", lambda population: bool(population & population), False),
                 ("length", len, 0),
                 ("iteration", lambda population: [member for member in population], []),
                 )
@@ -4847,32 +4847,32 @@ class EfficiencyTests(unittest.TestCase):
 
         self.assertEqual(len(overwrites), 1)
 
-    def test_a_population_is_true_exactly_when_someone_counts(self) -> None:
+    def test_population_cardinality_tracks_sound_and_broken_members(self) -> None:
         class Fighter(Tag):
             @Post
             def Armed(agent) -> bool:
                 return agent.ready
 
-        self.assertFalse(Fighter)
+        self.assertEqual(len(Fighter), 0)
         self.assertFalse(~Fighter)
 
         broken = Agent()
         Fighter(broken)
         broken.ready = False
 
-        self.assertFalse(Fighter)          # nobody sound
+        self.assertEqual(len(Fighter), 0)   # nobody sound
         self.assertTrue(~Fighter)          # someone broken
 
         sound = Agent()
         Fighter(sound)
 
-        self.assertTrue(Fighter)
+        self.assertGreater(len(Fighter), 0)
         self.assertEqual(list(Fighter), [sound])
 
         del sound
         gc.collect()
 
-        self.assertFalse(Fighter)
+        self.assertEqual(len(Fighter), 0)
 
     def test_an_underlay_called_with_or_without_arguments(self) -> None:
         class Speaker(Tag):
@@ -5043,7 +5043,7 @@ print("end")
         self.assertNotIn("Werewolf", ari)
         self.assertIn("Wolf", ari)
 
-    def test_a_population_truth_agrees_with_its_walk(self) -> None:
+    def test_population_cardinality_agrees_with_its_walk(self) -> None:
         keep: dict[str, object] = {}
 
         class Enemy(Tag):
@@ -5069,9 +5069,9 @@ print("end")
                     pass
 
         del member                         # keep["b"] is b's last reference
-        answer = bool(Enemy)
+        count = len(Enemy)
 
-        self.assertTrue(answer)            # b was a member when the question began
+        self.assertEqual(count, 1)         # b was a member when the question began
 
 
 class LayeredDeletionTests(unittest.TestCase):
