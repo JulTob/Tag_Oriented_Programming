@@ -13,8 +13,16 @@
   rather than callable metadata; broken diagnostic formatting cannot hide
   the failure. Record values and ordinary Action returns are unchanged.
   This is the Python runtime boundary; STEP-SPEC-41 separately proposes a
-  language-wide rule. Tagging admission and host actualization are unchanged
-  in this focused repair.
+  language-wide rule.
+
+- **Host preparation:** a failed initial representation change restores
+  the original class, physical dictionary identity and bindings, and Python
+  slot bindings, including slots that were absent. Preparation validates
+  the requested runtime subclass and retained TOP state before builders or
+  Imprints run. Custom host refusal is respected; compatible standard frozen
+  dataclasses remain supported and their fields remain frozen. Restoration
+  does not undo changes inside mutable values or external effects. This
+  host boundary is separate from STEP-SPEC-39's retained Rogue Gains.
 
 - **Protocol signature identity:** different callable objects that compare
   equal no longer reuse each other's parameter seats. Unhashable and
