@@ -103,7 +103,7 @@ def _apply(
                 continue
 
             _gate(agent, state, member, inputs)
-            _apply_one(agent, member, inputs)
+            _apply_one(agent, state, member, inputs)
 
         _inspect(agent)   # Posts judge the completed Form, once.
     except BaseException:
@@ -142,12 +142,21 @@ def _gate(
     """
 
     declarations = _declarations_of(tag)
-    _refuse_conditions_shadowed_by_the_agent(
-            agent,
-            state,
-            tag,
-            declarations,
-            )
+    if (
+            not declarations.gain_order
+            and not declarations.reports
+            and not declarations.operations
+            and not _is_flag(tag)
+            ):
+        return   # no Overlay or Flag protocol seat to validate
+
+    if declarations.preconditions or declarations.postconditions:
+        _refuse_conditions_shadowed_by_the_agent(
+                agent,
+                state,
+                tag,
+                declarations,
+                )
     scratch = state.Copy()
     quiet = _quiet.set(_quiet.get() + 1)   # the real pass warns; catch_warnings() would reset every registry
 
@@ -159,6 +168,9 @@ def _gate(
                 )
     finally:
         _quiet.reset(quiet)
+
+    if not declarations.preconditions:
+        return
 
     state.composing += 1
 
@@ -180,10 +192,10 @@ def _gate(
 
 def _apply_one(
         agent: object,
+        state: _State,
         tag: type,
         inputs: dict[str, Any],
         ) -> None:
-    state = _state_for(agent)
     declarations = _declarations_of(tag)
     deleted_before = set(state.deleted)
     state.training.add(tag)
