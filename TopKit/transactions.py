@@ -535,6 +535,7 @@ def _needs_new_type(
             or declarations.deletions
             or declarations.secrets
             or declarations.constants
+            or declarations.tools
             or declarations.dunders
             or declarations.preconditions
             or declarations.postconditions

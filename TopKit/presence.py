@@ -16,6 +16,7 @@ from .state import _Secret_Gate
 from .state import _is_composing
 from .constants import _Constant_Gate
 from .contracts import _Condition_Gate
+from .tools import _Tool_Gate
 
 
 def _namespace(agent: object) -> Any:
@@ -80,6 +81,11 @@ def _present(
             return name in state.secret_values
 
     member, stored = _binding(agent, name, namespace)
+
+    if issubclass(type(member), _Tool_Gate):
+        if member.member is _MISSING:
+            return name in namespace   # the slot is present while it holds something
+        member = member.member
 
     if issubclass(type(member), _Constant_Gate):
         if state is not None and state.constants.get(name, (None, None))[1] == "postcondition":

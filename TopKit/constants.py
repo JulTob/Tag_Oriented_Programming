@@ -7,6 +7,7 @@ from typing import Any
 from .declarations import STATE, _MISSING, _check_constant_shapes, _constant_owner
 from .errors import TagCompositionError
 from .state import _namespace_of, _state_of
+from .tools import _refuse_misfit
 
 
 def _refuse_constant(state, name: str) -> None:
@@ -151,6 +152,8 @@ class _Binding_Write:
         _refuse_constant(_state_of(agent), name)
         from .contracts import _refuse_condition_binding
         _refuse_condition_binding(agent, name)
+        if values:
+            _refuse_misfit(_state_of(agent), name, values[0], agent)   # a Tool slot admits only its kind
         if issubclass(type(agent), type) and _constant_owner(agent, name) is not None:
             raise TagCompositionError(f"{name!r} is Constant on this Tag")
         if values and issubclass(type(agent), type):
@@ -160,7 +163,10 @@ class _Binding_Write:
         return bound(name, *values)
 
 
-def _binding_write_hooks(namespace, host_type):
+def _binding_write_hooks(namespace, host_type, force=False):
+    """``force`` installs the preflight even over the native writers: a
+    Tool slot under a protocol name has no descriptor to guard it."""
+
     for name in ("__setattr__", "__delattr__"):
         fallback = namespace.get(name, _MISSING)
         if fallback is _MISSING:
@@ -172,7 +178,7 @@ def _binding_write_hooks(namespace, host_type):
             fallback = fallback.fallback
         # Native object writes already honor the protected names' data
         # descriptors. Only custom writers need a preflight before they run.
-        if fallback is object.__dict__[name]:
+        if fallback is object.__dict__[name] and not force:
             namespace[name] = fallback
             continue
         namespace[name] = _Binding_Write(fallback)
