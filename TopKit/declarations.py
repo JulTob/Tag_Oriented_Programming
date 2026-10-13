@@ -35,6 +35,7 @@ _PUBLIC = "__topkit_public__"
 _FLAG = "__topkit_flag__"
 _PIN = "__topkit_pin__"
 _CONSTANT = "__topkit_constant__"
+_TOOL = "__topkit_tool__"   # a Record's kind: the Tags its slot admits (tools._Kind)
 
 STATE = "_TOPKIT_STATE"
 
@@ -449,6 +450,10 @@ def Pin(
                 "@Pin marks a Tag class"
                 )
 
+    _refuse_tools_on_a_pin(
+            tag,
+            vars(tag),
+            )
     setattr(
             tag,
             _PIN,
@@ -648,6 +653,7 @@ class _Declarations:
     dunders: frozenset[str]
     published: frozenset[str]   # Agent-scope members marked @Public (Pins)
     constants: frozenset[str]
+    tools: frozenset[str] = frozenset()   # Records marked @Tool: their slots admit only their kind
 
 
 _scan_cache: "WeakKeyDictionary[type, _Declarations]" = WeakKeyDictionary()
@@ -729,6 +735,29 @@ def _has_flag(
                     name,
                     False,
                     )
+            )
+
+
+def _tool_kind_of(
+        attribute: Any,
+        ) -> Any:
+    """The kind a ``@Tool`` declaration names (a ``tools._Kind``), or None.
+    Looks through a classmethod, a staticmethod and a Report's builder, so
+    a mark hidden under another declaration is still seen and refused."""
+
+    if isinstance(attribute, Report):
+        attribute = attribute.builder
+
+    function = getattr(
+            attribute,
+            "__func__",
+            attribute,
+            )
+
+    return getattr(
+            function,
+            _TOOL,
+            None,
             )
 
 
@@ -840,6 +869,53 @@ def _check_constant_declarations(
                             )
 
 
+def _refuse_tools_on_a_pin(
+        tag: type,
+        namespace: Any,
+        ) -> None:
+    """A Pin's Records land as Reports of the pinned Tag (§1.9): one value
+    on the Tag, which is Tag-scope having and not a Tool."""
+
+    for name, member in namespace.items():
+        if _tool_kind_of(member) is not None:
+            raise TagDeclarationError(
+                    f"{tag.__name__}.{name}: a Pin's Records land as Reports"
+                    " of the pinned Tag; a shared tool is a Report (§1.9)"
+                    )
+
+
+def _check_tool_declarations(
+        tag: type,
+        namespace: dict[str, Any],
+        ) -> None:
+    """A ``@Tool`` marks a Record, whatever the order of its decorators,
+    and never a member of a Pin."""
+
+    for name, member in namespace.items():
+        if _tool_kind_of(member) is None:
+            continue
+
+        if (
+                _is_private(name)
+                or isinstance(member, (classmethod, staticmethod))
+                or _kind_of(member) != "record"
+                or _has_flag(member, _RIP)
+                ):
+            raise TagDeclarationError(
+                    f"{tag.__name__}.{name}: @Tool declares what the Agent"
+                    f" has, a Record; {name} is not one here"
+                    )
+
+    if any(
+            _is_pin(base)
+            for base in tag.__mro__[1:]
+            ):
+        _refuse_tools_on_a_pin(
+                tag,
+                namespace,
+                )
+
+
 _NAMED_FAILURES: dict[str, type] = {
         "imprint": TagImprintError,
         "precondition": TagPreconditionError,
@@ -891,6 +967,7 @@ def _scan(
     dunders: set[str] = set()
     published: set[str] = set()
     constants: set[str] = set()
+    tools: set[str] = set()
     managed = tag.__dict__.get(STATE)   # names a Pin landed here
 
     if managed is not None:
@@ -973,6 +1050,9 @@ def _scan(
             if secret:
                 secrets.add(name)
 
+            if _tool_kind_of(attribute) is not None:
+                tools.add(name)
+
             continue
 
         if kind == "imprint":
@@ -1046,6 +1126,7 @@ def _scan(
             dunders=frozenset(dunders),
             published=frozenset(published),
             constants=frozenset(constants),
+            tools=frozenset(tools),
             )
 
     if _is_pin(tag):
