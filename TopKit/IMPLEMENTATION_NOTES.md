@@ -266,8 +266,10 @@ Tagging sequence or expand its rollback boundary.
   language syntax on the metaclass: `in`, `for`, `~`, `len`, `bool`,
   `[:]`, `[agent]`, `del Tag[agent]`, `format`. The population handle is
   the private `_topkit_field`; Geometry also keeps a private, owner-local
-  Form memo as described above. `bool(Tag)` is "any sound member", like a
-  collection.
+  Form memo as described above. `bool(Tag)` checks the Tag's own visible
+  Posts, received from Pins, and is true without Posts. `len(Tag)` counts
+  sound members; `len(Tag[:])` counts all and `len(~Tag)` counts broken
+  members. Population views retain their existence truth question.
 - **The empty-seat rule on Agents.** `__format__`, `__copy__`
   and `__deepcopy__` are installed on the runtime type only when the host
   defines none of its own. Ordinary object Agents always receive the
