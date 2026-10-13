@@ -334,20 +334,21 @@ def _host_bindings_of(agent: object) -> _Host_Bindings:
 
     if not issubclass(host_type, type):
         for owner in type.__getattribute__(host_type, "__mro__"):
-            members = dict(type.__getattribute__(owner, "__dict__"))
-            for name, member in members.items():
-                if (
-                        name == "__dict__"
-                        and type(member) is GetSetDescriptorType
-                        and dictionary is None
-                        ):
+            members = type.__getattribute__(owner, "__dict__")
+            if dictionary is None:
+                member = members.get("__dict__")
+                if type(member) is GetSetDescriptorType:
                     dictionary = member
                     namespace = member.__get__(agent, host_type)
-                elif (
-                        # Python's declared slots, not arbitrary native
-                        # extension fields that may be read-only.
-                        "__slots__" in members
-                        and type(member) is MemberDescriptorType
+
+            # Ordinary classes need only their native dictionary. Scan
+            # Python's declared slots, not arbitrary native extension
+            # fields that may be read-only, using a stable namespace copy.
+            if "__slots__" not in members:
+                continue
+            for member in dict(members).values():
+                if (
+                        type(member) is MemberDescriptorType
                         and member.__objclass__ is owner
                         and id(member) not in seen
                         ):
