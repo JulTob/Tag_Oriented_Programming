@@ -292,47 +292,53 @@ def _walk_combined(combined: _Combined) -> Iterator[object]:
     frames = [_Walk_Frame(combined)]
     population: _Population = frames[0].left
 
-    while True:
-        while _uses_combined_method(population, "__iter__"):
-            frame = _Walk_Frame(population)
-            frames.append(frame)
-            population = frame.left
+    try:
+        while True:
+            while _uses_combined_method(population, "__iter__"):
+                frame = _Walk_Frame(population)
+                frames.append(frame)
+                population = frame.left
 
-        frame = None   # only the stack owns suspended frames
-        iterator = iter(population)
+            frame = None   # only the stack owns suspended frames
+            iterator = iter(population)
 
-        for agent in iterator:
-            for frame in reversed(frames):
-                frame.agent = agent
+            for agent in iterator:
+                for frame in reversed(frames):
+                    frame.agent = agent
 
-                if frame.operator == "|":
-                    if not frame.on_right:
-                        frame.seen[id(agent)] = agent
-                    elif frame.seen.get(id(agent)) is agent:
+                    if frame.operator == "|":
+                        if not frame.on_right:
+                            frame.seen[id(agent)] = agent
+                        elif frame.seen.get(id(agent)) is agent:
+                            break
+                    elif (agent in frame.right) != (frame.operator == "&"):
                         break
-                elif (agent in frame.right) != (frame.operator == "&"):
-                    break
-            else:
-                yield agent
+                else:
+                    yield agent
 
-            agent = None   # each suspended node keeps its own loop value
-            frame = None
-
-        iterator = None   # finish this leaf before starting another
-
-        while frames:
-            frame = frames[-1]
-
-            if frame.operator == "|" and not frame.on_right:
-                frame.on_right = True
-                population = frame.right
+                agent = None   # each suspended node keeps its own loop value
                 frame = None
-                break
 
-            frames.pop()
-            frame = None
-        else:
-            return
+            iterator = None   # finish this leaf before starting another
+
+            while frames:
+                frame = frames[-1]
+
+                if frame.operator == "|" and not frame.on_right:
+                    frame.on_right = True
+                    population = frame.right
+                    frame = None
+                    break
+
+                frames.pop()
+                frame = None
+            else:
+                return
+    finally:
+        # A closed or failed generator can still have a retained Python
+        # frame. End the walk's ownership without relying on frame disposal.
+        frames.clear()
+        frame = iterator = agent = None
 
 
 class _Member(weakref.ref):
@@ -352,10 +358,14 @@ class _Field(_Population):
         field._members: dict[int, _Member] = {}
         field._expire = field._Forget   # one callback for every member
 
-    def Add(
+    def _Add(
             field,
             agent: object,
             ) -> None:
+        """The Field-entry half of membership: hold the Agent weakly
+        in the Field. Private: by itself it would skip the Gate, Records
+        and Imprints while leaving the Agent's state unchanged."""
+
         key = id(agent)
 
         if key in field._members:
@@ -374,10 +384,13 @@ class _Field(_Population):
         reference.key = key
         field._members[key] = reference
 
-    def Remove(
+    def _Remove(
             field,
             agent: object,
             ) -> None:
+        """Rip's and rollback's half of leaving. Private: by itself it
+        would skip the Agent's state change and every teardown."""
+
         field._members.pop(id(agent), None)
 
     def _Forget(

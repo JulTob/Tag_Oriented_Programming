@@ -9,9 +9,9 @@
 
 ## Summary
 
-A population walk saves join-order turns when it begins, but membership
-stays live. Each saved Agent or Tag is visited only if it belongs to that
-Field when its turn arrives.
+Membership stays live during a population walk. An Agent or Tag that was
+Ripped is out; the same object tagged again before its turn is in again.
+TopKit keeps its existing saved join-order turns when applying this rule.
 
 ## Motivation
 
@@ -21,6 +21,17 @@ later member would still be yielded. The loop then acted on an object
 that was no longer in the population it was walking.
 
 ## Specification
+
+At an Agent's or Tag's turn in a Field walk, membership is current. A
+member Ripped before that turn is skipped. If the same object was tagged
+again before its turn, it belongs again and must not be skipped merely
+because it was previously Ripped.
+
+## TopKit implementation and preserved behavior
+
+The details below describe the Python kit's implementation of that ruling.
+They preserve its existing saved turns, join order and lazy operand timing;
+they are not additional traversal laws cleared by the Director's quote.
 
 1. When a Field's part of a walk begins, it saves its current members in
    join order. New members have no turn in that walk and wait for the next.
@@ -33,9 +44,10 @@ that was no longer in the population it was walking.
 5. The rule applies to a Tag's sound population, `Tag[:]`, `~Tag`, Pins
    and every Field reached through `|`, `&` and `-`. Soundness and live
    operands are still evaluated at the member's turn.
-6. `bool` and `len` follow the same membership-at-turn rule as iteration.
-   A destructive condition check cannot make those questions count a
-   member that the corresponding iteration would skip.
+6. After judging a partition's condition, TopKit checks membership in that
+   Field again. Its truth and length paths use the same membership checks
+   as iteration. Each call is a separate live walk; conditions that change
+   state can therefore produce different answers on successive calls.
 
 ## Rationale
 
@@ -59,7 +71,7 @@ hint, which is a separate live walk and can repeat Postconditions; it is
 not the one-pass snapshot spelling. Join order, weak ownership, soundness
 and combination operators otherwise keep their existing behavior.
 
-## Alternatives considered
+## Implementation alternatives considered
 
 - Freezing membership for the whole walk was rejected because it calls a
   Ripped object a member after it has left.
@@ -80,7 +92,10 @@ one-pass materialization pattern.
 The Director decided on 2026-10-09: "If the agent is in, it was tagged,
 if the agent was ripped it's out so it does not make it to the list, and
 if an agent is tagged again, it is in the list so you shouldn't skip it."
-This focused STEP records that decision as **Cleared** without importing
-the unresolved filters, picks, safehouse or deletion proposals from the
+This focused STEP records that membership ruling as **Cleared**. The quote
+does not separately clear snapshot timing, new-member scheduling, saved
+positions, operand timing or Python length hints; those details above
+document TopKit's implementation and preserved behavior. No unresolved
+filters, picks, safehouse or deletion proposals are imported from the
 earlier broad draft of STEP-SPEC-29. STEP-SPEC-29 itself is reserved for
 the separately extracted absorbing-`~` rule.

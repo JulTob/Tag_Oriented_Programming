@@ -140,8 +140,10 @@ members = [member for member in combatants]
 `len(combatants)` for a size hint before iterating, which is a separate
 live population walk and may repeat Postconditions.
 
-One walk saves a Field's join order when that Field's part of the walk
-begins. The saved places are turns, not a frozen membership list. At each
+TopKit preserves its existing traversal mechanics while applying the
+STEP-SPEC-35 membership ruling. One walk saves a Field's join order when
+that Field's part of the walk begins. The saved places are turns, not a
+frozen membership list. At each
 turn TOP asks whether that same Agent or Tag is still in the Field. A
 member Ripped by an earlier turn is skipped. If it is tagged again before
 its turn, it is in again and is visited once, at the saved place. A new
@@ -150,8 +152,9 @@ member had no saved turn and waits for the next walk.
 The same rule governs a plain Tag, `Tag[:]`, `~Tag`, a Pin and every side
 of a combined population. Soundness and the right side of `&` or `-` are
 also read when the member's turn arrives. `bool(population)` and
-`len(population)` follow the same membership rule, so they cannot count a
-member that the equivalent iteration would skip.
+`len(population)` use the same membership checks. Each call is a separate
+live walk, so conditions that change state can produce different answers
+on successive calls.
 
 ---
 

@@ -301,6 +301,78 @@ class PopulationCapacityTests(unittest.TestCase):
         self.assertEqual(trace(_Combined), trace(Recursive))
         self.assertEqual(trace(_Combined), ([], True))
 
+    def test_failed_walk_releases_ownership_with_a_retained_traceback(self):
+        for failure in ("throw", "next leaf"):
+            with self.subTest(failure=failure):
+                class Left(Tag):
+                    pass
+
+                class FailingLeaf(_Population):
+                    def __iter__(self):
+                        raise LookupError("next leaf failed")
+
+                agent = Agent("a")
+                Left(agent)
+                population = _Combined(Left[:], FailingLeaf(), "|")
+                iterator = iter(population)
+                self.assertIs(next(iterator), agent)
+                reference = weakref.ref(agent)
+                del Left[agent]
+                del agent
+                gc.collect()
+                self.assertIsNotNone(reference())   # the active walk owns it
+
+                errors = []
+                try:
+                    if failure == "throw":
+                        iterator.throw(LookupError("walk stopped"))
+                    else:
+                        next(iterator)
+                except LookupError as error:
+                    errors.append(error)
+                else:
+                    self.fail("the walk did not propagate its failure")
+
+                # Keep the traceback alive: terminating the generator must
+                # release the walk's ownership without waiting for its frame
+                # to be collected. The failing leaf itself holds no Agent.
+                self.assertIsNotNone(errors[0].__traceback__)
+                gc.collect()
+                self.assertIsNone(reference())
+                self.assertEqual(list(iterator), [])
+
+    def test_closing_a_walk_leaves_a_shared_leaf_iterator_open(self):
+        for kind in (_Combined, Recursive):
+            with self.subTest(kind=kind.__name__):
+                first, second = Agent("a"), Agent("b")
+
+                class SharedIterator:
+                    closed = False
+
+                    def __init__(self):
+                        self.members = iter((first, second))
+
+                    def __iter__(self):
+                        return self
+
+                    def __next__(self):
+                        return next(self.members)
+
+                    def close(self):
+                        self.closed = True
+
+                shared = SharedIterator()
+
+                class Leaf(_Population):
+                    def __iter__(self):
+                        return shared
+
+                iterator = iter(kind(Leaf(), Leaf(), "|"))
+                self.assertIs(next(iterator), first)
+                iterator.close()
+                self.assertFalse(shared.closed)
+                self.assertIs(next(shared), second)
+
     def test_combined_subclass_overrides_remain_leaf_operations(self):
         events = []
         agent = Agent("a")
