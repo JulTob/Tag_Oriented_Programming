@@ -56,6 +56,17 @@ implementation may swap the object's class for a runtime subclass of it.
 `isinstance(agent, Host)` stays true; `type(agent) is Host` may not. See
 Ring 4.
 
+If preparation of that runtime representation fails, the Target keeps its
+original identity, class and instance bindings, with no new Field entry
+(STEP-SPEC-37). TopKit's Python host profile covers physical dictionary and
+declared Python slot bindings; native extension fields and removed slot
+declarations are outside its initial restoration profile. A custom host's
+deliberate refusal is respected; ordinary frozen
+dataclass field protection is not a refusal to prepare the representation.
+This bounded restoration does not undo external effects or changes inside
+mutable values, and does not prescribe rollback of later Gainings or
+Imprints.
+
 ## 0.2 Vocabulary
 
 | Term | Meaning |
