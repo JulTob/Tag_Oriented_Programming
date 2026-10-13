@@ -3,7 +3,7 @@
 Ring 0  Kernel: identity, membership, Geometry, Fields.
 Ring 1  Contributions: Overlay, Underlay, Records, publication.
 Ring 2  Contracts: Pre, Imprint, Post, defective taggings.
-Ring 3  Lifecycle: Rip, teardown, Scope, exit.
+Ring 3  Lifecycle: Rip, teardown, try and finally, exit.
 Ring 4  Access and queries.
 """
 
@@ -12,6 +12,7 @@ from __future__ import annotations
 import collections.abc
 import copy
 import gc
+import inspect
 import unittest
 import warnings
 import weakref
@@ -35,9 +36,7 @@ from TopKit import Precondition
 from TopKit import Public
 from TopKit import Record
 from TopKit import Report
-from TopKit import Requirement
 from TopKit import Rip
-from TopKit import Scope
 from TopKit import Secret
 from TopKit import Tag
 from TopKit import TagCompositionError
@@ -544,6 +543,26 @@ class KernelTests(unittest.TestCase):
 
         self.assertEqual(list(Field_Member[:]), [two])
 
+    def test_a_field_offers_no_public_way_around_tagging_and_rip(self) -> None:
+        class Membership(Tag):
+            pass
+
+        agent = Agent()
+        field = Membership[:]
+
+        self.assertFalse(hasattr(field, "Add"))
+        self.assertFalse(hasattr(field, "Remove"))
+
+        Membership(agent)
+
+        self.assertIn(agent, Membership)
+        self.assertIn(agent, field)
+
+        del Membership[agent]
+
+        self.assertNotIn(agent, Membership)
+        self.assertNotIn(agent, field)
+
     def test_targets_that_cannot_carry_top_state_fail_explicitly(self) -> None:
         target = Slotted_Agent()
 
@@ -667,6 +686,54 @@ class HostPreservationTests(unittest.TestCase):
 
 
 class OverlayTests(unittest.TestCase):
+    def test_the_overwrite_warning_points_through_apply(self) -> None:
+        class Guard(Tag):
+            @Action
+            def Patrol(agent):
+                return "guard"
+
+        class Intruder(Tag):
+            @Action
+            def Patrol(agent):
+                return "intruder"
+
+        ari = Agent()
+        Guard(ari)
+
+        with self.assertWarns(TagOverwriteWarning) as caught:
+            expected_line = inspect.currentframe().f_lineno + 1
+            Apply(ari, Intruder)
+
+        self.assertEqual(caught.filename, __file__)
+        self.assertEqual(caught.lineno, expected_line)
+
+    def test_the_overwrite_warning_keeps_a_sibling_directory_frame(self) -> None:
+        from pathlib import Path
+        import TopKit
+
+        caller_file = Path(TopKit.__file__).parent.with_name("TopKitApp") / "application.py"
+
+        for call in ("tag(agent)", "Apply(agent, tag)"):
+            with self.subTest(call=call):
+                namespace = {"__name__": "topkit_warning_caller", "Apply": Apply}
+                exec(
+                        compile(
+                                "def Tag_Here(agent, tag):\n    " + call + "\n",
+                                str(caller_file),
+                                "exec",
+                                ),
+                        namespace,
+                        )
+                ari = Agent()
+                Elf(ari)
+
+                with self.assertWarns(TagOverwriteWarning) as caught:
+                    namespace["Tag_Here"](ari, Berserker)
+
+                self.assertEqual(caught.filename, str(caller_file))
+                self.assertEqual(caught.lineno, 2)
+                self.assertEqual(ari.Attack(), "Reckless attack!")
+
     def test_underlay_captures_the_visible_overlay_at_tagging_time(self) -> None:
         ari = Agent()
 
@@ -998,13 +1065,15 @@ class PublicationTests(unittest.TestCase):
 
         class Leak(self.Fire):
             @Action
-            def leak(agent) -> None:
+            def leak(agent) -> int:
                 captured.append(agent.ignite)
+                return captured[-1]()
 
         Leak(ember)
-        ember.leak()
+        self.assertEqual(ember.leak(), 6)
 
-        self.assertEqual(captured[0](), 6)
+        with self.assertRaises(AttributeError):
+            captured[0]()
 
     def test_contradictory_marks_are_rejected_and_redundant_ones_accepted(self) -> None:
         with self.assertRaises(TagDeclarationError):
@@ -1375,9 +1444,10 @@ class ConditionTests(unittest.TestCase):
         self.assertIs(Precondition.Alive, TagPreconditionError.Alive)
         self.assertIs(Postcondition.Alive, TagPostconditionError.Alive)
 
-    def test_requirement_is_the_stacked_pair_in_one_word(self) -> None:
+    def test_the_two_marks_stack_in_either_order(self) -> None:
         class Vampire(Tag):
-            @Requirement
+            @Post
+            @Pre
             def Undead(agent):
                 return agent.undead
 
@@ -1395,12 +1465,46 @@ class ConditionTests(unittest.TestCase):
         with self.assertRaises(Postcondition.Undead):
             Contract.Postconditions(nosferatu)
 
-    def test_a_requirement_names_no_failure_of_its_own(self) -> None:
-        with self.assertRaises(AttributeError) as caught:
-            Requirement.Undead
+    def test_a_stacked_condition_fails_under_the_name_of_the_half_that_refused(self) -> None:
+        class Vampire(Tag):
+            @Pre
+            @Post
+            def Undead(agent):
+                return agent.undead
 
-        self.assertIn("Precondition.Undead", str(caught.exception))
-        self.assertIn("Postcondition.Undead", str(caught.exception))
+        mortal = Agent()
+        mortal.undead = False
+
+        with self.assertRaises(Precondition.Undead) as at_the_door:
+            Vampire(mortal)
+
+        self.assertIsInstance(at_the_door.exception, Precondition.Undead)
+        self.assertNotIsInstance(at_the_door.exception, Postcondition.Undead)
+
+        nosferatu = Agent()
+        nosferatu.undead = True
+        Vampire(nosferatu)
+        nosferatu.undead = False
+
+        with self.assertRaises(Postcondition.Undead) as afterwards:
+            Contract.Postconditions(nosferatu)
+
+        self.assertIsInstance(afterwards.exception, Postcondition.Undead)
+        self.assertNotIsInstance(afterwards.exception, Precondition.Undead)
+
+    def test_requirement_is_no_longer_exported(self) -> None:
+        import TopKit
+        import TopKit.declarations
+
+        with self.assertRaises(ImportError):
+            from TopKit import Requirement
+
+        with self.assertRaises(ImportError):
+            from TopKit.declarations import Requirement
+
+        self.assertNotIn("Requirement", TopKit.__all__)
+        self.assertFalse(hasattr(TopKit, "Requirement"))
+        self.assertFalse(hasattr(TopKit.declarations, "Requirement"))
 
 
 class DefectiveTaggingTests(unittest.TestCase):
@@ -1538,6 +1642,85 @@ class DefectiveTaggingTests(unittest.TestCase):
 
         ari.strength = 19
         self.assertFalse(bool(ari))
+
+    def test_the_contract_warning_names_the_base_it_weakens(self) -> None:
+        ari = Agent()
+        ari.strength = 15
+
+        with self.assertWarns(TagContractWarning) as caught:
+            Bruiser(ari)
+
+        message = str(caught.warning)
+        self.assertIn("Bruiser.Strength_Capped", message)
+        self.assertIn("its Base Capped", message)
+        self.assertIn("weakens a promise", message)
+
+    def test_the_contract_warning_names_an_independent_tag(self) -> None:
+        class Sworn(Tag):
+            @Post
+            def Honest(agent):
+                return agent.oath
+
+        class Guild(Tag):
+            @Post
+            def Honest(agent):
+                return True
+
+        ari = Agent()
+        ari.oath = True
+        Sworn(ari)
+
+        with self.assertWarns(TagContractWarning) as caught:
+            Guild(ari)
+
+        message = str(caught.warning)
+        self.assertIn("Guild.Honest", message)
+        self.assertIn("independent Tag Sworn", message)
+        self.assertNotIn("Base", message)
+
+        ari.oath = False
+        self.assertTrue(bool(ari))                                    # as the text says: Sworn's promise no longer binds
+
+    def test_the_contract_warning_names_the_shape_a_base_replaces(self) -> None:
+        ari = Agent()
+        ari.strength = 15
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            Bruiser(ari)
+
+        del Bruiser[ari]
+        del Capped[ari]
+
+        with self.assertWarns(TagContractWarning) as caught:
+            Capped(ari)                                               # over Bruiser's sticky promise
+
+        message = str(caught.warning)
+        self.assertIn("Capped.Strength_Capped", message)
+        self.assertIn("its Shape Bruiser", message)
+        self.assertNotIn("weakens", message)
+
+    def test_the_contract_warning_points_at_the_tagging_line(self) -> None:
+        ari = Agent()
+        ari.strength = 15
+
+        with self.assertWarns(TagContractWarning) as caught:
+            expected_line = inspect.currentframe().f_lineno + 1
+            Bruiser(ari)
+
+        self.assertEqual(caught.filename, __file__)
+        self.assertEqual(caught.lineno, expected_line)
+
+    def test_the_contract_warning_points_through_apply(self) -> None:
+        ari = Agent()
+        ari.strength = 15
+
+        with self.assertWarns(TagContractWarning) as caught:
+            expected_line = inspect.currentframe().f_lineno + 1
+            Apply(ari, Bruiser)
+
+        self.assertEqual(caught.filename, __file__)
+        self.assertEqual(caught.lineno, expected_line)
 
     def test_pre_and_post_are_aliases(self) -> None:
         self.assertIs(Pre, Precondition)
@@ -2362,9 +2545,10 @@ class StickyConditionTests(unittest.TestCase):
         with self.assertRaises(TagResolutionError):
             Contract.Delete(ari, "Has_Oath")
 
-    def test_deletion_ends_both_halves_of_a_requirement(self) -> None:
+    def test_deletion_ends_both_halves_of_a_stacked_condition(self) -> None:
         class Elf(Tag):
-            @Requirement
+            @Pre
+            @Post
             def Alive(agent):
                 return agent.alive
 
@@ -2462,22 +2646,28 @@ class ExitProtocolTests(unittest.TestCase):
         self.assertEqual(seen, ["host del"])
         self.assertEqual(_DEL_LOG, ["stood down"])
 
-    def test_scope_applies_and_rips_with_guaranteed_teardown(self) -> None:
+    def test_a_rip_in_a_finally_is_the_guaranteed_teardown(self) -> None:
         ari = Agent()
 
-        with Scope(ari, Sentry) as scoped:
-            self.assertIs(scoped, ari)
+        held = Sentry(ari)                                            # tag before the try
+        try:
+            self.assertIs(held, ari)
             self.assertIn(ari, Sentry)
+        finally:
+            del Sentry[ari]                                           # Rip in the finally
 
         self.assertNotIn(ari, Sentry)
         self.assertEqual(_DEL_LOG, ["stood down"])
 
-    def test_scope_rips_even_when_the_block_raises(self) -> None:
+    def test_a_rip_in_a_finally_runs_even_when_the_block_raises(self) -> None:
         ari = Agent()
 
         with self.assertRaises(ValueError):
-            with Scope(ari, Sentry):
+            Sentry(ari)
+            try:
                 raise ValueError("boom")
+            finally:
+                del Sentry[ari]
 
         self.assertNotIn(ari, Sentry)
         self.assertEqual(_DEL_LOG, ["stood down"])
@@ -2509,27 +2699,47 @@ class ExitProtocolTests(unittest.TestCase):
         self.assertLess((after - before) / 2000, 16)   # nothing kept per dead registration
 
 
-# ==================================================================
-# Ring 4: Access and queries
-# ==================================================================
+class TryFinallyTests(unittest.TestCase):
+    """A block holds a Tag with Python's own try and finally: tag before
+    try, Rip in finally (STEP-SPEC-31)."""
 
+    def setUp(self) -> None:
+        _DEL_LOG.clear()
 
-class ScopeTests(unittest.TestCase):
-    """Scope Rips only what it applied, and everything it applied."""
-
-    def test_a_tag_the_agent_already_had_survives_the_scope(self) -> None:
-        class Wizard(Tag):
-            pass
-
+    def test_try_finally_rips_when_the_block_raises(self) -> None:
         ari = Agent()
-        Wizard(ari)
 
-        with Scope(ari, Wizard):
-            self.assertIn(ari, Wizard)
+        with self.assertRaises(LookupError):
+            Sentry(ari)
+            try:
+                raise LookupError("the gate is breached")
+            finally:
+                del Sentry[ari]
 
-        self.assertIn(ari, Wizard)                                    # it was Ari's, not the Scope's
+        self.assertNotIn(ari, Sentry)
+        self.assertEqual(_DEL_LOG, ["stood down"])
 
-    def test_a_tag_whose_promise_broke_at_the_door_is_ripped_on_exit(self) -> None:
+    def test_a_refused_gate_raises_before_the_try(self) -> None:
+        class Gated(Tag):
+            @Pre
+            def Ready(agent):
+                return agent.ready
+
+        cal = Agent()
+        cal.ready = False
+        ran: list[str] = []
+
+        with self.assertRaises(Precondition.Ready):
+            Gated(cal)
+            try:
+                ran.append("block")
+            finally:
+                del Gated[cal]
+
+        self.assertEqual(ran, [])
+        self.assertNotIn(cal, Gated[:])
+
+    def test_a_postcondition_failure_before_the_try_leaves_the_tag(self) -> None:
         class Sworn(Tag):
             @Post
             def Has_Oath(agent):
@@ -2537,32 +2747,412 @@ class ScopeTests(unittest.TestCase):
 
         bo = Agent()
         bo.oath = None
+        ran: list[str] = []
 
         with self.assertRaises(Postcondition.Has_Oath):
-            with Scope(bo, Sworn):
-                raise AssertionError("the body must not run")
+            Sworn(bo)
+            try:
+                ran.append("block")
+            finally:
+                del Sworn[bo]
 
-        self.assertNotIn(bo, Sworn)                                   # applied, defective, and Ripped on the way out
-        self.assertTrue(isinstance(bo, Sworn))                        # the history stays
+        self.assertEqual(ran, [])
+        self.assertIn(bo, ~Sworn)                                     # landed, then reported defective
 
-    def test_a_refused_gate_applies_nothing_and_rips_nothing(self) -> None:
-        class Gated(Tag):
-            @Pre
-            def Ready(agent):
-                return agent.ready
+    def test_a_hosts_ordinary_context_protocol_survives_tagging(self) -> None:
+        events: list[str] = []
 
-        class Plain(Tag):
-            pass
+        class Host:
+            def __enter__(self):
+                events.append("enter")
+                return "host value"
 
-        cal = Agent()
-        cal.ready = False
+            def __exit__(self, kind, value, traceback):
+                events.append("exit")
 
-        with self.assertRaises(Precondition.Ready):
-            with Scope(cal, Plain, Gated):
-                pass
+        host = Host()
+        Sentry(host)
 
-        self.assertNotIn(cal, Plain)                                  # Plain was the Scope's: gone
-        self.assertNotIn(cal, Gated)
+        with host as value:
+            self.assertEqual(value, "host value")
+
+        self.assertEqual(events, ["enter", "exit"])
+        self.assertIn(host, Sentry)                                   # `with` does not Rip for TOP
+
+    def test_action_context_dunders_remain_ordinary_python(self) -> None:
+        events: list[str] = []
+
+        class Private(Tag):
+            @Secret
+            @Record
+            def key(agent):
+                return "open"
+
+        class Context(Tag):
+            def __enter__(agent):
+                Private(agent)                                     # the hook introduces the first Secret
+                events.append(f"enter: {agent.key}")
+                return agent.key
+
+            def __exit__(agent, kind, value, traceback):
+                events.append(f"exit: {agent.key}")
+
+        ari = Agent()
+        Context(ari)
+
+        with ari as value:
+            self.assertEqual(value, "open")
+
+            with self.assertRaises(AttributeError):
+                _ = ari.key                                         # entry closed its door before the block
+
+        self.assertEqual(events, ["enter: open", "exit: open"])
+        self.assertIn(ari, Context)                                   # its Actions decide; TOP adds no Rip
+
+    def test_async_action_context_dunders_remain_ordinary_python(self) -> None:
+        import asyncio
+
+        events: list[str] = []
+
+        class Private(Tag):
+            @Secret
+            @Record
+            def key(agent):
+                return "open"
+
+        class Context(Tag):
+            async def __aenter__(agent):
+                await asyncio.sleep(0)
+                Private(agent)                                     # the hook introduces the first Secret
+                await asyncio.sleep(0)
+                events.append(f"enter: {agent.key}")
+                return agent.key
+
+            async def __aexit__(agent, kind, value, traceback):
+                await asyncio.sleep(0)
+                events.append(f"exit: {agent.key}")
+
+        ari = Agent()
+        Context(ari)
+
+        async def use_context() -> None:
+            async with ari as value:
+                self.assertEqual(value, "open")
+
+                with self.assertRaises(AttributeError):
+                    _ = ari.key
+
+        asyncio.run(use_context())
+
+        self.assertEqual(events, ["enter: open", "exit: open"])
+        self.assertIn(ari, Context)
+
+    def test_context_actions_read_secrets_but_the_block_does_not(self) -> None:
+        events: list[tuple[str, str, type | None]] = []
+
+        class Replacement(Tag):
+            def __exit__(agent, kind, value, traceback):
+                events.append(("replacement", agent.key, kind))
+                return False
+
+        class Context(Tag):
+            @Secret
+            @Record
+            def key(agent):
+                return agent.name
+
+            def __enter__(agent):
+                events.append(("enter", agent.key, None))
+
+                if agent.name == "bo":
+                    Replacement(agent)                              # Python already captured Context.__exit__
+
+                return agent
+
+            def __exit__(agent, kind, value, traceback):
+                events.append(("exit", agent.key, kind))
+                return kind is LookupError
+
+        ari = Agent()
+        ari.name = "ari"
+        bo = Agent()
+        bo.name = "bo"
+        Context(ari)
+        Context(bo)
+
+        self.assertIs(type(ari), type(bo))                           # raw Actions key the shared type
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", TagOverwriteWarning)
+
+            for agent in (ari, bo):
+                with agent as value:
+                    self.assertIs(value, agent)
+
+                    with self.assertRaises(AttributeError):
+                        _ = agent.key                                # entry did not leave the door open
+
+                    raise LookupError("suppressed by the captured exit Action")
+
+                with self.assertRaises(AttributeError):
+                    _ = agent.key                                    # exit closed the door too
+
+        self.assertEqual(
+                events,
+                [
+                        ("enter", "ari", None),
+                        ("exit", "ari", LookupError),
+                        ("enter", "bo", None),
+                        ("exit", "bo", LookupError),
+                        ],
+                )
+
+    def test_context_action_failure_closes_the_composition_door(self) -> None:
+        class Broken_Context(Tag):
+            @Secret
+            @Record
+            def key(agent):
+                return "inside"
+
+            def __enter__(agent):
+                _ = agent.key
+                raise RuntimeError("entry failed")
+
+            def __exit__(agent, kind, value, traceback):
+                raise AssertionError("Python does not exit a context that did not enter")
+
+        ari = Agent()
+        Broken_Context(ari)
+
+        with self.assertRaisesRegex(RuntimeError, "entry failed"):
+            with ari:
+                self.fail("the block must not run")
+
+        with self.assertRaises(AttributeError):
+            _ = ari.key
+
+    def test_context_action_keeps_an_explicit_host_underlay(self) -> None:
+        events: list[str] = []
+
+        class Host:
+            def __enter__(self):
+                events.append("host enter")
+                return self
+
+            def __exit__(self, kind, value, traceback):
+                events.append("host exit")
+                return kind is ValueError
+
+        class Context(Tag):
+            @Secret
+            @Record
+            def key(agent):
+                return "open"
+
+            @Underlay
+            def __enter__(agent, underlay):
+                events.append(f"TOP enter: {agent.key}")
+                return underlay()
+
+            @Underlay
+            def __exit__(agent, underlay, kind, value, traceback):
+                events.append(f"TOP exit: {agent.key}")
+                return underlay()
+
+        host = Host()
+        Context(host)
+
+        with host as value:
+            self.assertIs(value, host)
+            raise ValueError("the host suppresses this")
+
+        self.assertEqual(
+                events,
+                ["TOP enter: open", "host enter", "TOP exit: open", "host exit"],
+                )
+
+    def test_async_context_actions_have_a_context_local_door_across_await(self) -> None:
+        import asyncio
+        from contextvars import copy_context
+
+        events: list[tuple[str, str, type | None]] = []
+        captured_contexts = []
+        task_references = []
+
+        async def scenario() -> None:
+            entry_waiting = asyncio.Event()
+            release_entry = asyncio.Event()
+            exit_waiting = asyncio.Event()
+            release_exit = asyncio.Event()
+
+            class Context(Tag):
+                @Secret
+                @Record
+                def key(agent):
+                    return "open"
+
+                async def __aenter__(agent):
+                    captured_contexts.append(copy_context())
+
+                    async def child_task() -> None:
+                        self.assertEqual(agent.key, "open")          # work delegated by the hook
+                        self.assertTrue("key" @ agent)
+
+                    await asyncio.create_task(child_task())
+                    entry_waiting.set()
+                    await release_entry.wait()
+                    events.append(("enter", agent.key, None))
+                    self.assertTrue("key" @ agent)
+                    self.assertEqual(agent.Context.key, "open")
+                    return agent
+
+                async def __aexit__(agent, kind, value, traceback):
+                    exit_waiting.set()
+                    await release_exit.wait()
+                    events.append(("exit", agent.key, kind))
+                    return kind is LookupError
+
+            ari = Agent()
+            Context(ari)
+
+            async def use_context() -> None:
+                async with ari as value:
+                    self.assertIs(value, ari)
+
+                    with self.assertRaises(AttributeError):
+                        _ = ari.key                                 # the block is outside composition
+
+                    raise LookupError("suppressed by the async Action")
+
+                with self.assertRaises(AttributeError):
+                    captured_contexts[0].run(lambda: ari.key)        # a closed door cannot be replayed
+
+            async def sibling_task() -> None:
+                await entry_waiting.wait()
+
+                with self.assertRaises(AttributeError):
+                    _ = ari.key                                     # entry awaits in another task
+
+                self.assertFalse("key" @ ari)
+
+                with self.assertRaises(AttributeError):
+                    _ = ari.Context.key
+
+                release_entry.set()
+                await exit_waiting.wait()
+
+                with self.assertRaises(AttributeError):
+                    _ = ari.key                                     # exit awaits in another task
+
+                release_exit.set()
+
+            using = asyncio.create_task(use_context())
+            task_references.append(weakref.ref(using))
+            sibling = asyncio.create_task(sibling_task())           # created before either door opens
+            await asyncio.gather(using, sibling)
+
+            with self.assertRaises(AttributeError):
+                _ = ari.key
+
+        asyncio.run(scenario())
+        gc.collect()
+
+        self.assertEqual(
+                events,
+                [("enter", "open", None), ("exit", "open", LookupError)],
+                )
+        self.assertIsNone(task_references[0]())                       # captured context retains no Task
+
+    def test_cancelled_async_entry_closes_the_composition_door(self) -> None:
+        import asyncio
+
+        async def scenario() -> None:
+            started = asyncio.Event()
+            release = asyncio.Event()
+
+            class Waiting_Context(Tag):
+                @Secret
+                @Record
+                def key(agent):
+                    return "open"
+
+                async def __aenter__(agent):
+                    await asyncio.sleep(0)
+                    self.assertEqual(agent.key, "open")
+                    started.set()
+                    await release.wait()
+                    return agent
+
+                async def __aexit__(agent, kind, value, traceback):
+                    return False
+
+            ari = Agent()
+            Waiting_Context(ari)
+
+            async def enter() -> None:
+                async with ari:
+                    self.fail("cancelled entry must not reach the block")
+
+            task = asyncio.create_task(enter())
+            await started.wait()
+            task.cancel()
+
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+
+            with self.assertRaises(AttributeError):
+                _ = ari.key
+
+        asyncio.run(scenario())
+
+    def test_a_hosts_async_context_protocol_survives_secret_tagging(self) -> None:
+        import asyncio
+
+        events: list[str] = []
+
+        class Host:
+            async def __aenter__(self):
+                await asyncio.sleep(0)
+                events.append("enter")
+                return "host value"
+
+            async def __aexit__(self, kind, value, traceback):
+                await asyncio.sleep(0)
+                events.append("exit")
+
+        class Has_Secret(Tag):
+            @Secret
+            @Record
+            def key(agent):
+                return "private"
+
+        host = Host()
+        Has_Secret(host)
+
+        async def use_context() -> None:
+            async with host as value:
+                self.assertEqual(value, "host value")
+
+        asyncio.run(use_context())
+
+        self.assertEqual(events, ["enter", "exit"])
+        self.assertIn(host, Has_Secret)
+
+    def test_scope_is_no_longer_exported(self) -> None:
+        import TopKit
+        import TopKit.lifecycle
+
+        with self.assertRaises(ImportError):
+            from TopKit import Scope                                  # removed: tag before try, Rip in finally
+
+        self.assertNotIn("Scope", TopKit.__all__)
+        self.assertFalse(hasattr(TopKit, "Scope"))
+        self.assertFalse(hasattr(TopKit.lifecycle, "Scope"))
+
+
+# ==================================================================
+# Ring 4: Access and queries
+# ==================================================================
 
 
 class AccessTests(unittest.TestCase):
@@ -2713,6 +3303,384 @@ class FieldAlgebraTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             self.Wizard & 3
 
+    def test_a_plain_class_with_a_sound_name_stays_a_type_union(self) -> None:
+        class Ordinary:
+            @staticmethod
+            def _sound() -> None:
+                raise AssertionError("a plain class is not a TOP population")
+
+        union = self.Wizard | Ordinary
+        reverse = Ordinary | self.Wizard
+
+        self.assertIsInstance(self.ari, union)
+        self.assertIsInstance(Ordinary(), union)
+        self.assertIsInstance(self.ari, reverse)
+        self.assertIsInstance(Ordinary(), reverse)
+
+    def test_a_tag_may_use_sound_as_its_own_name(self) -> None:
+        class Choir(Tag):
+            @staticmethod
+            def _sound() -> str:
+                return "the program's value"
+
+        solo = Agent()
+        Choir(solo)
+
+        self.assertEqual(Choir._sound(), "the program's value")
+        self.assertEqual(list(Choir), [solo])
+        self.assertEqual(len(Choir), 1)
+        self.assertTrue(Choir)
+        self.assertEqual(
+                list(Choir | self.Wizard),
+                [solo, self.ari, self.bo],
+                )
+
+    def test_a_report_or_operation_named_sound_does_not_replace_the_field(self) -> None:
+        class Reported(Tag):
+            @Report
+            def _sound(tag) -> str:
+                return "the report"
+
+        class Operated(Tag):
+            @Operation
+            def _sound(tag, agent) -> object:
+                return agent
+
+        report_agent = Agent()
+        operation_agent = Agent()
+        Reported(report_agent)
+        Operated(operation_agent)
+
+        self.assertEqual(Reported._sound, "the report")
+        self.assertIs(Operated._sound(operation_agent), operation_agent)
+        self.assertEqual(list(Reported), [report_agent])
+        self.assertEqual(list(Operated), [operation_agent])
+        self.assertEqual(list(~Reported), [])
+        self.assertEqual(list(Operated[:]), [operation_agent])
+
+
+class PopulationWalkTests(unittest.TestCase):
+    """STEP-SPEC-35: a walk saves join order, then asks membership at
+    each member's turn."""
+
+    @staticmethod
+    def walked(population, act) -> list[object]:
+        seen = []
+
+        for member in population:
+            seen.append(member)
+            act(member)
+
+        return seen
+
+    def test_a_ripped_member_is_skipped_by_each_field_view(self) -> None:
+        for view in ("sound", "whole", "defective"):
+            with self.subTest(view=view):
+                class Wizard(Tag):
+                    @Post
+                    def Ready(agent):
+                        return agent.ready
+
+                ari, bo, cal = Agent(), Agent(), Agent()
+
+                for member in (ari, bo, cal):
+                    Wizard(member)
+
+                if view == "defective":
+                    for member in (ari, bo, cal):
+                        member.ready = False
+
+                    population = ~Wizard
+                elif view == "whole":
+                    population = Wizard[:]
+                else:
+                    population = Wizard
+
+                def Rip_Cal(member) -> None:
+                    if member is ari:
+                        del Wizard[cal]
+
+                self.assertEqual(self.walked(population, Rip_Cal), [ari, bo])
+
+    def test_a_pin_walk_skips_a_tag_ripped_before_its_turn(self) -> None:
+        @Pin
+        class School(Tag):
+            pass
+
+        class Mage(Tag):
+            pass
+
+        class Bard(Tag):
+            pass
+
+        class Druid(Tag):
+            pass
+
+        for tag in (Mage, Bard, Druid):
+            School(tag)
+
+        def Rip_Druid(tag) -> None:
+            if tag is Mage:
+                del School[Druid]
+
+        self.assertEqual(self.walked(School, Rip_Druid), [Mage, Bard])
+
+    def test_combined_walks_skip_a_member_ripped_from_the_left(self) -> None:
+        for operator in ("|", "&", "-"):
+            with self.subTest(operator=operator):
+                class Left(Tag):
+                    pass
+
+                class Right(Tag):
+                    pass
+
+                ari, bo, cal = Agent(), Agent(), Agent()
+
+                for member in (ari, bo, cal):
+                    Left(member)
+
+                if operator != "-":
+                    for member in (ari, bo, cal):
+                        Right(member)
+
+                if operator == "|":
+                    population = Left[:] | Right[:]
+                elif operator == "&":
+                    population = Left[:] & Right[:]
+                else:
+                    population = Left[:] - Right[:]
+
+                def Rip_Bo(member) -> None:
+                    if member is ari:
+                        del Left[bo]
+
+                        if operator == "|":
+                            del Right[bo]
+
+                self.assertEqual(self.walked(population, Rip_Bo), [ari, cal])
+
+    def test_a_lazy_unions_right_field_starts_when_reached(self) -> None:
+        """This change preserves the algebra's per-side walk timing."""
+
+        class Wizard(Tag):
+            pass
+
+        class Fighter(Tag):
+            pass
+
+        ari, bo, cal = Agent(), Agent(), Agent()
+        Wizard(ari)
+        Fighter(bo)
+        combatants = Wizard[:] | Fighter[:]
+
+        def Join_Right(member) -> None:
+            if member is ari:
+                Fighter(cal)                                         # before the right Field starts
+
+        self.assertEqual(self.walked(combatants, Join_Right), [ari, bo, cal])
+
+    def test_a_union_walk_keeps_seen_identity_stable_until_it_finishes(self) -> None:
+        class Wizard(Tag):
+            pass
+
+        class Fighter(Tag):
+            pass
+
+        class Druid(Tag):
+            pass
+
+        ari, bo, cal = Agent(), Agent(), Agent()
+        Wizard(ari)
+        Fighter(bo)
+        Druid(cal)
+        reference = weakref.ref(ari)
+        combatants = iter((Wizard[:] | Fighter[:]) | Druid[:])
+
+        self.assertIs(next(combatants), ari)
+        del ari
+        self.assertIs(next(combatants), bo)
+        self.assertIs(next(combatants), cal)
+        gc.collect()
+
+        self.assertIsNotNone(reference())
+        self.assertEqual([member for member in combatants], [])
+        gc.collect()
+        self.assertIsNone(reference())
+
+    def test_a_new_member_waits_but_a_retagged_member_keeps_its_turn(self) -> None:
+        class Wizard(Tag):
+            pass
+
+        ari, bo, cal, dee = Agent(), Agent(), Agent(), Agent()
+
+        for member in (ari, bo, cal):
+            Wizard(member)
+
+        def Change_Field(member) -> None:
+            if member is ari:
+                del Wizard[bo]
+                Wizard(bo)                                           # in again before its saved turn
+                Wizard(dee)                                          # no saved turn in this walk
+
+        self.assertEqual(self.walked(Wizard, Change_Field), [ari, bo, cal])
+        self.assertEqual(list(Wizard), [ari, cal, bo, dee])
+
+    def test_retagging_after_a_saved_turn_does_not_visit_it_twice(self) -> None:
+        class Wizard(Tag):
+            pass
+
+        ari, bo, cal = Agent(), Agent(), Agent()
+
+        for member in (ari, bo, cal):
+            Wizard(member)
+
+        def Return_Ari(member) -> None:
+            if member is bo:
+                del Wizard[ari]
+                Wizard(ari)
+
+        self.assertEqual(self.walked(Wizard[:], Return_Ari), [ari, bo, cal])
+        self.assertEqual(list(Wizard[:]), [bo, cal, ari])
+
+    def test_truth_length_and_iteration_share_membership_at_turn(self) -> None:
+        def ask(question):
+            checks = []
+            changing = [False]
+            pair: list[object] = []
+
+            class Enemy(Tag):
+                @Post
+                def Standing(agent):
+                    checks.append(agent)
+
+                    if changing[0] and agent is pair[0]:
+                        del Enemy[pair[1]]
+                        return False
+
+                    return True
+
+            pair[:] = [Agent(), Agent()]
+            Enemy(pair[0])
+            Enemy(pair[1])
+            checks.clear()
+            changing[0] = True
+
+            return question(Enemy), checks, pair
+
+        questions = (
+                ("truth", bool, False),
+                ("length", len, 0),
+                ("iteration", lambda population: [member for member in population], []),
+                )
+
+        for name, question, expected in questions:
+            with self.subTest(question=name):
+                answer, checks, pair = ask(question)
+
+                self.assertEqual(answer, expected)
+                self.assertEqual(checks, [pair[0]])
+
+    def test_a_sound_view_rechecks_membership_after_its_postcondition(self) -> None:
+        ripping = [False]
+
+        class Wizard(Tag):
+            @Post
+            def Ready(agent):
+                if ripping[0]:
+                    del Wizard[agent]
+
+                return True
+
+        class Fighter(Tag):
+            pass
+
+        ari, bo = Agent(), Agent()
+        Wizard(ari)
+        Wizard(bo)
+        ripping[0] = True
+
+        self.assertEqual([member for member in Wizard], [])
+        self.assertNotIn(ari, Wizard[:])
+
+        cal = Agent()
+        ripping[0] = False
+        Wizard(cal)
+        ripping[0] = True
+        self.assertNotIn(cal, Wizard | Fighter)
+        self.assertNotIn(cal, Wizard[:])
+
+    def test_a_defective_view_rechecks_membership_after_its_postcondition(self) -> None:
+        ripping = [False]
+
+        class Wizard(Tag):
+            @Post
+            def Ready(agent):
+                if ripping[0]:
+                    del Wizard[agent]
+
+                return not ripping[0]
+
+        ari, bo = Agent(), Agent()
+        Wizard(ari)
+        Wizard(bo)
+        ripping[0] = True
+
+        self.assertEqual([member for member in ~Wizard], [])
+        self.assertNotIn(ari, Wizard[:])
+
+        cal = Agent()
+        ripping[0] = False
+        Wizard(cal)
+        ripping[0] = True
+        self.assertNotIn(cal, ~Wizard)
+        self.assertNotIn(cal, Wizard[:])
+
+    def test_retagging_while_judging_soundness_keeps_the_member(self) -> None:
+        ripping = [False]
+        reapplied = [False]
+
+        class Wizard(Tag):
+            @Post
+            def Ready(agent):
+                if ripping[0] and not reapplied[0]:
+                    reapplied[0] = True
+                    del Wizard[agent]
+                    Wizard(agent)
+
+                return True
+
+        class Fighter(Tag):
+            pass
+
+        ari = Agent()
+        Wizard(ari)
+        ripping[0] = True
+
+        self.assertEqual([member for member in Wizard], [ari])
+
+        reapplied[0] = False
+        self.assertIn(ari, Wizard | Fighter)
+        self.assertIn(ari, Wizard[:])
+
+    def test_a_one_pass_materialization_uses_a_comprehension(self) -> None:
+        checks = []
+
+        class Wizard(Tag):
+            @Post
+            def Ready(agent):
+                checks.append(agent)
+                return True
+
+        ari, bo = Agent(), Agent()
+        Wizard(ari)
+        Wizard(bo)
+        checks.clear()
+
+        members = [member for member in Wizard]
+
+        self.assertEqual(members, [ari, bo])
+        self.assertEqual(checks, [ari, bo])
+
 
 class ConditionMemberTests(unittest.TestCase):
     """STEP-SPEC-14: a condition is read on the Agent by its name, as a
@@ -2843,7 +3811,8 @@ class ConditionMemberTests(unittest.TestCase):
 
     def test_the_member_and_the_status_agree(self) -> None:
         class Elf(Tag):
-            @Requirement
+            @Pre
+            @Post
             def Alive(agent):
                 return agent.alive
 

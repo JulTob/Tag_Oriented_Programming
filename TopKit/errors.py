@@ -12,6 +12,21 @@ Precondition declared as ``Is_A_Caster`` refuses, so a program writes
 from __future__ import annotations
 
 
+def _type_name(value: object) -> str:
+    """The real class name, without running metaclass lookup or descriptors."""
+
+    return str.__str__(type.__dict__["__name__"].__get__(type(value)))
+
+
+def _exception_text(error: BaseException) -> str:
+    """Diagnostic text cannot replace a failure; interruptions still propagate."""
+
+    try:
+        return str.__str__(str(error))
+    except Exception:
+        return "<exception text unavailable>"
+
+
 class _Named(type):
     """Metaclass for failures that name the check that failed.
 
@@ -135,4 +150,6 @@ class TagOverwriteWarning(UserWarning):
 
 
 class TagContractWarning(UserWarning):
-    """A Shape weakened a Base Postcondition without @Underlay."""
+    """A Tag replaced a visible Postcondition without @Underlay: a Shape
+    weakening its Base's promise (§2.4), or a Tag laid over the promise of
+    its own Shape or of an independent Tag. The text names which."""

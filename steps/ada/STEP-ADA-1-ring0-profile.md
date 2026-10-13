@@ -6,7 +6,7 @@
 - **Author:** Julio Toboso (@JulTob); refresh proposed by Codex
 - **Status:** Brief
 - **Created:** 2026-09-13
-- **Updated:** 2026-10-12
+- **Updated:** 2026-10-13
 - **Issue:** [#5](https://github.com/JulTob/Tag_Oriented_Programming/issues/5)
 
 > One STEP, one topic: identify the portable Ring 0 obligations and the
@@ -17,9 +17,10 @@
 
 An Ada implementation must preserve TOP's identity, membership, Field and
 Form distinctions using Ada-native mechanisms. This STEP separates those
-laws from Python mechanisms and identifies the remaining Ada profile choices.
-The Director decides the profile; an experimental implementation may test an
-independent law without making its package names the final language surface.
+laws from Python mechanisms and carries forward the Director's initial
+lifetime choices in STEP-ADA-3. The remaining Ada profile choices stay open;
+an experimental implementation may test an independent law without making
+its package names the final language surface.
 
 ## Motivation
 
@@ -38,16 +39,21 @@ non-owning Field would overlook object destruction and address reuse.
   [Presence](../../tests/test_contribution_presence.py) and
   [Constant](../../tests/test_constants.py) tests where they touch the kernel.
 - Director clarifications recorded in [#30](https://github.com/JulTob/Tag_Oriented_Programming/issues/30).
-- Lifetime review depends on the proposal in
-  [STEP-ADA-3 / PR #118](https://github.com/JulTob/Tag_Oriented_Programming/pull/118),
-  tracked by [#117](https://github.com/JulTob/Tag_Oriented_Programming/issues/117).
-  This is an external proposal reference, not a requirement to merge #118 first.
+- [STEP-ADA-3: Ada Target lifetime](STEP-ADA-3-target-lifetime.md), especially
+  its [Director-confirmed initial scope](STEP-ADA-3-target-lifetime.md#initial-implementation-scope-confirmed-by-the-director)
+  and remaining decision boundaries; tracked by
+  [#117](https://github.com/JulTob/Tag_Oriented_Programming/issues/117).
+  STEP-ADA-3 is now on `main`; it records selected directions while remaining Brief.
+- Native evidence: [lifetime probes](../../experimental/ada/lifetime/README.md)
+  and [experimental Target identity](../../experimental/ada/targets/README.md).
+  The latter implements identity groundwork, not Fields or retained Tag storage.
 
 The Director's decisions control this proposal. A test is evidence of the
 current Python implementation, not authority to reverse those decisions.
-At the refresh baseline, `main` is `aff6f79` (2026-10-10). Some Specification
-and test passages still describe whole-call restoration. This STEP records
-that mismatch instead of silently adopting it as Ada law.
+At the refresh baseline, `main` is `2665c50` (2026-10-13). Some Specification
+and test passages still describe whole-call restoration. The approved ordered
+Tagging design is being implemented in [PR #174](https://github.com/JulTob/Tag_Oriented_Programming/pull/174).
+This STEP records that mismatch instead of silently adopting it as Ada law.
 
 ## Specification
 
@@ -57,10 +63,10 @@ that mismatch instead of silently adopting it as Ada law.
 | --- | --- | --- |
 | Identity (§0.1) | Tagging does not replace the Target; equal distinct Targets remain distinct; ordinary host behavior survives unless deliberately overlaid | Established |
 | Vocabulary (§0.2) | Preserve Tag, Target, Agent, Field, Base, Shape, Form, Layer, Overlay and Underlay distinctions | Established |
-| Membership (§0.3) | Distinguish active membership from has-been history; queries do not Tag; Fields are identity-indexed and non-owning | Established; Ada lifetime mechanism open |
+| Membership (§0.3) | Distinguish active membership from has-been history; queries do not Tag; Fields are identity-indexed and non-owning | Established; initial Ada lifetime direction selected in STEP-ADA-3; storage and Field access details pending |
 | Form (§0.4) | Ordered Base-first closure, each Tag once; direct Bases retain declaration order; TOP Geometry is independent of a Target's Ada nominal inheritance | Established |
 | Apply (§0.5) | Apply pending Tags Base-first; active reapplication does nothing; fresh reapplication after Rip repeats ordinary training | Established |
-| Gate (§0.6) | Each pending Tag passes its own Gate when its turn arrives; completed earlier Taggings remain if a later Gate refuses | Director-approved; Python work tracked in #30 / PR #78 |
+| Gate (§0.6) | Each pending Tag passes its own Gate when its turn arrives; completed earlier Taggings remain if a later Gate refuses | Director-approved; Python work tracked in #30 / PR #174 |
 | Gainings (§0.6) | After its Gate, each Tag applies gains and Imprints in declaration order, visible to later gains; failed training leaves acquired Actions, Records and Posts on a Rogue outside that Tag's Field | Director-approved; Python implementation tracked in #30 |
 | Admission (§0.6) | After Gainings/Imprints complete, the Agent enters the Field, then Posts judge the member; Reports and Operations become available through the Agent at Field entry | Director-approved sequence: Gate → Gains/Imprints → Field → Posts |
 | Current state (§2.5) | Postconditions define requirements; missing declared gains alone and a past Imprint failure do not permanently mark deficiency | Director-approved; existing Imprint/current-state tests cover part of it |
@@ -87,7 +93,7 @@ call cannot stand alone as a Tagging statement. The original Brief's
 
 | Act | Candidate Ada direction | Choice still required |
 | --- | --- | --- |
-| Tagging | Package-level `Apply (Wizard, Agent)` | Carrier and input representation; final names |
+| Tagging | Package-level `Apply (Wizard, Agent)` | Concrete carrier and input representation; final names |
 | Active membership | Package-level query distinct from history | Query spelling and how Tag/Agent handles participate |
 | Has-been | Separate history query | Must not collapse into active membership or Ada nominal type |
 | Sound Field iteration | Iterable aspect and `for Agent of Population loop` | Population object and contract execution model |
@@ -108,35 +114,50 @@ Standard Ada does not provide Python weak references for arbitrary access
 values. A side map keyed only by an address cannot know that a Target was
 deallocated, and may confuse a reused address with the previous Agent.
 
-Two plausible first supported profiles are:
+The Director selected the following initial direction in
+[STEP-ADA-3](STEP-ADA-3-target-lifetime.md#initial-implementation-scope-confirmed-by-the-director):
 
-1. An opt-in limited carrier that host Targets explicitly extend. A private
-   controlled lifetime component can perform internal cleanup independently
-   of a host override of `Finalize`. Cleanup placed only in an inherited
-   `Finalize` instead requires explicit host cooperation.
-2. A caller-owned controlled companion attached to an existing aliased
-   Target. The companion owns TOP state, not the host Target; the profile
-   must guarantee its lifetime does not outlast or misidentify that Target.
+1. **Opt-in limited hosts first.** Targets explicitly extend a controlled
+   limited carrier containing private lifetime support. Adapting existing
+   hosts through separate companions is deferred.
+2. **Preserve automatic host hooks.** Host initialization and finalization
+   remain automatic. TOP cleanup lives in a separate private component, so
+   a host `Finalize` override cannot omit it by skipping an ancestor call.
+3. **Retain Tag state while Agents carry it.** Ending a public Tag handle's
+   Ada scope must not silently end membership or invalidate the private Tag
+   storage still required by an Agent. Fields never keep Targets alive.
+4. **Sequential implementation first.** Shared-task Field access and
+   coordination with Target destruction require a later design and evidence.
 
-Containment offers the stronger automatic-lifetime candidate but constrains
-host types. A companion preserves more existing host structures, but requires
-defined lifetime ordering, uniqueness and deallocation rules; checked
-accessibility alone does not enforce these. The native evidence is recorded
-in [STEP-ADA-3's proposal #118](https://github.com/JulTob/Tag_Oriented_Programming/pull/118)
-and [issue #117](https://github.com/JulTob/Tag_Oriented_Programming/issues/117).
-A raw address registry is useful only as a scoped experiment, not evidence
-that the non-owning Field law has been met.
+These choices are settled development directions, not clearance of the whole
+profile. STEP-ADA-3 and this STEP remain **Brief**. Concrete storage retention
+and reclamation, public syntax, unsupported-Target diagnostics, and whether
+the private token uses self-reference still require resolution and tests.
+Ordinary assignment of the selected limited hosts is prohibited; build-in-place
+construction creates a fresh Target, not a copy of another Agent's TOP state.
 
-The controlled arrangements require automatic finalization and are outside
-a pure SPARK implementation. Supporting a restricted runtime such as GNAT
-`No_Finalization`, or SPARK callers through a trusted Ada boundary, requires
-another stated arrangement. Current native probes are sequential; they do
-not establish shared-task Field or Target-access safety. These boundaries
-are developed in STEP-ADA-3, not selected here.
+The [Target identity experiment](../../experimental/ada/targets/README.md)
+provides evidence for controlled containment and independent host hooks. Its
+retained identity metadata does not yet implement retained Tag storage or a
+Field. Retained Tag metadata must eventually outlive public handles when
+needed, without keeping Targets alive or assuming that nested callbacks,
+local host types and other referenced objects acquire a longer lifetime.
 
-No carrier choice, copying rule, task-safety promise or ownership transfer
-is decided by this STEP. Ada unsupported Targets must fail explicitly rather
-than silently acquire shared or dangling state.
+Internal eviction must remove the registered identity without dereferencing
+the host or invoking Actions, Posts or Rip. During normal finalization, the
+host's `Finalize` precedes contained cleanup, so cleanup cannot assume a usable
+host. This does not decide a destruction/Rip protocol.
+Safe Field selection and walking remain to be designed; sequential callbacks
+can still destroy a Target during use. A raw address registry or an identity's
+live flag alone does not prove safe access to the host.
+
+The selected controlled carrier requires a finalization-capable Ada runtime
+and is outside a pure SPARK implementation. GNAT `No_Finalization` support,
+or SPARK callers through a trusted Ada boundary, needs a separate arrangement.
+Unsupported Targets must fail explicitly rather than silently acquire shared
+or dangling state; STEP-ADA-3 retains the remaining diagnostic and unsafe-use
+boundaries. Separate companions and a plain outer carrier remain deferred
+alternatives, not competing first implementations.
 
 ### 4. Law versus Python mechanism
 
@@ -156,7 +177,7 @@ assertion, not the entire Python test as one indivisible law.
 | `test_isinstance_is_a_reliable_has_been_check` | History survives Rip and differs from is-now | `isinstance` is Python's history spelling |
 | `test_runtime_types_are_shared_across_agents_and_shapes` | No specific cache law | Python runtime type sharing / performance profile |
 | `test_host_special_methods_survive_tagging` | Existing host operations retain behavior | Python special-method lookup |
-| `test_copying_an_agent_is_refused_explicitly` | Do not silently alias two Targets' TOP state | Python refuses copying; Ada's exact copy policy is open |
+| `test_copying_an_agent_is_refused_explicitly` | Do not silently alias two Targets' TOP state | Selected Ada limited hosts prohibit ordinary assignment; build-in-place construction creates fresh Targets; no clone protocol is selected |
 | `RipTests` membership/history assertions | Rip ends membership; sticky gains; fresh reapplication | `del Tag[agent]`, Python collection timing |
 
 Tag member visibility, special-method Actions, Underlay, publication, Presence
@@ -168,8 +189,10 @@ be declared implemented merely because Geometry works.
 
 1. Test Geometry/Form alone in an explicitly experimental namespace. This
    needs no Target carrier or unresolved failure protocol.
-2. Decide the lifetime/identity profile, then test membership/history and
-   non-owning Fields on supported host Targets.
+2. Follow STEP-ADA-3's selected lifetime direction: validate Target identity
+   and private cleanup, then retained Tag storage and non-owning membership.
+   Resolve safe Field access and walking separately; identity probes alone
+   do not establish that boundary.
 3. Implement Tagging and Rip only after their relevant failure boundaries
    are precise; port assertions rather than Python internal mechanisms.
 
@@ -181,9 +204,11 @@ continuation (#34) are separate designs. They are not silently added to ADA-1.
 
 ## Acceptance
 
-Before Cleared, the Director must select the native surface and supported
-Target/lifetime profile, accept the portable-law matrix, and resolve or explicitly
-defer every lifecycle dependency affecting the claimed Ring 0 boundary.
+Before Cleared, the Director must select the remaining native surface and
+lifetime details within STEP-ADA-3's confirmed initial scope, accept the
+portable-law matrix, and resolve or explicitly defer every lifecycle dependency
+affecting the claimed Ring 0 boundary. The recorded initial choices do not
+themselves Clear either STEP.
 
 Before an implementation claims Ring 0 conformance, it must run Ada law tests
 for that boundary, document unsupported Targets and profile differences, and

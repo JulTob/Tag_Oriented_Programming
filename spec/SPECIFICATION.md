@@ -26,7 +26,7 @@ ring it claims. Examples are in Python; the laws are language-neutral.
 | **0 · Kernel** | identity, membership, Geometry, the tagging sequence, Rip |
 | **1 · Contributions** | Actions, Records, Operations, Reports, Overlay and Underlay, publication, access |
 | **2 · Contracts** | Preconditions, Imprints, Postconditions, defective Agents |
-| **3 · Lifecycle** | teardown protocols, Scope, deletion |
+| **3 · Lifecycle** | teardown protocols, deletion |
 | **4 · Edges** | what TOP does not promise, and why |
 
 The last sections give the failure model, the conformance obligations, and
@@ -56,6 +56,17 @@ implementation may swap the object's class for a runtime subclass of it.
 `isinstance(agent, Host)` stays true; `type(agent) is Host` may not. See
 Ring 4.
 
+If preparation of that runtime representation fails, the Target keeps its
+original identity, class and instance bindings, with no new Field entry
+(STEP-SPEC-37). TopKit's Python host profile covers physical dictionary and
+declared Python slot bindings; native extension fields and removed slot
+declarations are outside its initial restoration profile. A custom host's
+deliberate refusal is respected; ordinary frozen
+dataclass field protection is not a refusal to prepare the representation.
+This bounded restoration does not undo external effects or changes inside
+mutable values, and does not prescribe rollback of later Gainings or
+Imprints.
+
 ## 0.2 Vocabulary
 
 | Term | Meaning |
@@ -74,6 +85,7 @@ Ring 4.
 | **Underlay** | The prior visible contribution of a name, captured for a later Layer to extend. |
 | **Pin** | A Tag marked `@Pin`, whose Targets are Tags (§1.9). |
 | **Pinning** | Applying a Pin to a Tag: `Rare(Wizard)`. The pinned Tag is the Pin's Agent. |
+| **Tool** | A Record whose value is an object of a declared kind, a specific Tag or a Python class (§1.3). Something you *have* (*tener*): what it is stays its own. |
 
 TOP uses **Base** and **Shape**, never *parent* and *child*: the words
 describe a different model. A Tag may be both: `Person` is a Shape of
@@ -157,8 +169,14 @@ MI6(bond, code="007")      # every protocol that names `code` receives it
 ```
 
 **Reapplying an active Tag does nothing.** It does not duplicate
-membership, does not rerun Imprints, does not reset Records. Resetting is a
-deliberate act: Rip, then apply again.
+membership, does not rerun Imprints, and does not rebuild Records. Rip ends
+membership but leaves sticky Contributions. Applying the Tag after Rip is
+fresh Tagging: that Tag's ordinary Record builders run again. Bases already
+active are not reapplied. A builder without a second positional seat replaces
+the current binding with its returned value;
+a builder with that seat receives the current stored value and determines
+how to evolve it. As in §1.3, an absent, deleted or Action binding supplies
+`None`; `stored` is the example parameter name, not a required spelling.
 
 ## 0.6 The tagging sequence
 
@@ -259,12 +277,12 @@ Rip is the only exit from a Field, and it obeys three laws:
   is a Resolution Failure. A Constant Post (§1.5) cannot be deleted;
   any membership guard must be part of its original check.
 - **Reapplying a Ripped Tag is a fresh Tagging.** Imprints run again;
-  ordinary Records are rebuilt. Established Constant bindings stay intact;
-  their builders do not run again for the same declaration.
-- **A Scope Rips what it applied, and only that.** A Tag the Agent
-  already carried at entry is left as it was on exit; a Tag that applied
-  and reported a broken promise at the Scope's door did apply, and is
-  Ripped on the way out with the rest.
+  that Tag's ordinary Record builders run again. A builder without a second
+  positional seat replaces the current binding; one with that seat receives
+  the current stored value, including a value left by the Tag's earlier
+  application (§1.3).
+  Established Constant bindings stay intact; their builders do not run
+  again for the same declaration.
 
 ## 0.8 Spellings
 
@@ -287,6 +305,7 @@ language, not a library's naming.
 | one condition, read on the Agent (§2.5) | `agent.Has_Book` |
 | a named Contribution is present (§1.1) | `"Attack" @ agent`, `"Attack" @ Wizard[agent]` |
 | keep a Contribution's binding fixed (§1.5) | `@Constant` with `@Record`, `@Action`, `@Post`, `@Report` or `@Operation` |
+| a Record whose value is an object of a kind (§1.3) | `@Tool(Weapon)` for a member of the Tag, now; `@Tool(Sword)` for an instance of the class; `@Tool(Sword, Weapon)` for both; `@Tool(Weapon \| None)` when the slot may be empty |
 | the Agent-bound view | `Wizard[agent]` |
 | leave the Field (Rip) | `del Wizard[agent]` |
 | the Form, as Tags | `Form(Wizard)` |
@@ -295,7 +314,7 @@ language, not a library's naming.
 | catch one check's failure (§2.6) | `except Precondition.Is_A_Caster:`, `except Postcondition.Has_Book:`, `except Imprint.Arm:` |
 | catch a Rogue Agent's access (§1.5) | `except TagRogueAccessError:` |
 | end a condition explicitly (§0.7), from a `@Rip` protocol | `Contract.Delete(agent, "Has_Book")` |
-| necessary to enter and to stay (§2.7) | `@Pre` + `@Post`, or `@Requirement` |
+| necessary to enter and to stay (§2.7) | `@Pre` + `@Post`, stacked on one function |
 | pin a Tag (§1.9), and every act above with a Tag in the Agent's seat | `Rare(Wizard)`, `Wizard in Rare`, `for tag in Rare`, `Rare[Wizard]`, `del Rare[Wizard]` |
 | a Tag carries a keyword? (Flag Pins, §1.9) | `"Deprecated" in Wizard`, `Keyword(Wizard, "Deprecated")` |
 | a Tag's Pins and contract, as text | `f"{Wizard:pins}"`, `f"{Wizard:contract}"` |
@@ -313,8 +332,8 @@ renders what a Tag or Agent is, without a method on either. On an Agent the
 door follows the empty-seat rule: a host with its own formatting keeps it.
 
 Queries that need a name are functions (`Form`, `Tags`, `Keyword`,
-`Apply`, `Outline`, `Contract`, `Scope`), never members of the Tag or of
-the Agent.
+`Apply`, `Outline`, `Contract`), never members of the Tag or of the
+Agent.
 Another language profile chooses its own native spellings; the acts and
 their distinctions are what must survive.
 
@@ -520,6 +539,96 @@ design; frequent deletion means unclear state ownership.
 Mutable Record values must be fresh per Agent unless sharing is the
 explicit intent. Shared values belong in a Report.
 
+### Tools
+
+A **Tool** is a Record whose value is an object of a declared **kind**:
+something the Agent *has* (*tener*), beside what it *is* (a Tag) and
+what it is *currently* (a Record). The held object may be an Agent of
+its own, with its own Tags, Field, contract, keywords and secrets;
+nothing it is reaches its bearer, and nothing the bearer is reaches it.
+The curse on the sword is the sword's.
+
+`@Tool(K1, ..., Kn)` marks a Record builder and names the slot's kind.
+Each `Ki` is a **specific Tag**, asked as membership now, or a **Python
+class**, asked as the language's own instance test; all of them hold.
+Inside one `Ki`, the language's own union names alternatives, any of
+which admits the value, and `None` among them declares the empty hand.
+`@Tool(...)` alone declares the Record; `@Record` may be written as well
+and restates it. The mark stacks with `@Constant`, `@Secret` and
+`@Public` in either order, and the builder keeps a Record's three seats:
+
+```python
+class Fighter(Tag):
+
+    @Tool(Sword, Weapon)                # a Sword that is a Weapon, now
+    def weapon(agent, *, weapon):
+        return weapon                   # the forge Tagged it; the slot never does
+
+
+Fighter(charlie, weapon=sword)
+charlie.weapon in Weapon[:]             # True: the tool is a Weapon
+charlie in Weapon[:]                    # False: the bearer is not
+```
+
+| Kind | Admits | Spelled |
+| --- | --- | --- |
+| a Tag | a member of the Tag now, sound or defective, a Shape's member included; never a Rogue of it | `@Tool(Weapon)` |
+| a class | an instance of the class or a subclass, tagged or not, a Rogue included | `@Tool(Sword)` |
+| several | a value every kind admits | `@Tool(Sword, Weapon)` |
+| alternatives | a value any alternative admits | `@Tool(Sword \| Staff)`, `@Tool(Weapon \| Staff)` |
+| the empty hand | `None`, besides the kind | `@Tool(Weapon \| None)` |
+
+Three laws govern the slot:
+
+1. **The slot has a kind, checked at admission.** Admission is asked when
+   the slot is gained, on what the builder returns, and at every write
+   to it, `object.__setattr__` included. A refusal is a Composition
+   Failure: at the gaining it is a Record failure of §0.6; at a write
+   nothing changes. Admission is a gate, never re-asked: a seated tool
+   that later leaves its Tag stays in hand, a Rogue, and the bearer's
+   own promise notices it (§2.4); a Tag kind refuses such a Rogue only
+   if it is seated again, and a class kind admits it. Admission never
+   evaluates the object's contract. Presence (`"weapon" @ agent`),
+   current membership (`agent.weapon in Weapon[:]`) and soundness
+   (`Contract.Holds(agent.weapon)`) stay three questions.
+2. **The slot is never empty, unless its kind says so.** With a kind of
+   Tags and classes alone, a builder that returns `None` and an
+   assignment of `None` are Composition Failures. A kind written with
+   `| None` admits `None` at the gaining and at the write: the empty hand
+   is declared where readers see it. In both cases the drop is
+   `del agent.weapon`, and `@Delete` at the name frees the slot (§1.6).
+   A Constant slot refuses both (§1.5).
+3. **The slot never Tags.** The kit applies no Tag to what the builder
+   returns or to what is assigned. The forge Tags the object in plain
+   sight, or the object arrives already Tagged. A tagging inside the
+   builder is an ordinary call on another Target with its own §0.6
+   boundary: its failure keeps its own name and refuses the bearer's
+   gaining; a Tag it applied to a pre-existing object stays applied,
+   since Rip is not restoration (§0.7).
+
+The rule belongs to the effective Record declaration, as Overlay already
+says (§1.2). A later Layer that redeclares the name as a Tool brings its
+own kind and receives the held tool in its stored seat; a plain Record
+or an Action at that name replaces the Contribution as it would any
+Record, and the rule ends with it; `@Delete` frees the slot. Rip of the
+bearer's Tag leaves the slot, its tool and its rule in hand, as
+Contributions are sticky (§0.7); reapplication rebuilds an ordinary slot
+through the builder and keeps a Constant one (§1.5). Two slots may hold
+one tool, a tool may bear tools, a bearer may hold itself when it is of
+the kind, and a tool is held strongly, as a Record holds its value.
+
+The kind is a declaration-time fact. `@Tool()` without a kind, `None`
+alone, a bare `@Tool` on the builder, the root `Tag`, `object`, a Pin
+(§1.9: a Pin's Agents are Tags), a population (`Weapon | Blessed`,
+`~Weapon`, `Weapon[:]`: §2.5's Field algebra, not a kind; the refusal
+shows `@Tool(Weapon, Blessed)` for both and a common Base Tag for
+either), an instance, a typing construct with no plain instance test,
+`@Tool` over any other kind of declaration, or `@Tool` inside a `@Pin`
+(a Pin's Records land as Reports, §1.9) is a Declaration Failure at
+class use. A slot under a protocol name (`__rmatmul__`) keeps the
+language's own hook: its ordinary writes are checked, and a kernel write
+to it is a documented bypass, as writing the instance dictionary is.
+
 ## 1.4 Reports and Operations
 
 A **Report** is shared data belonging to a Tag; an **Operation** is shared
@@ -706,7 +815,9 @@ A Constant Post keeps its check after Rip and cannot be replaced or
 deleted through `Contract.Delete`, a protocol or another Layer. Other
 Posts can be added under independent names; all applicable promises must
 hold. Constant does not change when contracts are checked or require a
-Post to return the same answer as the Agent changes.
+Post to return the same answer as the Agent changes. It locks the check's
+binding, but cannot restore `assert` instructions removed by optimized
+Python (§2.1).
 
 Applying an active Tag remains a no-op. Reapplying after Rip preserves
 the same declaration's Constants while rebuilding ordinary Records and
@@ -877,7 +988,7 @@ meaning membership once a Flag lands.
 ## 1.9 Pins: Tags as Targets
 
 Categories have categories. A game marks Tags as *Rare* or *Homebrew*; a
-rules engine keeps Tags by *School*; a tool walks every Tag that is
+rules engine keeps Tags by *School*; a program walks every Tag that is
 *Deprecated*. A Tag marked `@Pin` applies to Tags, and the pinned Tag is
 its Agent in every sense of Ring 0: membership, a Field to walk, a gate,
 a promise, a view, a Rip.
@@ -1012,6 +1123,12 @@ class Wizard(Tag):
     def Has_Spellbook(agent):
         assert agent.spellbook is not None
 ```
+
+**Python profile.** Assertion-style conditions require assertions enabled.
+Python removes `assert` under `-O`, `-OO` or a nonzero `PYTHONOPTIMIZE`
+setting; an assert-only condition then returns `None` and holds. For a
+requirement that must also be checked in those modes, return a Boolean
+explicitly, such as `return agent.spellbook is not None`.
 
 TOP does not coerce truthy and falsy values: a Record of `0` spell slots is
 a real value, not a failure. `return agent.spell_slots` raises a Contract
@@ -1179,6 +1296,13 @@ for b in Wizard & Fighter:            # sound in both
 for u in (Wizard[:] | Fighter[:]) - Sworn:   # anyone with a role who has not sworn
 ```
 
+**A population walk** (STEP-SPEC-35) checks current Field membership at
+each member's turn. A member Ripped before its turn is skipped. If the
+same Agent or Tag is tagged again before its turn, it belongs again and
+must not be skipped merely because it was previously Ripped. TopKit's
+saved-turn ordering and lazy operand timing are documented in its
+[Field guide](../TopKit/FIELDS.md).
+
 **A condition is read on the Agent by its name** (STEP-SPEC-14).
 `agent.Has_Book` is `True` while the promise called `Has_Book` holds and
 `False` when it does not: the language's boolean, computed on read, never
@@ -1269,33 +1393,27 @@ Being alive is necessary to become an Elf and necessary to remain a sound
 one; it is not sufficient, since other living things are not Elves. A
 condition says *necessary*; membership says *is*.
 
-`@Requirement` is the same mark said in one word, for a claim that reads
-better as a necessity than as a pair of checks:
+The order of the two marks changes nothing: `@Post` above `@Pre` is the
+same condition. The two marks are its only spelling, so the page shows
+that it is a gate and a promise.
 
-```python
-class Elf(Tag):
-
-    @Requirement
-    def Alive(agent):
-        return agent.alive
-```
-
-A Requirement names no failure of its own. It fails at the door as
-`Precondition.Alive` and afterwards as `Postcondition.Alive`, because a
-program repairs the two differently: one is an Agent that may not come
-in, the other an Agent already in and now broken. Reading
-`Requirement.Alive` is a Declaration-time mistake and says so.
+The two failures keep their two names: `Precondition.Alive` at the
+door, `Postcondition.Alive` afterwards. A program repairs the two
+differently. One is an Agent that may not come in; the other is an Agent
+already in and now broken.
 
 ## 2.8 Writing a check
 
-A condition usually asks whether an Agent *has* something. `assert
-agent.spellbook` reads well, but asks two questions at once: *defined* and
-*truthy*. That is fine for a spellbook object; it is a trap for a
-`spell_slots` of `0`. Separate having a contribution from its value:
+A Post can require an Agent to *have* a named Contribution (§1.1).
+Separate presence from its value:
 
-- Is it there at all? `assert agent.spell_slots is not None`, or
-  `assert hasattr(agent, "spell_slots")` when `None` is itself valid.
-- Does it have a particular value? `assert agent.spell_slots > 0`.
+- Is it there at all? `"spell_slots" @ agent` tests the name's presence.
+  Stored `False`, `None` and `0` all count as present.
+- Does it have a particular value? `agent.spell_slots > 0` tests its value.
+
+A Post requiring the name can write `return "spell_slots" @ agent`, or `assert "spell_slots" @ agent`.
+Presence guarantees neither successful value access, callability nor
+successful behaviour; express those requirements separately.
 
 ---
 
@@ -1303,9 +1421,9 @@ agent.spellbook` reads well, but asks two questions at once: *defined* and
 
 ## 3.1 Rip protocols
 
-Imprint and Rip are duals: constructor and destructor, `__enter__` and
-`__exit__`. A `@Rip` Action runs when the Agent leaves the Tag's Field. It
-is also an ordinary, callable Action.
+Imprint and Rip are duals: constructor and destructor. A `@Rip` Action
+runs when the Agent leaves the Tag's Field. It is also an ordinary,
+callable Action.
 
 ```python
 class MI6(Tag):
@@ -1334,15 +1452,45 @@ use: it could keep an Agent from ever leaving a Field.
 ## 3.2 Deleting an Agent
 
 Deletion of an Agent Rips it from its active Tags, so exit protocols run.
-An implementation provides three tiers and says which is which:
+There are three tiers. The implementation provides the first and the
+third; the program writes the second.
 
 | Tier | Guarantee |
 | --- | --- |
 | **Finalizer** (`__del__`) | best effort: when the Agent is collected, its teardowns run, then its `__del__` Layers; at interpreter exit only the `__del__` Layers run; the language may not run finalizers at shutdown or inside reference cycles |
-| **`Scope(agent, *tags)`** | guaranteed: Tags apply on entry and Rip, in reverse, on exit, even if the block raises |
+| **`del Tag[agent]` in a `finally`** | guaranteed: the language runs a `finally` whenever its block ends, by finishing or by raising |
 | **`At_Exit(agent)`** | opt-in: teardowns also run at normal interpreter exit; registration is weak |
 
 Every teardown runs at most once, whichever tier reaches it first.
+
+**A block that holds a Tag** (STEP-SPEC-31) is a tagging and a Rip,
+joined by the language's own `try` and `finally`. The rule: **tag before
+`try`, Rip in `finally`.**
+
+```python
+Sentry(guard)              # the guard joins Sentry
+try:
+    guard.Patrol()
+finally:
+    del Sentry[guard]      # the guard leaves, even if Patrol raised
+```
+
+A Gate refusal raises before the `try`, so the block never runs and there
+is no Tag to Rip. An Imprint failure or broken Post is reported at the
+Tagging statement too, before the `try`, but the Tag has landed and stays
+(§0.6). A Rip in a `finally` that fails raises, as every Rip does (§3.1).
+If the block was raising too, the language keeps the block's error inside
+the Rip's failure, as its context, and shows both.
+TOP adds nothing to this. Each step is a line the program writes: a
+block that should leave a Tag the Agent already carried checks first
+(`was_sentry = guard in Sentry[:]`), and a block that should take away a
+Base its Shape pulled in Rips the Base too.
+
+TOP assigns `with` no automatic Tagging or Rip meaning. Ordinary Python
+context protocols remain ordinary Contributions or host behavior: a host,
+or an Agent with `__enter__` / `__exit__` (or their asynchronous forms),
+may still follow `with` without changing membership unless its own code
+does so explicitly.
 
 **The Agent's own finalizer is a member in Layers** (STEP-SPEC-18). The
 host's `__del__` is its first Layer, found as the language finds it. A
@@ -1385,12 +1533,6 @@ del lamp
 assert log == ["put down", "spell fades", "wick out"]
 ```
 
-```python
-with Scope(agent, Sentry):
-    guard_the_gate(agent)
-# Sentry's teardown has run here, exception or not
-```
-
 ---
 
 # Ring 4 · Edges
@@ -1405,6 +1547,8 @@ What TOP does not promise, stated so nobody has to discover it.
   Target and apply its Tags again (`Tags(agent)` lists them). A Python
   implementation refuses `copy.copy` explicitly rather than aliasing state.
 - **Threads.** One Agent, one thread. Fields are not synchronized.
+- **Python optimization.** Assertion-style conditions need assertions
+  enabled; §2.1 describes optimized execution and return-based checks.
 - **Host descriptors.** A Record cannot share a name with a host property
   or slot; the Tagging fails with a Composition Failure.
 - **Raw side effects.** Rollback restores TOP-managed state and the Agent's
@@ -1432,7 +1576,7 @@ types but must keep these distinct.
 | **Tag Postcondition Failure** | The finished Agent breaks a promise. | Tags stay, Agent defective |
 | **Tag Contract Failure** | A condition returned a non-boolean. | gate: call rolled back; quality check: Tags stay, Agent defective |
 | **Overwrite Warning** | An independent Tag replaced a visible Action or Record without an Underlay. | diagnostic |
-| **Contract Warning** | A Shape weakened a Base Postcondition. | diagnostic |
+| **Contract Warning** | A Tag replaced another Tag’s visible Postcondition without an Underlay (Base, Shape, or independent Tag). | diagnostic |
 
 ---
 
@@ -1475,8 +1619,8 @@ A conforming implementation provides, ring by ring:
 - published members answering members only, and only sound ones: a Rogue
   Access Failure on a Rogue Agent, the broken promise by name on a
   defective one, open again on membership or repair;
-- `@Pre` and `@Post` stacked on one function as one condition, spelled
-  `@Requirement` in one word;
+- `@Pre` and `@Post` stacked on one function as one condition, in
+  either order;
 - populations combined with `|`, `&` and `-` at every level, lazily, a
   Tag in an operator seat meaning its sound population;
 - every condition read on the Agent by its name as a plain boolean, with
@@ -1496,8 +1640,10 @@ A conforming implementation provides, ring by ring:
 
 **Ring 3**
 - `@Rip` protocols run after membership ends, once, composed, failures
-  reported; the three deletion tiers; the Agent's `__del__` as Layers of
-  its Overlay, run after the teardowns, and alone at interpreter exit.
+  reported; the three deletion tiers, the finalizer and `At_Exit` from
+  the implementation, and the guaranteed one written by the program, a
+  Rip in a `finally`; the Agent's `__del__` as Layers of its Overlay,
+  run after the teardowns, and alone at interpreter exit.
 
 **Everywhere**
 - the failure types above, distinct and named.

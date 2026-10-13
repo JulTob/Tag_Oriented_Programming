@@ -3,16 +3,17 @@ after every transition.
 
 The model knows the laws of the Specification and nothing of the kernel:
 Base-first Forms, membership and history, Rip refused while a Shape
-requires the Base, Scope as apply-then-rip, the call boundary (a refused
-gate rolls back, a broken promise keeps the Tag and marks the Agent
-defective, a failed Imprint keeps the Tag), sticky conditions ended by
+requires the Base, a block that holds Tags (tag before try, Rip in
+finally), the call boundary (a refused gate rolls back, a broken promise
+keeps the Tag and marks the Agent defective, a failed Imprint keeps the
+Tag), sticky conditions ended by
 the author, published members answering sound members only, condition
 members read as booleans, Field algebra, Pins with a Tag in the
 Agent's seat, and keywords: a Flag answers to its name and its words,
 through the Form, and a word is never membership.
 
-A random walk applies, rips, scopes and breaks promises over a population
-of Agents and of Tags; after each step the kit must agree with the model
+A random walk applies, rips, holds Tags for a block and breaks promises
+over a population of Agents and of Tags; after each step the kit must agree with the model
 on everything observable. A disagreement names the seed and the step, so
 it can be replayed.
 
@@ -47,7 +48,6 @@ from TopKit import Public
 from TopKit import Record
 from TopKit import Report
 from TopKit import Rip
-from TopKit import Scope
 from TopKit import Tag
 from TopKit import TagCompositionError
 from TopKit import TagImprintError
@@ -56,6 +56,7 @@ from TopKit import TagPreconditionError
 from TopKit import TagResolutionError
 from TopKit import TagRogueAccessError
 from TopKit import Tags
+from TopKit import Tool
 
 
 # ------------------------------------------------------------------
@@ -173,6 +174,21 @@ def Model_Apply(
         model.gated_ever = True
 
 
+def Model_Tagging(
+        model: Model,
+        tag: type,
+        ) -> bool:
+    """Apply ``tag`` to the model. True when the tagging reports a broken
+    promise at the door: something joined, and the Agent is defective
+    after it. An active re-application joins nothing and re-checks
+    nothing (§0.7)."""
+
+    pending = [member for member in Form(tag) if member not in model.active]
+    Model_Apply(model, tag)
+
+    return bool(pending) and not model.Sound()
+
+
 def Rip_Refused(
         model: Model,
         tag: type,
@@ -183,6 +199,21 @@ def Rip_Refused(
             other is not tag and issubclass(other, tag)
             for other in model.active
             )
+
+
+def Rip_Failure(
+        model: Model,
+        tag: type,
+        ) -> type[Exception] | None:
+    """The failure a Rip of ``tag`` raises, or None when it Rips."""
+
+    if tag not in model.active:
+        return TagResolutionError
+
+    if Rip_Refused(model, tag):
+        return TagCompositionError
+
+    return None
 
 
 def Model_Rip(
@@ -304,6 +335,30 @@ class Gated(Tag):
         agent.events.append("gated")
 
 
+class Gear(Tag):
+    """What a tool IS: the kind an Armed Agent's slot admits."""
+
+
+class Armed(Tag):
+    """A Tool slot (STEP-SPEC-36): the forge Tags the gear in plain
+    sight; the slot admits only a Gear, never None, never the bearer."""
+
+    @Tool(Gear)
+    def gear(agent) -> object:
+        gear = Agent(f"{agent.name}'s gear")
+        Gear(gear)
+        return gear
+
+
+class Carrying(Tag):
+    """A Tool slot kinded by a class (STEP-SPEC-36): any Agent-hosted
+    object, tagged or not; the bearer itself included."""
+
+    @Tool(Agent)
+    def pack(agent) -> object:
+        return Agent(f"{agent.name}'s pack")
+
+
 class Slipping(Tag):
     """An Imprint that fails after commit; the Tag stays."""
 
@@ -340,19 +395,16 @@ def Tag_It(
 
         raise AssertionError((context, "gate did not refuse", tag.__name__))
 
-    pending = [member for member in Form(tag) if member not in model.active]
-    Model_Apply(model, tag)
-    defective_after = not model.Sound()
+    reports = Model_Tagging(model, tag)
 
     try:
         tag(target, **inputs)
     except TagPostconditionError:
-        if not defective_after or not pending:
-            raise AssertionError((context, "promise reported where none should", tag.__name__, bool(pending)))
+        if not reports:
+            raise AssertionError((context, "promise reported where none should", tag.__name__))
     else:
-        if defective_after and pending:
+        if reports:
             raise AssertionError((context, "defective tagging did not report", tag.__name__))
-        # an active re-application is a no-op: nothing is re-checked (§0.7)
 
 
 def Rip_It(
@@ -616,7 +668,7 @@ def Run_Seed(
             candidates = list(model.active) or list(family)
             Rip_It(target, randomizer.choice(candidates), model, context)
         elif choice in (5, 6):
-            Exercise_Scope(target, model, family, randomizer, context, fail=choice == 6)
+            Exercise_Block(target, model, family, randomizer, context, fail=choice == 6)
         elif choice == 7 and not use_pins:
             Tag_It(target, randomizer.choice(FEATURE_TAGS), model, context)
         elif choice == 8 and not use_pins:
@@ -624,6 +676,7 @@ def Run_Seed(
             model.ok = target.ok
         elif choice == 9 and not use_pins:
             Exercise_Transactions(target, model, context)
+            Exercise_Tools(target, model, context)
         elif choice == 10:
             tag = randomizer.choice(family)
             Tag_It(target, tag, model, context)
@@ -657,7 +710,7 @@ def Run_Seed(
     return transitions
 
 
-def Exercise_Scope(
+def Exercise_Block(
         target: object,
         model: Model,
         family: tuple[type, ...],
@@ -665,50 +718,78 @@ def Exercise_Scope(
         context: str,
         fail: bool,
         ) -> None:
-    """Scope applies, runs the block, and rips what it applied in reverse
-    on exit, even when the block raises. Bases a Shape brought in stay;
-    a Rip refused for a required Base is swallowed and the Tag stays."""
+    """A block that holds Tags, written as a program writes it (STEP-SPEC-31,
+    form 3): every Tag is tagged before the ``try``, and Ripped in reverse
+    in the ``finally``. A Tag that fails at the door raises before the
+    ``try``: the block never runs, nothing is Ripped, and every Tag stays.
+    A Rip in the ``finally`` raises as any Rip does, and the Rips after it
+    do not run; if the block was raising, its error is the Rip's context."""
 
-    scoped = tuple(randomizer.choice(family) for _ in range(1 + randomizer.randrange(3)))
-    entry = model.Copy()
+    held = tuple(randomizer.choice(family) for _ in range(1 + randomizer.randrange(3)))
     inside = model.Copy()
-    joined_by_scope: list[type] = []
+    door: type | None = None
 
-    for tag in scoped:
-        if tag not in inside.active:
-            Model_Apply(inside, tag)
-            joined_by_scope.append(tag)
+    for tag in held:
+        if Model_Tagging(inside, tag):
+            door = tag                                                # reports at the door: the try never starts
+            break
 
-            if not inside.Sound():
-                break                                                 # the first tagging on a defective Agent reports; the body never runs
+    after = inside.Copy()
+    refusal: type[Exception] | None = None
 
-    defective = bool(joined_by_scope) and not inside.Sound()      # only a tagging re-checks; a skipped Tag does not
+    if door is None:
+        for tag in reversed(held):
+            refusal = Rip_Failure(after, tag)
 
-    try:
-        with Scope(target, *scoped):
-            assert not defective, (context, "a defective tagging let the Scope body run")
+            if refusal is not None:
+                break                                                 # its error leaves at once: the Rips after it do not run
+
+            Model_Rip(after, tag)
+
+    ran: list[bool] = []
+
+    def Hold() -> None:
+        for tag in held:
+            tag(target)                                               # tag before the try
+
+        try:
+            ran.append(True)
             Assert_Target(target, inside, family, context + " inside")
 
             if fail:
-                raise LookupError("deliberate")
-    except LookupError:
-        if not fail:
-            raise
+                raise LookupError("deliberate")                       # a new one each time: a kept error would keep its frames
+        finally:
+            for tag in reversed(held):
+                del tag[target]                                       # Rip in the finally
+
+    try:
+        Hold()
     except TagPostconditionError:
-        if not defective:
-            raise
+        assert door is not None, (context, "a door failure the model does not predict")
+        assert not ran, (context, "the block ran after a door failure")
+    except (TagResolutionError, TagCompositionError) as error:
+        assert type(error) is refusal, (context, "a Rip the model does not refuse failed", type(error).__name__)
+        assert Is_Block_Error(error.__context__) is fail, (context, "the Rip's context is not the block's error")
+        assert fail or error.__context__ is None, (context, "a Rip's failure carries a context of its own")
+    except LookupError as error:
+        assert Is_Block_Error(error) and refusal is None, (context, "the block's error reached the caller past a failed Rip")
+    else:
+        assert door is None and refusal is None and not fail, (context, "the block ended where the model raises")
 
-    after = inside
+    final = inside if door is not None else after
+    model.active = final.active
+    model.ever = final.ever
+    model.joined = final.joined
+    model.marked_ever = final.marked_ever
+    model.gated_ever = final.gated_ever
 
-    for tag in reversed(joined_by_scope):
-        if tag in after.active and not Rip_Refused(after, tag):
-            Model_Rip(after, tag)
 
-    model.active = after.active
-    model.ever = after.ever
-    model.joined = after.joined
-    model.marked_ever = after.marked_ever
-    model.gated_ever = after.gated_ever
+def Is_Block_Error(
+        error: BaseException | None,
+        ) -> bool:
+    """Whether ``error`` is the one a failing block raises."""
+
+    return type(error) is LookupError and error.args == ("deliberate",)
 
 
 def Exercise_Transactions(
@@ -759,6 +840,79 @@ def Exercise_Transactions(
         assert target in Slipping and target.events[-1] == "slipped", (context, "Imprint failure kept the Tag")
         del Slipping[target]
         Model_Rip(model, Slipping)
+
+
+def Exercise_Tools(
+        target: object,
+        model: Model,
+        context: str,
+        ) -> None:
+    """The three laws of a Tool slot (STEP-SPEC-36): the slot holds a
+    member of its kind and never the bearer, admission is asked at the
+    gaining and at every write, the slot is never empty, and the slot
+    never Tags. The bearer's membership follows the model as any Tag's."""
+
+    if not model.Sound() or Armed in model.active:
+        return
+
+    Armed(target)
+    Model_Apply(model, Armed)
+    gear = target.gear
+
+    assert gear in Gear[:] and target not in Gear[:], (context, "the forge Tags the gear, never the bearer")
+    assert "gear" @ target, (context, "the slot is present")
+
+    for misfit in (Agent("a stick"), None, target):
+        try:
+            target.gear = misfit
+        except TagCompositionError:
+            pass
+        else:
+            raise AssertionError((context, "the slot admitted", misfit))
+
+        assert target.gear is gear, (context, "a refused write changed the slot")
+
+    stick = Agent("a stick")
+    assert stick not in Gear[:], (context, "the slot Tagged what it refused")
+
+    Gear(stick)
+    target.gear = stick                                               # a member is admitted
+    assert target.gear is stick, (context, "an admitted write did not land")
+
+    del Gear[stick]                                                   # a Rogue in hand stays in hand
+    assert target.gear is stick and "gear" @ target, (context, "a Rogue in hand was dropped")
+
+    del Armed[target]
+    Model_Rip(model, Armed)
+    assert "gear" @ target, (context, "Rip of the bearer dropped the slot")
+    del target.gear                                                   # the drop, so the next exercise starts clean
+
+    if Carrying in model.active:
+        return
+
+    Carrying(target)
+    Model_Apply(model, Carrying)
+    pack = target.pack
+    assert type(pack) is Agent and "pack" @ target, (context, "a class kind did not build its value")
+
+    for misfit in (object(), None, "a stick"):
+        try:
+            target.pack = misfit
+        except TagCompositionError:
+            pass
+        else:
+            raise AssertionError((context, "a class kind admitted", misfit))
+
+        assert target.pack is pack, (context, "a refused write changed the slot")
+
+    target.pack = target                                              # self-reference: the bearer is an Agent instance
+    assert target.pack is target, (context, "self-reference by class was refused")
+    target.pack = stick                                               # a Rogue Gear is still an Agent instance
+    assert target.pack is stick, (context, "a class kind refused a Rogue of some Tag")
+
+    del Carrying[target]
+    Model_Rip(model, Carrying)
+    del target.pack
 
 
 def Weak_Field_Probe(

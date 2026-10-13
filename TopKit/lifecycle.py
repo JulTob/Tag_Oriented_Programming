@@ -1,22 +1,26 @@
-"""Lifecycle: Rip, teardown, Scope, and exit protocols.
+"""Lifecycle: Rip, teardown, and exit protocols.
 
 Rip ends active membership. Contributions are sticky: Actions and Records
 stay on the Agent (a Rogue Agent) unless the Tag's @Rip teardowns change
 them. Ripping a Base is refused while an active Shape still requires it.
+
+Of the three deletion tiers (§3.2), the kit gives the finalizer's
+teardowns and At_Exit. The guaranteed tier is the program's own: it tags
+before ``try`` and Rips in ``finally`` (STEP-SPEC-31).
 """
 
 from __future__ import annotations
 
-from contextlib import contextmanager
 from typing import Any
-from typing import Iterator
 import atexit
 
 from .declarations import _parameters_of
+from .declarations import _action_chain
+from .declarations import _discard_lazy_result
+from .declarations import _Lazy_Rip_Guard
+from .declarations import _lazy_rip_guard
 from .declarations import _takes_underlay
 from .errors import TagCompositionError
-from .errors import TagError
-from .errors import TagPostconditionError
 from .errors import TagResolutionError
 from .fields import _Member
 from .geometry import _requiring_shapes
@@ -54,7 +58,7 @@ def _rip(
     state.active.remove(tag)
     state.words = None
     state.snapshots.pop(tag, None)   # a view needs membership: never read again
-    tag._topkit_field.Remove(agent)
+    tag._topkit_field._Remove(agent)
 
     _teardown(
             agent,
@@ -77,9 +81,10 @@ def _teardown(
     state.composing += 1
 
     try:
-        for teardown in teardowns:
+        for name, teardown in teardowns:
             try:
                 _call_teardown(
+                        name,
                         teardown,
                         agent,
                         state,
@@ -87,7 +92,7 @@ def _teardown(
             except Exception as error:
                 failures.append(
                         (
-                            teardown.__name__,
+                            name,
                             error,
                             )
                         )
@@ -119,9 +124,10 @@ def _teardown_all(
 
     try:
         for tag in reversed(list(state.active)):
-            for teardown in state.rips.pop(tag, ()):
+            for name, teardown in state.rips.pop(tag, ()):
                 try:
                     _call_teardown(
+                            name,
                             teardown,
                             agent,
                             state,
@@ -133,6 +139,7 @@ def _teardown_all(
 
 
 def _call_teardown(
+        name: str,
         teardown: Any,
         agent: object,
         state: _State,
@@ -142,70 +149,48 @@ def _call_teardown(
     receives the Tag's original declarations, so un-patching is
     ``tag.Control = original.Control``."""
 
-    if state.pinned is None:
-        teardown(agent)
-        return
-
-    declared = getattr(
-            teardown,
-            "__wrapped__",
-            teardown,
+    guard = _Lazy_Rip_Guard(
+            name,
+            _action_chain(teardown)
             )
-    seats = _parameters_of(declared).positional
-    receiver_seats = 2 if _takes_underlay(declared) else 1
-
-    if seats > receiver_seats:
-        teardown(
-                agent,
-                _Originals(state.originals),
-                )
-    else:
-        teardown(agent)
-
-
-@contextmanager
-def Scope(
-        agent: object,
-        *tags: type,
-        **inputs: Any,
-        ) -> Iterator[object]:
-    """Apply Tags for a block and Rip them, in reverse, on exit, even if
-    the block raises. The guaranteed teardown path.
-
-    Only what the Scope itself applied is Ripped: a Tag the Agent already
-    carried at entry is left as it was. A Tag that applied and then
-    reported a broken promise at the door did apply, so it is Ripped on
-    the way out like any other.
-    """
-
-    applied: list[type] = []
+    token = _lazy_rip_guard.set(guard)
 
     try:
-        for tag in tags:
-            if agent in tag:
-                continue                    # already the Agent's: not the Scope's to take away
+        if state.pinned is None:
+            result = teardown(agent)
+        else:
+            declared = getattr(
+                    teardown,
+                    "__wrapped__",
+                    teardown,
+                    )
+            seats = _parameters_of(declared).positional
+            receiver_seats = 2 if _takes_underlay(declared, name) else 1
 
-            try:
-                tag(
+            if seats > receiver_seats:
+                result = teardown(
                         agent,
-                        **inputs,
+                        _Originals(state.originals),
                         )
-            except TagPostconditionError:
-                applied.append(tag)         # applied, and defective: still the Scope's to Rip
-                raise
-
-            applied.append(tag)
-
-        yield agent
+            else:
+                result = teardown(agent)
     finally:
-        for tag in reversed(applied):
-            try:
-                _rip(
-                        agent,
-                        tag,
-                        )
-            except TagError:
-                pass
+        guard.active = False
+        _lazy_rip_guard.reset(token)
+
+    lazy = _discard_lazy_result(result)
+
+    if guard.failures:
+        raise guard.failures[0]
+
+    if lazy is not None:
+        article = "an" if lazy == "async generator" else "a"
+
+        raise TagCompositionError(
+                f"Rip protocol {str.__str__(name)!r} returned {article}"
+                f" {lazy}; a Rip protocol must complete synchronously."
+                " TOP does not await or iterate teardown protocols."
+                )
 
 
 _exit_registry: dict[int, _Member] = {}   # by registration number; an entry leaves when its Agent dies
