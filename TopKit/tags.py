@@ -40,6 +40,7 @@ from .declarations import _check_tool_declarations
 from .declarations import _constant_owner
 from .declarations import _is_dunder
 from .declarations import _is_link
+from .declarations import _is_pair_tag
 from .declarations import _is_pin
 from .declarations import _is_relation
 from .declarations import _kind_of
@@ -89,6 +90,12 @@ def _refuse_relation(
         raise TagCompositionError(
                 f"{tag.__name__} is a Relation: link through an Agent,"
                 f" agent.{tag.__name__}(contact)"
+                )
+
+    if _is_pair_tag(tag):
+        raise TagCompositionError(
+                f"{tag.__name__} is the kit's Tag for a Pair: reach a Pair"
+                f" through its Link, agent.{tag.__name__}[contact]"
                 )
 
 

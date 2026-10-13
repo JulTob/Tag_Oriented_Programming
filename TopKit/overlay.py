@@ -24,6 +24,7 @@ from .constants import _constant_overlay
 from .constants import _refuse_constant
 from .declarations import _Declarations
 from .declarations import _is_flag
+from .declarations import _is_relation
 from .declarations import _parameters_of
 from .declarations import _protocol_inputs
 from .declarations import _takes_stored
@@ -364,6 +365,14 @@ def _install(
                 )
 
     for name, report, public in declarations.reports:
+        if public:
+            _refuse_member_over_link(
+                    state,
+                    tag,
+                    name,
+                    "a published Report",
+                    )
+
         state.reports[name] = (tag, report)
 
         if public:
@@ -955,9 +964,15 @@ def _install_link(
     if relation in layers:
         return   # reapplied: the Link keeps its identity, its Field and its Pairs
 
-    if not any(
-            issubclass(relation, layer)
-            for layer in layers
+    relation_bases = [
+            base
+            for base in relation.__bases__
+            if _is_relation(base)
+            ]
+
+    if not relation_bases or not all(
+            base in layers
+            for base in relation_bases
             ):
         raise TagCompositionError(
                 f"{tag.__name__}.{name} is a Link, but this Agent already"

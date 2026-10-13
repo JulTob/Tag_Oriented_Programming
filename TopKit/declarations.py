@@ -38,6 +38,7 @@ _CONSTANT = "__topkit_constant__"
 _TOOL = "__topkit_tool__"   # a Record's kind: the Tags its slot admits (tools._Kind)
 _RELATION = "_topkit_relation"   # on a Tag class marked @Link: a template, never a Tag in play
 _LINK = "_topkit_link"           # on one Agent's Link: a Tag the kit built for that Agent
+_PAIR_TAG = "_topkit_pair_tag"   # on the Tag a Pair receives from a Relation
 
 STATE = "_TOPKIT_STATE"
 
@@ -452,6 +453,12 @@ def Pin(
                 "@Pin marks a Tag class"
                 )
 
+    if _is_relation(tag):
+        raise TagDeclarationError(
+                f"@Pin over {tag.__name__}: a Relation is never a Pin; Links"
+                " between Tags need their own receiver rule (STEP-SPEC-22)"
+                )
+
     _refuse_tools_on_a_pin(
             tag,
             vars(tag),
@@ -694,6 +701,18 @@ def _is_link(
     return (
             isinstance(candidate, type)
             and candidate.__dict__.get(_LINK) is True
+            )
+
+
+def _is_pair_tag(
+        candidate: object,
+        ) -> bool:
+    """The Tag a Pair receives from a Relation: the kit's own, reached
+    only through a Link (STEP-SPEC-22 rule 7.1)."""
+
+    return (
+            isinstance(candidate, type)
+            and candidate.__dict__.get(_PAIR_TAG) is True
             )
 
 
@@ -1014,16 +1033,47 @@ def _check_link_declarations(
                         " Bases, so every Agent already holds them"
                         )
 
-        for owner in forms:
-            inherited = vars(owner).get(name)
+        _check_extension(
+                tag,
+                name,
+                member,
+                forms,
+                )
 
-            if _is_relation(inherited) and not issubclass(member, inherited):
-                raise TagDeclarationError(
-                        f"{tag.__name__}.{name}: {owner.__name__} already"
-                        f" declares the Relation {name}; a Relation of the"
-                        " same name extends it by naming it as a Base:"
-                        f" class {name}({owner.__name__}.{name})"
-                        )
+
+def _check_extension(
+        tag: type,
+        name: str,
+        member: type,
+        forms: list[type],
+        ) -> None:
+    """A Relation named like one a Base of the declaring Tag declares
+    extends that one (rule 2.6): it names it as its only Relation Base.
+    A Shape of it (``Knows(Social.Trusts)``) or a second Relation Base
+    (``Knows(Social.Knows, Social.Likes)``) would bring Layers of other
+    Links into this Link's Pairs."""
+
+    for owner in forms:
+        inherited = vars(owner).get(name)
+
+        if not _is_relation(inherited):
+            continue   # the nearest Base that declares the name decides
+
+        relation_bases = [
+                base
+                for base in member.__bases__
+                if _is_relation(base)
+                ]
+
+        if relation_bases != [inherited]:
+            raise TagDeclarationError(
+                    f"{tag.__name__}.{name}: {owner.__name__} already"
+                    f" declares the Relation {name}; a Relation of the"
+                    " same name extends it by naming it as its only Base:"
+                    f" class {name}({owner.__name__}.{name})"
+                    )
+
+        return
 
 
 _NAMED_FAILURES: dict[str, type] = {

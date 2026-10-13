@@ -14,7 +14,7 @@ import warnings
 import weakref
 
 from TopKit import (Action, At_Exit, Contract, Delete, Flag, Imprint,
-                    Keyword, Link, Outline, Pin, Post, Pre, Public, Record,
+                    Keyword, Link, Operation, Outline, Pin, Post, Pre, Public, Record,
                     Report, Rip, Secret, Tag, TagCompositionError,
                     TagDeclarationError, TagImprintError,
                     TagOverwriteWarning, TagPostconditionError,
@@ -1736,6 +1736,261 @@ class Rollback_Tests(unittest.TestCase):
         del charlie.Knows[:]
         self.assertEqual(ran, ["A", "B", "C"])
         self.assertEqual(list(charlie.Knows[:]), [])
+
+
+# ------------------------------------------------------------------
+# The law review's findings, one regression each
+# ------------------------------------------------------------------
+
+
+def Read_Or_Shut(contact, name):
+    try:
+        return getattr(contact, name)
+    except AttributeError:
+        return "shut"
+
+
+class Law_Review_Tests(unittest.TestCase):
+    def test_the_contacts_door_stays_shut_when_the_call_starts_in_her_own_code(self):
+        seen = []
+
+        class Vetting_Club(Tag):
+            @Link
+            class Member(Tag):
+                @Pre
+                def Vet(agent, contact):
+                    seen.append(Read_Or_Shut(contact, "diary"))
+                    return True
+
+                @Record
+                def copy(agent, contact):
+                    return Read_Or_Shut(contact, "diary")
+
+                @Imprint
+                def Note(agent, contact):
+                    seen.append(Read_Or_Shut(contact, "diary"))
+
+                def Peek(agent, contact):
+                    return Read_Or_Shut(contact, "diary")
+
+        class Joiner(Tag):
+            @Secret
+            @Record
+            def diary(agent):
+                return "her secret diary"
+
+            def Join(agent, leader):
+                leader.Member(agent)                      # linked from her own Action: her door is open
+
+            def Ask(agent, leader):
+                return leader.Member[agent].Peek()        # a Pair Action called from her own Action
+
+        bob, ann = People("Bob", "Ann")
+        Vetting_Club(bob)
+        Joiner(ann)
+        ann.Join(bob)
+        self.assertEqual(seen, ["shut", "shut"])
+        self.assertEqual(bob.Member[ann].copy, "shut")
+        self.assertEqual(ann.Ask(bob), "shut")
+
+    def test_the_two_ways_pattern_never_reads_the_first_agents_secret(self):
+        seen = []
+
+        class Friendly(Tag):
+            @Secret
+            @Record
+            def password(agent):
+                return f"{agent.name}'s password"
+
+            @Link
+            class Friends(Tag):
+                @Pre
+                def Look(agent, contact):
+                    seen.append(Read_Or_Shut(contact, "password"))
+                    return True
+
+                @Imprint
+                def Both_Ways(agent, contact):
+                    Friendly(contact)
+                    contact.Friends(agent)               # Dan's door is open here, and Dan is the Contact
+
+        dan, eve = People("Dan", "Eve")
+        Friendly(dan)
+        dan.Friends(eve)
+        self.assertEqual(seen, ["shut", "shut"])
+
+    def test_a_published_link_operation_runs_with_her_door_shut(self):
+        class Keeper(Tag):
+            @Secret
+            @Record
+            def diary(agent):
+                return "her secret diary"
+
+        class Op_Club(Tag):
+            @Link
+            class Member(Tag):
+                @Public
+                @Operation
+                def Peek_Op(link, contact):
+                    return Read_Or_Shut(contact, "diary")
+
+        charlie, ruth = People("Charlie", "Ruth")
+        Op_Club(charlie)
+        Keeper(ruth)
+        charlie.Member(ruth)
+        self.assertEqual(ruth.Peek_Op(), "shut")
+        self.assertEqual(charlie.Member.Peek_Op(ruth), "shut")
+
+    def test_a_link_never_arrives_over_the_agents_own_value(self):
+        charlie = Character("Charlie")
+        charlie.Knows = ["Ruth", "Sam"]
+        with self.assertRaises(TagCompositionError):
+            Social(charlie)
+        self.assertEqual(charlie.Knows, ["Ruth", "Sam"])
+        self.assertNotIn(charlie, Social)
+
+    def test_an_extension_names_the_relation_it_extends_as_its_only_base(self):
+        with self.assertRaises(TagDeclarationError):
+            class Through_A_Shape(Social):
+                @Link
+                class Knows(Social.Trusts):               # a Shape of Knows, not Knows
+                    pass
+
+        class Two(Tag):
+            @Link
+            class Knows(Tag):
+                pass
+
+            @Link
+            class Likes(Tag):
+                pass
+
+        with self.assertRaises(TagDeclarationError):
+            class Two_Bases(Two):
+                @Link
+                class Knows(Two.Knows, Two.Likes):        # would bring Likes' Layer into Knows' Pairs
+                    pass
+
+    def test_every_pair_of_a_field_is_overlaid_alike_after_an_extension(self):
+        class Layered(Tag):
+            @Link
+            class Knows(Tag):
+                def Greet(agent, contact):
+                    return "knows"
+
+            @Link
+            class Trusts(Knows):
+                def Greet(agent, contact):
+                    return "trusts"
+
+        class Layered_Spy(Layered):
+            @Link
+            class Knows(Layered.Knows):
+                def Greet(agent, contact):
+                    return "spy"
+
+        charlie, ruth, sam = People("Charlie", "Ruth", "Sam")
+        dan, tom = People("Dan", "Tom")
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", TagOverwriteWarning)
+            Layered(charlie)
+            charlie.Trusts(ruth)                          # before the extension
+            Layered_Spy(charlie)
+            charlie.Trusts(sam)                           # after it
+            Layered_Spy(dan)                              # granted and extended in one call
+            dan.Trusts(tom)
+        self.assertEqual(charlie.Trusts[ruth].Greet(), charlie.Trusts[sam].Greet())
+        self.assertEqual(charlie.Trusts[sam].Greet(), "spy")   # the latest Layer, as on any Agent (§1.2)
+        self.assertEqual(dan.Trusts[tom].Greet(), "spy")
+
+    def test_the_pairs_own_tags_are_out_of_reach(self):
+        charlie, ruth = People("Charlie", "Ruth")
+        Social(charlie)
+        charlie.Knows(ruth)
+        pair = charlie.Knows[ruth]
+        self.assertEqual(Tags(pair), ())
+        self.assertNotIn("Knows", Outline(pair))
+        with self.assertRaises(AttributeError):
+            pair.Knows                                    # no view by name
+        from TopKit.state import _state_of
+
+        pair_tag = _state_of(pair).active[0]
+        for act in (
+                lambda: list(pair_tag[:]),
+                lambda: pair in pair_tag,
+                lambda: isinstance(pair, pair_tag),
+                lambda: len(pair_tag),
+                lambda: pair_tag(Character("x")),
+                ):
+            with self.subTest(act=act):
+                with self.assertRaises(TagCompositionError):
+                    act()
+        with self.assertRaises(TagCompositionError):
+            del pair_tag[pair]
+        self.assertIn(ruth, charlie.Knows)
+
+    def test_a_published_report_never_arrives_at_a_links_name(self):
+        class Guild(Tag):
+            @Public
+            @Report
+            def Knows(tag):
+                return "the guild's published Report"
+
+        charlie = Character("Charlie")
+        Social(charlie)
+        with self.assertRaises(TagCompositionError):
+            Guild(charlie)
+        self.assertNotIn(charlie, Guild)
+
+    def test_a_relation_is_never_a_pin_in_either_decorator_order(self):
+        with self.assertRaises(TagDeclarationError):
+            class Over_Link(Tag):
+                @Pin
+                @Link
+                class Knows(Tag):
+                    pass
+
+    def test_an_ended_pair_answers_with_a_resolution_failure(self):
+        charlie, ruth = People("Charlie", "Ruth")
+        Social(charlie)
+        charlie.Knows(ruth, since=2010)
+        held = charlie.Knows[ruth]
+        del charlie.Knows[ruth]
+        with self.assertRaises(TagResolutionError):
+            held.Greet()
+
+        bob, sam = People("Bob", "Sam")
+        Social(bob)
+        bob.Knows(sam)
+        held = bob.Knows[sam]
+        del bob
+        gc.collect()
+        with self.assertRaises(TagResolutionError):
+            held.Greet()
+
+    def test_a_relations_plain_values_and_class_methods_belong_to_the_link(self):
+        class Bounded(Tag):
+            @Link
+            class Chats(Tag):
+                capacity = 2
+
+                @classmethod
+                def Describe(link):
+                    return f"{link.__name__} holds {link.capacity}"
+
+                @Pre
+                def Has_Room(agent, contact):
+                    return len(agent.Chats[:]) < agent.Chats.capacity
+
+        charlie = Character("Charlie")
+        Bounded(charlie)
+        self.assertEqual(charlie.Chats.capacity, 2)
+        self.assertEqual(charlie.Chats.Describe(), "Chats holds 2")
+        contacts = People("A", "B", "C")                  # held: a Field never keeps its Contacts alive
+        charlie.Chats(contacts[0])
+        charlie.Chats(contacts[1])
+        with self.assertRaises(TagPreconditionError):
+            charlie.Chats(contacts[2])                    # the gate reads the plain value
 
 
 def Agents_Of_Any_Link(contact):

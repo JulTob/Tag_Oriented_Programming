@@ -399,6 +399,12 @@ def _apply_one(
             tag,
             declarations,
             )
+    _refuse_links_shadowed_by_the_agent(
+            agent,
+            state,
+            tag,
+            declarations,
+            )
     state.composing += 1
     primary_failure: BaseException | None = None
 
@@ -501,6 +507,40 @@ def _refuse_conditions_shadowed_by_the_agent(
                     f" {name!r}; a condition is read by its name and cannot"
                     " share it"
                     )
+
+
+def _refuse_links_shadowed_by_the_agent(
+        agent: object,
+        state: _State,
+        tag: type,
+        declarations: Any,
+        ) -> None:
+    """A Link never arrives where something is (STEP-SPEC-22 rule 4.4):
+    a value the Agent itself already holds under the Link's name would be
+    lost under a read-only slot, so the tagging is refused."""
+
+    if not declarations.links:
+        return
+
+    namespace = _namespace_of(agent) or {}
+
+    for name, _relation in declarations.links:
+        if name not in namespace:
+            continue
+
+        held = state.links.get(name)
+
+        if held is not None and namespace[name] is held[0]:
+            continue   # the Agent's own Link: reapplied, or extended
+
+        if name in state.records or name in state.actions:
+            continue   # a Contribution: the closed slot names it (overlay._install_link)
+
+        raise TagCompositionError(
+                f"{tag.__name__}.{name} is a Link, but"
+                f" {_name_of(agent)} already holds a value called {name!r};"
+                " a Link never arrives where something is"
+                )
 
 
 def _inspect(

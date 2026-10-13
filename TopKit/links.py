@@ -39,6 +39,7 @@ from __future__ import annotations
 
 from functools import partial
 from inspect import signature
+from itertools import count
 from typing import Any
 from typing import Callable
 from weakref import WeakKeyDictionary
@@ -50,6 +51,7 @@ from .declarations import Report
 from .declarations import _FLAG
 from .declarations import _LINK
 from .declarations import _MISSING
+from .declarations import _PAIR_TAG
 from .declarations import _PUBLIC
 from .declarations import _RELATION
 from .declarations import _UNDERLAY
@@ -270,6 +272,7 @@ def _pair_tag(
             "__module__": relation.__module__,
             "__qualname__": relation.__qualname__,
             "__doc__": relation.__doc__,
+            _PAIR_TAG: True,   # the kit's own: reached only through a Link (rule 7.1)
             }
 
     for name, member in relation.__dict__.items():
@@ -330,17 +333,14 @@ def _two_seats(
             **kwargs: Any,
             ) -> Any:
         agent, contact = _ends_of(pair)
-        state = _state_of(agent)
+        agent_state = _state_of(agent)
+        opened = _shut_door(
+                contact,
+                agent,
+                )   # her door stays shut on every path (rule 3.6)
 
-        if state is None:
-            return function(
-                    agent,
-                    contact,
-                    *args,
-                    **kwargs,
-                    )
-
-        state.composing += 1   # the Link is the Agent's code about a Pair
+        if agent_state is not None:
+            agent_state.composing += 1   # the Link is the Agent's code about a Pair
 
         try:
             return function(
@@ -350,7 +350,13 @@ def _two_seats(
                     **kwargs,
                     )
         finally:
-            state.composing -= 1
+            if agent_state is not None:
+                agent_state.composing -= 1
+
+            _reopen_door(
+                    contact,
+                    opened,
+                    )
 
     Two_Seats.__signature__ = signature(function).replace(
             parameters=[parameters[0], *parameters[2:]],
@@ -371,6 +377,105 @@ def _two_seats(
     Two_Seats._topkit_seats = frozenset(seats)
 
     return Two_Seats
+
+
+def _shut_door(
+        contact: object,
+        agent: object,
+        ) -> int | None:
+    """Shut the Contact's composition door while the Link's code runs, and
+    return how far it was open. None when there is nothing to shut: she
+    is no Agent, or she is the Link's Agent herself (a self-link)."""
+
+    if contact is agent:
+        return None
+
+    state = _state_of(contact)
+
+    if state is None:
+        return None
+
+    opened = state.composing
+    state.composing = 0
+
+    return opened
+
+
+def _reopen_door(
+        contact: object,
+        opened: int | None,
+        ) -> None:
+    if opened is None:
+        return
+
+    state = _state_of(contact)
+
+    if state is not None:
+        state.composing = opened
+
+
+def _door_shut_operation(
+        member: classmethod,
+        ) -> classmethod:
+    """A Relation's Operation, on one Agent's Link. Called with one of the
+    Link's Contacts after the Link (as a published Operation is), it runs
+    with her door shut, as a line does (rule 3.6)."""
+
+    function = member.__func__
+
+    def Operation(
+            link: type,
+            *args: Any,
+            **kwargs: Any,
+            ) -> Any:
+        contact = args[0] if args else None
+        opened = None
+
+        if contact is not None and _is_contact_of(link, contact):
+            opened = _shut_door(
+                    contact,
+                    _record_of(link).agent(),
+                    )
+
+        try:
+            return function(
+                    link,
+                    *args,
+                    **kwargs,
+                    )
+        finally:
+            _reopen_door(
+                    contact,
+                    opened,
+                    )
+
+    Operation.__signature__ = signature(function)
+    Operation.__name__ = function.__name__
+    Operation.__qualname__ = function.__qualname__
+    Operation.__doc__ = function.__doc__
+    Operation.__module__ = function.__module__
+
+    for key, value in vars(function).items():
+        if key.startswith("__topkit_"):
+            setattr(
+                    Operation,
+                    key,
+                    value,
+                    )   # its marks: kind, Public, Secret, Constant
+
+    return classmethod(Operation)
+
+
+def _is_contact_of(
+        link: type,
+        candidate: object,
+        ) -> bool:
+    state = _state_of(candidate)
+
+    return (
+            state is not None
+            and link in state.active
+            )
 
 
 # ------------------------------------------------------------------
@@ -404,6 +509,7 @@ class _Ends:
             "family",
             "name",
             "held",
+            "ended",
             )
 
     def __init__(
@@ -419,6 +525,7 @@ class _Ends:
         ends.family = family
         ends.name = name
         ends.held = None   # both ends, held strongly only while teardowns run
+        ends.ended = False   # set when the Pair ends: a Pair held by a name answers no more
 
 
 def _ends_of(
@@ -429,6 +536,12 @@ def _ends_of(
     if ends.held is not None:
         return ends.held
 
+    if ends.ended:
+        raise TagResolutionError(
+                f"this {ends.name} Pair has ended: its Contact was unlinked;"
+                " reach a Pair through its Link, agent.Link[contact]"
+                )
+
     agent = ends.agent()
     contact = ends.contact()
 
@@ -436,7 +549,7 @@ def _ends_of(
         agent = ends.family.dying   # the finalizer of the Link's Agent fills the first seat
 
     if agent is None or contact is None:
-        raise ReferenceError(
+        raise TagResolutionError(
                 f"this {ends.name} Pair's Agent or Contact no longer exists"
                 )
 
@@ -528,6 +641,7 @@ class _Family:
             return
 
         del family.pairs[id(contact)]
+        object.__getattribute__(pair, "__dict__")[_PAIR_ENDS].ended = True
         state = _state_of(pair)
 
         if state is not None:
@@ -570,6 +684,7 @@ class _Link_Record:
             "name",
             "agent",
             "layers",
+            "gained",
             "family",
             "hook",
             "ending",
@@ -587,6 +702,10 @@ class _Link_Record:
         record.name = name
         record.agent = weakref.ref(agent)
         record.layers = layers
+        record.gained = {
+                relation: next(_gaining)
+                for relation in layers
+                }   # when the Agent gained each Layer: the order every Pair is overlaid in
         record.family = family
         record.hook = None
         record.ending = False
@@ -595,6 +714,7 @@ class _Link_Record:
 
 
 _RECORD = "_topkit_link_record"   # on the Link class itself: read on every Pair lookup
+_gaining = count(1)   # numbers the Layers in the order Agents gain them
 
 
 def _record_of(
@@ -866,8 +986,11 @@ def _split(
 def _tag_scope_of(
         relation: type,
         ) -> dict[str, Any]:
-    """The Relation's Reports and Operations: they belong to the Link
-    itself, one Link per Agent (rule 2.3), ``def capacity(link)``."""
+    """What the Relation declares for the Link itself, one Link per Agent
+    (rule 2.3): its Reports (``def capacity(link)``), its Operations and
+    other class methods, its static methods and its plain values
+    (``capacity = 150``), as an ordinary Tag keeps them on the class.
+    Everything else callable is the Pair's."""
 
     members: dict[str, Any] = {}
 
@@ -880,7 +1003,15 @@ def _tag_scope_of(
             copy.public = member.public
             members[name] = copy
         elif isinstance(member, classmethod) and _kind_of(member) == "operation":
+            members[name] = _door_shut_operation(member)
+        elif _is_dunder(name):
+            continue   # the kit's marks and the language's machinery stay on the Relation
+        elif isinstance(member, classmethod):
+            members[name] = _door_shut_operation(member)
+        elif isinstance(member, staticmethod):
             members[name] = member
+        elif not callable(member):
+            members[name] = member   # a plain value of the Relation, capacity = 150
 
     return members
 
@@ -1075,6 +1206,7 @@ def _extend(
             for pair in pairs
             ]
     previous_layers = list(record.layers)
+    previous_gained = dict(record.gained)
     previous_members = {
             name: link.__dict__.get(name, _MISSING)
             for relation in added
@@ -1090,6 +1222,7 @@ def _extend(
                     )
 
         record.layers[:] = previous_layers
+        record.gained = previous_gained
         _forget_pair_forms(record.family)
 
         for name, value in previous_members.items():
@@ -1103,6 +1236,10 @@ def _extend(
 
     try:
         record.layers.extend(added)
+
+        for relation in added:
+            record.gained[relation] = next(_gaining)
+
         _forget_pair_forms(record.family)
 
         for relation in added:
@@ -1186,24 +1323,46 @@ def _pair_form(
         link: type,
 ) -> list[type]:
     """Every Pair Tag a linking through ``link`` gives: the Layers of each
-    Link in its Form, Bases first (rules 5.2 and 5.3). Kept on the record
-    until a Layer is added to any Link of the family."""
+    Link in its Form (rules 5.2 and 5.3), in the order the Agent gained
+    them. That is Form order, with a later extension on top, which is
+    where an extension lands on the Pairs it already holds (rule 4.6):
+    every Pair of a Field is overlaid alike (§1.2, latest Layer). Kept on
+    the record until a Layer is added to any Link of the family."""
 
     record = _record_of(link)
 
     if record.pair_form is not None:
         return record.pair_form
 
-    relations: list[type] = []
+    gained: list[tuple[int, type]] = []
 
     for member in _form_of(link):
-        for relation in _record_of(member).layers:
-            if relation not in relations:
-                relations.append(relation)
+        member_record = _record_of(member)
+
+        for relation in member_record.layers:
+            gained.append(
+                    (
+                        member_record.gained[relation],
+                        relation,
+                        )
+                    )
+
+    gained.sort(key=_gaining_number)
+    relations: list[type] = []
+
+    for _number, relation in gained:
+        if relation not in relations:
+            relations.append(relation)
 
     record.pair_form = _pair_tags_of(relations)
 
     return record.pair_form
+
+
+def _gaining_number(
+        entry: tuple[int, type],
+        ) -> int:
+    return entry[0]
 
 
 def _forget_pair_forms(

@@ -7,6 +7,7 @@ from typing import Any
 
 from .access import _keyword
 from .declarations import _is_link
+from .declarations import _is_pair_tag
 from .geometry import _form_of
 from .geometry import _leaves
 from .state import _name_of
@@ -69,12 +70,13 @@ def _own_tags(
         ) -> list[type]:
     """The Agent's own Tags: never the Links that hold it as a Contact,
     since nothing on a Contact names the Agent who links her
-    (STEP-SPEC-22 rule 6.2)."""
+    (STEP-SPEC-22 rule 6.2), and never the kit's Tags on a Pair, which is
+    reached only through its Link (rule 7.1)."""
 
     return [
             tag
             for tag in active
-            if not _is_link(tag)
+            if not _is_link(tag) and not _is_pair_tag(tag)
             ]
 
 
