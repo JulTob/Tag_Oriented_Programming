@@ -581,6 +581,20 @@ class _Pinned_Bound:
         finally:
             state.composing -= 1
 
+    def __eq__(bound, other: object) -> Any:
+        # Use Python's function equality and receiver identity without
+        # consulting the receiving Tag's equality or hash hooks.
+        if isinstance(other, _Pinned_Bound):
+            other = MethodType(other._function, other._owner)
+
+        return MethodType(bound._function, bound._owner).__eq__(other)
+
+    def __hash__(bound) -> int:
+        return hash(MethodType(bound._function, bound._owner))
+
+    def __repr__(bound) -> str:
+        return f"<pinned Operation {bound._name} of {_name_of(bound._owner)}>"
+
     @property
     def __self__(bound) -> type:
         return bound._owner
