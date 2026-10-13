@@ -334,10 +334,23 @@ rollback target.
   Link's record and on each Pair's ends), and every `finally` that held
   an error sets its local to `None`, so a traceback cycle never keeps
   the Agent alive.
-  The call boundary (`_Call_Boundary`) gained `undo` and `writes`: a
-  linking inside a call that rolls back registers its undo there, and
-  extending a held Link defers each Pair's Imprints and promises until
-  the Agent's Commit. A Link name gets a read-only `_Link_Gate`
+  The call boundary (`_Call_Boundary`) gained `undo`, `writes` and
+  `open`. A linking registers its undo on the call it is part of
+  (`_open_boundary()`). A call that rolls back runs its undo steps first,
+  then restores its own Agent, so an Agent linked as a Contact during its
+  own call ends as it was at the call. A call that does not roll back
+  hands its steps to the call around it (`_hand_over`), so a linking made
+  anywhere inside a call that later rolls back is undone with it; a
+  linking runs its Pair's and its Contact's calls under a boundary of its
+  own for the same reason. A boundary closes when its call returns
+  (`_close`): an asyncio task that copied the context of a finished call
+  links on its own. Extending a held Link runs every Pair's gate first
+  (`_gate_form`), then every Pair's Parts (`gated=True`), and defers
+  their Imprints and promises until the Agent's Commit. A Contact's
+  history of Links is `State.ever_links`, a weak set, so a living Contact
+  never keeps a dead Agent's Link. Pair Tags carry their own mark
+  (`_is_pair_tag`): out of `Tags`, `Outline` and views, and refused every
+  Tag-level act, as a Relation is. A Link name gets a read-only `_Link_Gate`
   descriptor and the binding write hooks, so `object.__setattr__` is
   refused too. `Tags`, `Outline`, the contract title and by-name views
   skip Links: nothing public on a Contact names the Agent who links her.

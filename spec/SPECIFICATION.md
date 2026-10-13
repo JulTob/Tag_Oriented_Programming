@@ -1149,9 +1149,10 @@ a third kind beside the Action and the Record. It is built at Parts
 (§0.6), stored under the Relation's name, and **read-only**: assigning or
 deleting `charlie.Knows` is a Composition Failure, `object.__setattr__`
 included. Its slot is **closed**: nothing else arrives at that name, in
-either order, and a Link never arrives where something is. Links are
-sticky (§0.7): Rip of `Social` leaves `charlie.Knows` with Charlie, and
-reapplying `Social` keeps the same Link, its Field and its Pairs.
+either order, and a Link never arrives where something is, a value the
+Agent itself holds included. Links are sticky (§0.7): Rip of `Social`
+leaves `charlie.Knows` with Charlie, and reapplying `Social` keeps the
+same Link, its Field and its Pairs.
 
 **The seats.** Every function a Relation declares for the Pair takes the
 Link's Agent and the Contact, in that order; after the two seats, each
@@ -1160,7 +1161,8 @@ inputs by name. Fewer than two positional seats, or a Contact seat with a
 default, is a Declaration Failure at class use; an input named like a
 seat is refused at linking, nothing changed. Reports and Operations of a
 Relation take the Link alone and belong to it, one Link per Agent:
-`charlie.Knows.capacity`.
+`charlie.Knows.capacity`. So do its plain values and its other class and
+static methods, as an ordinary Tag keeps them on the class.
 
 **Linking** is a tagging of the Contact with the Pair as receiver: the
 Pair's gate; the Pair's Records; the Contact enters the Link's Field; the
@@ -1168,9 +1170,13 @@ Pair's Imprints; the Pair's promises and the Contact's own. A failure up
 to her entry changes nothing; after it, the failure raises and the
 linking stays (§0.6). Reapplying is a no-op, so an Imprint that links
 back ends after one echo. A linking made inside a call that rolls back is
-undone with it. A Contact who was not an Agent becomes one; nothing else
-is written on her. The kit never checks the linking Agent's membership or
-soundness: a gate that cares says so.
+undone with it, however deep inside the call it was made: in an earlier
+Tag's Imprint, in another Agent's tagging, or at a Pair's Parts. The
+Contact is restored as she was at the linking, and an Agent linked as a
+Contact during its own call is restored as it was at the call. A Contact
+who was not an Agent becomes one; nothing else is written on her. The kit
+never checks the linking Agent's membership or soundness: a gate that
+cares says so.
 
 **The Pair** is reached only through the Link: `charlie.Knows[ruth]`,
 live, holding Records, Actions, conditions read by name, and secrets that
@@ -1180,26 +1186,32 @@ contract. The Link's sound population, `for contact in charlie.Knows`,
 holds the Contacts whose own contract holds and whose Pair holds;
 `~charlie.Knows` the rest. A broken Pair never makes the Contact
 defective anywhere else. A Link marked `@Flag` answers its words on the
-Pair, never on the Contact.
+Pair, never on the Contact. The Tags a Pair carries are the kit's own:
+`Tags(pair)` lists none, and every Tag-level act on one is a Composition
+Failure. A Pair held by a name after it ended, or after its Agent or
+Contact is gone, answers with a Resolution Failure.
 
 **Bases.** A Relation's Bases are Relations of the same declaring Tag or
 of its Bases, resolved per Agent: with `class Trusts(Knows)`,
 `charlie.Trusts` is a Shape of `charlie.Knows`, never of Bob's. Linking
 through a Shape Link links through its Base Links first, and a Link and
 its Base Links share **one Pair** for each Contact, its members overlaid
-in Form order. Unlinking a Base Link is refused while a Shape Link holds
+in the order the Agent gained them: Form order, with a later extension on
+top, as on any Agent (§1.2). Every Pair of a Field is overlaid alike.
+Unlinking a Base Link is refused while a Shape Link holds
 her (§0.7). An ordinary Tag is never a Base of a Relation, and a Relation
 or a Link is never a Base of an ordinary Tag: a Link that writes a Tag on
 its Contact says so in an Imprint.
 
 **Extending a held Link.** A Shape of the declaring Tag may extend its
-Base's Relation by name, `@Link class Knows(Social.Knows)`; a same-name
-Relation that does not name it is a Declaration Failure. When an Agent
-gains the Shape, its Link gains the new Layer, keeping its identity, its
-Field and its history, and the Layer applies to every Pair it holds in
-the same call: every Pair's gate and Records first, one refusal refusing
-the whole call; then every Pair's Imprints and promises, after the
-Agent's Commit. Later linkings get every Layer.
+Base's Relation by name, `@Link class Knows(Social.Knows)`, naming it as
+its only Relation Base; a same-name Relation that does not, or that names
+a Shape of it or a second Relation, is a Declaration Failure. When an
+Agent gains the Shape, its Link gains the new Layer, keeping its
+identity, its Field and its history, and the Layer applies to every Pair
+it holds in the same call: every Pair's gate, then every Pair's Records,
+one refusal refusing the whole call; then every Pair's Imprints and
+promises, after the Agent's Commit. Later linkings get every Layer.
 
 **Seen by the Contact, or in-house.** A `@Public` Pair member is a line
 onto the Contact: `ruth.Greet()` runs the Pair's `Greet(charlie, ruth)`,
@@ -1212,7 +1224,9 @@ Failure. A `@Secret` member belongs to the Link's Agent alone.
 
 **The doors.** A Link's functions run inside the composition door of the
 Link's Agent and of the Pair, never the Contact's, on every path: a line
-she calls, and a teardown her own deletion runs, included.
+she calls, a Pair function called from her own code, a linking she asks
+for from her own Action, an Operation of the Link called with her, and a
+teardown her own deletion runs, included.
 
 **One direction.** A Link points from its Agent to its Contacts. Nothing
 public on a Contact names an Agent who links her: her `Tags`, `Outline`,
@@ -1220,7 +1234,9 @@ format specs, contract and keywords never list a Link, and `ruth.Knows`
 is her own Link or nothing. Nothing public on a Link or a Pair names its
 Agent, and the kit holds that Agent weakly, so a Link never keeps it
 alive. `isinstance(ruth, charlie.Knows)` answers, asked with the Link in
-hand. A Link that should answer back says so in its own Imprint.
+hand, and a Contact's history keeps a Link weakly: a living Contact never
+keeps the Link of an Agent that is gone. A Link that should answer back
+says so in its own Imprint.
 
 **Ending.** `del charlie.Knows[ruth]` ends her membership; the Link's
 teardowns run with `(charlie, ruth)`; the Pair ends unless another Link
@@ -1240,8 +1256,8 @@ on it (apply, `in`, `isinstance`, walk, `len`, truth, `~`, `[:]`, `[x]`,
 the population operators, `del`) is a Composition Failure that points to
 a Link: "Knows is a Relation: link through an Agent". `Social.Knows |
 None` keeps the language's own union. A Relation is no Tool kind, never a
-Pin, and a `@Link` inside a `@Pin` is refused: Links between Tags need
-their own receiver rule.
+Pin (in either decorator order), and a `@Link` inside a `@Pin` is
+refused: Links between Tags need their own receiver rule.
 
 Peers at the same level are not a Link: they are members of one ordinary
 Tag whose gate keeps its Field at two, or Contacts of one Link held by the
