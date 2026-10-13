@@ -10,7 +10,8 @@ Tag's dotted namespace to the program:
     "Wizard" in charlie           the same, by name
     isinstance(charlie, Wizard)   ever a member ("ever a Wizard, always a Wizard")
     for w in Wizard               the sound population
-    if Wizard                     is there a sound Wizard at all?
+    if Wizard                     do the Tag's own visible Posts hold?
+    len(Wizard)                   the number of sound Wizards
     for w in ~Wizard              the defective population
     Wizard[:]                     everyone: the whole Field
     Wizard[charlie]               the Agent-bound view
@@ -205,7 +206,7 @@ class MetaTag(type):
     def __bool__(
             tag,
             ) -> bool:
-        return bool(_sound_of(tag))
+        return _holds(tag)
 
     def __invert__(
             tag,

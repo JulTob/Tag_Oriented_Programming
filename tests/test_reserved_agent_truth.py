@@ -2,7 +2,7 @@
 
 import unittest
 
-from TopKit import (Action, Contract, Delete, Imprint, Operation, Pin, Post, Pre,
+from TopKit import (Action, Delete, Imprint, Operation, Pin, Post, Pre,
                     Public, Record, Report, Tag, TagCompositionError,
                     TagDeclarationError, Tags)
 
@@ -64,7 +64,6 @@ class ReservedAgentTruthTests(unittest.TestCase):
         Checked(agent)
         agent.ready = False
         self.assertFalse(agent)
-        self.assertFalse(Contract.Holds(agent))
         agent.ready = True
         self.assertTrue(agent)
 
@@ -81,7 +80,6 @@ class ReservedAgentTruthTests(unittest.TestCase):
 
         self.assertIs(agent.Ready, False)
         self.assertTrue(agent)
-        self.assertTrue(Contract.Holds(agent))
 
     def test_explicit_host_truth_is_refused_before_any_tagging_effect(self):
         for inherited in (False, True):
@@ -276,7 +274,7 @@ class ReservedAgentTruthTests(unittest.TestCase):
                 self.assertEqual(Tags(agent), ())
                 self.assertNotIn(agent, Prepared[:])
 
-    def test_pinned_tag_truth_remains_its_field_population(self):
+    def test_pinned_tag_truth_reads_its_own_posts(self):
         class Agency(Tag):
             ready = True
 
@@ -287,15 +285,15 @@ class ReservedAgentTruthTests(unittest.TestCase):
                 return tag.ready
 
         Certified(Agency)
-        self.assertTrue(Contract.Holds(Agency))
-        self.assertFalse(Agency)   # its Field is empty, despite its sound Pin
+        self.assertTrue(Agency)
+        self.assertEqual(len(Agency), 0)
 
         agent = Host()
         Agency(agent)
         Agency.ready = False
-        self.assertFalse(Contract.Holds(Agency))
+        self.assertFalse(Agency)
         self.assertIn(Agency, ~Certified)
-        self.assertTrue(Agency)    # its Field still contains a sound Agent
+        self.assertEqual(len(Agency), 1)
 
     def test_custom_truth_on_a_runtime_subclass_is_still_a_host_protocol(self):
         class Member(Tag):
