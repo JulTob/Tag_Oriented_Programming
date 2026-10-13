@@ -75,6 +75,10 @@ Ring 4.
 | **Pin** | A Tag marked `@Pin`, whose Targets are Tags (§1.9). |
 | **Pinning** | Applying a Pin to a Tag: `Rare(Wizard)`. The pinned Tag is the Pin's Agent. |
 | **Tool** | A Record whose value is an object of a declared kind, a specific Tag or a Python class (§1.3). Something you *have* (*tener*): what it is stays its own. |
+| **Link** | A Tag one Agent holds under a Relation's name, `charlie.Knows`, made from a `@Link` Relation of a Tag it carries (§1.10). |
+| **Contact** | A member of a Link's Field: whom the Link's Agent is related to (§1.10). |
+| **Relation** | A Tag class marked `@Link` in a declaring Tag's body: the template of every Agent's Link, never a Tag in play (§1.10). |
+| **Pair** | One Agent and one Contact, linked, `charlie.Knows[ruth]`: what the Relation declares for Agent scope lands here (§1.10). |
 
 TOP uses **Base** and **Shape**, never *parent* and *child*: the words
 describe a different model. A Tag may be both: `Person` is a Shape of
@@ -294,6 +298,7 @@ language, not a library's naming.
 | one condition, read on the Agent (§2.5) | `agent.Has_Book` |
 | a named Contribution is present (§1.1) | `"Attack" @ agent`, `"Attack" @ Wizard[agent]` |
 | keep a Contribution's binding fixed (§1.5) | `@Constant` with `@Record`, `@Action`, `@Post`, `@Report` or `@Operation` |
+| a Tag of one's own, and its Contacts (§1.10) | `@Link` on a Tag in a Tag's body; `charlie.Knows(ruth)`, `ruth in charlie.Knows`, `charlie.Knows[ruth].since`, `del charlie.Knows[ruth]`, `del charlie.Knows[:]` |
 | a Record whose value is an object of a kind (§1.3) | `@Tool(Weapon)` for a member of the Tag, now; `@Tool(Sword)` for an instance of the class; `@Tool(Sword, Weapon)` for both; `@Tool(Weapon \| None)` when the slot may be empty |
 | the Agent-bound view | `Wizard[agent]` |
 | leave the Field (Rip) | `del Wizard[agent]` |
@@ -361,6 +366,11 @@ that slot holds an Action or a Record, never both at once:
   Base's view (§1.7) keeps the prior kind.
 - Across scopes, equal names do not collide. `Fire.colour` (Tag) and
   `ember.colour` (Agent) are two slots with two histories.
+- A **Link** (§1.10) is a third kind of Agent-scope contribution. Its
+  slot is closed: no Action, Record, condition or `@Delete` arrives at a
+  name that holds a Link, a Link never arrives where something is, and a
+  Shape's change of kind never reaches it. On a Link, what the Relation
+  declares for Agent scope lands on the Pair.
 
 ### Presence by name
 
@@ -1089,6 +1099,154 @@ A Pin does not alter the pinned Tag's own gate over its Agents. A Tag
 that should refuse new members while Deprecated writes that as its own
 Precondition, reading its Pins.
 
+## 1.10 Links
+
+Every Tag above is a one-place statement: *Ruth is a Wizard*. Many domains
+need two-place ones: *Charlie knows Ruth*, *this drone follows that one*.
+A two-place statement is a family of one-place statements, one for each
+Agent in the first place, so TOP needs no new kind of membership, only a
+way for each Agent to have a Tag of its own: a **Link**.
+
+```python
+class Social(Tag):
+
+    @Link
+    class Knows(Tag):                         # the Relation: a template
+
+        @Pre
+        def Not_Oneself(agent, contact):      # the Agent acts; the Contact is acted on
+            return contact is not agent
+
+        @Record
+        def since(agent, contact, *, since=None):   # a fact about the Pair
+            return since
+
+        def Greet(agent, contact):            # an Action of the Pair
+            return f"{agent.name} waves at {contact.name}"
+
+
+Social(charlie)
+Social(bob)
+charlie.Knows(ruth, since=2010)               # Ruth is Charlie's Contact
+
+ruth in charlie.Knows                         # True
+ruth in bob.Knows                             # False: Bob's Link is another Tag
+charlie.Knows[ruth].since                     # 2010: the Pair's Record
+charlie.Knows[ruth].Greet()                   # "Charlie waves at Ruth"
+del charlie.Knows[ruth]                       # Rip: Charlie forgets Ruth
+```
+
+| Term | Meaning |
+| --- | --- |
+| **Relation** | A Tag class marked `@Link` in a declaring Tag's body: the template every Agent's Link is made from. Never a Tag in play. |
+| **Link** | The Tag one Agent holds under the Relation's name, `charlie.Knows`: a distinct Tag with its own Field. |
+| **The Link's Agent** | The one who holds the Link and acts through it: Charlie. |
+| **Contact** | A member of a Link's Field: Ruth. |
+| **Pair** | One Agent and one Contact, linked: `charlie.Knows[ruth]`. It receives what the Relation declares for Agent scope. |
+
+**Granting.** A Link is an Agent-scope contribution of the declaring Tag,
+a third kind beside the Action and the Record. It is built at Parts
+(§0.6), stored under the Relation's name, and **read-only**: assigning or
+deleting `charlie.Knows` is a Composition Failure, `object.__setattr__`
+included. Its slot is **closed**: nothing else arrives at that name, in
+either order, and a Link never arrives where something is. Links are
+sticky (§0.7): Rip of `Social` leaves `charlie.Knows` with Charlie, and
+reapplying `Social` keeps the same Link, its Field and its Pairs.
+
+**The seats.** Every function a Relation declares for the Pair takes the
+Link's Agent and the Contact, in that order; after the two seats, each
+kind reads its own (§1.2, §1.3, §2.2, §2.3): an Underlay, a stored value,
+inputs by name. Fewer than two positional seats, or a Contact seat with a
+default, is a Declaration Failure at class use; an input named like a
+seat is refused at linking, nothing changed. Reports and Operations of a
+Relation take the Link alone and belong to it, one Link per Agent:
+`charlie.Knows.capacity`.
+
+**Linking** is a tagging of the Contact with the Pair as receiver: the
+Pair's gate; the Pair's Records; the Contact enters the Link's Field; the
+Pair's Imprints; the Pair's promises and the Contact's own. A failure up
+to her entry changes nothing; after it, the failure raises and the
+linking stays (§0.6). Reapplying is a no-op, so an Imprint that links
+back ends after one echo. A linking made inside a call that rolls back is
+undone with it. A Contact who was not an Agent becomes one; nothing else
+is written on her. The kit never checks the linking Agent's membership or
+soundness: a gate that cares says so.
+
+**The Pair** is reached only through the Link: `charlie.Knows[ruth]`,
+live, holding Records, Actions, conditions read by name, and secrets that
+resolve only inside the Link's own functions. On a Link this replaces the
+Agent-bound view of §1.7. `bool(charlie.Knows[ruth])` is the Pair's own
+contract. The Link's sound population, `for contact in charlie.Knows`,
+holds the Contacts whose own contract holds and whose Pair holds;
+`~charlie.Knows` the rest. A broken Pair never makes the Contact
+defective anywhere else. A Link marked `@Flag` answers its words on the
+Pair, never on the Contact.
+
+**Bases.** A Relation's Bases are Relations of the same declaring Tag or
+of its Bases, resolved per Agent: with `class Trusts(Knows)`,
+`charlie.Trusts` is a Shape of `charlie.Knows`, never of Bob's. Linking
+through a Shape Link links through its Base Links first, and a Link and
+its Base Links share **one Pair** for each Contact, its members overlaid
+in Form order. Unlinking a Base Link is refused while a Shape Link holds
+her (§0.7). An ordinary Tag is never a Base of a Relation, and a Relation
+or a Link is never a Base of an ordinary Tag: a Link that writes a Tag on
+its Contact says so in an Imprint.
+
+**Extending a held Link.** A Shape of the declaring Tag may extend its
+Base's Relation by name, `@Link class Knows(Social.Knows)`; a same-name
+Relation that does not name it is a Declaration Failure. When an Agent
+gains the Shape, its Link gains the new Layer, keeping its identity, its
+Field and its history, and the Layer applies to every Pair it holds in
+the same call: every Pair's gate and Records first, one refusal refusing
+the whole call; then every Pair's Imprints and promises, after the
+Agent's Commit. Later linkings get every Layer.
+
+**Seen by the Contact, or in-house.** A `@Public` Pair member is a line
+onto the Contact: `ruth.Greet()` runs the Pair's `Greet(charlie, ruth)`,
+and a `@Public` Pair Record reads live and read-only on her. A `@Public`
+Report or Operation of the Link is published onto its Contacts as §1.5
+says. A line is installed at the linking and sticky; when two Links
+publish one name onto her, the latest linking is what she sees, with the
+usual Overwrite Warning; once unlinked, a line raises a Rogue Access
+Failure. A `@Secret` member belongs to the Link's Agent alone.
+
+**The doors.** A Link's functions run inside the composition door of the
+Link's Agent and of the Pair, never the Contact's, on every path: a line
+she calls, and a teardown her own deletion runs, included.
+
+**One direction.** A Link points from its Agent to its Contacts. Nothing
+public on a Contact names an Agent who links her: her `Tags`, `Outline`,
+format specs, contract and keywords never list a Link, and `ruth.Knows`
+is her own Link or nothing. Nothing public on a Link or a Pair names its
+Agent, and the kit holds that Agent weakly, so a Link never keeps it
+alive. `isinstance(ruth, charlie.Knows)` answers, asked with the Link in
+hand. A Link that should answer back says so in its own Imprint.
+
+**Ending.** `del charlie.Knows[ruth]` ends her membership; the Link's
+teardowns run with `(charlie, ruth)`; the Pair ends unless another Link
+of the same Form still holds her, and then what the Ripped Link gave the
+Pair stays, sticky. `del charlie.Knows[:]` unlinks every Contact, refused
+while a Shape Link holds any of them. A Contact's deletion unlinks her,
+the teardowns running with the live Agent; the Agent's deletion ends its
+Links after its own teardowns, Shape Links first, with the dying Agent in
+the first seat; `At_Exit` ends them at interpreter exit (§3.2). When the
+Agent cannot be reached, the Pair ends silently. Each Pair's teardowns run
+at most once, a self-link included. A Link held by a name after its Agent
+is gone has an empty Field, linking through it is a Composition Failure,
+and `k[ruth]` and `del k[ruth]` are Resolution Failures.
+
+**The Relation itself** is a template with no Field. Every Tag-level act
+on it (apply, `in`, `isinstance`, walk, `len`, truth, `~`, `[:]`, `[x]`,
+the population operators, `del`) is a Composition Failure that points to
+a Link: "Knows is a Relation: link through an Agent". `Social.Knows |
+None` keeps the language's own union. A Relation is no Tool kind, never a
+Pin, and a `@Link` inside a `@Pin` is refused: Links between Tags need
+their own receiver rule.
+
+Peers at the same level are not a Link: they are members of one ordinary
+Tag whose gate keeps its Field at two, or Contacts of one Link held by the
+Agent that stands for their pair.
+
 ---
 
 # Ring 2 · Contracts
@@ -1443,7 +1601,9 @@ third; the program writes the second.
 | **`del Tag[agent]` in a `finally`** | guaranteed: the language runs a `finally` whenever its block ends, by finishing or by raising |
 | **`At_Exit(agent)`** | opt-in: teardowns also run at normal interpreter exit; registration is weak |
 
-Every teardown runs at most once, whichever tier reaches it first.
+Every teardown runs at most once, whichever tier reaches it first. The
+finalizer and `At_Exit` also end the Agent's Links (§1.10), after its
+own teardowns, its exits from Links that hold it included.
 
 **A block that holds a Tag** (STEP-SPEC-31) is a tagging and a Rip,
 joined by the language's own `try` and `finally`. The rule: **tag before
@@ -1608,7 +1768,15 @@ A conforming implementation provides, ring by ring:
 - every condition read on the Agent by its name as a plain boolean, with
   a condition's name refused to Actions, Records and host members;
 - Delete; the three access forms, with Agent-bound views as read-only
-  snapshots requiring active membership.
+  snapshots requiring active membership;
+- Links: a `@Link` Relation granting each Agent a distinct Tag held under
+  its name, read-only and in a closed slot; two seats, the Agent then the
+  Contact; linking as a tagging of the Contact with the Pair as receiver;
+  one Pair per Contact across a Link's Form, sound on its own; Relation
+  Bases resolved per Agent; extension of a held Link over every Pair;
+  `@Public` lines onto the Contact and `@Secret` in-house; the doors of
+  the Agent and the Pair, never the Contact's; nothing on a Contact, a
+  Link or a Pair naming the Link's Agent; every act on a Relation refused.
 
 **Ring 2**
 - strict boolean conditions; Preconditions gating only the current call,
@@ -1625,7 +1793,10 @@ A conforming implementation provides, ring by ring:
   reported; the three deletion tiers, the finalizer and `At_Exit` from
   the implementation, and the guaranteed one written by the program, a
   Rip in a `finally`; the Agent's `__del__` as Layers of its Overlay,
-  run after the teardowns, and alone at interpreter exit.
+  run after the teardowns, and alone at interpreter exit;
+- an Agent's deletion, and `At_Exit`, ending its Links after its own
+  teardowns, the dying Agent in the first seat; a Contact's deletion
+  unlinking her; each Pair's teardowns at most once.
 
 **Everywhere**
 - the failure types above, distinct and named.

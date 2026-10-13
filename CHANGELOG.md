@@ -76,6 +76,27 @@
   wiki page "Tools: what an Agent has" runs as one program under the
   suite.
 
+- **Links:** `@Link` over a Tag declared in a Tag's body makes it a
+  **Relation**, and every Agent of that Tag gains **a Tag of its own**,
+  its Link, under the Relation's name (STEP-SPEC-22, Vetting; §1.10).
+  `charlie.Knows(ruth, since=2010)` links a **Contact**: a tagging of
+  Ruth with the **Pair** as receiver, so the Relation's gate, Records,
+  Imprints and promises take two seats, the Agent then the Contact, and
+  land on `charlie.Knows[ruth]`, never on Ruth. A Link is read-only, in
+  a closed slot, and sticky; its Bases are Relations resolved per Agent,
+  and a Link and its Base Links share one Pair per Contact; a Shape of
+  the declaring Tag extends a held Link and every Pair it holds in the
+  same call. `@Public` members are lines onto the Contact, `@Secret`
+  members stay in-house, and a Link's code runs behind the doors of its
+  Agent and the Pair, never the Contact's. Nothing on a Contact, a Link
+  or a Pair names the Link's Agent, which the kit holds weakly.
+  `del charlie.Knows[ruth]` and `del charlie.Knows[:]` unlink, as does
+  either one's deletion and `At_Exit`; each Pair's teardowns run at most
+  once. Every Tag-level act on a Relation is a Composition Failure that
+  points to a Link, and a Relation is never a Tool kind or a Pin. The
+  wiki page "Links: a Tag of one's own" runs as one program under the
+  suite.
+
 - **Presence by name:** `"name" @ agent` checks current contributions,
   including host bindings; `"name" @ Tag[agent]` checks the captured view.
   False values and `None` count as present. The query respects Secret and

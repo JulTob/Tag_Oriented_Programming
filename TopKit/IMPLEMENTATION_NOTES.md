@@ -22,6 +22,7 @@ tracks splitting them by idea without changing semantics.
 | `contracts.py` | strict verdicts, binding conditions, `Contract` |
 | `constants.py` | protecting Constant bindings without freezing their values |
 | `tools.py` | Tool slots: a Record's kind, a Tag or a class, admission at the gaining and at every write |
+| `links.py` | Links: Relations, each Agent's Link, the Pairs, linking, extension, lines and ending |
 | `presence.py` | Contribution presence without evaluating values or conditions |
 | `transactions.py` | the tagging sequence and the call boundary |
 | `lifecycle.py` | Rip, teardown, `At_Exit` |
@@ -316,10 +317,39 @@ rollback target.
   checked and `object.__setattr__` on that name is the documented
   bypass.
 
+- **Links** (`links.py`, STEP-SPEC-22, §1.10). Each Agent's Link is a
+  real Tag, made for that Agent at the declaring Tag's Parts
+  (`_grant` from `_apply_one`), so its Field, history, algebra and Rip
+  are the kit's own. Each Pair is a hidden Agent (`links.Pair`) tagged
+  with the Relation's *Pair Tag*: the Relation's Agent-scope
+  declarations, each wrapped by `_two_seats` so the Pair's own seat
+  becomes the Agent and the Contact. The Pair's gate, Parts, Imprints,
+  promises, Underlays, secrets and truth are therefore ordinary tagging.
+  Linking runs the Pair's tagging first, then the Contact's membership
+  in the Link: a refusal before her entry changes nothing. The Contact
+  receives three things only: membership, the `@Public` lines
+  (`_publish_lines`), and a teardown in `state.rips[link]` that unlinks
+  her when she is deleted. A line shuts her composition door while the
+  Link's code runs. The kit holds the Link's Agent weakly (on the
+  Link's record and on each Pair's ends), and every `finally` that held
+  an error sets its local to `None`, so a traceback cycle never keeps
+  the Agent alive.
+  The call boundary (`_Call_Boundary`) gained `undo` and `writes`: a
+  linking inside a call that rolls back registers its undo there, and
+  extending a held Link defers each Pair's Imprints and promises until
+  the Agent's Commit. A Link name gets a read-only `_Link_Gate`
+  descriptor and the binding write hooks, so `object.__setattr__` is
+  refused too. `Tags`, `Outline`, the contract title and by-name views
+  skip Links: nothing public on a Contact names the Agent who links her.
+  At the Agent's deletion `_begin_ending` marks its Links as ending
+  before any teardown runs, so a reference cycle, where weak references
+  are cleared first, still finds a self-link's Pair and runs its
+  teardowns once.
 - **The oracle** (`tests/oracle_topkit.py`): an independent model of
   the laws driven by a random walk; `tests/test_oracle.py` runs a short
   walk under the suite. Run it at size with `--seeds 50 --steps 1200
-  --population 18` (about 60,000 transitions, under twenty seconds).
+  --population 18` (about 120,000 transitions with the Links walk,
+  `Run_Links`, under a minute).
 - **Stacked `@Pre @Post`** marks the function's kind `"condition"`, in
   either order; the scan appends it to both lists and `_name_checks`
   registers both named failures. It is the only spelling: `@Requirement`,
