@@ -369,15 +369,22 @@ rollback target.
   Link's record and on each Pair's ends), and every `finally` that held
   an error sets its local to `None`, so a traceback cycle never keeps
   the Agent alive.
-  The call boundary (`_Call_Boundary`) gained `undo`, `writes` and
-  `open`. A linking registers its undo on the call it is part of
-  (`_open_boundary()`). A call that rolls back runs its undo steps first,
+  The call boundary (`_Call_Boundary`) gained `undo`, `writes`, `open`
+  and `agent`. A linking registers an `_Undo_Step` on the call it is part
+  of (`_open_boundary()`), naming its owners: the Link's Agent and the
+  Contact; a Link granted or extended names its Agent. A call that rolls
+  back runs, latest first, the steps its own Agent owns (`_undo_owned`),
   then restores its own Agent, so an Agent linked as a Contact during its
-  own call ends as it was at the call. A call that does not roll back
-  hands its steps to the call around it (`_hand_over`), so a linking made
-  anywhere inside a call that later rolls back is undone with it; a
-  linking runs its Pair's and its Contact's calls under a boundary of its
-  own for the same reason. A boundary closes when its call returns
+  own call ends as it was at the call; it hands the other steps outward.
+  A call that does not roll back hands all its steps to the call around
+  it (`_hand_over`). So a linking is undone with any rolled-back call on
+  its Agent or its Contact, however deep inside it was made, and a call
+  on a third Agent leaves it, as §0.6 leaves that Agent's other
+  taggings. A linking runs its Pair's and its Contact's calls under a
+  boundary of its own, which undoes everything inside it when her entry
+  is refused. An undone linking restores the Contact's snapshot when
+  nothing else changed her Tags since (`_undo_linking`); otherwise she
+  leaves those Links silently. A boundary closes when its call returns
   (`_close`): an asyncio task that copied the context of a finished call
   links on its own. Extending a held Link runs every Pair's gate first
   (`_gate_form`), then every Pair's Parts (`gated=True`), and defers
