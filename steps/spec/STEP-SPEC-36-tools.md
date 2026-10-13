@@ -305,7 +305,9 @@ isolation or automatic bearer reference. With self-reference, these are
 one Agent's door, not two independent doors.
 
 The Director's truth decisions are recorded in STEP-SPEC-40 and
-STEP-SPEC-42, with implementation in PRs #155 and #156:
+STEP-SPEC-42. STEP-SPEC-42's implementation is on `main` (PR #155);
+STEP-SPEC-40's is PR #160, open (#156's truth code never reached
+`main`):
 
 - For ordinary object Agents, bool asks whether visible Posts hold,
   including before Field entry when Posts have already been gained.

@@ -1254,6 +1254,54 @@ class Host_Tests(unittest.TestCase):
             sam.__getattribute__ = Staff()
         self.assertEqual(sam.visible, "ordinary lookup")
 
+    def test_a_tool_named_del_keeps_finalization_and_field_removal(self):
+        seen = []                                         # from #159, on main's API
+
+        class Finalized_Host:
+            def __init__(host):
+                host.name = "host"
+
+            def __del__(host):
+                seen.append("host finalizer")
+
+        class Given(Tag):
+            @Tool(Sword)
+            def __del__(agent, *, tool):
+                return tool
+
+            @Rip
+            def Stand_Down(agent):
+                seen.append("Rip")
+
+        agent = Finalized_Host()
+        sword = Sword()
+        Given(agent, tool=sword)
+        self.assertIs(agent.__del__, sword)
+        self.assertIn(agent, Given[:])
+        reference = weakref.ref(agent)
+        del agent
+        gc.collect()
+        self.assertIsNone(reference())
+        self.assertEqual(list(Given[:]), [])
+        self.assertEqual(seen, ["Rip", "host finalizer"])
+
+    def test_a_late_plain_binding_never_reads_the_values_class(self):
+        observed = []                                     # from #159, on main's API
+
+        class Value:
+            @property
+            def __class__(value):
+                observed.append("read")
+                raise RuntimeError("a plain value must not be inspected")
+
+        class Example(Tag):
+            pass
+
+        value = Value()
+        Example.setting = value
+        self.assertIs(Example.__dict__["setting"], value)
+        self.assertEqual(observed, [])
+
 
 # ------------------------------------------------------------------
 # A Pin is marked at its declaration (§1.3, §1.9)
