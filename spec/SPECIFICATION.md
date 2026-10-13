@@ -1220,13 +1220,22 @@ Report or Operation of the Link is published onto its Contacts as §1.5
 says. A line is installed at the linking and sticky; when two Links
 publish one name onto her, the latest linking is what she sees, with the
 usual Overwrite Warning; once unlinked, a line raises a Rogue Access
-Failure. A `@Secret` member belongs to the Link's Agent alone.
+Failure. A published Pair Record over her own Action is refused, as an
+Action line over her Record is. Nothing unpublished of the Link reaches
+her, her own views included. A `@Secret` member, of the Pair or of the
+Link, belongs to the Link's Agent alone: it answers only inside the
+Agent's own code, the Link's functions included.
 
 **The doors.** A Link's functions run inside the composition door of the
-Link's Agent and of the Pair, never the Contact's, on every path: a line
-she calls, a Pair function called from her own code, a linking she asks
-for from her own Action, an Operation of the Link called with her, and a
-teardown her own deletion runs, included.
+Link's Agent and of the Pair, never the door of the Contact they are
+about, on every path: a line she calls, a Pair function called from her
+own code, a linking she asks for from her own Action, an Operation of the
+Link called with her, and a teardown her own deletion runs, included. A
+Link's Report is built with every Contact's door shut, since its value is
+kept and served to all. Otherwise doors follow the call, as §1.5 says for
+every Agent: when a Contact's own Action calls into a Link about another
+Contact, her door is open beneath that call, as it is for any code she
+calls.
 
 **One direction.** A Link points from its Agent to its Contacts. Nothing
 public on a Contact names an Agent who links her: her `Tags`, `Outline`,
