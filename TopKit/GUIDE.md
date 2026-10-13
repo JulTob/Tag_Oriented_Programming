@@ -1116,6 +1116,8 @@ your Reports and Operations there.
 - [The Contracts Guide](CONTRACTS.md): gates, promises and error control,
   aboard a starship; and one promise read by its name, `agent.Has_Oath`.
 - [The Fields Guide](FIELDS.md): populations, partitions and the algebra.
+- [The Links Guide](LINKS.md): things that are true of two: roads between
+  cities, routes, bookings, lessons, each a few lines.
 - [Constant Contributions](CONSTANTS.md): fixed bindings, shared values
   and promises that cannot be replaced or deleted.
 - [The Specification](../spec/SPECIFICATION.md): the laws, ring by ring.

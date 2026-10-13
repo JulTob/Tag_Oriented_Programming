@@ -165,8 +165,16 @@
   since its body would run outside the doors; a family gains no Layer
   while one of its linkings is under way; a Contact's history holds
   Links weakly. A Relation is declared once, in its declaring Tag's body
-  under its own name; binding it again is a Declaration Failure. The wiki page "Links: a Tag of
-  one's own" runs as one program under the suite.
+  under its own name; binding it again is a Declaration Failure. The
+  wiki page "Links: a Tag of one's own" runs as one program under the
+  suite.
+
+- **The Links Guide** (`TopKit/LINKS.md`): the main uses of a Link, one
+  short section each, every block run by the suite: facts about the link
+  (`alicante.Road[marbella].travel_time`), asking who is connected to
+  whom, a route as a walk over links, two-way links written by an
+  Imprint, gates and promises, a Shape as a kind of link, a booking that
+  gives its room back, and what the other end may see.
 
 - **Presence by name:** `"name" @ agent` checks current contributions,
   including host bindings; `"name" @ Tag[agent]` checks the captured view.
