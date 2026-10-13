@@ -45,8 +45,9 @@ nobody disappears from a plain loop silently.
 3. A failure in write raises a Tag Imprint Failure; the Tags stay.
 4. A failure in quality check raises a Tag Postcondition Failure; the Tags
    stay; the Agent is defective while any visible Postcondition fails.
-5. For an ordinary object Agent, `bool(agent)` is true exactly when every
-   visible Postcondition holds. With no Postconditions it is true. The
+5. For an Agent, including a Tag receiving Pins, `bool(agent)` is true
+   exactly when every visible Postcondition holds. With no Posts it is true,
+   even if a Tag's Field is empty. The
    truth protocol is reserved: explicit host truth is refused before
    Tagging and a Tag cannot gain or delete it. A host's `__len__` still
    answers `len(agent)`, but never supplies the Agent's truth.
@@ -100,9 +101,12 @@ first Tagging, and answered **"Yes"** on 2026-10-09. That ruling established
 that no visible Postconditions means true, and the host's
 `__len__` remains its length only. On 2026-10-12 the Director clarified
 that Agent truth is reserved for Posts and chose **“Refuse hosts with an
-explicit __bool__”**. STEP-SPEC-40 records this amendment and preserves
-Tag population truth as its separate question. Its formal disposition
-must precede merging the implementation's Specification amendments.
+explicit __bool__”**. On 2026-10-14 the Director unified Tag truth with
+Agent truth: the Tag checks its own visible Pin Posts, and no Posts means
+true even with an empty Field. `len(Tag)`, `len(Tag[:])` and `len(~Tag)`
+retain the sound, whole and defective cardinalities. STEP-SPEC-40 records
+and clears these amendments; the earlier Tag population-truth exception
+is superseded without changing Rule 6's population meanings.
 
 ---
 

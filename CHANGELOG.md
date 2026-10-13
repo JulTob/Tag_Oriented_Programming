@@ -118,8 +118,12 @@
   object Agent reads its visible Posts from first Tagging, and is true
   when it has none. Hosts with an explicit `__bool__` are refused before
   Tagging effects; truth Gains and deletion are refused at declaration.
-  Host `__len__`, Record-held value truth and Tag population truth retain
-  their own meanings. Plain objects created from an Agent's runtime type
+  Tags follow the same rule for their own visible Pin Posts, independently
+  of their members; no Posts means true even with an empty Field. Use
+  `len(Tag) > 0` for a sound-member existence check. `len(Tag)`, `len(Tag[:])`,
+  `len(~Tag)`, iteration and population algebra retain their existing meanings.
+  Host `__len__` and Record-held value truth remain separate. Plain objects
+  created from an Agent's runtime type
   keep native host truth, including inheritance order and descriptor binding.
 
 - **Ordinary condition names:** Preconditions and Postconditions refuse

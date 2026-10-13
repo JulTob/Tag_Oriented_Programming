@@ -300,9 +300,10 @@ language, not a library's naming.
 | active member? | `agent in Wizard` |
 | carries a keyword? (Flags, §1.8) | `"Undead" in ghoul`, `Undead in ghoul`, `Keyword(ghoul, "Undead")`; a Flag's words the same, `"Wolf" in howler` |
 | ever a member? | `isinstance(agent, Wizard)` |
-| the sound population | `for w in Wizard`, `len(Wizard)`, `if Wizard:` |
+| the sound population | `for w in Wizard`, `len(Wizard)`, `if len(Wizard) > 0:` |
 | the defective population | `for w in ~Wizard`, `if ~Wizard:` |
 | everyone in the Field | `Wizard[:]`, `if Wizard[:]:` |
+| the Tag's own Posts hold | `bool(Wizard)`, `if Wizard:`; no Posts means true, even with an empty Field |
 | populations combined (§2.5) | `Wizard \| Fighter`, `Wizard & Fighter`, `Wizard - Sworn`; the same on `Wizard[:]` and `~Wizard` |
 | one condition, read on the Agent (§2.5) | `agent.Has_Book` |
 | a named Contribution is present (§1.1) | `"Attack" @ agent`, `"Attack" @ Wizard[agent]` |
@@ -321,10 +322,15 @@ language, not a library's naming.
 | a Tag carries a keyword? (Flag Pins, §1.9) | `"Deprecated" in Wizard`, `Keyword(Wizard, "Deprecated")` |
 | a Tag's Pins and contract, as text | `f"{Wizard:pins}"`, `f"{Wizard:contract}"` |
 
-Truth on a Tag is truth on a collection: `if Wizard:` asks whether anyone
-sound is a Wizard right now, `while Enemy:` fights while an enemy stands,
-`if not Boss:` spawns one, `if ~Wizard:` asks whether anyone waits for
-repair.
+Truth on a Tag checks its own visible Posts received through Pins (§1.9),
+just as truth on any Agent checks its Posts. It does not check the Posts
+the Tag declares for its members. A Tag with no Posts is true even with an
+empty Field. Population questions use their cardinalities: `len(Wizard) > 0`
+asks whether any sound Wizard exists, `while len(Enemy) > 0:` continues
+while a sound enemy stands, and `if len(Boss) == 0:` can spawn one.
+`len(Wizard[:])` counts everyone and `len(~Wizard)` counts defective members.
+Population views keep collection truth: `if ~Wizard:` asks whether anyone
+waits for repair, and `if Wizard[:]:` includes sound and defective members.
 
 The Agent's own `in` is reserved for **keywords**: Tags marked `@Flag`
 (§1.8). Ordinary Tags are asked from the Tag's side, `agent in Wizard`.
@@ -1084,9 +1090,12 @@ Field, a gate, a promise, a Rip that is an act, and a history
 `isinstance` remembers. A Tag says what something *is*; a Record says
 what it *has* right now.
 
-**Seats already taken.** `bool(Wizard)` remains "is anyone a sound
-Wizard" (§0.8); a pinned Tag's own promises are read from the Pin's side,
-`Wizard in ~Rare`, `Contract.Display(Wizard)`, `f"{Wizard:contract}"`.
+**The Tag's own contract.** `bool(Wizard)` checks its visible Pin Posts,
+including those retained after Rip; no Posts means true. The Tag's Field
+does not decide its truth. `len(Wizard) > 0` asks for a sound member (§0.8).
+A pinned Tag's promises can also be read from the Pin's side,
+`Wizard in ~Rare`, or inspected with `Contract.Display(Wizard)` and
+`f"{Wizard:contract}"`.
 `f"{Wizard:pins}"` names its Pins. `Wizard.Rare` is the Pin-bound view
 by name, on the same miss-path rule as `charlie.Wizard`.
 
@@ -1278,8 +1287,8 @@ for anyone in Wizard[:]:     # everyone, sound or defective
 assert broken in Wizard      # a defective Agent is still a member
 ```
 
-The plain loop is the working population, and `if Wizard:` asks whether
-it is empty. A broken Agent does not stop being a member (`in`), does not
+The plain loop is the working population, and `len(Wizard) > 0` asks whether
+it contains a member. A broken Agent does not stop being a member (`in`), does not
 leave `Wizard[:]`, and waits in `~Wizard` for repair or Rip. Membership and the loop deliberately disagree for it:
 the loop is the line, and a defective product is off the line.
 
@@ -1336,9 +1345,12 @@ published Report/Operation; a Declaration Failure refuses such a binding.
 An ordinary Python host defining `__bool__` directly or by inheritance is
 refused as a Target with a Composition Failure before Gates, Gainings or
 Target mutation. Its truth is not evaluated or replaced by Tagging.
-Objects held in Records retain their own truth. A Tag, including a Tag
-receiving a Pin, keeps population truth (§0.8); `Contract.Holds(Tag)` asks
-about its contract as a Pin Agent.
+Objects held in Records retain their own truth. A Tag follows the same
+contract rule: `bool(Tag)` checks its own visible Posts received through
+Pins, independently of its members' Posts. No Posts means true even before
+any Pin or with an empty Field. A Pin can explicitly require sound members
+with a Post returning `len(tag) > 0`. Existing lengths and set algebra keep
+their population meanings (§0.8).
 
 ## 2.6 Naming the culprit
 
