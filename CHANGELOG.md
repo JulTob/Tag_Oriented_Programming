@@ -4,6 +4,28 @@
 
 ### TopKit
 
+- **Captured Pin-private Operations:** a captured current Secret Action
+  landed by a Pin, including a Constant Action, requires its pinned Tag's
+  already-open composition door before invocation. Rip, fresh pinning,
+  or a public class-namespace shadow cannot make that capture public.
+  Existing receiver binding and ownership remain
+  unchanged; inherited public Operation dependencies and lazy execution
+  remain separate concerns.
+
+- **Captured Secret Actions:** current Secret Action handles on ordinary
+  object Agents, including Constant Actions, require an already-open
+  composition door on that same Agent when invoked. Capturing a handle
+  does not bypass its Secret boundary, even after Rip, a public Layer,
+  deletion, or a change of Contribution kind. Calls from synchronous
+  Actions and async context hooks retain their authorized access.
+
+- **Synchronous view Actions:** `Tag[agent].Action()` opens its bound
+  Agent's composition door while the selected Action runs, including Pin
+  views and Actions that introduce the first Secret Contribution. The
+  snapshot still selects the Action and exceptions close its door. A
+  captured Secret view Action requires an already-open door on that same
+  Agent; a later public Layer does not remove its captured boundary.
+
 - **Field membership stays behind TOP's doors:** `Tag[:]` no longer
   exposes public `Add` or `Remove` methods. Membership changes through
   Tagging and Rip, so the Field and the Agent's active Tags cannot be

@@ -598,11 +598,53 @@ class _Composing_Pinned_Operation(_Pinned_Operation):
         return Composing
 
 
+class _Secret_Pinned_Operation(_Composing_Pinned_Operation):
+    """A captured Pin-private Operation cannot open its own access door."""
+
+    __slots__ = ("_name",)
+
+    def __init__(
+            operation,
+            function: Function,
+            state: "_State",
+            name: str,
+            ) -> None:
+        super().__init__(function, state)
+        operation._name = name
+
+    def __get__(
+            operation,
+            instance: object,
+            owner: type | None = None,
+            ) -> Any:
+        composing = super().__get__(instance, owner)
+        state = operation._state
+        name = operation._name
+
+        def Secret(
+                *args: Any,
+                **kwargs: Any,
+                ) -> Any:
+            if not _is_composing(state):
+                raise AttributeError(
+                        f"{name!r} is a secret pinned Operation; it is"
+                        " reachable only from its Tag's composition"
+                        )
+
+            return composing(*args, **kwargs)
+
+        Secret.__name__ = composing.__name__
+        Secret.__doc__ = composing.__doc__
+
+        return Secret
+
+
 class _Composing_Bound(_Bound):
     """A bound Action that opens the composition door while it runs, so
     @Secret members resolve inside it."""
 
     __slots__ = ()
+    __doc__ = _Bound.__dict__["__doc__"]   # keep the bound Action's metadata
 
     def __call__(
             bound,
@@ -627,6 +669,46 @@ class _Composing_Bound(_Bound):
             state.composing -= 1
 
 
+class _Secret_Bound(_Composing_Bound):
+    """A bound Secret Action needs an open door before it can open its own.
+
+    Capturing the callable from inside composition grants no later access.
+    Its captured Secret boundary stays even if a newer Layer is public.
+    """
+
+    __slots__ = ("_name",)
+    __doc__ = _Bound.__dict__["__doc__"]
+
+    def __init__(
+            bound,
+            function: Function,
+            agent: object,
+            name: str,
+            ) -> None:
+        super().__init__(function, agent)
+        bound._name = name
+
+    def __call__(
+            bound,
+            *args: Any,
+            **kwargs: Any,
+            ) -> Any:
+        agent = bound._reference()
+
+        if agent is None:
+            raise ReferenceError("the Agent of this Action no longer exists")
+
+        state = _state_of(agent)
+
+        if state is None or not _is_composing(state):
+            raise AttributeError(
+                    f"{bound._name!r} is a secret Action; it is reachable"
+                    " only from its Agent's composition"
+                    )
+
+        return super().__call__(*args, **kwargs)
+
+
 def _bind_to(
         agent: object,
         state: _State,
@@ -645,8 +727,10 @@ def _bind_to(
                 )
         return
 
-    if state.secrets:
-        bound: _Bound = _Composing_Bound(function, agent)
+    if name in state.secrets:
+        bound: _Bound = _Secret_Bound(function, agent, name)
+    elif state.secrets:
+        bound = _Composing_Bound(function, agent)
     else:
         bound = _Bound(function, agent)
 
@@ -662,8 +746,10 @@ def _bind_pinned(
     """A Pin's Action on a Tag: a secret one lives in the state and is
     read through the door; the rest live in the class dictionary."""
 
-    if state.secrets:
-        bound: _Pinned_Operation = _Composing_Pinned_Operation(function, state)
+    if name in state.secrets:
+        bound: _Pinned_Operation = _Secret_Pinned_Operation(function, state, name)
+    elif state.secrets:
+        bound = _Composing_Pinned_Operation(function, state)
     else:
         bound = _Pinned_Operation(function)
 

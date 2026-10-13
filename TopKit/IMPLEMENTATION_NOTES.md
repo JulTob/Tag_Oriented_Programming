@@ -73,6 +73,41 @@ Actions; Agents are built once and play for a long time. So:
   without Secrets use plain callables; context Actions are wrapped even
   then, because a hook may introduce the first Secret while it runs.
 
+Synchronous Actions selected through an Agent-bound Tag view use the same
+composition door, even when that snapshot preceded the first Secret
+Contribution. The view still selects its captured Action; reads inside
+that Action resolve against the live Agent unless it explicitly uses a
+view. Bindings keep the Agent weakly. A Secret Action selected through a
+view requires that same Agent's door to be open before invocation, so a
+handle captured during composition cannot authorize itself afterward.
+The guard preserves the captured Secret boundary when a later Layer is
+public.
+
+Ordinary object Agents also bind their current Secret Actions with this
+invocation guard, including Constant Actions. A synchronous call requires
+that same Agent's active synchronous or execution-local async-context
+door; another Agent's composition grants no access. Capturing a handle,
+ending membership, deleting the current binding, or changing the current
+Contribution's kind does not turn its captured implementation public.
+Authorized calls inside composition remain possible, and captured handles
+still hold their Agent weakly. Lazy execution remains a separate concern
+(#94).
+
+Current Secret Actions landed by Pins use a Secret-specific Operation
+descriptor. Its captured callable checks the pinned Tag's existing
+composition before opening its own door; an unrelated pinned Tag's own
+door supplies no authority. Ordinary and Constant Secret Operations share
+this guard.
+Receiver binding and ownership are unchanged: a captured Pin Operation
+retains its pinned Tag as existing Operation handles do, while the Pin's
+Field remains weak. Rip, fresh pinning, and a refused pinning preserve
+the same state, so authorized calls still work across those boundaries.
+Inherited public Operations still open their declaring Base's state even
+when their receiver is a Shape; such a call can therefore authorize that
+Base's captured Secret Operation. This receiver/authority question and
+inherited Secret dependencies remain pending (#98). This repair neither
+introduces private Pin binding deletion nor governs lazy execution (#94).
+
 ### Presence without evaluation
 
 `"name" @ agent` inspects current bindings rather than asking `hasattr`
