@@ -4,6 +4,21 @@
 
 ### TopKit
 
+- **Population walks follow membership at each turn** (STEP-SPEC-35). A walk saves the
+  Field's join order when it begins. A member Ripped before its saved turn
+  is skipped; if it is tagged again before that turn, it is visited once
+  in its original place. A wholly new member waits for that Field's next
+  walk. If judging soundness Rips a member and leaves it out of that Field,
+  it does not count. Each side of a lazy combination starts its own Field
+  walk when reached.
+  Tags, whole and defective Fields, Pins and combinations share the rule,
+  and their truth and length use the same membership checks as iteration.
+  Each call is a separate live walk. A one-pass materialization
+  uses a comprehension; Python's `list(population)` may first perform a
+  separate live length-hint walk. A union walk keeps the left-side Agents
+  used for deduplication until it ends, so Python cannot reuse an old identity
+  for a distinct Agent on a later side.
+
 - **Synchronous protocol failures:** TopKit rejects native coroutine,
   generator and async-generator returns from Pre, Imprint, Post and Rip
   calls, including composed Rip Underlays. It attempts synchronous disposal

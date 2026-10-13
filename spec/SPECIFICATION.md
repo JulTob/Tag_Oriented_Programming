@@ -1296,6 +1296,13 @@ for b in Wizard & Fighter:            # sound in both
 for u in (Wizard[:] | Fighter[:]) - Sworn:   # anyone with a role who has not sworn
 ```
 
+**A population walk** (STEP-SPEC-35) checks current Field membership at
+each member's turn. A member Ripped before its turn is skipped. If the
+same Agent or Tag is tagged again before its turn, it belongs again and
+must not be skipped merely because it was previously Ripped. TopKit's
+saved-turn ordering and lazy operand timing are documented in its
+[Field guide](../TopKit/FIELDS.md).
+
 **A condition is read on the Agent by its name** (STEP-SPEC-14).
 `agent.Has_Book` is `True` while the promise called `Has_Book` holds and
 `False` when it does not: the language's boolean, computed on read, never
