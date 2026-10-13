@@ -34,6 +34,14 @@ from .state import _state_of
 Check = Callable[[object, dict[str, Any]], Any]
 
 
+def _result_repr(result: Any) -> str:
+    """Keep ordinary diagnostic detail without trusting an invalid value's repr."""
+
+    try:
+        return str.__str__(repr(result))
+    except Exception:
+        return "<result representation unavailable>"
+
 def _refuse_condition_binding(
         agent: object,
         name: str,
@@ -146,15 +154,6 @@ class _Condition_Gate:
                 gate.name,
                 None,
                 )
-
-
-def _result_repr(result: Any) -> str:
-    """Keep ordinary diagnostic detail without trusting an invalid value's repr."""
-
-    try:
-        return str.__str__(repr(result))
-    except Exception:
-        return "<result representation unavailable>"
 
 
 def _verdict(

@@ -59,6 +59,7 @@ class _State:
     host_type: type
     pinned: type | None = None   # the Tag itself, when the Agent is a Tag
     active: list[type] = field(default_factory=list)
+    training: set[type] = field(default_factory=set)   # not yet admitted
     ever: set[type] = field(default_factory=set)
     actions: dict[str, Function] = field(default_factory=dict)
     action_origins: dict[str, type] = field(default_factory=dict)
@@ -90,7 +91,7 @@ class _State:
         that is rolled back closes them on this same object."""
 
         for name in state.__slots__:
-            if name not in ("composing", "checking"):
+            if name not in ("composing", "checking", "training"):
                 setattr(
                         state,
                         name,
@@ -104,6 +105,7 @@ class _State:
                 host_type=state.host_type,
                 pinned=state.pinned,
                 active=list(state.active),
+                training=set(state.training),
                 ever=set(state.ever),
                 actions=dict(state.actions),
                 action_origins=dict(state.action_origins),
@@ -467,7 +469,15 @@ def _state_for(
         if host_of_runtime is not None and not issubclass(type(agent), type):
             # Built from an Agent's runtime type (dataclasses.replace,
             # type(self)(...)): until tagged, it is a plain host object.
-            agent.__class__ = host_of_runtime
+            # Removing an inherited internal representation is a kernel
+            # change. The host decides on its later first actualization,
+            # after the Gate, rather than being asked twice.
+            try:
+                _set_runtime_type(agent, host_of_runtime)
+            except Exception as error:
+                raise TagCompositionError(
+                        f"{host_type.__name__} cannot restore its host runtime type"
+                        ) from error
             host_type = host_of_runtime
 
         state = _State(
@@ -1329,7 +1339,7 @@ def _type_key_of(
             frozenset(state.published),
             frozenset(state.preconditions | state.postconditions),
             bool(state.postconditions),
-            any(_is_flag(tag) for tag in state.active),
+            any(_is_flag(tag) for tag in (*state.active, *state.training)),
             tuple(
                     sorted(
                             (name, id(function))

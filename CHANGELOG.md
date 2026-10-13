@@ -2,7 +2,29 @@
 
 ## Unreleased
 
+### Specification
+
+- **Gates run per Tag:** each missing Tag passes its own Preconditions when
+  its turn arrives. A later refusal or Overlay collision leaves completed
+  Base Taggings in place and stops before the current Tag's Records, Field
+  entry or Imprints. A Shape's Precondition no longer suppresses a missing
+  Base's own Gate; active Tags are still not re-asked.
+
 ### TopKit
+
+- Actions, Records, conditions and deletions now take effect from top to
+  bottom in each Tag. Record builders see earlier declarations, while
+  successful Constant bindings are protected before later Gainings.
+- Gate and candidate-Overlay evaluation now follow the Base-first Tag chain
+  without removing completed Bases when a later Tag refuses or collides.
+- **Admission follows completed training (STEP-SPEC-39):** each Tag passes
+  its Gate, acquires Gains in declaration order, finishes its Imprints, then
+  enters the Field. Failed Gainings or Imprints retain acquired Gains and
+  Posts without admitting the unfinished Tag. Earlier completed Tags stay;
+  Tagging again starts a fresh attempt. Posts judge the completed Form once
+  and a failed Post preserves membership. Tool gains use the same order:
+  their proposed kind is checked before replacing the prior binding or rule,
+  and an acquired Tool remains guarded on a Rogue.
 
 - **Synchronous protocol failures:** TopKit rejects native coroutine,
   generator and async-generator returns from Pre, Imprint, Post and Rip
