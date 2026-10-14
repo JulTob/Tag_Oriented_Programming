@@ -505,8 +505,9 @@ def _preflight_ordinary_gains(
     Returns True when it checked the whole Tag, and False when the Tag needs
     the scratch pass instead: any runtime fact (deletions, conditions,
     Secrets, special methods, published members, Constants, Tools, public
-    Reports), any Report or Operation, a Constant the Agent already holds,
-    an Agent that is a Tag (a Pin), or a Flag.
+    Reports), a public Operation, a Constant the Agent already holds, an
+    Agent that is a Tag (a Pin), or a Flag. An internal Report or Operation
+    only fills a table of the scratch copy, so it changes no check.
 
     The scanner gives each declaration one name, and an ordinary Action or
     Record installed under one name changes nothing another name's checks
@@ -517,9 +518,8 @@ def _preflight_ordinary_gains(
     """
 
     if (
-            declarations.runtime
-            or declarations.reports
-            or declarations.operations
+            declarations.runtime   # includes every public Report (_runtime_facts)
+            or any(public for _name, _operation, public in declarations.operations)   # installs an Agent Action
             or state.constants
             or state.pinned is not None
             or _is_flag(tag)
