@@ -34,7 +34,7 @@ non-owning Field would overlook object destruction and address reuse.
 
 - [Specification, Ring 0](../../spec/SPECIFICATION.md#ring-0--the-kernel).
 - [Conformance](../../CONFORMANCE.md).
-- [Python conformance seed](../../tests/test_topkit.py), supplemented by
+- [Python conformance seed](../../tests/test_topkit/), supplemented by
   [Imprint failure](../../tests/test_nested_imprint.py),
   [Presence](../../tests/test_contribution_presence.py) and
   [Constant](../../tests/test_constants.py) tests where they touch the kernel.
@@ -161,7 +161,7 @@ alternatives, not competing first implementations.
 
 ### 4. Law versus Python mechanism
 
-Source methods below are in `tests/test_topkit.py`. Rows classify the
+Source methods below are in `tests/test_topkit/`. Rows classify the
 assertion, not the entire Python test as one indivisible law.
 
 | Test / assertion | Portable law | Python mechanism or profile detail |

@@ -40,6 +40,7 @@ from .geometry import _form_of
 from .overlay import _install
 from .overlay import _gainings
 from .overlay import _quiet
+from .overlay import _preflight_ordinary_gains
 from .state import STATE
 from .state import _Published
 from .state import _Snapshot
@@ -157,10 +158,12 @@ def _gate(
                 tag,
                 declarations,
                 )
-    scratch = state.Copy()
     quiet = _quiet.set(_quiet.get() + 1)   # the real pass warns; catch_warnings() would reset every registry
 
     try:
+        if _preflight_ordinary_gains(state, tag, declarations):
+            return
+        scratch = state.Copy()
         _install(
                 scratch,
                 tag,
