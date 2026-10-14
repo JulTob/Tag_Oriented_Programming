@@ -4,6 +4,11 @@
 
 ### TopKit
 
+- **Runtime type cache does not own Hosts:** keys use Host identity rather
+  than a strong Host reference. Transient Host/Agent cycles can collect,
+  distinct Hosts with custom equality cannot share the wrong runtime type,
+  and equivalent Agents of one Host still share their runtime type.
+
 - **Invalid Rip declarations fail at declaration:** `@Rip` marks an Action,
   because a teardown remains an ordinary callable Action. Stacking it on
   a Record, condition, Imprint, Delete, Report, Operation, private name,
