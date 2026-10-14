@@ -50,7 +50,7 @@ class Fighter(Tag):
     def Armed(agent):
         return ("weapon" @ agent
                 and agent.weapon in Weapon[:]
-                and Contract.Holds(agent.weapon))
+                and bool(agent.weapon))
 
     @Action
     def Strike(agent):
@@ -79,8 +79,7 @@ only if it is seated again.
 | --- | --- | --- |
 | Does the Gain exist? | `"weapon" @ agent` | Presence; no value read or Post evaluation. |
 | Is the object currently a Weapon? | `agent.weapon in Weapon[:]` | Tag membership, including deficient members. |
-| Do its promises hold? | `Contract.Holds(agent.weapon)` | Its visible Posts, independently of the bearer. |
-| Is an Agent Tool valid? | `bool(agent.weapon)` | Agent contract truth; plain objects retain Python truth. |
+| Do an Agent Tool's promises hold? | `bool(agent.weapon)` | Its visible Posts, independently of the bearer; plain objects retain Python truth. |
 
 **Implementation status.** Implemented in PR #143 (`TopKit/tools.py`,
 exported as `TopKit.Tool`), with `tests/test_tools.py`, a Tool exercise

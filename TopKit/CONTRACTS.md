@@ -614,7 +614,7 @@ print(f"{enterprise:contract}")
 
 enterprise.Vent()
 enterprise.Vent()
-assert Contract.Holds(enterprise)
+assert enterprise
 ```
 
 ---

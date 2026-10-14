@@ -2,7 +2,7 @@
 
 import unittest
 
-from TopKit import (Action, Contract, Delete, Imprint, Operation, Pin, Post,
+from TopKit import (Action, Delete, Imprint, Operation, Pin, Post,
                     Public, Record, Report, Secret, Tag, TagPostconditionError,
                     TagResolutionError, Underlay)
 
@@ -191,12 +191,12 @@ class ContributionPresenceTests(unittest.TestCase):
         agent.want_optional = False
         Prepared(agent)
 
-        self.assertTrue(Contract.Holds(agent))
+        self.assertTrue(bool(agent))
         self.assertFalse("optional" @ agent)
         agent.optional = False
         self.assertTrue("optional" @ agent)
         del agent.required
-        self.assertFalse(Contract.Holds(agent))
+        self.assertFalse(bool(agent))
 
     def test_a_post_requiring_a_missing_name_raises_and_keeps_the_tag(self):
         class Promised(Tag):
@@ -210,7 +210,7 @@ class ContributionPresenceTests(unittest.TestCase):
 
         self.assertIn(agent, Promised[:])
         self.assertFalse("missing" @ agent)
-        self.assertFalse(Contract.Holds(agent))
+        self.assertFalse(bool(agent))
 
     def test_nonstring_matrix_operands_keep_the_host_operators(self):
         calls = []

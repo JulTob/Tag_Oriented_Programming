@@ -599,7 +599,8 @@ Three laws govern the slot:
    if it is seated again, and a class kind admits it. Admission never
    evaluates the object's contract. Presence (`"weapon" @ agent`),
    current membership (`agent.weapon in Weapon[:]`) and soundness
-   (`Contract.Holds(agent.weapon)`) stay three questions.
+   (`bool(agent.weapon)`, once it is known to be an Agent) stay three
+   questions. An untagged value retains ordinary Python truth.
 2. **The slot is never empty, unless its kind says so.** With a kind of
    Tags and classes alone, a builder that returns `None` and an
    assignment of `None` are Composition Failures. A kind written with
@@ -1391,7 +1392,6 @@ names the promise that broke:
 Contract.Postconditions(agent)   # promises hold, or raise naming one
 Contract.Preconditions(agent)    # gates still hold, or raise
 Contract.Conditions(agent)       # both, Pre then Post
-Contract.Holds(agent)            # the boolean form, spelled out
 Contract.Status(agent)           # {condition: holds?}, never raises
 print(Contract.Display(agent))
 # Hero[Wizard] contract:

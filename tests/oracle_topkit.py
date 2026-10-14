@@ -523,8 +523,6 @@ def Assert_Contract(
         expected["Ready"] = model.ok                                  # sticky: Rip leaves the gate on the record
 
     assert status == expected, (context, "contract", status, expected)
-    assert Contract.Holds(target) is model.Sound(), (context, "soundness", model.Sound())
-
     assert bool(target) is model.Sound(), (context, "truth", model.Sound())
 
     for name, holds in expected.items():

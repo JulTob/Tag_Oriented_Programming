@@ -1486,7 +1486,6 @@ def Querying(
                 f"Form({tag})",
                 f'f"{{{tag}:form}}"',
                 f"Contract.Status({agent})",
-                f"Contract.Holds({agent})",
                 f"Contract.Postconditions({agent})",
                 f"Contract.Preconditions({agent})",
                 f"Contract.Conditions({agent})",
