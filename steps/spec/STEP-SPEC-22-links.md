@@ -336,6 +336,26 @@ the tag to two. then they can operate together." Section 10 shows it
    is the Agent's code about a Pair. It never reads the Contact's
    secrets. This reverses what a tagging opens today, which is the door
    of the Agent being tagged.
+   - **Code that runs later.** A Pair Action, an Operation or another
+     class method may be a generator function or a coroutine function.
+     Each step of its body runs inside the same doors (the Agent's and
+     the Pair's open, every Contact's shut, her async door too), and
+     between two steps every door is as the caller left it: her own code
+     keeps her door, and other tasks keep theirs. The Agent's door opens
+     at the steps although an ordinary Agent's own generator or async
+     Action has none: a Link's function is the Agent's code about a Pair,
+     with no exception for the code that runs late. `send`, `throw`,
+     `close`, the return value and `GeneratorExit` behave as Python's, and
+     `close()` and a collection run the body's cleanup inside the doors.
+   - **Still refused**, each a Declaration Failure at class use: an async
+     generator function, because the event loop closes an async
+     generator itself (`loop.shutdown_asyncgens`, the collection hook),
+     outside any wrapper, so its cleanup would run outside the doors; a
+     generator-based coroutine (`@types.coroutine`), which is neither a
+     generator function nor a coroutine function to the kit; and a
+     generator or coroutine function that is a Record, a condition, an
+     Imprint, a teardown or a Report builder, which the kit runs itself
+     and never iterates or awaits.
 7. **Nothing lands on the Contact, unless published.** What a Relation
    declares for the Pair lands on the Pair. Nothing of it is read by name
    on the Contact, listed in her contract, or re-checked at her later
@@ -946,6 +966,9 @@ name: `Link`. No parameter name is reserved.
 | `member` instead of `contact` | Set aside by the Director: "an agent and a contact makes clear who is the main subject and who is the object". `member` also already names contributions in §1.5 ("a published member"). |
 | An optional Contact seat, passed only when declared | Rejected: a one-seat body would silently check the Agent who links. |
 | The Contact's door open too | Rejected: linking would become a way to read the Contact's secrets. |
+| A context-local marker that shuts the Contact's door for a coroutine (a `ContextVar` that `_is_composing` consults) | Rejected: it cannot see steps. Her own Action called by the Link's code finds her door shut (the marker beats the counter); a coroutine driven by hand leaves the marker in the caller's context between steps, so her own code finds her door shut; a coroutine closed or collected in another context runs its cleanup outside the marker, in her open door. Stepping with the counters is sound at each of the three. |
+| Async generator functions, stepped like generators | Refused: the event loop registers each async generator it sees and closes it itself at `loop.shutdown_asyncgens` and at its collection, outside any wrapper; in a run of the probe the loop closed the inner generator directly in most orders, so the cleanup ran outside the doors. |
+| Wrapping any generator or coroutine a Link's function returns (the second round) | Rejected in the third round: it wrapped code the Link never wrote and kept Agents alive. Only a function declared as a generator or a coroutine is stepped. |
 | A query from the Contact back to the Agents who link her, `Owners(ruth, Social.Knows)` or `ruth in Social.Knows` (the first draft) | Rejected by the Director: links point one way, and TOP speaks in the language's own structures, not in query functions. The spelling is now refused (section 9). |
 | The holding Agent in the Link's display, `Knows[Charlie]` (the first draft) | Withdrawn: it would lead from the Contact to the Agent. |
 | A marker for two-way Links, `@Link(both_ways=True)` | Set aside: the Imprint says it in two visible lines, and a marker would hide what runs. |
@@ -1148,9 +1171,14 @@ implementation follows `main`'s law as it stands, and says so:
   linked after the extension; Contacts already linked keep their lines.
 - A Link's code shuts the synchronous door of the Contact it is about
   for as long as it runs; an async door she opened in her own context is
-  not shut by it. Generator and coroutine functions are refused in a
-  Relation's body; what a Link's code hands back to run later, a closure
-  or a generator made elsewhere, runs under the doors of whoever runs it.
+  not shut by it; a generator or a coroutine function of the Relation
+  does shut it, at every step. What a Link's code hands back to run later,
+  a closure or a generator made elsewhere, or a task its coroutine hands
+  to the event loop, runs under the doors of whoever runs it. A stranger's
+  callable or awaitable that the Link's code calls or awaits runs inside
+  its doors, as it does in an ordinary function. A function that hides
+  being a generator or a coroutine behind a decorator is an ordinary
+  function that returns one.
 - Doors otherwise follow the call (§1.5): when a Contact's own Action
   calls into a Link about another Contact, or calls a Link Operation
   without passing herself, or calls one of its static methods, her door
@@ -1305,10 +1333,13 @@ settled as rules instead (below).
 - *`@Secret` on a Link's own Report or Operation* means in-house, as the
   Director asked in rule 2.7: it answers only inside the Agent's code.
 - *The doors*, as the known limits above state. They hold while the
-  Link's code runs. A generator or coroutine function is refused in a
-  Relation's body rather than stepped behind the doors: stepping needed
-  its own protocol machinery, and the third round found it wrapped code
-  the Link never wrote. A later STEP may bring it back.
+  Link's code runs. A generator or coroutine function was refused in a
+  Relation's body after the third round, because stepping wrapped code
+  the Link never wrote and kept Agents alive. It is stepped again, for
+  the functions the Relation declares as generators or coroutines and no
+  other (rule 3.6), holding the Agent, the Pair and the Contacts weakly.
+  The refusal stays for an async generator function and for the kinds the
+  kit never iterates or awaits.
 - *A family gains no Layer while a linking or an extension of it is
   under way.* Laying it on the Pair in flight made one undo take back
   the other's work.
@@ -1351,8 +1382,11 @@ Shown by `tests/test_links.py`, by the Acceptance list above:
   `Lifetime_Review_Tests`, `Door_Review_Tests`, `Integration_Review_Tests`,
   `Second_Round_Tests`, `Variant_Tests`, `New_Code_Review_Tests`,
   `Third_Round_Tests`, `Final_Round_Tests`;
-- generator and coroutine functions refused, and a generator handed
-  through a Link left alone: `New_Code_Review_Tests`.
+- generator and coroutine functions stepped behind the doors at every
+  step, under `asyncio.run`, `gather`, `wait_for`, timeouts, task groups,
+  cancellation, by hand, closed or collected in another context or in
+  her own Action: `Step_Contextvar_Tests`; their refusals, and a
+  generator handed through a Link left alone: `New_Code_Review_Tests`.
 
 Also: `tests/spec_examples.py` runs §1.10's examples; the oracle's
 `Run_Links` walks Links, Shape Links, extensions, and Agents and Contacts

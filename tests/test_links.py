@@ -7,9 +7,13 @@ doors, the Relation's refused spellings, ending in reference cycles, and
 the barrier.
 """
 
+import asyncio
 import contextvars
 import copy
 import gc
+import inspect
+import sys
+import types
 import unittest
 import warnings
 import weakref
@@ -22,6 +26,8 @@ from TopKit import (Action, At_Exit, Contract, Delete, Flag, Imprint,
                     TagPreconditionError, TagResolutionError,
                     TagRogueAccessError, Tags, Tool, Underlay)
 from TopKit.lifecycle import _teardown_all
+from TopKit.links import _stepper_of
+from TopKit.state import _state_of
 
 
 class Character:
@@ -2902,44 +2908,100 @@ class New_Code_Review_Tests(unittest.TestCase):
         charlie.Knows(ruth, nickname="Ru2")
         self.assertEqual(charlie.Knows[ruth].nickname, "Ru2")   # a new linking builds a new Pair
 
-    def test_a_generator_or_coroutine_is_never_a_links_function(self):
-        import types
-
+    def test_a_generator_or_coroutine_is_a_links_function_only_where_the_kit_steps_it(self):
         def Declare(body):
             return type("Holder", (Tag,), {"Member": Link(type("Member", (Tag,), body))})
 
-        def generator_action(agent, contact):
-            yield 1
+        def Generator():
+            def generator(agent, contact):
+                yield 1
 
-        async def coroutine_action(agent, contact):
-            return 1
+            return generator
 
-        async def async_generator_action(agent, contact):
-            yield 1
+        def Coroutine():
+            async def coroutine(agent, contact):
+                return 1
+
+            return coroutine
+
+        def Async_Generator():
+            async def async_generator(agent, contact):
+                yield 1
+
+            return async_generator
+
+        def Link_Generator():
+            def generator(link):
+                yield 1
+
+            return generator
+
+        def Link_Async_Generator():
+            async def async_generator(link):
+                yield 1
+
+            return async_generator
+
+        def Link_Coroutine():
+            async def coroutine(link):
+                return 1
+
+            return coroutine
 
         @types.coroutine
         def old_style_coroutine(agent, contact):
             yield
 
-        def generator_operation(link):
-            yield 1
-
-        async def coroutine_builder(link):
-            return 1
-
-        refused = {
-                "a generator Pair Action": {"Stream": generator_action},
-                "a coroutine Pair Action": {"Fetch": coroutine_action},
-                "an async generator Pair Action": {"Feed": async_generator_action},
+        async_generators = {
+                "an async generator Pair Action": {"Feed": Async_Generator()},
+                "an async generator Operation": {"Scan": Operation(Link_Async_Generator())},
+                }
+        generator_based = {
                 "a types.coroutine Pair Action": {"Old": old_style_coroutine},
-                "a generator Operation": {"Scan": Operation(generator_operation)},
-                "a coroutine Report builder": {"total": Report(coroutine_builder)},
+                }
+        never_stepped = {
+                "a generator Record": {"stream": Record(Generator())},
+                "a coroutine Record": {"fetch": Record(Coroutine())},
+                "a generator Precondition": {"Vet": Pre(Generator())},
+                "a coroutine Postcondition": {"Still": Post(Coroutine())},
+                "a generator Imprint": {"Note": Imprint(Generator())},
+                "a coroutine Imprint": {"Later": Imprint(Coroutine())},
+                "a generator teardown": {"Forget": Rip(Generator())},
+                "a coroutine teardown": {"Forget": Rip(Coroutine())},
+                "a coroutine Report builder": {"total": Report(Link_Coroutine())},
+                "a generator Report builder": {"count": Report(Link_Generator())},
                 }
 
-        for label, body in refused.items():
+        for label, body in async_generators.items():
             with self.subTest(label):
-                with self.assertRaises(TagDeclarationError):
+                with self.assertRaises(TagDeclarationError) as raised:
                     Declare(body)
+
+                self.assertIn("async generator", str(raised.exception))
+
+        for label, body in generator_based.items():
+            with self.subTest(label):
+                with self.assertRaises(TagDeclarationError) as raised:
+                    Declare(body)
+
+                self.assertIn("@types.coroutine", str(raised.exception))
+
+        for label, body in never_stepped.items():
+            with self.subTest(label):
+                with self.assertRaises(TagDeclarationError) as raised:
+                    Declare(body)
+
+                self.assertIn("never iterates or awaits", str(raised.exception))
+
+        for label, body in {
+                "a generator Pair Action": {"Stream": Generator()},
+                "a coroutine Pair Action": {"Fetch": Coroutine()},
+                "a generator Operation": {"Scan": Operation(Link_Generator())},
+                "a coroutine Operation": {"Wait": Operation(Link_Coroutine())},
+                "a coroutine class method": {"Later": classmethod(Link_Coroutine())},
+                }.items():
+            with self.subTest(label):
+                Declare(body)                         # the kit steps these behind the doors
 
         async def _helper(value):
             yield value
@@ -3610,6 +3672,855 @@ class Final_Round_Tests(unittest.TestCase):
             charlie.Knows(ruth)
         self.assertNotIn(ruth, charlie.Member)
         self.assertIn(dora, Club)
+
+
+# ------------------------------------------------------------------
+# Generators and coroutines in a Relation: every step behind the doors
+# ------------------------------------------------------------------
+
+
+Seen: list = []   # what a Link's cleanup saw, cleared by each test
+
+OPEN_DOORS = ("his ledger", "the Pair's secret", "shut")   # the Agent's and the Pair's open, the Contact's shut
+
+
+def Doors_Seen(agent, contact):
+    """What a Link's code sees at one step: the Agent's secret, the Pair's,
+    the Contact's."""
+
+    return (
+            Read_Or_Shut(agent, "ledger"),
+            Read_Or_Shut(agent.Sees[contact], "code"),
+            Read_Or_Shut(contact, "journal"),
+            )
+
+
+def Counters(*things):
+    """The composition counter of each: zero when no door of it is open."""
+
+    return tuple(_state_of(thing).composing for thing in things)
+
+
+@types.coroutine
+def Pause():
+    yield   # a bare suspension: whoever drives the coroutine resumes it
+
+
+class Observed(Tag):
+    @Secret
+    @Record
+    def ledger(agent):
+        return "his ledger"
+
+    @Link
+    class Sees(Tag):
+        @Secret
+        @Record
+        def code(agent, contact):
+            return "the Pair's secret"
+
+        @Public
+        def Stream(agent, contact):
+            yield Doors_Seen(agent, contact)
+            yield Doors_Seen(agent, contact)
+            return "finished"
+
+        def Echo(agent, contact):
+            got = yield "ready"
+            got = yield (got, Doors_Seen(agent, contact))
+            return got
+
+        def Guarded(agent, contact):
+            try:
+                yield "first"
+            except ValueError:
+                yield ("caught", Doors_Seen(agent, contact))
+            yield "after"
+
+        def Cleaning(agent, contact):
+            try:
+                yield "working"
+            finally:
+                Seen.append(Doors_Seen(agent, contact))
+
+        def Goodbye(agent, contact):
+            try:
+                yield "working"
+            except GeneratorExit:
+                Seen.append(Doors_Seen(agent, contact))
+                return "goodbye"
+
+        def Stubborn(agent, contact):
+            try:
+                yield 1
+            except GeneratorExit:
+                yield 2
+
+        def Interrupted(agent, contact):
+            yield 1
+            raise KeyboardInterrupt
+
+        def Relay(agent, contact):
+            inner = yield from agent.Sees[contact].Stream()
+            yield ("relayed", inner)
+
+        def Forgets(agent, contact):
+            del agent, contact
+            yield 1
+            yield 2
+
+        def Calls_Her(agent, contact):
+            yield contact.Read_Own()   # her own Action: her door opens for it, as for any code that calls her
+
+        async def Fetch(agent, contact):
+            before = Doors_Seen(agent, contact)
+            await asyncio.sleep(0)
+            after = Doors_Seen(agent, contact)
+            return before, after
+
+        async def Slow(agent, contact):
+            try:
+                await asyncio.sleep(10)
+            finally:
+                Seen.append(Doors_Seen(agent, contact))
+
+        async def Hang(agent, contact):
+            try:
+                await Pause()
+            finally:
+                Seen.append(Doors_Seen(agent, contact))
+
+            return Doors_Seen(agent, contact)
+
+        async def Coroutine_Goodbye(agent, contact):
+            try:
+                await Pause()
+            except GeneratorExit:
+                Seen.append(Doors_Seen(agent, contact))
+                return "goodbye"
+
+        async def Enter_Her_Hook(agent, contact):
+            async with contact as inside:       # her own async context hook, entered by the Link's code
+                return inside
+
+        async def Fails(agent, contact):
+            await asyncio.sleep(0)
+            raise ValueError("a failing coroutine")
+
+        async def Forgets_Later(agent, contact):
+            del agent, contact
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
+            return "done"
+
+        async def Calls_Her_Later(agent, contact):
+            await asyncio.sleep(0)
+            return contact.Read_Own()
+
+        @Public
+        async def Greet_Later(agent, contact):
+            await asyncio.sleep(0)
+            return Doors_Seen(agent, contact)
+
+
+class Journaled(Tag):
+    @Secret
+    @Record
+    def journal(agent):
+        return "her journal"
+
+    def Read_Own(agent):
+        return agent.journal
+
+    def Walk(agent, steps):
+        return [(step, Read_Or_Shut(agent, "journal")) for step in steps]
+
+    def Walk_Own_Line(agent):
+        return [(step, Read_Or_Shut(agent, "journal")) for step in agent.Stream()]
+
+    def Close_It(agent, steps):
+        return steps.close()
+
+    def Drop_It(agent, held):
+        held.clear()   # the last reference goes while her door is open
+
+    def Collect(agent):
+        gc.collect()   # the cyclic collector runs while her door is open
+
+    def Run_Own_Line(agent):
+        return asyncio.run(agent.Greet_Later())
+
+    def Drive(agent, work):
+        before = _state_of(agent).composing
+        work()
+
+        return before, _state_of(agent).composing
+
+
+class Step_Contextvar_Tests(unittest.TestCase):
+    """A generator function or a coroutine function of a Relation: its body
+    runs later, when it is iterated or awaited, so the kit takes each of its
+    steps behind the doors of rule 3.6 (the Agent's and the Pair's open, every
+    Contact's shut), and leaves every door as the caller had it between
+    steps. An async generator, and a Record, a condition, an Imprint, a
+    teardown or a Report builder that is lazy, stay refused."""
+
+    def setUp(self):
+        Seen.clear()
+        self.charlie, self.ruth = People("Charlie", "Ruth")
+        Observed(self.charlie)
+        Journaled(self.ruth)
+        self.charlie.Sees(self.ruth)
+        self.pair = self.charlie.Sees[self.ruth]
+
+    def counters(self):
+        return Counters(self.charlie, self.ruth, self.pair)
+
+    # -- generators --------------------------------------------------
+
+    def test_a_generator_takes_every_step_behind_the_doors(self):
+        steps = self.pair.Stream()
+        self.assertEqual(next(steps), OPEN_DOORS)
+        self.assertEqual(next(steps), OPEN_DOORS)         # the second step, long after the call returned
+        with self.assertRaises(StopIteration) as stopped:
+            next(steps)
+        self.assertEqual(stopped.exception.value, "finished")
+        self.assertEqual(self.counters(), (0, 0, 0))
+
+    def test_a_generator_is_a_generator_and_keeps_its_name(self):
+        steps = self.pair.Stream()
+        self.assertTrue(inspect.isgenerator(steps))
+        self.assertEqual(steps.__name__, "Stream")
+        self.assertIn("Sees.Stream", steps.__qualname__)
+        self.assertEqual(list(self.pair.Stream()), [OPEN_DOORS, OPEN_DOORS])
+
+    def test_her_own_code_keeps_her_door_between_two_steps(self):
+        walked = self.ruth.Walk(self.ruth.Stream())       # her line, iterated in her Action
+        self.assertEqual(walked, [(OPEN_DOORS, "her journal"), (OPEN_DOORS, "her journal")])
+        self.assertEqual(self.ruth.Walk_Own_Line(), walked)   # a line made and iterated in her Action
+        self.assertEqual(self.counters(), (0, 0, 0))
+
+    def test_send_throw_and_the_return_value_reach_the_links_code(self):
+        echo = self.pair.Echo()
+        self.assertEqual(next(echo), "ready")
+        self.assertEqual(echo.send("hello"), ("hello", OPEN_DOORS))
+        with self.assertRaises(StopIteration) as stopped:
+            echo.send("bye")
+        self.assertEqual(stopped.exception.value, "bye")
+        with self.assertRaises(TypeError):
+            self.pair.Echo().send("not yet")              # Python's own refusal, a just-started generator
+
+        guarded = self.pair.Guarded()
+        self.assertEqual(next(guarded), "first")
+        self.assertEqual(guarded.throw(ValueError("in")), ("caught", OPEN_DOORS))   # handled in the body
+        self.assertEqual(next(guarded), "after")
+
+        stream = self.pair.Stream()
+        next(stream)
+        with self.assertRaises(KeyError):
+            stream.throw(KeyError("out"))                 # not handled: it comes out
+        with self.assertRaises(StopIteration):
+            next(stream)
+
+        with self.assertRaises(KeyError):
+            self.pair.Stream().throw(KeyError("before the first step"))
+        self.assertEqual(self.counters(), (0, 0, 0))
+
+    def test_close_runs_the_links_cleanup_behind_the_doors(self):
+        steps = self.pair.Cleaning()
+        next(steps)
+        steps.close()
+        self.assertEqual(Seen, [OPEN_DOORS])
+        steps.close()                                     # closing again does nothing
+        self.assertEqual(Seen, [OPEN_DOORS])
+        self.pair.Cleaning().close()                      # never started: no cleanup, as Python's
+        self.assertEqual(Seen, [OPEN_DOORS])
+
+    def test_close_returns_what_the_body_returns_on_generator_exit(self):
+        steps = self.pair.Goodbye()
+        next(steps)
+        closed = steps.close()
+        self.assertEqual(Seen, [OPEN_DOORS])
+        self.assertEqual(closed, "goodbye" if sys.version_info >= (3, 13) else None)
+
+    def test_a_coroutine_close_returns_what_the_body_returns_on_generator_exit(self):
+        coroutine = self.pair.Coroutine_Goodbye()
+        coroutine.send(None)
+        closed = coroutine.close()
+        self.assertEqual(Seen, [OPEN_DOORS])
+        self.assertEqual(closed, "goodbye" if sys.version_info >= (3, 13) else None)
+
+        coroutine = self.pair.Coroutine_Goodbye()
+        coroutine.send(None)
+        with self.assertRaises(StopIteration) as stopped:
+            coroutine.throw(GeneratorExit)               # the body returns on it, as a plain coroutine's does
+        self.assertEqual(stopped.exception.value, "goodbye")
+        self.assertEqual(self.counters(), (0, 0, 0))
+
+    def test_an_error_thrown_into_a_link_coroutine_leaves_no_reference_cycle_behind(self):
+        gc.disable()
+        self.addCleanup(gc.enable)
+        dora, sam = People("Dora", "Sam")
+        Observed(dora)
+        Journaled(sam)
+        dora.Sees(sam)
+        gone = [weakref.ref(dora), weakref.ref(sam)]
+
+        coroutine = dora.Sees[sam].Hang()
+        coroutine.send(None)
+
+        with self.assertRaises(asyncio.CancelledError):
+            coroutine.throw(asyncio.CancelledError())   # a task's cancellation, not caught by the body
+
+        del coroutine, dora, sam
+        self.assertEqual([reference() for reference in gone], [None, None])   # by reference count alone
+
+    def test_a_generator_that_yields_on_close_is_a_runtime_error_and_stays_where_it_was(self):
+        steps = self.pair.Stubborn()
+        next(steps)
+        with self.assertRaises(RuntimeError):
+            steps.close()
+        self.assertEqual(self.counters(), (0, 0, 0))
+        with self.assertRaises(StopIteration):
+            next(steps)                                   # still suspended where it yielded, as Python's
+
+    def test_a_generator_exit_thrown_in_comes_out_as_it_does_from_any_generator(self):
+        steps = self.pair.Stream()
+        next(steps)
+        with self.assertRaises(GeneratorExit):
+            steps.throw(GeneratorExit)                    # not caught by the body: it comes out of throw()
+        with self.assertRaises(StopIteration):
+            next(steps)
+        steps = self.pair.Goodbye()
+        next(steps)
+        with self.assertRaises(StopIteration) as stopped:
+            steps.throw(GeneratorExit)                    # caught by the body, which returns
+        self.assertEqual(stopped.exception.value, "goodbye")
+        self.assertEqual(Seen, [OPEN_DOORS])
+
+    def test_a_generator_closed_or_dropped_in_her_own_action_cleans_up_behind_the_doors(self):
+        steps = self.pair.Cleaning()
+        next(steps)
+        self.ruth.Close_It(steps)                         # her door is open while she closes it
+        self.assertEqual(Seen, [OPEN_DOORS])
+        Seen.clear()
+        held = [self.pair.Cleaning()]
+        next(held[0])
+        self.ruth.Drop_It(held)                           # collected while her door is open
+        self.assertEqual(Seen, [OPEN_DOORS])
+        self.assertEqual(self.counters(), (0, 0, 0))
+
+    def test_suspended_link_code_in_cyclic_garbage_is_closed_behind_the_doors(self):
+        for make in (self.pair.Cleaning, self.pair.Hang):
+            with self.subTest(make.__name__):
+                Seen.clear()
+                thing = make()
+                if inspect.isgenerator(thing):
+                    next(thing)
+                else:
+                    thing.send(None)
+
+                holder = [thing]
+                holder.append(holder)                     # a cycle: only the cyclic collector frees it
+                del thing, holder
+                self.ruth.Collect()                       # it runs while her door is open
+                self.assertEqual(Seen, [OPEN_DOORS])      # the object she held is the older, so it closes first
+
+    def test_every_door_is_as_it_was_after_any_way_out_of_a_generator(self):
+        def work():
+            list(self.pair.Stream())                      # to the end
+            steps = self.pair.Stream()
+            next(steps)
+            steps.close()                                 # closed
+            steps = self.pair.Stream()
+            next(steps)
+            with self.assertRaises(KeyError):
+                steps.throw(KeyError("thrown"))           # thrown through
+            steps = self.pair.Interrupted()
+            next(steps)
+            with self.assertRaises(KeyboardInterrupt):
+                next(steps)                               # the body is interrupted
+            steps = self.pair.Stream()
+            next(steps)
+            with self.assertRaises(KeyboardInterrupt):
+                steps.throw(KeyboardInterrupt)            # an interrupt thrown in
+
+        self.assertEqual(self.ruth.Drive(work), (1, 1))   # her door was open, and is again
+        work()
+        self.assertEqual(self.counters(), (0, 0, 0))
+
+    def test_a_generator_inside_a_generator_keeps_every_step_behind_the_doors(self):
+        self.assertEqual(
+                list(self.pair.Relay()),
+                [OPEN_DOORS, OPEN_DOORS, ("relayed", "finished")],
+                )
+        self.assertEqual(self.counters(), (0, 0, 0))
+
+    def test_her_own_action_called_from_the_links_generator_opens_her_door_for_itself(self):
+        self.assertEqual(list(self.pair.Calls_Her()), ["her journal"])   # doors follow the call
+
+    def test_a_generator_never_keeps_its_agent_or_contact_alive(self):
+        kept = [self.pair.Stream() for _ in range(2)]
+        list(kept[0])                                     # to the end
+        next(kept[1])
+        kept[1].close()                                   # started, then closed
+        forgetful = self.pair.Forgets()
+        next(forgetful)                                   # the body let go of both
+        references = (weakref.ref(self.charlie), weakref.ref(self.ruth))
+        self.pair = None
+        del self.charlie, self.ruth
+        gc.collect()
+        self.assertEqual([reference() for reference in references], [None, None])
+        self.assertEqual(next(forgetful), 2)              # the next step finds nobody to open or shut
+
+    # -- coroutines --------------------------------------------------
+
+    def test_a_coroutine_takes_every_step_behind_the_doors(self):
+        before, after = asyncio.run(self.pair.Fetch())
+        self.assertEqual(before, OPEN_DOORS)
+        self.assertEqual(after, OPEN_DOORS)               # after an await, in a later step
+        self.assertEqual(self.counters(), (0, 0, 0))
+
+    def test_a_coroutine_is_a_coroutine_and_keeps_its_name(self):
+        coroutine = self.pair.Fetch()
+        self.assertTrue(inspect.iscoroutine(coroutine))
+        self.assertTrue(asyncio.iscoroutine(coroutine))
+        self.assertEqual(coroutine.__name__, "Fetch")
+        self.assertIn("Sees.Fetch", coroutine.__qualname__)
+        asyncio.run(coroutine)
+
+    def test_a_coroutine_run_inside_her_own_action_still_finds_her_door_shut(self):
+        self.assertEqual(self.ruth.Run_Own_Line(), OPEN_DOORS)   # asyncio.run beneath her open door
+        self.assertEqual(self.counters(), (0, 0, 0))
+
+    def test_other_tasks_keep_their_own_doors_while_a_link_coroutine_waits(self):
+        async def hers():
+            await asyncio.sleep(0)
+            return self.ruth.Read_Own()                   # her Action in another task: her door opens for it
+
+        async def his():
+            await asyncio.sleep(0)
+            return Read_Or_Shut(self.charlie, "ledger")   # nobody's Action: his door is shut
+
+        async def main():
+            return await asyncio.gather(self.pair.Fetch(), hers(), his())
+
+        self.assertEqual(
+                asyncio.run(main()),
+                [(OPEN_DOORS, OPEN_DOORS), "her journal", "shut"],
+                )
+        self.assertEqual(self.counters(), (0, 0, 0))
+
+    def test_her_own_action_called_from_the_links_coroutine_opens_her_door_for_itself(self):
+        self.assertEqual(asyncio.run(self.pair.Calls_Her_Later()), "her journal")
+
+    def test_gather_wait_for_and_a_coroutine_awaited_from_another(self):
+        async def main():
+            both = await asyncio.gather(self.pair.Fetch(), self.pair.Fetch())
+            only = await asyncio.wait_for(self.pair.Fetch(), 5)
+
+            async def outer():
+                first = await self.pair.Fetch()
+                with self.assertRaises(ValueError):
+                    await self.pair.Fails()
+
+                return first
+
+            return both, only, await outer()
+
+        both, only, third = asyncio.run(main())
+        self.assertEqual(both, [(OPEN_DOORS, OPEN_DOORS)] * 2)
+        self.assertEqual(only, (OPEN_DOORS, OPEN_DOORS))
+        self.assertEqual(third, (OPEN_DOORS, OPEN_DOORS))
+        self.assertEqual(self.counters(), (0, 0, 0))
+
+    def test_a_cancelled_task_cleans_up_behind_the_doors(self):
+        async def main():
+            task = asyncio.ensure_future(self.pair.Slow())
+            await asyncio.sleep(0)                        # its first step: the body waits
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+
+        asyncio.run(main())
+        self.assertEqual(Seen, [OPEN_DOORS])
+        self.assertEqual(self.counters(), (0, 0, 0))
+
+    def test_a_timeout_cleans_up_behind_the_doors(self):
+        async def main():
+            with self.assertRaises(TimeoutError):
+                await asyncio.wait_for(self.pair.Slow(), 0.01)
+
+            with self.assertRaises(TimeoutError):
+                async with asyncio.timeout(0.01):
+                    await self.pair.Slow()
+
+        asyncio.run(main())
+        self.assertEqual(Seen, [OPEN_DOORS, OPEN_DOORS])
+        self.assertEqual(self.counters(), (0, 0, 0))
+
+    def test_a_task_group_cancels_the_others_and_each_cleans_up_behind_the_doors(self):
+        async def main():
+            with self.assertRaises(ExceptionGroup):
+                async with asyncio.TaskGroup() as group:
+                    group.create_task(self.pair.Slow())
+                    group.create_task(self.pair.Slow())
+                    group.create_task(self.pair.Fails())
+
+        asyncio.run(main())
+        self.assertEqual(Seen, [OPEN_DOORS, OPEN_DOORS])
+        self.assertEqual(self.counters(), (0, 0, 0))
+
+    def test_a_task_cancelled_before_its_first_step_runs_nothing_and_warns_of_nothing(self):
+        async def main():
+            task = asyncio.ensure_future(self.pair.Slow())
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            asyncio.run(main())
+            gc.collect()
+
+        self.assertEqual(Seen, [])                        # the body never began
+        self.assertEqual([str(w.message) for w in caught if "never awaited" in str(w.message)], [])
+
+    def test_a_coroutine_never_awaited_warns_once_under_the_links_name(self):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            self.pair.Fetch()                             # dropped at once
+            gc.collect()
+
+        messages = [str(w.message) for w in caught if "never awaited" in str(w.message)]
+        self.assertEqual(len(messages), 1)
+        self.assertIn("Sees.Fetch", messages[0])
+
+    def test_a_wrong_call_fails_at_the_call_as_pythons_does(self):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            with self.assertRaises(TypeError) as raised:
+                self.pair.Fetch(1, 2, 3)
+
+            self.assertIn("Sees.Fetch()", str(raised.exception))   # it names the function, as Python's does
+            with self.assertRaises(TypeError) as raised:
+                self.pair.Stream(1, 2, 3)
+
+            self.assertIn("Stream()", str(raised.exception))
+
+            gc.collect()
+
+        self.assertEqual(caught, [])
+
+    def test_a_coroutine_driven_by_hand_takes_every_step_behind_the_doors(self):
+        coroutine = self.pair.Hang()
+        self.assertIsNone(coroutine.send(None))           # up to the first suspension
+        self.assertEqual(self.counters(), (0, 0, 0))      # between steps every door is the caller's
+        with self.assertRaises(StopIteration) as stopped:
+            coroutine.send(None)
+        self.assertEqual(stopped.exception.value, OPEN_DOORS)
+        self.assertEqual(Seen, [OPEN_DOORS])
+
+    def test_a_coroutine_driven_by_hand_leaves_her_own_code_her_door(self):
+        coroutine = self.pair.Hang()
+        coroutine.send(None)                              # suspended; nothing of it is left on her
+        self.assertEqual(self.ruth.Read_Own(), "her journal")
+        coroutine.close()
+
+    def test_an_interrupt_thrown_into_a_coroutine_leaves_every_door_as_it_was(self):
+        coroutine = self.pair.Hang()
+        coroutine.send(None)
+        with self.assertRaises(KeyboardInterrupt):
+            coroutine.throw(KeyboardInterrupt)
+        self.assertEqual(Seen, [OPEN_DOORS])
+        self.assertEqual(self.counters(), (0, 0, 0))
+
+    def test_a_coroutine_closed_in_another_context_cleans_up_behind_the_doors(self):
+        coroutine = self.pair.Hang()
+        contextvars.copy_context().run(coroutine.send, None)   # its first step, in a context of its own
+        self.ruth.Close_It(coroutine)                     # closed from her Action, in this one
+        self.assertEqual(Seen, [OPEN_DOORS])
+
+    def test_a_coroutine_collected_in_her_own_action_cleans_up_behind_the_doors(self):
+        held = [self.pair.Hang()]
+        held[0].send(None)
+        self.ruth.Drop_It(held)
+        self.assertEqual(Seen, [OPEN_DOORS])
+
+    def test_her_async_context_hook_awaiting_a_line_finds_her_door_shut(self):
+        class Hooked(Tag):
+            @Secret
+            @Record
+            def journal(agent):
+                return "her journal"
+
+            async def __aenter__(agent):
+                before = agent.journal
+                seen = await agent.Greet_Later()          # a line, awaited inside her hook
+                return before, seen, agent.journal
+
+            async def __aexit__(agent, kind, value, traceback):
+                return None
+
+        sam = Character("Sam")
+        Hooked(sam)
+        self.charlie.Sees(sam)
+
+        async def main():
+            async with sam as got:
+                return got
+
+        before, seen, after = asyncio.run(main())
+        self.assertEqual(before, "her journal")
+        self.assertEqual(seen, OPEN_DOORS)                # the Link's code found her door shut
+        self.assertEqual(after, "her journal")            # and her hook has it back
+
+    def test_her_async_hook_entered_by_the_links_coroutine_is_her_own_code_at_every_step(self):
+        class Hooked(Tag):
+            @Secret
+            @Record
+            def journal(agent):
+                return "her journal"
+
+            async def __aenter__(agent):
+                before = agent.journal
+                await asyncio.sleep(0)                   # the Link's coroutine waits inside her hook
+                return before, agent.journal             # and her hook still has its door
+
+            async def __aexit__(agent, kind, value, traceback):
+                return None
+
+        sam = Character("Sam")
+        Hooked(sam)
+        self.charlie.Sees(sam)
+        self.assertEqual(
+                asyncio.run(self.charlie.Sees[sam].Enter_Her_Hook()),
+                ("her journal", "her journal"),
+                )
+
+    def test_a_hook_the_links_coroutine_enters_leaves_her_hooks_door_in_place(self):
+        holder = {}
+
+        class Other(Tag):
+            async def __aenter__(agent):
+                return "in"
+
+            async def __aexit__(agent, kind, value, traceback):
+                return None
+
+        class Busy(Tag):
+            @Link
+            class Sees(Tag):
+                @Public
+                async def Meanwhile(agent, contact):
+                    async with holder["other"]:       # another Agent's hook opens and closes a door here
+                        await asyncio.sleep(0)
+
+                    return Read_Or_Shut(contact, "journal")
+
+        class Hooked(Tag):
+            @Secret
+            @Record
+            def journal(agent):
+                return "her journal"
+
+            async def __aenter__(agent):
+                seen = await agent.Meanwhile()
+                return seen, agent.journal                # her hook's door must still be hers
+
+            async def __aexit__(agent, kind, value, traceback):
+                return None
+
+        dora, sam, tom = Character("Dora"), Character("Sam"), Character("Tom")
+        Busy(dora)
+        Hooked(sam)
+        Other(tom)
+        holder["other"] = tom
+        dora.Sees(sam)
+
+        async def main():
+            async with sam as got:
+                return got
+
+        self.assertEqual(asyncio.run(main()), ("shut", "her journal"))
+
+    def test_a_sync_function_marked_as_a_coroutine_function_is_called_behind_the_doors(self):
+        class Marked(Tag):
+            @Link
+            class Sees(Tag):
+                @Public
+                @inspect.markcoroutinefunction
+                def Late(agent, contact):
+                    prelude = Read_Or_Shut(contact, "journal")   # plain code: it runs when the call is made
+
+                    async def body():
+                        return prelude
+
+                    return body()
+
+        class Waiting(Tag):
+            @Secret
+            @Record
+            def journal(agent):
+                return "her journal"
+
+            def Run_Late(agent):
+                return asyncio.run(agent.Late())              # beneath her open door
+
+        dora, sam = Character("Dora"), Character("Sam")
+        Marked(dora)
+        Waiting(sam)
+        dora.Sees(sam)
+        self.assertEqual(sam.Run_Late(), "shut")
+
+    def test_a_coroutine_never_keeps_its_agent_or_contact_alive(self):
+        async def main():
+            task = asyncio.ensure_future(self.pair.Forgets_Later())
+            await asyncio.sleep(0)                        # the body let go of both, and waits
+            references = (weakref.ref(self.charlie), weakref.ref(self.ruth))
+            self.pair = None
+            del self.charlie, self.ruth
+            gc.collect()
+            gone = [reference() for reference in references]
+            return gone, await task
+
+        self.assertEqual(asyncio.run(main()), ([None, None], "done"))
+
+    # -- Operations and class methods --------------------------------
+
+    def test_an_operation_that_is_a_generator_or_a_coroutine_is_stepped_behind_the_doors(self):
+        holder = {}
+
+        class Rostered(Tag):
+            @Secret
+            @Record
+            def ledger(agent):
+                return "his ledger"
+
+            @Link
+            class Sees(Tag):
+                @Operation
+                def Scan(link, contact):
+                    yield Read_Or_Shut(holder["agent"], "ledger"), Read_Or_Shut(contact, "journal")
+
+                @Operation
+                async def Scan_Later(link, *, who):
+                    await asyncio.sleep(0)
+                    return Read_Or_Shut(holder["agent"], "ledger"), Read_Or_Shut(who, "journal")
+
+                @classmethod
+                def Walk(link, contact):
+                    yield Read_Or_Shut(contact, "journal")
+
+                @Secret
+                @Operation
+                def Vault(link):
+                    yield Read_Or_Shut(holder["agent"], "ledger")
+
+        class Keeper(Tag):
+            def Look(agent):
+                return list(agent.Sees.Vault())           # inside his own code
+
+        dora = Character("Dora")
+        Rostered(dora)
+        Keeper(dora)
+        holder["agent"] = dora
+        dora.Sees(self.ruth)
+        self.assertEqual(list(dora.Sees.Scan(self.ruth)), [("his ledger", "shut")])   # a Contact by position
+        self.assertEqual(asyncio.run(dora.Sees.Scan_Later(who=self.ruth)), ("his ledger", "shut"))   # by name
+        self.assertEqual(list(dora.Sees.Walk(self.ruth)), ["shut"])
+        self.assertEqual(dora.Look(), ["his ledger"])
+        with self.assertRaises(AttributeError):
+            dora.Sees.Vault()                             # a secret Operation answers inside its Agent only
+        self.assertEqual(Counters(dora, self.ruth), (0, 0))
+
+    def test_an_underlay_chain_of_generator_and_coroutine_actions_steps_every_layer(self):
+        class Circle(Tag):
+            @Secret
+            @Record
+            def ledger(agent):
+                return "his ledger"
+
+            @Link
+            class Knows(Tag):
+                def Count(agent, contact):
+                    yield ("base", Read_Or_Shut(agent, "ledger"), Read_Or_Shut(contact, "journal"))
+
+                async def Later(agent, contact):
+                    await asyncio.sleep(0)
+                    return ("base", Read_Or_Shut(agent, "ledger"), Read_Or_Shut(contact, "journal"))
+
+            @Link
+            class Trusts(Knows):
+                @Underlay
+                def Count(agent, contact, underlay):
+                    yield ("top", Read_Or_Shut(agent, "ledger"), Read_Or_Shut(contact, "journal"))
+                    yield from underlay()                     # the Layer beneath is stepped too
+
+                @Underlay
+                async def Later(agent, contact, underlay):
+                    return ("top", await underlay(), Read_Or_Shut(agent, "ledger"))
+
+        dora = Character("Dora")
+        Circle(dora)
+        dora.Trusts(self.ruth)
+        self.assertEqual(
+                list(dora.Trusts[self.ruth].Count()),
+                [("top", "his ledger", "shut"), ("base", "his ledger", "shut")],
+                )
+        self.assertEqual(
+                asyncio.run(dora.Trusts[self.ruth].Later()),
+                ("top", ("base", "his ledger", "shut"), "his ledger"),
+                )
+        self.assertEqual(Counters(dora, self.ruth), (0, 0))
+
+    def test_a_self_link_opens_her_door_as_the_agent(self):
+        class Selfish(Tag):
+            @Secret
+            @Record
+            def ledger(agent):
+                return "his ledger"
+
+            @Link
+            class Sees(Tag):
+                def Mirror(agent, contact):
+                    yield Read_Or_Shut(contact, "ledger")
+
+                async def Mirror_Later(agent, contact):
+                    await asyncio.sleep(0)
+                    return Read_Or_Shut(contact, "ledger")
+
+        dora = Character("Dora")
+        Selfish(dora)
+        dora.Sees(dora)
+        self.assertEqual(list(dora.Sees[dora].Mirror()), ["his ledger"])
+        self.assertEqual(asyncio.run(dora.Sees[dora].Mirror_Later()), "his ledger")
+
+    # -- what stays refused ------------------------------------------
+
+    def test_only_a_function_declared_as_a_generator_or_a_coroutine_is_stepped(self):
+        def ordinary(agent, contact):
+            return None
+
+        def handed_back(agent, contact):
+            return (value for value in range(2))          # makes a generator: it is not one
+
+        def generator(agent, contact):
+            yield None
+
+        async def coroutine(agent, contact):
+            return None
+
+        Link(type("Member", (Tag,), {
+                "Ordinary": ordinary,
+                "Handed_Back": handed_back,
+                "Generator": generator,
+                "Coroutine": coroutine,
+                }))
+        self.assertIsNone(_stepper_of(ordinary))          # no stepping, no extra work per call
+        self.assertIsNone(_stepper_of(handed_back))       # what it hands back runs under whoever runs it
+        self.assertIsNotNone(_stepper_of(generator))
+        self.assertIsNotNone(_stepper_of(coroutine))
 
 
 def Agents_Of_Any_Link(contact):

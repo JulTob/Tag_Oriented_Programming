@@ -38,11 +38,13 @@ How the kit builds it, from parts it already has:
 from __future__ import annotations
 
 from functools import partial
+from inspect import CO_ITERABLE_COROUTINE
 from inspect import isasyncgenfunction
 from inspect import iscoroutinefunction
 from inspect import isgeneratorfunction
 from inspect import signature
 from itertools import count
+from types import coroutine
 from typing import Any
 from typing import Callable
 from weakref import WeakKeyDictionary
@@ -59,6 +61,7 @@ from .declarations import _MISSING
 from .declarations import _PAIR_TAG
 from .declarations import _PUBLIC
 from .declarations import _RELATION
+from .declarations import _RIP
 from .declarations import _SECRET
 from .declarations import _UNDERLAY
 from .declarations import _has_flag
@@ -81,12 +84,16 @@ from .geometry import _is_tag
 from .geometry import _requiring_shapes
 from .lifecycle import _rip
 from .overlay import _require_membership
+from .state import _Async_Door
 from .state import _Bound
 from .state import _Line
 from .state import _State
+from .state import _async_doors
 from .state import _is_composing
 from .state import _namespace_of
+from .state import _reopen_async_doors
 from .state import _set_runtime_type
+from .state import _shut_async_doors
 from .state import _state_of
 from .tags import MetaTag
 from .tags import Tag
@@ -108,6 +115,7 @@ from .transactions import _undo_refused_linking
 Function = Callable[..., Any]
 
 _PAIR_ENDS = "_TOPKIT_PAIR"   # in a Pair's dictionary: who it joins, out of public reach
+_LATER = "_topkit_later"      # on a Relation's function that runs later: "generator" or "coroutine"
 
 _CLASS_MACHINERY = frozenset((
         "__module__",
@@ -164,6 +172,12 @@ def Link(
                 name,
                 member,
                 )
+
+    for name, member in relation.__dict__.items():
+        _mark_code_that_runs_later(
+                name,
+                member,
+                )   # once the whole body passed: the builders ask the function, not the language, at every Link
 
     type.__setattr__(
             relation,
@@ -224,21 +238,17 @@ def _is_pair_member(
     return callable(member)
 
 
-def _refuse_code_that_runs_later(
-        relation: type,
+def _function_of(
         name: str,
         member: Any,
-        ) -> None:
-    """A Link's code keeps its doors while it runs (rule 3.6). The body of
-    a generator or a coroutine runs later, when it is iterated or awaited,
-    outside them: it would read the Contact's secrets from her own code,
-    and never its Agent's. So a Pair function, an Operation or another
-    class method, or a Report builder is an ordinary function. A static
-    method is plain Python, and a private helper is the Relation's own:
-    neither is a Link's function."""
+        ) -> Function | None:
+    """The function behind a Relation's member, when it is a Link's
+    function. A static method is plain Python, a private helper is the
+    Relation's own, and the language's machinery and plain values are
+    neither: none of them is a Link's function."""
 
     if _is_private(name) or name in _CLASS_MACHINERY or isinstance(member, staticmethod):
-        return
+        return None
 
     if isinstance(member, Report):
         function = member.builder
@@ -250,16 +260,139 @@ def _refuse_code_that_runs_later(
                 )
 
     if not callable(function):
+        return None
+
+    return function
+
+
+def _later_of(
+        function: Function,
+        ) -> str | None:
+    """How a function's body runs later, when it is iterated or awaited, or
+    ``None`` for an ordinary function."""
+
+    if isasyncgenfunction(function):
+        return "async generator"
+
+    if _is_generator_based_coroutine(function):
+        return "generator-based coroutine"
+
+    if iscoroutinefunction(function):
+        return "coroutine"
+
+    if isgeneratorfunction(function):
+        return "generator"
+
+    return None
+
+
+def _refuse_code_that_runs_later(
+        relation: type,
+        name: str,
+        member: Any,
+        ) -> None:
+    """A generator or a coroutine runs its body later, one step at a time,
+    when it is iterated or awaited. The kit steps one behind the Link's
+    doors (rule 3.6) where it hands the result to the caller: a Pair
+    Action, an Operation or another class method. It refuses the rest.
+    An async generator: the event loop closes it itself, outside the code
+    that holds it, so its cleanup would run outside the doors. A Record,
+    a condition, an Imprint, a teardown and a Report builder: the kit runs
+    them itself and never iterates or awaits what they return."""
+
+    function = _function_of(
+            name,
+            member,
+            )
+
+    if function is None:
         return
 
-    if isgeneratorfunction(function) or iscoroutinefunction(function) or isasyncgenfunction(function):
+    later = _later_of(function)
+
+    if later is None:
+        return
+
+    if later == "async generator":
         raise TagDeclarationError(
-                f"{relation.__name__}.{name}: a Link's code keeps its doors"
-                " only while it runs, and the body of a generator or a"
-                " coroutine runs later, when it is iterated or awaited;"
-                " make it an ordinary function that returns what it"
-                " computes, and await or iterate outside the Link"
+                f"{relation.__name__}.{name}: an async generator function is"
+                " refused; the event loop closes an async generator itself,"
+                " at its collection and at loop.shutdown_asyncgens, outside"
+                " the code that holds it, so its cleanup would run outside"
+                " the Link's doors; write a generator function or a"
+                " coroutine function"
                 )
+
+    if later == "generator-based coroutine":
+        raise TagDeclarationError(
+                f"{relation.__name__}.{name}: a generator-based coroutine"
+                " (@types.coroutine) is refused; write it as async def, or"
+                " as a generator function"
+                )
+
+    if not _is_stepped_by_the_kit(member):
+        raise TagDeclarationError(
+                f"{relation.__name__}.{name}: a generator or a coroutine"
+                " function is a Pair Action, an Operation or another class"
+                " method; the kit runs a Record, a condition, an Imprint, a"
+                " teardown and a Report builder itself and never iterates"
+                " or awaits what they return"
+                )
+
+
+def _mark_code_that_runs_later(
+        name: str,
+        member: Any,
+        ) -> None:
+    """Note on a function, once, that it is a generator or a coroutine
+    function, so that no Link's creation or call asks the language again.
+    Only the two kinds the kit steps get here; the rest was refused."""
+
+    function = _function_of(
+            name,
+            member,
+            )
+
+    if function is None:
+        return
+
+    later = _later_of(function)
+
+    if later is not None:
+        setattr(
+                function,
+                _LATER,
+                later,
+                )
+
+
+def _is_generator_based_coroutine(
+        function: Function,
+        ) -> bool:
+    code = getattr(
+            function,
+            "__code__",
+            None,
+            )
+
+    return code is not None and bool(code.co_flags & CO_ITERABLE_COROUTINE)
+
+
+def _is_stepped_by_the_kit(
+        member: Any,
+        ) -> bool:
+    """A Pair Action, an Operation or another class method hands what it
+    returns to its caller, so the kit can step it behind the doors
+    (``_stepper_of``). A Record, a condition, an Imprint, a teardown (an
+    Action marked @Rip) and a Report builder it runs itself."""
+
+    if isinstance(member, classmethod):
+        return True
+
+    if isinstance(member, Report) or _has_flag(member, _RIP):
+        return False
+
+    return _kind_of(member) in (None, "action")
 
 
 def _check_seats(
@@ -403,7 +536,8 @@ def _two_seats(
     Pair. The adapted function shows the kit the seats after the Contact
     (a stored value or an Underlay, then inputs by name), and calls ``f``
     with the Link's Agent and the Contact. It runs inside the Agent's
-    composition door (rule 3.6); the Pair's door is the kit's."""
+    composition door (rule 3.6); the Pair's door is the kit's. A generator
+    or a coroutine function takes each of its steps inside them."""
 
     function = getattr(
             member,
@@ -420,6 +554,40 @@ def _two_seats(
 
     if spec.positional >= 3 and (kind == "record" or _has_flag(function, _UNDERLAY)):
         seats.add(parameters[2].name)   # the stored value, or the Underlay
+
+    stepper = _stepper_of(function)
+
+    if stepper is None:
+        Two_Seats = _plain_seats(function)
+    else:
+        Two_Seats = _stepped_seats(stepper)
+
+    Two_Seats.__signature__ = signature(function).replace(
+            parameters=[parameters[0], *parameters[2:]],
+            )
+    Two_Seats.__name__ = function.__name__
+    Two_Seats.__qualname__ = function.__qualname__
+    Two_Seats.__doc__ = function.__doc__
+    Two_Seats.__module__ = function.__module__
+
+    for key, value in vars(function).items():
+        if key.startswith("__topkit_"):
+            setattr(
+                    Two_Seats,
+                    key,
+                    value,
+                    )   # the declaration's marks: kind, Underlay, Secret, Constant, Tool
+
+    Two_Seats._topkit_seats = frozenset(seats)
+
+    return Two_Seats
+
+
+def _plain_seats(
+        function: Function,
+        ) -> Function:
+    """The Pair's receiver for an ordinary function: it runs inside the
+    doors for as long as it runs."""
 
     def Two_Seats(
             pair: object,
@@ -443,23 +611,32 @@ def _two_seats(
         finally:
             _leave_doors(entered)
 
-    Two_Seats.__signature__ = signature(function).replace(
-            parameters=[parameters[0], *parameters[2:]],
-            )
-    Two_Seats.__name__ = function.__name__
-    Two_Seats.__qualname__ = function.__qualname__
-    Two_Seats.__doc__ = function.__doc__
-    Two_Seats.__module__ = function.__module__
+    return Two_Seats
 
-    for key, value in vars(function).items():
-        if key.startswith("__topkit_"):
-            setattr(
-                    Two_Seats,
-                    key,
-                    value,
-                    )   # the declaration's marks: kind, Underlay, Secret, Constant, Tool
 
-    Two_Seats._topkit_seats = frozenset(seats)
+def _stepped_seats(
+        stepper: Function,
+        ) -> Function:
+    """The Pair's receiver for a generator or a coroutine function: what it
+    returns takes each of its steps inside the doors (rule 3.6)."""
+
+    def Two_Seats(
+            pair: object,
+            *args: Any,
+            **kwargs: Any,
+            ) -> Any:
+        agent, contact = _ends_of(pair)
+        doors = _Doors(
+                agent,
+                pair,
+                (contact,),
+                )
+
+        return stepper(
+                doors,
+                (agent, contact, *args),
+                kwargs,
+                )
 
     return Two_Seats
 
@@ -469,10 +646,12 @@ def _door_shut_operation(
         ) -> classmethod:
     """A Relation's Operation, on one Agent's Link. Called with one of the
     Link's Contacts after the Link (as a published Operation is), it runs
-    with her door shut, as a line does (rule 3.6)."""
+    with her door shut, as a line does (rule 3.6); a generator or a
+    coroutine function takes each of its steps that way."""
 
     function = member.__func__
     secret = _has_flag(function, _SECRET)
+    stepper = _stepper_of(function)
 
     def Operation(
             link: type,
@@ -493,6 +672,19 @@ def _door_shut_operation(
                 for value in (*args, *kwargs.values())
                 if _is_contact_of(link, value)
                 )   # the Contacts it is called with, by position or by name: their doors stay shut (rule 3.6)
+
+        if stepper is not None:
+            doors = _Doors(
+                    agent,
+                    None,
+                    contacts,
+                    )
+
+            return stepper(
+                    doors,
+                    (link, *args),
+                    kwargs,
+                    )
 
         return _run_behind(
                 agent,
@@ -698,6 +890,288 @@ def _run_behind(
                 )
     finally:
         _leave_doors(entered)
+
+
+# ------------------------------------------------------------------
+# Code that runs later: a generator or a coroutine of a Link
+# ------------------------------------------------------------------
+
+
+def _stepper_of(
+        function: Function,
+        ) -> Function | None:
+    """How a Link's function that runs later is started, or ``None`` for an
+    ordinary one. Its body runs when it is iterated or awaited, long after
+    the call returned, so each of its steps runs behind the doors (rule
+    3.6); between steps every door is as the caller left it. Only a
+    function the Link's author wrote as a generator or a coroutine is
+    stepped: what an ordinary function hands back was made elsewhere, and
+    runs under the doors of whoever runs it."""
+
+    later = getattr(
+            function,
+            _LATER,
+            None,
+            )
+
+    if later == "coroutine":
+        return partial(
+                _start,
+                _coroutine_behind,
+                function,
+                signature(function),
+                )
+
+    if later == "generator":
+        return partial(
+                _start,
+                _steps_behind,
+                function,
+                signature(function),
+                )
+
+    return None
+
+
+class _Doors:
+    """The doors a Link's code keeps at every step of a generator or a
+    coroutine (rule 3.6): the Agent's and the Pair's open, every Contact's
+    shut, her async door included. Held weakly: a Link never keeps its
+    Agent, its Pair or a Contact alive, and each step finds them again."""
+
+    __slots__ = (
+            "agent",
+            "pair",
+            "contacts",
+            "held",
+            )
+
+    def __init__(
+            doors,
+            agent: object | None,
+            pair: object | None,
+            contacts: Any,
+            ) -> None:
+        doors.agent = None if agent is None else weakref.ref(agent)
+        doors.pair = None if pair is None else weakref.ref(pair)
+        doors.contacts = [weakref.ref(contact) for contact in contacts]
+        doors.held = None   # the async doors held when the Link's code started, once it has
+
+    def Alive(
+            doors,
+            ) -> tuple[object | None, object | None, list[object]]:
+        """Whoever of them is still there."""
+
+        agent = None if doors.agent is None else doors.agent()
+        pair = None if doors.pair is None else doors.pair()
+        contacts = [
+                contact
+                for reference in doors.contacts
+                if (contact := reference()) is not None
+                ]
+
+        return (
+                agent,
+                pair,
+                contacts,
+                )
+
+    def Enter(
+            doors,
+            ) -> tuple[Any, Any, list[_Async_Door]]:
+        """Open and shut the doors for one step; ``Leave`` puts them back."""
+
+        agent, pair, contacts = doors.Alive()
+        states = [
+                state
+                for contact in contacts
+                if contact is not agent and (state := _state_of(contact)) is not None
+                ]
+        agent_doors = _enter_doors(
+                agent,
+                contacts,
+                )   # hers shut, his open
+        pair_doors = _enter_doors(
+                pair,
+                (),
+                )   # the Pair's open
+
+        if doors.held is None:
+            doors.held = _async_doors.get()   # a hook the Link's own code enters later is hers to use
+
+        async_doors = _shut_async_doors(
+                states,
+                doors.held,
+                )   # and hers, if she opened one before the Link's code began
+
+        return (
+                agent_doors,
+                pair_doors,
+                async_doors,
+                )
+
+    def Leave(
+            doors,
+            entered: tuple[Any, Any, list[_Async_Door]],
+            ) -> None:
+        agent_doors, pair_doors, async_doors = entered
+        _reopen_async_doors(async_doors)
+        _leave_doors(pair_doors)
+        _leave_doors(agent_doors)
+
+
+def _call_behind(
+        doors: _Doors,
+        function: Function,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+        ) -> Any:
+    """Call a Link's function behind the doors, as an ordinary one is. For
+    a generator or a coroutine function the call makes the object and runs
+    none of its body; every step after it takes the doors again."""
+
+    entered = doors.Enter()
+
+    try:
+        return function(
+                *args,
+                **kwargs,
+                )
+    finally:
+        doors.Leave(entered)
+
+
+def _start(
+        behind: Function,
+        function: Function,
+        declared: Any,
+        doors: _Doors,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+        ) -> Any:
+    """Start a Link's generator or coroutine function. The call is checked
+    now, as Python checks it, so a wrong call fails at the call. The Link's
+    own generator or coroutine is made when the first step is asked for: one
+    that never starts, because its task was cancelled first, leaves no
+    coroutine "never awaited", and the object the caller holds is the older
+    of the two, so a collector that finds both closes it first."""
+
+    try:
+        declared.bind(
+                *args,
+                **kwargs,
+                )
+    except TypeError as error:
+        raise TypeError(f"{function.__qualname__}(): {error}") from None
+
+    stepping = behind(
+            doors,
+            function,
+            args,
+            kwargs,
+            )
+    stepping.__name__ = function.__name__
+    stepping.__qualname__ = function.__qualname__
+
+    return stepping
+
+
+def _steps_behind(
+        doors: _Doors,
+        function: Function,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+        ) -> Any:
+    """A Link's generator, or the awaiting of its coroutine, taken one step
+    at a time, each step behind the doors. What is sent or thrown in, a
+    close() included, goes to the Link's code at its next step; what it
+    returns, raises or yields comes out. So its ``finally`` runs inside the
+    doors, and what it returns on ``GeneratorExit`` is what ``close()``
+    returns (Python 3.13)."""
+
+    steps = _call_behind(
+            doors,
+            function,
+            args,
+            kwargs,
+            )
+    del args, kwargs   # the body holds them now; this generator keeps nobody alive
+
+    sent: Any = None
+    thrown: BaseException | None = None
+
+    while True:
+        entered = doors.Enter()
+
+        try:
+            if thrown is None:
+                step = steps.send(sent)
+            else:
+                step = steps.throw(thrown)
+        except StopIteration as stop:
+            return stop.value
+        finally:
+            thrown = None   # an exception comes out, or is handled: never kept in this frame
+            doors.Leave(entered)
+
+        try:
+            sent = yield step
+        except BaseException as error:
+            thrown = error   # GeneratorExit too: a close() and a throw() reach the Link's code as they would reach any generator's
+            sent = None
+
+
+@coroutine
+def _suspend(
+        step: Any,
+        ) -> Any:
+    """Hand what the Link's coroutine yielded to whoever drives it, and give
+    back what that one sends in, or raise what it throws in."""
+
+    return (yield step)
+
+
+async def _coroutine_behind(
+        doors: _Doors,
+        function: Function,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+        ) -> Any:
+    """A coroutine of a Link, as a coroutine: awaitable, and accepted by
+    ``asyncio.run`` and by tasks, each of its steps behind the doors. The
+    loop is the coroutine itself, never an ``await`` of the Link's own, so
+    that ``close()`` gives back what the body returns when it is closed."""
+
+    steps = _call_behind(
+            doors,
+            function,
+            args,
+            kwargs,
+            )
+    del args, kwargs   # the body holds them now; this coroutine keeps nobody alive
+
+    sent: Any = None
+    thrown: BaseException | None = None
+
+    while True:
+        entered = doors.Enter()
+
+        try:
+            if thrown is None:
+                step = steps.send(sent)
+            else:
+                step = steps.throw(thrown)
+        except StopIteration as stop:
+            return stop.value
+        finally:
+            thrown = None   # an exception comes out, or is handled: never kept in this frame
+            doors.Leave(entered)
+
+        try:
+            sent = await _suspend(step)
+        except BaseException as error:
+            thrown = error   # GeneratorExit too, as for a generator
+            sent = None
 
 
 def _is_contact_of(

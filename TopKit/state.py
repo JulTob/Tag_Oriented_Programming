@@ -138,6 +138,7 @@ class _Async_Door:
 
     __slots__ = (
             "active",
+            "shut",
             "state",
             )
 
@@ -146,6 +147,7 @@ class _Async_Door:
             state: _State,
             ) -> None:
         door.active = True
+        door.shut = False   # shut for the length of one step of someone else's code
         door.state = state
 
     def Close(
@@ -154,11 +156,49 @@ class _Async_Door:
         door.active = False
         door.state = None
 
+    def Shut(
+            door,
+            ) -> None:
+        """Shut for one step of someone else's code. The door is still the
+        hook's: it stays in the context, and ``Reopen`` gives it back."""
+
+        door.shut = True
+
+    def Reopen(
+            door,
+            ) -> None:
+        door.shut = False
+
 
 _async_doors: ContextVar[tuple[_Async_Door, ...]] = ContextVar(
         "TopKit_async_composition_doors",
         default=(),
         )
+
+
+def _shut_async_doors(
+        states: list[_State],
+        held: tuple[_Async_Door, ...],
+        ) -> list[_Async_Door]:
+    """Shut, for one step of someone's code, every async door this
+    execution holds on these Agents, and return them for ``_reopen_async_doors``.
+    A step is synchronous, so no other execution runs while they are shut."""
+
+    shut: list[_Async_Door] = []
+
+    for door in held:
+        if door.active and not door.shut and any(door.state is state for state in states):
+            door.Shut()
+            shut.append(door)
+
+    return shut
+
+
+def _reopen_async_doors(
+        shut: list[_Async_Door],
+        ) -> None:
+    for door in shut:
+        door.Reopen()
 
 
 def _is_composing(
@@ -176,6 +216,7 @@ def _is_composing(
 
     return any(
             door.active
+            and not door.shut
             and door.state is state
             for door in reversed(doors)
             )

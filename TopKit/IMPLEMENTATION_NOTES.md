@@ -512,9 +512,30 @@ Tagging sequence or expand its rollback boundary.
   code is its Agent's code. Static methods are copied as they are. All
   of them, and every Pair function (`_two_seats`), enter and leave the
   same doors (`_enter_doors`, `_leave_doors`) for as long as they run.
-  Generator and coroutine functions are refused in a Relation's body
-  (`_refuse_code_that_runs_later`): their bodies run after the doors
-  close. A Relation's first binding
+  A generator or coroutine function of a Pair Action, an Operation or
+  another class method is stepped. `@Link` notes once, on the function,
+  which kind it is (`_mark_code_that_runs_later`, after the whole body
+  passed), so no Link's creation or call asks the language again, and
+  `_stepper_of` reads the note. The call is checked at once
+  (`Signature.bind`), as Python checks it; what it returns is a
+  generator (`_steps_behind`) or a real `async def` coroutine
+  (`_coroutine_behind`) that makes the Link's own object when its first
+  step is asked for, inside the doors (`_call_behind`). Each step enters
+  `_Doors` before `send`/`throw` and leaves them after, `close()` and a
+  collection included, since they reach the Link's code as a thrown
+  `GeneratorExit`; between steps every door is the caller's. The wrapper
+  is created before the Link's object, so a cyclic collector that finds
+  both closes the wrapper first (observed on 3.12 to 3.14, not promised
+  by the language). `_Doors` holds the Agent, the Pair and the Contacts
+  weakly and finds them at each step; an async door of the Contact's is
+  shut for the step by its own flag (`_Async_Door.shut`), not by the
+  hook's `active`, which a hook entered in the same step would prune. An
+  async generator, a generator-based coroutine, and a lazy Record,
+  condition, Imprint, teardown or Report builder are refused
+  (`_refuse_code_that_runs_later`): the event loop closes an async
+  generator itself, outside any wrapper, and the kit never iterates or
+  awaits what the others return. A
+  Relation's first binding
   is recorded (`declarations._relation_homes`, weakly) once its whole
   body passed: the Tag body that made it, under its own name. A later
   binding is refused as an alias while that Tag lives. A `_Family`

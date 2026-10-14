@@ -1201,10 +1201,15 @@ Relation and its extensions a name is a line (below) or a member of the
 Link, never both, and a static method is never `@Secret`: Declaration
 Failures at class use. Extensions declared side by side meet only on an
 Agent, and a clash between them is a Composition Failure when the Agent
-gains the second. A Pair function, an Operation or another class method,
-and a Report builder are ordinary functions: a generator or a coroutine
-there is a Declaration Failure, since its body would run later, when
-iterated or awaited, outside the Link's doors (below).
+gains the second. A Pair Action, an Operation or another class method may
+be a generator function or a coroutine function: its body runs later, when
+iterated or awaited, and the kit takes each step behind the Link's doors
+(below). An async generator function, a generator-based coroutine
+(`@types.coroutine`), and a generator or coroutine function that is a
+Record, a condition, an Imprint, a teardown or a Report builder are
+Declaration Failures at class use: the event loop closes an async
+generator itself, outside any wrapper, and the kit runs the others itself
+and never iterates or awaits what they return.
 
 **Linking** is a tagging of the Contact with the Pair as receiver: the
 Pair's gate; the Pair's Records; the Contact enters the Link's Field; the
@@ -1298,7 +1303,11 @@ own code, a linking she asks for from her own Action, an Operation of the
 Link called with her, by position or by name, and a teardown her own
 deletion runs, included. The doors hold for as long as the Link's code
 runs; what it hands back to run later, a closure or a generator made
-elsewhere, runs under the doors of whoever runs it. A Link's Report is
+elsewhere, runs under the doors of whoever runs it. A generator or a
+coroutine the Relation itself declares takes every one of its steps behind
+them (the Agent's and the Pair's open, every Contact's shut, her async
+door too), and between two steps every door is as the caller left it; a
+task its coroutine hands to the event loop is such a closure. A Link's Report is
 built with every Contact's door shut, since its value is kept and served
 to all. A Relation's static methods are plain functions the kit never
 wraps. Otherwise doors follow the call, as §1.5 says for every Agent:
