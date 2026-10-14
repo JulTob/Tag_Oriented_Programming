@@ -101,33 +101,35 @@ class _State:
     def Copy(
             state,
             ) -> "_State":
-        return _State(
-                host_type=state.host_type,
-                pinned=state.pinned,
-                active=state.active.copy(),
-                training=state.training.copy(),
-                ever=state.ever.copy(),
-                actions=state.actions.copy(),
-                action_origins=state.action_origins.copy(),
-                records=state.records.copy(),
-                preconditions=state.preconditions.copy(),
-                postconditions=state.postconditions.copy(),
-                reports=state.reports.copy(),
-                operations=state.operations.copy(),
-                published=state.published.copy(),
-                secrets=state.secrets.copy(),
-                deleted=state.deleted.copy(),
-                restored=state.restored,
-                snapshots=state.snapshots.copy(),
-                rips=state.rips.copy(),
-                secret_values=state.secret_values.copy(),
-                originals=state.originals.copy(),
-                constants=state.constants.copy(),
-                tools=state.tools.copy(),
-                composing=state.composing,
-                checking=state.checking,
-                words=state.words,
-                )
+        # Copy named seats directly. Calling the dataclass constructor with
+        # all of them builds and unpacks a large temporary keyword mapping.
+        copied = object.__new__(_State)
+        copied.host_type = state.host_type
+        copied.pinned = state.pinned
+        copied.active = state.active.copy()
+        copied.training = state.training.copy()
+        copied.ever = state.ever.copy()
+        copied.actions = state.actions.copy()
+        copied.action_origins = state.action_origins.copy()
+        copied.records = state.records.copy()
+        copied.preconditions = state.preconditions.copy()
+        copied.postconditions = state.postconditions.copy()
+        copied.reports = state.reports.copy()
+        copied.operations = state.operations.copy()
+        copied.published = state.published.copy()
+        copied.secrets = state.secrets.copy()
+        copied.deleted = state.deleted.copy()
+        copied.restored = state.restored
+        copied.snapshots = state.snapshots.copy()
+        copied.rips = state.rips.copy()
+        copied.secret_values = state.secret_values.copy()
+        copied.originals = state.originals.copy()
+        copied.constants = state.constants.copy()
+        copied.tools = state.tools.copy()
+        copied.composing = state.composing
+        copied.checking = state.checking
+        copied.words = state.words
+        return copied
 
 
 class _Async_Door:
@@ -1216,6 +1218,7 @@ class Tagged:
 
 
 _type_cache: "WeakValueDictionary[tuple, type]" = WeakValueDictionary()
+_EMPTY_NAMES: frozenset[str] = frozenset()
 
 
 def _dunder_actions(
@@ -1335,19 +1338,21 @@ def _type_key_of(
         ) -> tuple:
     return (
             state.host_type,
-            frozenset((state.deleted | state.restored) - {"__del__"}),   # a restored name keeps its gate; __del__ has none
-            frozenset(state.secrets),
-            frozenset(state.published),
-            frozenset(state.preconditions | state.postconditions),
+            (frozenset((state.deleted | state.restored) - {"__del__"})
+             if state.deleted or state.restored else _EMPTY_NAMES),   # a restored name keeps its gate; __del__ has none
+            frozenset(state.secrets) if state.secrets else _EMPTY_NAMES,
+            frozenset(state.published) if state.published else _EMPTY_NAMES,
+            (frozenset(state.preconditions | state.postconditions)
+             if state.preconditions or state.postconditions else _EMPTY_NAMES),
             any(_is_flag(tag) for tag in (*state.active, *state.training)),
             tuple(
                     sorted(
                             (name, id(function))
                             for name, function in _dunder_actions(state).items()
                             )
-                    ),
-            frozenset(state.constants),
-            frozenset(state.tools),
+                    ) if state.actions else (),
+            frozenset(state.constants) if state.constants else _EMPTY_NAMES,
+            frozenset(state.tools) if state.tools else _EMPTY_NAMES,
             )
 
 
