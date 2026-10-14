@@ -495,6 +495,43 @@ def _install(
     state.constants.update(new_constants)
 
 
+def _preflight_ordinary_gains(
+        state: _State,
+        tag: type,
+        declarations: _Declarations,
+        ) -> bool:
+    """Check independent ordinary names without building a scratch Overlay.
+
+    The scanner gives each declaration one name. With no deletions, shared
+    members or runtime gates, installing one name cannot affect another
+    name's checks. The real installation uses these same refusal helpers.
+    """
+
+    if (
+            declarations.runtime
+            or declarations.reports
+            or declarations.operations
+            or state.constants
+            or state.pinned is not None
+            or _is_flag(tag)
+            ):
+        return False
+
+    for kind, one in declarations.gaining_steps:
+        name = one.gain_order[0]
+        if kind == "action":
+            function = one.actions[0][1]
+            _refuse_action(state, tag, name)
+            underlay = _action_underlay(state, name)
+            _action_replacement(state, tag, name, function, underlay)
+            _compose(function, underlay, name)
+        else:
+            _refuse_record(state, tag, name)
+            _record_overlay(state, tag, name, one.records[0][1])
+
+    return True
+
+
 def _gainings(
         agent: object,
         state: _State,
@@ -1029,11 +1066,10 @@ def _host_declares(
     return False
 
 
-def _install_action(
+def _refuse_action(
         state: _State,
         tag: type,
         name: str,
-        function: Function,
         ) -> None:
     _refuse_constant(state, name)
     _refuse_member_over_condition(
@@ -1060,10 +1096,12 @@ def _install_action(
                     " name across kinds"
                     )
 
-        state.records.pop(name)
 
+def _action_underlay(
+        state: _State,
+        name: str,
+        ) -> Function | None:
     underlay = state.actions.get(name)
-    origin = state.action_origins.get(name, state.host_type)
 
     if underlay is None and name == "__del__":
         # A finalizer's Layer beneath is always callable (STEP-SPEC-18).
@@ -1080,12 +1118,38 @@ def _install_action(
                     name,
                     )
 
+    return underlay
+
+
+def _action_replacement(
+        state: _State,
+        tag: type,
+        name: str,
+        function: Function,
+        underlay: Function | None,
+        ) -> type | None:
+    origin = state.action_origins.get(name, state.host_type)
     if (
             underlay is not None
             and not _takes_underlay(function, name)
             and _independent(tag, origin)
-            and not _quiet.get()
             ):
+        return origin
+    return None
+
+
+def _install_action(
+        state: _State,
+        tag: type,
+        name: str,
+        function: Function,
+        ) -> None:
+    _refuse_action(state, tag, name)
+    state.records.pop(name, None)
+    underlay = _action_underlay(state, name)
+    origin = _action_replacement(state, tag, name, function, underlay)
+
+    if origin is not None and not _quiet.get():
         warnings.warn(
                 f"{tag.__name__}.{name} replaces the Action of independent"
                 f" Tag {origin.__name__}",
@@ -1104,11 +1168,10 @@ def _install_action(
     state.published.discard(name)
 
 
-def _install_record(
+def _refuse_record(
         state: _State,
         tag: type,
         name: str,
-        builder: Function,
         ) -> None:
     _refuse_constant(state, name)
     _refuse_member_over_condition(
@@ -1143,18 +1206,38 @@ def _install_record(
                     " one Agent name across kinds"
                     )
 
-        state.actions.pop(name)
-        state.action_origins.pop(name)
 
+def _record_overlay(
+        state: _State,
+        tag: type,
+        name: str,
+        builder: Function,
+        ) -> tuple[Any, type | None]:
     kind = _tool_kind_of(builder)
     prior = state.records.get(name)
-
     if (
             prior is not None
             and not _takes_stored(builder)
             and _independent(tag, prior)
-            and not _quiet.get()
             ):
+        return kind, prior
+    return kind, None
+
+
+def _install_record(
+        state: _State,
+        tag: type,
+        name: str,
+        builder: Function,
+        ) -> None:
+    _refuse_record(state, tag, name)
+    if name in state.action_origins:
+        state.actions.pop(name)
+        state.action_origins.pop(name)
+
+    kind, prior = _record_overlay(state, tag, name, builder)
+
+    if prior is not None and not _quiet.get():
         warnings.warn(
                 f"{tag.__name__}.{name} replaces the Record of independent"
                 f" Tag {prior.__name__}",
