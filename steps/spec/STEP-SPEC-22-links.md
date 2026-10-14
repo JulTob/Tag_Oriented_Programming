@@ -1237,6 +1237,23 @@ implementation follows `main`'s law as it stands, and says so:
   Pair when nothing reached it since but the Layers the Agent's own
   extensions gave it, which are laid on it again; otherwise its Layers
   leave the Pair as an unlinking does, their contributions sticky (§0.7).
+  What a Link she still holds calls for stays: the Base Link's own
+  Layers, and those of the extensions of the Links that still hold her.
+- An undone extension (the Agent's call rolled back) takes its Layers off
+  every Pair of the family that holds them, including a Pair no laying of
+  it reached, which a linking made meanwhile, at a gate or a Record of the
+  extension, gave them with her form. Where something else wrote on the
+  Pair since, the values its Records gave stay on it, sticky, though the
+  Tags are gone; its teardown, never held, does not run. The reviewers'
+  random-script fuzzer (2,000 scripts for each of three profiles, mixing
+  extensions, chains of extensions, linkings made at gates and Records,
+  refusals, and rolled-back calls on the Agent, a Contact and a third
+  Agent) found such sticky values in about one script in a thousand.
+- A Layer laid on a Pair again after a restore is built with no gate, no
+  Imprints and no promises, since those ran with the Agent's call. What an
+  Imprint of the extension wrote on the Pair before the restore is not
+  written again, and a Record that gives another value each time it is
+  built gives the second.
 - An undone linking takes back only what it gave the Contact: she
   leaves the Links silently, her history of them forgotten, and what else
   she gained or did since stays. The lines they published stay on her,
@@ -1380,9 +1397,11 @@ settled as rules instead (below).
   belong to its Agent or its Contact; a call that finished inside it
   keeps what it did, as §0.6 says.
 - *An undone linking on a shared Pair* restores the Pair when nothing
-  reached it since, and otherwise leaves it as an unlinking does, sticky.
-  Taking some Layers off a Pair while keeping others' work would need a
-  way to rebuild an overlay that the kit has for no Agent.
+  reached it since but the Layers the Agent's extensions gave it, and
+  lays those on it again; otherwise the Tags the linking gave leave it as
+  an unlinking does, the values they gave sticky. A restore needs no way
+  to take one Layer out of an overlay: it puts the whole snapshot back and
+  builds the surviving Layers again.
 - *A Relation is declared once*, in its declaring Tag's body, under its
   own name, while that Tag lives. The template itself answers its own Reports and Operations,
   as any Tag does, with no Agent behind them; `@Secret` binds on each

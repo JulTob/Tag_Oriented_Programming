@@ -1287,9 +1287,10 @@ A Pair the Link holds, or whose Parts are done, receives it as the others
 do, nested in the linking's own work when that is still under way: its
 Imprints run at the call's Write, and its promises are checked with the
 linking's. The Layer is the Agent's own tagging: it stays when his call
-finishes, goes with his call if it rolls back, and a refused or undone
-linking never takes it back; a Pair that linking made is dropped, and an
-older one goes back to what it was, the Layer laid on it again.
+finishes, its Tags go with his call if it rolls back (the values it gave a
+Pair that others wrote on since staying sticky, §0.7), and a refused or
+undone linking never takes it back; a Pair that linking made is dropped,
+and an older one goes back to what it was, the Layer laid on it again.
 
 **Seen by the Contact, or in-house.** A `@Public` Pair member is a line
 onto the Contact: `ruth.Greet()` runs the Pair's `Greet(charlie, ruth)`,
