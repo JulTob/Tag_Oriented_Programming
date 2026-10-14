@@ -21,6 +21,8 @@ This is a **historical Brief inventory**, not a replacement for today’s popula
 
 Absorbing `~` landed separately under [STEP-SPEC-38](STEP-SPEC-38-absorbing-defective-population.md) / [#63](https://github.com/JulTob/Tag_Oriented_Programming/pull/63), resolving that PR’s historical STEP-29 number collision. Live membership at a walk turn landed under [STEP-SPEC-35](STEP-SPEC-35-population-walk-membership.md) / [#65](https://github.com/JulTob/Tag_Oriented_Programming/pull/65). Neither clearance adopts the rest of this table.
 
+STEP-SPEC-35's Decision retained a stale reference reserving SPEC-29 for absorbing `~`. That rule is SPEC-38; SPEC-29 remains this broader Population Algebra Brief. The accompanying cross-reference correction changes neither the Director's quoted membership ruling nor the walk timing.
+
 `+` roots, picks, Filters, population deletion homes and safehouses remain proposals. [#37](https://github.com/JulTob/Tag_Oriented_Programming/issues/37) tracks safehouse domains; [#38](https://github.com/JulTob/Tag_Oriented_Programming/issues/38) tracks fan-out predicates; [#99](https://github.com/JulTob/Tag_Oriented_Programming/issues/99) tracks mutation during compound judgement. Quoted decisions and supersession notes below remain provenance, with unresolved or conflicting rows preserved for a focused review.
 
 ### Provenance and dependencies
