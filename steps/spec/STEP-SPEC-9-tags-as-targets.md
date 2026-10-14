@@ -177,18 +177,21 @@ Every Tag-level act of §0.8 applies, with a Tag in the Agent's seat:
 | pin | `Rare(Wizard, **inputs)` |
 | active member? | `Wizard in Rare` |
 | ever a member? | `isinstance(Wizard, Rare)` |
-| the sound population | `for tag in Rare`, `len(Rare)`, `if Rare:` |
+| the sound population | `for tag in Rare`, `len(Rare)`, `if len(Rare) > 0:` |
 | the defective population | `for tag in ~Rare` |
 | everyone in the Field | `Rare[:]` |
 | the Tag-bound view | `Rare[Wizard]` |
 | leave the Field (Rip) | `del Rare[Wizard]` |
 | a Tag's Pins, as text | `f"{Wizard:pins}"` |
 | a Tag's contract, as text | `f"{Wizard:contract}"`, `Contract.Display(Wizard)` |
+| a Tag's own Posts hold | `bool(Wizard)`, `if Wizard:` |
 
-Two seats are already taken on a Tag and stay as they are:
+Tag truth and membership answer separate questions:
 
-- `bool(Wizard)` remains "is anyone a sound Wizard" (§0.8). A pinned Tag's
-  own promises are read from the Pin's side: `Wizard in ~Rare`.
+- `bool(Wizard)` checks the Tag's own visible Posts received through Pins,
+  including Posts retained after Rip. No Posts means true, even with an
+  empty Field. `len(Wizard) > 0` asks for a sound member. A pinned Tag's
+  promises can also be read from the Pin's side: `Wizard in ~Rare`.
 - `x in Wizard` remains membership for objects and classes. A **string**
   can never be a member, so on a Tag a string asks for a **keyword**:
   `"Deprecated" in Wizard` is True when the Flag Pin `Deprecated` is
@@ -211,7 +214,7 @@ a Flag Pin from a Report on a Tag.
 ### 7. Contracts, Imprints and Rip
 
 A Pin's Preconditions gate the pinning and receive the Tag:
-`@Pre def Has_Members(tag): return bool(tag)`. Postconditions are checked
+`@Pre def Has_Members(tag): return len(tag) > 0`. Postconditions are checked
 once per pinning and re-checked at later pinning boundaries of that Tag;
 a broken promise leaves the Tag pinned and defective (STEP-SPEC-4).
 Under Cleared STEP-SPEC-39, Imprints run before Field entry with the Tag
@@ -277,7 +280,7 @@ pointer to this STEP.
 | A separate `MetaTag` base class instead of a mark | Set aside: puts Pin into the Form and Outline of every Pin; `@Flag` precedent chosen |
 | Pin Records as plain class attributes, no Report laws | Rejected: two sets of rules for one thing; inheritance and the second seat would need restating |
 | Pinned members public by default (Agent-scope default) | Rejected: they live in Tag scope, and Tag scope is internal (STEP-SPEC-3) |
-| `bool(Wizard)` answers the Tag's own contract when pinned | Rejected: the seat means "any sound member" and a Tag-level meaning must not depend on whether a Pin exists |
+| `bool(Wizard)` answers the Tag's own contract when pinned | Originally rejected in favour of population truth; superseded by STEP-SPEC-40 on 2026-10-14: truth always checks the Tag's own Posts, with no Posts meaning true even before pinning |
 | Pins that alter the pinned Tag's gate over its Agents | Deferred to a later STEP; the pinned Tag can read its Pins in its own Precondition today |
 | Reports plus a set of Tags outside TOP (today) | Kept as the fallback; it lacks membership acts, gates, promises and Rip |
 | A Pin never replaces what the Tag declares (first cut) | Rejected by the Director: a patched driver must reach every Agent. Replaced by the host-member rule with collision control (§4) |

@@ -456,12 +456,6 @@ class Contract:
     """
 
     @staticmethod
-    def Holds(
-            agent: object,
-            ) -> bool:
-        return _holds(agent)
-
-    @staticmethod
     def Postconditions(
             agent: object,
             ) -> bool:

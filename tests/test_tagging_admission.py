@@ -462,7 +462,7 @@ class TaggingAdmissionTests(unittest.TestCase):
         self.assertTrue("before_safety" @ agent)
         self.assertTrue("after_safety" @ agent)
         self.assertIs(agent.SafetyChecks, False)
-        self.assertFalse(Contract.Holds(agent))
+        self.assertFalse(bool(agent))
         self.assertIn(agent, Existing[:])
         self.assertNotIn(agent, list(Existing))
         self.assertIn(agent, ~Existing)
@@ -480,7 +480,7 @@ class TaggingAdmissionTests(unittest.TestCase):
             Safe(agent)
         self.assertTrue(agent.insulated)
         self.assertIs(agent.SafetyChecks, True)
-        self.assertTrue(Contract.Holds(agent))
+        self.assertTrue(bool(agent))
         self.assertIn(agent, list(Existing))
         self.assertEqual(agent.Use(), "existing service")
         self.assert_not_admitted(Electric, agent)
@@ -558,7 +558,7 @@ class TaggingAdmissionTests(unittest.TestCase):
         self.assertIs(Shape[agent].ready, False)
         self.assertIn(agent, ~Shape)
         agent.ready = True
-        self.assertTrue(Contract.Holds(agent))
+        self.assertTrue(bool(agent))
         self.assertIn(agent, Shape)
 
     def test_flag_words_begin_at_field_entry(self):

@@ -143,7 +143,7 @@ class GainingActualizationTests(unittest.TestCase):
 
         class RejectingHostType(type):
             def __new__(meta, name, bases, namespace):
-                if "__bool__" in namespace:
+                if "Ready" in namespace:
                     raise TypeError("Post runtime refused")
                 return super().__new__(meta, name, bases, namespace)
 

@@ -26,6 +26,44 @@
   their proposed kind is checked before replacing the prior binding or rule,
   and an acquired Tool remains guarded on a Rogue.
 
+- **Invalid Rip declarations fail at declaration:** `@Rip` marks an Action,
+  because a teardown remains an ordinary callable Action. Stacking it on
+  a Record, condition, Imprint, Delete, Report, Operation, private name,
+  `classmethod`, `staticmethod`, `property`, `cached_property` or
+  `partialmethod` is now a Declaration Failure
+  instead of silently registering no teardown. Constant Rips are refused in
+  both decorator orders, as required by STEP-SPEC-34. The existing refusal
+  of `@Rip __del__` now happens when the Tag is declared; ordinary `__del__`
+  Layers retain their separate finalization behavior.
+
+- **Native contract truth:** removed `Contract.Holds` without an alias
+  (STEP-SPEC-40). Use `bool(agent)` or `if agent:`, including for Tags.
+  Named checks and diagnostic Contract tools remain. Held untagged values
+  keep ordinary Python truth; retain any required membership check before
+  interpreting a held value's truth as an Agent's contract.
+
+- **Deep population algebra:** lazy combinations evaluate walks and
+  membership with explicit stacks, preserving left-first order, live
+  per-leaf walk timing, short circuits and identity-based union ownership
+  without depending on Python's recursion limit. Walk-owned references are
+  explicitly released on completion, close or failure, including on Python
+  3.12.3 and when a caller retains an exception traceback.
+
+- **Population walks follow membership at each turn** (STEP-SPEC-35). A walk saves the
+  Field's join order when it begins. A member Ripped before its saved turn
+  is skipped; if it is tagged again before that turn, it is visited once
+  in its original place. A wholly new member waits for that Field's next
+  walk. If judging soundness Rips a member and leaves it out of that Field,
+  it does not count. Each side of a lazy combination starts its own Field
+  walk when reached.
+  Tags, whole and defective Fields, Pins and combinations share the rule,
+  and their truth and length use the same membership checks as iteration.
+  Each call is a separate live walk. A one-pass materialization
+  uses a comprehension; Python's `list(population)` may first perform a
+  separate live length-hint walk. A union walk keeps the left-side Agents
+  used for deduplication until it ends, so Python cannot reuse an old identity
+  for a distinct Agent on a later side.
+
 - **Synchronous protocol failures:** TopKit rejects native coroutine,
   generator and async-generator returns from Pre, Imprint, Post and Rip
   calls, including composed Rip Underlays. It attempts synchronous disposal
@@ -114,6 +152,18 @@
   Tagging and Rip, so the Field and the Agent's active Tags cannot be
   made to contradict each other through a partial internal operation.
 
+- **Agent truth is reserved for its Posts.** `bool(agent)` on an ordinary
+  object Agent reads its visible Posts from first Tagging, and is true
+  when it has none. Hosts with an explicit `__bool__` are refused before
+  Tagging effects; truth Gains and deletion are refused at declaration.
+  Tags follow the same rule for their own visible Pin Posts, independently
+  of their members; no Posts means true even with an empty Field. Use
+  `len(Tag) > 0` for a sound-member existence check. `len(Tag)`, `len(Tag[:])`,
+  `len(~Tag)`, iteration and population algebra retain their existing meanings.
+  Host `__len__` and Record-held value truth remain separate. Plain objects
+  created from an Agent's runtime type
+  keep native host truth, including inheritance order and descriptor binding.
+
 - **Ordinary condition names:** Preconditions and Postconditions refuse
   Python dunder names at Tag declaration and before late assignment.
   Their computed boolean verdicts keep ordinary Contribution names.
@@ -188,6 +238,11 @@
   A Post can require the named Contribution; nonstring operands retain
   ordinary `@` behaviour. Pinned Tags support it as Agents.
 
+- **Absorbing defective view** (STEP-SPEC-38): `~` reads "broken", not
+  "not". Applying it again keeps the defective population, so
+  `~~Wizard`, `~~~Wizard` and longer runs all mean `~Wizard`. Inverting a
+  combined population remains refused.
+
 - **Fixed Field-algebra Tag recognition:** operator seats now recognize a
   Tag by `MetaTag`, not by a callable named `_sound`. An ordinary Python
   class with that name keeps normal class-union behaviour, and a Tag may
@@ -208,6 +263,12 @@
 - Three retention probes join the same isolated runner: a large Field whose
   Agents are released, lifecycle teardown during collection and cache churn
   through transient hosts, Tags, runtime types and Agents.
+- The remaining compatible probes cover many independently owned Agents
+  under an executor with up to sixteen workers, and repeated reciprocal
+  Pin/Rip cycles. Fields remain explicitly unsynchronized, so the worker
+  probe is a best-effort CPython stress observation, not a thread-safety
+  guarantee. The old self-Pin half is omitted because current TOP refuses
+  a Pin applied to itself.
 - **Releases go out through Trusted Publishing.** A GitHub Release runs
   `.github/workflows/release.yml`: the suite on Python 3.12, 3.13 and
   3.14, the oracle at its audited size, a check that the tag names

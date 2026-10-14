@@ -55,7 +55,7 @@ def Run() -> None:
     except TagImprintError.Assemble: pass
     assert car in Territory and car not in Assembled and car.attempt == 1
     assert not isinstance(car, Assembled) and list(Assembled[:]) == []
-    assert car.Has_Wheels is False and not Contract.Holds(car)
+    assert car.Has_Wheels is False and not bool(car)
     car.complete = True
     try: Assembled(car); raise SystemExit("expected deficient product")
     except TagPostconditionError.Has_Wheels: pass

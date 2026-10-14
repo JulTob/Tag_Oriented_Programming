@@ -56,8 +56,12 @@ nobody disappears from a plain loop silently.
 3. A failure in an Imprint raises a Tag Imprint Failure; the Tags stay.
 4. A failure in quality check raises a Tag Postcondition Failure; the Tags
    stay; the Agent is defective while any visible Postcondition fails.
-5. `bool(agent)` is true exactly when every visible Postcondition holds.
-   A host's own truthiness is kept until a Postcondition is visible.
+5. For an Agent, including a Tag receiving Pins, `bool(agent)` is true
+   exactly when every visible Postcondition holds. With no Posts it is true,
+   even if a Tag's Field is empty. The
+   truth protocol is reserved: explicit host truth is refused before
+   Tagging and a Tag cannot gain or delete it. A host's `__len__` still
+   answers `len(agent)`, but never supplies the Agent's truth.
 6. Iterating the Tag gives the sound population and `len(Tag)` counts
    it; `~Tag` is the defective population; `Tag[:]` is the whole Field.
    `agent in Tag` stays true for a defective member.
@@ -101,7 +105,25 @@ half; issue #30 tracks the unfinished post-Gate Parts behavior.
 
 ## Acceptance requirements
 
-Covered by `tests/test_topkit.py::DefectiveTaggingTests`.
+The original rules are covered by
+`tests/test_topkit.py::DefectiveTaggingTests`. The 2026-10-09 amendment is
+covered by `HostPreservationTests`: zero and nonzero host lengths, sound
+and defective contracts, and no Posts.
+
+## Amendment: a host's length is not an Agent's truth
+
+The Director was asked whether a container-like host should keep
+`len(agent)` while `bool(agent)` answers the visible contract from the
+first Tagging, and answered **"Yes"** on 2026-10-09. That ruling established
+that no visible Postconditions means true, and the host's
+`__len__` remains its length only. On 2026-10-12 the Director clarified
+that Agent truth is reserved for Posts and chose **“Refuse hosts with an
+explicit __bool__”**. On 2026-10-14 the Director unified Tag truth with
+Agent truth: the Tag checks its own visible Pin Posts, and no Posts means
+true even with an empty Field. `len(Tag)`, `len(Tag[:])` and `len(~Tag)`
+retain the sound, whole and defective cardinalities. STEP-SPEC-40 records
+and clears these amendments; the earlier Tag population-truth exception
+is superseded without changing Rule 6's population meanings.
 
 ---
 

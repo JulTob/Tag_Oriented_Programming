@@ -10,7 +10,7 @@ import unittest
 import warnings
 from typing import Any
 
-from TopKit import Action, Contract, Imprint, Pin, Post, Record, Tag
+from TopKit import Action, Imprint, Pin, Post, Record, Tag
 from TopKit import TagImprintError, TagResolutionError
 from TopKit import state as runtime
 
@@ -117,7 +117,7 @@ class ImprintDiagnosticTests(unittest.TestCase):
                     self.assertTrue("badge" @ target)
                     self.assertTrue("Read" @ target)
                     self.assertEqual(target.Read(), "ready")
-                    self.assertTrue(Contract.Holds(target))
+                    self.assertTrue(bool(target))
 
     def test_aliased_function_reports_its_declaration_without_renaming(self):
         original = ValueError("implementation failed")
@@ -218,7 +218,7 @@ class ImprintDiagnosticTests(unittest.TestCase):
                         self.assert_rogue(Trained, target)
                         self.assertTrue("badge" @ target)
                         self.assertEqual(target.badge, "ready")
-                        self.assertTrue(Contract.Holds(target))
+                        self.assertTrue(bool(target))
                         if kind == "coroutine":
                             self.assertIsNone(returned[0].cr_frame)
                         elif kind == "generator":
@@ -279,7 +279,7 @@ class ImprintDiagnosticTests(unittest.TestCase):
                     self.assertIn("close failed", str(caught.exception))
                     self.assertEqual(events, ["started", "closed"])
                     self.assert_rogue(Trained, target)
-                    self.assertTrue(Contract.Holds(target))
+                    self.assertTrue(bool(target))
 
     def test_python_interruptions_keep_their_original_type_and_gains(self):
         for pinned in (False, True):
@@ -312,7 +312,7 @@ class ImprintDiagnosticTests(unittest.TestCase):
                     self.assert_rogue(Trained, target)
                     self.assertTrue("badge" @ target)
                     self.assertEqual(target.badge, "ready")
-                    self.assertTrue(Contract.Holds(target))
+                    self.assertTrue(bool(target))
 
     def test_current_posts_not_the_imprint_failure_define_soundness(self):
         for pinned in (False, True):
@@ -336,7 +336,7 @@ class ImprintDiagnosticTests(unittest.TestCase):
                     with self.assertRaises(TagImprintError.Training):
                         Trained(target)
                     self.assert_rogue(Trained, target)
-                    self.assertEqual(Contract.Holds(target), ready)
+                    self.assertEqual(bool(target), ready)
 
     def test_a_missing_record_does_not_add_an_implicit_requirement(self):
         for pinned in (False, True):
@@ -363,7 +363,7 @@ class ImprintDiagnosticTests(unittest.TestCase):
                 self.assertIs(caught.exception.__cause__, original)
                 self.assertFalse("badge" @ target)
                 self.assert_rogue(Trained, target)
-                self.assertTrue(Contract.Holds(target))
+                self.assertTrue(bool(target))
 
     def test_unprintable_exceptions_do_not_replace_the_imprint_failure(self):
         for pinned in (False, True):
@@ -408,7 +408,7 @@ class ImprintDiagnosticTests(unittest.TestCase):
                             )
                     self.assertIs(caught.exception.__cause__, original)
                     self.assert_rogue(Trained, target)
-                    self.assertTrue(Contract.Holds(target))
+                    self.assertTrue(bool(target))
                     self.assertEqual(runtime._state_of(target).composing, 0)
 
     def test_unprintable_disposal_errors_keep_the_original_close_failure(self):
@@ -467,7 +467,7 @@ class ImprintDiagnosticTests(unittest.TestCase):
                     self.assertEqual(events, ["closed"])
                     self.assertIsNone(lazy.cr_frame if kind == "coroutine" else lazy.gi_frame)
                     self.assert_rogue(Trained, target)
-                    self.assertTrue(Contract.Holds(target))
+                    self.assertTrue(bool(target))
                     self.assertEqual(runtime._state_of(target).composing, 0)
 
     def test_a_synchronous_result_is_discarded_without_observation(self):
@@ -524,7 +524,7 @@ class ImprintDiagnosticTests(unittest.TestCase):
                     self.assert_rogue(Trained, target)
                     self.assertTrue("badge" @ target)
                     self.assertEqual(target.badge, "ready")
-                    self.assertTrue(Contract.Holds(target))
+                    self.assertTrue(bool(target))
                     self.assertEqual(runtime._state_of(target).composing, 0)
 
     def test_exception_text_does_not_invoke_error_or_string_subclass_format(self):
@@ -627,7 +627,7 @@ class ImprintDiagnosticTests(unittest.TestCase):
                     self.assertIn("Training", str(caught.exception))
                     self.assertIs(caught.exception.__cause__, original if kind == "failure" else None)
                     self.assert_rogue(Trained, target)
-                    self.assertTrue(Contract.Holds(target))
+                    self.assertTrue(bool(target))
                     self.assertEqual(events, [])
                     if kind == "coroutine":
                         self.assertIsNone(returned[0].cr_frame)

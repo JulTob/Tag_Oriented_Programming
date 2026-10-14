@@ -579,10 +579,7 @@ def Assert_Contract(
         assert target.Read_Slip() == model.slipping_round, (context, "Rogue Action")
 
     assert status == expected, (context, "contract", status, expected)
-    assert Contract.Holds(target) is model.Sound(), (context, "soundness", model.Sound())
-
-    if not isinstance(target, type):
-        assert bool(target) is model.Sound(), (context, "truth", model.Sound())
+    assert bool(target) is model.Sound(), (context, "truth", model.Sound())
 
     for name, holds in expected.items():
         assert getattr(target, name) is holds, (context, "condition member", name, holds)
@@ -657,7 +654,10 @@ def Assert_Fields(
         assert list(tag[:]) == whole, (context, "whole Field", tag.__name__, Names(tag[:]), Names(whole))
         assert list(tag) == sound, (context, "sound Field", tag.__name__)
         assert list(~tag) == defective, (context, "defective Field", tag.__name__)
-        assert len(tag) == len(sound) and bool(tag) is bool(sound), (context, "Field size", tag.__name__)
+        assert list(~~tag) == defective, (context, "~ absorbs", tag.__name__)
+        assert len(tag) == len(sound), (context, "sound Field size", tag.__name__)
+        assert len(tag[:]) == len(whole), (context, "whole Field size", tag.__name__)
+        assert len(~tag) == len(defective), (context, "defective Field size", tag.__name__)
 
     first, second = family[0], family[6]
     assert list(first | second) == Union(Sound(first), Sound(second)), (context, "sound union")
