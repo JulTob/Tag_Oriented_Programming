@@ -7,7 +7,7 @@
 - **Status:** Brief
 - **Created:** 2026-10-14
 - **Issue:** [#181](https://github.com/JulTob/Tag_Oriented_Programming/issues/181)
-- **Design dependency:** STEP-SPEC-40's unified Agent/Tag truth, proposed in [#160](https://github.com/JulTob/Tag_Oriented_Programming/pull/160), with the public API cleanup in [#180](https://github.com/JulTob/Tag_Oriented_Programming/pull/180)
+- **Design dependency:** STEP-SPEC-40's unified Agent/Tag truth, implemented on main through [#160](https://github.com/JulTob/Tag_Oriented_Programming/pull/160), with the public API cleanup from [#180](https://github.com/JulTob/Tag_Oriented_Programming/pull/180) also merged
 
 ## Summary
 
@@ -279,10 +279,10 @@ After the design is Cleared, the implementation must:
 
 ## Compatibility and dependencies
 
-The Brief is based on current `main`; its implementation is designed for
-STEP-SPEC-40 as revised in #160 and the removal of `Contract.Holds` in #180.
-Those changes are still unmerged at drafting. This STEP extends the sources
-of a Tag's Posts; it does not reopen their unified truth or population rules.
+The Brief extends STEP-SPEC-40 as revised in #160 and the removal of
+`Contract.Holds` in #180. Both changes are on `main` as of this review on
+2026-10-14. This STEP proposes an additional source of a Tag's Posts; it
+does not reopen their unified truth or population rules.
 
 Code already stacking Post and Operation may rely accidentally on getting
 an ordinary callable Operation. Supporting the combination changes that
