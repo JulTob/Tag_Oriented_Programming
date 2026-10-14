@@ -160,6 +160,44 @@ class LinkChainAdmissionTests(unittest.TestCase):
         self.assertEqual(vars(contact), {})
         self.assertEqual(_record_of(owner.Knows).family.pairs, {})
 
+    def test_shape_training_can_rip_its_candidate_base_before_admission(self):
+        training = []
+
+        class Social(Tag):
+            @Link
+            class Candidate(Tag):
+                @Record
+                def evaluation(agent, contact):
+                    return "passed"
+
+            @Link
+            class CIA(Candidate):
+                @Record
+                def clearance(agent, contact):
+                    return "active"
+
+                @Imprint
+                def Join(agent, contact):
+                    training.append((contact in agent.Candidate,
+                                     contact in agent.CIA))
+                    pair = agent.CIA[contact]
+                    self.assertEqual(pair.evaluation, "passed")
+                    self.assertEqual(pair.clearance, "active")
+                    del agent.Candidate[contact]
+
+        agent, contact = Host(), Host()
+        Social(agent)
+        agent.CIA(contact)
+
+        self.assertEqual(training, [(True, False)])
+        self.assertNotIn(contact, agent.Candidate)
+        self.assertIn(contact, agent.CIA)
+        pair = agent.CIA[contact]
+        self.assertEqual((pair.evaluation, pair.clearance),
+                         ("passed", "active"))
+        agent.CIA(contact)  # an already completed Tagging remains a no-op
+        self.assertEqual(training, [(True, False)])
+
     def test_contact_death_releases_unadmitted_pair_after_family_join(self):
         class Social(Tag):
             @Link

@@ -1167,6 +1167,14 @@ A Shape needing an unfinished Base is refused. An independent extension
 whose required Bases have completed can train normally; merely sharing a
 Link family does not make it dependent on another unfinished Layer.
 
+During a Shape Link's Imprint, its completed Base Link may be Ripped before
+the Shape enters its Field. The Contact can leave `Candidate` while training
+for `CIA` finishes, then enter `CIA` with `Candidate` absent. The Pair stays
+available through that transition and keeps the Gains it acquired. A failed
+Shape attempt retrains on retry; reapplying an admitted Shape remains a no-op.
+This is the same sequence as ordinary Tagging. Ripping a Base *after* Shape
+admission is addressed by STEP-SPEC-26.
+
 **Other STEP boundaries.**
 
 - STEP-SPEC-26 proposes allowing a Base Rip while a Shape needs it. It
