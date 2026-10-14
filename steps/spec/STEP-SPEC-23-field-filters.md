@@ -8,7 +8,9 @@
 - **Created:** 2026-10-08. First drafted as STEP-SPEC-20; renumbered
   because 20 is claimed by another open STEP.
 - **Revised:** 2026-10-08, after the Director's review: the everyday
-  filter reads the Tag itself, `Wizard.level > 3`.
+  filter reads the Tag itself, `Wizard.level > 3`. 2026-10-09: that
+  reading superseded ("Wizard.level is a report"), and the Director's
+  words recorded where he decided.
 
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
@@ -93,7 +95,12 @@ lists. `Wizard.level > 3` is that same question kept as a view.
 With Links (STEP-SPEC-22), TOP also gets **two-place statements**:
 *Charlie knows Ruth*. That is the step from Carroll's monadic logic to
 the **logic of relations** (De Morgan; Peirce's "logic of relatives"). A
-Filter is how a program asks it questions: `Social.Knows[:] == ruth`.
+Filter is how a program asks it questions: `Social[:].Knows[:] == ruth`.
+
+The Director asked for it on 2026-10-08, with a Pair's Record: "We
+could set the language feature like a link's record
+`charlie.Knows[ruth].since` and even use this as field filters `for
+contacts in charlie.Knows[:].since > 2000`". Rule 1.5 reads it.
 
 ### Why not functions
 
@@ -128,7 +135,9 @@ cited as "section N" or "rule N.M".
 > Projections start from a population; the spelling of the root for the
 > sound members is set in STEP-SPEC-29 (The Population Algebra). The
 > rest of this section stands, read from a population root: rule 1.2 and
-> rules 1.4 to 1.9.
+> rules 1.4 to 1.9. Rule 1.3's spelling for the sound members,
+> `(Wizard[:] & Wizard).colour`, was refused on 2026-10-08: "I refuse
+> that monstrosity with redundant information" (open question 2).
 
 1. **A name read on a Tag lives in the scope that receives it** (§1.1).
    - **An Agent's name projects.** The Tag stores what it declares for its
@@ -178,8 +187,12 @@ cited as "section N" or "rule N.M".
 4. **Names that begin with an underscore are never projected.** They
    belong to the kit and the language. A population has no public names
    of its own, and refuses assignment of any. The Field's `Add` and
-   `Remove` became private in TopKit's change of pull request #26, which
-   carries this STEP.
+   `Remove` leave TOP. *Decided by the Director on 2026-10-09:*
+   "Wizard[:].Add(x), Wizard[:].Remove(x) should not exist. they were
+   never approved. the only way into a field is a tagging. the only way
+   out is a rip. roll those out adn eliminate them." TopKit's change of
+   pull request #26, which carries this STEP, keeps only the private
+   helpers that tagging and Rip call.
 5. **Through a Link.** A Link is a Tag, so `charlie.Knows.since` projects
    over Charlie's sound Contacts. A member reached through a Link is read
    through that Link:
@@ -203,6 +216,13 @@ cited as "section N" or "rule N.M".
    have one Pair in each operand. So `(charlie.Knows & bob.Knows).since`
    reads each Contact's own `since`. To filter on a Pair there, filter one
    Link and combine: `(charlie.Knows.since < 2000) & bob.Knows`.
+
+   The Director, 2026-10-08, of this rule: "Btw I love the rule [...]
+   because it builds an operator algebra that is soooooo elegant." The
+   reading through a Link stands. Its dot spelling on the Link itself,
+   `charlie.Knows.since`, follows "Wizard.level is a report" (the note
+   at the head of this section): STEP-SPEC-29 rule 9.2 recommends
+   `(+charlie.Knows).since`.
 6. **On a Pin**, each member is a pinned Tag, and a Projection reads that
    Tag's own names. `Rare.rarity` reads `tag.rarity` for each sound pinned
    Tag (for Wizard, `Wizard.rarity`), never a name on the Tag's Agents
@@ -218,7 +238,12 @@ cited as "section N" or "rule N.M".
    - Every other comparison never matches a member with no value, and
      never raises for it. `Wizard.dance == True` keeps the Wizards whose
      `dance` is defined and `True`; `Wizard.dance == False` those whose
-     `dance` is defined and `False`.
+     `dance` is defined and `False`. A Filter asks a positive statement
+     about each member. The Director, 2026-10-08: "in predicate logic
+     "this wizard can dance" is a positive statement. Maybe we are
+     looking for that positive statement specifically, so it makes
+     sense." His words for `== True` and `== False` are in the Decision
+     below; a bool equals only a bool (rule 2.2).
    - Walking the values skips members with no value, as SQL's `SUM`
      skips `NULL`: `sum(Wizard.level)` adds the levels there are.
    - A walk in which no member has the name at all warns
@@ -275,9 +300,19 @@ cited as "section N" or "rule N.M".
 
    Write the Projection on the left. Python asks the left operand first,
    so when a host's own `==` answers, the Projection is never asked.
-2. **Values compare as the language compares them.** For an Agent without
-   its own `__eq__`, `==` is identity, as a Field's membership is (§0.3).
-   A host that defines equality is compared by its equality.
+2. **Values compare as the language compares them, except a bool.** For
+   an Agent without its own `__eq__`, `==` is identity, as a Field's
+   membership is (§0.3). A host that defines equality is compared by its
+   equality.
+
+   A bool equals only a bool (`type(v) is bool`). So `level == True`
+   keeps no member whose level is `1`, and `P == 1` none whose value is
+   `True`. The Director, 2026-10-09, of a bool key (STEP-SPEC-29, rule
+   6.3), as a rule for all of TOP: "In TOP we specifically treat only
+   booleans as booleans. ... I would have it clear that a True is NOT
+   a 1 in TOP, no matter what default Python does. We are using python,
+   not python using us." Whether a value that is not a bool only fails
+   to match `== True`, or raises, is STEP-SPEC-29's open question 4.
 3. **A comparison must answer `True` or `False`** (§2.1). A comparison
    that answers anything else stops the walk with a Contract Failure:
    an array, a number, or `numpy.bool_`, which is not `bool`. TOP never
@@ -313,8 +348,12 @@ cited as "section N" or "rule N.M".
 3. **A comparison at the end of a chain keeps a root member when some
    leaf compares true.** This is the "some" of Aristotle and Carroll.
    `Social.Knows[:] == ruth` is every sound Agent in Social whose Link
-   holds Ruth among its Contacts: "anyone who knows Ruth".
-   `Social[:].Knows[:] == ruth` asks the same of the whole Field.
+   holds Ruth among its Contacts: anyone who knows Ruth.
+   `Social[:].Knows[:] == ruth` asks the same of the whole Field. That
+   is the Director's spelling, 2026-10-08: "who knows ruth can be as
+   simple as `Social[:].Knows[:] == ruth`(it reads as anyone that knows
+   anyone who is ruth)." For the sound members, STEP-SPEC-29 rule 9.4
+   writes `(+Social).Knows[:] == ruth`.
 4. **"All" is the difference of a "some".** *Everyone whose Contacts are
    all friendly* is *Social less those with some unfriendly Contact*.
    Here `friendly` is the Contact's own attribute (rule 1.5):
@@ -359,10 +398,13 @@ answer `False`. `len(f) > 0` asks the population.
 
 - Writing through a Projection, such as `Wizard.hp = 10`. Until a STEP
   gives it a spelling, write the loop: `for wizard in Wizard: wizard.hp =
-  10`. On a Tag, that
+  10`. The Director, 2026-10-08: "Wizard.hp = 10 is refused is ok but
+  you should note that the way to do it is for w in Wizard: w.hp = 10".
+  On a Tag, that
   assignment sets a value of the Tag itself, as Python does today: a
-  Report written by hand. The Director: "if it looks like a report, then
-  it is, and we just have more than one way to handle that." It then
+  Report written by hand. The Director, 2026-10-08: "if it looks like a
+  report, then it is, and we just have more than one way to handle
+  that." It then
   wins over the Projection (rule 1.1), so `Wizard.hp` stops reading the
   members. Over a declared Report it is the documented way to change the
   shared value (§1.4). Over a Record or an Action it is a category
@@ -382,6 +424,13 @@ answer `False`. `len(f) > 0` asks the population.
 These are commands, not questions, and each deserves its own STEP.
 
 ## Rationale
+
+> **Superseded in part on 2026-10-09.** The first two paragraphs below
+> argue for reading an Agent's name on the Tag. The Director overruled
+> it: "Wizard.level is a report". For the sound members he then took up
+> `+`: "my rumbling came to the conclusion you were right with
+> veterans = (+Wizard).level > 3" (STEP-SPEC-29, rule 3.1). The rest
+> stands.
 
 **The sound members, by default.** The Director: "Isn't this better
 stated as just Wizard.level > 3? Do we need the full universe of wizards?
@@ -431,6 +480,18 @@ coming back empty) is the bug this STEP must never make easy.
 results also means is a dynamic system. I like the idea." A Filter holds
 no values. It holds the question, and asks it again at every walk.
 
+**Python's own functions.** The Director, 2026-10-08: "Also the sum
+operator, and len.... I was wondering. Any function of sets or lists
+would operate on the filered view of the tag? I'd be so cool if it did,
+because then we could do like DataBase operations and actual numeric
+vector algebra... It's a cool plan." A Projection walks its values (rule
+1.8), so `sum`, `len`, `min`, `max` and `sorted` work on it, and a
+Filter walks its members. On 2026-10-09 he added: "sum(Wizard[].level)
+skipping nulls is sound" (rule 1.7), and "we should include the
+python's own filters instead of rewriting those." Arithmetic on
+Projections, his "numeric vector algebra", is left to a STEP of its own
+(STEP-SPEC-25, section 7).
+
 ## Backwards compatibility
 
 What changes:
@@ -444,8 +505,8 @@ What changes:
   TopKit's raw function. That was never a documented spelling. Now it is
   a Projection.
 - **Reading a public name on a population** was an `AttributeError`,
-  apart from the Field's `Add` and `Remove`, which became private in pull
-  request #26.
+  apart from the Field's `Add` and `Remove`, which leave TOP (rule 1.4).
+  Pull request #26 made them private.
 - **Comparing a population** fell back to the language's defaults:
   identity for `==`, a `TypeError` for `<`.
 - **`bool()` of a Projection or a Filter** is new, and refused.
@@ -460,9 +521,9 @@ Tag-scope name the program puts on a Tag read exactly as before.
 | --- | --- |
 | Comprehensions, `[w for w in Wizard if w.level > 3]` | They stay valid Python, but give a frozen list outside the algebra. |
 | A filter function, `Where(Wizard, lambda w: w.level > 3)` | A filter needs no name, so it is spelt with the language's operators (§0.8); the Director prefers language structures to function calls. |
-| Projections only on populations, `Wizard[:].level`, with the Tag's dotted names left alone (the first draft) | Withdrawn after the Director's review: the everyday question is about the sound members, and the whole Field made it a two-step spelling, `(Wizard[:].level > 3) & Wizard`. |
-| A spelling for the sound population, `(+Wizard).level` (the first draft's open question) | Set aside: the Tag already means its sound population, and needs no new operator or brackets. |
-| Projecting only the names the Tag declares (its Records and Actions) | Set aside: `level` belongs to the host, as most attributes a program filters on do, and `Wizard.level` must work. |
+| Projections only on populations, `Wizard[:].level`, with the Tag's dotted names left alone (the first draft) | Withdrawn after the Director's review of 2026-10-08: the everyday question is about the sound members, and the whole Field made it a two-step spelling, `(Wizard[:].level > 3) & Wizard`. Restored by his ruling of 2026-10-09: "Wizard.level is a report". The dot on a Tag reads only the Tag. |
+| A spelling for the sound population, `(+Wizard).level` (the first draft's open question) | Set aside on 2026-10-08: the Tag already means its sound population, and needs no new operator or brackets. Taken up again by the Director on 2026-10-09: "my rumbling came to the conclusion you were right with veterans = (+Wizard).level > 3" (STEP-SPEC-29, rule 3.1). |
+| Projecting only the names the Tag declares (its Records and Actions) | Set aside: `level` belongs to the host, as most attributes a program filters on do, and `Wizard.level` must work. Since "Wizard.level is a report" (2026-10-09), that is `(+Wizard).level` or `Wizard[:].level`. |
 | Mask indexing, `Wizard[:][Wizard[:].level > 3]` | `Tag[agent]` is already the view and `Tag[:]` the Field; it would also name the population twice. |
 | A Filter with a truth value, "is anyone in it?" | Rejected: it makes chained comparisons silently wrong (section 5). |
 | Members without the name skipped silently | Rejected: a misspelt name would filter everyone out with no error. |
@@ -482,15 +543,22 @@ Tag-scope name the program puts on a Tag read exactly as before.
    implicit: "Wizard.level makes it so the record looks like a report, an
    also doesn't individually tell you what is going on. It's a lot of
    implicit going on there. Maybe we can do a for Wizard[].level as l:".
-   And he asked for a one-line write over the valid members, which
-   STEP-SPEC-25 spells only as `(Enemy[:] & Enemy).hp = 10`. The three
-   are one gap: no object means "the sound members" and also takes a dot.
+   And he asked for a one-line write over the valid members. Told that
+   "STEP-25's Wizard[:].hp = 10 is the one-line form" of `for w in
+   Wizard: w.hp = 10`, he answered: "but those are different. The valid
+   wizards vs the universe of wizards. Do we have a one-liner for the
+   valid wizards? itt is supposed ot be the most common use." STEP-SPEC-25
+   then spelt it only as `(Enemy[:] & Enemy).hp = 10`. The three are one
+   gap: no object means "the sound members" and also takes a dot.
 
    **Decided on 2026-10-09:** "Wizard.level is a report", so the dot on
    a Tag reads only the Tag; and the named key below is rejected:
    "Wizard[Sound] looks horrible. It takes over programmer's choices,
    not language options. Skip." The root for the sound members is now
-   STEP-SPEC-29's question. What follows is the panel's first answer,
+   STEP-SPEC-29's question. There, on 2026-10-09, he took up `+`: "my
+   rumbling came to the conclusion you were right with veterans =
+   (+Wizard).level > 3" (STEP-SPEC-29, rule 3.1), and STEP-SPEC-25 now
+   writes `(+Enemy).hp = 10`. What follows is the panel's first answer,
    kept for the record.
 
    `Wizard[]` is not Python. A design panel (three designers, one judge)
@@ -515,6 +583,22 @@ Tag-scope name the program puts on a Tag read exactly as before.
    and the examples. The panel's other proposals, positions
    (`Wizard[0]`), the only one (`Wizard[Only]`) and `P[True]` for a
    boolean Projection, belong to a STEP of their own.
+3. **Containment through a Projection.** The Director, 2026-10-08:
+   "`in` on a Projection fails? what do you mean? Filtering tags by
+   containing an element? Or finding a "calculated" field and then
+   checking if an agent belongs? I'd say the second is pretty normal,
+   and the first... may be useful. Reason it out."
+   - The second is `ruth in (P > 3)`: a Filter answers `in` (rule 2.4).
+     Rule 1.8 refuses only `ruth in P`, and its message names the
+     brackets.
+   - The first is the members whose value holds an element: the sound
+     Wizards whose `spells` holds `"fire"`. It has no spelling here.
+     `"fire" in P` cannot give it: Python turns the answer of `in` into
+     a plain `True` or `False`, never a population. Python's own mask
+     writes it, `[w for w in Wizard if "fire" in w.spells]`, a frozen
+     list (STEP-SPEC-29, rule 5.7).
+
+   Should a Filter have a spelling for containment, and which one?
 
 ## Acceptance requirements
 
@@ -530,6 +614,8 @@ Tag-scope name the program puts on a Tag read exactly as before.
     for `None`, for a Record, a condition and an Action; `== True` and
     `== False` skipping members with no value; a walk of values skipping
     them; the warning when no member has the name;
+  - a bool equals only a bool (rule 2.2): `level == True` keeps no
+    member whose level is `1`, and `P == 1` none whose value is `True`;
   - liveness: a member joins, a member breaks a promise, or a level
     changes, after the Filter was made;
   - every refusal: `bool()`, `in` on a Projection, a non-boolean
@@ -546,7 +632,12 @@ Tag-scope name the program puts on a Tag read exactly as before.
   population has no public names covers every kind.
 - The Guide and the Fields Guide: "Nothing TOP-level lives at
   `Wizard.something`" restated as rule 1.1, and a section "Filters" in
-  the Fields Guide, with Carroll's cakes as the first example.
+  the Fields Guide, with Carroll's cakes as the first example. Since
+  "Wizard.level is a report" (2026-10-09), the restatement follows
+  STEP-SPEC-29, rules 1.1 and 1.2, not rule 1.1 here.
+- The Fields Guide teaches Python's own functions on a Projection and a
+  Filter (`sum`, `len`, `min`, `max`, `sorted`), and Python's own
+  filters beside them (Rationale, *Python's own functions*).
 - `tests/oracle_topkit.py`: Filters over random populations, checked
   against comprehensions on the same walk.
 - `benchmarks/scenarios.py`: the cost of a walk, a Filter against a
@@ -568,6 +659,20 @@ Tag-scope name the program puts on a Tag read exactly as before.
 > value is `NULL`-like: "== None is the way to check for non-defined
 > gains (records, contracts, actions...) and != None so it simply
 > exists".
+>
+> *Decided by the Director on 2026-10-08:* rule 1.7's `== True` and
+> `== False`: "I'd make it so `Wizard.dance == True`is all the wizards
+> with a positive affirmation "this wizard's dance skills exist (is
+> defined) and is True" , `Wizard.dance == False` is a "this wizard's
+> dance skills are defined and are False".
+>
+> *Decided by the Director on 2026-10-09:* a bool equals only a bool
+> (rule 2.2): "I would have it clear that a True is NOT a 1 in TOP, no
+> matter what default Python does." The Field's `Add` and `Remove` leave
+> TOP (rule 1.4): "Wizard[:].Add(x), Wizard[:].Remove(x) should not
+> exist. they were never approved. the only way into a field is a
+> tagging. the only way out is a rip. roll those out adn eliminate
+> them."
 >
 > *Decided by the Director on 2026-10-09:* a walk of values skips the
 > members with no value ("sum(Wizard[].level) skipping nulls is

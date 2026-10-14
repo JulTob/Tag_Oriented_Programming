@@ -10,12 +10,24 @@
   consistency, Python semantics, and design and clarity. 2026-10-09,
   after the Director's review of pull request #28: the dependencies
   made explicit, the limits of restoring a failed write stated (issue
-  #41), and the sound root spelt as STEP-SPEC-29 proposes.
+  #41), and the sound root spelt as STEP-SPEC-29 proposes. Later on
+  2026-10-09: the Director's words recorded where he decided, and the
+  dot reading on a Tag marked superseded ("Wizard.level is a report").
 
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
 
 ## Summary
+
+> **Superseded in part on 2026-10-09.** The Director decided:
+> "Wizard.level is a report". The dot on a Tag reads only the Tag
+> (STEP-SPEC-29, rules 1.1 to 1.3). Wherever this STEP reads an Agent's
+> name through a bare Tag before a dot (`Wizard.level > 3`,
+> `Enemy.hp < 5`, `Enemy.Take_Damage(5)`), that reading gives way: read
+> through a population, such as `(+Enemy).hp < 5`. On a Link,
+> STEP-SPEC-29 rule 9.2 recommends the same, `(+charlie.Knows).since`.
+> Sections 4 and 6 change most; the notes there say how. The rest
+> stands, read from a population root.
 
 STEP-SPEC-23 taught a Tag to answer **questions** about its members,
 `Wizard.level > 3`. This STEP is about **commands**: changing every
@@ -36,8 +48,9 @@ member at once.
 - **The Tag keeps its own names.** `Enemy.hp = 10` keeps the meaning
   Python gives it: an attribute of the Tag itself. When `hp` is a name
   the Tag gives its Agents, that line is a mistake. Today it silently
-  breaks the Tag. Now it is refused, and the message shows the spelling
-  above.
+  breaks the Tag. Now it is refused, as a `TagCategoryError`
+  (STEP-SPEC-28), and the message shows the loop the Director asked
+  for: `for enemy in Enemy: enemy.hp = 10` (rule 4.2).
 - **No new spelling for broadcasting an Action.** This STEP argues that
   a broadcast Action should stay a `for` statement (section 6). It does
   not add one. `Enemy.Take_Damage(5)` stays a question, as STEP-SPEC-23
@@ -65,7 +78,8 @@ STEP-SPEC-23, section 6, left two acts out:
 
 It said: "These are commands, not questions, and each deserves its own
 STEP." The Director: "I like the Writing through a Projection and
-Broadcasting an Action ideas. Let's start a branch and step for it".
+Broadcasting an Action ideas. Let's start a branch and step for it (I
+mean branching the conversation)".
 
 One rule shapes this whole STEP: **a command must not look like a
 question.** If the two look alike, a reader cannot tell whether a line
@@ -148,11 +162,14 @@ this STEP takes from it.
   Filters, and populations as roots. This STEP amends it, as listed
   above.
 - **STEP-SPEC-29, The Population Algebra** (Brief, pull request #26).
-  - Its sound part, `+Enemy`, is this STEP's sound root (rule 1.2). It is
-    *Recommended* there, not yet decided. Without it, the same members
-    are spelt `(Enemy[:] & Enemy)`.
+  - Its sound part, `+Enemy`, is this STEP's sound root (rule 1.2). The
+    Director took it up on 2026-10-09: "my rumbling came to the
+    conclusion you were right with veterans = (+Wizard).level > 3"
+    (STEP-SPEC-29, rule 3.1). It is not built yet. Until it is, the loop
+    writes the sound members (rule 1.2).
   - Its *Decided* rulings that the dot on a Tag never projects
-    (STEP-SPEC-29, rules 1.1 to 1.3) change sections 4 and 6 of this
+    (STEP-SPEC-29, rules 1.1 to 1.3; the Director, 2026-10-09:
+    "Wizard.level is a report") change sections 4 and 6 of this
     STEP. For example, `Enemy.Take_Damage(5)` becomes a refusal at the
     dot, not a lazy call, and a write on a Tag of a name it gives its
     Agents becomes a `TagCategoryError` (STEP-SPEC-28). STEP-SPEC-29's
@@ -192,8 +209,18 @@ cited as "section N" or "rule N.M".
    names to the program. So on a Tag, assignment keeps the language's
    meaning (section 4), and a write always names a population. The sound
    members are written through their own part, `(+Enemy).hp = 10`
-   (STEP-SPEC-29, rule 3.1). Until STEP-SPEC-29 is decided, the same
-   population is spelt `(Enemy[:] & Enemy)`.
+   (STEP-SPEC-29, rule 3.1). It answers the Director's question of
+   2026-10-08, "Do we have a one-liner for the valid wizards? itt is
+   supposed ot be the most common use.", and he took up `+` on
+   2026-10-09 (open question 4). `Enemy[:].hp = 10` is not that
+   one-liner: it writes everyone. The Director: "but those are
+   different. The valid wizards vs the universe of wizards."
+
+   Until `+` is built, write the loop: `for enemy in Enemy: enemy.hp =
+   10`. `(Enemy[:] & Enemy)` names the same members, but the Director
+   refused that shape on 2026-10-08: "I refuse that monstrosity with
+   redundant information" (of `(Wizard[:] & Wizard).colour`, STEP-SPEC-23
+   open question 2).
 3. **A root means what it means everywhere.** A write reaches exactly the
    members a read of that root would reach (STEP-SPEC-23):
    - "every Enemy is healed" is `Enemy[:]`;
@@ -372,13 +399,27 @@ nothing through a host's code: it runs no property, no host
 
 ### 4. Assignment on a Tag
 
+> **Superseded in part on 2026-10-09.** "Wizard.level is a report": the
+> dot on a Tag never projects (STEP-SPEC-29, rules 1.1 to 1.3). So, in
+> rule 4.2, `Enemy.hp -= 5` no longer reads a Projection: `Enemy.hp` is
+> refused at the dot (STEP-SPEC-29 rule 1.2, the refusal
+> *Recommended*). Rule 4.3's reason, a Projection replaced in silence,
+> is gone: a new name written on a Tag is a Report, "if it looks like a
+> report, then it is" (2026-10-08; STEP-SPEC-29 rule 1.3). Whether its
+> warning stays is settled when this STEP is updated after its parent
+> work merges. Rules 4.1, 4.2 and 4.4 stand.
+
 1. **On a Tag, assignment keeps the language's meaning.** `Enemy.name =
    value` sets an attribute of the Tag itself, as today (§0.8). A Report
    is written this way: `Secret_Agent.active += 1` (§1.4). So is a Pin's
    un-patching, `tag.Control = original.Control` (§1.9).
 2. **Refused: a name the Tag gives its Agents.** Assigning or deleting,
    on a Tag, a name that the Tag or a Base in its Form declares **for
-   its Agents** is a Composition Failure, and nothing changes. On a Link,
+   its Agents** is a Tag Category Failure, `TagCategoryError`
+   (STEP-SPEC-28), and nothing changes. *Decided by the Director on
+   2026-10-08:* "Wizard.hp = 10 is refused is ok", and "if Wizard.hp is
+   a record, doing "Wizard.hp = 10" should probably rise a category
+   error, as it is probably a misconception." On a Link,
    its Agents' place is the Pair (STEP-SPEC-22, rule 2.3), so this covers
    what the Link gives its Pairs. These are the names §1.9 already
    refuses to a Pin:
@@ -397,9 +438,17 @@ nothing through a host's code: it runs no property, no host
    the Tag holds the name in Tag scope too, assignment writes that slot,
    as today.
 
-   The message shows the spelling that was probably meant: "hp is a
-   Record of Enemy's Agents. To write it on each member, name the
-   population: Enemy[:].hp = 10."
+   For a Record, the message shows the loop, as the Director asked on
+   2026-10-08: "Wizard.hp = 10 is refused is ok but you should note that
+   the way to do it is for w in Wizard: w.hp = 10". It reads: "hp is a
+   Record of each Enemy, not a value of the Tag Enemy. Write: for enemy
+   in Enemy: enemy.hp = 10" (STEP-SPEC-28, rule 2). It never offers
+   `Enemy[:].hp = 10` as the one-line form: that writes everyone, and the
+   loop writes the sound members (rule 1.2). Once `+` is built, the
+   message may also name `(+Enemy).hp = 10` (STEP-SPEC-29 rule 1.3,
+   *Recommended*). The refusal of Records, Actions and protocols, with
+   this message for a Record, is built on the branch
+   `julio_cl/kit-3-category-errors`.
 
    This is the refusal §1.9 makes for a Pin, for the same reason: in
    Python, the Tag's own names and its Agents' declarations share one
@@ -470,7 +519,10 @@ nothing through a host's code: it runs no property, no host
    than the one a read of that root reads (rule 1.3).
 4. **On the Link itself**, `charlie.Knows.since = 2011` is refused by
    rule 4.2: `since` is a Record the Link gives its Pairs. The message
-   shows `charlie.Knows[:].since = 2011`.
+   shows the loop over the sound Contacts, as rule 4.2 does: `for
+   contact in charlie.Knows: charlie.Knows[contact].since = 2011`.
+   `charlie.Knows[:].since = 2011` would write every Pair, the broken
+   ones too: "The valid wizards vs the universe of wizards" (rule 1.2).
 5. **A fan-out is a Projection, not a population** (STEP-SPEC-23, rule
    1.8). `Social.Knows[:].since = 2011` is refused. Use a `for` loop over
    the Agents and their Links.
@@ -482,6 +534,15 @@ nothing through a host's code: it runs no property, no host
    ```
 
 ### 6. Broadcasting an Action
+
+> **Superseded in part on 2026-10-09.** "Wizard.level is a report": the
+> dot on a Tag never projects (STEP-SPEC-29, rules 1.1 and 1.2). So
+> `Enemy.Take_Damage(5)` is no longer a lazy call: STEP-SPEC-29 rule 1.2
+> recommends refusing it at the dot. Rule 6.1 holds for a call through a
+> population, such as `(+Enemy).Take_Damage(5)`, and rule 6.4's warning
+> is for that call. Rule 6.3's cost goes away, since only the Tag's own
+> names, such as `Volley`, are read on the Tag. Rules 6.2, 6.5 and 6.6
+> stand.
 
 1. **A called Projection stays a question.** `Enemy.Take_Damage(5)` is
    lazy and runs at walk time (STEP-SPEC-23, rule 3.1). This STEP adds no
@@ -498,6 +559,12 @@ nothing through a host's code: it runs no property, no host
 
    The loop is eager and returns nothing. A program that wants the
    results keeps them itself, for example in a list it fills.
+
+   The loop runs one member at a time, in the caller's thread. The
+   Director asked on 2026-10-08: "shouldn't these fors default to
+   parallel to speed up the runtime?" *Decided by the Director* the same
+   day: "You are right. Parallel programming should be explicit. Good
+   point." A write through a population runs the same way (rule 3.5).
 3. **A command of the Agency can be an Operation.** When a command
    belongs to the domain, the Tag can own it, in the program's own words.
    An Operation receives the Tag (§1.4), and walks its members:
@@ -544,6 +611,17 @@ nothing through a host's code: it runs no property, no host
    - an Agent that joins during the walk is not walked. A combined view
      takes the snapshots of all its Fields when its walk starts, not
      when it reaches each side.
+
+   *Decided by the Director on 2026-10-09,* for the skip: "for e in
+   Enemy: while an earlier turn Rips a later member * it makes sense,
+   to skip the left out member". And for a member Ripped and tagged
+   again before its turn, which is walked: "a ripped agent should not be
+   a member. that's an oximoron. If the agent is in, it was tagged, if
+   the agent was ripped it's out so it does not make it to the list,
+   and if an agent is tagged again, it is in the list so you shouldn't
+   skip it." (STEP-SPEC-29, rule 7.1.) Both are built on the branch
+   `julio_cl/kit-4-walk-and-tilde`. The rest of this rule is
+   *Recommended*.
 
    Every population walks through its Fields, so the sound and defective
    populations, combined views and Filters all inherit this. None of
@@ -819,4 +897,5 @@ and every write on one Agent.
 >
 > *Drafted for the Director's review.* The Director asked for this on
 > 2026-10-08: "I like the Writing through a Projection and Broadcasting an
-> Action ideas. Let's start a branch and step for it".
+> Action ideas. Let's start a branch and step for it (I mean branching
+> the conversation)".

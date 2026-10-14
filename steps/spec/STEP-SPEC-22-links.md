@@ -167,6 +167,10 @@ cited as "section N" or "rule N.M".
 | **Relation** | The `@Link` declaration itself, `Knows` in the declaring Tag's body: what every Agent's Link is made from. |
 | **Pair** | One Agent and one Contact, linked. The Pair receives the Link's Actions, Records and conditions, as an Agent receives an ordinary Tag's. |
 
+The Director's definition, 2026-10-07: "Link would be the concept of a
+tag associated to an agent or a tag living as an Action-style call." The
+Action-style call is the linking, `charlie.Knows(ruth)` (section 5).
+
 **Agents have the agency.** A Link has two roles, and they are not
 equal. The Link's Agent is the main one: it holds the Link and acts
 through it, as in an Action or a Record. The Link's Contact works for
@@ -199,7 +203,8 @@ the tag to two. then they can operate together." Section 10 shows it
    kind beside the Action and the Record. Its slot is `(Agent, name)`
    (§1.1, amended in rule 4.4), and its receiver is the Link's Agent.
 3. **A Relation declares what any Tag declares**: Actions, Records,
-   conditions (`@Pre`, `@Post`, `@Requirement`), `@Imprint`, `@Rip`,
+   conditions (`@Pre` and `@Post`; `@Requirement` leaves TOP with
+   STEP-SPEC-30), `@Imprint`, `@Rip`,
    `@Delete`, `@Underlay`, `@Secret`, `@Public`, `@Flag`, `@Report` and
    `@Operation`. Only the receiver changes:
    - **Pair scope.** What an ordinary Tag gives its Agent, a Link gives
@@ -239,6 +244,13 @@ the tag to two. then they can operate together." Section 10 shows it
    Relation of the same name that does not would replace a Link that may
    already hold Contacts, so it is a Declaration Failure at class use.
    Rule 4.6 says what extending a Link does.
+
+   The Director: "a link could extend or rewrite a link in a base tab."
+   This STEP reads "rewrite" as an extension that overrides the Base
+   Relation's members, as `Spy` does (section 10). A same-name Relation
+   that drops the Base, and with it the Contacts already linked, is
+   refused. Open question 6 asks the Director whether that is his
+   meaning.
 7. **`@Public` means "seen by the Contact"; `@Secret` means "in-house".**
    The Director: "I like the @Public for "seen by the contact" because
    the contact may be out of the. agency, so it is indeed public, but
@@ -273,7 +285,11 @@ the tag to two. then they can operate together." Section 10 shows it
    - Publishing breaks no barrier (section 6): the Contact can call into
      the Pair, but nothing she receives names the Agent unless the
      Relation's author returns it. Publishing is the author's explicit
-     act, as an Imprint that links back is (rule 6.4).
+     act, as an Imprint that links back is (rule 6.4). The Director,
+     2026-10-08: "we probably should keep the agent and contact spots
+     for input in this case, but the caller probably shouldn't need to
+     know the link-agent", "so the contact is writing in the agent's
+     inbox without exposing the identity."
 8. **Still refused**, each a Declaration Failure at class use, and each
    its own topic:
    - a Relation that is a `@Pin`, and a `@Link` inside a `@Pin`. Links
@@ -303,6 +319,9 @@ the tag to two. then they can operate together." Section 10 shows it
      Precondition, inputs by name (§2.2);
    - an Imprint: inputs by name (§2.3);
    - a teardown: its Underlay when marked, as an Action's (§3.1).
+
+   The Director wrote this order in his own example, 2026-10-08:
+   `def reach_back(agent, contact, underlay_reach_back, message="Ping"):`.
 3. **Both seats, always.** A function a Relation declares for the Pair
    with fewer than two positional parameters is a Declaration Failure at
    class use, and the message shows the spelling
@@ -401,6 +420,13 @@ A Link is a Tag. Every Ring 0 act works on it:
 | unlink (Rip) | `del charlie.Knows[ruth]` |
 | unlink every Contact | `del charlie.Knows[:]` (STEP-SPEC-24) |
 
+Asking is membership, not comparison. The Director, 2026-10-08, of
+`Social.Knows[ruth] == [charlie]`: "it would be more top to write
+`charlie in Social[ruth].Knows[:]`." His spelling reads Ruth's own Link,
+forward. By name that is `charlie in ruth.Knows` (rule 6.2).
+`Social.Knows[ruth]` is refused today (section 9); open question 7 asks
+the Director about his reading.
+
 1. **Linking is a tagging of the Contact** (§0.6), with the Pair as
    receiver:
    - the gate runs;
@@ -416,6 +442,12 @@ A Link is a Tag. Every Ring 0 act works on it:
    (§0.1, Ring 4). Nothing else is written on her. The kit never checks
    the membership or the soundness of the Agent who links. A gate that
    cares says so.
+
+   A linking grants membership to one who is not yet a member: that is
+   how she becomes a Contact. The Director, 2026-10-08, of a draft that
+   said a Link "grants only membership on its members": "that's a
+   contradiction. It should grant membership to non-members to make them
+   members."
 2. **Through a Link's Form.** Linking through a Shape Link links through
    its Base Links first, Bases first, each once (§0.5).
    `charlie.Trusts(ruth)` makes Ruth a Contact of `charlie.Knows` too:
@@ -482,10 +514,15 @@ A Link is a Tag. Every Ring 0 act works on it:
 
    The barrier does not hide those Agents from a search. Code that holds
    the declaring Tag can find them with STEP-SPEC-23's Filters:
-   - `Social.Knows[:] == ruth` finds the sound Agents who know Ruth, and
-     `Social[:].Knows[:] == ruth` all of them;
-   - `Social.Knows == link` finds a Link's Agent, when sound, and
+   - `(+Social).Knows[:] == ruth` finds the sound Agents who know Ruth
+     (STEP-SPEC-29 rule 9.4), and `Social[:].Knows[:] == ruth`, the
+     Director's spelling, all of them;
+   - `(+Social).Knows == link` finds a Link's Agent, when sound, and
      `Social[:].Knows == link` finds it among them all.
+
+   An earlier draft wrote `Social.Knows[:] == ruth` for the sound Agents.
+   That gave way on 2026-10-09, when the Director ruled that the dot on a
+   Tag reads only the Tag: "Wizard.level is a report" (section 9).
 
    Any module that imports `Social` holds it, and `Tags(ruth)` lists it
    when Ruth carries Social herself. A plain loop over `Social[:]` finds
@@ -608,7 +645,9 @@ told plainly, not answered `False`. That covers:
 
 Each message points to a Link: "Knows is a Relation: link through an
 Agent, charlie.Knows(ruth)". `Social.Knows | None` keeps `type`'s own
-meaning, as it does for every Tag.
+meaning, as it does for every Tag. Open question 7 asks the Director
+whether `Social.Knows[ruth]` should instead be Ruth's own Link, as he
+read it.
 
 > **Superseded in part on 2026-10-09.** The dot on a Tag reads only the
 > Tag ("Wizard.level is a report"), so the route below, where
@@ -787,6 +826,10 @@ wedding.Partners(bob)                             # ann and bob are peers; the w
 
 ## Rationale
 
+**The name, and the Guide.** The Director, 2026-10-07: "if it doesn't
+have a concept yet I'd call it Link and add it to the guide." So the mark
+is `@Link`, and the Guide gains a pattern, "Your contacts" (Acceptance).
+
 **A family of one-place Tags, not a new kind of membership.** Fixing the
 first place turns a two-place statement into an ordinary Tag. The Field,
 the algebra, the gate, Rip, Bases and Shapes, and history then come for
@@ -809,7 +852,8 @@ in the first draft, and it did not survive the Pair:
   gives its Agent, and nothing reaches Ruth unless the Relation
   publishes it (rule 2.7).
   The second draft applied it to Records only, and left Actions and
-  promises as an open question. The Director answered it.
+  promises as an open question. The Director answered it on 2026-10-08:
+  "well, a tag gives actions, so a link should give actions too."
 - **Bases needed a rule, not a refusal.** "Which Base?" has one sensible
   answer: the same Agent's Link. With that answer, the laws of Ring 0
   (Bases first, tagging closed upward, and, with STEP-SPEC-26, each
@@ -891,7 +935,7 @@ her, then look inside. That crosses the same barrier the Director drew,
 from the other side.
 
 **One direction.** The Director: "They are one directional, so you should
-declare the link to be bidirectional in the linking ... Sometimes roads
+declare the link to be bydirectional in the linking ... Sometimes roads
 walk in only one direction, and you may not want to be able to access
 charlie from ruth. ... the safety comes from not being able to be tracked
 from your contact if it's compromised, unless you declare it so. Breaking
@@ -929,19 +973,21 @@ name: `Link`. No parameter name is reserved.
 | A Pin | Wrong receiver: a Pin puts meaning on a Tag, not on an Agent (§1.9). |
 | A Link without Actions, promises, secrets or Bases (the first two drafts) | Withdrawn after the Director's review: the refusals guarded the Contact, and the Pair now guards her better. |
 | An ordinary Tag as a Base of a Relation | Refused: it would write that Tag on the Contact at every linking, without a word. An Imprint says it out loud. |
-| A Shape's Relation of the same name as a new Link | Rejected: existing Contacts would fall out of `charlie.Knows`. |
+| A Shape's Relation of the same name as a new Link | Set aside (open question 6): existing Contacts would fall out of `charlie.Knows`. |
 | A Shape's Relation that reaches only later linkings | Rejected: one Field would hold Pairs of two kinds. |
 | The Contact first and the holder by name, `def Not_Oneself(agent, owner)` (the first draft) | Set aside: with the Contact first, the receiver rule lands the protocols on the Contact (finding 5). A seat passed by name would also be a new kind of seat. |
 | The Contact first and the holder positional second (one reviewer's repair) | Set aside for the same landing. It would also make `agent` mean Ruth inside `class Social`, one indentation below where it means Charlie. |
 | "Owner" as the term for the holding Agent | Rejected by the Director: the Agent has the agency, and "owner" stays a domain word. |
-| `member` instead of `contact` | Set aside by the Director: "an agent and a contact makes clear who is the main subject and who is the object". `member` also already names contributions in §1.5 ("a published member"). |
+| `member` instead of `contact` | Set aside: the Director chose "agent" and "contact": "an agent and a contact makes clear who is the main subject and who is the object in the sytax". `member` also already names contributions in §1.5 ("a published member"). |
+| Another word than `contact`, because it is one letter from "contract" | Rejected by the Director: "the contexts where contact is used are very different conceptually from contract uses. It is a risked typo as every word is with any other word nearby. We'll let it be as a contact is a clear concept and keeps the "secret agency" vocabulary that is already stablished in TOP." |
 | An optional Contact seat, passed only when declared | Rejected: a one-seat body would silently check the Agent who links. |
 | The Contact's door open too | Rejected: linking would become a way to read the Contact's secrets. |
-| A query from the Contact back to the Agents who link her, `Owners(ruth, Social.Knows)` or `ruth in Social.Knows` (the first draft) | Rejected by the Director: links point one way, and TOP speaks in the language's own structures, not in query functions. The spelling is now refused (section 9). |
+| A query from the Contact back to the Agents who link her, `Owners(ruth, Social.Knows)` or `ruth in Social.Knows` (the first draft) | Rejected by the Director, 2026-10-08: "assert Owners? I don't like "Function calls" in TOP. We should avoid structures that take over the programmers comfort zone. We usually use pythonic language structures", and "If you are trying to walk the link backwards... that's not what links are for. They are one directional". The spelling is now refused (section 9). |
 | The holding Agent in the Link's display, `Knows[Charlie]` (the first draft) | Withdrawn: it would lead from the Contact to the Agent. |
 | A marker for two-way Links, `@Link(both_ways=True)` | Set aside: the Imprint says it in two visible lines, and a marker would hide what runs. |
 | Fan-out: a `@Public` Pair member on the Contact calls every Pair that holds her | Rejected by the Director: "fanning-out... that soounds off, as we'd have two behaviours for the same thing only contextually different." A Link establishes a line (rule 2.7). |
 | `@Public` publishes a Link's Report or Operation onto its Pairs (an earlier draft) | Replaced by rule 2.7: `@Public` means seen by the Contact. |
+| `@Link @Action` to show a Pair Action to the Contact, and `@Underlay` to reach the other Links that hold her (the Director's plan of 2026-10-08, put up for review: "Evaluate this plan") | Replaced by his choice later that day: "I like the @Public for "seen by the contact"", and "fanning-out... that soounds off" (rule 2.7). That `@Link` marks the Relation (rule 2.1) is this STEP's proposal, not his ruling. |
 | The Relation as a Base of every Link | Rejected: Rip never cascades (§0.7), so membership in the Relation would outlive the last linking. |
 
 ## Open questions for the Director
@@ -955,8 +1001,8 @@ name: `Link`. No parameter name is reserved.
    charlie.Knows(ruth); Spy(charlie)` would then fail while
    `Spy(charlie)` alone works. The STEP recommends extending every Pair.
 2. **The barrier and Filters.** You asked for "who knows ruth" as
-   `Social[:].Knows[:] == ruth`, which under STEP-SPEC-23 is also
-   `Social.Knows[:] == ruth` for the sound members. You also said
+   `Social[:].Knows[:] == ruth`, which STEP-SPEC-29 writes
+   `(+Social).Knows[:] == ruth` for the sound members. You also said
    "Breaking a barrier should be explicit."
    - With STEP-SPEC-23, any code that holds `Social` finds Charlie from
      Ruth.
@@ -1017,6 +1063,35 @@ name: `Link`. No parameter name is reserved.
      stickiness, for the Contact only: what a Tag gives its own Agent
      stays, but a line into an external Contact is the Agent's, and
      ends with the Pair.
+5. **A Record both sides share (rules 7.2, 2.7).** The Director: "It
+   would be really cool if we made it so both "share" that variable.
+   Like if the contact updates the date, the agent can see the new
+   value. Or at least that the agent can see but not write the variable,
+   which belongs to the contact. Makes sense? Evaluate both ideas and
+   other options you may find would benefit it."
+
+   A Pair Record is held once, on the Pair. If it is `@Public`, the
+   Contact reads that same value (rule 2.7), so when the Agent writes
+   it, she sees the new value. Not yet said:
+   - may the Contact write a `@Public` Pair Record, `ruth.since = 2011`?
+   - may a Relation give the write to the Contact alone, and leave the
+     Agent only reading?
+6. **"Rewrite" a Base's Link (rule 2.6).** You said a Link "could extend
+   or rewrite a link in a base tab". This STEP allows a rewrite only as
+   an extension: `class Knows(Social.Knows)`, overriding members, as
+   `Spy` does (section 10). It refuses a same-name Relation that does
+   not extend, because the Agent's Contacts would fall out of
+   `charlie.Knows`. Is that your meaning of "rewrite"?
+7. **`Social.Knows[ruth]`, read forward (section 9).** The Director,
+   2026-10-08: "`Social.Knows[ruth] == [charlie]` should mean the Social
+   tag's Link of ruth points to charlie... but it would be more top to
+   write `charlie in Social[ruth].Knows[:]`." Read that way,
+   `Social.Knows[ruth]` is Ruth's own Link. It walks forward, so it
+   breaks no barrier, and it fits a Relation that stays the Relation:
+   given an Agent, it gives that Agent's Link. Section 9 refuses it, and
+   STEP-SPEC-29 rule 9.4 recommends that `Social.Knows` is always the
+   Relation. Should it stay refused, with `ruth.Knows` (rule 6.2) as the
+   spelling, or be Ruth's own Link?
 
 ## Acceptance requirements
 
@@ -1060,10 +1135,59 @@ name: `Link`. No parameter name is reserved.
   should share its functions and one runtime composition, rather than
   build a class and a scan per Agent.
 - The Guide: a pattern, "Your contacts", written when this STEP is
-  Deployed.
+  Deployed. The Director: "We can frame it in the guide as "your
+  contact", and the safety comes from not being able to be tracked from
+  your contact if it's compromised, unless you declare it so."
 
 ---
 
 ### Decision *(filled by the Director)*
 
 > Status set to **____** on YYYY-MM-DD, because ____.
+>
+> *Drafted for the Director's review.* The Director asked for this on
+> 2026-10-07: "if it doesn't have a concept yet I'd call it Link and add
+> it to the guide. If it can't happen, I'd make this a Step."
+>
+> *Decided by the Director on 2026-10-07 and 2026-10-08, ahead of the
+> whole STEP.* His words are quoted here, or at the place named:
+> - the name, `Link`, and a pattern in the Guide (Rationale, *The name,
+>   and the Guide*; Acceptance);
+> - a Link is "a tag associated to an agent or a tag living as an
+>   Action-style call" (section 1);
+> - it is held like a Record and granted by its Tag: "It would BE the
+>   record. They could be another kind of grants by a tag, themselves"
+>   (rules 2.2, 4.1);
+> - it is a Tag in full: "A link could, indeed, have records, actions,
+>   and contracts, as any tag has", and "a link should give actions too"
+>   (rule 2.3);
+> - Links extend Links: "A link could extend a link declared in the same
+>   tag, for example, or a link could extend or rewrite a link in a base
+>   tab" (rules 2.4, 2.6). What "rewrite" means is open question 6;
+> - the Link's Agent in the first seat and the Contact in the second, his
+>   proposal: "first input by default agent owning the tag, and the
+>   second the contact agent". He wrote the same order in his own example
+>   (rules 3.1, 3.2);
+> - a linking grants membership to one who is not yet a member: "It
+>   should grant membership to non-members to make them members" (rule
+>   5.1);
+> - one direction, and two ways only when the linking writes it: "They
+>   are one directional", "Breaking a barrier should be explicit"
+>   (section 6);
+> - Records on a Link: "we may need records on a link too... like a
+>   relationship's attribute", `charlie.Knows[ruth].since` (section 7);
+> - the Agent's deletion ends its Links: "It should probably work as
+>   normal Tag deletion", and the rip protocols run "for all tags,
+>   including links" (rule 8.3);
+> - the words: "agent" and "contact", "owner" informal only, "It is the
+>   Link's agent and the Link's Contact"; "contact" stays, though it is
+>   close to "contract"; peers are a Tag kept at two (section 1,
+>   Alternatives);
+> - `@Public` means seen by the Contact, `@Secret` means in-house, and
+>   no fan-out (rule 2.7).
+>
+> *Rejected by the Director:* `Owners(...)` and any walk back from a
+> Contact, "Owner" as a term, and fan-out (Alternatives).
+>
+> The Status stays Brief until the Director has answered the open
+> questions.

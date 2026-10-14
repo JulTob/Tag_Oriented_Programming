@@ -91,26 +91,33 @@ cited as "section N" or "rule N.M".
    a base hostage"). Nothing cascades (§0.7): `del Class[:]` Rips no one
    from `Wizard`, a Shape of Class. So nothing at the door refuses a
    Field Rip.
-3. **Everyone leaves first, then the teardowns run.** The act has two
-   phases, in the order the Director gave for a stop (STEP-SPEC-27):
-   "revoke all - rip protocols (teardowns)".
+3. **Everyone leaves first, then the teardowns run.** *Decided.* The act
+   has two phases, in the order the Director gave for a stop
+   (STEP-SPEC-27), on 2026-10-08: "revoke all - rip protocols
+   (teardowns)", and "The safehouse: ends membership first and runs
+   teardowns after is the sensible choice."
    - First, every member's membership ends and every member leaves the
      Field. No user code runs in this phase.
    - Then each member's teardowns run (§3.1), one member at a time.
 
    Both phases go in the order the members joined, the order `for` walks
-   (the Director: "We'll follow [your] fifo recommendation on deletion").
+   (the Director: "We'll follow four [your] fifo recommendation on
+   deletion").
    So when the first teardown runs, nobody is a member any more: no
    member keeps access while the others are cleaned up. Only a teardown
    that applies the Tag again can make a member (rule 1.5).
 4. **Failures are collected.** A teardown that fails does not stop the
-   next member's. The failures are reported once, as a Composition
-   Failure, after the walk (§3.1). At a Tag's end there is no caller, and
-   failures stay silent (rule 3.1). *Changed on 2026-10-09:* within one
-   member, a failure freezes that member's later teardowns, and the
-   member is arrested (STEP-SPEC-32, rules 1 and 5). Where a member whose
-   teardown failed ends up was open question 1: kept in the safehouse,
-   arrested.
+   next member's (*Recommended*; STEP-SPEC-32, rule 5). The failures are
+   reported once, as a Composition Failure, after every member's
+   teardowns have run or been frozen (§3.1). At a Tag's end there is no
+   caller, and failures stay silent (rule 3.1). *Changed on 2026-10-09,
+   decided:* within one member, a failure freezes that member's later
+   teardowns, in order, and the member leaves the Tag and is arrested
+   (STEP-SPEC-32, rules 1 and 5). The Director: "A failed rip sends you
+   to the safehouse, and you leave the tag.", and "So a failed ripping
+   should freeze the underlaying rips so they keep the intended order."
+   Where a member whose teardown failed ends up was open question 1,
+   now decided: kept in the safehouse, arrested.
 5. **The Field as it was.** The Field Rip revokes the members the Field
    had when it began. A teardown that applies the Tag again, to a member
    or to an Agent for the first time, makes that Agent a member again,
@@ -178,18 +185,21 @@ cited as "section N" or "rule N.M".
 ### 3. The end of a Tag
 
 1. **When a Tag ceases to exist, its Field is Ripped**, as by `del Tag[:]`
-   (rules 1.1, 1.3, 1.5 and 1.6), with one difference. As at an Agent's
-   deletion (§3.2), teardowns at a Tag's end are best effort and silent:
-   no failure is raised (open question 1 asks whether a member whose
-   teardown failed is kept in the safehouse instead). The
+   (rules 1.1, 1.3, 1.5 and 1.6). *Decided:* the Director, 2026-10-08:
+   "we should include a field rip operation to default tag deletion."
+   There is one difference. As at an Agent's deletion (§3.2), teardowns
+   at a Tag's end are best effort and silent: no failure is raised
+   (STEP-SPEC-32 recommends the arrest here too: a member whose teardown
+   fails is kept, and only `Tag[...]` lists it; its open question 8). The
    teardowns of every member still alive at that collection run, then the
    Tag is gone. A member collected in the same pass as its Tag has
    already left the Field, and leaves with no teardown, best effort as at
    any deletion (§3.2).
 
-   A Link's Field is Ripped the same way, at a different moment: by the
-   finalizer of the Link's Agent, while that Agent can still fill
-   the first seat, and never by the Link's own end. A Contact that
+   A Link's Field is Ripped the same way. *Decided:* the Director,
+   2026-10-08: "for all tags, including links." Only the moment differs:
+   the finalizer of the Link's Agent runs it, while that Agent can still
+   fill the first seat, and never the Link's own end. A Contact that
    finalizer never reached ends silently when the Link ends, with no
    teardown (STEP-SPEC-22, rules 8.3 and 8.7).
 2. **Best effort, like every finalizer** (§3.2). The language decides
