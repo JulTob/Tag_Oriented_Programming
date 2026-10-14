@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import cached_property, partial, partialmethod
 import unittest
 
 from TopKit import Action
@@ -79,6 +80,8 @@ class InvalidRipTests(unittest.TestCase):
         for kind, mark in (
                 ("classmethod", classmethod),
                 ("staticmethod", staticmethod),
+                ("cached_property", cached_property),
+                ("partialmethod", partialmethod),
                 ):
             for order, build in (
                     ("Rip outside", _with_rip_outside),
@@ -86,6 +89,75 @@ class InvalidRipTests(unittest.TestCase):
                     ):
                 with self.subTest(kind=kind, order=order):
                     self.assert_invalid(build(mark))
+
+    def test_rip_is_rejected_inside_nested_known_descriptors(self) -> None:
+        for outer, inner in (
+                (cached_property, partialmethod),
+                (partialmethod, cached_property),
+                (classmethod, cached_property),
+                (property, partialmethod),
+                ):
+            with self.subTest(outer=outer, inner=inner):
+                self.assert_invalid(outer(inner(Rip(_member()))))
+
+    def test_functools_descriptors_are_validated_without_running_them(self) -> None:
+        for wrapper in (cached_property, partialmethod):
+            with self.subTest(wrapper=wrapper):
+                events: list[str] = []
+
+                class Unbound(wrapper):
+                    def __get__(self, instance, owner=None):
+                        events.append("descriptor")
+                        raise AssertionError("validation bound the descriptor")
+
+                def Cleanup(agent):
+                    events.append("body")
+                    raise AssertionError("validation ran the body")
+
+                self.assert_invalid(Unbound(Rip(Cleanup)))
+                self.assertEqual(events, [])
+
+    def test_callable_descriptor_subclasses_still_cannot_be_rips(self) -> None:
+        for wrapper in (property, cached_property, partialmethod):
+            with self.subTest(wrapper=wrapper):
+                class CallableDescriptor(wrapper):
+                    def __call__(self, agent):
+                        raise AssertionError("validation called the descriptor")
+
+                self.assert_invalid(CallableDescriptor(Rip(_member())))
+
+    def test_unmarked_functools_descriptors_remain_valid_declarations(self) -> None:
+        for wrapper in (cached_property, partialmethod):
+            with self.subTest(wrapper=wrapper):
+                events: list[str] = []
+
+                def Cleanup(agent):
+                    events.append("body")
+
+                member = wrapper(Cleanup)
+                Declared = type("Declared", (Tag,), {"Cleanup": member})
+                agent = Host()
+                Declared(agent)
+                del Declared[agent]
+
+                self.assertIs(vars(Declared)["Cleanup"], member)
+                self.assertFalse(hasattr(agent, "Cleanup"))
+                self.assertEqual(events, [])
+
+    def test_a_later_rip_mark_inside_a_descriptor_refuses_tagging(self) -> None:
+        for wrapper in (cached_property, partialmethod):
+            with self.subTest(wrapper=wrapper):
+                member = _member()
+                Declared = type("Declared", (Tag,), {"Cleanup": wrapper(member)})
+                Rip(member)
+                agent = Host()
+
+                with self.assertRaisesRegex(TagDeclarationError, r"Declared\.Cleanup.*@Rip"):
+                    Declared(agent)
+
+                self.assertIs(type(agent), Host)
+                self.assertEqual(vars(agent), {})
+                self.assertNotIn(agent, Declared[:])
 
     def test_rip_is_rejected_outside_a_property_without_marking_its_accessor(self) -> None:
         log: list[str] = []
@@ -167,6 +239,7 @@ class InvalidRipTests(unittest.TestCase):
     def test_bare_and_explicit_actions_remain_valid_rips(self) -> None:
         forms = (
                 ("bare", lambda function: Rip(function)),
+                ("callable partial", lambda function: Rip(partial(function))),
                 ("Rip outside Action", lambda function: Rip(Action(function))),
                 ("Rip inside Action", lambda function: Action(Rip(function))),
                 ("Rip outside Secret", lambda function: Rip(Secret(function))),

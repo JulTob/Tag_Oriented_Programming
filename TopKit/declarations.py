@@ -13,7 +13,10 @@ from __future__ import annotations
 
 from contextvars import ContextVar
 from dataclasses import dataclass
+from functools import cached_property
+from functools import partialmethod
 from inspect import Parameter
+from inspect import getattr_static
 from inspect import signature
 from types import AsyncGeneratorType
 from types import CoroutineType
@@ -1249,6 +1252,44 @@ def _scan(
     return declarations
 
 
+def _has_rip_declaration(
+        attribute: Any,
+        ) -> bool:
+    """Find Rip marks inside known wrappers without binding descriptors."""
+
+    pending = [attribute]
+    seen: set[int] = set()
+
+    while pending:
+        member = pending.pop()
+
+        if id(member) in seen:
+            continue
+
+        seen.add(id(member))
+
+        if isinstance(member, (cached_property, partialmethod)):
+            if getattr_static(member, _RIP, False) is True:
+                return True
+
+            pending.append(getattr_static(member, "func", None))
+        elif isinstance(member, property):
+            pending.extend(
+                    accessor.__get__(member)
+                    for accessor in (property.fget, property.fset, property.fdel)
+                    )
+        elif isinstance(member, Report):
+            pending.append(getattr_static(member, "builder", None))
+        elif isinstance(member, classmethod):
+            pending.append(classmethod.__func__.__get__(member))
+        elif isinstance(member, staticmethod):
+            pending.append(staticmethod.__func__.__get__(member))
+        elif _has_flag(member, _RIP):
+            return True
+
+    return False
+
+
 def _check_rip_declaration(
         owner: type | str,
         name: str,
@@ -1257,20 +1298,7 @@ def _check_rip_declaration(
     """A Rip protocol is an Action too; never ignore the mark on another
     declaration kind or on a name which cannot become a Contribution."""
 
-    if isinstance(attribute, property):
-        marked = any(
-                accessor is not None and _has_flag(accessor, _RIP)
-                for accessor in (
-                    attribute.fget,
-                    attribute.fset,
-                    attribute.fdel,
-                    )
-                )
-    else:
-        member = attribute.builder if isinstance(attribute, Report) else attribute
-        marked = _has_flag(member, _RIP)
-
-    if not marked:
+    if not _has_rip_declaration(attribute):
         return
 
     kind = _kind_of(attribute)
@@ -1284,7 +1312,10 @@ def _check_rip_declaration(
                 )
     elif (
             not _is_private(name)
-            and not isinstance(attribute, (Report, classmethod, staticmethod))
+            and not isinstance(attribute, (
+                    Report, property, classmethod, staticmethod,
+                    cached_property, partialmethod,
+                    ))
             and callable(attribute)
             and kind in (None, "action")
             ):
