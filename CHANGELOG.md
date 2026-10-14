@@ -14,8 +14,10 @@
 
 - **Tagging preparation cost:** ordinary Action/Record declarations reuse
   the existing collision and Underlay checks without constructing a
-  disposable Overlay. Declarations requiring runtime protection and Pins
-  retain scratch composition. State copies and empty runtime-type keys also
+  disposable Overlay. Tags with deletions, conditions, Secrets, special
+  methods, published members, Constants, Tools, any Report or Operation, or
+  a Flag, and Agents that are Tags or already hold Constants, retain scratch
+  composition. State copies and empty runtime-type keys also
   avoid temporary allocations. Both physical host snapshots, live declaration
   lookup after Gate, and the ordered Gainings/admission boundary remain.
   The existing performance budgets are unchanged (#175).

@@ -217,8 +217,11 @@ order, iterative traversal and lazy caching are unchanged; mutation of
 ## The tagging sequence
 
 `transactions._apply` walks the missing Tags in Base-first Form order.
-Before each turn, `_gate` lays only that Tag over a scratch copy of the
-current Overlay and runs its own Preconditions. A refusal does not remove
+Before each turn, `_gate` checks only that Tag against the current Overlay.
+A Tag of ordinary Actions and Records is checked name by name, without
+copying anything (`overlay._preflight_ordinary_gains`); any other Tag is laid
+over a scratch copy of the current Overlay, and its own Preconditions run on
+that copy. A refusal does not remove
 Tags whose turns already finished. Gainings apply Actions, Records, condition
 definitions and deletions incrementally in declaration order, top to bottom,
 establishing each before the next declaration runs. The Gate has already
