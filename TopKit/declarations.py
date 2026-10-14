@@ -13,7 +13,10 @@ from __future__ import annotations
 
 from contextvars import ContextVar
 from dataclasses import dataclass
+from functools import cached_property
+from functools import partialmethod
 from inspect import Parameter
+from inspect import getattr_static
 from inspect import signature
 from types import AsyncGeneratorType
 from types import CoroutineType
@@ -225,10 +228,16 @@ def Constant(
 
 
 def Rip(
-        function: Function,
-        ) -> Function:
+        function: Any,
+        ) -> Any:
     """Teardown. Runs when the Agent leaves the Tag's Field. It is also a
     normally callable Action."""
+
+    if isinstance(function, property):
+        raise TagDeclarationError(
+                "@Rip cannot mark a property; @Rip marks an Action because"
+                " a teardown is also callable as an Action"
+                )
 
     return _flag(
             function,
@@ -1041,6 +1050,20 @@ def _name_checks(
             failure.Named(name)
 
 
+def _check_rip_declarations(
+        owner: str,
+        namespace: dict[str, Any],
+        ) -> None:
+    """Reject a Rip mark which class creation would otherwise ignore."""
+
+    for name, attribute in namespace.items():
+        _check_rip_declaration(
+                owner,
+                name,
+                attribute,
+                )
+
+
 def _scan(
         tag: type,
         ) -> _Declarations:
@@ -1073,14 +1096,20 @@ def _scan(
                 )
 
     for name, attribute in namespace.items():
-        if _is_private(name):
-            continue
-
         _refuse_truth_gain(tag.__name__, name, attribute)
         if managed is not None and (
                 name in managed.actions
                 or name in managed.records
                 ):
+            continue
+
+        _check_rip_declaration(
+                tag,
+                name,
+                attribute,
+                )
+
+        if _is_private(name):
             continue
 
         if _is_constant(attribute):
@@ -1197,13 +1226,6 @@ def _scan(
         if _is_dunder(name):
             dunders.add(name)
 
-    if "__del__" in rips:
-        raise TagDeclarationError(
-                f"{tag.__name__}.__del__ is marked @Rip, but a __del__ Layer"
-                " already runs when the Agent is deleted, after its"
-                " teardowns; give the teardown a name of its own"
-                )
-
     declarations = _Declarations(
             actions=tuple(actions),
             records=tuple(records),
@@ -1228,6 +1250,92 @@ def _scan(
                 )
 
     return declarations
+
+
+def _has_rip_declaration(
+        attribute: Any,
+        ) -> bool:
+    """Find Rip marks inside known wrappers without binding descriptors."""
+
+    pending = [attribute]
+    seen: set[int] = set()
+
+    while pending:
+        member = pending.pop()
+
+        if id(member) in seen:
+            continue
+
+        seen.add(id(member))
+
+        if isinstance(member, (cached_property, partialmethod)):
+            if getattr_static(member, _RIP, False) is True:
+                return True
+
+            pending.append(getattr_static(member, "func", None))
+        elif isinstance(member, property):
+            pending.extend(
+                    accessor.__get__(member)
+                    for accessor in (property.fget, property.fset, property.fdel)
+                    )
+        elif isinstance(member, Report):
+            pending.append(getattr_static(member, "builder", None))
+        elif isinstance(member, classmethod):
+            pending.append(classmethod.__func__.__get__(member))
+        elif isinstance(member, staticmethod):
+            pending.append(staticmethod.__func__.__get__(member))
+        elif _has_flag(member, _RIP):
+            return True
+
+    return False
+
+
+def _check_rip_declaration(
+        owner: type | str,
+        name: str,
+        attribute: Any,
+        ) -> None:
+    """A Rip protocol is an Action too; never ignore the mark on another
+    declaration kind or on a name which cannot become a Contribution."""
+
+    if not _has_rip_declaration(attribute):
+        return
+
+    kind = _kind_of(attribute)
+
+    if _is_constant(attribute):
+        reason = "@Constant cannot mark a Rip protocol"
+    elif name == "__del__":
+        reason = (
+                "a __del__ Layer already runs when the Agent is deleted,"
+                " after its teardowns; give the teardown a name of its own"
+                )
+    elif (
+            not _is_private(name)
+            and not isinstance(attribute, (
+                    Report, property, classmethod, staticmethod,
+                    cached_property, partialmethod,
+                    ))
+            and callable(attribute)
+            and kind in (None, "action")
+            ):
+        return
+    elif _is_private(name):
+        reason = "private names are not Contributions"
+    elif isinstance(attribute, Report):
+        reason = "it is a Report"
+    elif kind is not None:
+        reason = f"its declaration kind is {kind.replace('_', ' ')}"
+    else:
+        reason = f"it is a {type(attribute).__name__}"
+
+    owner_name = owner if isinstance(owner, str) else owner.__name__
+
+    raise TagDeclarationError(
+            f"{owner_name}.{name} is marked @Rip, but {reason};"
+            " @Rip marks an Action because a teardown is also callable"
+            " as an Action"
+            )
 
 
 def _emit_published_pins(
