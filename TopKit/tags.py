@@ -38,6 +38,7 @@ from .declarations import _check_constant_declarations
 from .declarations import _check_constant_shapes
 from .declarations import _check_link_declarations
 from .declarations import _check_pin_bases
+from .declarations import _check_rip_declarations
 from .declarations import _check_tool_declarations
 from .declarations import _constant_owner
 from .declarations import _is_dunder
@@ -149,6 +150,10 @@ class MetaTag(type):
                 "_topkit_kind",
                 None,
                 )   # its own, never inherited: a Relation, a Link or a Pair Tag says so itself
+        _check_rip_declarations(
+                name,
+                namespace,
+                )
         _name_checks(namespace, name)
 
         if not _making_link and any(

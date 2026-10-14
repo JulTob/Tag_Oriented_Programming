@@ -5706,13 +5706,11 @@ print("end", "Deprecated" in Archmage)
         self.assertNotIn("__del__", vars(door))
 
     def test_rip_on_a_finalizer_is_refused(self) -> None:
-        class Keeper(Tag):
-            @Rip
-            def __del__(agent) -> None:
-                pass
-
         with self.assertRaises(TagDeclarationError):
-            Keeper(Agent())
+            class Keeper(Tag):
+                @Rip
+                def __del__(agent) -> None:
+                    pass
 
     def test_a_host_that_subclasses_tagged_gets_its_teardowns(self) -> None:
         from TopKit import Tagged

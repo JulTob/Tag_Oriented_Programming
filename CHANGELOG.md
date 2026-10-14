@@ -4,6 +4,16 @@
 
 ### TopKit
 
+- **Invalid Rip declarations fail at declaration:** `@Rip` marks an Action,
+  because a teardown remains an ordinary callable Action. Stacking it on
+  a Record, condition, Imprint, Delete, Report, Operation, private name,
+  `classmethod`, `staticmethod`, `property`, `cached_property` or
+  `partialmethod` is now a Declaration Failure
+  instead of silently registering no teardown. Constant Rips are refused in
+  both decorator orders, as required by STEP-SPEC-34. The existing refusal
+  of `@Rip __del__` now happens when the Tag is declared; ordinary `__del__`
+  Layers retain their separate finalization behavior.
+
 - **Native contract truth:** removed `Contract.Holds` without an alias
   (STEP-SPEC-40). Use `bool(agent)` or `if agent:`, including for Tags.
   Named checks and diagnostic Contract tools remain. Held untagged values
