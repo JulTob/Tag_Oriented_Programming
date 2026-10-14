@@ -512,7 +512,8 @@ Tagging sequence or expand its rollback boundary.
   the Constant or Secret gate when there is one. Every write to the name
   passes `_refuse_misfit` first, `object.__setattr__` included, exactly
   where `_Binding_Write` already intercepts a host's own `__setattr__`;
-  `_materialize` asks the same question of what the builder returned.
+  `_gainings` validates the builder's proposed result through
+  `_refuse_tool_value` before installing its binding or rule.
   A kind is terms, all holding, each a tuple of alternatives: a Tag asks
   `tag in state.active` (membership now, never soundness, never
   `isinstance`), a class asks `isinstance`, with a raising instance test

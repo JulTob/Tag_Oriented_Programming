@@ -466,7 +466,6 @@ class NestedImprintTests(unittest.TestCase):
                 self.assertFalse(isinstance(agent, Trained))
                 self.assertTrue("badge" @ agent)
                 self.assertEqual(bool(agent), prepared)
-                self.assertEqual(bool(agent), prepared)
                 self.assertNotIn(agent, ~Trained)
                 self.assertNotIn(agent, list(Trained))
                 self.assertEqual(later, [])
