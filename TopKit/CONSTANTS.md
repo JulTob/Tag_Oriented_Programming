@@ -133,7 +133,7 @@ class Equipped(Tag):
 
 
 Equipped(ari)
-assert Contract.Holds(ari)
+assert ari
 try:
     ari.Replace_Equipment()
 except TagCompositionError:
@@ -143,7 +143,7 @@ else:
 
 del Equipped[ari]
 assert ari.Has_Equipment
-assert Contract.Holds(ari)
+assert ari
 ```
 
 The Post remains after Rip. An Action, Imprint or Rip protocol cannot

@@ -23,11 +23,18 @@ from .contracts import _guarded
 from .constants import _constant_overlay
 from .constants import _refuse_constant
 from .declarations import _Declarations
+from .declarations import _ACTION_CHAIN
+from .declarations import _action_chain
+from .declarations import _discard_lazy_result
 from .declarations import _is_flag
+from .declarations import _lazy_rip_guard
 from .declarations import _parameters_of
 from .declarations import _protocol_inputs
 from .declarations import _takes_stored
+from .declarations import _tool_kind_of
 from .declarations import _takes_underlay
+from .errors import _exception_text
+from .errors import _type_name
 from .errors import TagCompositionError
 from .errors import TagDeclarationError
 from .errors import TagError
@@ -157,18 +164,24 @@ def _host_data_descriptor(
 def _compose(
         function: Function,
         underlay: Function | None,
+        name: str,
         ) -> Function:
     """Bind an Action to its Underlay (when it asks for one)."""
 
-    uses_underlay = _takes_underlay(function)
+    uses_underlay = _takes_underlay(function, name)
 
     if not uses_underlay:
         return function
 
     if underlay is None:
         raise TagResolutionError(
-                f"{function.__qualname__} requires a visible Underlay"
+                f"{str.__str__(name)!r} requires a visible Underlay"
                 )
+
+    chain = _action_chain(underlay)
+
+    if chain is None:
+        chain = object()
 
     @wraps(function)
     def Call(
@@ -181,17 +194,50 @@ def _compose(
                 **next_kwargs: Any,
                 ) -> Any:
             if next_args or next_kwargs:
-                return underlay(
+                result = underlay(
                         agent,
                         *next_args,
                         **next_kwargs,
                         )
+            else:
+                result = underlay(
+                        agent,
+                        *args,
+                        **kwargs,
+                        )
 
-            return underlay(
-                    agent,
-                    *args,
-                    **kwargs,
-                    )
+            guard = _lazy_rip_guard.get()
+
+            if (
+                    guard is not None
+                    and guard.active
+                    and guard.chain is chain
+                    ):
+                try:
+                    lazy = _discard_lazy_result(result)
+                except Exception as error:
+                    failure = TagCompositionError(
+                            f"Rip protocol {str.__str__(guard.name)!r} returned a"
+                            " lazy result that could not be disposed of:"
+                            f" {_type_name(error)}: {_exception_text(error)}"
+                            )
+                    guard.failures.append(failure)
+
+                    raise failure from error
+
+                if lazy is not None:
+                    article = "an" if lazy == "async generator" else "a"
+                    failure = TagCompositionError(
+                            f"Rip protocol {str.__str__(guard.name)!r} returned"
+                            f" {article} {lazy}; a Rip protocol must complete"
+                            " synchronously. TOP does not await or iterate"
+                            " teardown protocols."
+                            )
+                    guard.failures.append(failure)
+
+                    raise failure
+
+            return result
 
         return function(
                 agent,
@@ -199,6 +245,12 @@ def _compose(
                 *args,
                 **kwargs,
                 )
+
+    setattr(
+            Call,
+            _ACTION_CHAIN,
+            chain,
+            )
 
     return Call
 
@@ -315,6 +367,7 @@ def _install(
                         function,
                         prior,
                         True,
+                        name,
                         ),
                 tag,
                 )
@@ -326,7 +379,7 @@ def _install(
         if (
                 origin is not None
                 and origin is not tag
-                and not _takes_underlay(function)
+                and not _takes_underlay(function, name)
                 and not _quiet.get()
                 ):
             warnings.warn(
@@ -344,6 +397,7 @@ def _install(
                         function,
                         prior,
                         False,
+                        name,
                         ),
                 tag,
                 )
@@ -388,7 +442,7 @@ def _install(
 
     if declarations.rips:
         state.rips[tag] = tuple(
-                state.actions[name]
+                (name, state.actions[name])
                 for name in declarations.rips
                 )
 
@@ -398,6 +452,7 @@ def _install(
 def _refuse_stored_input_collision(
         builder: Function,
         inputs: dict[str, Any],
+        name: str,
         ) -> None:
     """A Record's second positional parameter is the stored value. If it is
     named like a supplied input, the author almost certainly meant the
@@ -406,11 +461,14 @@ def _refuse_stored_input_collision(
     second = _parameters_of(builder).named[1][0]
 
     if second in inputs:
+        second = str.__str__(second)
+        name = str.__str__(name)
+
         raise TagDeclarationError(
-                f"{builder.__qualname__}: its second parameter {second!r} is"
+                f"{name!r}: its second parameter {second!r} is"
                 f" the stored value, but an input named {second!r} was"
                 " supplied. Take the input by name after a `*`:"
-                f" `def {builder.__name__}(agent, *, {second})`, or rename"
+                f" `def {name}(agent, *, {second})`, or rename"
                 " the stored parameter."
                 )
 
@@ -810,6 +868,7 @@ def _delete(
     state.operations.pop(name, None)
     state.published.discard(name)
     state.secrets.discard(name)
+    state.tools.pop(name, None)   # Delete frees the slot: the tool is dropped (§1.6)
     state.deleted.add(name)
 
 
@@ -883,7 +942,6 @@ def _install_action(
             name,
             "an Action",
             )
-
     if state.pinned is not None:
         _refuse_tag_member(
                 state,
@@ -924,7 +982,7 @@ def _install_action(
 
     if (
             underlay is not None
-            and not _takes_underlay(function)
+            and not _takes_underlay(function, name)
             and _independent(tag, origin)
             and not _quiet.get()
             ):
@@ -938,8 +996,10 @@ def _install_action(
     state.actions[name] = _compose(
             function,
             underlay,
+            name,
             )
     state.action_origins[name] = tag
+    state.tools.pop(name, None)   # an Action at the name ends a Tool slot's rule (ordinary Overlay)
     _restore(state, name)
     state.published.discard(name)
 
@@ -986,6 +1046,7 @@ def _install_record(
         state.actions.pop(name)
         state.action_origins.pop(name)
 
+    kind = _tool_kind_of(builder)
     prior = state.records.get(name)
 
     if (
@@ -1000,6 +1061,11 @@ def _install_record(
                 TagOverwriteWarning,
                 skip_file_prefixes=_WARNING_SKIP_PREFIXES,
                 )
+
+    if kind is not None:
+        state.tools[name] = (tag, kind)   # the latest Tool declaration's kind is the slot's
+    else:
+        state.tools.pop(name, None)   # a plain Record at the name ends the rule (ordinary Overlay)
 
     state.records[name] = tag
     _restore(state, name)
@@ -1027,6 +1093,7 @@ def _restore(
 
 def _materialize(
         agent: object,
+        tag: type,
         declarations: _Declarations,
         deleted_before: set[str],
         inputs: dict[str, Any],
@@ -1072,6 +1139,7 @@ def _materialize(
             _refuse_stored_input_collision(
                     builder,
                     inputs,
+                    name,
                     )
 
         named = _protocol_inputs(
@@ -1095,10 +1163,23 @@ def _materialize(
         except TagError:
             raise
         except Exception as error:
+            tag_name = str.__str__(type.__dict__["__name__"].__get__(tag))
+            record_name = str.__str__(name)
             raise TagCompositionError(
-                    f"Record {builder.__qualname__} could not be"
-                    f" materialized: {type(error).__name__}: {error}"
+                    f"Record {tag_name}.{record_name} could not be"
+                    f" materialized: {_type_name(error)}: {_exception_text(error)}"
                     ) from error
+
+        if _tool_kind_of(builder) is not None:
+            from .tools import _refuse_misfit   # tools imports state, which overlay also feeds
+
+            _refuse_misfit(
+                    _state_of(agent),
+                    name,
+                    value,
+                    agent,
+                    built=True,
+                    )
 
         if pinned and name in declarations.secrets:
             namespace.pop(name, None)

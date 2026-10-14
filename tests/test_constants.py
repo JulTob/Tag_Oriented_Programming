@@ -56,6 +56,10 @@ class ConstantTests(unittest.TestCase):
 
         class Custom_Host:
             def __setattr__(agent, name, value):
+                if name == "__class__":
+                    object.__setattr__(agent, name, value)
+                    return
+
                 writes.append(("set", name))
                 agent.__dict__[name] = value
 
@@ -98,6 +102,24 @@ class ConstantTests(unittest.TestCase):
                 with self.assertRaises(TagCompositionError):
                     object.__delattr__(agent, name)
         self.assertEqual(agent.Work(), "original")
+
+    def test_constant_special_method_rejects_native_assignment_and_deletion(self):
+        class Given(Tag):
+            @Constant
+            def __len__(agent):
+                return 7
+
+        agent = Host()
+        Given(agent)
+        self.assertEqual(len(agent), 7)
+        for assign, delete in ((setattr, delattr),
+                               (object.__setattr__, object.__delattr__)):
+            with self.subTest(assign=assign):
+                with self.assertRaises(TagCompositionError):
+                    assign(agent, "__len__", lambda: 0)
+                with self.assertRaises(TagCompositionError):
+                    delete(agent, "__len__")
+        self.assertEqual(len(agent), 7)
 
     def test_post_survives_rip_and_cannot_be_deleted_or_shadowed(self):
         class Sworn(Tag):
@@ -149,7 +171,7 @@ class ConstantTests(unittest.TestCase):
                 with self.assertRaises(TagError):
                     tag(agent)
         agent.ready = False
-        self.assertFalse(Contract.Holds(agent))
+        self.assertFalse(bool(agent))
 
     def test_other_tags_cannot_change_a_constants_kind_or_delete_it(self):
         class Given(Tag):
@@ -393,7 +415,7 @@ class ConstantTests(unittest.TestCase):
         with self.assertRaises(TagCompositionError):
             Contract.Delete(agent, "Ready")
         agent.ready = False
-        self.assertFalse(Contract.Holds(agent))
+        self.assertFalse(bool(agent))
         self.assertEqual(Contract.Status(agent), {"Ready": False})
 
     def test_shapes_cannot_redeclare_inherited_constant_gains_or_posts(self):

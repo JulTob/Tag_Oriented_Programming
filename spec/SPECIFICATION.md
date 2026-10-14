@@ -45,16 +45,29 @@ replaces it: before and after, it is the same object. Precisely:
   same equality);
 - every attribute and method the Target had keeps working the way it did,
   unless a Tag deliberately contributes a member of that name;
-- the Target's own special methods (`__contains__`, `__len__`, `__bool__`,
+- the accepted Target's own special methods (`__contains__`, `__len__`,
   operators, `__getattr__`) keep working, with one deliberate exception:
-  `bool(agent)` gains contract meaning once a Postcondition is visible
-  (§2.5);
+  an ordinary object Agent's `bool(agent)` is its visible Posts from
+  first Tagging, even if the host defines `__len__`; `len(agent)` stays
+  the host's (§2.5). A host with an explicit `__bool__` is refused as a
+  Target before Tagging effects;
 - the name of the object's type is unchanged.
 
 What TOP does **not** promise is nominal type identity: a Python
 implementation may swap the object's class for a runtime subclass of it.
 `isinstance(agent, Host)` stays true; `type(agent) is Host` may not. See
 Ring 4.
+
+If preparation of that runtime representation fails, the Target keeps its
+original identity, class and instance bindings, with no new Field entry
+(STEP-SPEC-37). TopKit's Python host profile covers physical dictionary and
+declared Python slot bindings; native extension fields and removed slot
+declarations are outside its initial restoration profile. A custom host's
+deliberate refusal is respected; ordinary frozen
+dataclass field protection is not a refusal to prepare the representation.
+This bounded restoration does not undo external effects or changes inside
+mutable values, and does not prescribe rollback of later Gainings or
+Imprints.
 
 ## 0.2 Vocabulary
 
@@ -74,6 +87,7 @@ Ring 4.
 | **Underlay** | The prior visible contribution of a name, captured for a later Layer to extend. |
 | **Pin** | A Tag marked `@Pin`, whose Targets are Tags (§1.9). |
 | **Pinning** | Applying a Pin to a Tag: `Rare(Wizard)`. The pinned Tag is the Pin's Agent. |
+| **Tool** | A Record whose value is an object of a declared kind, a specific Tag or a Python class (§1.3). Something you *have* (*tener*): what it is stays its own. |
 
 TOP uses **Base** and **Shape**, never *parent* and *child*: the words
 describe a different model. A Tag may be both: `Person` is a Shape of
@@ -157,8 +171,14 @@ MI6(bond, code="007")      # every protocol that names `code` receives it
 ```
 
 **Reapplying an active Tag does nothing.** It does not duplicate
-membership, does not rerun Imprints, does not reset Records. Resetting is a
-deliberate act: Rip, then apply again.
+membership, does not rerun Imprints, and does not rebuild Records. Rip ends
+membership but leaves sticky Contributions. Applying the Tag after Rip is
+fresh Tagging: that Tag's ordinary Record builders run again. Bases already
+active are not reapplied. A builder without a second positional seat replaces
+the current binding with its returned value;
+a builder with that seat receives the current stored value and determines
+how to evolve it. As in §1.3, an absent, deleted or Action binding supplies
+`None`; `stored` is the example parameter name, not a required spelling.
 
 ## 0.6 The tagging sequence
 
@@ -259,8 +279,12 @@ Rip is the only exit from a Field, and it obeys three laws:
   is a Resolution Failure. A Constant Post (§1.5) cannot be deleted;
   any membership guard must be part of its original check.
 - **Reapplying a Ripped Tag is a fresh Tagging.** Imprints run again;
-  ordinary Records are rebuilt. Established Constant bindings stay intact;
-  their builders do not run again for the same declaration.
+  that Tag's ordinary Record builders run again. A builder without a second
+  positional seat replaces the current binding; one with that seat receives
+  the current stored value, including a value left by the Tag's earlier
+  application (§1.3).
+  Established Constant bindings stay intact; their builders do not run
+  again for the same declaration.
 
 ## 0.8 Spellings
 
@@ -276,13 +300,15 @@ language, not a library's naming.
 | active member? | `agent in Wizard` |
 | carries a keyword? (Flags, §1.8) | `"Undead" in ghoul`, `Undead in ghoul`, `Keyword(ghoul, "Undead")`; a Flag's words the same, `"Wolf" in howler` |
 | ever a member? | `isinstance(agent, Wizard)` |
-| the sound population | `for w in Wizard`, `len(Wizard)`, `if Wizard:` |
+| the sound population | `for w in Wizard`, `len(Wizard)`, `if len(Wizard) > 0:` |
 | the defective population | `for w in ~Wizard`, `if ~Wizard:` |
 | everyone in the Field | `Wizard[:]`, `if Wizard[:]:` |
+| the Tag's own Posts hold | `bool(Wizard)`, `if Wizard:`; no Posts means true, even with an empty Field |
 | populations combined (§2.5) | `Wizard \| Fighter`, `Wizard & Fighter`, `Wizard - Sworn`; the same on `Wizard[:]` and `~Wizard` |
 | one condition, read on the Agent (§2.5) | `agent.Has_Book` |
 | a named Contribution is present (§1.1) | `"Attack" @ agent`, `"Attack" @ Wizard[agent]` |
 | keep a Contribution's binding fixed (§1.5) | `@Constant` with `@Record`, `@Action`, `@Post`, `@Report` or `@Operation` |
+| a Record whose value is an object of a kind (§1.3) | `@Tool(Weapon)` for a member of the Tag, now; `@Tool(Sword)` for an instance of the class; `@Tool(Sword, Weapon)` for both; `@Tool(Weapon \| None)` when the slot may be empty |
 | the Agent-bound view | `Wizard[agent]` |
 | leave the Field (Rip) | `del Wizard[agent]` |
 | the Form, as Tags | `Form(Wizard)` |
@@ -296,10 +322,15 @@ language, not a library's naming.
 | a Tag carries a keyword? (Flag Pins, §1.9) | `"Deprecated" in Wizard`, `Keyword(Wizard, "Deprecated")` |
 | a Tag's Pins and contract, as text | `f"{Wizard:pins}"`, `f"{Wizard:contract}"` |
 
-Truth on a Tag is truth on a collection: `if Wizard:` asks whether anyone
-sound is a Wizard right now, `while Enemy:` fights while an enemy stands,
-`if not Boss:` spawns one, `if ~Wizard:` asks whether anyone waits for
-repair.
+Truth on a Tag checks its own visible Posts received through Pins (§1.9),
+just as truth on any Agent checks its Posts. It does not check the Posts
+the Tag declares for its members. A Tag with no Posts is true even with an
+empty Field. Population questions use their cardinalities: `len(Wizard) > 0`
+asks whether any sound Wizard exists, `while len(Enemy) > 0:` continues
+while a sound enemy stands, and `if len(Boss) == 0:` can spawn one.
+`len(Wizard[:])` counts everyone and `len(~Wizard)` counts defective members.
+Population views keep collection truth: `if ~Wizard:` asks whether anyone
+waits for repair, and `if Wizard[:]:` includes sound and defective members.
 
 The Agent's own `in` is reserved for **keywords**: Tags marked `@Flag`
 (§1.8). Ordinary Tags are asked from the Tag's side, `agent in Wizard`.
@@ -429,6 +460,7 @@ another meaning still relies on.
 
 The same rules bind special methods: a Tag may contribute `__add__`,
 `__eq__` and the like, and they actualize the Agent.
+The Agent truth protocol `__bool__` is reserved for Posts (§2.5).
 
 ## 1.3 Records
 
@@ -515,6 +547,97 @@ design; frequent deletion means unclear state ownership.
 
 Mutable Record values must be fresh per Agent unless sharing is the
 explicit intent. Shared values belong in a Report.
+
+### Tools
+
+A **Tool** is a Record whose value is an object of a declared **kind**:
+something the Agent *has* (*tener*), beside what it *is* (a Tag) and
+what it is *currently* (a Record). The held object may be an Agent of
+its own, with its own Tags, Field, contract, keywords and secrets;
+nothing it is reaches its bearer, and nothing the bearer is reaches it.
+The curse on the sword is the sword's.
+
+`@Tool(K1, ..., Kn)` marks a Record builder and names the slot's kind.
+Each `Ki` is a **specific Tag**, asked as membership now, or a **Python
+class**, asked as the language's own instance test; all of them hold.
+Inside one `Ki`, the language's own union names alternatives, any of
+which admits the value, and `None` among them declares the empty hand.
+`@Tool(...)` alone declares the Record; `@Record` may be written as well
+and restates it. The mark stacks with `@Constant`, `@Secret` and
+`@Public` in either order, and the builder keeps a Record's three seats:
+
+```python
+class Fighter(Tag):
+
+    @Tool(Sword, Weapon)                # a Sword that is a Weapon, now
+    def weapon(agent, *, weapon):
+        return weapon                   # the forge Tagged it; the slot never does
+
+
+Fighter(charlie, weapon=sword)
+charlie.weapon in Weapon[:]             # True: the tool is a Weapon
+charlie in Weapon[:]                    # False: the bearer is not
+```
+
+| Kind | Admits | Spelled |
+| --- | --- | --- |
+| a Tag | a member of the Tag now, sound or defective, a Shape's member included; never a Rogue of it | `@Tool(Weapon)` |
+| a class | an instance of the class or a subclass, tagged or not, a Rogue included | `@Tool(Sword)` |
+| several | a value every kind admits | `@Tool(Sword, Weapon)` |
+| alternatives | a value any alternative admits | `@Tool(Sword \| Staff)`, `@Tool(Weapon \| Staff)` |
+| the empty hand | `None`, besides the kind | `@Tool(Weapon \| None)` |
+
+Three laws govern the slot:
+
+1. **The slot has a kind, checked at admission.** Admission is asked when
+   the slot is gained, on what the builder returns, and at every write
+   to it, `object.__setattr__` included. A refusal is a Composition
+   Failure: at the gaining it is a Record failure of §0.6; at a write
+   nothing changes. Admission is a gate, never re-asked: a seated tool
+   that later leaves its Tag stays in hand, a Rogue, and the bearer's
+   own promise notices it (§2.4); a Tag kind refuses such a Rogue only
+   if it is seated again, and a class kind admits it. Admission never
+   evaluates the object's contract. Presence (`"weapon" @ agent`),
+   current membership (`agent.weapon in Weapon[:]`) and soundness
+   (`bool(agent.weapon)`, once it is known to be an Agent) stay three
+   questions. An untagged value retains ordinary Python truth.
+2. **The slot is never empty, unless its kind says so.** With a kind of
+   Tags and classes alone, a builder that returns `None` and an
+   assignment of `None` are Composition Failures. A kind written with
+   `| None` admits `None` at the gaining and at the write: the empty hand
+   is declared where readers see it. In both cases the drop is
+   `del agent.weapon`, and `@Delete` at the name frees the slot (§1.6).
+   A Constant slot refuses both (§1.5).
+3. **The slot never Tags.** The kit applies no Tag to what the builder
+   returns or to what is assigned. The forge Tags the object in plain
+   sight, or the object arrives already Tagged. A tagging inside the
+   builder is an ordinary call on another Target with its own §0.6
+   boundary: its failure keeps its own name and refuses the bearer's
+   gaining; a Tag it applied to a pre-existing object stays applied,
+   since Rip is not restoration (§0.7).
+
+The rule belongs to the effective Record declaration, as Overlay already
+says (§1.2). A later Layer that redeclares the name as a Tool brings its
+own kind and receives the held tool in its stored seat; a plain Record
+or an Action at that name replaces the Contribution as it would any
+Record, and the rule ends with it; `@Delete` frees the slot. Rip of the
+bearer's Tag leaves the slot, its tool and its rule in hand, as
+Contributions are sticky (§0.7); reapplication rebuilds an ordinary slot
+through the builder and keeps a Constant one (§1.5). Two slots may hold
+one tool, a tool may bear tools, a bearer may hold itself when it is of
+the kind, and a tool is held strongly, as a Record holds its value.
+
+The kind is a declaration-time fact. `@Tool()` without a kind, `None`
+alone, a bare `@Tool` on the builder, the root `Tag`, `object`, a Pin
+(§1.9: a Pin's Agents are Tags), a population (`Weapon | Blessed`,
+`~Weapon`, `Weapon[:]`: §2.5's Field algebra, not a kind; the refusal
+shows `@Tool(Weapon, Blessed)` for both and a common Base Tag for
+either), an instance, a typing construct with no plain instance test,
+`@Tool` over any other kind of declaration, or `@Tool` inside a `@Pin`
+(a Pin's Records land as Reports, §1.9) is a Declaration Failure at
+class use. A slot under a protocol name (`__rmatmul__`) keeps the
+language's own hook: its ordinary writes are checked, and a kernel write
+to it is a documented bypass, as writing the instance dictionary is.
 
 ## 1.4 Reports and Operations
 
@@ -875,7 +998,7 @@ meaning membership once a Flag lands.
 ## 1.9 Pins: Tags as Targets
 
 Categories have categories. A game marks Tags as *Rare* or *Homebrew*; a
-rules engine keeps Tags by *School*; a tool walks every Tag that is
+rules engine keeps Tags by *School*; a program walks every Tag that is
 *Deprecated*. A Tag marked `@Pin` applies to Tags, and the pinned Tag is
 its Agent in every sense of Ring 0: membership, a Field to walk, a gate,
 a promise, a view, a Rip.
@@ -968,9 +1091,12 @@ Field, a gate, a promise, a Rip that is an act, and a history
 `isinstance` remembers. A Tag says what something *is*; a Record says
 what it *has* right now.
 
-**Seats already taken.** `bool(Wizard)` remains "is anyone a sound
-Wizard" (§0.8); a pinned Tag's own promises are read from the Pin's side,
-`Wizard in ~Rare`, `Contract.Display(Wizard)`, `f"{Wizard:contract}"`.
+**The Tag's own contract.** `bool(Wizard)` checks its visible Pin Posts,
+including those retained after Rip; no Posts means true. The Tag's Field
+does not decide its truth. `len(Wizard) > 0` asks for a sound member (§0.8).
+A pinned Tag's promises can also be read from the Pin's side,
+`Wizard in ~Rare`, or inspected with `Contract.Display(Wizard)` and
+`f"{Wizard:contract}"`.
 `f"{Wizard:pins}"` names its Pins. `Wizard.Rare` is the Pin-bound view
 by name, on the same miss-path rule as `charlie.Wizard`.
 
@@ -1162,10 +1288,14 @@ for anyone in Wizard[:]:     # everyone, sound or defective
 assert broken in Wizard      # a defective Agent is still a member
 ```
 
-The plain loop is the working population, and `if Wizard:` asks whether
-it is empty. A broken Agent does not stop being a member (`in`), does not
+The plain loop is the working population, and `len(Wizard) > 0` asks whether
+it contains a member. A broken Agent does not stop being a member (`in`), does not
 leave `Wizard[:]`, and waits in `~Wizard` for repair or Rip. Membership and the loop deliberately disagree for it:
 the loop is the line, and a defective product is off the line.
+
+`~` reads "broken", never "not". Broken twice is still broken, so `~`
+absorbs: `~~Wizard`, `~~~Wizard` and any longer run are `~Wizard`, the
+same defective population (STEP-SPEC-38).
 
 **Populations combine** (STEP-SPEC-13). `|` is either, `&` is both, `-`
 is the left without the right, on any population: a whole Field, the
@@ -1173,15 +1303,23 @@ sound view, the defective view, or a combination. A Tag in an operator
 seat is its sound population, as it is in the loop; `Wizard[:] |
 Fighter[:]` is everyone who is either; the levels mix. The result is a
 lazy view that reads its Fields when walked, keeps application order
-within each side, answers `in`, `len`, truth and iteration, and has no
-complement (`~` on a union has no universe). A Tag with anything that is
-not a population keeps the language's own class union (`Wizard | None`).
+within each side, answers `in`, `len`, truth and iteration, and takes no
+`~`: `~(Wizard | Fighter)` is refused, and `~Wizard | ~Fighter` is the
+defective population of either. A Tag with anything that is not a
+population keeps the language's own class union (`Wizard | None`).
 
 ```python
 for c in Wizard | Fighter:            # sound in either, each once
 for b in Wizard & Fighter:            # sound in both
 for u in (Wizard[:] | Fighter[:]) - Sworn:   # anyone with a role who has not sworn
 ```
+
+**A population walk** (STEP-SPEC-35) checks current Field membership at
+each member's turn. A member Ripped before its turn is skipped. If the
+same Agent or Tag is tagged again before its turn, it belongs again and
+must not be skipped merely because it was previously Ripped. TopKit's
+saved-turn ordering and lazy operand timing are documented in its
+[Field guide](../TopKit/FIELDS.md).
 
 **A condition is read on the Agent by its name** (STEP-SPEC-14).
 `agent.Has_Book` is `True` while the promise called `Has_Book` holds and
@@ -1197,9 +1335,23 @@ pinned Tag reads its own conditions the same way (`Wizard.Has_Members`).
 A condition that outlived its Tag (§0.7) still reads by name until the
 author ends it.
 
-Truthiness on a plain object is vacuously true, so this fills an empty
-seat. A host that defines its own `__bool__` or `__len__` keeps it until a
-Postcondition becomes visible on that Agent.
+An ordinary object Agent with no visible Postcondition is truthy: it has
+no broken promise. A host's `__len__` keeps answering `len(agent)`; its
+length never answers the Agent's truth. Thus an empty Agent whose visible
+promises hold is still truthy.
+
+The Agent's `__bool__` protocol is reserved for that contract question.
+A Tag cannot gain or delete it, including through a Record, Action or
+published Report/Operation; a Declaration Failure refuses such a binding.
+An ordinary Python host defining `__bool__` directly or by inheritance is
+refused as a Target with a Composition Failure before Gates, Gainings or
+Target mutation. Its truth is not evaluated or replaced by Tagging.
+Objects held in Records retain their own truth. A Tag follows the same
+contract rule: `bool(Tag)` checks its own visible Posts received through
+Pins, independently of its members' Posts. No Posts means true even before
+any Pin or with an empty Field. A Pin can explicitly require sound members
+with a Post returning `len(tag) > 0`. Existing lengths and set algebra keep
+their population meanings (§0.8).
 
 ## 2.6 Naming the culprit
 
@@ -1240,7 +1392,6 @@ names the promise that broke:
 Contract.Postconditions(agent)   # promises hold, or raise naming one
 Contract.Preconditions(agent)    # gates still hold, or raise
 Contract.Conditions(agent)       # both, Pre then Post
-Contract.Holds(agent)            # the boolean form, spelled out
 Contract.Status(agent)           # {condition: holds?}, never raises
 print(Contract.Display(agent))
 # Hero[Wizard] contract:

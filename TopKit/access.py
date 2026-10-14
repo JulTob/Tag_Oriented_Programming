@@ -12,6 +12,7 @@ from __future__ import annotations
 from functools import partial
 from typing import Any
 from typing import Callable
+import operator
 import sys
 
 from . import declarations
@@ -24,10 +25,12 @@ from .declarations import _MISSING
 from .declarations import _is_flag
 from .declarations import _words_of
 from .lifecycle import _teardown_all
-from .state import _Bound
+from .state import _Composing_Bound
 from .state import _Pinned_Operation
+from .state import _Secret_Bound
 from .state import _Snapshot
 from .state import _State
+from .state import _is_composing
 from .state import _name_of
 from .state import _state_of
 
@@ -92,11 +95,45 @@ def _host_in_seat(
     return None
 
 
+def _refuse_host_truth(
+        target: object,
+        ) -> None:
+    """Refuse custom host truth without evaluating it or changing the Target."""
+
+    host = type(target)
+
+    # Read Python's type data directly: custom metaclass lookup must not
+    # hide a real protocol declaration or run while eligibility is checked.
+    for klass in type.__dict__["__mro__"].__get__(host):
+        namespace = type.__dict__["__dict__"].__get__(klass)
+
+        if "__bool__" not in namespace:
+            continue
+
+        if (
+                namespace.get("_TOPKIT_HOST_TYPE") is not None
+                and namespace["__bool__"] is _agent_bool
+                ):
+            continue   # the kit's hook on a synthesized runtime layer
+
+        raise TagCompositionError(
+                f"{type.__dict__['__name__'].__get__(host)} defines __bool__;"
+                " an Agent's truth is"
+                " reserved for its visible Postconditions"
+                )
+
+
 def _hooks_for(
         host_type: type,
-        has_posts: bool,
         has_flags: bool,
         ) -> dict[str, Any]:
+    """The kit's special methods for one host.
+
+    Ordinary object Agents use contract truth from the first Tagging.
+    Their hosts may supply ``__len__``, but custom ``__bool__`` is refused
+    before Tagging. Tags use their metaclass's own-contract truth.
+    """
+
     hooks: dict[str, Any] = {
             "__getattr__": _agent_getattr,
             "__del__": _agent_del,
@@ -104,7 +141,7 @@ def _hooks_for(
             "_TOPKIT_HOST_GETATTR": _host_member(host_type, "__getattr__"),
             }
 
-    if has_posts and _host_member(host_type, "__bool__") is None:
+    if not issubclass(host_type, type):
         hooks["__bool__"] = _agent_bool
 
     if _host_member(host_type, "__format__") is None:
@@ -178,7 +215,7 @@ def _secret_of_tag(
     """A Pin's @Secret member on a Tag: held in the state, resolved only
     while the Tag's own protocols or pinned Operations run."""
 
-    if state.composing == 0:
+    if not _is_composing(state):
         raise AttributeError(
                 f"{name!r} is a secret member of {tag.__name__}; it is"
                 " reachable only from its Pins' own Actions and protocols"
@@ -290,7 +327,65 @@ def _keyword(
 def _agent_bool(
         agent: object,
         ) -> bool:
+    """Reserved Agent contract truth; a plain object
+    constructed from an Agent's runtime type keeps ordinary host truth."""
+
+    state = _state_of(agent)
+
+    if state is None:
+        return _host_truth(agent)
+
+    if not state.postconditions:
+        return True   # nothing promised
+
     return _holds(agent)
+
+
+def _host_truth(
+        agent: object,
+        ) -> bool:
+    """An untagged runtime object keeps its host's native truth.
+
+    The actual MRO already contains the underlying host classes. Skip the
+    synthesized layers without moving an older host ahead of an override.
+    """
+
+    host = type(agent)
+
+    for klass in type.__dict__["__mro__"].__get__(host):
+        namespace = type.__dict__["__dict__"].__get__(klass)
+
+        if namespace.get("_TOPKIT_HOST_TYPE") is not None:
+            continue
+
+        if "__len__" not in namespace:
+            continue
+
+        length = namespace["__len__"]
+
+        # Python's descriptor slot reads __get__ from the real type data,
+        # independently of a metaclass's attribute lookup or class equality.
+        for descriptor_type in type.__dict__["__mro__"].__get__(type(length)):
+            descriptor_namespace = type.__dict__["__dict__"].__get__(descriptor_type)
+
+            if "__get__" in descriptor_namespace:
+                call = descriptor_namespace["__get__"](length, agent, host)
+                break
+
+        else:
+            call = length
+
+        result = operator.index(call())
+
+        if result < 0:
+            raise ValueError("__len__() should return >= 0")
+
+        if result > sys.maxsize:
+            raise OverflowError("cannot fit 'int' into an index-sized integer")
+
+        return result != 0
+
+    return True
 
 
 def _host_finalizer(
@@ -438,13 +533,20 @@ class _Tag_View:
                     f"{view._tag.__name__} deleted {name!r}"
                     )
 
-        if name in snapshot.secrets and _state_of(agent).composing == 0:
+        if name in snapshot.secrets and not _is_composing(_state_of(agent)):
             raise AttributeError(
                     f"{name!r} is a secret member of {view._tag.__name__}"
                     )
 
         if name in snapshot.actions:
-            return _Bound(
+            if name in snapshot.secrets:
+                return _Secret_Bound(
+                        snapshot.actions[name],
+                        agent,
+                        name,
+                        )
+
+            return _Composing_Bound(
                     snapshot.actions[name],
                     agent,
                     )
@@ -491,7 +593,7 @@ class _Tag_View:
         if name in snapshot.deleted:
             return False
 
-        if name in snapshot.secrets and _namespace(view._agent)[STATE].composing == 0:
+        if name in snapshot.secrets and not _is_composing(_namespace(view._agent)[STATE]):
             return False
 
         return (

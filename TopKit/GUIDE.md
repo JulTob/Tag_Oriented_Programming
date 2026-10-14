@@ -59,7 +59,7 @@ Wizard(ari)
 
 assert ari in Wizard                 # Ari is a Wizard now
 assert list(Wizard) == [ari]         # the Field: everyone who is one
-assert Wizard                        # "is anyone a Wizard?" (yes)
+assert len(Wizard) > 0               # "is anyone a Wizard?" (yes)
 ```
 
 An empty Tag is already useful. It defines a category and a population, and
@@ -189,7 +189,7 @@ corruption = 0
 for creature in Undead:                 # every sound member
     corruption += creature.level
 
-if not Undead:                          # nobody is Undead: nothing to do
+if len(Undead) == 0:                    # no sound Undead members: nothing to do
     print("This area is safe")
 else:
     print(f"This area is corrupted by a level of {corruption}")
@@ -226,11 +226,19 @@ assert bob.spellbook == []                # not shared
 
 **Watch out.** A Record builder runs once, when the Tag applies. It is not a
 property; it does not recompute. Reapplying an active Tag does nothing, so
-a Record is never silently reset. To reset an ordinary Record, Rip and
-apply again. `@Constant @Record` keeps its established binding instead;
+a Record is never silently rebuilt. Rip removes membership, not the binding.
+Applying the Tag after Rip is fresh Tagging: that Tag's ordinary Record
+builders run again. Bases already active are not trained again.
+A builder without a second positional seat replaces
+the current binding with its returned value. With that seat (`stored` in the
+examples), it receives the current stored value, including a value left by
+the Tag's earlier application, and decides how to evolve it. An absent,
+deleted or Action binding supplies `None`; `stored` is not a required
+parameter name. Thus Rip alone is not a reset; the builder determines what
+fresh Tagging does with the value. `@Constant @Record` is not rebuilt, though
 the value's contents may still be mutable. [Constant Contributions](CONSTANTS.md)
-shows the distinction and the same protection for Actions, Posts and
-shared Contributions.
+shows the distinction and the same protection for Actions, Posts and shared
+Contributions.
 
 ### Pattern 3 · Pile things up from several Tags
 
@@ -416,6 +424,12 @@ Do not return a number and hope: a count of `0` is not `False` to TopKit,
 and it will refuse the raw value. Write the comparison you mean, such as
 `return agent.slots > 0`. This keeps a real zero from being mistaken for
 a refusal.
+
+**Protocol work finishes now.** In TopKit's current Python runtime,
+`@Pre`, `@Imprint`, `@Post` and `@Rip` are synchronous. A native coroutine,
+generator or async generator returned by a protocol is rejected without
+awaiting or iterating it. Put async or streaming behavior in Actions or
+Operations; a Record may also store such an object as its value.
 
 ### Pattern 6 · Promise, then repair
 
@@ -777,6 +791,14 @@ several Tags, tag them all before the `try`, and Rip them in the
 This frees `with` for ordinary Python context protocols. A host or an
 Agent may still define `__enter__` and `__exit__` (or the asynchronous
 forms); TOP simply gives those methods no automatic Tagging or Rip rule.
+An Agent-authored hook is still an Action: it may read that Agent's
+Secrets while it runs, through the normal composition door. The door is
+closed before the `with` block starts and after exit returns. For an
+asynchronous hook, it stays open through the hook's await and closes on
+return, error or cancellation. Its authority belongs to the hook's
+execution context: an unrelated sibling task cannot read the Agent's
+Secrets merely because the hook is awaiting. Work the hook deliberately
+delegates into its context shares the door only until that hook closes it.
 
 A role's conditions do **not** leave with it on their own. What the
 Agent *became* stays (pattern 1's Rogue Agent), and so does what the role
@@ -1035,9 +1057,9 @@ assert kit.Drive() == "Engine v1 at 2"
 **Watch out.** A Pin may replace what a Tag *shares* (its Operations
 and Reports), never what its Agents *do* (its Actions, Records and
 conditions); TopKit refuses that at the gate, because on a class the two
-live in one dictionary. `if Wizard:` still asks whether anyone is a
-sound Wizard, not whether Wizard's own promises hold; ask those from the
-Pin's side, `Wizard in ~Rare`. A Pin applies only to Tags, and an
+live in one dictionary. `if Wizard:` asks whether Wizard's own visible
+Posts hold, including those received from Pins. `len(Wizard) > 0` asks
+whether anyone is a sound Wizard. A Pin applies only to Tags, and an
 ordinary Tag only to objects, so a Field is never a mix of the two. A
 Flag Pin is a keyword on the Tag: `"Deprecated" in Wizard`. Prefer it to
 `Wizard.deprecated = True` for the same reason you prefer an `Undead` Tag
@@ -1059,13 +1081,25 @@ the architecture, with a Field to walk and a history that stays.
 | Are its promises holding? | `if agent:`, `Contract.Status(agent)`, `f"{agent:contract}"` |
 | What did it look like right after Wizard? | `agent.Wizard`, `Wizard[agent]` |
 
+An Agent's truth is its visible Postconditions. A Tag in the Agent's
+seat follows the same rule for its own Posts, received from Pins. With
+no Posts either is true: nothing promised is broken, even if a Tag's
+Field is empty. The ordinary Agent's truth seat is reserved:
+a Python host with an explicit `__bool__` is refused as a Target before
+its Gates or Gainings, and a Tag cannot gain or delete that name. A host's
+`__len__` still answers `len(agent)`, so an empty Agent can be sound and
+truthy. Boolean information can live in an ordinary Action or Record;
+objects held in Records keep their own truth.
+
 ## Reading a Tag
 
 | Question | Spelling |
 | --- | --- |
-| Who is one, and sound? | `for a in Wizard`, `len(Wizard)`, `if Wizard:` |
-| Who is one, and broken? | `for a in ~Wizard`, `if ~Wizard:` |
-| Everyone? | `Wizard[:]` |
+| Who is one, and sound? | `for a in Wizard`, `len(Wizard)` |
+| Is anyone sound? | `len(Wizard) > 0` |
+| Who is one, and broken? | `for a in ~Wizard`, `len(~Wizard)`, `if ~Wizard:` |
+| Everyone? | `Wizard[:]`, `len(Wizard[:])` |
+| Do the Tag's own Posts hold? | `if Wizard:` |
 | Either, both, without? | `Wizard \| Fighter`, `Wizard & Fighter`, `Wizard - Sworn` (the Fields Guide) |
 | What applies with it? | `Form(Wizard)`, `f"{Wizard:form}"` |
 | Take it away | `del Wizard[agent]` |
@@ -1087,7 +1121,7 @@ your Reports and Operations there.
 | Mark word-like Tags `@Flag` and write rules as data. | Match every Tag by name. Only Flags are words. |
 | Say things about a Tag with a `@Pin`. | Keep a side table of Tags outside TOP. |
 | Clean up with `@Rip`; for a block, tag before `try` and Rip in `finally`. | Rely on `del agent` for anything that matters. |
-| Reset by Rip and apply again. | Reapply an active Tag hoping it resets (it does nothing). |
+| Rip, then Tag again when the Record builder should rebuild its value. | Assume Rip itself erases Contributions, or reapply an active Tag hoping it rebuilds. |
 | Expect a Rogue Agent to keep its own Actions and lose the Agency's published ones. | Check membership by hand inside every published Operation. |
 | Catch the named promise, repair what it names, retry. | Catch every failure in one handler and guess. |
 | Keep shared data in a `Report`, one copy. | Copy shared data into every Agent's Record. |

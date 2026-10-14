@@ -4,7 +4,7 @@ import gc
 import unittest
 import weakref
 
-from TopKit import (Action, Contract, Imprint, Post, Pre, Record, Report,
+from TopKit import (Action, Imprint, Post, Pre, Record, Report,
                     Rip, Tag, TagCompositionError, TagContractError,
                     TagImprintError, TagPostconditionError, TagPreconditionError)
 
@@ -98,7 +98,6 @@ class NestedImprintTests(unittest.TestCase):
                 self.assertIn(agent, Trained[:])
                 self.assertTrue(isinstance(agent, Trained))
                 self.assertEqual(Trained[agent].Present(), "badge")
-                self.assertTrue(Contract.Holds(agent))
                 self.assertTrue(bool(agent))
                 self.assertNotIn(agent, ~Trained)
                 del Trained[agent]
@@ -240,7 +239,6 @@ class NestedImprintTests(unittest.TestCase):
         self.assertIs(caught.exception, failure)
         self.assertIn(agent, Trained[:])
         self.assertEqual(Trained[agent].badge, "badge")
-        self.assertTrue(Contract.Holds(agent))
         self.assertTrue(bool(agent))
         del Trained[agent]
 
@@ -335,7 +333,7 @@ class NestedImprintTests(unittest.TestCase):
             Finished(agent)
         self.assertIn(agent, Finished[:])
         self.assertTrue(agent.Work())
-        self.assertTrue(Contract.Holds(agent))
+        self.assertTrue(bool(agent))
         del Finished[agent]
 
     def test_diagnostic_failure_does_not_replace_the_primary_interruption(self):
@@ -419,7 +417,6 @@ class NestedImprintTests(unittest.TestCase):
                 with self.assertRaises(TagImprintError.Train):
                     Trained(agent)
                 self.assertIn(agent, Trained[:])
-                self.assertEqual(Contract.Holds(agent), prepared)
                 self.assertEqual(bool(agent), prepared)
                 self.assertEqual(agent in ~Trained, not prepared)
                 self.assertEqual(agent in list(Trained), prepared)
