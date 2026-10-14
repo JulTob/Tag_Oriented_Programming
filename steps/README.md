@@ -35,6 +35,9 @@ steps/
 
 A STEP at the Ada Desk and a STEP at the Spec Desk advance independently. Filenames stay clean — `STEP-ADA-12-security-model.md` — sortable, link-safe, no spaces or colons. The full title lives in the file's header.
 
+The [`history/`](history/PR-26-extraction.md) directory archives proposal provenance and extraction records; it is not a STEP Desk.
+These records are history, not current law or design clearance; each STEP retains its own status.
+
 ## Writing one
 
 Copy [`STEP-template.md`](STEP-template.md) into the right Desk folder, name it `STEP-<DESK>-<n>-<slug>.md`, fill it in, and open a PR with **Status: Brief**. From there it is on the record.

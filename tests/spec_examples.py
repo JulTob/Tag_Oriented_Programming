@@ -28,17 +28,39 @@ def Run() -> None:
     class Arcane_Duelist(Spellcaster, Duelist): pass
     assert Form(Arcane_Duelist) == (Spellcaster, Duelist, Arcane_Duelist)
 
-    # 0.6 rollback example
+    # 0.6 per-Tag Gate example
     class Territory(Tag):
         @Record
         def banner(agent): return "raised"
     class Citadel(Territory):
         @Pre
-        def Has_Charter(agent): return hasattr(agent, "charter")
+        def Has_Charter(agent): return "charter" @ agent
     ari = Character()
     try: Citadel(ari); raise SystemExit("expected failure")
     except TagPreconditionError: pass
-    assert ari not in Territory and ari not in Citadel
+    assert ari in Territory and ari not in Citadel and ari.banner == "raised"
+
+    # 0.6 unfinished production leaves Gains; a completed broken product
+    # belongs to its Tag and is judged by its Posts.
+    class Assembled(Territory):
+        @Record
+        def attempt(agent, stored): return (stored or 0) + 1
+        @Post
+        def Has_Wheels(agent): return agent.wheels
+        @Imprint
+        def Assemble(agent):
+            if not agent.complete: raise ValueError("unfinished")
+    car = Character(); car.complete = False; car.wheels = False
+    try: Assembled(car); raise SystemExit("expected unfinished training")
+    except TagImprintError.Assemble: pass
+    assert car in Territory and car not in Assembled and car.attempt == 1
+    assert not isinstance(car, Assembled) and list(Assembled[:]) == []
+    assert car.Has_Wheels is False and not bool(car)
+    car.complete = True
+    try: Assembled(car); raise SystemExit("expected deficient product")
+    except TagPostconditionError.Has_Wheels: pass
+    assert car in Assembled and car in ~Assembled and car.attempt == 2
+    car.wheels = True; assert car in list(Assembled)
 
     # 0.7 / 3.1 MI6
     class MI6(Tag):
@@ -143,8 +165,10 @@ def Run() -> None:
         @Pre
         def Dues_Paid(agent): return True
     f = Character(); f.paid = False
-    try: Guild(f); raise SystemExit("dues")
+    try: Founder(f); raise SystemExit("dues")
     except TagPreconditionError: pass
+    assert f not in Guild and f not in Founder
+    f.paid = True; Guild(f); f.paid = False
     Founder(f); assert f in Guild
     class Apprentice(Wiz):
         @Pre
@@ -297,3 +321,36 @@ def Run() -> None:
     for root in (Tag, object):
         try: Tool(root); raise SystemExit("the roots name no kind")
         except TagDeclarationError: pass
+
+    # 1.10 Links
+    class Social(Tag):
+        @Link
+        class Knows(Tag):
+            @Pre
+            def Not_Oneself(agent, contact): return contact is not agent
+            @Record
+            def since(agent, contact, *, since=None): return since
+            def Greet(agent, contact): return f"{agent.name} waves at {contact.name}"
+        @Link
+        class Trusts(Knows):
+            @Post
+            def Still_Honest(agent, contact): return contact.honest
+    cora, dean, rue = Character("Cora"), Character("Dean"), Character("Rue")
+    rue.honest = True
+    Social(cora); Social(dean)
+    cora.Knows(rue, since=2010)
+    assert rue in cora.Knows and rue not in dean.Knows
+    assert cora.Knows[rue].since == 2010 and cora.Knows[rue].Greet() == "Cora waves at Rue"
+    assert Tags(rue) == () and not hasattr(rue, "since")          # nothing lands on the Contact
+    cora.Trusts(rue)
+    assert cora.Knows[rue] is cora.Trusts[rue]                     # one Pair across the Form
+    rue.honest = False
+    assert list(~cora.Trusts) == [rue] and bool(rue)     # a broken Pair, a sound Contact
+    try: del cora.Knows[rue]; raise SystemExit("a Shape Link holds her")
+    except TagCompositionError: pass
+    del cora.Trusts[rue]; del cora.Knows[rue]
+    assert rue not in cora.Knows and isinstance(rue, cora.Knows)
+    try: cora.Knows = 1; raise SystemExit("a held Link is read-only")
+    except TagCompositionError: pass
+    try: Social.Knows(rue); raise SystemExit("a Relation is a template")
+    except TagCompositionError: pass

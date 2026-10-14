@@ -22,6 +22,7 @@ tracks splitting them by idea without changing semantics.
 | `contracts.py` | strict verdicts, binding conditions, `Contract` |
 | `constants.py` | protecting Constant bindings without freezing their values |
 | `tools.py` | Tool slots: a Record's kind, a Tag or a class, admission at the gaining and at every write |
+| `links.py` | Links: Relations, each Agent's Link, the Pairs, linking, extension, lines and ending |
 | `presence.py` | Contribution presence without evaluating values or conditions |
 | `transactions.py` | the tagging sequence and the call boundary |
 | `lifecycle.py` | Rip, teardown, `At_Exit` |
@@ -52,6 +53,11 @@ Actions; Agents are built once and play for a long time. So:
 - **Runtime types are shared** across every Agent whose host and
   type-level facts match, whatever Tags they carry. Ten thousand Agents of
   one host normally share one type.
+- **Actualization is verified before Field entry.** The Target must retain
+  its state and accept the exact runtime type the kit requested. Host
+  `__setattr__` and `__init_subclass__` refusals, and metaclasses that
+  substitute another type, become Composition Failures. Rollback restores
+  the host type through the kernel path, not through the refusing hook.
 - **The composition door** uses a counter on the Agent's state for
   synchronous protocols. Agent-authored context Actions use that door;
   host-authored context hooks keep ordinary host behavior. Entry closes
@@ -211,20 +217,55 @@ order, iterative traversal and lazy caching are unchanged; mutation of
 
 ## The tagging sequence
 
-`transactions._apply` is the call boundary: it snapshots the instance
-dictionary, the state, and the class on entry. `_gate` lays every pending
-Tag of the Form over a scratch copy and runs the composed Preconditions
-once, so a Shape's gate overrides its Base's and declaration errors
-surface before anything changes. `_apply_one` then lays each Tag over the
-**live** state (no second copy) in the order parts, commit, write; finally
-`_inspect` runs every visible Postcondition once. A `TagPreconditionError`, `TagCompositionError`,
-`TagResolutionError` or `TagContractError` rolls the call back to the entry
-snapshot, including Fields. `TagImprintError` and `TagPostconditionError`
-propagate with everything left in place.
+`transactions._apply` walks the missing Tags in Base-first Form order.
+Before each turn, `_gate` lays only that Tag over a scratch copy of the
+current Overlay and runs its own Preconditions. A refusal does not remove
+Tags whose turns already finished. Gainings apply Actions, Records, condition
+definitions and deletions incrementally in declaration order, top to bottom,
+establishing each before the next declaration runs. The Gate has already
+evaluated this Tag's own Preconditions. Imprints run after Gainings and
+before FieldAdding. The Tag's published members remain guarded by membership
+during this training interval.
 
-Laying over the live state is safe because nothing reads the new Overlay
-before commit binds it on the Agent, and the entry snapshot is the only
-rollback target.
+`overlay._gainings` walks the scan's ordered declarations. `_record_value`
+calculates a Record's returned value before installing its declaration or
+Constant lock; a failed builder leaves the previous binding available.
+`transactions._actualize` prepares the acquired runtime behaviour independently
+of membership. Tag-scope published services are prepared after Imprints.
+
+A Gain needing runtime protection is acquired only when its representation
+can be installed. If a Secret or Constant guard cannot be prepared, that
+candidate Gain does not stick; the previous binding and earlier acquired
+Gains remain. Admission-time shared services are also prepared separately:
+if their representation fails before entry, they do not replace services of
+an already active Agency. Acquired Gains and completed Imprint effects remain.
+The initial host boundary follows Cleared
+[STEP-SPEC-37](../steps/spec/STEP-SPEC-37-host-actualization.md): failed
+preparation restores the original class, physical dictionary and declared
+Python slot bindings. It does not undo mutable value contents, external
+effects or later training. Acquired Gains follow STEP-SPEC-39.
+
+FieldAdding establishes active membership, history and the Field together,
+then captures the admitted Tag's view. `_inspect` runs visible Posts once
+after the completed Form. A Gainings or Imprint failure leaves actually
+acquired Gains and completed Tags in place without admitting the unfinished
+Tag. A Post failure preserves membership; current Posts determine soundness,
+not a permanent failure marker. Retry passes a fresh Gate, overlays ordinary
+Gains and restarts Imprints, retaining established Constants. Acquired
+conditions, including Posts and Constant Posts, remain even after unfinished
+training. They participate in contract queries and published-member guards;
+ordinary Actions are not automatically wrapped in Post checks.
+
+`_enter_field` admits only after training. For a Pin, `_publication_plans`
+preflights every current Field recipient before admission; `_publish_to_field`
+then applies the admitted publication. The old whole-call rollback path is
+removed: completed independent Tags and acquired Gains are not restored away.
+
+An in-progress Tagging is tracked separately from membership so applying the
+same Tag to the same Agent during its Imprint is a no-op. There is no automatic
+Rip for an unfinished never-member and no automatic rollback of training
+effects. Preconditions and Record builders are observational authoring
+contracts, not sandboxes for arbitrary Python effects.
 
 ## Synchronous protocol results
 
@@ -257,9 +298,9 @@ Tagging sequence or expand its rollback boundary.
 ## Judgment calls
 
 - **`in` vs `isinstance`.** `agent in Tag` is the is-now check; `isinstance`
-  is the has-been check and stays true after Rip. Kept because it is a
-  dependable signal for spotting Rogue Agents. A rolled-back call also
-  rolls the ever-set back.
+  is the has-been check and stays true after Rip. History is established at
+  FieldAdding. A failed never-member may retain Gains while both checks are
+  false; a Rogue who previously entered the Tag retains its has-been history.
 - **Records over host descriptors** are refused with a Composition Failure
   rather than silently bypassing a property.
 - **The Tag's dotted namespace is the program's.** Every Tag-level act is
@@ -303,9 +344,8 @@ Tagging sequence or expand its rollback boundary.
   it, so they cannot disagree. The same check refuses a Flag while a
   Tag's `__contains__`/`__iter__` Action (a published Operation included)
   is visible, and such an Action while a Flag is active; `@Flag` refuses
-  a Tag that declares one. A Form of several Tags is checked as a whole
-  before any of it applies (`_refuse_in_collisions_of_the_form`), so a
-  Flag Base's Imprint never runs for a Shape that is then refused. No
+  a Tag that declares one. The candidate Overlay check runs at each Tag's
+  own turn, so a later collision leaves completed Base Tags in place. No
   type-level gate (`@Delete`, `@Secret`, `@Public` of the same name) can
   overwrite the Flag's hook. Pins are exempt: on a Tag, TOP owns `in`.
 - **Deletion in Layers** (STEP-SPEC-18). The runtime type's `__del__` is
@@ -328,11 +368,8 @@ Tagging sequence or expand its rollback boundary.
   through the host's own. An object without TOP state whose class is a
   runtime type is reset to its host class when its state is attached;
   if it is never tagged, the finalizer runs its host's `__del__`.
-- **A rollback restores the state in place** (`_State.Restore`), keeping
-  `composing` and `checking`: a door or a check opened before the call
-  that is rolled back closes on the same object. (A copy put in its place
-  used to leave the door open for good.) Known limit: in a reference cycle,
-  Python clears weak references before finalizers run, so a finalizer's
+- **Weak finalization limit.** In a reference cycle, Python clears weak
+  references before finalizers run, so a finalizer's
   Tag code cannot call the Agent's bound Actions there (`ReferenceError`).
 - **What the kit keeps, and for how long.** Each Tag owns its Form and
   declaration memos through one internal helper, never a global root or
@@ -388,8 +425,8 @@ Tagging sequence or expand its rollback boundary.
 - **Pins reuse the whole sequence.** A pinned Tag is an Agent whose
   namespace is its class dictionary. `_namespace_of` hands the kernel a
   `_Class_Namespace` adapter (get, set, pop, keys) over the proxy, so
-  `_apply`, `_materialize`, `_commit`, `_snapshot` and `_rollback` are one
-  code path; the class case restores key by key. The runtime type is a
+  Gate, Gainings, Imprints, FieldAdding and view capture use the same
+  code path for objects and pinned Tags. The runtime type is a
   `(MetaTag, Tagged)` metaclass from the same cache. A landed Action is a
   `_Pinned_Operation` descriptor binding to the Tag it is read from (a
   Shape inherits it as it inherits a classmethod). Its public composing
@@ -408,7 +445,7 @@ Tagging sequence or expand its rollback boundary.
   class-attribute writes the kernel makes): a pinned Tag's `@Secret`
   members live in `state.secret_values` and answer on the miss path
   while `composing` is open; `@Public` pinned members are pushed to the
-  Field at commit (`_publish_to_field`, dry run on copies first) and
+  Field at Field entry (`_publish_to_field`, dry run on copies first) and
   emitted by the Tag's scan for future Agents, so the scan cache is
   dropped at pinning. `_state_of` reads the dictionary directly, which
   is why `agent in Tag` got faster rather than slower.
@@ -476,7 +513,8 @@ Tagging sequence or expand its rollback boundary.
   the Constant or Secret gate when there is one. Every write to the name
   passes `_refuse_misfit` first, `object.__setattr__` included, exactly
   where `_Binding_Write` already intercepts a host's own `__setattr__`;
-  `_materialize` asks the same question of what the builder returned.
+  `_gainings` validates the builder's proposed result through
+  `_refuse_tool_value` before installing its binding or rule.
   A kind is terms, all holding, each a tuple of alternatives: a Tag asks
   `tag in state.active` (membership now, never soundness, never
   `isinstance`), a class asks `isinstance`, with a raising instance test
@@ -491,10 +529,129 @@ Tagging sequence or expand its rollback boundary.
   checked and `object.__setattr__` on that name is the documented
   bypass.
 
+- **Links** (`links.py`, STEP-SPEC-22, §1.10). Each Agent's Link is a
+  real Tag granted by `overlay._gainings` through `_grant` at its position
+  in declaration order. A `_Link_Record` keeps its Relation Layers, their
+  arrival order and its `_Family`; the family holds one hidden `Pair`
+  per Contact across the Link's Form. `_new_link` resolves Base Links on
+  that Agent, copies Tag-scope members and prepares published lines.
+  The Link's slot has a `_Link_Gate` and binding write hooks: ordinary
+  assignment, deletion and `object.__setattr__` cannot replace it.
+
+  `_pair_tag` adapts a Relation's Agent-scope declarations with
+  `_two_seats`, so the hidden Pair is an ordinary Agent whose functions
+  receive `(agent, contact)`. Its memo belongs to the Relation through
+  `_memo_key`, `_memo_of` and `_remember_memo`. A callable closing over its
+  Relation therefore makes a collectible owner-local cycle, not a global
+  weak-key cache with a strong value retaining its own key. Competing
+  publishers receive the same winning Pair Tag. Declaration scans use
+  `_namespace_snapshot`, including Link validation, Pair construction,
+  Tag-scope copying and input-seat discovery. `_adapted_metadata` gives
+  adapters their declared Contribution names and known TOP marks without
+  requiring a callable's instance dictionary or optional display metadata.
+
+  `_link` walks the Link's Form one member at a time, Bases first. It
+  trains that member's missing Pair Layers through `_train_pair_layers`
+  and the ordinary `_apply_form`: Gate, ordered Gainings, Imprints and
+  Pair admission. Only after training does `_apply_form` admit the
+  Contact to that Link, install its published services and capture its
+  view. `_hook` registers the Contact's unlink teardown. Pair and Contact
+  Posts run after the completed linking. A broken Post keeps membership;
+  a failed Gaining or Imprint keeps actual Pair Gains without admitting
+  the Contact to the unfinished Link. Earlier completed Links and other
+  independent Taggings stay.
+
+  The optional `admitted` list in `transactions._apply_form` reports only
+  memberships directly established by that invocation, not nested calls'
+  completed work. If a Link turn fails before its Contact enters,
+  `_withdraw_pair_admission` removes only those direct Pair admissions
+  that no completed Shape still needs, including their Field/history,
+  scheduled Rips and snapshots. It preserves Actions, Records, conditions
+  and other acquired Gains. This internal admission bookkeeping is not a
+  Rip and does not restore an old Pair snapshot. A retry can therefore run
+  the unfinished training again without repeating an independent completed
+  extension or undoing an earlier Base Link.
+
+  `_Ends.flights` tracks each `_Flight`'s requested Link and current turn.
+  Re-entering the same Link currently training is a no-op; asking for a
+  Shape whose Base Link is unfinished raises. `_train_pair_layers` skips
+  completed turns and independent turns already in flight, while ordinary
+  `_apply_form` checks that an attempted Shape's actual Bases have finished.
+  `_pair_form(member)` supplies the current Layers for one Link's turn.
+  A Base Link's extensions finish before a later Shape Link's own Layer;
+  an extension arriving after that Shape instead overlays it. Existing
+  Gains are neither reordered nor replayed.
+
+  `_extend` publishes acquired Relation Layers onto the held Link, then
+  trains its Pairs sequentially using the extending Relation's own Form.
+  `_pairs_to_extend` selects admitted Contacts and the Link's current
+  linking turn. If a later Pair fails, completed training and partial
+  Gains remain; the Link keeps its acquired Layer. `_grant` calls `_extend`
+  on retry even when no new Layer needs publication, so missing training
+  can finish. Applying an independent extension does not retry every
+  failed sibling. A retained Rogue Pair outside the Field is retried by
+  linking that Contact again with the Link's current Layers. No Links
+  call-boundary object, owner-based undo log or restore-and-replay pass is
+  allocated on ordinary Tagging.
+
+  `_enter_doors` and `_leave_doors` serve Pair functions, published lines,
+  `_door_shut_operation` and `_door_shut_builder`. They open the holding
+  Agent's composition door and close the relevant Contacts' synchronous
+  and inherited async doors, restoring both afterward. Operations close
+  the doors of Contacts passed by position or name; a Report builder
+  closes every held Contact's door because its retained value is served
+  to later readers. A self-link keeps its Agent's door. Static methods
+  remain ordinary Python functions.
+
+  `@Link` marks declared generator and coroutine functions once with
+  `_mark_code_that_runs_later`; `_stepper_of` uses that mark. The adapter
+  validates arguments with `Signature.bind`. `_steps_behind` and
+  `_coroutine_behind` create and advance the declared work behind `_Doors`,
+  including `send`, `throw` and `close`. `_Doors` keeps endpoint references
+  weak and closes the Contact's async authority inherited when the work
+  started; a Contact's own hook entered later retains its separate door.
+  Between steps the caller's doors are restored. Arbitrary returned
+  closures, generators and tasks are not wrapped. Async generator
+  functions, generator-based coroutines and lazy protocol declarations
+  remain refused by `_refuse_code_that_runs_later`.
+
+  `_relation_homes` records the declaring Tag and name weakly after the
+  Relation's declaration passes; later aliases are refused while that
+  Tag lives. `_refuse_a_name_both_ways` rejects a name used both as a
+  published line and as a Link member along a declaration chain;
+  `_refuse_mixed_layers` checks extensions that meet on an Agent. Pair
+  Tags remain internal to the kit, excluded from `Tags`, `Outline` and
+  ordinary Tag-level acts. Contact-facing queries skip Links, and
+  `ever_links` is a weak set allocated only when needed. Published-line
+  records may retain the last Link for a name, but the Link and Pair
+  endpoints refer to the holding Agent weakly.
+
+  `_Family.Pair_Of` verifies Contact identity and also recognizes the
+  held endpoint during teardown after cyclic collection clears weak
+  references. `_pair_of` currently returns any Pair still retained by
+  that family, not only an admitted Contact's Pair; this supports training
+  and cleanup reads. The public view policy for a retained failed attempt
+  remains a Director question, not a new ruling established by this
+  implementation note. A failed Gate that acquired nothing drops a newly
+  made Pair. A failed training attempt with Gains retains it for retry.
+  `_forget_pair` releases an unadmitted Pair when its Contact dies; an
+  admitted Contact's hook keeps cleanup on its finalizer path.
+
+  `_begin_ending` makes the dying Agent available in the first seat before
+  its own teardowns run, including when cyclic collection has cleared its
+  weak references. `_end_links` then sets `state.links_ending` before Link
+  cleanup, so `_agent_of` refuses linking through an existing or newly
+  granted Link of that ending Agent. Links are Ripped Shape-first, all
+  selected Contacts receive cleanup despite an interruption, and the first
+  interruption is propagated afterward. Newly granted empty Links and
+  retained unadmitted Pairs end in the cleanup's `finally`; no Link Rip is
+  invented for a Pair that never entered. `_Family.End` marks ended Pairs
+  and clears scheduled Rips so collection does not replay them.
 - **The oracle** (`tests/oracle_topkit.py`): an independent model of
   the laws driven by a random walk; `tests/test_oracle.py` runs a short
   walk under the suite. Run it at size with `--seeds 50 --steps 1200
-  --population 18` (about 60,000 transitions, under twenty seconds).
+  --population 18` (about 120,000 transitions with the Links walk,
+  `Run_Links`, under a minute).
 - **Stacked `@Pre @Post`** marks the function's kind `"condition"`, in
   either order; the scan appends it to both lists and `_name_checks`
   registers both named failures. It is the only spelling: `@Requirement`,

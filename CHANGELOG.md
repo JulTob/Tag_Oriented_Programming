@@ -2,7 +2,47 @@
 
 ## Unreleased
 
+### Specification
+
+- **Gates run per Tag:** each missing Tag passes its own Preconditions when
+  its turn arrives. A later refusal or Overlay collision leaves completed
+  Base Taggings in place and stops before the current Tag's Records, Field
+  entry or Imprints. A Shape's Precondition no longer suppresses a missing
+  Base's own Gate; active Tags are still not re-asked.
+
 ### TopKit
+
+- **Tagging preparation cost:** ordinary Action/Record declarations reuse
+  the existing collision and Underlay checks without constructing a
+  disposable Overlay. Declarations requiring runtime protection and Pins
+  retain scratch composition. State copies and empty runtime-type keys also
+  avoid temporary allocations. Both physical host snapshots, live declaration
+  lookup after Gate, and the ordered Gainings/admission boundary remain.
+  The existing performance budgets are unchanged (#175).
+
+- Actions, Records, conditions and deletions now take effect from top to
+  bottom in each Tag. Record builders see earlier declarations, while
+  successful Constant bindings are protected before later Gainings.
+- Gate and candidate-Overlay evaluation now follow the Base-first Tag chain
+  without removing completed Bases when a later Tag refuses or collides.
+- **Admission follows completed training (STEP-SPEC-39):** each Tag passes
+  its Gate, acquires Gains in declaration order, finishes its Imprints, then
+  enters the Field. Failed Gainings or Imprints retain acquired Gains and
+  Posts without admitting the unfinished Tag. Earlier completed Tags stay;
+  Tagging again starts a fresh attempt. Posts judge the completed Form once
+  and a failed Post preserves membership. Tool gains use the same order:
+  their proposed kind is checked before replacing the prior binding or rule,
+  and an acquired Tool remains guarded on a Rogue.
+
+- **Invalid Rip declarations fail at declaration:** `@Rip` marks an Action,
+  because a teardown remains an ordinary callable Action. Stacking it on
+  a Record, condition, Imprint, Delete, Report, Operation, private name,
+  `classmethod`, `staticmethod`, `property`, `cached_property` or
+  `partialmethod` is now a Declaration Failure
+  instead of silently registering no teardown. Constant Rips are refused in
+  both decorator orders, as required by STEP-SPEC-34. The existing refusal
+  of `@Rip __del__` now happens when the Tag is declared; ordinary `__del__`
+  Layers retain their separate finalization behavior.
 
 - **Native contract truth:** removed `Contract.Holds` without an alias
   (STEP-SPEC-40). Use `bool(agent)` or `if agent:`, including for Tags.
@@ -198,6 +238,52 @@
   Failure. A slot under a protocol name keeps the language's hook. The
   wiki page "Tools: what an Agent has" runs as one program under the
   suite.
+
+- **Links:** `@Link` over a Tag declared in a Tag's body makes it a
+  **Relation**, and every Agent of that Tag gains **a Tag of its own**,
+  its Link, under the Relation's name (STEP-SPEC-22, Vetting; §1.10).
+  `charlie.Knows(ruth, since=2010)` links a **Contact**: a tagging of
+  Ruth with the **Pair** as receiver, so the Relation's gate, Records,
+  Imprints and promises take two seats, the Agent then the Contact, and
+  land on `charlie.Knows[ruth]`, never on Ruth. A Link is read-only, in
+  a closed slot, and sticky; its Bases are Relations resolved per Agent,
+  and a Link and its Base Links share one Pair per Contact; a Shape of
+  the declaring Tag extends a held Link and every Pair it holds in the
+  same call. `@Public` members are lines onto the Contact, `@Secret`
+  members stay in-house, and a Link's code runs behind the doors of its
+  Agent and the Pair, never the Contact's. Nothing on a Contact, a Link
+  or a Pair names the Link's Agent, which the kit holds weakly.
+  `del charlie.Knows[ruth]` and `del charlie.Knows[:]` unlink, as does
+  either one's deletion and `At_Exit`; each Pair's teardowns run at most
+  once. Every Tag-level act on a Relation is a Composition Failure that
+  points to a Link, and a Relation is never a Tool kind, a Pin or a
+  Pin's Target. Each Link follows STEP-SPEC-39: Gate, declaration-ordered
+  Gainings, Imprints, Field entry, then Posts. Completed Base linkings and
+  acquired Pair Gains survive a later failure. Extensions train held Pairs
+  sequentially; retry finishes missing training without replaying completed
+  Pairs. Nothing unpublished of a Link reaches its Contact, her
+  own views included; a Link's Reports are built with every Contact's
+  door shut; a generator or coroutine function of a Pair Action, an
+  Operation or a class method takes each step behind the doors (an async
+  generator, and a lazy Record, condition, Imprint, teardown or Report
+  builder, are refused); a Shape gained while a linking is under way
+  extends the Link as any tagging does, and a failed linking never takes
+  an independent completed extension back; a Contact's history holds
+  Links weakly. A Relation is declared once, in its declaring Tag's body
+  under its own name; binding it again is a Declaration Failure. The
+  wiki page "Links: a Tag of one's own" runs as one program under the
+  suite. Pair Tag memos are collectible with their Relations and scans
+  use namespace snapshots. Callable adapters accept supported callable
+  objects without optional display metadata. Contact doors close for both
+  synchronous and inherited async authority. Cleanup covers completed
+  independent Pair extensions and refuses new linking while the owner ends.
+
+- **The Links Guide** (`TopKit/LINKS.md`): the main uses of a Link, one
+  short section each, every block run by the suite: facts about the link
+  (`alicante.Road[marbella].travel_time`), asking who is connected to
+  whom, a route as a walk over links, two-way links written by an
+  Imprint, gates and promises, a Shape as a kind of link, a booking that
+  gives its room back, and what the other end may see.
 
 - **Presence by name:** `"name" @ agent` checks current contributions,
   including host bindings; `"name" @ Tag[agent]` checks the captured view.

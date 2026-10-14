@@ -35,6 +35,16 @@ import platform
 import tracemalloc
 
 from benchmarks.scenarios import Archmage
+from benchmarks.scenarios import Oop_Extend
+from benchmarks.scenarios import Oop_Link_All
+from benchmarks.scenarios import Oop_Linked
+from benchmarks.scenarios import Oop_Read_Since
+from benchmarks.scenarios import Oop_Socialite_With_Contacts
+from benchmarks.scenarios import Top_Extend
+from benchmarks.scenarios import Top_Link_All
+from benchmarks.scenarios import Top_Linked
+from benchmarks.scenarios import Top_Read_Since
+from benchmarks.scenarios import Top_Socialite_With_Contacts
 from benchmarks.scenarios import CHECK
 from benchmarks.scenarios import Call_Attack
 from benchmarks.scenarios import Caster
@@ -342,6 +352,25 @@ SCENARIOS = [
                 POPULATION,
                 Side(Oop_Guild, Oop_Leave_Registry),
                 Side(Top_Guild, Top_Leave),
+                ),
+        Scenario(
+                "j. link: guarded weak-dict entry vs agent.Knows(contact)",
+                POPULATION,
+                Side(Oop_Socialite_With_Contacts, Oop_Link_All),
+                Side(Top_Socialite_With_Contacts, Top_Link_All),
+                ),
+        Scenario(
+                "j. read a Pair Record: dict entry vs agent.Knows[c].since",
+                100_000,
+                Side(Oop_Linked, Oop_Read_Since),
+                Side(Top_Linked, Top_Read_Since),
+                ),
+        Scenario(
+                "j. extend a Link holding 1,000 Contacts, per Contact",
+                1,
+                Side(Oop_Linked, Oop_Extend),
+                Side(Top_Linked, Top_Extend),
+                POPULATION,
                 ),
         ]
 

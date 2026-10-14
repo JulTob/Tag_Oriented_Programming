@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import Any
 import atexit
 
+from .declarations import _is_link
 from .declarations import _parameters_of
 from .declarations import _action_chain
 from .declarations import _discard_lazy_result
@@ -120,10 +121,22 @@ def _teardown_all(
     if state is None:
         return
 
+    if state.links:
+        from .links import _begin_ending   # links builds on this module
+
+        _begin_ending(
+                agent,
+                state,
+                )   # the Agent in hand fills the first seat of its own Links (STEP-SPEC-22 rule 8.3)
+
     state.composing += 1   # teardowns run inside the composition door, as on a Rip
+    interrupted: BaseException | None = None
 
     try:
         for tag in reversed(list(state.active)):
+            if interrupted is not None and not _is_link(tag):
+                continue   # after an interruption only its exits from Links still run (STEP-SPEC-22 rule 8.4)
+
             for name, teardown in state.rips.pop(tag, ()):
                 try:
                     _call_teardown(
@@ -134,8 +147,30 @@ def _teardown_all(
                             )
                 except Exception:
                     pass
+                except BaseException as error:
+                    if interrupted is None:
+                        interrupted = error
+                    break   # preserve the ordinary Tag's interruption boundary; Link exits still follow
     finally:
         state.composing -= 1
+
+        if state.links:
+            from .links import _end_links   # links builds on this module
+
+            try:
+                _end_links(
+                        agent,
+                        state,
+                        )   # after its own teardowns, its exits from other Links included (STEP-SPEC-22 rules 8.3, 8.6)
+            except BaseException:
+                if interrupted is None:
+                    raise   # otherwise the first interrupt is the one raised, below
+
+    try:
+        if interrupted is not None:
+            raise interrupted
+    finally:
+        interrupted = None   # never keep the Agent alive through a traceback that holds this frame
 
 
 def _call_teardown(

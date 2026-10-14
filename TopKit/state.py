@@ -52,6 +52,7 @@ class _Snapshot:
     operations: dict[str, tuple[type, Function]]
     deleted: frozenset[str]
     secrets: frozenset[str]
+    links: dict[str, type] = field(default_factory=dict)   # the Agent's own Links, by name (STEP-SPEC-22)
 
 
 @dataclass(slots=True)
@@ -59,7 +60,9 @@ class _State:
     host_type: type
     pinned: type | None = None   # the Tag itself, when the Agent is a Tag
     active: list[type] = field(default_factory=list)
+    training: set[type] = field(default_factory=set)   # not yet admitted
     ever: set[type] = field(default_factory=set)
+    ever_links: "weakref.WeakSet[type] | None" = None   # the Links it was ever a Contact of, held weakly; None until the first
     actions: dict[str, Function] = field(default_factory=dict)
     action_origins: dict[str, type] = field(default_factory=dict)
     records: dict[str, type] = field(default_factory=dict)
@@ -77,6 +80,8 @@ class _State:
     originals: dict[str, Any] = field(default_factory=dict)       # what a Pin patched, as declared
     constants: dict[str, tuple[type, str, Any]] = field(default_factory=dict)  # origin, kind, declaration
     tools: dict[str, tuple[type, Any]] = field(default_factory=dict)   # origin, kind: a Tool slot admits only its kind
+    links: dict[str, tuple[type | None, tuple[type, ...]]] = field(default_factory=dict)   # the Link (once built), its Relations
+    links_ending: bool = False
     composing: int = 0
     checking: bool = False
     words: _Words | None = None   # what its Flags answer to; None after its Tags change
@@ -90,7 +95,7 @@ class _State:
         that is rolled back closes them on this same object."""
 
         for name in state.__slots__:
-            if name not in ("composing", "checking"):
+            if name not in ("composing", "checking", "training", "links_ending"):
                 setattr(
                         state,
                         name,
@@ -100,32 +105,38 @@ class _State:
     def Copy(
             state,
             ) -> "_State":
-        return _State(
-                host_type=state.host_type,
-                pinned=state.pinned,
-                active=list(state.active),
-                ever=set(state.ever),
-                actions=dict(state.actions),
-                action_origins=dict(state.action_origins),
-                records=dict(state.records),
-                preconditions=dict(state.preconditions),
-                postconditions=dict(state.postconditions),
-                reports=dict(state.reports),
-                operations=dict(state.operations),
-                published=set(state.published),
-                secrets=set(state.secrets),
-                deleted=set(state.deleted),
-                restored=state.restored,
-                snapshots=dict(state.snapshots),
-                rips=dict(state.rips),
-                secret_values=dict(state.secret_values),
-                originals=dict(state.originals),
-                constants=dict(state.constants),
-                tools=dict(state.tools),
-                composing=state.composing,
-                checking=state.checking,
-                words=state.words,
-                )
+        # Copy named seats directly. Calling the dataclass constructor with
+        # all of them builds and unpacks a large temporary keyword mapping.
+        copied = object.__new__(_State)
+        copied.host_type = state.host_type
+        copied.pinned = state.pinned
+        copied.active = state.active.copy()
+        copied.training = state.training.copy()
+        copied.ever = state.ever.copy()
+        copied.ever_links = None if state.ever_links is None else weakref.WeakSet(state.ever_links)
+        copied.actions = state.actions.copy()
+        copied.action_origins = state.action_origins.copy()
+        copied.records = state.records.copy()
+        copied.preconditions = state.preconditions.copy()
+        copied.postconditions = state.postconditions.copy()
+        copied.reports = state.reports.copy()
+        copied.operations = state.operations.copy()
+        copied.published = state.published.copy()
+        copied.secrets = state.secrets.copy()
+        copied.deleted = state.deleted.copy()
+        copied.restored = state.restored
+        copied.snapshots = state.snapshots.copy()
+        copied.rips = state.rips.copy()
+        copied.secret_values = state.secret_values.copy()
+        copied.originals = state.originals.copy()
+        copied.constants = state.constants.copy()
+        copied.tools = state.tools.copy()
+        copied.links = state.links.copy()
+        copied.links_ending = state.links_ending
+        copied.composing = state.composing
+        copied.checking = state.checking
+        copied.words = state.words
+        return copied
 
 
 class _Async_Door:
@@ -133,6 +144,7 @@ class _Async_Door:
 
     __slots__ = (
             "active",
+            "shut",
             "state",
             )
 
@@ -141,6 +153,7 @@ class _Async_Door:
             state: _State,
             ) -> None:
         door.active = True
+        door.shut = False   # shut for the length of one step of someone else's code
         door.state = state
 
     def Close(
@@ -149,11 +162,49 @@ class _Async_Door:
         door.active = False
         door.state = None
 
+    def Shut(
+            door,
+            ) -> None:
+        """Shut for one step of someone else's code. The door is still the
+        hook's: it stays in the context, and ``Reopen`` gives it back."""
+
+        door.shut = True
+
+    def Reopen(
+            door,
+            ) -> None:
+        door.shut = False
+
 
 _async_doors: ContextVar[tuple[_Async_Door, ...]] = ContextVar(
         "TopKit_async_composition_doors",
         default=(),
         )
+
+
+def _shut_async_doors(
+        states: list[_State],
+        held: tuple[_Async_Door, ...],
+        ) -> list[_Async_Door]:
+    """Shut, for one step of someone's code, every async door this
+    execution holds on these Agents, and return them for ``_reopen_async_doors``.
+    A step is synchronous, so no other execution runs while they are shut."""
+
+    shut: list[_Async_Door] = []
+
+    for door in held:
+        if door.active and not door.shut and any(door.state is state for state in states):
+            door.Shut()
+            shut.append(door)
+
+    return shut
+
+
+def _reopen_async_doors(
+        shut: list[_Async_Door],
+        ) -> None:
+    for door in shut:
+        door.Reopen()
 
 
 def _is_composing(
@@ -171,6 +222,7 @@ def _is_composing(
 
     return any(
             door.active
+            and not door.shut
             and door.state is state
             for door in reversed(doors)
             )
@@ -1153,6 +1205,79 @@ class _Secret_Gate:
                 )
 
 
+class _Line:
+    """A published read that needs the Agent it is read on: a Link's
+    @Public Pair Record, read on a Contact (STEP-SPEC-22 rule 2.7)."""
+
+    def Read(
+            line,
+            agent: object,
+            ) -> Any:
+        raise NotImplementedError
+
+
+class _Link_Gate:
+    """A held Link's name (STEP-SPEC-22 rule 4.3): read like a Record,
+    never reassigned or deleted. A Link ends Contact by Contact."""
+
+    __slots__ = ("name",)
+
+    def __init__(
+            gate,
+            name: str,
+            ) -> None:
+        gate.name = name
+
+    def __get__(
+            gate,
+            agent: object,
+            owner: type | None = None,
+            ) -> Any:
+        if agent is None:
+            return gate
+
+        value = _namespace_of(agent).get(
+                gate.name,
+                _MISSING,
+                )
+
+        if value is _MISSING:
+            raise AttributeError(gate.name)
+
+        return value
+
+    def __set__(
+            gate,
+            agent: object,
+            value: Any,
+            ) -> None:
+        _refuse_link_binding(
+                _namespace_of(agent).get(STATE),
+                gate.name,
+                )
+
+    def __delete__(
+            gate,
+            agent: object,
+            ) -> None:
+        _refuse_link_binding(
+                _namespace_of(agent).get(STATE),
+                gate.name,
+                )
+
+
+def _refuse_link_binding(
+        state: "_State | None",
+        name: str,
+        ) -> None:
+    if state is not None and name in state.links:
+        raise TagCompositionError(
+                f"{name} is a Link: a held Link is read-only. It ends Contact"
+                f" by Contact, del agent.{name}[contact], or all at once,"
+                f" del agent.{name}[:]"
+                )
+
+
 _require_membership: Callable[..., None] | None = None
 # overlay's membership check for published members. overlay imports this
 # module, so it hands the check over when it loads (see overlay.py).
@@ -1178,13 +1303,16 @@ class _Published:
             return gate
 
         state = _namespace_of(agent)[STATE]
-        origin, _declared = state.reports[gate.name]
+        origin, declared = state.reports[gate.name]
         _require_membership(
                 agent,
                 origin,
                 gate.name,
                 "Report",
                 )
+
+        if isinstance(declared, _Line):
+            return declared.Read(agent)   # a Pair Record, read through its line
 
         return getattr(
                 origin,
@@ -1214,6 +1342,7 @@ class Tagged:
 
 
 _type_cache: "WeakValueDictionary[tuple, type]" = WeakValueDictionary()
+_EMPTY_NAMES: frozenset[str] = frozenset()
 
 
 def _dunder_actions(
@@ -1333,19 +1462,22 @@ def _type_key_of(
         ) -> tuple:
     return (
             state.host_type,
-            frozenset((state.deleted | state.restored) - {"__del__"}),   # a restored name keeps its gate; __del__ has none
-            frozenset(state.secrets),
-            frozenset(state.published),
-            frozenset(state.preconditions | state.postconditions),
-            any(_is_flag(tag) for tag in state.active),
+            (frozenset((state.deleted | state.restored) - {"__del__"})
+             if state.deleted or state.restored else _EMPTY_NAMES),   # a restored name keeps its gate; __del__ has none
+            frozenset(state.secrets) if state.secrets else _EMPTY_NAMES,
+            frozenset(state.published) if state.published else _EMPTY_NAMES,
+            (frozenset(state.preconditions | state.postconditions)
+             if state.preconditions or state.postconditions else _EMPTY_NAMES),
+            any(_is_flag(tag) for tag in (*state.active, *state.training)),
             tuple(
                     sorted(
                             (name, id(function))
                             for name, function in _dunder_actions(state).items()
                             )
-                    ),
-            frozenset(state.constants),
-            frozenset(state.tools),
+                    ) if state.actions else (),
+            frozenset(state.constants) if state.constants else _EMPTY_NAMES,
+            frozenset(state.tools) if state.tools else _EMPTY_NAMES,
+            frozenset(state.links) if state.links else _EMPTY_NAMES,
             )
 
 
@@ -1422,9 +1554,18 @@ def _runtime_type_for(
 
             namespace[name] = _Tool_Gate(name, namespace.get(name, _MISSING))   # over a Constant or Secret gate, when both
 
+        for name in state.links:
+            namespace[name] = _Link_Gate(name)   # a held Link is read-only
+
     ungated_tools = any(_is_dunder(name) for name in state.tools)
 
-    if conditions or state.constants or state.tools or issubclass(host_type, type):
+    if (
+            conditions
+            or state.constants
+            or state.tools
+            or state.links
+            or issubclass(host_type, type)
+            ):
         _binding_write_hooks(namespace, host_type, force=ungated_tools)
 
     if not issubclass(host_type, type):

@@ -4,9 +4,9 @@ after every transition.
 The model knows the laws of the Specification and nothing of the kernel:
 Base-first Forms, membership and history, Rip refused while a Shape
 requires the Base, a block that holds Tags (tag before try, Rip in
-finally), the call boundary (a refused gate rolls back, a broken promise
-keeps the Tag and marks the Agent defective, a failed Imprint keeps the
-Tag), sticky conditions ended by
+finally), the call boundary (each Tag gates at its own turn, acquired
+Gains precede admission, a broken promise keeps membership, and a failed
+Imprint leaves Gains without admission), sticky conditions ended by
 the author, published members answering sound members only, condition
 members read as booleans, Field algebra, Pins with a Tag in the
 Agent's seat, and keywords: a Flag answers to its name and its words,
@@ -40,6 +40,7 @@ from TopKit import Contract
 from TopKit import Flag
 from TopKit import Imprint
 from TopKit import Keyword
+from TopKit import Link
 from TopKit import Operation
 from TopKit import Pin
 from TopKit import Post
@@ -72,6 +73,8 @@ class Agent:
         agent.name = name
         agent.ok = True                     # what the promises read
         agent.events: list[str] = []
+        agent.slipping_allowed = True
+        agent.slipping_fails = True
 
 
 CLOCK = [0]                                 # ticks once per joining: Fields keep application order
@@ -85,9 +88,12 @@ class Model:
     active: list[type] = field(default_factory=list)
     ever: set[type] = field(default_factory=set)
     joined: dict[type, int] = field(default_factory=dict)   # when each active Tag was joined
-    marked_ever: bool = False               # Marked's promise is sticky: once applied, always read
-    gated_ever: bool = False                # Gated's gate is sticky too: it stays on the record
+    marked_ever: bool = False               # Marked's promise is sticky: once acquired, always read
+    gated_ever: bool = False                # Gated's acquired gate is sticky too
     ok: bool = True                         # the value every promise reads
+    gained: set[type] = field(default_factory=set)   # independent of Field entry and history
+    slipping_round: int = 0                 # sticky Record rebuilt on each training attempt
+    slipping_allowed: bool = True          # the retryable Tag's Gate
 
     def Copy(
             model,
@@ -99,12 +105,16 @@ class Model:
                 model.marked_ever,
                 model.gated_ever,
                 model.ok,
+                set(model.gained),
+                model.slipping_round,
+                model.slipping_allowed,
                 )
 
     def Has_Promise(
             model,
             ) -> bool:
-        return model.marked_ever or Promised in model.active
+        return (model.marked_ever or Promised in model.active
+                or Slipping in model.gained)
 
     def Sound(
             model,
@@ -156,32 +166,42 @@ def Leaves(
             )
 
 
+def Model_Gain(
+        model: Model,
+        tag: type,
+        ) -> None:
+    """The actual Gains persist even if the following training fails."""
+
+    model.gained.add(tag)
+    if tag is Marked:
+        model.marked_ever = True
+    if tag is Gated:
+        model.gated_ever = True
+    if tag is Slipping:
+        model.slipping_round += 1
+
+
 def Model_Apply(
         model: Model,
         tag: type,
         ) -> None:
     for current in Form(tag):
         if current not in model.active:
+            Model_Gain(model, current)
             model.active.append(current)
             model.ever.add(current)
             CLOCK[0] += 1
             model.joined[current] = CLOCK[0]
-
-    if tag is Marked:
-        model.marked_ever = True
-
-    if tag is Gated:
-        model.gated_ever = True
 
 
 def Model_Tagging(
         model: Model,
         tag: type,
         ) -> bool:
-    """Apply ``tag`` to the model. True when the tagging reports a broken
-    promise at the door: something joined, and the Agent is defective
-    after it. An active re-application joins nothing and re-checks
-    nothing (§0.7)."""
+    """Apply ``tag`` to the model. True when completed training reports a
+    failed Post before the surrounding try begins: something joined, and
+    the Agent is deficient. Active reapplication joins nothing and
+    rechecks nothing (§0.7)."""
 
     pending = [member for member in Form(tag) if member not in model.active]
     Model_Apply(model, tag)
@@ -320,7 +340,7 @@ class Guild(Tag):
 
 
 class Gated(Tag):
-    """A gate that refuses when the Agent is not ok; the call rolls back."""
+    """A Gate that refuses when the Agent is not ok."""
 
     @Pre
     def Ready(agent) -> bool:
@@ -359,17 +379,46 @@ class Carrying(Tag):
         return Agent(f"{agent.name}'s pack")
 
 
-class Slipping(Tag):
-    """An Imprint that fails after commit; the Tag stays."""
+class Slipping(Guild):
+    """Retryable training: failed production keeps Gains, not membership."""
+
+    @Pre
+    def Can_Slip(agent) -> bool:
+        return agent.slipping_allowed
+
+    @Record
+    def slipping_round(agent, stored) -> int:
+        return (stored or 0) + 1
+
+    def Read_Slip(agent) -> int:
+        return agent.slipping_round
+
+    @Post
+    def Slip_Ready(agent) -> bool:
+        return agent.ok
 
     @Imprint
     def Slip(agent) -> None:
         agent.events.append("slipped")
-        raise RuntimeError("deliberate")
+        if agent.slipping_fails:
+            raise RuntimeError("deliberate")
+
+
+class Refused_Guild(Guild):
+    """Its Base completes, then this Shape refuses at its own Gate."""
+
+    @Pre
+    def Never(agent) -> bool:
+        return False
+
+    @Record
+    def refused_record(agent) -> str:
+        return "must not be built"
 
 
 CONDITION_TAGS = (Promised, Marked)
 FEATURE_TAGS = (Promised, Marked, Guild, Gated)
+OBSERVED_TAGS = FEATURE_TAGS + (Slipping,)
 
 
 # ------------------------------------------------------------------
@@ -449,7 +498,7 @@ def Assert_Target(
 
     assert observed == expected, (context, "Tags", observed, expected)
 
-    for tag in family + FEATURE_TAGS:
+    for tag in family + OBSERVED_TAGS:
         active = tag in model.active
 
         assert (target in tag) is active, (context, "membership", tag.__name__, active)
@@ -522,13 +571,21 @@ def Assert_Contract(
     if model.gated_ever:
         expected["Ready"] = model.ok                                  # sticky: Rip leaves the gate on the record
 
+    if Slipping in model.gained:
+        expected["Can_Slip"] = model.slipping_allowed
+        expected["Slip_Ready"] = model.ok
+        assert "slipping_round" @ target, (context, "missing acquired Record")
+        assert "Read_Slip" @ target, (context, "missing acquired Action")
+        assert target.slipping_round == model.slipping_round, (context, "retry Record")
+        assert target.Read_Slip() == model.slipping_round, (context, "Rogue Action")
+
     assert status == expected, (context, "contract", status, expected)
     assert bool(target) is model.Sound(), (context, "truth", model.Sound())
 
     for name, holds in expected.items():
         assert getattr(target, name) is holds, (context, "condition member", name, holds)
 
-    for name in ("Is_Ok", "Still_Ok", "Ready"):
+    for name in ("Is_Ok", "Still_Ok", "Ready", "Can_Slip", "Slip_Ready"):
         if name not in expected:
             assert not hasattr(target, name), (context, "phantom condition member", name)
 
@@ -576,7 +633,7 @@ def Assert_Fields(
     the algebra. The feature Tags are checked with the Agents only: their
     Fields span the Agent population, never the Tags."""
 
-    tags = family if isinstance(targets[0], type) else family + FEATURE_TAGS
+    tags = family if isinstance(targets[0], type) else family + OBSERVED_TAGS
 
     def Population(
             tag: type,
@@ -720,8 +777,8 @@ def Exercise_Block(
         ) -> None:
     """A block that holds Tags, written as a program writes it (STEP-SPEC-31,
     form 3): every Tag is tagged before the ``try``, and Ripped in reverse
-    in the ``finally``. A Tag that fails at the door raises before the
-    ``try``: the block never runs, nothing is Ripped, and every Tag stays.
+    in the ``finally``. A Post failure raises before the ``try``: the block
+    never runs, nothing is Ripped, and completed Tags stay.
     A Rip in the ``finally`` raises as any Rip does, and the Rips after it
     do not run; if the block was raising, its error is the Rip's context."""
 
@@ -782,6 +839,9 @@ def Exercise_Block(
     model.joined = final.joined
     model.marked_ever = final.marked_ever
     model.gated_ever = final.gated_ever
+    model.gained = final.gained
+    model.slipping_round = final.slipping_round
+    model.slipping_allowed = final.slipping_allowed
 
 
 def Is_Block_Error(
@@ -797,13 +857,25 @@ def Exercise_Transactions(
         model: Model,
         context: str,
         ) -> None:
-    """The call boundary: a refused gate rolls the call back, a failed
-    Imprint keeps the Tag."""
+    """Failed admission, refused retry and fresh training keep actual Gains."""
 
     if not model.Sound():
         return
 
     events_before = list(target.events)
+
+    if Guild not in model.active:
+        try:
+            Refused_Guild(target)
+        except TagPreconditionError.Never:
+            pass
+        else:
+            raise AssertionError((context, "later Gate accepted the Agent"))
+
+        Model_Apply(model, Guild)
+        assert target in Guild, (context, "later Gate removed its completed Base")
+        assert target not in Refused_Guild, (context, "refused Shape entered its Field")
+        assert not hasattr(target, "refused_record"), (context, "refused Shape built a Record")
 
     if Gated not in model.active:
         target.ok = False
@@ -820,15 +892,20 @@ def Exercise_Transactions(
             else:
                 raise AssertionError((context, "gate accepted a not-ok Agent"))
 
-            assert target not in Gated, (context, "gate rollback: membership")
+            assert target not in Gated, (context, "Gate refusal: membership")
             assert target.events == events_before, (context, "gate ran the Imprint")
 
             if not model.gated_ever:
-                assert not hasattr(target, "token"), (context, "gate rollback: Record")      # sticky once ever applied
+                assert not hasattr(target, "token"), (context, "Gate refusal: Record")      # sticky once ever applied
             target.ok = True
             model.ok = True
 
     if Slipping not in model.active:
+        target.slipping_fails = True
+        target.slipping_allowed = True
+        model.slipping_allowed = True
+        clock_before = CLOCK[0]
+        had_guild = Guild in model.active
         try:
             Slipping(target)
         except TagImprintError:
@@ -836,8 +913,46 @@ def Exercise_Transactions(
         else:
             raise AssertionError((context, "failed Imprint did not report"))
 
-        Model_Apply(model, Slipping)
-        assert target in Slipping and target.events[-1] == "slipped", (context, "Imprint failure kept the Tag")
+        Model_Apply(model, Guild)   # the Base completes independently
+        Model_Gain(model, Slipping)
+        assert target not in Slipping, (context, "failed training entered the Agency")
+        assert target not in Slipping[:], (context, "failed training entered the Field")
+        assert isinstance(target, Slipping) is (Slipping in model.ever), (context, "failed training changed history")
+        try:
+            Slipping[target]
+        except TagResolutionError:
+            pass
+        else:
+            raise AssertionError((context, "unfinished training obtained a view"))
+        assert target.events[-1] == "slipped", (context, "Imprint did not run")
+        assert CLOCK[0] == clock_before + (not had_guild), (context, "failed training advanced join order")
+        Assert_Contract(target, model, context + " failed training")
+
+        # A new refusal must not remove the Gains from the prior attempt.
+        target.slipping_allowed = False
+        model.slipping_allowed = False
+        round_before = model.slipping_round
+        events_before_retry = list(target.events)
+        try:
+            Slipping(target)
+        except TagPreconditionError.Can_Slip:
+            pass
+        else:
+            raise AssertionError((context, "retry Gate accepted"))
+        assert target.slipping_round == round_before, (context, "refusal erased or rebuilt Gains")
+        assert target.events == events_before_retry, (context, "refusal retrained")
+        Assert_Contract(target, model, context + " refused retry")
+
+        # Fresh Tagging restarts training against the current Agent.
+        target.slipping_allowed = True
+        model.slipping_allowed = True
+        target.slipping_fails = False
+        Tag_It(target, Slipping, model, context + " retry")
+        assert target in Slipping, (context, "successful retry did not enter")
+        assert target in Slipping[:], (context, "completed training did not enter the raw Field")
+        assert (target in list(Slipping)) is model.Sound(), (context, "retry sound Field")
+        assert (target in ~Slipping) is (not model.Sound()), (context, "retry deficient Field")
+        assert Slipping[target].Read_Slip() == model.slipping_round, (context, "retry view")
         del Slipping[target]
         Model_Rip(model, Slipping)
 
@@ -915,6 +1030,292 @@ def Exercise_Tools(
     del target.pack
 
 
+# ------------------------------------------------------------------
+# Links (STEP-SPEC-22): a walk of its own, against a model of Pairs
+# ------------------------------------------------------------------
+
+
+LINK_LOG: list[tuple[str, str, str]] = []   # (agent, contact, teardown) as the kit ran them
+
+
+class Circle(Tag):
+    """A declaring Tag with a Link and a Shape Link."""
+
+    @Link
+    class Knows(Tag):
+
+        @Pre
+        def Not_Oneself(agent, contact) -> bool:
+            return contact is not agent or not agent.picky
+
+        @Record
+        def since(agent, contact, *, since=None) -> object:
+            return since
+
+        @Rip
+        def Forget(agent, contact) -> None:
+            LINK_LOG.append((agent.name, contact.name, "Forget"))
+
+    @Link
+    class Trusts(Knows):
+
+        @Post
+        def Still_Ok(agent, contact) -> bool:
+            return contact.ok
+
+        @Rip
+        def Distrust(agent, contact) -> None:
+            LINK_LOG.append((agent.name, contact.name, "Distrust"))
+
+
+class Undercover(Circle):
+    """A Shape of the declaring Tag that extends a held Link (rule 4.6)."""
+
+    @Link
+    class Knows(Circle.Knows):
+
+        @Record
+        def cover(agent, contact) -> str:
+            return f"cover of {agent.name}"
+
+
+@dataclass
+class Link_Model:
+    """What the paradigm says about one holder's Links."""
+
+    knows: dict[str, object] = field(default_factory=dict)   # contact name -> since
+    trusts: set[str] = field(default_factory=set)
+    promised: set[str] = field(default_factory=set)         # Pairs carrying Still_Ok: once trusted, sticky until the Pair ends
+    cover_declared: bool = False                            # the Link acquired Undercover's Layer, even if training stopped
+    covered: set[str] = field(default_factory=set)          # Pairs that actually completed that Layer
+    undercover: bool = False                                # the holder's own Undercover Tagging completed
+
+
+def Model_Link(
+        model: Link_Model,
+        contact: str,
+        since: object,
+        *,
+        trusts: bool = False,
+        ) -> None:
+    """Complete a linking, including its current Layers at each new turn.
+
+    An already admitted Contact is unchanged. A new Shape turn can give
+    an existing Pair a Layer that an earlier extension never reached.
+    """
+
+    if contact not in model.knows:
+        model.knows[contact] = since
+        if model.cover_declared:
+            model.covered.add(contact)
+    if trusts and contact not in model.trusts:
+        model.trusts.add(contact)
+        model.promised.add(contact)
+        if model.cover_declared:
+            model.covered.add(contact)
+
+
+def Run_Links(
+        seed: int,
+        steps: int,
+        population: int,
+        ) -> int:
+    """Holders link, trust, unlink, extend and die; Contacts change and
+    die; after every step the Links, Pairs, populations and teardowns
+    are what the model says."""
+
+    randomizer = random.Random(seed * 7919)
+    people: dict[str, Agent] = {}
+
+    for index in range(population):
+        person = Agent(f"link-{seed}-{index}")
+        person.picky = index % 2 == 0
+        people[person.name] = person
+
+    del person   # only `people` may hold them: deaths are part of the walk
+    holders: dict[str, Link_Model] = {}
+    transitions = 0
+
+    for step in range(steps):
+        context = f"links seed={seed} step={step}"
+        names = sorted(people)
+
+        if not names:
+            break
+
+        holder_name = randomizer.choice(names)
+        contact_name = randomizer.choice(names)
+        holder = people[holder_name]
+        contact = people[contact_name]
+        model = holders.get(holder_name)
+        choice = randomizer.randrange(10)
+        expected_log: list[tuple[str, str, str]] = []
+        LINK_LOG.clear()
+
+        if model is None or choice == 0:
+            Circle(holder)
+            holders.setdefault(holder_name, Link_Model())
+        elif choice in (1, 2):
+            refused = holder is contact and holder.picky
+
+            try:
+                holder.Knows(contact, since=step)
+            except TagPreconditionError:
+                assert refused, (context, "a gate refused what the model admits")
+            else:
+                assert not refused, (context, "the gate admitted a self-link of a picky holder")
+                Model_Link(model, contact_name, step)
+        elif choice == 3:
+            refused = holder is contact and holder.picky
+
+            try:
+                holder.Trusts(contact, since=step)
+            except TagPreconditionError:
+                assert refused, (context, "Trusts refused at the gate")
+            except TagPostconditionError:
+                assert contact.ok is False and contact_name not in model.trusts, (context, "a Pair promise broke unexpectedly")
+                Model_Link(model, contact_name, step, trusts=True)   # admission precedes Posts: the linking stays
+            else:
+                assert not refused, (context, "Trusts admitted a self-link of a picky holder")
+
+                if contact_name not in model.trusts:
+                    assert contact.ok, (context, "a broken Pair promise did not raise")
+
+                Model_Link(model, contact_name, step, trusts=True)
+        elif choice == 4:
+            if contact_name in model.trusts:
+                try:
+                    del holder.Knows[contact]
+                except TagCompositionError:
+                    pass
+                else:
+                    raise AssertionError((context, "unlinking a Base Link held by a Shape was not refused"))
+            elif contact_name in model.knows:
+                del holder.Knows[contact]
+                del model.knows[contact_name]
+                model.promised.discard(contact_name)               # the Pair ends
+                model.covered.discard(contact_name)
+                expected_log.append((holder_name, contact_name, "Forget"))
+            else:
+                try:
+                    del holder.Knows[contact]
+                except TagResolutionError:
+                    pass
+                else:
+                    raise AssertionError((context, "unlinking a stranger did not raise"))
+        elif choice == 5:
+            if contact_name in model.trusts:
+                del holder.Trusts[contact]
+                model.trusts.discard(contact_name)
+                expected_log.append((holder_name, contact_name, "Distrust"))
+        elif choice == 6:
+            if not model.undercover:
+                # Declaration sticks before training visits the held
+                # Pairs, in Field order. The first broken Pair stops the
+                # extension after that Pair gained its own cover; later
+                # Pairs have not yet trained. Explicit retry resumes the
+                # missing training, checking each Pair's current Posts.
+                model.cover_declared = True
+                broken = False
+                for name in model.knows:
+                    model.covered.add(name)
+                    if name in model.promised and not people[name].ok:
+                        broken = True
+                        break
+
+                try:
+                    Undercover(holder)
+                except TagPostconditionError:
+                    assert broken, (context, "extending raised with every Pair sound")
+                else:
+                    assert not broken, (context, "extending did not check every Pair's promises (rule 4.6)")
+
+                model.undercover = not broken
+        elif choice == 7:
+            contact.ok = not contact.ok
+        elif choice == 8 and len(people) > 2:
+            del people[contact_name]                             # a Contact (and maybe a holder) dies
+
+            for other_name, other in sorted(holders.items()):
+                if other_name == contact_name:
+                    continue
+
+                if contact_name in other.trusts:
+                    expected_log.append((other_name, contact_name, "Distrust"))
+
+                if contact_name in other.knows:
+                    expected_log.append((other_name, contact_name, "Forget"))
+
+                other.knows.pop(contact_name, None)
+                other.trusts.discard(contact_name)
+                other.promised.discard(contact_name)
+                other.covered.discard(contact_name)
+
+            dying = holders.pop(contact_name, None)
+
+            if dying is not None:
+                for name in sorted(dying.trusts):
+                    if name != contact_name:
+                        expected_log.append((contact_name, name, "Distrust"))
+
+                for name in sorted(dying.knows):
+                    if name != contact_name:
+                        expected_log.append((contact_name, name, "Forget"))
+
+                if contact_name in dying.trusts:
+                    expected_log.append((contact_name, contact_name, "Distrust"))
+
+                if contact_name in dying.knows:
+                    expected_log.append((contact_name, contact_name, "Forget"))
+
+            del contact, holder
+            gc.collect()
+
+        assert sorted(LINK_LOG) == sorted(expected_log), (context, "teardowns", sorted(LINK_LOG), sorted(expected_log))
+        Assert_Links(people, holders, context)
+        transitions += 1
+
+    return transitions
+
+
+def Assert_Links(
+        people: dict[str, Agent],
+        holders: dict[str, Link_Model],
+        context: str,
+        ) -> None:
+    for holder_name, model in holders.items():
+        holder = people[holder_name]
+        knows = holder.Knows
+        trusts = holder.Trusts
+        linked = sorted(contact.name for contact in knows[:])
+        trusted = sorted(contact.name for contact in trusts[:])
+
+        assert linked == sorted(model.knows), (context, "Knows Field", holder_name, linked, sorted(model.knows))
+        assert trusted == sorted(model.trusts), (context, "Trusts Field", holder_name, trusted, sorted(model.trusts))
+        assert issubclass(trusts, knows), (context, "Trusts is a Shape of the holder's own Knows")
+        assert (holder in Undercover) is model.undercover, (context, "declaring Shape admission", holder_name)
+
+        for contact in knows[:]:
+            pair = knows[contact]
+            assert pair is trusts[contact] or contact.name not in model.trusts, (context, "one Pair across the Form")
+            assert pair.since == model.knows[contact.name], (context, "the Pair's since", holder_name, contact.name)
+            assert (getattr(pair, "cover", None) is not None) is (contact.name in model.covered), (context, "completed Undercover Layer", holder_name, contact.name)
+            assert Tags(contact) == Tags(contact), (context, "Tags readable")
+            assert all(not issubclass(tag, (knows, trusts)) for tag in Tags(contact)), (context, "a Contact's Tags name a Link")
+
+        sound = sorted(contact.name for contact in trusts)
+        expected = sorted(name for name in model.trusts if people[name].ok)
+        assert sound == expected, (context, "Trusts sound population", sound, expected)
+
+        sound = sorted(contact.name for contact in knows)
+        expected = sorted(
+                name
+                for name in model.knows
+                if people[name].ok or name not in model.promised
+                )
+        assert sound == expected, (context, "Knows sound population: a Pair's sticky promise counts", sound, expected)
+
+
 def Weak_Field_Probe(
         count: int,
         ) -> None:
@@ -948,6 +1349,7 @@ def Main() -> None:
 
     for seed in range(arguments.first_seed, arguments.first_seed + arguments.seeds):
         transitions += Run_Seed(seed, arguments.steps, arguments.population)
+        transitions += Run_Links(seed, arguments.steps, arguments.population)
 
     Weak_Field_Probe(max(200, arguments.population * 20))
     duration = time.perf_counter() - started
