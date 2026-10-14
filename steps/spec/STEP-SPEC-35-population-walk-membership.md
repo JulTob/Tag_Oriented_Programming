@@ -97,5 +97,5 @@ does not separately clear snapshot timing, new-member scheduling, saved
 positions, operand timing or Python length hints; those details above
 document TopKit's implementation and preserved behavior. No unresolved
 filters, picks, safehouse or deletion proposals are imported from the
-earlier broad draft of STEP-SPEC-29. STEP-SPEC-29 itself is reserved for
-the separately extracted absorbing-`~` rule.
+earlier broad draft of STEP-SPEC-29. The separately extracted absorbing-`~`
+rule is recorded in [STEP-SPEC-38](STEP-SPEC-38-absorbing-defective-population.md).
