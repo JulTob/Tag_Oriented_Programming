@@ -23,7 +23,7 @@ This recovered **Brief** retains #77's distinction between per-Agent failure, bu
 
 The Report-reset spelling is a separate decision: current [`del Tag.report`](https://github.com/JulTob/Tag_Oriented_Programming/blob/fcea45fd2535594fd82f54aee2af7e815e98e0ca/TopKit/tags.py) deletes an ordinary declaration and refuses deletion protected by Constant; it does not merely discard a cached Report value. Review proposed reset, inherited Reports and Constant protection explicitly before changing that behavior. Keep the no-latch, reusable-Tag proposal distinct from resetting Reports.
 
-The historical implementation plan says `MetaTag` gains `__setattr__` and `__delattr__`; both hooks already exist on main. Any future Report reset or Tag-scope write rule must extend those hooks while preserving their current Constant, condition-name and reserved Agent-truth protections.
+The historical implementation plan says `MetaTag` gains `__setattr__` and `__delattr__`; both hooks already exist on main. Any future Report reset or Tag-scope write rule must extend those hooks while preserving the existing Constant protections and the restrictions on condition dunder names and Agent truth.
 
 `del Tag` remains Python name deletion. Scope is [already retired](https://github.com/JulTob/Tag_Oriented_Programming/blob/fcea45fd2535594fd82f54aee2af7e815e98e0ca/steps/spec/STEP-SPEC-31-retire-scope.md); historical S19/Scope examples and speculative population spellings below are not current usage instructions.
 
