@@ -220,9 +220,11 @@ order, iterative traversal and lazy caching are unchanged; mutation of
 Before each turn, `_gate` checks only that Tag against the current Overlay.
 When a Tag can use the shortcut, `overlay._preflight_ordinary_gains` checks
 its ordinary Action and Record names against the live State one by one,
-without copying it. Tags needing full composition are laid over a scratch
-copy of the current Overlay. Their composed Preconditions judge the live
-Agent. A refusal does not remove Tags whose turns already finished.
+without copying it. An internal Report or Operation does not by itself
+require a scratch copy; a public one does. Tags needing full composition
+are laid over a scratch copy of the current Overlay. Their composed
+Preconditions judge the live Agent. A refusal does not remove Tags whose
+turns already finished.
 Gainings apply Actions, Records, condition definitions and deletions
 incrementally in declaration order, top to bottom,
 establishing each before the next declaration runs. The Gate has already

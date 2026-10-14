@@ -15,10 +15,10 @@
 - **Tagging preparation cost:** ordinary Action/Record declarations reuse
   the existing collision and Underlay checks without constructing a
   disposable Overlay. Tags with deletions, conditions, Secrets, special
-  methods, published members, Constants, Tools, public Reports or
+  methods, published members, Constants, Tools, public Reports, public
   Operations, or a Flag, and Agents that are Tags or already hold Constants,
-  retain scratch composition. A Tag with an internal Report or Operation
-  takes the shortcut too. State copies and empty runtime-type keys also
+  retain scratch composition. An internal Report or Operation does not by
+  itself prevent the shortcut. State copies and empty runtime-type keys also
   avoid temporary allocations. Both physical host snapshots, live declaration
   lookup after Gate, and the ordered Gainings/admission boundary remain.
   The existing performance budgets are unchanged (#175).

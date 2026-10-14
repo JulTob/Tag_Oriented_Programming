@@ -142,6 +142,8 @@ def _gate(
     before any builder runs, and nothing is installed on the live state.
     When a Tag can use the shortcut, ``_preflight_ordinary_gains`` checks
     its ordinary Action and Record names against the live state, one by one.
+    An internal Report or Operation does not by itself require scratch
+    composition; a public one does.
     Tags needing full composition are laid over a scratch copy of the state,
     on top of completed Tags. Their composed Preconditions judge the live
     Agent.

@@ -507,7 +507,8 @@ def _preflight_ordinary_gains(
     Secrets, special methods, published members, Constants, Tools, public
     Reports), a public Operation, a Constant the Agent already holds, an
     Agent that is a Tag (a Pin), or a Flag. An internal Report or Operation
-    only fills a table of the scratch copy, so it changes no check.
+    occupies only Tag-scope service tables, so it creates no Agent-name
+    collision at the Gate.
 
     The scanner gives each declaration one name, and an ordinary Action or
     Record installed under one name changes nothing another name's checks
