@@ -10,10 +10,10 @@
 - **Status:** Vetting
 - **Created:** 2026-10-12
 - **Refs:** PR #143 (this STEP and its implementation); PR #159 (Codex's
-  class-admission runtime on #89's base, whose fate the Director decides);
+  class-admission runtime, closed; its useful tests are carried here and in #174);
   STEP-SPEC-33 (Presence), STEP-SPEC-34 (Constant),
   STEP-SPEC-39 (Tagging Admission, Cleared, PR #78), STEP-SPEC-40
-  (Agent contract truth, Brief, PR #151), STEP-SPEC-42 (condition names,
+  (Agent contract truth, Cleared, PR #160), STEP-SPEC-42 (condition names,
   Brief, PR #155), issues #30, #71 and #74, and PR #156
 
 > One STEP, one topic. If this grows a second purpose, split it into another
@@ -50,7 +50,7 @@ class Fighter(Tag):
     def Armed(agent):
         return ("weapon" @ agent
                 and agent.weapon in Weapon[:]
-                and Contract.Holds(agent.weapon))
+                and bool(agent.weapon))
 
     @Action
     def Strike(agent):
@@ -79,8 +79,7 @@ only if it is seated again.
 | --- | --- | --- |
 | Does the Gain exist? | `"weapon" @ agent` | Presence; no value read or Post evaluation. |
 | Is the object currently a Weapon? | `agent.weapon in Weapon[:]` | Tag membership, including deficient members. |
-| Do its promises hold? | `Contract.Holds(agent.weapon)` | Its visible Posts, independently of the bearer. |
-| Is an Agent Tool valid? | `bool(agent.weapon)` | Agent contract truth; plain objects retain Python truth. |
+| Do an Agent Tool's promises hold? | `bool(agent.weapon)` | Its visible Posts, independently of the bearer; plain objects retain Python truth. |
 
 **Implementation status.** Implemented in PR #143 (`TopKit/tools.py`,
 exported as `TopKit.Tool`), with `tests/test_tools.py`, a Tool exercise
@@ -228,7 +227,7 @@ Gains are acquired in declaration order and visible to subsequent Gains.
 The class check runs at this Record's turn, not in a preliminary pass.
 
 > **On `main` today.** STEP-SPEC-39 is Cleared but not yet on `main`
-> (PR #78, implemented in PR #89). Until it lands, the kit follows the
+> (PR #78; its implementation is PR #174, still a Draft). Until it lands, the kit follows the
 > Specification's §0.6: **Gate → Parts → Commit → Write → Quality**.
 > A builder or admission failure is a Record failure at Parts, so the
 > whole call rolls back and an occupied slot keeps the Tool it held.
@@ -305,25 +304,23 @@ isolation or automatic bearer reference. With self-reference, these are
 one Agent's door, not two independent doors.
 
 The Director's truth decisions are recorded in STEP-SPEC-40 and
-STEP-SPEC-42. STEP-SPEC-42's implementation is on `main` (PR #155);
-STEP-SPEC-40's is PR #160, open (#156's truth code never reached
-`main`):
+STEP-SPEC-42; their implementations are on `main` (PRs #155 and #160):
 
 - For ordinary object Agents, bool asks whether visible Posts hold,
   including before Field entry when Posts have already been gained.
 - Hosts with explicit or inherited `__bool__` are refused before Tagging
-  effects, once STEP-SPEC-40's implementation lands (PR #160; not on
-  `main` yet, where a host keeps its own `__bool__`). Tool admission
-  alone does not Tag a host, so it does not trigger that eligibility
-  check. Admission never asks the held thing's truth.
+  effects (STEP-SPEC-40, PR #160, on `main`). Tool admission alone does
+  not Tag a host, so it does not trigger that eligibility check.
+  Admission never asks the held thing's truth.
 - Plain objects retain Python truth, including their own `__bool__`.
   Holding one does not make it an Agent or give it TOP contract truth.
 - Conditions cannot use dunder names, and ordinary Agent truth cannot be
   replaced by another Contribution.
-- `bool(Tag)` keeps population truth even when a Pin makes the Tag an
-  Agent. `Contract.Holds(Tag)` asks its Pin contract. This proposal does
-  not change Tag population truth. A class kind such as `@Tool(type)`
-  may admit a Tag value; holding it does not change either truth question.
+- Under the Director's 2026-10-14 revision in STEP-SPEC-40, `bool(Tag)`
+  checks the Tag's own visible Pin Posts; no Posts means true even with an
+  empty Field. This supersedes the earlier population-truth exception.
+  `len(Tag)` still counts sound members. A class kind such as `@Tool(type)`
+  may admit a Tag value; holding it does not change its contract or its Field.
 
 The Tool's contract is not transferred to its bearer. A bearer Post can
 check presence, current required membership and the Tool's Posts. Such

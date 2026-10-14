@@ -71,11 +71,27 @@ assert list(Fighter) == [bo]                # off the line
 assert list(~Fighter) == [cal]              # waiting for repair
 assert cal in Fighter                       # still a member
 assert cal in Fighter[:]                    # still in the Field
+assert list(~~Fighter) == [cal]             # broken twice is still broken
+assert len(Fighter) == 1                    # sound members
+assert len(~Fighter) == 1                   # defective members
+assert len(Fighter[:]) == 2                 # all members
 ```
 
 The plain loop, `for f in Fighter`, is the working population. `~Fighter`
-is the repair queue. `Fighter[:]` is the roster. `if Fighter:` asks
+is the repair queue. `Fighter[:]` is the roster. `len(Fighter) > 0` asks
 whether anyone is fit; `len(Fighter[:])` counts everyone.
+
+When migrating an old population guard, remember that `len(Fighter) > 0`
+counts the whole sound population. The former `bool(Fighter)` stopped at
+the first sound member, so the number of Post evaluations can differ.
+
+`if Fighter:` checks the Tag's own visible Posts, received from Pins.
+Without such Posts it is true, even with an empty Field. Population
+views keep their existence question: `if Fighter[:]` asks whether the
+roster has anyone, and `if ~Fighter` asks whether anyone needs repair.
+
+`~` reads "broken", never "not". It absorbs: `~~Fighter`,
+`~~~Fighter` and any longer run are `~Fighter`, the repair queue again.
 
 ---
 
@@ -129,8 +145,33 @@ assert len(combatants) == 4
 assert combatants                           # truth: anyone at all?
 ```
 
-Keep a combined view around like you would keep a Tag around. Do not
-copy it into a list unless you want the moment frozen.
+Keep a combined view around like you would keep a Tag around. To retain
+what one walk yields, make the one pass explicit:
+
+```python
+members = [member for member in combatants]
+```
+
+`list(combatants)` is not the one-pass spelling. Python may ask
+`len(combatants)` for a size hint before iterating, which is a separate
+live population walk and may repeat Postconditions.
+
+TopKit preserves its existing traversal mechanics while applying the
+STEP-SPEC-35 membership ruling. One walk saves a Field's join order when
+that Field's part of the walk begins. The saved places are turns, not a
+frozen membership list. At each
+turn TOP asks whether that same Agent or Tag is still in the Field. A
+member Ripped by an earlier turn is skipped. If it is tagged again before
+its turn, it is in again and is visited once, at the saved place. A new
+member had no saved turn and waits for the next walk.
+
+The same rule governs a plain Tag, `Tag[:]`, `~Tag`, a Pin and every side
+of a combined population. Soundness and the right side of `&` or `-` are
+also read when the member's turn arrives. A population view's `bool`
+and `len` use the same membership checks; `len(Tag)` also walks its
+sound members. `bool(Tag)` checks the Tag's own Posts instead. Each
+population query is a separate live walk, so conditions that change
+state can produce different answers on successive calls.
 
 ---
 
@@ -215,8 +256,9 @@ assert list(Combat - Deprecated) == [Wizard]        # combat Tags still in use
   complement, so it is not defined. `~Wizard | ~Fighter` is what you mean.
 - **No order across sides.** `|` walks the left side first, then the
   right; it does not interleave by join time.
-- **No copies.** A view reads the Fields it was made from. If you need a
-  frozen moment, say so: `list(Wizard | Fighter)`.
+- **No copies.** A view reads the Fields it was made from. If you need to
+  retain one walk's result, say so with a one-pass comprehension:
+  `[member for member in Wizard | Fighter]`.
 - **Type unions still work.** `Wizard | None` is the language's own class
   union, untouched; only a Tag or a population on the other side makes
   the operator a Field operator.
@@ -227,6 +269,8 @@ assert list(Combat - Deprecated) == [Wizard]        # combat Tags still in use
   `Tag[:]` for everyone.
 - **Combine with `|`, `&`, `-`.** A Tag in an operator seat is its sound
   population; `Tag[:]` and `~Tag` say the other levels.
+- **Count the view you need.** `len(Tag)` counts sound members,
+  `len(~Tag)` defective members, and `len(Tag[:])` everyone.
 - **Keep views, not lists.** A view is alive; a list is a moment.
 - **Read a view in a condition** with `in`, and the gate follows the
   population.

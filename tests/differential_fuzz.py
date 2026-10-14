@@ -878,6 +878,11 @@ def Program(
             ' Made by tests/differential_fuzz.py."""'
             )
     plan.lines.append(PRELUDE)
+    plan.lines.append(Do_Line(
+            "declaration",
+            'type("ReservedTruth", (Tag,), {"__bool__": lambda agent: False})',
+            "reserved Agent truth",
+            ))
     Declare_Tags(plan)
     Make_Agents(plan)
 
@@ -965,6 +970,9 @@ def Declare(
 
         if any(member.name == taken.name for taken in chosen):
             continue
+
+        if member.name == "__bool__":
+            continue   # tested as a refused declaration, not an admitted Tag
 
         if flag and member.kind == "in":
             continue                                   # a Flag with an `in` Action is refused at declaration
@@ -1478,7 +1486,6 @@ def Querying(
                 f"Form({tag})",
                 f'f"{{{tag}:form}}"',
                 f"Contract.Status({agent})",
-                f"Contract.Holds({agent})",
                 f"Contract.Postconditions({agent})",
                 f"Contract.Preconditions({agent})",
                 f"Contract.Conditions({agent})",

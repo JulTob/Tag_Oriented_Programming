@@ -56,6 +56,10 @@ class ConstantTests(unittest.TestCase):
 
         class Custom_Host:
             def __setattr__(agent, name, value):
+                if name == "__class__":
+                    object.__setattr__(agent, name, value)
+                    return
+
                 writes.append(("set", name))
                 agent.__dict__[name] = value
 
@@ -167,7 +171,7 @@ class ConstantTests(unittest.TestCase):
                 with self.assertRaises(TagError):
                     tag(agent)
         agent.ready = False
-        self.assertFalse(Contract.Holds(agent))
+        self.assertFalse(bool(agent))
 
     def test_other_tags_cannot_change_a_constants_kind_or_delete_it(self):
         class Given(Tag):
@@ -411,7 +415,7 @@ class ConstantTests(unittest.TestCase):
         with self.assertRaises(TagCompositionError):
             Contract.Delete(agent, "Ready")
         agent.ready = False
-        self.assertFalse(Contract.Holds(agent))
+        self.assertFalse(bool(agent))
         self.assertEqual(Contract.Status(agent), {"Ready": False})
 
     def test_shapes_cannot_redeclare_inherited_constant_gains_or_posts(self):

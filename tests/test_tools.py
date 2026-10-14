@@ -214,7 +214,7 @@ class Tag_Kind_Tests(unittest.TestCase):
         charlie.weapon.damage = 0
         self.assertTrue("weapon" @ charlie)
         self.assertIn(charlie.weapon, Weapon[:])
-        self.assertFalse(Contract.Holds(charlie.weapon))
+        self.assertFalse(bool(charlie.weapon))
 
 
 # ------------------------------------------------------------------
@@ -317,16 +317,35 @@ class Class_Kind_Tests(unittest.TestCase):
         Buddy(sam)
         self.assertIs(sam.buddy, sam)
 
-    def test_a_kind_of_type_may_hold_a_tag_without_changing_its_truth(self):
+    def test_a_kind_of_type_preserves_the_held_tags_own_pin_truth(self):
+        class Listed(Tag):
+            pass
+
+        @Pin
+        class Checked(Tag):
+            @Record
+            def approved(tag):
+                return True
+
+            @Post
+            def Approved(tag):
+                return tag.approved
+
+        Checked(Listed)
+
         class Catalogued(Tag):
             @Tool(type)
             def listed(agent):
-                return Weapon
+                return Listed
 
         sam = Character("Sam")
         Catalogued(sam)
-        self.assertIs(sam.listed, Weapon)
-        self.assertEqual(bool(sam.listed), bool(Weapon))  # population truth, untouched
+        self.assertIs(sam.listed, Listed)
+        self.assertEqual(len(Listed), 0)
+        self.assertTrue(sam.listed)                    # its own Pin Posts hold
+        Listed.approved = False
+        self.assertFalse(sam.listed)                   # the held Tag's contract changed
+        self.assertTrue(sam)                          # the bearer made no such promise
         with self.assertRaises(TagCompositionError):
             sam.listed = Sword()
 
@@ -998,18 +1017,18 @@ class Lifecycle_Tests(unittest.TestCase):
 
             @Post
             def Sound_Weapon(agent):
-                return agent.weapon in Weapon[:] and Contract.Holds(agent.weapon)
+                return agent.weapon in Weapon[:] and bool(agent.weapon)
 
         charlie = Character("Charlie")
         Armed(charlie)
-        self.assertTrue(Contract.Holds(charlie))
+        self.assertTrue(bool(charlie))
         del Weapon[charlie.weapon]
         self.assertTrue("weapon" @ charlie)
         self.assertNotIn(charlie.weapon, Weapon[:])
         self.assertTrue(isinstance(charlie.weapon, Weapon))
-        self.assertFalse(Contract.Holds(charlie))
+        self.assertFalse(bool(charlie))
         Weapon(charlie.weapon)                            # a fresh tagging repairs it
-        self.assertTrue(Contract.Holds(charlie))
+        self.assertTrue(bool(charlie))
 
     def test_a_rip_protocol_may_disarm(self):
         class Conscript(Tag):
@@ -1152,6 +1171,10 @@ class Host_Tests(unittest.TestCase):
         class Logging_Host:
             def __init__(self, name): self.name = name
             def __setattr__(agent, name, value):
+                if name == "__class__":
+                    object.__setattr__(agent, name, value)
+                    return
+
                 writes.append(name)
                 agent.__dict__[name] = value
 
@@ -1208,8 +1231,8 @@ class Host_Tests(unittest.TestCase):
         Fighter(charlie)
         Sharp(charlie.weapon)
         charlie.weapon.damage = 0
-        self.assertFalse(Contract.Holds(charlie.weapon))
-        self.assertTrue(Contract.Holds(charlie))          # nothing on Charlie promised about the sword
+        self.assertFalse(bool(charlie.weapon))
+        self.assertTrue(bool(charlie))          # nothing on Charlie promised about the sword
 
     def test_a_tool_under_a_protocol_name_keeps_the_languages_hook(self):
         class Given(Tag):
@@ -1455,16 +1478,18 @@ class Sequence_Tests(unittest.TestCase):
             def by_class(agent, *, held):
                 return held
 
+        class Tagged_Holder(Tag):
             @Tool(Weapon)
             def by_tag(agent, *, held):
                 return held
 
-        touchy = Touchy()
-        Weapon(touchy)
+        touchy = Touchy()                                 # a plain object keeps its own truth
         sam = Character("Sam")
-        Holder(sam, held=touchy)                          # neither admission called bool()
+        Holder(sam, held=touchy)                          # the class admission never called bool()
         self.assertIs(sam.by_class, touchy)
-        self.assertIs(sam.by_tag, touchy)
+
+        with self.assertRaises(TagCompositionError):      # not a Weapon: refused, and still no bool()
+            Tagged_Holder(Character("Tam"), held=touchy)
 
 
 if __name__ == "__main__":

@@ -4,10 +4,133 @@
 
 ### TopKit
 
+- **Native contract truth:** removed `Contract.Holds` without an alias
+  (STEP-SPEC-40). Use `bool(agent)` or `if agent:`, including for Tags.
+  Named checks and diagnostic Contract tools remain. Held untagged values
+  keep ordinary Python truth; retain any required membership check before
+  interpreting a held value's truth as an Agent's contract.
+
+- **Deep population algebra:** lazy combinations evaluate walks and
+  membership with explicit stacks, preserving left-first order, live
+  per-leaf walk timing, short circuits and identity-based union ownership
+  without depending on Python's recursion limit. Walk-owned references are
+  explicitly released on completion, close or failure, including on Python
+  3.12.3 and when a caller retains an exception traceback.
+
+- **Population walks follow membership at each turn** (STEP-SPEC-35). A walk saves the
+  Field's join order when it begins. A member Ripped before its saved turn
+  is skipped; if it is tagged again before that turn, it is visited once
+  in its original place. A wholly new member waits for that Field's next
+  walk. If judging soundness Rips a member and leaves it out of that Field,
+  it does not count. Each side of a lazy combination starts its own Field
+  walk when reached.
+  Tags, whole and defective Fields, Pins and combinations share the rule,
+  and their truth and length use the same membership checks as iteration.
+  Each call is a separate live walk. A one-pass materialization
+  uses a comprehension; Python's `list(population)` may first perform a
+  separate live length-hint walk. A union walk keeps the left-side Agents
+  used for deduplication until it ends, so Python cannot reuse an old identity
+  for a distinct Agent on a later side.
+
+- **Synchronous protocol failures:** TopKit rejects native coroutine,
+  generator and async-generator returns from Pre, Imprint, Post and Rip
+  calls, including composed Rip Underlays. It attempts synchronous disposal
+  without awaiting or iterating the work. Ordinary teardown failures retain
+  their declared names and original causes, and later Rip protocols still
+  run. Record, Imprint and Underlay diagnostics also use Contribution names
+  rather than callable metadata; broken diagnostic formatting cannot hide
+  the failure. Record values and ordinary Action returns are unchanged.
+  This is the Python runtime boundary; STEP-SPEC-41 separately proposes a
+  language-wide rule.
+
+- **Host preparation:** a failed initial representation change restores
+  the original class, physical dictionary identity and bindings, and Python
+  slot bindings, including slots that were absent. Preparation validates
+  the requested runtime subclass and retained TOP state before builders or
+  Imprints run. Custom host refusal is respected; compatible standard frozen
+  dataclasses remain supported and their fields remain frozen. Restoration
+  does not undo changes inside mutable values or external effects. This
+  host boundary is separate from STEP-SPEC-39's retained Rogue Gains.
+
+- **Protocol signature identity:** different callable objects that compare
+  equal no longer reuse each other's parameter seats. Unhashable and
+  non-weakrefable accepted callables work without custom equality or hash
+  calls from the memo. Weak entries expire safely. Native parameter names
+  retain their keyword-binding behavior; names supplied as string subclasses
+  use uncached inspection so their payloads cannot root a callable through
+  the memo. Defaults and named-input policy stay unchanged. Non-weakrefable
+  callables also use uncached inspection; safely memoized callables keep
+  their original first-inspection timing.
+
+- **Tag memo ownership:** one helper keeps declaration and Form memos
+  on their exact Tag, so a Contribution referring back to its Tag or
+  Shape no longer lets a global cache keep it alive. Empty retained
+  Fields remain weak; returned Form tuples still deliberately retain
+  their Tags. Private-name collisions prevent new memo publication over
+  program bindings. Invalidation retires an owned memo's value even when a
+  metaclass descriptor blocks attribute deletion, so public Pin publication
+  reaches future Agents and removing the collision cannot revive stale data.
+  Namespace scans, including the Tool checks in `Pin()`, use snapshots,
+  so first Taggings of different Agents sharing a Tag cannot invalidate one another's
+  class-dictionary iterators while publishing either memo. Base-first
+  order, iterative traversal and ordinary-class Form behavior stay.
+
+- **Actions before the first Secret:** current synchronous TOP Actions
+  on ordinary objects and pinned Tags open their composition door even
+  when no Secret existed at binding. They can introduce and read the
+  first Secret during their own body; previously captured public handles
+  also compose. Secret invocation guards, host methods, weak object
+  binding and existing Pin receiver/ownership behavior stay unchanged.
+  General special-method composition, lazy execution and inherited Pin
+  receiver dependencies remain separate concerns. Pin Action handles
+  preserve available callable metadata and fall back to the declared name
+  and no documentation when optional metadata cannot be copied. Public
+  Pin Operation handles also retain their original `__self__`, `__func__`
+  and bound `inspect.signature`. Their equality and hashing follow Python
+  bound methods, so repeated reads work as set members and dictionary keys;
+  their representation names the Operation and receiving Tag. Signature
+  metadata is inspected only when requested. The composing handle is a TOP
+  callable rather than a Python method object; callable-kind introspection
+  remains separate.
+
+- **Captured Pin-private Operations:** a captured current Secret Action
+  landed by a Pin, including a Constant Action, requires its pinned Tag's
+  already-open composition door before invocation. Rip, fresh pinning,
+  or a public class-namespace shadow cannot make that capture public.
+  Existing receiver binding and ownership remain
+  unchanged; inherited public Operation dependencies and lazy execution
+  remain separate concerns.
+
+- **Captured Secret Actions:** current Secret Action handles on ordinary
+  object Agents, including Constant Actions, require an already-open
+  composition door on that same Agent when invoked. Capturing a handle
+  does not bypass its Secret boundary, even after Rip, a public Layer,
+  deletion, or a change of Contribution kind. Calls from synchronous
+  Actions and async context hooks retain their authorized access.
+
+- **Synchronous view Actions:** `Tag[agent].Action()` opens its bound
+  Agent's composition door while the selected Action runs, including Pin
+  views and Actions that introduce the first Secret Contribution. The
+  snapshot still selects the Action and exceptions close its door. A
+  captured Secret view Action requires an already-open door on that same
+  Agent; a later public Layer does not remove its captured boundary.
+
 - **Field membership stays behind TOP's doors:** `Tag[:]` no longer
   exposes public `Add` or `Remove` methods. Membership changes through
   Tagging and Rip, so the Field and the Agent's active Tags cannot be
   made to contradict each other through a partial internal operation.
+
+- **Agent truth is reserved for its Posts.** `bool(agent)` on an ordinary
+  object Agent reads its visible Posts from first Tagging, and is true
+  when it has none. Hosts with an explicit `__bool__` are refused before
+  Tagging effects; truth Gains and deletion are refused at declaration.
+  Tags follow the same rule for their own visible Pin Posts, independently
+  of their members; no Posts means true even with an empty Field. Use
+  `len(Tag) > 0` for a sound-member existence check. `len(Tag)`, `len(Tag[:])`,
+  `len(~Tag)`, iteration and population algebra retain their existing meanings.
+  Host `__len__` and Record-held value truth remain separate. Plain objects
+  created from an Agent's runtime type
+  keep native host truth, including inheritance order and descriptor binding.
 
 - **Ordinary condition names:** Preconditions and Postconditions refuse
   Python dunder names at Tag declaration and before late assignment.
@@ -91,6 +214,11 @@
   A Post can require the named Contribution; nonstring operands retain
   ordinary `@` behaviour. Pinned Tags support it as Agents.
 
+- **Absorbing defective view** (STEP-SPEC-38): `~` reads "broken", not
+  "not". Applying it again keeps the defective population, so
+  `~~Wizard`, `~~~Wizard` and longer runs all mean `~Wizard`. Inverting a
+  combined population remains refused.
+
 - **Fixed Field-algebra Tag recognition:** operator seats now recognize a
   Tag by `MetaTag`, not by a callable named `_sound`. An ordinary Python
   class with that name keeps normal class-union behaviour, and a Tag may
@@ -111,6 +239,12 @@
 - Three retention probes join the same isolated runner: a large Field whose
   Agents are released, lifecycle teardown during collection and cache churn
   through transient hosts, Tags, runtime types and Agents.
+- The remaining compatible probes cover many independently owned Agents
+  under an executor with up to sixteen workers, and repeated reciprocal
+  Pin/Rip cycles. Fields remain explicitly unsynchronized, so the worker
+  probe is a best-effort CPython stress observation, not a thread-safety
+  guarantee. The old self-Pin half is omitted because current TOP refuses
+  a Pin applied to itself.
 - **Releases go out through Trusted Publishing.** A GitHub Release runs
   `.github/workflows/release.yml`: the suite on Python 3.12, 3.13 and
   3.14, the oracle at its audited size, a check that the tag names
