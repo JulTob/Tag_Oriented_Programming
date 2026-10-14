@@ -1223,13 +1223,6 @@ def _scan(
         if _is_dunder(name):
             dunders.add(name)
 
-    if "__del__" in rips:
-        raise TagDeclarationError(
-                f"{tag.__name__}.__del__ is marked @Rip, but a __del__ Layer"
-                " already runs when the Agent is deleted, after its"
-                " teardowns; give the teardown a name of its own"
-                )
-
     declarations = _Declarations(
             actions=tuple(actions),
             records=tuple(records),
@@ -1282,15 +1275,21 @@ def _check_rip_declaration(
 
     kind = _kind_of(attribute)
 
-    if (
+    if _is_constant(attribute):
+        reason = "@Constant cannot mark a Rip protocol"
+    elif name == "__del__":
+        reason = (
+                "a __del__ Layer already runs when the Agent is deleted,"
+                " after its teardowns; give the teardown a name of its own"
+                )
+    elif (
             not _is_private(name)
             and not isinstance(attribute, (Report, classmethod, staticmethod))
             and callable(attribute)
             and kind in (None, "action")
             ):
         return
-
-    if _is_private(name):
+    elif _is_private(name):
         reason = "private names are not Contributions"
     elif isinstance(attribute, Report):
         reason = "it is a Report"

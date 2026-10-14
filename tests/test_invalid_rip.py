@@ -128,13 +128,47 @@ class InvalidRipTests(unittest.TestCase):
                 name="_Cleanup",
                 )
 
+    def test_constant_rips_are_refused_in_both_orders(self) -> None:
+        for mark in (lambda function: function, Action, Secret, Public):
+            for order, build in (
+                    ("Rip outside", _with_rip_outside),
+                    ("Rip inside", _with_rip_inside),
+                    ):
+                with self.subTest(mark=mark, order=order):
+                    with self.assertRaisesRegex(
+                            TagDeclarationError,
+                            r"Declared\.Release.*@Rip.*@Constant",
+                            ):
+                        type(
+                                "Declared",
+                                (Tag,),
+                                {"Release": mark(build(Constant))},
+                                )
+
+    def test_constant_rip_is_refused_when_the_second_mark_is_added_later(self) -> None:
+        for first, second in ((Rip, Constant), (Constant, Rip)):
+            with self.subTest(first=first, second=second):
+                member = first(_member())
+                Declared = type("Declared", (Tag,), {"Cleanup": member})
+                second(member)
+                agent = Host()
+
+                with self.assertRaisesRegex(TagDeclarationError, r"@Rip.*@Constant"):
+                    Declared(agent)
+
+                self.assertIs(type(agent), Host)
+                self.assertEqual(vars(agent), {})
+                self.assertNotIn(agent, Declared[:])
+
+    def test_rip_finalizer_is_refused_when_the_tag_is_declared(self) -> None:
+        with self.assertRaisesRegex(TagDeclarationError, r"Declared\.__del__.*@Rip"):
+            type("Declared", (Tag,), {"__del__": Rip(_member())})
+
     def test_bare_and_explicit_actions_remain_valid_rips(self) -> None:
         forms = (
                 ("bare", lambda function: Rip(function)),
                 ("Rip outside Action", lambda function: Rip(Action(function))),
                 ("Rip inside Action", lambda function: Action(Rip(function))),
-                ("Rip outside Constant", lambda function: Rip(Constant(function))),
-                ("Rip inside Constant", lambda function: Constant(Rip(function))),
                 ("Rip outside Secret", lambda function: Rip(Secret(function))),
                 ("Rip inside Secret", lambda function: Secret(Rip(function))),
                 ("Rip outside Public", lambda function: Rip(Public(function))),
