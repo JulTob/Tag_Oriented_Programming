@@ -7,11 +7,13 @@ scope a name is one slot: an Action or a Record, never both at once.
 from __future__ import annotations
 
 from contextvars import ContextVar
+from dataclasses import replace
 from functools import wraps
 from os import sep
 from os.path import dirname
 from typing import Any
 from typing import Callable
+from typing import Iterator
 import warnings
 
 from . import state as state_module
@@ -54,10 +56,13 @@ from .declarations import _MISSING
 from .presence import _Presence
 from .state import _Bound
 from .state import _Pinned_Operation
+from .state import _Published
 from .state import _State
 from .state import _name_of
 from .state import _namespace_of
 from .state import _state_of
+from .state import _restore_namespace
+from .state import _set_runtime_type
 
 
 Function = Callable[..., Any]
@@ -333,6 +338,52 @@ state_module._require_membership = _require_membership   # a published Report's 
 # ------------------------------------------------------------------
 
 
+def _gains_of(
+        declarations: _Declarations,
+        ) -> Iterator[tuple[str, str, Function | None]]:
+    """Walk Agent declarations together, retaining declaration order.
+
+    A Constant already held by the Agent can be omitted from the groups
+    without changing the order recorded by the declaration scanner.
+    """
+
+    if not declarations.gain_order:
+        return
+
+    if declarations.gaining_steps and not declarations.constants:
+        for kind, step in declarations.gaining_steps:
+            name = step.gain_order[0]
+            if kind == "action":
+                function = step.actions[0][1]
+            elif kind == "record":
+                function = step.records[0][1]
+            elif kind == "condition":
+                conditions = step.preconditions or step.postconditions
+                function = conditions[0][1]
+            else:
+                function = None
+            yield kind, name, function
+        return
+
+    actions = dict(declarations.actions)
+    records = dict(declarations.records)
+    preconditions = dict(declarations.preconditions)
+    postconditions = dict(declarations.postconditions)
+    deletions = frozenset(declarations.deletions)
+
+    for name in declarations.gain_order:
+        if name in actions:
+            yield "action", name, actions[name]
+        elif name in records:
+            yield "record", name, records[name]
+        elif name in preconditions:
+            yield "condition", name, preconditions[name]
+        elif name in postconditions:
+            yield "condition", name, postconditions[name]
+        elif name in deletions:
+            yield "delete", name, None
+
+
 def _install(
         state: _State,
         tag: type,
@@ -456,20 +507,15 @@ def _install(
                     _adapter(tag, name, operation),
                     )
 
-    for name, function in declarations.actions:
-        _install_action(
+    for kind, name, function in _gains_of(declarations):
+        if kind not in ("action", "record"):
+            continue   # scratch conditions and deletions were installed above
+        install = _install_action if kind == "action" else _install_record
+        install(
                 state,
                 tag,
                 name,
                 function,
-                )
-
-    for name, builder in declarations.records:
-        _install_record(
-                state,
-                tag,
-                name,
-                builder,
                 )
 
     state.secrets.update(declarations.secrets)
@@ -484,6 +530,138 @@ def _install(
                 )
 
     state.constants.update(new_constants)
+
+
+def _preflight_ordinary_gains(
+        state: _State,
+        tag: type,
+        declarations: _Declarations,
+        ) -> bool:
+    """Check independent ordinary names without building a scratch Overlay.
+
+    The scanner gives each declaration one name. With no deletions, shared
+    members or runtime gates, installing one name cannot affect another
+    name's checks. The real installation uses these same refusal helpers.
+    """
+
+    if (
+            declarations.runtime
+            or declarations.reports
+            or declarations.operations
+            or declarations.links
+            or state.constants
+            or state.pinned is not None
+            or _is_flag(tag)
+            ):
+        return False
+
+    for kind, one in declarations.gaining_steps:
+        name = one.gain_order[0]
+        if kind == "action":
+            function = one.actions[0][1]
+            _refuse_action(state, tag, name)
+            underlay = _action_underlay(state, name)
+            _action_replacement(state, tag, name, function, underlay)
+            _compose(function, underlay, name)
+        else:
+            _refuse_record(state, tag, name)
+            _record_overlay(state, tag, name, one.records[0][1])
+
+    return True
+
+
+def _gainings(
+        agent: object,
+        state: _State,
+        tag: type,
+        declarations: _Declarations,
+        deleted_before: set[str],
+        inputs: dict[str, Any],
+        prepare: Callable[[_Declarations, bool], None],
+        ) -> None:
+    """Attach each actual Gain before proceeding to the next declaration.
+
+    Record builders read the previous binding until they return a value.
+    The caller exposes each acquired Gain's binding and runtime behavior
+    through ``prepare``; shared members and protocols belong to the other
+    phases of Tagging.
+    """
+
+    if not declarations.gain_order:
+        return
+
+    for kind, planned in declarations.gaining_steps:
+        if not state.constants and not planned.constants and state.pinned is None:
+            one, locks = planned, None
+        else:
+            one, locks = _constant_overlay(state, tag, planned)
+        name = one.gain_order[0]
+
+        if kind == "action":
+            if not one.actions:
+                continue   # the Agent retains this identical Constant
+            function = one.actions[0][1]
+        elif kind == "record":
+            if not one.records:
+                continue
+            function = one.records[0][1]
+            value = _record_value(
+                    agent, tag, name, function, deleted_before, inputs,
+                    )
+            tool_kind = _tool_kind_of(function)
+            if tool_kind is not None:
+                from .tools import _refuse_tool_value
+                _refuse_tool_value(tag, tool_kind, name, value, agent, built=True)
+        elif kind == "condition" and not (one.preconditions or one.postconditions):
+            continue
+
+        # A Gain requiring runtime protection has not stuck until its
+        # representation can be installed. Never leave an exposed Secret
+        # or writable Constant when a host rejects that representation.
+        if name in state.tools and not one.runtime:
+            # Ordinary Overlay ends the previous Tool rule, including the
+            # descriptor that guarded object.__setattr__.
+            one = replace(one, runtime=True)
+        needs_runtime = (
+                one.runtime
+                or (bool(state.published)
+                    and type(type(agent).__dict__.get(name)) is _Published)
+                )
+        previous = state.Copy() if needs_runtime else None
+        if previous is not None:
+            previous_type = type(agent)
+            previous_namespace = dict(_namespace_of(agent))
+
+        try:
+            if kind == "action":
+                _install_action(state, tag, name, function)
+            elif kind == "record":
+                _install_record(state, tag, name, function)
+                _store_record(agent, name, value, one.secrets)
+            else:
+                _install(state, tag, one)
+
+            if one.secrets:
+                state.secrets.update(one.secrets)
+            if locks and name in locks:
+                state.constants[name] = locks[name]
+            if kind != "record" or needs_runtime:
+                prepare(one, needs_runtime)
+        except BaseException:
+            if previous is not None:
+                if type(agent) is not previous_type:
+                    _set_runtime_type(agent, previous_type)
+                _restore_namespace(agent, previous_namespace)
+                state.Restore(previous)
+            raise
+
+        if kind == "link":
+            from .links import _grant
+            _grant(agent, state, one, inputs)
+
+        if state.pinned is not None:
+            from .declarations import _invalidate_declarations
+            _invalidate_declarations(state.pinned)
 
 
 def _refuse_stored_input_collision(
@@ -536,48 +714,12 @@ def _refuse_a_second_in(
             )
 
 
-def _refuse_in_collisions_of_the_form(
-        state: _State,
-        pending: list[type],
-        ) -> None:
-    """The same collision over a whole Form before any of it applies, so
-    a Flag Base never runs its Imprint for a Shape that is then refused."""
-
-    if state.pinned is not None or not any(
-            _is_flag(tag) or _answering(_declarations_of(tag))
-            for tag in pending
-            ):
-        return   # no Flag and no `in` answer arrives: nothing can collide
-
-    flags = _flags_of(state)
-    answers = _in_answers_of(state)
-
-    for tag in pending:
-        declarations = _declarations_of(tag)
-        _refuse_in_collision(
-                state.host_type,
-                tag,
-                declarations,
-                flags,
-                answers,
-                )
-
-        if _is_flag(tag):
-            flags.append(tag)
-
-        for name in declarations.deletions:
-            answers.pop(name, None)
-
-        for name in _answering(declarations):
-            answers[name] = tag
-
-
 def _flags_of(
         state: _State,
         ) -> list[type]:
     return [
             active
-            for active in state.active
+            for active in (*state.active, *state.training)
             if _is_flag(active)
             ]
 
@@ -1098,11 +1240,10 @@ def _install_link(
             )
 
 
-def _install_action(
+def _refuse_action(
         state: _State,
         tag: type,
         name: str,
-        function: Function,
         ) -> None:
     _refuse_constant(state, name)
     _refuse_member_over_link(
@@ -1135,10 +1276,12 @@ def _install_action(
                     " name across kinds"
                     )
 
-        state.records.pop(name)
 
+def _action_underlay(
+        state: _State,
+        name: str,
+        ) -> Function | None:
     underlay = state.actions.get(name)
-    origin = state.action_origins.get(name, state.host_type)
 
     if underlay is None and name == "__del__":
         # A finalizer's Layer beneath is always callable (STEP-SPEC-18).
@@ -1155,12 +1298,38 @@ def _install_action(
                     name,
                     )
 
+    return underlay
+
+
+def _action_replacement(
+        state: _State,
+        tag: type,
+        name: str,
+        function: Function,
+        underlay: Function | None,
+        ) -> type | None:
+    origin = state.action_origins.get(name, state.host_type)
     if (
             underlay is not None
             and not _takes_underlay(function, name)
             and _independent(tag, origin)
-            and not _quiet.get()
             ):
+        return origin
+    return None
+
+
+def _install_action(
+        state: _State,
+        tag: type,
+        name: str,
+        function: Function,
+        ) -> None:
+    _refuse_action(state, tag, name)
+    state.records.pop(name, None)
+    underlay = _action_underlay(state, name)
+    origin = _action_replacement(state, tag, name, function, underlay)
+
+    if origin is not None and not _quiet.get():
         warnings.warn(
                 f"{tag.__name__}.{name} replaces the Action of independent"
                 f" Tag {origin.__name__}",
@@ -1179,11 +1348,10 @@ def _install_action(
     state.published.discard(name)
 
 
-def _install_record(
+def _refuse_record(
         state: _State,
         tag: type,
         name: str,
-        builder: Function,
         ) -> None:
     _refuse_constant(state, name)
     _refuse_member_over_link(
@@ -1224,18 +1392,38 @@ def _install_record(
                     " one Agent name across kinds"
                     )
 
-        state.actions.pop(name)
-        state.action_origins.pop(name)
 
+def _record_overlay(
+        state: _State,
+        tag: type,
+        name: str,
+        builder: Function,
+        ) -> tuple[Any, type | None]:
     kind = _tool_kind_of(builder)
     prior = state.records.get(name)
-
     if (
             prior is not None
             and not _takes_stored(builder)
             and _independent(tag, prior)
-            and not _quiet.get()
             ):
+        return kind, prior
+    return kind, None
+
+
+def _install_record(
+        state: _State,
+        tag: type,
+        name: str,
+        builder: Function,
+        ) -> None:
+    _refuse_record(state, tag, name)
+    if name in state.action_origins:
+        state.actions.pop(name)
+        state.action_origins.pop(name)
+
+    kind, prior = _record_overlay(state, tag, name, builder)
+
+    if prior is not None and not _quiet.get():
         warnings.warn(
                 f"{tag.__name__}.{name} replaces the Record of independent"
                 f" Tag {prior.__name__}",
@@ -1272,98 +1460,72 @@ def _restore(
 # ------------------------------------------------------------------
 
 
-def _materialize(
+def _record_value(
         agent: object,
         tag: type,
-        declarations: _Declarations,
+        name: str,
+        builder: Function,
         deleted_before: set[str],
         inputs: dict[str, Any],
-        retained: frozenset[str] = frozenset(),
-        ) -> None:
-    """Run the Tag's Record builders and store their values on the Agent.
+        ) -> Any:
+    """Calculate a Record's initial value without changing its binding."""
 
-    The builder's optional second positional input is the value already
-    stored under that name, or None when there is none (or the name was
-    deleted). Application inputs bind by name to the parameters after
-    that, so ``def code(agent, *, code)`` stores the input directly.
-    """
+    if isinstance(agent, type):
+        stored = _state_of(agent).secret_values.get(name, _MISSING)
 
-    namespace = _namespace_of(agent)
-    pinned = isinstance(agent, type)
+        if stored is _MISSING:
+            stored = _pinned_stored(agent, name)
+    else:
+        stored = _namespace_of(agent).get(name)
 
-    for name, builder in declarations.records:
-        if name in retained:
-            continue
-        if pinned:
-            stored = _state_of(agent).secret_values.get(name, _MISSING)
+    if name in deleted_before or isinstance(
+            stored,
+            (
+                _Bound,
+                _Pinned_Operation,
+            ),
+            ):
+        stored = None
 
-            if stored is _MISSING:
-                stored = _pinned_stored(
-                        agent,
-                        name,
-                        )
-        else:
-            stored = namespace.get(name)
+    takes_stored = _takes_stored(builder)
 
-        if name in deleted_before or isinstance(
-                stored,
-                (
-                    _Bound,
-                    _Pinned_Operation,
-                ),
-                ):
-            stored = None
+    if takes_stored:
+        _refuse_stored_input_collision(builder, inputs, name)
 
-        takes_stored = _takes_stored(builder)
+    named = _protocol_inputs(
+            builder,
+            inputs,
+            2 if takes_stored else 1,
+            )
 
+    try:
         if takes_stored:
-            _refuse_stored_input_collision(
-                    builder,
-                    inputs,
-                    name,
-                    )
-
-        named = _protocol_inputs(
-                builder,
-                inputs,
-                2 if takes_stored else 1,
-                )
-
-        try:
-            if takes_stored:
-                value = builder(
-                        agent,
-                        stored,
-                        **named,
-                        )
-            else:
-                value = builder(
-                        agent,
-                        **named,
-                        )
-        except TagError:
-            raise
-        except Exception as error:
-            tag_name = str.__str__(type.__dict__["__name__"].__get__(tag))
-            record_name = str.__str__(name)
-            raise TagCompositionError(
-                    f"Record {tag_name}.{record_name} could not be"
-                    f" materialized: {_type_name(error)}: {_exception_text(error)}"
-                    ) from error
-
-        if _tool_kind_of(builder) is not None:
-            from .tools import _refuse_misfit   # tools imports state, which overlay also feeds
-
-            _refuse_misfit(
-                    _state_of(agent),
-                    name,
-                    value,
-                    agent,
-                    built=True,
-                    )
-
-        if pinned and name in declarations.secrets:
-            namespace.pop(name, None)
-            _state_of(agent).secret_values[name] = value
+            value = builder(agent, stored, **named)
         else:
-            namespace[name] = value
+            value = builder(agent, **named)
+    except TagError:
+        raise
+    except Exception as error:
+        tag_name = str.__str__(type.__dict__["__name__"].__get__(tag))
+        record_name = str.__str__(name)
+        raise TagCompositionError(
+                f"Record {tag_name}.{record_name} could not be"
+                f" materialized: {_type_name(error)}: {_exception_text(error)}"
+                ) from error
+
+    return value
+
+
+def _store_record(
+        agent: object,
+        name: str,
+        value: Any,
+        secrets: frozenset[str],
+        ) -> None:
+    namespace = _namespace_of(agent)
+
+    if isinstance(agent, type) and name in secrets:
+        namespace.pop(name, None)
+        _state_of(agent).secret_values[name] = value
+    else:
+        namespace[name] = value

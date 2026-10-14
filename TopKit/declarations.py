@@ -13,6 +13,8 @@ from __future__ import annotations
 
 from contextvars import ContextVar
 from dataclasses import dataclass
+from dataclasses import field
+from dataclasses import replace
 from functools import cached_property
 from functools import partialmethod
 from inspect import Parameter
@@ -99,6 +101,21 @@ def _action_chain(function: Function) -> object | None:
         return getattr(function, _ACTION_CHAIN, None)
     except Exception:
         return None
+
+
+def _callable_text(
+        function: Function,
+        attribute: str,
+        fallback: str | None = None,
+        ) -> str | None:
+    """Optional display metadata never determines whether a callable works."""
+
+    try:
+        value = getattr(function, attribute)
+    except Exception:
+        return fallback
+
+    return value if issubclass(type(value), str) else fallback
 
 
 # ------------------------------------------------------------------
@@ -636,9 +653,9 @@ class Report:
 
         report.builder = builder
         report.public = _has_flag(builder, _PUBLIC)
-        report.__name__ = builder.__name__
-        report.__doc__ = builder.__doc__
-        report._name = builder.__name__
+        report.__name__ = _callable_text(builder, "__name__", "Report")
+        report.__doc__ = _callable_text(builder, "__doc__")
+        report._name = report.__name__
         report._owner_ref = None
         report._values: "WeakKeyDictionary[type, Any]" = WeakKeyDictionary()
 
@@ -732,6 +749,7 @@ class Report:
 class _Declarations:
     actions: tuple[tuple[str, Function], ...]
     records: tuple[tuple[str, Function], ...]
+    gain_order: tuple[str, ...]   # Agent declarations, including conditions and deletions
     secrets: frozenset[str]
     imprints: tuple[tuple[str, Function], ...]
     preconditions: tuple[tuple[str, Function], ...]
@@ -743,6 +761,11 @@ class _Declarations:
     dunders: frozenset[str]
     published: frozenset[str]   # Agent-scope members marked @Public (Pins)
     constants: frozenset[str]
+    runtime: bool = field(default=False, compare=False, repr=False)
+    header: _Declarations | None = field(default=None, compare=False, repr=False)
+    gaining_steps: tuple[tuple[str, _Declarations], ...] = field(
+            default=(), compare=False, repr=False,
+            )
     tools: frozenset[str] = frozenset()   # Records marked @Tool: their slots admit only their kind
     links: tuple[tuple[str, type], ...] = ()   # Relations marked @Link: each Agent receives its own Link
 
@@ -1345,6 +1368,7 @@ def _scan(
         ) -> _Declarations:
     actions: list[tuple[str, Function]] = []
     records: list[tuple[str, Function]] = []
+    gain_order: list[str] = []
     secrets: set[str] = set()
     imprints: list[tuple[str, Function]] = []
     preconditions: list[tuple[str, Function]] = []
@@ -1395,6 +1419,7 @@ def _scan(
             constants.add(name)
 
         if _is_relation(attribute):
+            gain_order.append(name)
             links.append(
                     (
                         name,
@@ -1455,6 +1480,7 @@ def _scan(
                         attribute,
                         )
                     )
+            gain_order.append(name)
 
             if secret:
                 secrets.add(name)
@@ -1490,10 +1516,12 @@ def _scan(
                     )
 
         if kind in _CONDITION_KINDS:
+            gain_order.append(name)
             continue
 
         if kind == "delete":
             deletions.append(name)
+            gain_order.append(name)
             continue
 
         # Anything else callable is an Action (kind "action" or unmarked).
@@ -1504,6 +1532,7 @@ def _scan(
                     attribute,
                     )
                 )
+        gain_order.append(name)
 
         if secret:
             secrets.add(name)
@@ -1517,6 +1546,7 @@ def _scan(
     declarations = _Declarations(
             actions=tuple(actions),
             records=tuple(records),
+            gain_order=tuple(gain_order),
             secrets=frozenset(secrets),
             imprints=tuple(imprints),
             preconditions=tuple(preconditions),
@@ -1538,7 +1568,85 @@ def _scan(
                 declarations,
                 )
 
-    return declarations
+    return _prepare_declarations(declarations)
+
+
+def _prepare_declarations(
+        declarations: _Declarations,
+        ) -> _Declarations:
+    """Prepare immutable phase slices once, alongside the Tag's scan."""
+
+    names = frozenset(declarations.gain_order)
+    header = replace(
+            declarations,
+            actions=(),
+            records=(),
+            preconditions=(),
+            postconditions=(),
+            deletions=(),
+            gain_order=(),
+            links=(),
+            secrets=declarations.secrets - names,
+            constants=declarations.constants - names,
+            published=declarations.published - names,
+            dunders=declarations.dunders - names,
+            tools=declarations.tools - names,
+            rips=(),
+            )
+    header = replace(header, runtime=_runtime_facts(header))
+    actions = dict(declarations.actions)
+    records = dict(declarations.records)
+    links = dict(declarations.links)
+    preconditions = dict(declarations.preconditions)
+    postconditions = dict(declarations.postconditions)
+    steps = []
+
+    for name in declarations.gain_order:
+        kind = (
+                "action" if name in actions
+                else "record" if name in records
+                else "link" if name in links
+                else "condition" if name in preconditions or name in postconditions
+                else "delete"
+                )
+        selected = frozenset((name,))
+        one = _Declarations(
+                actions=((name, actions[name]),) if name in actions else (),
+                records=((name, records[name]),) if name in records else (),
+                gain_order=(name,),
+                links=((name, links[name]),) if name in links else (),
+                preconditions=((name, preconditions[name]),) if name in preconditions else (),
+                postconditions=((name, postconditions[name]),) if name in postconditions else (),
+                deletions=(name,) if kind == "delete" else (),
+                secrets=declarations.secrets & selected,
+                dunders=declarations.dunders & selected,
+                published=declarations.published & selected,
+                constants=declarations.constants & selected,
+                tools=declarations.tools & selected,
+                reports=(),
+                operations=(),
+                imprints=(),
+                rips=(),
+                )
+        one = replace(one, runtime=_runtime_facts(one))
+        steps.append((kind, one))
+
+    return replace(declarations, header=header, gaining_steps=tuple(steps), runtime=_runtime_facts(declarations))
+
+
+def _runtime_facts(declarations: _Declarations) -> bool:
+    return bool(
+            declarations.deletions
+            or declarations.secrets
+            or declarations.dunders
+            or declarations.published
+            or declarations.constants
+            or declarations.preconditions
+            or declarations.postconditions
+            or declarations.tools
+            or declarations.links
+            or any(public for _name, _report, public in declarations.reports)
+            )
 
 
 def _has_rip_declaration(

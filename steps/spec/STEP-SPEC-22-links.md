@@ -9,16 +9,18 @@
 - **Revised:** 2026-10-08, after three reviews by the Director. First
   drafted as STEP-SPEC-19. It was renumbered because 19 to 21 are
   claimed by other open work. 2026-10-13: brought from the
-  design-history collection (PR #26) to `main` with its implementation,
+  design-history collection (PR #26) into the focused Links PR with its implementation,
   at the Director's request "finish the Links to make sure they are
-  ready to use. Test everything"; see *Implementation, and the points it
-  had to settle* below.
+  ready to use. Test everything". 2026-10-14: align linking and extension
+  with STEP-SPEC-39 and record the Director's decision to keep completed
+  Pair training and partial Gains after a later failure. See *Implementation,
+  and the points it had to settle* below. The STEP remains **Vetting**.
 - **Refs:** PR #26 (closed design history; STEP-SPEC-23, 24, 26 and 29 are
-  preserved as Briefs in PRs #188, #189, #191 and #194, not yet on `main`);
+  preserved as Briefs in PRs #188, #189, #191 and #194);
   STEP-SPEC-30 (`@Requirement` retired); STEP-SPEC-33 (Presence);
   STEP-SPEC-34 (Constant); STEP-SPEC-36 (Tools); STEP-SPEC-39 (Tagging
-  Admission, Cleared; its implementation is PR #174, still a Draft and not
-  on `main`); PR #43 (nested Imprint failures)
+  Admission, Cleared; this branch integrates PR #174 and its #198
+  performance repair); PR #43 (nested Imprint failures)
 
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
@@ -365,9 +367,12 @@ the tag to two. then they can operate together." Section 10 shows it
 ### 4. Granting
 
 1. When the declaring Tag applies to an Agent, that Agent's own Link is
-   built at **step 2, Parts**, beside its Records (§0.6). So a call that
-   fails at its gate or at Parts rolls the Link back with it. It is
-   stored under the Relation's name: `charlie.Knows`.
+   built during **Gainings**, in declaration order beside its Actions,
+   Records and conditions (§0.6). It is stored under the Relation's name,
+   `charlie.Knows`, and subsequent Gains can read it. A refusal at that
+   Tag's Gate prevents its Gainings. A later Gaining or Imprint failure
+   keeps the Link already acquired, without admitting the Agent to the
+   unfinished declaring Tag.
 2. Each Agent's Link is a **distinct Tag**: `charlie.Knows is not
    bob.Knows`, with its own Field.
 3. **A held Link is read-only.** Assigning `charlie.Knows = ...` or
@@ -379,12 +384,13 @@ the tag to two. then they can operate together." Section 10 shows it
    change of kind never reaches a Link.
    - A second Link that does not extend the first, an Action, a Record, a
      condition or a `@Delete` arriving at a name that holds a Link is a
-     Composition Failure at step 1, nothing changed.
+     Composition Failure at that Tag's Gate. Earlier completed Tags stay.
    - So is a Link arriving at a name that already holds an Action, a
      Record, a condition or a member the host defines, as §2.5 refuses a
      condition there.
-   - Within one call the check covers the whole Form, so it also catches
-     a name that will hold a Link once Parts has run.
+   - Each Tag's Gate checks its own declarations against the current
+     Agent, including collisions among the Contributions it would gain.
+     A later Shape's refusal does not undo a Base's completed turn.
    - Equal names across scopes do not collide (§1.1): a Report of the
      declaring Tag may share a Link's name.
 5. **Sticky, like every contribution.** Ripping `Social` from Charlie
@@ -397,28 +403,24 @@ the tag to two. then they can operate together." Section 10 shows it
    gains that Relation as a new Layer, in Form order. It keeps its
    identity, its Field and its history.
 
-   The new Layer applies to every Pair the Link already holds, as a
-   tagging of each one, inside the same call:
-   - at step 1, the new Layer's gate runs for every Pair, and one refusal
-     refuses the whole call, nothing changed;
-   - at Parts, its Pair Records are built for every Pair, and a failure
-     rolls the whole call back;
-   - then its Imprints run for every Pair, and every promise of every
-     Pair is checked (§0.6).
+   The new Layer applies to the Pairs the Link already holds one at a
+   time, during this Link's Gaining. Each Pair follows ordinary Tagging:
+   its Gate, ordered Gainings, Imprints, admission, then Posts (§0.6).
+   A failure stops the call without undoing completed Pair training or
+   partial Gains. If Ruth completes before Bob's Record fails, Ruth keeps
+   the completed Layer and Bob keeps what he gained before the failure.
+   The declaring Shape remains unfinished; the Link Layer already gained
+   stays. Retrying the Shape finishes missing Pair training, with completed
+   turns left alone.
 
-   Linkings made after that get every Layer. When the Tag that grants a
-   Link and the Shape that extends it apply in one call, the Link is
-   built with both Layers at once.
+   Later linkings receive every Layer. When a declaring Base and Shape
+   apply in one call, the Base grants its Link during its own turn, and
+   the Shape extends it during its later turn.
 
-   The Agent may gain the Shape while a linking of the Link is under way
-   (from the Pair's gate, Records or Imprint, or at the Contact's entry),
-   and it works as any tagging. The Pair being linked is not the Link's
-   yet: while its Parts are not done, its linking gives it the Layer with
-   the others, as a linking made after the Shape would. Once they are
-   done, or if the Link holds it already, the Pair receives the Layer
-   as the others do, nested in the linking's own work. The Layer is the
-   Agent's own tagging: a refused or undone linking never takes it back,
-   and takes back from its Pair only what it gave it.
+   An extension requested during a linking follows the ordinary rule:
+   a Shape cannot train over a Base still in training. Completed Bases
+   remain usable, and repeating the same Tagging already underway is a
+   no-op. An unfinished extension does not restore or replay Pair Layers.
 
    A Pin may not patch what an ordinary Tag's Agents do (§1.9), because
    on a class the Agent scope and the Tag scope share one dictionary. A
@@ -442,11 +444,11 @@ A Link is a Tag. Every Ring 0 act works on it:
 | unlink every Contact | `del charlie.Knows[:]` (STEP-SPEC-24) |
 
 1. **Linking is a tagging of the Contact** (§0.6), with the Pair as
-   receiver:
-   - the gate runs;
-   - the Pair's Records are built at Parts;
-   - the Contact enters the Field at Commit;
-   - the Imprints run;
+   receiver. Each missing Tag takes its own turn, Bases first:
+   - its Gate runs;
+   - the Pair gains its Contributions in declaration order;
+   - its Imprints run;
+   - the Contact enters that Link's Field after training finishes;
    - the Pair's promises are checked, and the Contact's own promises are
      re-checked at this boundary, as at every tagging (§2.4). A broken
      one raises, and the linking stays.
@@ -460,25 +462,32 @@ A Link is a Tag. Every Ring 0 act works on it:
    its Base Links first, Bases first, each once (§0.5).
    `charlie.Trusts(ruth)` makes Ruth a Contact of `charlie.Knows` too:
    linking is closed upward (§0.3), so `ruth in charlie.Knows`. After
-   that each membership stands alone (STEP-SPEC-26): `del
-   charlie.Knows[ruth]` is not refused while `charlie.Trusts` holds her.
-   She leaves `charlie.Knows`, stays in `charlie.Trusts`, and her Pair
-   stays (rule 8.1).
+   that, unlinking the Base is refused while the Shape Link still holds
+   her, under §0.7 and STEP-SPEC-6. STEP-SPEC-26 proposes reversing that
+   rule and remains a separate Brief; this implementation does not clear
+   it. Unlink the Shape first; the Pair stays while another Link holds it.
 3. **One Pair for each Contact, across a Link's Form.** A Link and its
    Base Links share one Pair for each Contact, as an Agent is one object
    across the Tags of its Form. `charlie.Knows[ruth]` and
    `charlie.Trusts[ruth]` are the same Pair, and its Records and Actions
-   overlay in Form order (§1.2, §1.3). Independent Links of one Agent
+   overlay in arrival order (§1.2, §1.3): all current Layers of a Base Link
+   arrive before a later Shape Link's turn, and a subsequent extension
+   overlays the Gains already present. Independent Links of one Agent
    have separate Pairs.
-4. **Reapplying is a no-op** (§0.5), so an Imprint that links back ends
-   after one echo.
+4. **Reapplying completed training is a no-op** (§0.5), as is repeating
+   the same linking already in training, so an Imprint that links back
+   ends after one echo. After failed training, another linking retries
+   the unfinished turn from its Gate, keeping acquired Gains and leaving
+   completed turns alone.
 5. **A failure inside a Relation's Imprint is that Imprint's failure.**
    This includes a nested linking's refusal: it surfaces as
-   `TagImprintError`, with the nested failure as its cause, and the
-   linking stays (§0.6). (TopKit 0.2.0a4 rolled the outer call back
-   instead; PR #43 fixed that for every Tag on 2026-10-09.)
-6. A linking made inside a call that later rolls back is undone with it
-   (§0.6).
+   `TagImprintError`, with the nested failure as its cause. The Pair keeps
+   its acquired Gains and Posts, but the unfinished Link has no membership
+   for the Contact. Earlier Base linkings and independent Taggings stay.
+   A Post failure after admission instead leaves a defective member.
+6. A later failure in a call on the Link's Agent, its Contact or another
+   Agent does not undo completed linkings or partial Gains. These are
+   independent Taggings, not one transaction (§0.6).
 7. While an Agent's deletion is ending its Links (rule 8.3), linking
    through them is a Composition Failure. An explicit `del
    charlie.Knows[:]` follows STEP-SPEC-24, rule 1.5 instead: a Contact
@@ -676,7 +685,8 @@ statement the Relation.
 ### 10. Patterns this enables, with no further law
 
 **Two ways, written down.** The Contact joins Social and links back, in
-two visible lines. Reapplying is a no-op, so the echo stops:
+two visible lines. Repeating a completed linking or the same linking
+already in training is a no-op, so the echo stops:
 
 ```python
 class Social(Tag):
@@ -863,7 +873,7 @@ in the first draft, and it did not survive the Pair:
 **Extending a held Link touches every Pair.** A Shape extends its Base
 for every Agent it applies to. For a Link, the Agents' place is the
 Pairs, so extending Charlie's Link extends every Pair it holds, through
-the same gate, Parts and promises as a tagging. The other choices both
+the same Gate, Gainings, Imprints, admission and Posts as a tagging. The other choices both
 break something. Building a new Link for the Shape would drop Charlie's
 existing Contacts out of `charlie.Knows`. Giving the new Layer only to
 later linkings would leave one Field with two kinds of Pair.
@@ -871,7 +881,7 @@ later linkings would leave one Field with two kinds of Pair.
 **Held like a Record, but a Tag.** The Director: "It wouldn't 'conflict'
 with a record. It would BE the record. They could be another kind of
 grants by a tag, themselves." The Link sits in the Record's seat: it is
-built at Parts, stored on the Agent, and stays after Rip. But it is a
+granted during Gainings, stored on the Agent, and stays after Rip. But it is a
 Tag: something the Agent's relationship *is* (*ser*), not a value the
 Agent currently holds (*estar*). So it is never reassigned.
 
@@ -986,16 +996,15 @@ name: `Link`. No parameter name is reserved.
 | `@Public` publishes a Link's Report or Operation onto its Pairs (an earlier draft) | Replaced by rule 2.7: `@Public` means seen by the Contact. |
 | The Relation as a Base of every Link | Rejected: Rip never cascades (§0.7), so membership in the Relation would outlive the last linking. |
 
-## Open questions for the Director
+## Director decisions and remaining questions
 
-1. **Extending a held Link (rule 4.6).** Extending Charlie's Link touches
-   every Pair it holds, inside the call that applies the Shape. So
-   `Spy(charlie)` costs one tagging per Contact, and one Contact the new
-   gate refuses refuses `Spy(charlie)` as a whole. The alternative
-   allows a same-name extension only before the Link holds any Contact,
-   and refuses it after. That is cheaper, but `Social(charlie);
-   charlie.Knows(ruth); Spy(charlie)` would then fail while
-   `Spy(charlie)` alone works. The STEP recommends extending every Pair.
+1. **Extending a held Link (rule 4.6): decided on 2026-10-14.**
+   The Director chose: "Keep completed training and partial Gains, like
+   ordinary Tagging." A Shape extends each held Pair in sequence. If a
+   later Pair fails, earlier completed training stays and the failing
+   Pair keeps its acquired Gains. Retrying finishes missing training.
+   This settles the failure boundary for extensions; it does not clear
+   this entire STEP or the remaining questions below.
 2. **The barrier and Filters.** You asked for "who knows ruth" as
    `Social[:].Knows[:] == ruth`, which under STEP-SPEC-23 is also
    `Social.Knows[:] == ruth` for the sound members. You also said
@@ -1067,12 +1076,15 @@ name: `Link`. No parameter name is reserved.
 
 ## Acceptance requirements
 
-- The nested-Imprint defect (rule 5.5) is fixed first, in every Tag.
-  *Met: PR #43, `tests/test_nested_imprint.py`.*
-- STEP-SPEC-24 is Cleared, for rules 8.2 and 8.3. *Not on `main`; the
-  implementation settles rules 8.2 and 8.3 without it, below.*
-- `tests/test_topkit.py`: a `LinkTests` class that covers:
-  - every numbered rule above, each refusal with nothing changed;
+- The Tagging sequence and failure boundaries follow Cleared STEP-SPEC-39,
+  including nested Imprint failures. The earlier repair in PR #43 is
+  historical context; admission now follows training.
+- Rules 8.2 and 8.3 state the Link-specific Field Rip and deletion behavior.
+  STEP-SPEC-24 remains a Brief; this implementation does not settle whole-Field
+  Rip for ordinary Tags or clear that STEP.
+- `tests/test_links.py` and the focused `tests/test_link_*.py` suites cover:
+  - each declaration refusal and each Gate, training and Post failure
+    at its proper boundary, preserving earlier completed work;
   - findings 1 to 5 as regression tests: the Agent collected while a
     Contact lives; two Agents linking one Contact with no warning and no
     shared slot; nothing of the Link readable on the Contact;
@@ -1081,12 +1093,12 @@ name: `Link`. No parameter name is reserved.
     words, soundness and the sound and defective populations;
   - seats: each kind after the two seats (Underlay, stored, inputs), and
     every refusal of rules 3.3 and 3.4;
-  - Bases: per-Agent resolution, linking through a Shape Link, a Base
-    Link unlinked while a Shape Link holds her (not refused; the Pair
-    stays), one Pair across the Form, an ordinary Tag refused as a Base;
-  - extending a held Link: the gate for every Pair at once, a failing
-    Pair Record rolling the call back, Imprints and promises for every
-    Pair, and the Link's identity, Field and history kept;
+  - Bases: per-Agent resolution, completed Base admission before the
+    Shape's Gate, refusal to unlink a Base needed by a Shape, one Pair
+    across the Form, and an ordinary Tag refused as a Relation Base;
+  - extending a held Link: each Pair's own training sequence, completed
+    and partial Gains kept when a later Pair fails, retry of unfinished
+    training, and the Link's identity, Field and history kept;
   - the closed slot of rule 4.4, in both orders, `@Delete` included;
   - the doors of rule 3.6: the Agent's and the Pair's secrets resolve,
     the Contact's do not, at linking and in teardowns at either one's
@@ -1113,354 +1125,163 @@ name: `Link`. No parameter name is reserved.
 
 ## Implementation, and the points it had to settle
 
-Built in TopKit on 2026-10-13 (`TopKit/links.py`, with small hooks in the
-tagging core), tested by `tests/test_links.py`, the oracle's `Run_Links`
-walk, and the Specification's new §1.10, which states the law as built.
-An adversarial review followed the same day; *The review, and what it
-settled* below lists what it found and how each point was settled.
+The Links implementation is under review in PR #171. Its 2026-10-14
+repair integrates the ordinary Tagging sequence from PR #174 and the
+performance repair from PR #198. This STEP remains **Vetting**: working
+code and the Director's individual rulings do not imply clearance of all
+of its proposed rules.
 
-**How it is built.** Each Agent's Link is a real Tag, built for that
-Agent at the Parts of the declaring Tag, whose Field holds the Contacts:
-membership, history, the algebra and Rip are the kit's own. Each Pair is
-a hidden Agent tagged with the Relation's *Pair Tag*: the Relation's
-Agent-scope declarations, each adapted to the two seats, so the Pair's
-gate, Parts, Imprints, promises, Underlays, secrets and truth are the
-kit's own too. The Contact receives membership and the lines the
-Relation publishes, and a teardown (not an Action) that unlinks her.
+**How it is built.** Each Agent's Link is a real Tag, granted when its
+Relation is reached in declaration order. Its Field holds Contacts.
+Each Pair is a hidden Agent that receives the Relation's *Pair Tag*: the
+Agent-scope declarations adapted to `(agent, contact)`. Pair Actions,
+Records, conditions, Imprints, Underlays, secrets and truth use the ordinary
+kernel. The Contact receives membership and published lines, with cleanup
+that unlinks her when she ends.
 
-**Where this STEP leaned on STEPs that are not on `main`,** the
-implementation follows `main`'s law as it stands, and says so:
+**Admission and failure.** Each Base Link completes its own turn before
+its Shape begins: Gate, ordered Gainings, Imprints, Field entry, then
+Posts at the completed call's boundary. A failed Gaining or Imprint leaves
+a Rogue Pair with the Gains and Posts actually acquired, without membership
+in the unfinished Link. Earlier Base memberships and independent Taggings
+remain. Another linking retries the unfinished turn from its Gate. A
+Post failure after admission leaves membership in place.
 
-- *Rule 5.2 (STEP-SPEC-26, each membership stands alone).* Not on
-  `main`. Unlinking a Base Link is **refused while a Shape Link holds
-  her** (§0.7), as Rip of a Base is everywhere. Unlinking the Shape first
-  is the way; the Pair stays while a Link of the Form holds her.
-- *Rule 8.2 (STEP-SPEC-24, Field Rip).* `del charlie.Knows[:]` is built
-  for Links alone: every Contact unlinked, refused with nothing changed
-  while a Shape Link holds any of them, every teardown run and the first
-  failure raised after. `del Wizard[:]` on an ordinary Tag stays as it
-  is on `main`.
-- *Rule 8.3.* The Agent's deletion ends its Links by unlinking each
-  Contact, Shape Links first, with the dying Agent in the first seat
-  from the start of its finalizer: so even in a reference cycle, where
-  the language clears weak references first, a self-link's teardowns
-  run once.
-- *Section 9.* Built "without STEP-SPEC-23": every act on the Relation is
-  a Composition Failure pointing to a Link.
-- *The tagging sequence.* Linking follows `main`'s §0.6 (Gate, Parts,
-  Commit, Write, Quality). When STEP-SPEC-39 lands (PR #174), a
-  Relation's Imprint failure leaves the Contact outside the Link's
-  Field with the Pair's Gains retained; `tests/test_links.py` is to be
-  re-run on that tree then.
+The same rule governs extension: a Link gains its new Layer and applies it
+to held Pairs sequentially. Completed Pair training and partial Gains stay
+when a later Pair fails. Reapplying the declaring Shape finishes missing
+training. There is no owner-based undo log, no whole-Pair restoration,
+and no rebuilding of surviving Layers after a later failure. Ordinary
+Tagging does not allocate a Links call boundary when no Link is involved.
 
-**Open questions, as implemented.**
+**Layer order is arrival order.** A new Contact receives all the current
+Layers of its Base Link before the Shape Link's own turn. A later Shape
+Layer therefore overlays those Base Layers. An extension applied after a
+Pair already carries that Shape arrives later and overlays it instead.
+Two Pairs may have different visible Layers because their training arrived
+in different orders, just as ordinary Agents may. The kit never rearranges
+or replays Gains to make those histories look alike.
 
-1. *Extending a held Link:* built as recommended, every Pair extended in
-   the same call (`Extension_Tests`).
-2. *The barrier and Filters:* Filters are not on `main`; a plain loop over
-   the declaring Tag's Field finds the holders, and misses one Ripped
-   from it. Left open.
-3. *Pairs that end without their teardowns:* no `TagUnlinkWarning` is
-   built; those Pairs end silently, as rules 8.3, 8.4 and 8.7 say. Left
-   open.
-4. *A published line over the Contact's own member:* built as rule 2.7
-   reads: the line replaces her member with the usual Overwrite Warning
-   between independent Tags, and after the unlinking it raises a Rogue
-   Access Failure. The proposed `@Underlay` requirement and the removal
-   of lines at unlinking are not built. Left open.
+**Nested training.** Applying the same Tag already in training is a no-op.
+A Shape needing an unfinished Base is refused. An independent extension
+whose required Bases have completed can train normally; merely sharing a
+Link family does not make it dependent on another unfinished Layer.
 
-**Two smaller choices the STEP did not make:**
+**Other STEP boundaries.**
 
-- a class in a Relation's body is refused at class use: it has no seat;
-- a Contact must carry TOP state and support weak references, like any
-  Agent; a Contact that cannot is refused at linking, nothing changed.
+- STEP-SPEC-26 proposes allowing a Base Rip while a Shape needs it. It
+  remains a Brief. This implementation keeps §0.7: unlink the Shape first.
+- `del charlie.Knows[:]` is implemented for Links. It refuses a Base
+  Field Rip while a Shape Link holds any affected Contact, runs all
+  selected teardowns, and reports the first failure afterward. This does
+  not implement STEP-SPEC-24's proposal for ordinary `del Wizard[:]`.
+- Agent deletion ends its Links after its own teardowns, Shape Links first.
+  Cleanup refuses new linkings through every Link of that ending Agent,
+  including a Link gained by a teardown. It holds the dying Agent for the
+  first seat while cleanup runs; a self-link's teardown runs at most once.
+- Population Filters remain STEP-SPEC-23's proposal. A Relation stays a
+  template: use a held Link for population acts.
 
-**Known limits.**
+**Choices still open.** The barrier and Filters, a warning when a Pair
+ends without its teardowns, and the proposed exception to sticky published
+lines remain questions 2 to 4 above. The implementation has no
+`TagUnlinkWarning`. Published lines retain ordinary Overlay behavior and
+stay on the Contact after unlinking, where they raise Rogue Access Failure.
+No mandatory `@Underlay` or automatic restoration of the Contact's earlier
+member is introduced.
 
-- A `@Public` line that an extension Layer adds reaches the Contacts
-  linked after the extension; Contacts already linked keep their lines.
-  A Contact whose entry is under way when the Shape is gained keeps the
-  lines she had too, when the Shape is gained as she enters (an Overwrite
-  Warning handler, say) or at the Pair's Imprint: her lines were already
-  chosen. Gained at the Pair's gate or at a Record of the Pair, the
-  Shape's line reaches her.
-- A Link's code shuts the synchronous door of the Contact it is about
-  for as long as it runs; an async door she opened in her own context is
-  not shut by it; a generator or a coroutine function of the Relation
-  does shut it, at every step. What a Link's code hands back to run later,
-  a closure or a generator made elsewhere, or a task its coroutine hands
-  to the event loop, runs under the doors of whoever runs it. A stranger's
-  callable or awaitable that the Link's code calls or awaits runs inside
-  its doors, as it does in an ordinary function. A function that hides
-  being a generator or a coroutine behind a decorator is an ordinary
-  function that returns one.
-- Doors otherwise follow the call (§1.5): when a Contact's own Action
-  calls into a Link about another Contact, or calls a Link Operation
-  without passing herself, or calls one of its static methods, her door
-  is open beneath that call, as it is for any code she calls. A Link's
-  Reports are the exception: they are kept and served to all, so they are
-  built with every Contact's door shut.
-- A Pair's Layers lie in the order they reached it: two Pairs of one
-  Field can differ in which Layer is on top when their Layers reached
-  them in different orders: one Contact linked to the Base Link before an
-  extension and the other after it, or, in a family joined by a Shape
-  Link of two Bases, one Contact linked first through one Base and the
-  other through the other.
-- Two Agents' Links print alike (`repr`, `__qualname__`): nothing
-  public on a Link names its Agent (rule 7), so a printed Link does not
-  say whose it is. Hold it through its Agent, `charlie.Knows`, or compare
-  with `is`.
-- A Contact's record of a published line keeps the last Link that
-  published its name, after that Link's Agent is gone.
-- A Pair's own Record that links the same Contact again through a Shape
-  Link of the family applies the Layer in flight twice. This is the
-  kernel's behaviour for any Tag applied again to an Agent during its
-  own Parts (`main` does the same for ordinary Tags), reported to be
-  settled for every Tag at once.
-- Extending a held Link runs every Pair's gate before any Pair's
-  Records, but at the declaring Shape's Parts, after the Shape's own
-  Records, not at the Agent's step 1. A refusal still refuses the whole
-  call, nothing changed.
-- A Shape gained while a linking is under way ("promote on the n-th
-  friend", from the Pair's gate, Records or Imprint, or at the Contact's
-  entry) extends the Link as any tagging does. The Pair being linked
-  receives the Layer from its linking, as a linking made after the Shape
-  would give it (with the same inputs), unless its Parts are done: then,
-  like a Pair the Link holds, it is tagged nested in the linking's own
-  work, its Imprints at once and its promises with the linking's. A Pair
-  that a nested tagging reaches in the middle of its Parts sees the
-  Layers as they stand at that moment, and lies beneath what the linking
-  gives it later (arrival order, §1.2).
-- A Pair's Layer that a Record builds a second time, when a refused or
-  undone linking has restored the Pair and the Agent's extensions are laid
-  on it again, is built with no gate, no Imprints and no promises, since
-  those ran with the Agent's call. A Record that fails then leaves the
-  Pair as the linking left it (its Layers leave it as an unlinking does)
-  when it still holds every Layer of its Links, and otherwise raises: the
-  Pair then lacks a Layer its Link holds.
-- An undone linking on a Pair another Link still holds restores the
-  Pair when nothing reached it since but the Layers the Agent's own
-  extensions gave it, which are laid on it again; otherwise its Layers
-  leave the Pair as an unlinking does, their contributions sticky (§0.7).
-  What a Link she still holds calls for stays: the Base Link's own
-  Layers, and those of the extensions of the Links that still hold her.
-- An undone extension (the Agent's call rolled back) takes its Layers off
-  every Pair of the family that holds them, including a Pair no laying of
-  it reached, which a linking made meanwhile, at a gate or a Record of the
-  extension, gave them with her form. Where something else wrote on the
-  Pair since, the values its Records gave stay on it, sticky, though the
-  Tags are gone; its teardown, never held, does not run. The reviewers'
-  random-script fuzzer (2,000 scripts for each of three profiles, mixing
-  extensions, chains of extensions, linkings made at gates and Records,
-  refusals, and rolled-back calls on the Agent, a Contact and a third
-  Agent) found such sticky values in about one script in a thousand.
-- A Layer laid on a Pair again after a restore is built with no gate, no
-  Imprints and no promises, since those ran with the Agent's call. What an
-  Imprint of the extension wrote on the Pair before the restore is not
-  written again, and a Record that gives another value each time it is
-  built gives the second.
-- An undone linking takes back only what it gave the Contact: she
-  leaves the Links silently, her history of them forgotten, and what else
-  she gained or did since stays. The lines they published stay on her,
-  sticky, and answer no more, as after an unlink; if she was no Agent
-  before and holds nothing else, she is a plain object again, with the
-  values she held before.
-- Cost (`benchmarks/compare.py`, section j, CPython 3.13), as ratios to
-  plain Python, which held from run to run: a linking about 140 times a
-  guarded weak-dictionary entry (about 75 µs on a quiet machine; it is
-  two taggings, the Pair's gated one and the Contact's membership),
-  reading a Pair Record 6 to 9 times a dictionary read (about 1 µs),
-  extending a Link about 100 times per Contact it holds (about 30 µs).
-  The hand-made workaround of the Motivation cost about 72 µs per
-  linking.
-- Every program pays for the call boundary, Links or not: tagging an
-  ordinary Tag takes about 17% longer than on `main`, `agent in Tag`
-  about 4% longer, `isinstance` the same (median of six alternating
-  runs against `main` at 108eb35). The speed budgets pass. Building the boundary only once a Link
-  exists would win most of it back, at the price of a second path
-  through the kernel.
+**Limits and ordinary Python behavior.**
 
-**A Tool or a Link?** (STEP-SPEC-36, on `main`.) A Tool is one object the
-Agent has, held strongly under a Record's name, admitted by kind at each
-write, never Tagged by the slot, and overlaid like any Record. A Link is
-a Tag the Agent relates through: its Contacts sit in a weak Field, each
-linking runs the Relation's gate, the Contact receives only membership
-and what the Relation publishes, and the slot is closed and read-only. A
-Relation is refused as a Tool kind. Neither leads back from the held
-thing to its holder.
+- An extension's new published line reaches subsequent admissions;
+  existing Contacts retain the lines already published onto them.
+- Link calls close both the Contact's synchronous and inherited async
+  doors. Declared generator and coroutine functions also keep those doors
+  at every step. A returned closure, a generator made elsewhere, or a task
+  handed to the event loop executes under its own caller's context; the
+  kit does not wrap arbitrary returned work.
+- Doors otherwise follow the call. A Contact's Action calling a Link
+  about another Contact does not make the first Contact an argument of
+  that linking. Relation static methods are ordinary Python functions.
+  A Report builder closes every held Contact's door because its value is
+  retained and served to later readers.
+- Two Agents' Links can print alike: their public display does not name
+  the holding Agent. Compare them with `is` or keep them through their
+  Agents.
+- A Contact's published-line record can retain the last Link for that
+  name after its Agent is gone. It does not retain that Agent.
+- Accepted callable objects need no `__name__`, `__qualname__` or instance
+  dictionary. Adapters use the declared Contribution name and preserve
+  TOP marks independently of optional Python display metadata.
+- A Contact must support TOP state and weak references, and must not define
+  its own `__bool__`. These checks run before Pair training. Other failures
+  in mechanical host preparation can occur when admitting the Contact;
+  they leave the Pair's acquired Gains and earlier completed linkings.
+  A class declared inside a Relation is refused because it supplies no
+  Pair or Link receiver seat.
 
-## The review, and what it settled
+**Memos and lifetime.** Declaration scans use TOP's namespace snapshots,
+including scans made while publishing another memo. The Pair Tag memo
+belongs to its Relation rather than a global weak-key/strong-value cache;
+a Pair Tag that refers back to its Relation does not turn that cache into
+a permanent owner. Relations with no remaining external owner can be
+collected.
 
-On 2026-10-13 five reviewers attacked the implementation, each from one
-angle (rollback, the law of §1.10, lifetime, doors and secrets, mixing
-with every other feature), each finding backed by a probe that ran; a
-skeptic then re-ran every probe and tried to refute it. A second round
-re-checked every fix for variants and attacked the newest code, a third
-round attacked what the second round's fixes added, and a last, small
-round checked the third round's fixes. Every
-confirmed finding is fixed with a regression test that fails before its
-fix (`Rollback_Tests`, `Ownership_Tests`, `Law_Review_Tests`,
-`Lifetime_Review_Tests`, `Door_Review_Tests`, `Integration_Review_Tests`,
-`Second_Round_Tests`, `Variant_Tests`, `New_Code_Review_Tests`,
-`Third_Round_Tests`, `Final_Round_Tests`), save the few the review
-settled as rules instead (below).
+**A Tool or a Link?** A Tool is one object held strongly in a Record slot,
+admitted by kind at each write and overlaid like an ordinary Record. A
+Link is a Tag its Agent relates through, with a weak Field and a closed,
+read-only slot. Each linking trains a Pair. A Relation is not a Tool kind.
+Neither introduces a public backlink to its holder.
 
-**What it found, in short.**
+## Review history and recorded direction
 
-- *Rollback across Targets.* A failure could leave a linking, a dropped
-  Pair's teardowns, a join of two families, or a Contact mid-call
-  behind; a teardown that linked her again lost her Pair; `del k[:]`
-  stopped at a Contact another teardown had unlinked.
-- *Secrets and direction.* Her own Tag views carried the Link's
-  unpublished members and a handle to the Link itself, through which
-  code holding only her reached the Agent's other Contacts and secret;
-  the kit built a Link Report inside her open door at the linking; Pair
-  functions ran inside her door when the call started in her own code.
-- *Lifetime.* A living Contact kept the Link of every Agent that died;
-  a task that copied a finished call's context kept its Contacts alive;
-  an interrupted teardown at deletion skipped the other Contacts.
-- *The law.* Extensions through a Shape Relation were accepted; Pairs of
-  one Field could be overlaid two ways; the Pair's own Tag was reachable;
-  a Link could arrive over the Agent's own value; `@Pin` over `@Link`, a
-  Pin of a Relation, and a late Pin of a declaring Tag were accepted.
-- *The second round's variants.* The undo steps ran for other Agents'
-  finished calls; an undone linking rewound the Contact's own finished
-  tagging; a Pin member named like a Relation replaced it; undoing a
-  linking stripped a Layer another call laid; an Operation given the
-  Contact by name ran inside her door; an extension made during a linking
-  missed the Pair in flight; a Link's Operations could not read its
-  Agent's secrets; an interrupt at the Contact's deletion skipped her
-  other Links.
-- *The newest code.* Undoing the linking of a plain object whose Link
-  published a line crashed with a `NameError`, left her Pair behind and
-  lost her own value under the line's name; a generator or coroutine of a
-  Link ran its body with her door open and the Agent's shut; a Relation
-  bound a second time (`Knows = Social.Trusts`) was taken for a
-  declaration; `@Secret` on a static method and `@Public` on a Pair
-  condition or Imprint were accepted and did nothing useful; an
-  extension's member of the Link could silently replace a Base's line.
-- *The third round.* Keeping a generator's doors at every step, the
-  second round's answer, wrapped generators other code wrote, opened the
-  Agent's door to them and kept Agents alive: generator and coroutine
-  functions are now refused instead. An extension made inside a linking
-  left the Agent holding a Shape whose Layer the Link lacked, and a
-  refused linking undid other calls' finished work. An undo reverted
-  values another call wrote, a value she wrote since, and her earlier
-  history. A second interrupt replaced the first. The name check refused
-  an extension of a Shape Relation and missed sibling extensions.
-- *The last round.* An extension's undo restored whole-Pair snapshots,
-  bringing back a Layer a refusal had taken off or a Pair it had dropped;
-  it now takes off only the Pair Tags it gave. A refusal compared undo
-  steps by value, calling the Agents' own `__eq__`. A failed Imprint
-  skipped recording the Pair's values, and an undo took another Agent's
-  Action she held for her line.
+The 2026-10-13 review investigated lifetime, access doors, declaration
+restrictions, publication and interactions with other Contributions. It
+also developed rollback accounting for the earlier admission model. That
+accounting and its performance figures are historical, not the current
+contract. The complete earlier record is preserved at
+[commit 225c091](https://github.com/JulTob/Tag_Oriented_Programming/blob/225c091f25c854e8f6aef245a00a1dff7297cb16/steps/spec/STEP-SPEC-22-links.md).
 
-**What it settled, beyond fixing.**
+The Director's earlier direction for a Shape gained during a linking was:
+"it should work like any other tagging". The 2026-10-14 repair applies
+that direction through STEP-SPEC-39, including its unfinished-Base refusal;
+it does not keep the former restore-and-replay machinery.
 
-- *Which rolled-back calls undo a linking (rule 5.6).* A call on the
-  Link's Agent or on the Contact, however deep inside it the linking
-  was made. A call on any other Agent leaves it, as §0.6 leaves that
-  Agent's other taggings: undo steps name their owners.
-- *The order of a Pair's Layers.* The order they reached that Pair, as
-  on any Agent (§1.2): a Pair linked fresh takes them in the order the
-  Agent gained them, Form order with a later extension on top; a Layer
-  that reaches a Pair already held goes on top of what it carries. Every
-  Pair holds every Layer. So a Contact linked to a Base Link before an
-  extension and to its Shape Link after it carries the Shape's Layer on
-  top of the extension, while one linked to both after it carries the
-  extension on top. The two differ only where both Layers declare one
-  name, with the usual Overwrite Warning; laying a Layer beneath others a
-  Pair already carries would mean rebuilding Records already built.
-- *A line's record.* The lines a Link publishes onto a Contact are
-  sticky, and her record of each line keeps the last Link that published
-  its name, so a living Contact may keep a dead Agent's Link: at most one
-  per name she was given, never one per Agent. Holding that record weakly
-  would change how every Agent records its lines.
-- *`@Secret` on a Link's own Report or Operation* means in-house, as the
-  Director asked in rule 2.7: it answers only inside the Agent's code.
-- *The doors*, as the known limits above state. They hold while the
-  Link's code runs. A generator or coroutine function was refused in a
-  Relation's body after the third round, because stepping wrapped code
-  the Link never wrote and kept Agents alive. It is stepped again, for
-  the functions the Relation declares as generators or coroutines and no
-  other (rule 3.6), holding the Agent, the Pair and the Contacts weakly.
-  The refusal stays for an async generator function and for the kinds the
-  kit never iterates or awaits.
-- *A Shape gained during a linking works as any tagging.* A first answer
-  refused it (a family gained no Layer while a linking or an extension of
-  it was under way), because laying the Layer on the Pair in flight made
-  one undo take back the other's work. The Director chose: "it should
-  work like any other tagging". The accounting that makes it so: a
-  linking undoes the Pair Tags it set out to give, and no other; the
-  Layers the Agent's extensions gave a Pair are recorded on the Link
-  (`extended`), and a Pair restored to an older snapshot is laid with them
-  again; an extension keeps where each Pair stood before it, and, once the
-  linking that was under way is over, where it stood before the linking.
-  A join of two families is no longer refused meanwhile: it gives no Pair
-  a Layer, and a Pair in flight moves with its family.
-- *A refused linking* undoes the linkings made at its Pair's Parts that
-  belong to its Agent or its Contact; a call that finished inside it
-  keeps what it did, as §0.6 says.
-- *An undone linking on a shared Pair* restores the Pair when nothing
-  reached it since but the Layers the Agent's extensions gave it, and
-  lays those on it again; otherwise the Tags the linking gave leave it as
-  an unlinking does, the values they gave sticky. A restore needs no way
-  to take one Layer out of an overlay: it puts the whole snapshot back and
-  builds the surviving Layers again.
-- *A Relation is declared once*, in its declaring Tag's body, under its
-  own name, while that Tag lives. The template itself answers its own Reports and Operations,
-  as any Tag does, with no Agent behind them; `@Secret` binds on each
-  Link, where an Agent exists.
-- *A Relation's plain values and class methods* belong to the Link; its
-  special methods are refused (a Pair's teardown is a `@Rip`). Its static
-  methods are plain functions the kit never wraps, so their doors follow
-  the call and `@Secret` on one is refused. Across a Relation and its
-  extensions a name is a line or a member of the Link, never both.
+For extension failure the Director specifically chose on 2026-10-14:
+"Keep completed training and partial Gains, like ordinary Tagging."
+Rule 4.6 now records that decision. This settles that question only; the
+STEP's status remains Vetting pending review of the full proposal.
 
-## Validation
+The independent 2026-10-14 review additionally reproduced inherited async
+Secret access, declaration-scan races, a retained Relation through its Pair
+Tag memo, a Link created during Agent deletion escaping cleanup, and raw
+metadata errors on callable Contributions. The focused repairs and their
+regressions are part of this revision.
 
-Shown by `tests/test_links.py`, by the Acceptance list above:
+## Validation responsibilities
 
-- every numbered rule and each refusal with nothing changed:
-  `Granting_Tests`, `Linking_Tests`, `Seat_Tests`, `Closed_Slot_Tests`,
-  `Relation_Tests`;
-- findings 1 to 5 as regressions: `Finding_Tests`;
-- the Pair: `Pair_Tests`, `Publication_Tests`;
-- seats, Bases, extending a held Link: `Seat_Tests`, `Base_Tests`,
-  `Extension_Tests`;
-- the doors of rule 3.6, at linking, through a line and in teardowns at
-  either one's deletion: `Door_Tests`;
-- the Agent in a reference cycle, built before and after its Link; a
-  Contact in a cycle reading her Pair; a self-link in a cycle; a Link held
-  after its Agent is gone: `Ending_Tests`;
-- the barrier: `Finding_Tests`;
-- every finding of the review, each a regression that fails before its
-  fix: `Rollback_Tests`, `Ownership_Tests`, `Law_Review_Tests`,
-  `Lifetime_Review_Tests`, `Door_Review_Tests`, `Integration_Review_Tests`,
-  `Second_Round_Tests`, `Variant_Tests`, `New_Code_Review_Tests`,
-  `Third_Round_Tests`, `Final_Round_Tests`;
-- generator and coroutine functions stepped behind the doors at every
-  step, under `asyncio.run`, `gather`, `wait_for`, timeouts, task groups,
-  cancellation, by hand, closed or collected in another context or in
-  her own Action: `Step_Contextvar_Tests`; their refusals, and a
-  generator handed through a Link left alone: `New_Code_Review_Tests`.
-- a Shape gained while a linking is under way, from the Pair's gate,
-  Records or Imprint or at the Contact's entry, for a new Pair and for a
-  Pair held through a Base Link; the linking then succeeding, refused at a
-  later Record, at the Contact's entry or after it, or undone with a
-  call on the Agent, on the Contact or on a third Agent; two extensions in
-  a row; an extension refused in the middle, caught or not; interrupts at
-  each step; families joined meanwhile: `Ext_Nested_Tests`.
+- `tests/test_links.py` covers the main API, the Pair, publication, Bases,
+  closed slots, Relation restrictions, lifetime and the barrier.
+- `tests/test_link_chain_admission.py` covers ordered granting, Base-first
+  linking, Rogue Gains, retry, nested training and completed work surviving
+  a later failure.
+- `tests/test_link_extension_admission.py` covers partial extension and
+  retry, including independent and dependent nested training.
+- `tests/test_link_secret_doors.py`, `tests/test_link_memos.py`,
+  `tests/test_link_ending.py` and `tests/test_link_callables.py` cover the
+  independent review findings.
+- `tests/spec_examples.py` and the Links guide/wiki examples exercise the
+  documented language. The oracle's `Run_Links` compares generated walks
+  against its model. `benchmarks/compare.py` measures linking and extension,
+  and the ordinary Tagging budgets also apply.
 
-Also: `tests/spec_examples.py` runs §1.10's examples; the oracle's
-`Run_Links` walks Links, Shape Links, extensions, and Agents and Contacts
-dying mid-walk against a model (60,000 Link transitions at the audited
-size, beside the existing 60,000); `benchmarks/compare.py` section j
-measures linking and extension; the full suite, the opt-in budgets and
-`python -O` pass.
+The PR records results for the tested head. Earlier test counts and timing
+ratios are not evidence for this repaired implementation; rerun the suite,
+optimized-mode checks, oracle and performance budgets before marking it
+ready.
 
 ---
 
 ### Decision *(filled by the Director)*
 
-> Status set to **____** on YYYY-MM-DD, because ____.
+> Status remains **Vetting**. The 2026-10-14 extension-failure ruling above
+> is recorded; full STEP clearance has not been given.

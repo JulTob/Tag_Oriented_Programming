@@ -29,7 +29,7 @@ How the kit builds it, from parts it already has:
 - **The Pair** is a hidden Agent. It is tagged with the Relation's *Pair
   Tag*: the Relation's Actions, Records, conditions, Imprints and
   teardowns, each adapted to the two seats ``(agent, contact)``. So the
-  Pair's gate, Parts, Write, Quality, Underlays, secrets and contract
+  Pair's Gate, Gainings, Imprints, Posts, Underlays, secrets and contract
   truth are the kit's own too.
 - **Nothing lands on the Contact** but membership and what the Relation
   publishes. Her own Tags, Outline and contract never name a Link.
@@ -37,7 +37,6 @@ How the kit builds it, from parts it already has:
 
 from __future__ import annotations
 
-from dataclasses import replace
 from functools import partial
 from inspect import CO_ITERABLE_COROUTINE
 from inspect import isasyncgenfunction
@@ -52,11 +51,14 @@ from weakref import WeakKeyDictionary
 import weakref
 
 from . import tags as tags_module
+from .access import _refuse_host_truth
 from .declarations import KIND
-from .declarations import STATE
 from .declarations import Report
+from .declarations import _ACTION_CHAIN
+from .declarations import _CONSTANT
 from .declarations import _CONDITION_KINDS
 from .declarations import _FLAG
+from .declarations import _KIND
 from .declarations import _LINK
 from .declarations import _MISSING
 from .declarations import _PAIR_TAG
@@ -64,11 +66,13 @@ from .declarations import _PUBLIC
 from .declarations import _RELATION
 from .declarations import _RIP
 from .declarations import _SECRET
+from .declarations import _TOOL
 from .declarations import _UNDERLAY
+from .declarations import _action_chain
+from .declarations import _callable_text
 from .declarations import _has_flag
 from .declarations import _invalidate_declarations
 from .declarations import _is_dunder
-from .declarations import _is_link
 from .declarations import _is_pin
 from .declarations import _is_private
 from .declarations import _is_relation
@@ -84,33 +88,24 @@ from .geometry import _form_of
 from .geometry import _is_tag
 from .geometry import _requiring_shapes
 from .lifecycle import _rip
+from .memo import _memo_key
+from .memo import _memo_of
+from .memo import _namespace_snapshot
+from .memo import _remember_memo
 from .overlay import _require_membership
 from .state import _Async_Door
-from .state import _Bound
 from .state import _Line
 from .state import _State
 from .state import _async_doors
 from .state import _is_composing
 from .state import _namespace_of
 from .state import _reopen_async_doors
-from .state import _set_runtime_type
 from .state import _shut_async_doors
 from .state import _state_of
 from .tags import MetaTag
 from .tags import Tag
-from .transactions import _Call_Boundary
-from .transactions import _Undo_Step
 from .transactions import _apply_form
-from .transactions import _capture
-from .transactions import _close
-from .transactions import _current_boundary
-from .transactions import _gate_form
-from .transactions import _hand_over
-from .transactions import _open_boundary
-from .transactions import _imprint
 from .transactions import _inspect
-from .transactions import _rollback_to
-from .transactions import _undo_refused_linking
 
 
 Function = Callable[..., Any]
@@ -167,14 +162,16 @@ def Link(
 
     _check_relation(relation)
 
-    for name, member in relation.__dict__.items():
+    namespace = _namespace_snapshot(relation)
+
+    for name, member in namespace.items():
         _check_seats(
                 relation,
                 name,
                 member,
                 )
 
-    for name, member in relation.__dict__.items():
+    for name, member in namespace.items():
         _mark_code_that_runs_later(
                 name,
                 member,
@@ -272,17 +269,22 @@ def _later_of(
     """How a function's body runs later, when it is iterated or awaited, or
     ``None`` for an ordinary function."""
 
-    if isasyncgenfunction(function):
-        return "async generator"
+    try:
+        if isasyncgenfunction(function):
+            return "async generator"
 
-    if _is_generator_based_coroutine(function):
-        return "generator-based coroutine"
+        if _is_generator_based_coroutine(function):
+            return "generator-based coroutine"
 
-    if iscoroutinefunction(function):
-        return "coroutine"
+        if iscoroutinefunction(function):
+            return "coroutine"
 
-    if isgeneratorfunction(function):
-        return "generator"
+        if isgeneratorfunction(function):
+            return "generator"
+    except Exception:
+        # inspect also probes optional function-like metadata on callable
+        # objects. An ordinary callable need not offer that metadata.
+        return None
 
     return None
 
@@ -474,9 +476,6 @@ def _check_seats(
 # ------------------------------------------------------------------
 
 
-_pair_tags: "WeakKeyDictionary[type, type]" = WeakKeyDictionary()
-
-
 def _pair_tag(
         relation: type,
         ) -> type:
@@ -485,7 +484,8 @@ def _pair_tag(
     the Relation's own Bases as its Bases. One per Relation, shared by
     every Agent's Link: the Pair carries who it joins."""
 
-    cached = _pair_tags.get(relation)
+    memo_name = _memo_key(relation, "PAIR")
+    cached = _memo_of(relation, memo_name)
 
     if cached is not None:
         return cached
@@ -503,21 +503,23 @@ def _pair_tag(
             KIND: "pair",
             }
 
-    for name, member in relation.__dict__.items():
+    declarations = _namespace_snapshot(relation)
+
+    for name, member in declarations.items():
         if not _is_pair_member(name, member):
             continue
 
         if _kind_of(member) == "delete":
             namespace[name] = member
         else:
-            namespace[name] = _two_seats(member)
+            namespace[name] = _two_seats(member, name)
 
     pair_tag = MetaTag(
             relation.__name__,
             bases,
             namespace,
             )
-    words = relation.__dict__.get(_FLAG)
+    words = declarations.get(_FLAG)
 
     if words is not None:
         _mark_flag(
@@ -525,13 +527,17 @@ def _pair_tag(
                 words,
                 )   # a Flag Link answers its words on the Pair, never on the Contact
 
-    _pair_tags[relation] = pair_tag
-
-    return pair_tag
+    # The adapted functions can close over their Relation (for example
+    # through __class__). Keep that cycle on its owner, never in a global
+    # weak-key map whose strong value would retain the weak key. Another
+    # thread may have published while these declarations were inspected;
+    # every caller must receive the same winning Pair Tag.
+    return _remember_memo(relation, memo_name, pair_tag)
 
 
 def _two_seats(
         member: Any,
+        name: str,
 ) -> Function:
     """Adapt ``def f(agent, contact, ...)`` to the kit's one receiver, the
     Pair. The adapted function shows the kit the seats after the Contact
@@ -566,22 +572,37 @@ def _two_seats(
     Two_Seats.__signature__ = signature(function).replace(
             parameters=[parameters[0], *parameters[2:]],
             )
-    Two_Seats.__name__ = function.__name__
-    Two_Seats.__qualname__ = function.__qualname__
-    Two_Seats.__doc__ = function.__doc__
-    Two_Seats.__module__ = function.__module__
-
-    for key, value in vars(function).items():
-        if key.startswith("__topkit_"):
-            setattr(
-                    Two_Seats,
-                    key,
-                    value,
-                    )   # the declaration's marks: kind, Underlay, Secret, Constant, Tool
+    _adapted_metadata(Two_Seats, function, name)
 
     Two_Seats._topkit_seats = frozenset(seats)
 
     return Two_Seats
+
+
+def _adapted_metadata(
+        adapted: Function,
+        function: Function,
+        name: str,
+        ) -> None:
+    """Name an adapter by its declaration and retain the declaration's marks.
+
+    Callable objects may have slots instead of a dictionary; optional Python
+    display metadata is independent of TOP's declaration marks.
+    """
+
+    adapted.__name__ = name
+    adapted.__qualname__ = _callable_text(function, "__qualname__", name)
+    adapted.__doc__ = _callable_text(function, "__doc__")
+    adapted.__module__ = _callable_text(function, "__module__", adapted.__module__)
+
+    for mark in (_KIND, _UNDERLAY, _RIP, _SECRET, _PUBLIC, _CONSTANT, _TOOL):
+        value = getattr(function, mark, _MISSING)
+        if value is not _MISSING:
+            setattr(adapted, mark, value)
+
+    chain = _action_chain(function)
+    if chain is not None:
+        setattr(adapted, _ACTION_CHAIN, chain)
 
 
 def _plain_seats(
@@ -644,6 +665,7 @@ def _stepped_seats(
 
 def _door_shut_operation(
         member: classmethod,
+        name: str,
         ) -> classmethod:
     """A Relation's Operation, on one Agent's Link. Called with one of the
     Link's Contacts after the Link (as a published Operation is), it runs
@@ -662,7 +684,7 @@ def _door_shut_operation(
         if secret:
             _require_agents_door(
                     link,
-                    function.__name__,
+                    name,
                     "Operation",
                     )
 
@@ -697,18 +719,7 @@ def _door_shut_operation(
                 )
 
     Operation.__signature__ = signature(function)
-    Operation.__name__ = function.__name__
-    Operation.__qualname__ = function.__qualname__
-    Operation.__doc__ = function.__doc__
-    Operation.__module__ = function.__module__
-
-    for key, value in vars(function).items():
-        if key.startswith("__topkit_"):
-            setattr(
-                    Operation,
-                    key,
-                    value,
-                    )   # its marks: kind, Public, Secret, Constant
+    _adapted_metadata(Operation, function, name)
 
     return classmethod(Operation)
 
@@ -760,6 +771,7 @@ class _Secret_Link_Report(Report):
 
 def _door_shut_builder(
         builder: Function,
+        name: str,
         ) -> Function:
     """A Relation's Report builder, on one Agent's Link. A built Report is
     kept and served to everyone who reads it, so it is built with every
@@ -781,18 +793,7 @@ def _door_shut_builder(
                 )
 
     Build.__signature__ = signature(builder)
-    Build.__name__ = builder.__name__
-    Build.__qualname__ = builder.__qualname__
-    Build.__doc__ = builder.__doc__
-    Build.__module__ = builder.__module__
-
-    for key, value in vars(builder).items():
-        if key.startswith("__topkit_"):
-            setattr(
-                    Build,
-                    key,
-                    value,
-                    )   # its marks: Public, Secret, Constant
+    _adapted_metadata(Build, builder, name)
 
     return Build
 
@@ -818,19 +819,28 @@ def _every_contact(
 def _enter_doors(
         agent: object | None,
         contacts: Any,
-        ) -> tuple[_State | None, list[tuple[_State, int]] | None]:
+        held: tuple[_Async_Door, ...] | None = None,
+        ) -> tuple[_State | None, list[tuple[_State, int]] | None, list[_Async_Door]]:
     """Enter the doors a Link's code runs behind (rule 3.6): every Contact
     it is about has her door shut, and the Link's Agent has his open,
     since the Link's code is its Agent's code. Return what
-    ``_leave_doors`` needs to put every door back as it was."""
+    ``_leave_doors`` needs to put every door back as it was. A synchronous
+    call shuts the async authority it encounters; stepped code passes
+    the authority present when it started, so a Contact's own hook it
+    enters later keeps its door."""
 
     saved: list[tuple[_State, int]] | None = None
+    held = _async_doors.get() if held is None else held
+    states: list[_State] = []
 
     for contact in contacts:
         if contact is agent:
             continue   # a self-link: she is the Agent, whose door opens
 
         state = _state_of(contact)
+
+        if state is not None and held:
+            states.append(state)
 
         if state is not None and state.composing:
             if saved is None:
@@ -852,13 +862,15 @@ def _enter_doors(
     return (
             agent_state,
             saved,
+            _shut_async_doors(states, held),
             )
 
 
 def _leave_doors(
-        entered: tuple[_State | None, list[tuple[_State, int]] | None],
+        entered: tuple[_State | None, list[tuple[_State, int]] | None, list[_Async_Door]],
         ) -> None:
-    agent_state, saved = entered
+    agent_state, saved, async_doors = entered
+    _reopen_async_doors(async_doors)
 
     if agent_state is not None:
         agent_state.composing -= 1
@@ -979,44 +991,34 @@ class _Doors:
 
     def Enter(
             doors,
-            ) -> tuple[Any, Any, list[_Async_Door]]:
+            ) -> tuple[Any, Any]:
         """Open and shut the doors for one step; ``Leave`` puts them back."""
 
         agent, pair, contacts = doors.Alive()
-        states = [
-                state
-                for contact in contacts
-                if contact is not agent and (state := _state_of(contact)) is not None
-                ]
+
+        if doors.held is None:
+            doors.held = _async_doors.get()   # a hook the Link's own code enters later is hers to use
+
         agent_doors = _enter_doors(
                 agent,
                 contacts,
+                doors.held,
                 )   # hers shut, his open
         pair_doors = _enter_doors(
                 pair,
                 (),
                 )   # the Pair's open
 
-        if doors.held is None:
-            doors.held = _async_doors.get()   # a hook the Link's own code enters later is hers to use
-
-        async_doors = _shut_async_doors(
-                states,
-                doors.held,
-                )   # and hers, if she opened one before the Link's code began
-
         return (
                 agent_doors,
                 pair_doors,
-                async_doors,
                 )
 
     def Leave(
             doors,
-            entered: tuple[Any, Any, list[_Async_Door]],
+            entered: tuple[Any, Any],
             ) -> None:
-        agent_doors, pair_doors, async_doors = entered
-        _reopen_async_doors(async_doors)
+        agent_doors, pair_doors = entered
         _leave_doors(pair_doors)
         _leave_doors(agent_doors)
 
@@ -1222,10 +1224,7 @@ class _Ends:
             "held",
             "ended",
             "flights",
-            "layings",
-            "settled",
-            "laying",
-            "relaying",
+            "hooked",
             )
 
     def __init__(
@@ -1243,48 +1242,18 @@ class _Ends:
         ends.held = None   # both ends, held strongly only while teardowns run
         ends.ended = False   # set when the Pair ends: a Pair held by a name answers no more
         ends.flights = []   # the linkings under way on this Pair, outermost first
-        ends.layings = []   # what extensions laid on it, held weakly: only as long as the Agent's call can still be undone
-        ends.settled = None   # the values the kit's own Layers left on it, last; None while a Layer's Records are written and not yet noted
-        ends.relaying = False   # set while the Layers extensions gave it are laid on it again
-        ends.laying = []   # the Pair Tags an extension is laying on it now: their Parts have not ended, so laying them again would carry them twice
+        ends.hooked = False   # an admitted Contact has the finalizer hook
+
 
 
 class _Flight:
-    """A linking under way on a Pair, from its gate to the Contact's entry
-    (rule 4.6): what an extension needs to reach the Pair in flight."""
+    """The requested Link and its current independent admission turn."""
 
-    __slots__ = (
-            "pending",
-            "form",
-            "given",
-            "entry",
-            "whole",
-            )
+    __slots__ = ("link", "current")
 
-    def __init__(
-            flight,
-            pending: list[type],
-            form: list[type],
-            entry: Any,
-            ) -> None:
-        flight.pending = pending   # the Links the Contact is about to enter
-        flight.form = form   # the form it applies: a new list if an extension adds a Layer meanwhile
-        flight.given = []   # the Pair Tags the linking sets out to give the Pair, each time it applies a form; an extension's are not among them
-        flight.entry = entry   # the Pair as it was before the linking
-        flight.whole = False   # set once the Pair's Parts are done: from then on an extension lays its Layer on it
-
-    def Give(
-            flight,
-            pair: Pair,
-            ) -> None:
-        """The linking is about to apply its form: the Pair Tags the Pair
-        lacks are the linking's to give."""
-
-        state = _state_of(pair)
-
-        for tag in flight.form:
-            if (state is None or tag not in state.active) and tag not in flight.given:
-                flight.given.append(tag)
+    def __init__(flight, link: type) -> None:
+        flight.link = link
+        flight.current = None
 
 
 def _pair_ends(
@@ -1330,8 +1299,6 @@ class _Family:
             "pairs",
             "links",
             "dying",
-            "extending",
-            "deferred",
             "__weakref__",
             )
 
@@ -1341,8 +1308,6 @@ class _Family:
         family.pairs: dict[int, Pair] = {}
         family.links: list[weakref.ref] = []
         family.dying: object | None = None
-        family.extending = 0   # extensions laying their Layers on its Pairs now: a Shape gained meanwhile is laid by the first, when it has laid its own
-        family.deferred = False   # set when a Shape was gained meanwhile: the first extension has Layers left to lay
 
     def Pair_Of(
             family,
@@ -1383,7 +1348,7 @@ class _Family:
         key = id(contact)
         forget = partial(
                 _forget_pair,
-                weakref.ref(family),
+                weakref.ref(pair),
                 key,
                 )
         object.__getattribute__(pair, "__dict__")[_PAIR_ENDS] = _Ends(
@@ -1427,18 +1392,30 @@ class _Family:
 
 
 def _forget_pair(
-        family_reference: weakref.ref,
+        pair_reference: weakref.ref,
         key: int,
         expired: weakref.ref,
         ) -> None:
-    """A Contact's weak reference is cleared. Her Pair stays until her
-    finalizer's teardown ends it, even in a reference cycle, where the
-    language clears weak references before any finalizer runs (rule
-    7.4). Her identity cannot be reused before that teardown: an object
-    is freed only after its finalizer. At interpreter exit no finalizer
-    runs, and nothing reads the Pair again."""
+    """Release an unadmitted Pair when its Contact dies.
 
-    return None
+    Admitted Contacts keep their Pair until their finalizer can run its
+    teardowns, including cycles whose weak references clear first. A
+    family join can move the Pair, so use its current family here.
+    """
+
+    pair = pair_reference()
+    if pair is None:
+        return
+    ends = _pair_ends(pair)
+    family = ends.family
+    if (ends.contact is not expired or ends.hooked
+            or family.pairs.get(key) is not pair):
+        return
+    del family.pairs[key]
+    ends.ended = True
+    state = _state_of(pair)
+    if state is not None:
+        state.rips.clear()
 
 
 # ------------------------------------------------------------------
@@ -1453,7 +1430,6 @@ class _Link_Record:
             "name",
             "agent",
             "layers",
-            "extended",
             "gained",
             "family",
             "hook",
@@ -1472,7 +1448,6 @@ class _Link_Record:
         record.name = name
         record.agent = weakref.ref(agent)
         record.layers = layers
-        record.extended = []   # the Layers extensions added, in order: a restored Pair is laid with them again
         record.gained = {
                 relation: next(_gaining)
                 for relation in layers
@@ -1498,14 +1473,15 @@ def _grant(
         agent: object,
         state: _State,
         declarations: Any,
+        inputs: dict[str, Any],
         ) -> None:
-    """At the Parts of a declaring Tag (rule 4.1): build each Link the
-    Agent does not hold yet, or extend a held one with a new Layer (rule
-    4.6). The Link is stored under the Relation's name, read-only."""
+    """Acquire one declaration-ordered Link Gaining, or extend a held
+    Link. Retrying a failed declaration completes its unfinished Pairs.
+    The Link is stored under the Relation's name, read-only."""
 
     namespace = _namespace_of(agent)
 
-    for name, _relation in declarations.links:
+    for name, relation in declarations.links:
         link, layers = state.links[name]
 
         if link is None:
@@ -1527,12 +1503,15 @@ def _grant(
                     if relation not in record.layers
                     ]
 
-            if added:
-                _extend(
-                        link,
-                        record,
-                        added,
-                        )
+            # A failed extension already published its Layer, but some
+            # Pairs still lack it. Reapplication resumes those Pairs too.
+            _extend(
+                    link,
+                    record,
+                    added,
+                    relation,
+                    inputs,
+                    )
 
         namespace[name] = link
 
@@ -1594,17 +1573,6 @@ def _new_link(
             )   # the record holds its Agent weakly, so the Link never keeps it alive
     reference = weakref.ref(link)
     family.links.append(reference)
-    boundary = _open_boundary()
-
-    if boundary is not None:
-        boundary.undo.append(_Undo_Step(
-                (agent,),
-                partial(
-                        _forget_link,
-                        record,
-                        reference,
-                        ),
-                ))   # a call on the Agent that rolls back leaves no trace in the family (§0.6)
 
     for relation in layers:
         _publish_lines(
@@ -1613,18 +1581,6 @@ def _new_link(
                 )
 
     return link
-
-
-def _forget_link(
-        record: _Link_Record,
-        reference: weakref.ref,
-        ) -> None:
-    family = record.family
-
-    if reference in family.links:
-        family.links.remove(reference)
-
-    _forget_pair_forms(family)
 
 
 def _base_links(
@@ -1682,10 +1638,9 @@ def _family_for(
         ) -> _Family:
     """A Link joins the family of its Base Links; a Link with none starts
     its own. Base Links from separate families are joined into one, after
-    checking that no Contact holds a Pair in two of them. The join is
-    undone with the call if it rolls back (§0.6). A join gives no Pair a
-    Layer, since the new Shape Link holds no Contact yet, so a linking
-    under way is no reason to refuse it: its Pair moves with its family."""
+    checking that no Contact holds a Pair in two of them. A join gives no
+    Pair a Layer: the new Shape Link holds no Contact yet. A linking
+    under way moves its Pair with its family."""
 
     families: list[_Family] = []
 
@@ -1701,24 +1656,8 @@ def _family_for(
 
     _refuse_shared_contacts(families)
     kept = families[0]
-    joins = [
-            _join(
-                    kept,
-                    other,
-                    )
-            for other in families[1:]
-            ]
-    boundary = _open_boundary()
-
-    if joins and boundary is not None:
-        boundary.undo.append(_Undo_Step(
-                (agent,),
-                partial(
-                        _split,
-                        kept,
-                        joins,
-                        ),
-                ))
+    for other in families[1:]:
+        _join(kept, other)
 
     return kept
 
@@ -1744,57 +1683,18 @@ def _refuse_shared_contacts(
 def _join(
         kept: _Family,
         other: _Family,
-        ) -> tuple[_Family, dict[int, Pair], list[type], list[weakref.ref]]:
-    """Move ``other``'s Pairs and Links into ``kept``. Returns what
-    ``_split`` needs to move them back."""
+        ) -> None:
+    """Move ``other``'s Pairs and Links into ``kept``."""
 
-    moved_pairs = dict(other.pairs)
-    moved_links = other.Links()
-    added: list[weakref.ref] = []
-
-    for pair in moved_pairs.values():
+    for pair in other.pairs.values():
         object.__getattribute__(pair, "__dict__")[_PAIR_ENDS].family = kept
 
-    kept.pairs.update(moved_pairs)
+    kept.pairs.update(other.pairs)
     other.pairs.clear()
 
-    for link in moved_links:
+    for link in other.Links():
         _record_of(link).family = kept
-        reference = weakref.ref(link)
-        kept.links.append(reference)
-        added.append(reference)
-
-    return (
-            other,
-            moved_pairs,
-            moved_links,
-            added,
-            )
-
-
-def _split(
-        kept: _Family,
-        joins: list[tuple[_Family, dict[int, Pair], list[type], list[weakref.ref]]],
-        ) -> None:
-    """Undo ``_join``, latest first: each family gets back its own Pairs
-    and Links."""
-
-    for other, moved_pairs, moved_links, added in reversed(joins):
-        for key, pair in moved_pairs.items():
-            if kept.pairs.get(key) is pair:
-                del kept.pairs[key]
-                other.pairs[key] = pair
-                object.__getattribute__(pair, "__dict__")[_PAIR_ENDS].family = other
-
-        for link in moved_links:
-            _record_of(link).family = other
-            _record_of(link).pair_form = None
-
-        for reference in added:
-            if reference in kept.links:
-                kept.links.remove(reference)
-
-    _forget_pair_forms(kept)
+        kept.links.append(weakref.ref(link))
 
 
 def _tag_scope_of(
@@ -1808,20 +1708,20 @@ def _tag_scope_of(
 
     members: dict[str, Any] = {}
 
-    for name, member in relation.__dict__.items():
+    for name, member in _namespace_snapshot(relation).items():
         if not _is_tag_scope_member(name, member):
             continue
 
         if isinstance(member, Report):
             if _has_flag(member.builder, _SECRET):
-                copy = _Secret_Link_Report(_door_shut_builder(member.builder))
+                copy = _Secret_Link_Report(_door_shut_builder(member.builder, name))
             else:
-                copy = Report(_door_shut_builder(member.builder))   # one Report per Link: each builds for its own Link
+                copy = Report(_door_shut_builder(member.builder, name))   # one Report per Link: each builds for its own Link
 
             copy.public = member.public
             members[name] = copy
         elif isinstance(member, classmethod):
-            members[name] = _door_shut_operation(member)   # an Operation, or another class method
+            members[name] = _door_shut_operation(member, name)   # an Operation, or another class method
         else:
             members[name] = member   # a static method, or a plain value: capacity = 150
 
@@ -1860,7 +1760,7 @@ def _layer_names(
     lines = set(_published_names(layer))
     members = {
             member_name
-            for member_name, member in layer.__dict__.items()
+            for member_name, member in _namespace_snapshot(layer).items()
             if _is_tag_scope_member(member_name, member)
             }
 
@@ -1964,7 +1864,7 @@ def _publish_lines(
     becomes a line on the Link, which the Contact receives at linking.
     ``ruth.Greet()`` runs the Pair's ``Greet(charlie, ruth)``."""
 
-    for name, member in relation.__dict__.items():
+    for name, member in _namespace_snapshot(relation).items():
         if not _is_pair_member(name, member) or not _has_flag(member, _PUBLIC):
             continue
 
@@ -2005,9 +1905,7 @@ def _line_action(
                 name,
                 "Pair Action",
                 )
-        state = _state_of(contact)
-        opened = state.composing
-        state.composing = 0   # the Contact's door stays shut on every path (rule 3.6)
+        entered = _enter_doors(None, (contact,))
 
         try:
             return getattr(pair, name)(
@@ -2015,7 +1913,7 @@ def _line_action(
                     **kwargs,
                     )
         finally:
-            state.composing = opened
+            _leave_doors(entered)
 
     Line.__name__ = name
     Line.__qualname__ = f"{link.__qualname__}.{name}"
@@ -2118,232 +2016,60 @@ class _Pair_Record_Line(Report, _Line):
 # ------------------------------------------------------------------
 
 
-class _Laying:
-    """What an extension lays on one Pair, and where to go back to."""
-
-    __slots__ = (
-            "pair",
-            "ends",
-            "entry",
-            "before",
-            "reached",
-            "tags",
-            "__weakref__",
-            )
-
-    def __init__(
-            laying,
-            pair: Pair,
-            ) -> None:
-        ends = _pair_ends(pair)
-        laying.pair = pair
-        laying.ends = ends
-        laying.entry = _capture(pair)   # the Pair as the extension finds it
-        laying.before = ends.flights[0].entry if ends.flights else laying.entry   # a linking is under way on it: as it was before the linking
-        laying.reached = False   # set once the Pair's Parts are done
-        laying.tags = []   # the Pair Tags the extension gave it
-        ends.layings = [
-                reference
-                for reference in ends.layings
-                if reference() is not None
-                ]
-        ends.layings.append(weakref.ref(laying))   # a restore of the Pair tells it where the Pair stands
-
-    def Follows(
-            laying,
-            entry: Any,
-            ) -> bool:
-        """Its Layers came to the Pair after ``entry`` was taken."""
-
-        return (
-                laying.reached
-                and bool(laying.tags)
-                and all(
-                    tag not in entry.tags
-                    for tag in laying.tags
-                    )
-                )
-
-    def Back_To(
-            laying,
-            ) -> Any:
-        """Where an undo goes back to. While a linking is under way on the
-        Pair, that is the Pair as the extension found it; once the linking
-        is done, or undone, it is the Pair as it was before the linking,
-        which no restore of a half-made Pair can stand for."""
-
-        if laying.ends.flights:
-            return laying.entry
-
-        return laying.before
-
-
 def _extend(
         link: type,
         record: _Link_Record,
         added: list[type],
+        relation: type,
+        inputs: dict[str, Any],
         ) -> None:
-    """A Shape of the declaring Tag extends a held Link with new Layers.
+    """Publish new Layers, then train held Pairs one at a time.
 
-    Inside the Agent's call, as a tagging of every Pair the Link holds
-    and of every Pair whose Parts a linking has done and whose Contact it
-    is about to make a member of the Link: every Pair's gate and Parts now
-    (one refusal refuses the whole call, nothing changed); their Imprints
-    at the call's Write; their promises after the Agent's Commit, save a
-    Pair a linking is still under way on, which is checked with its
-    linking. Such a Pair is tagged nested in the linking's own work, as a
-    Record may tag its own Agent. A Pair whose Parts are not done is not
-    the Link's yet: its linking gives it the Layer (``_give_late_layers``).
-    Linkings made after that get every Layer."""
+    Each Pair follows ordinary Tagging: a failed Gate leaves completed
+    Tags, and failed training keeps its acquired Gains without admission.
+    The Link's Layer remains acquired, so retry visits unfinished Pairs
+    even when there are no new Relations to publish.
+    """
 
     _refuse_mixed_layers(
             [*record.layers, *added],
             link.__name__,
             TagCompositionError,
             )
-    boundary = _open_boundary()
-    form = _pair_tags_of(added)
-    family = record.family
-    nested = family.extending > 0   # another extension is laying: it lays this one's Layers too
-    layings = [
-            _Laying(pair)
-            for pair in ([] if nested else _pairs_to_extend(
-                    link,
-                    record,
-                    ))
-            ]
-    previous_layers = list(record.layers)
-    previous_extended = list(record.extended)
-    previous_gained = dict(record.gained)
-    previous_members = {
-            name: link.__dict__.get(name, _MISSING)
-            for relation in added
-            for name in (*_tag_scope_of(relation), *_published_names(relation))
-            }
-    written: list[tuple[Pair, list[Any]]] = []
 
-    def Undo() -> None:
-        record.extended[:] = previous_extended   # first: no restore lays again what is taken back
+    for layer in added:
+        record.layers.append(layer)
+        record.gained[layer] = next(_gaining)
 
-        for laying in reversed(layings):
-            _take_back(laying)
+        for name, member in _tag_scope_of(layer).items():
+            type.__setattr__(link, name, member)
 
-        record.layers[:] = previous_layers
-        record.gained = previous_gained
-        _forget_pair_forms(record.family)
-        _take_off_from_strays(
-                family,
-                form,
-                layings,
-                )   # after the Layers are the Links' again: what they still call for stays
+            if isinstance(member, Report):
+                member.__set_name__(link, name)
 
-        for name, value in previous_members.items():
-            if value is _MISSING:
-                if name in link.__dict__:
-                    type.__delattr__(link, name)
-            else:
-                type.__setattr__(link, name, value)
+        _publish_lines(link, layer)
 
-        _invalidate_declarations(link)
-
-    if boundary is not None:
-        boundary.undo.append(_Undo_Step(
-                (record.agent(),),
-                Undo,
-                ))   # first, so that the Shapes gained meanwhile, by the Pairs' Records, are undone before it
-
-    family.extending += 0 if nested else 1
-    family.deferred = family.deferred or nested
-
-    try:
-        record.layers.extend(added)
-        record.extended.extend(added)
-
-        for relation in added:
-            record.gained[relation] = next(_gaining)
-
+    if added:
         _forget_pair_forms(record.family)
 
-        for relation in added:
-            for name, member in _tag_scope_of(relation).items():
-                type.__setattr__(link, name, member)
-
-                if isinstance(member, Report):
-                    member.__set_name__(link, name)
-
-            _publish_lines(
-                    link,
-                    relation,
-                    )
-
-        for laying in layings:
-            _gate_form(
-                    laying.pair,
-                    form,
-                    {},
-                    )   # every Pair's gate first: one refusal refuses the whole call
-
-        for laying in layings:
-            _lay(
-                    laying,
-                    form,
-                    written,
-                    )
-
-        while family.deferred and not nested:   # a Shape gained meanwhile, by their Records, is laid on every Pair of the family too
-            family.deferred = False
-            found = {id(laying.pair): laying for laying in layings}
-
-            for pair in list(family.pairs.values()):
-                laying = found.get(id(pair))
-
-                if laying is None:
-                    if not _owed_meanwhile(pair):
-                        continue
-
-                    laying = _Laying(pair)   # a Pair the outer extension did not find: a Base Link's, or one made meanwhile
-                    layings.append(laying)   # so that the undo takes its share back
-                    found[id(pair)] = laying
-
-                _lay_owed(
-                        laying,
-                        written,
-                        )
-    except BaseException:
-        if boundary is None:
-            Undo()   # no call to undo it: the Shape's own tagging is not part of one
-
-        raise
-    finally:
-        family.extending -= 0 if nested else 1
-
-        if not nested:
-            family.deferred = False   # whatever a refused or failed extension left owed is not owed
-
-    def Write() -> None:
-        try:
-            _write_all(
-                    written,
-                    {},
-                    )
-        finally:
-            for pair, _deferred in written:
-                _settle(pair)
-
-    if boundary is None:
-        Write()
-        return
-
-    boundary.writes.append(Write)
+    # Applying an independent extension is not a retry of every earlier
+    # failed sibling. Its own Form determines which training it needs.
+    form = _pair_tags_of([relation])
+    for pair in _pairs_to_extend(link, record):
+        _train_pair_layers(pair, form, inputs)
+        _inspect(pair)
 
 
 def _pairs_to_extend(
         link: type,
         record: _Link_Record,
         ) -> list[Pair]:
-    """Every Pair the Link holds, and every Pair whose Parts a linking has
-    done and whose Contact it is about to make a member of the Link. A
-    Pair whose Parts are not done receives the Layer from its linking."""
+    """The Link's admitted Contacts and its current linking turn.
+
+    A later Shape Link in an in-flight Form waits for its own turn. A
+    retained Rogue Pair with no current linking is retried by linking it
+    again, using the Link's latest Layers.
+    """
 
     family = record.family
     pairs = [
@@ -2354,316 +2080,14 @@ def _pairs_to_extend(
     known = {id(pair) for pair in pairs}
 
     for pair in list(family.pairs.values()):
-        if id(pair) not in known and _is_entering(pair, link):
+        if id(pair) not in known and any(
+                flight.current is link
+                for flight in _pair_ends(pair).flights
+                ):
             pairs.append(pair)
+            known.add(id(pair))
 
     return pairs
-
-
-def _is_entering(
-        pair: Pair,
-        link: type,
-        ) -> bool:
-    return any(
-            flight.whole and link in flight.pending
-            for flight in _pair_ends(pair).flights
-            )
-
-
-def _lay(
-        laying: _Laying,
-        form: list[type],
-        written: list[tuple[Pair, list[Any]]],
-        ) -> None:
-    """One Pair's Parts and Commit of the extension; its Imprints wait for
-    the call's Write. The Pair Tags already being laid on this Pair are not
-    laid again."""
-
-    pair = laying.pair
-    ends = laying.ends
-    fresh = [
-            tag
-            for tag in form
-            if tag not in ends.laying
-            ]
-    deferred: list[Any] = []
-    ends.laying.extend(fresh)
-
-    try:
-        _apply_form(
-                pair,
-                fresh,
-                {},
-                deferred,
-                gated=True,
-                )
-    finally:
-        for tag in fresh:
-            ends.laying.remove(tag)
-
-    laying.tags = _added_since(
-            pair,
-            laying.entry,
-            )
-    laying.reached = True
-    ends.settled = None   # what its Records wrote is the kit's own, and is noted at the call's Write
-    written.append(
-            (
-                pair,
-                deferred,
-                )
-            )
-
-
-def _lay_owed(
-        laying: _Laying,
-        written: list[tuple[Pair, list[Any]]],
-        ) -> bool:
-    """The Layers a Shape gained meanwhile, by the Records of the Layers
-    being laid, owes one Pair: its gate, then its Parts. True if it laid any."""
-
-    owed = _owed_meanwhile(laying.pair)
-
-    if not owed:
-        return False
-
-    _gate_form(
-            laying.pair,
-            owed,
-            {},
-            )
-    _lay(
-            laying,
-            owed,
-            written,
-            )
-
-    return True
-
-
-def _take_back(
-        laying: _Laying,
-        ) -> None:
-    """Undo one Pair's share of an extension, and nothing else: a Pair
-    dropped since has no state to go back to, and what the Agent's other
-    extensions gave it is laid on it again if the restore took it."""
-
-    pair = laying.pair
-
-    if not laying.reached:
-        _restore(
-                pair,
-                laying.entry,
-                )   # not reached, or refused: as it was
-        return
-
-    _undo_pair_layers(
-            pair,
-            laying.Back_To(),
-            laying.tags,
-            )
-
-
-def _restore(
-        pair: Pair,
-        entry: Any,
-        ) -> None:
-    """Put the Pair back as it was at ``entry``, which stays as it was: a
-    restore hands its state over to the Pair, and the Pair then goes on
-    changing it, so an entry that may be gone back to again is restored
-    from a copy."""
-
-    _rollback_to(
-            pair,
-            replace(
-                    entry,
-                    state=None if entry.state is None else entry.state.Copy(),
-                    ),   # every other field as it was: the kernel may add one
-            )
-
-
-def _settle(
-        pair: Pair,
-        ) -> None:
-    """Note the values the kit's own Layers left on the Pair: whatever is
-    there later and is not these, someone else wrote."""
-
-    namespace = _namespace_of(pair)
-
-    if namespace is not None:
-        _pair_ends(pair).settled = dict(namespace)
-
-
-def _is_settled(
-        pair: Pair,
-        ) -> bool:
-    """Nobody wrote on the Pair since the kit's own Layers left it."""
-
-    settled = _pair_ends(pair).settled
-
-    return (
-            settled is None
-            or _same_values(
-                    _namespace_of(pair),
-                    settled,
-                    )
-            )
-
-
-def _extension_tags(
-        pair: Pair,
-        entering: bool = False,
-        ) -> list[type]:
-    """The Pair Tags that extensions owe a Pair: those of the extension
-    Layers of every Link that holds its Contact, in the order the Agent
-    gained them. With ``entering``, also those of the Links she is about
-    to enter, once the Pair's Parts are done: a Shape gained as she
-    enters owes her Pair its Layers before she is a member."""
-
-    ends = _pair_ends(pair)
-    contact = ends.contact()
-    state = None if contact is None else _state_of(contact)
-
-    if state is None:
-        return []
-
-    return _extension_tags_of([
-            link
-            for link in ends.family.Links()
-            if link in state.active or (entering and _is_entering(pair, link))
-            ])
-
-
-def _extension_tags_of(
-        links: list[type],
-        ) -> list[type]:
-    """The Pair Tags of the extension Layers of ``links``, in the order the
-    Agent gained them."""
-
-    gained: list[tuple[int, type]] = []
-
-    for link in links:
-        record = _record_of(link)
-
-        for relation in record.extended:
-            gained.append(
-                    (
-                        record.gained[relation],
-                        relation,
-                        )
-                    )
-
-    gained.sort(key=_gaining_number)
-
-    return _pair_tags_of([relation for _number, relation in gained])
-
-
-def _called_for(
-        pair: Pair,
-        ) -> list[type]:
-    """Every Pair Tag that the Links still holding the Contact call for:
-    their own Layers, Base Layers included, and the Layers the Agent's
-    extensions gave them. None of these leaves a Pair with a linking."""
-
-    ends = _pair_ends(pair)
-    contact = ends.contact()
-    state = None if contact is None else _state_of(contact)
-
-    if state is None:
-        return []
-
-    held = [
-            link
-            for link in ends.family.Links()
-            if link in state.active
-            ]
-    called: list[type] = []
-
-    for link in held:
-        called.extend(_pair_form(link))
-
-    called.extend(_extension_tags_of(held))
-
-    return called
-
-
-def _left_tags(
-        pair: Pair,
-        links: list[type],
-        ) -> list[type]:
-    """The Pair Tags extensions gave the Pair for ``links``, the Links a
-    linking made the Contact enter, that no Link she is in calls for. They
-    leave with the linking."""
-
-    state = _state_of(pair)
-
-    if state is None:
-        return []
-
-    kept = _called_for(pair)
-
-    return [
-            tag
-            for tag in _extension_tags_of(links)
-            if tag in state.active and tag not in kept
-            ]
-
-
-def _owed_meanwhile(
-        pair: Pair,
-        ) -> list[type]:
-    """The Pair Tags extensions owe a Pair that it does not hold, and no
-    extension is laying on it now."""
-
-    return [
-            tag
-            for tag in _lacking(pair)
-            if tag not in _pair_ends(pair).laying
-            ]
-
-
-def _lacking(
-        pair: Pair,
-        ) -> list[type]:
-    """The Pair Tags extensions owe a Pair that it does not hold."""
-
-    state = _state_of(pair)
-
-    return [
-            tag
-            for tag in _extension_tags(pair, entering=True)
-            if tag not in state.active
-            ]
-
-
-def _relay(
-        pair: Pair,
-        entry: Any,
-        ) -> None:
-    """A Pair restored to ``entry`` lacks the Layers extensions gave it
-    since. They are the Agent's own finished tagging, so they are laid on
-    it again: its Records built anew, with no gate, no Imprints and no
-    promises, since those ran when the Agent's call did. The extensions
-    that can still be undone go back to ``entry`` from now on."""
-
-    lacking = _lacking(pair)
-
-    if lacking:
-        _apply_form(
-                pair,
-                lacking,
-                {},
-                [],
-                gated=True,
-                )
-
-    for reference in _pair_ends(pair).layings:
-        laying = reference()
-
-        if laying is not None and laying.Follows(entry):
-            laying.before = entry
-
-    _settle(pair)
 
 
 def _published_names(
@@ -2671,7 +2095,7 @@ def _published_names(
         ) -> list[str]:
     return [
             name
-            for name, member in relation.__dict__.items()
+            for name, member in _namespace_snapshot(relation).items()
             if _is_pair_member(name, member) and _has_flag(member, _PUBLIC)
             ]
 
@@ -2694,13 +2118,14 @@ def _pair_tags_of(
 def _pair_form(
         link: type,
 ) -> list[type]:
-    """Every Pair Tag a linking through ``link`` gives: the Layers of each
-    Link in its Form (rules 5.2 and 5.3), in the order the Agent gained
-    them. That is Form order, with a later extension on top, which is
-    where an extension lands on the Pairs it already holds (rule 4.6). A
-    Pair already held receives the Layers it lacks on top of what it
-    carries (§1.2, latest Layer). Kept on the record until a Layer is
-    added to any Link of the family: a new list then."""
+    """The Pair Tags available through this Link, in Layer arrival order.
+
+    Linking completes each Base Link before its Shape turn. Within each
+    turn this list supplies missing Layers; already completed Pair Tags
+    are skipped. A later extension applies its own Form on top of held
+    Pairs, so actual training history determines the top Layer (§1.2).
+    The memo is replaced whenever this family gains another Layer.
+    """
 
     record = _record_of(link)
 
@@ -2732,6 +2157,25 @@ def _pair_form(
     return record.pair_form
 
 
+def _train_pair_layers(
+        pair: Pair,
+        form: list[type],
+        inputs: dict[str, Any],
+        admitted: list[type] | None = None,
+        ) -> None:
+    """Train missing Layers without replaying an independent turn in flight.
+
+    An extension can be a sibling of another Layer currently training.
+    Its actual Bases still have to finish first, as for any ordinary Tag.
+    """
+
+    for tag in form:
+        state = _state_of(pair)
+        if state is not None and (tag in state.active or tag in state.training):
+            continue
+        _apply_form(pair, _form_of(tag), inputs, inspect=False, admitted=admitted)
+
+
 def _gaining_number(
         entry: tuple[int, type],
         ) -> int:
@@ -2745,60 +2189,6 @@ def _forget_pair_forms(
         _record_of(link).pair_form = None
 
 
-def _write_all(
-        written: list[tuple[Pair, list[Any]]],
-        inputs: dict[str, Any],
-        ) -> None:
-    """Every Pair's Imprints, then every promise of the Pairs that are not
-    in flight (a Pair in flight is checked with its linking, once it is
-    whole); the first failure is raised, and the Layers stay."""
-
-    first: BaseException | None = None
-
-    for pair, deferred in written:
-        try:
-            _write(
-                    pair,
-                    deferred,
-                    inputs,
-                    )
-        except Exception as error:
-            first = first or error
-
-    for pair, _deferred in written:
-        if _pair_ends(pair).flights:
-            continue
-
-        try:
-            _inspect(pair)
-        except Exception as error:
-            first = first or error
-
-    try:
-        if first is not None:
-            raise first
-    finally:
-        first = None   # never keep Agents alive through a traceback that holds this frame
-
-
-def _write(
-        pair: Pair,
-        deferred: list[Any],
-        inputs: dict[str, Any],
-        ) -> None:
-    state = _state_of(pair)
-    state.composing += 1
-
-    try:
-        for declarations in deferred:
-            _imprint(
-                    pair,
-                    declarations,
-                    inputs,
-                    )
-    finally:
-        state.composing -= 1
-
 
 # ------------------------------------------------------------------
 # Linking (rule 5.1)
@@ -2810,557 +2200,125 @@ def _link(
         contact: object,
         inputs: dict[str, Any],
         ) -> object:
-    """``charlie.Knows(ruth, **inputs)``: a tagging of the Contact, with
-    the Pair as receiver. The Pair's gate; the Pair's Records; the Contact
-    enters the Link's Field; the Pair's Imprints; the Pair's promises and
-    the Contact's own. A failure up to her entry changes nothing; after
-    it, the failure raises and the linking stays."""
+    """Train and admit each Link in its Form, Bases first.
+
+    A failed turn keeps actual Pair Gains but never admits its Contact.
+    Completed earlier Links remain. Reapplying retries the unfinished
+    turn; current membership alone makes a linking a no-op.
+    """
 
     record = _record_of(link)
-    agent = _agent_of(
-            link,
-            record,
-            )
-    _refuse_contact(
-            link,
-            contact,
-            )
+    agent = _agent_of(link, record)
+    _refuse_contact(link, contact)
     contact_state = _state_of(contact)
-    pending = [
-            member
-            for member in _form_of(link)
-            if contact_state is None or member not in contact_state.active
-            ]
+    if contact_state is not None and link in contact_state.active:
+        return contact
 
-    if not pending:
-        return contact   # reapplying is a no-op (rule 5.4)
-
-    form = _pair_form(link)
-    _refuse_inputs_in_seats(
-            form,
-            inputs,
-            )
+    form = _form_of(link)
+    _refuse_inputs_in_seats(_pair_form(link), inputs)
     family = record.family
     pair = family.Pair_Of(contact)
     created = pair is None
-
     if created:
-        pair = family.New_Pair(
-                agent,
-                contact,
-                record.name,
-                )
+        pair = family.New_Pair(agent, contact, record.name)
+    ends = _pair_ends(pair)
 
-    outer = _open_boundary()   # a call this linking is part of (rule 5.6)
-    local = _Call_Boundary()   # nested linkings made at the Pair's Parts report here
-    pair_entry = _capture(pair)
-    contact_entry = _capture(contact) if outer is not None else None
-    deferred: list[Any] = []
-    flight = _Flight(
-            pending,
-            form,
-            pair_entry,
-            )
-    flights = _pair_ends(pair).flights
+    for running in ends.flights:
+        if running.current is link:
+            return contact   # re-entering the same unfinished Tag is a no-op
+        if running.current in form:
+            raise TagCompositionError(
+                    f"{link.__name__} needs {running.current.__name__},"
+                    " whose linking has not finished"
+                    )
 
-    applied: list[list[type]] = []   # the Pair Tags this linking gave the Pair, once its Parts are done
-
-    def Drop_Pair() -> None:
-        if not created:
-            given = applied[0] if applied else _applied_by(pair, pair_entry, flight.given)   # a failure during its Parts: all of it is this linking's
-            given = [*given, *[tag for tag in _left_tags(pair, pending) if tag not in given]]   # and what extensions gave the Links she did not enter
-            _undo_pair_layers(
-                    pair,
-                    pair_entry,
-                    given,
-                    )   # an older Pair keeps what other calls gave it since, and the Agent's extensions stay on it
-            return
-
-        _rollback_to(
-                pair,
-                pair_entry,
-                )   # a new Pair loses its state, so its teardowns never run (rule 8.5)
-        current = _pair_ends(pair).family   # a join may have moved it
-
-        if current.pairs.get(id(contact)) is pair:
-            del current.pairs[id(contact)]
-
-    token = _current_boundary.set(local)
-    flights.append(flight)   # until her entry, an extension of a Link she enters reaches this Pair too (rule 4.6)
-
+    flight = _Flight(link)
+    ends.flights.append(flight)
     try:
-        try:
-            flight.Give(pair)
-            _apply_form(
-                    pair,
-                    form,
-                    inputs,
-                    deferred,
-                    )
-            _give_late_layers(
-                    link,
-                    pair,
-                    flight,
-                    inputs,
-                    deferred,
-                    )
-            applied.append(_applied_by(
-                    pair,
-                    pair_entry,
-                    flight.given,
-                    ))
-            _settle(pair)   # what its Parts wrote is the linking's own
-            flight.whole = True
-            _apply_form(
-                    contact,
-                    pending,
-                    {},
-                    [],
-                    )   # a refusal rolls the Contact back by itself
-        except BaseException:
-            _land(
-                    flights,
-                    flight,
-                    )   # the window is over: what follows is the undoing
+        for member in form:
+            contact_state = _state_of(contact)
+            if contact_state is not None and member in contact_state.active:
+                continue
+            flight.current = member
+            admitted: list[type] = []
             try:
-                _undo_refused_linking(
-                        local,
-                        agent,
-                        contact,
-                        outer,
-                        )   # its own linkings at the Pair's Parts, latest first
-            finally:
-                Drop_Pair()
+                while True:
+                    pair_form = _pair_form(member)
+                    _refuse_inputs_in_seats(pair_form, inputs)
+                    _train_pair_layers(pair, pair_form, inputs, admitted)
+                    if pair_form is _pair_form(member):
+                        break
 
-            raise
+                try:
+                    _apply_form(contact, [member], {}, inspect=False)
+                finally:
+                    contact_state = _state_of(contact)
+                    if contact_state is not None and member in contact_state.active:
+                        _hook(contact, [member])
+                        ends.hooked = True
+            except BaseException:
+                contact_state = _state_of(contact)
+                if contact_state is None or member not in contact_state.active:
+                    _withdraw_pair_admission(pair, admitted)
+                raise
+
+        _inspect(pair)
+        _inspect(contact)
+    except BaseException:
+        state = _state_of(pair)
+        if created and (state is None or not (
+                state.active or state.actions or state.records
+                or state.preconditions or state.postconditions
+                or state.deleted or state.links
+                )):
+            ends.family.End(contact)   # a refused Gate acquired nothing
+        raise
     finally:
-        _land(
-                flights,
-                flight,
-                )
-        _current_boundary.reset(token)
-        local.open = False   # a task that copied this context links on its own from now on
-
-    _hook(
-            contact,
-            pending,
-            )
-
-    if outer is not None:
-        def Undo() -> None:
-            _undo_linking(
-                    contact,
-                    contact_entry,
-                    pending,
-                    )
-            Drop_Pair()
-
-        _hand_over(
-                local,
-                outer,
-                )
-        outer.undo.append(_Undo_Step(
-                (agent, contact),
-                Undo,
-                linking=True,
-                ))
-
-    _close(local)
-
-    try:
-        _write(
-                pair,
-                deferred,
-                inputs,
-                )
-    finally:
-        _settle(pair)   # whatever the Imprints do, the linking stays (§0.6)
-    _inspect(pair)
-    _inspect(contact)
-
+        ends.flights.remove(flight)
     return contact
 
 
-def _added_since(
+def _withdraw_pair_admission(
         pair: Pair,
-        entry: Any,
-        ) -> list[type]:
-    state = _state_of(pair)
+        admitted: list[type],
+        ) -> None:
+    """An unfinished Link turn has no completed Pair admission of its own.
 
+    Keep every acquired Gain and Post, memberships from completed Link
+    turns, and independent extensions acquired during this turn. Only
+    memberships established directly by this turn are withdrawn so retry
+    runs its training again. This is neither a Rip nor restoration.
+    """
+
+    state = _state_of(pair)
     if state is None:
-        return []
-
-    return [
-            tag
-            for tag in state.active
-            if tag not in entry.tags
-            ]
-
-
-def _give_late_layers(
-        link: type,
-        pair: Pair,
-        flight: _Flight,
-        inputs: dict[str, Any],
-        deferred: list[Any],
-        ) -> None:
-    """A Layer an extension added while the Pair's Parts ran (rule 4.6): the
-    Pair is not the Link's yet, so the linking gives it with the others,
-    as a linking made after the extension would, with the same inputs."""
-
-    latest = _pair_form(link)   # the same list unless a Layer was added meanwhile
-
-    while latest is not flight.form:   # a Layer given now may bring another
-        flight.form = latest
-        flight.Give(pair)
-        _refuse_inputs_in_seats(
-                latest,
-                inputs,
-                )
-        _apply_form(
-                pair,
-                latest,
-                inputs,
-                deferred,
-                )
-        latest = _pair_form(link)
-
-
-def _applied_by(
-        pair: Pair,
-        entry: Any,
-        given: list[type],
-        ) -> list[type]:
-    """The Pair Tags a linking set out to give that the Pair holds now, and
-    did not at ``entry``. What an extension added meanwhile is the Agent's
-    own tagging."""
-
-    return [
-            tag
-            for tag in _added_since(
-                    pair,
-                    entry,
-                    )
-            if tag in given
-            ]
-
-
-def _land(
-        flights: list[_Flight],
-        flight: _Flight,
-        ) -> None:
-    """The linking's window on its Pair is over."""
-
-    if flight in flights:
-        flights.remove(flight)
-
-
-def _undo_pair_layers(
-        pair: Pair,
-        entry: Any,
-        applied: list[type],
-        ) -> None:
-    """Take back from a Pair that existed before ``entry`` only the Pair
-    Tags that were applied since. When nothing else reached the Pair
-    (its Tags, its history and its values are what they left, save the
-    Layers the Agent's extensions gave it, which the caller lays on it
-    again), its snapshot is restored. Otherwise those Tags leave it as an
-    unlinking leaves it, silently and with no teardown, their history
-    forgotten and what they gave sticky (§0.7), and what other calls gave
-    it or wrote on it stays."""
-
-    state = _state_of(pair)
-
-    if state is None or entry.state is None:
         return
-
-    untouched = _is_untouched(
-            pair,
-            state,
-            entry,
-            applied,
-            )
-
-    if untouched and _is_restored(
-            pair,
-            entry,
-            ):
-        return
-
-    _take_off(
-            pair,
-            state,
-            applied,
-            entry.state.ever,
-            )
-
-
-def _take_off(
-        pair: Pair,
-        state: _State,
-        tags: list[type],
-        had_before: Any,
-        ) -> None:
-    """Take Pair Tags off a Pair as an unlinking does: silently, with no
-    teardown, their history forgotten unless the Pair had it ``had_before``,
-    and what they gave sticky (§0.7)."""
-
-    for tag in reversed(tags):
-        if tag in state.ever and tag not in had_before:
-            state.ever.discard(tag)
-
-        if tag in state.active:
-            state.active.remove(tag)
-
+    for tag in reversed(admitted):
+        if tag not in state.active:
+            continue
+        if _requiring_shapes(tag, state.active):
+            continue   # an independent completed extension still needs this Base
+        state.active.remove(tag)
+        state.ever.discard(tag)
         tag.__dict__["_topkit_field"]._Remove(pair)
         state.rips.pop(tag, None)
         state.snapshots.pop(tag, None)
-
     state.words = None
 
-
-def _take_off_from_strays(
-        family: "_Family",
-        form: list[type],
-        layings: list["_Laying"],
-        ) -> None:
-    """A Pair that no laying of an undone extension reached may still hold
-    its Layers: a linking made meanwhile, at a gate or a Record, gave them
-    with her form. They leave with the extension, or no Link would call
-    for them and her Contact could not be unlinked."""
-
-    reached = {id(laying.pair) for laying in layings}
-
-    for pair in list(family.pairs.values()):
-        state = _state_of(pair)
-
-        if id(pair) in reached or state is None:
-            continue
-
-        if any(reference() is not None for reference in _pair_ends(pair).layings):
-            continue   # another extension's laying reached it: its own undo takes back everything laid since
-
-        called = _called_for(pair)
-        held = [
-                tag
-                for tag in form
-                if tag in state.active and tag not in called
-                ]
-
-        if held:
-            _take_off(
-                    pair,
-                    state,
-                    held,
-                    frozenset(),
-                    )
-
-
-def _is_restored(
-        pair: Pair,
-        entry: Any,
-        ) -> bool:
-    """Restore the Pair to ``entry`` and lay on it again the Layers the
-    Agent's extensions gave it since. False says the Pair is not restored:
-    a Record of theirs failed the second time it was built (the Pair is as
-    it was, still whole), or the Layers are being laid again already,
-    meanwhile, by a Record that undoes a linking of this very Pair. Its
-    Tags then leave it as an unlinking leaves it."""
-
-    ends = _pair_ends(pair)
-
-    if ends.relaying:
-        return False
-
-    left = _capture(pair)
-    _restore(
-            pair,
-            entry,
-            )
-    ends.relaying = True
-
-    try:
-        _relay(
-                pair,
-                entry,
-                )
-    except BaseException as error:
-        _restore(
-                pair,
-                left,
-                )   # as it was
-
-        if not isinstance(error, Exception) or _lacking(pair):
-            raise   # an interrupt, or a Pair that lacks a Layer its Link holds: for the caller to see
-
-        return False
-    finally:
-        ends.relaying = False
-
-    return True
-
-
-def _is_untouched(
-        pair: Pair,
-        state: _State,
-        entry: Any,
-        applied: list[type],
-        ) -> bool:
-    """Nothing reached the Pair since ``entry`` but the Tags ``applied`` and
-    the Layers extensions owe it, and nobody wrote on it."""
-
-    laid = {*entry.tags, *applied}
-    active = set(state.active)
-    owed = _extension_tags(pair)
-    others = {
-            tag
-            for tag in active
-            if tag not in laid
-            }
-
-    return (
-            laid <= active
-            and len(active) == len(state.active)
-            and others <= set(owed)
-            and state.ever == entry.state.ever | set(applied) | others
-            and (
-                _is_settled(pair)
-                or _same_values(
-                        _namespace_of(pair),
-                        entry.namespace,
-                        )
-                )
-            )
-
-
-def _same_values(
-        namespace: dict[str, Any],
-        settled: dict[str, Any],
-        ) -> bool:
-    """The very same values under the very same names."""
-
-    if namespace.keys() != settled.keys():
-        return False
-
-    return all(
-            namespace[name] is settled[name]
-            for name in namespace
-            )
-
-
-def _undo_linking(
-        contact: object,
-        entry: Any,
-        links: list[type],
-        ) -> None:
-    """A linking undone with the call it was part of (rule 5.6) takes back
-    only what it gave her: she leaves these Links silently, with no
-    teardown, and her history of them is forgotten. Everything else she
-    gained or did since stays. The lines they published stay on her,
-    sticky, and answer no more, as after an unlink. If she was no Agent
-    before and holds nothing else, she is a plain object again."""
-
-    state = _state_of(contact)
-
-    if state is None:
-        return
-
-    for link in reversed(links):
-        if link in state.active:
-            state.active.remove(link)
-
-        link.__dict__["_topkit_field"]._Remove(contact)
-        state.rips.pop(link, None)
-        state.snapshots.pop(link, None)
-
-        if state.ever_links is not None and not _was_in(link, entry):
-            state.ever_links.discard(link)   # the history this linking gave her; an earlier one stays
-
-    state.words = None
-
-    if entry.state is None and _holds_only_lines(state):
-        _forget_agent(
-                contact,
-                state,
-                entry,
-                )
-
-
-def _was_in(
-        link: type,
-        entry: Any,
-        ) -> bool:
-    """She was a Contact of this Link before the call began."""
-
-    if entry.state is None or entry.state.ever_links is None:
-        return False
-
-    return link in entry.state.ever_links
-
-
-def _holds_only_lines(
-        state: _State,
-        ) -> bool:
-    """Nothing on her but what Links published: no Tag, no history, no
-    Record, no condition, no teardown."""
-
-    if state.active or state.ever or state.ever_links:
-        return False
-
-    if state.records or state.preconditions or state.postconditions or state.rips:
-        return False
-
-    return all(
-            _is_link(origin)
-            for origin in state.action_origins.values()
-            ) and all(
-            _is_link(origin)
-            for origin, _report in state.reports.values()
-            )
-
-
-def _forget_agent(
-        contact: object,
-        state: _State,
-        entry: Any,
-        ) -> None:
-    """She was no Agent before the undone linking: she is a plain object
-    again, with whatever plain values she holds. A value she held before
-    under a line's name comes back, as a rollback gives it back."""
-
-    namespace = _namespace_of(contact)
-
-    for name in state.actions:
-        bound = namespace.get(name)
-
-        if not (isinstance(bound, _Bound) and bound._reference() is contact):
-            continue   # a value she wrote since stays, another Agent's Action included
-
-        if name in entry.namespace:
-            namespace[name] = entry.namespace[name]   # her own value, which the line covered
-        else:
-            namespace.pop(name, None)   # the line bound on her
-
-    namespace.pop(STATE, None)
-
-    if type(contact) is not entry.host_class:
-        _set_runtime_type(
-                contact,
-                entry.host_class,
-                )
 
 
 def _agent_of(
         link: type,
         record: _Link_Record,
         ) -> object:
-    if record.ending:
+    agent = record.agent()
+    state = None if agent is None else _state_of(agent)
+
+    if record.ending or (state is not None and state.links_ending):
         raise TagCompositionError(
                 f"this {link.__name__} is ending with its Agent; nothing is"
                 " linked through it now"
                 )
-
-    agent = record.agent()
 
     if agent is None or record.ended:
         raise TagCompositionError(
@@ -3385,6 +2343,8 @@ def _refuse_contact(
                 f"{link.__name__} links objects, not classes; Links between"
                 " Tags need their own receiver rule"
                 )
+
+    _refuse_host_truth(contact)
 
     if _namespace_of(contact) is None:
         raise TagCompositionError(
@@ -3439,7 +2399,7 @@ def _seats_of(
                     name,
                     member._topkit_seats,
                     )
-                for name, member in pair_tag.__dict__.items()
+                for name, member in _namespace_snapshot(pair_tag).items()
                 if _kind_of(member) in _TAKES_INPUTS
                 and hasattr(member, "_topkit_seats")
                 )
@@ -3547,7 +2507,10 @@ def _leave(
     Layers run with ``(agent, contact)``. Then the Pair ends, unless
     another Link of the same family still holds her (rule 8.1): what the
     Ripped Link gave the Pair stays on it, sticky. When the Link's Agent
-    cannot be reached, the Pair ends silently (rule 8.4)."""
+    cannot be reached, the Pair ends silently (rule 8.4). The last
+    membership also ends any retained completed Pair Tags, Shapes first.
+    An unfinished linking still holds its Pair until its training ends.
+    """
 
     record = _record_of(link)
     family = record.family
@@ -3580,8 +2543,16 @@ def _leave(
     state.composing = 0   # her door stays shut, even inside her own finalizer (rule 3.6)
 
     try:
-        for relation in reversed(record.layers):
-            pair_tag = _pair_tag(relation)
+        ending_pair = not ends.flights and not _still_held(family, state)
+        pair_tags = (
+                list(reversed(pair_state.active))
+                if ending_pair and pair_state is not None
+                else [_pair_tag(relation) for relation in reversed(record.layers)]
+                )
+
+        for pair_tag in pair_tags:
+            if ending_pair and _still_held(family, state):
+                break   # a teardown linked her again: the newly held Pair keeps its remaining Tags
 
             if pair_state is None or pair_tag not in pair_state.active:
                 continue
@@ -3597,7 +2568,7 @@ def _leave(
         ends.held = None
         state.composing = opened
 
-        if not _still_held(
+        if not ends.flights and not _still_held(
                 family,
                 state,
                 ):
@@ -3721,6 +2692,8 @@ def _end_links(
 
     records = _own_records(state)
     interrupted: BaseException | None = None
+    was_ending = state.links_ending
+    state.links_ending = True   # a teardown may grant another Link; its fresh record must obey this boundary too
 
     try:
         for record in records:
@@ -3744,10 +2717,32 @@ def _end_links(
                 except BaseException as error:
                     interrupted = interrupted or error   # every other Contact still leaves (rule 8.3)
     finally:
-        for record in records:
-            record.family.dying = None
-            record.ending = False
-            record.ended = True
+        try:
+            records.extend(
+                    record
+                    for record in _own_records(state)
+                    if record not in records
+                    )   # newly granted Links could not link, and end empty with their Agent
+
+            # Failed training can retain a Pair before its Contact ever
+            # enters a Field. Ending the owner ends those Pairs too; no
+            # admission means there is no Link Rip to replay for them.
+            families = {id(record.family): record.family for record in records}
+            for family in families.values():
+                remaining = list(family.pairs.values())
+                family.pairs.clear()
+                for pair in remaining:
+                    _pair_ends(pair).ended = True
+                    pair_state = _state_of(pair)
+                    if pair_state is not None:
+                        pair_state.rips.clear()
+
+            for record in records:
+                record.family.dying = None
+                record.ending = False
+                record.ended = True
+        finally:
+            state.links_ending = was_ending
 
     try:
         if interrupted is not None:

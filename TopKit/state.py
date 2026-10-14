@@ -60,6 +60,7 @@ class _State:
     host_type: type
     pinned: type | None = None   # the Tag itself, when the Agent is a Tag
     active: list[type] = field(default_factory=list)
+    training: set[type] = field(default_factory=set)   # not yet admitted
     ever: set[type] = field(default_factory=set)
     ever_links: "weakref.WeakSet[type] | None" = None   # the Links it was ever a Contact of, held weakly; None until the first
     actions: dict[str, Function] = field(default_factory=dict)
@@ -80,6 +81,7 @@ class _State:
     constants: dict[str, tuple[type, str, Any]] = field(default_factory=dict)  # origin, kind, declaration
     tools: dict[str, tuple[type, Any]] = field(default_factory=dict)   # origin, kind: a Tool slot admits only its kind
     links: dict[str, tuple[type | None, tuple[type, ...]]] = field(default_factory=dict)   # the Link (once built), its Relations
+    links_ending: bool = False
     composing: int = 0
     checking: bool = False
     words: _Words | None = None   # what its Flags answer to; None after its Tags change
@@ -93,7 +95,7 @@ class _State:
         that is rolled back closes them on this same object."""
 
         for name in state.__slots__:
-            if name not in ("composing", "checking"):
+            if name not in ("composing", "checking", "training", "links_ending"):
                 setattr(
                         state,
                         name,
@@ -103,34 +105,38 @@ class _State:
     def Copy(
             state,
             ) -> "_State":
-        return _State(
-                host_type=state.host_type,
-                pinned=state.pinned,
-                active=list(state.active),
-                ever=set(state.ever),
-                ever_links=None if state.ever_links is None else weakref.WeakSet(state.ever_links),
-                actions=dict(state.actions),
-                action_origins=dict(state.action_origins),
-                records=dict(state.records),
-                preconditions=dict(state.preconditions),
-                postconditions=dict(state.postconditions),
-                reports=dict(state.reports),
-                operations=dict(state.operations),
-                published=set(state.published),
-                secrets=set(state.secrets),
-                deleted=set(state.deleted),
-                restored=state.restored,
-                snapshots=dict(state.snapshots),
-                rips=dict(state.rips),
-                secret_values=dict(state.secret_values),
-                originals=dict(state.originals),
-                constants=dict(state.constants),
-                tools=dict(state.tools),
-                links=dict(state.links),
-                composing=state.composing,
-                checking=state.checking,
-                words=state.words,
-                )
+        # Copy named seats directly. Calling the dataclass constructor with
+        # all of them builds and unpacks a large temporary keyword mapping.
+        copied = object.__new__(_State)
+        copied.host_type = state.host_type
+        copied.pinned = state.pinned
+        copied.active = state.active.copy()
+        copied.training = state.training.copy()
+        copied.ever = state.ever.copy()
+        copied.ever_links = None if state.ever_links is None else weakref.WeakSet(state.ever_links)
+        copied.actions = state.actions.copy()
+        copied.action_origins = state.action_origins.copy()
+        copied.records = state.records.copy()
+        copied.preconditions = state.preconditions.copy()
+        copied.postconditions = state.postconditions.copy()
+        copied.reports = state.reports.copy()
+        copied.operations = state.operations.copy()
+        copied.published = state.published.copy()
+        copied.secrets = state.secrets.copy()
+        copied.deleted = state.deleted.copy()
+        copied.restored = state.restored
+        copied.snapshots = state.snapshots.copy()
+        copied.rips = state.rips.copy()
+        copied.secret_values = state.secret_values.copy()
+        copied.originals = state.originals.copy()
+        copied.constants = state.constants.copy()
+        copied.tools = state.tools.copy()
+        copied.links = state.links.copy()
+        copied.links_ending = state.links_ending
+        copied.composing = state.composing
+        copied.checking = state.checking
+        copied.words = state.words
+        return copied
 
 
 class _Async_Door:
@@ -1336,6 +1342,7 @@ class Tagged:
 
 
 _type_cache: "WeakValueDictionary[tuple, type]" = WeakValueDictionary()
+_EMPTY_NAMES: frozenset[str] = frozenset()
 
 
 def _dunder_actions(
@@ -1455,20 +1462,22 @@ def _type_key_of(
         ) -> tuple:
     return (
             state.host_type,
-            frozenset((state.deleted | state.restored) - {"__del__"}),   # a restored name keeps its gate; __del__ has none
-            frozenset(state.secrets),
-            frozenset(state.published),
-            frozenset(state.preconditions | state.postconditions),
-            any(_is_flag(tag) for tag in state.active),
+            (frozenset((state.deleted | state.restored) - {"__del__"})
+             if state.deleted or state.restored else _EMPTY_NAMES),   # a restored name keeps its gate; __del__ has none
+            frozenset(state.secrets) if state.secrets else _EMPTY_NAMES,
+            frozenset(state.published) if state.published else _EMPTY_NAMES,
+            (frozenset(state.preconditions | state.postconditions)
+             if state.preconditions or state.postconditions else _EMPTY_NAMES),
+            any(_is_flag(tag) for tag in (*state.active, *state.training)),
             tuple(
                     sorted(
                             (name, id(function))
                             for name, function in _dunder_actions(state).items()
                             )
-                    ),
-            frozenset(state.constants),
-            frozenset(state.tools),
-            frozenset(state.links),
+                    ) if state.actions else (),
+            frozenset(state.constants) if state.constants else _EMPTY_NAMES,
+            frozenset(state.tools) if state.tools else _EMPTY_NAMES,
+            frozenset(state.links) if state.links else _EMPTY_NAMES,
             )
 
 

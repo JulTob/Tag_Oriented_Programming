@@ -229,8 +229,9 @@ the paths by `minutes`. The Links do not change.
 ## 4. Two-way links: say it once, in plain sight
 
 A Link goes one way. A railway runs both ways, so make **two** Links, and
-let the first one build the second. An `@Imprint` runs after a link is
-made. It links the other city back, with the same facts:
+let the first one's training build the second. An `@Imprint` runs after
+Gainings and before its Contact enters the Field. It links the other city
+back, with the same facts:
 
 ```python
 class Railway(Tag):
@@ -256,9 +257,10 @@ assert murcia.Rail[alicante].minutes == 55              # the way back exists
 assert alicante.Rail[murcia] is not murcia.Rail[alicante]   # two Pairs, two roads
 ```
 
-Linking a city that is already linked does nothing, so the echo stops
-after one round. And because there are two Pairs, each direction may
-have its own facts. Give the way back its own number if the facts differ.
+Linking a city that is already linked, or repeating the same linking
+while its training is underway, does nothing, so the echo stops after one
+round. Because there are two Pairs, each direction may have its own facts.
+Give the way back its own number if the facts differ.
 
 A city can hold several Links at once. Alicante now has a `Road` and a
 `Rail`, each with its own cities and its own facts. They do not mix.
@@ -269,9 +271,17 @@ A city can hold several Links at once. Alicante now has a `Road` and a
 
 You do not want a road from a city to itself, or a port with ten
 ferries on a pier built for two. A **gate** is a rule written as a
-`@Pre`. When it says no, nothing at all changes. A **promise** is a rule
-written as a `@Post`: a link that breaks its promise stays, and it is
-marked defective until it is repaired.
+`@Pre`. When it says no, that Tag's training does not begin. A completed
+Base linking stays. A **promise** is a rule written as a `@Post`: a link
+that breaks its promise after admission stays, and it is marked defective
+until it is repaired.
+
+Linking follows ordinary Tagging: **Gate → Gainings → Imprints → Field →
+Posts**. Gains arrive in declaration order. If a Record builder or Imprint
+fails, the unfinished Link has no membership for that Contact, but the
+Pair keeps its actual Gains and Posts. Linking again retries the unfinished
+training. It does not undo a Base linking or independent Tagging that
+already completed.
 
 ```python
 class Sea(Tag):
@@ -552,7 +562,7 @@ goes, and checks its rules at every change.
 | Put facts about the two on the Pair: `alicante.Road[marbella].travel_time`. | Put them on either city: `marbella.road_time`. |
 | Ask a city's own Link: `murcia in alicante.Road`. | Ask the template: `murcia in Geography.Road`. It has no answer. |
 | Make a second Link, written by an `@Imprint`, for a two-way relation. | Expect `alicante.Road[marbella]` to give you `marbella.Road[alicante]`. |
-| Use a `@Pre` for what may never happen: a failed gate changes nothing. | Link first and clean up after a failure. |
+| Use a `@Pre` to refuse the current Tag before its Gainings begin. | Link first and clean up after a failure. |
 | Use a `@Post` for what may stop being true: the link turns defective and recovers. | Remove and re-add links when the world changes. |
 | Use `list(city.Road)` for sound links, `~city.Road` for broken ones, `city.Road[:]` for all. | Filter broken links by hand in every function that walks them. |
 | Use a Shape for a link that **is** another plus more. | Copy a Relation to add one Record. |

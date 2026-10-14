@@ -2,7 +2,37 @@
 
 ## Unreleased
 
+### Specification
+
+- **Gates run per Tag:** each missing Tag passes its own Preconditions when
+  its turn arrives. A later refusal or Overlay collision leaves completed
+  Base Taggings in place and stops before the current Tag's Records, Field
+  entry or Imprints. A Shape's Precondition no longer suppresses a missing
+  Base's own Gate; active Tags are still not re-asked.
+
 ### TopKit
+
+- **Tagging preparation cost:** ordinary Action/Record declarations reuse
+  the existing collision and Underlay checks without constructing a
+  disposable Overlay. Declarations requiring runtime protection and Pins
+  retain scratch composition. State copies and empty runtime-type keys also
+  avoid temporary allocations. Both physical host snapshots, live declaration
+  lookup after Gate, and the ordered Gainings/admission boundary remain.
+  The existing performance budgets are unchanged (#175).
+
+- Actions, Records, conditions and deletions now take effect from top to
+  bottom in each Tag. Record builders see earlier declarations, while
+  successful Constant bindings are protected before later Gainings.
+- Gate and candidate-Overlay evaluation now follow the Base-first Tag chain
+  without removing completed Bases when a later Tag refuses or collides.
+- **Admission follows completed training (STEP-SPEC-39):** each Tag passes
+  its Gate, acquires Gains in declaration order, finishes its Imprints, then
+  enters the Field. Failed Gainings or Imprints retain acquired Gains and
+  Posts without admitting the unfinished Tag. Earlier completed Tags stay;
+  Tagging again starts a fresh attempt. Posts judge the completed Form once
+  and a failed Post preserves membership. Tool gains use the same order:
+  their proposed kind is checked before replacing the prior binding or rule,
+  and an acquired Tool remains guarded on a Rogue.
 
 - **Invalid Rip declarations fail at declaration:** `@Rip` marks an Action,
   because a teardown remains an ordinary callable Action. Stacking it on
@@ -227,20 +257,26 @@
   either one's deletion and `At_Exit`; each Pair's teardowns run at most
   once. Every Tag-level act on a Relation is a Composition Failure that
   points to a Link, and a Relation is never a Tool kind, a Pin or a
-  Pin's Target. A linking is undone with a rolled-back call on its Agent
-  or its Contact, however deep inside it was made; a call on any other
-  Agent leaves it. Nothing unpublished of a Link reaches its Contact, her
+  Pin's Target. Each Link follows STEP-SPEC-39: Gate, declaration-ordered
+  Gainings, Imprints, Field entry, then Posts. Completed Base linkings and
+  acquired Pair Gains survive a later failure. Extensions train held Pairs
+  sequentially; retry finishes missing training without replaying completed
+  Pairs. Nothing unpublished of a Link reaches its Contact, her
   own views included; a Link's Reports are built with every Contact's
   door shut; a generator or coroutine function of a Pair Action, an
   Operation or a class method takes each step behind the doors (an async
   generator, and a lazy Record, condition, Imprint, teardown or Report
   builder, are refused); a Shape gained while a linking is under way
-  extends the Link as any tagging does, and a refused or undone linking
-  never takes the Agent's extension back; a Contact's history holds
+  extends the Link as any tagging does, and a failed linking never takes
+  an independent completed extension back; a Contact's history holds
   Links weakly. A Relation is declared once, in its declaring Tag's body
   under its own name; binding it again is a Declaration Failure. The
   wiki page "Links: a Tag of one's own" runs as one program under the
-  suite.
+  suite. Pair Tag memos are collectible with their Relations and scans
+  use namespace snapshots. Callable adapters accept supported callable
+  objects without optional display metadata. Contact doors close for both
+  synchronous and inherited async authority. Cleanup covers completed
+  independent Pair extensions and refuses new linking while the owner ends.
 
 - **The Links Guide** (`TopKit/LINKS.md`): the main uses of a Link, one
   short section each, every block run by the suite: facts about the link

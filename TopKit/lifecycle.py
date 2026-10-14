@@ -150,6 +150,7 @@ def _teardown_all(
                 except BaseException as error:
                     if interrupted is None:
                         interrupted = error
+                    break   # preserve the ordinary Tag's interruption boundary; Link exits still follow
     finally:
         state.composing -= 1
 

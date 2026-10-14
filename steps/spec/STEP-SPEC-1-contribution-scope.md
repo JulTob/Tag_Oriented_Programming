@@ -87,8 +87,8 @@ Overlay occupies that slot with one kind at a time.
   Underlay rules.
 - Independent Tags cannot place an Action and a Record at the same Agent
   coordinate, or an Operation and a Report at the same Tag coordinate.
-  Those collisions fail atomically before membership, Imprints, Records,
-  or other visible state commit.
+  Those collisions stop the current Tag before its membership, Imprints,
+  Records, or other visible state begin; completed earlier turns stay.
 - Within one Form, a later Layer may Overlay the slot with the other
   Agent kind. A Shape Record may fix a Base Action as data. A Shape
   Action may compute from a Base Record. The prior kind remains in the
@@ -240,7 +240,7 @@ A conforming Specification and language profile must demonstrate that:
 - same-name contributions in Agent and Tag scopes do not replace or Underlay
   one another;
 - independent Action/Record and Operation/Report collisions within one
-  scope fail atomically;
+  scope stop the colliding Tag before it begins;
 - a Shape may Overlay a Base Action with a Record, or a Base Record with
   an Action, while the captured Base view retains the prior kind;
 - an Agent-bound Tag view uses the defined Agent-first access rule without
