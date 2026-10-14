@@ -2,7 +2,7 @@
 
 import unittest
 
-from TopKit import Action, Contract, Imprint, Pin, Post, Pre, Record, Tag
+from TopKit import Action, Imprint, Pin, Post, Pre, Record, Tag
 from TopKit import TagDeclarationError
 
 
@@ -85,7 +85,7 @@ class ConditionDunderTests(unittest.TestCase):
                 agent = Host()
                 ordinary(agent)
                 self.assertIs(agent.Ready, True)
-                self.assertTrue(Contract.Holds(agent))
+                self.assertTrue(bool(agent))
                 agent.ready = False
                 self.assertIs(agent.Ready, False)
 

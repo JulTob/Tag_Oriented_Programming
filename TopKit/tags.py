@@ -10,7 +10,8 @@ Tag's dotted namespace to the program:
     "Wizard" in charlie           the same, by name
     isinstance(charlie, Wizard)   ever a member ("ever a Wizard, always a Wizard")
     for w in Wizard               the sound population
-    if Wizard                     is there a sound Wizard at all?
+    if Wizard                     do the Tag's own visible Posts hold?
+    len(Wizard)                   the number of sound Wizards
     for w in ~Wizard              the defective population
     Wizard[:]                     everyone: the whole Field
     Wizard[charlie]               the Agent-bound view
@@ -29,6 +30,7 @@ from typing import Any
 from typing import Iterator
 
 from .access import _keyword
+from .access import _refuse_host_truth
 from .access import _view_of
 from .declarations import _MISSING
 from .declarations import _check_constant_declarations
@@ -41,6 +43,7 @@ from .declarations import _is_pin
 from .declarations import _kind_of
 from .declarations import _name_checks
 from .declarations import _refuse_condition_dunder
+from .declarations import _refuse_truth_gain
 from .errors import TagCompositionError
 from .fields import FIELD_SEAT
 from .fields import _Field
@@ -91,6 +94,7 @@ class MetaTag(type):
             name: str,
             value: Any,
             ) -> None:
+        _refuse_truth_gain(tag.__name__, name, value)
         if _is_dunder(name):
             _refuse_condition_dunder(tag.__name__, name, _kind_of(value))
         owner = _constant_owner(tag, name)
@@ -139,6 +143,8 @@ class MetaTag(type):
             raise TypeError(
                     f"{tag.__name__} is applied to objects, not classes"
                     )
+        else:
+            _refuse_host_truth(target)
 
         return _apply(
                 target,
@@ -190,7 +196,7 @@ class MetaTag(type):
     def __bool__(
             tag,
             ) -> bool:
-        return bool(_sound_of(tag))
+        return _holds(tag)
 
     def __invert__(
             tag,
