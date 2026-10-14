@@ -2231,6 +2231,11 @@ def _extend(
         record.layers[:] = previous_layers
         record.gained = previous_gained
         _forget_pair_forms(record.family)
+        _take_off_from_strays(
+                family,
+                form,
+                layings,
+                )   # after the Layers are the Links' again: what they still call for stays
 
         for name, value in previous_members.items():
             if value is _MISSING:
@@ -3082,8 +3087,26 @@ def _undo_pair_layers(
             ):
         return
 
-    for tag in reversed(applied):
-        if tag in state.ever and tag not in entry.state.ever:
+    _take_off(
+            pair,
+            state,
+            applied,
+            entry.state.ever,
+            )
+
+
+def _take_off(
+        pair: Pair,
+        state: _State,
+        tags: list[type],
+        had_before: Any,
+        ) -> None:
+    """Take Pair Tags off a Pair as an unlinking does: silently, with no
+    teardown, their history forgotten unless the Pair had it ``had_before``,
+    and what they gave sticky (§0.7)."""
+
+    for tag in reversed(tags):
+        if tag in state.ever and tag not in had_before:
             state.ever.discard(tag)
 
         if tag in state.active:
@@ -3094,6 +3117,43 @@ def _undo_pair_layers(
         state.snapshots.pop(tag, None)
 
     state.words = None
+
+
+def _take_off_from_strays(
+        family: "_Family",
+        form: list[type],
+        layings: list["_Laying"],
+        ) -> None:
+    """A Pair that no laying of an undone extension reached may still hold
+    its Layers: a linking made meanwhile, at a gate or a Record, gave them
+    with her form. They leave with the extension, or no Link would call
+    for them and her Contact could not be unlinked."""
+
+    reached = {id(laying.pair) for laying in layings}
+
+    for pair in list(family.pairs.values()):
+        state = _state_of(pair)
+
+        if id(pair) in reached or state is None:
+            continue
+
+        if any(reference() is not None for reference in _pair_ends(pair).layings):
+            continue   # another extension's laying reached it: its own undo takes back everything laid since
+
+        called = _called_for(pair)
+        held = [
+                tag
+                for tag in form
+                if tag in state.active and tag not in called
+                ]
+
+        if held:
+            _take_off(
+                    pair,
+                    state,
+                    held,
+                    frozenset(),
+                    )
 
 
 def _is_restored(

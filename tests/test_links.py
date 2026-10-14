@@ -6443,6 +6443,83 @@ class Fifth_Round_Tests(unittest.TestCase):
         C(charlie)
         self.assertEqual(charlie.Knows[ruth].c, "c")
 
+    def test_a_linking_made_at_an_extensions_record_gives_no_layer_that_outlives_a_rolled_back_extension(self):
+        fired = []
+        torn = []
+
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Record
+                def k1(agent, contact):
+                    return "k1"
+
+            @Link
+            class Trusts(Knows):
+                @Record
+                def t1(agent, contact):
+                    return "t1"
+
+        class E1(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Record
+                def e1(agent, contact):
+                    return "e1"
+
+                @Rip
+                def E1_rip(agent, contact):
+                    torn.append(contact.name)
+
+        charlie, tom, una = People("Charlie", "Tom", "Una")
+
+        class E4(Circle):
+            @Link
+            class Trusts(Circle.Trusts):
+                @Pre
+                def gate(agent, contact):
+                    if not fired:
+                        fired.append("gate")
+                        E1(agent)                  # a gate that gains a Shape
+
+                    return True
+
+                @Record
+                def e4(agent, contact):
+                    if fired == ["gate"]:
+                        fired.append("record")
+                        agent.Trusts(una)          # a linking made at the extension's Record; her form holds E1's Layer
+
+                    return "e4"
+
+        class Call(Tag):
+            @Record
+            def act(agent):
+                E4(agent)
+                return True
+
+            @Record
+            def end(agent):
+                raise ValueError("rolled back")
+
+        Circle(charlie)
+        charlie.Knows(una)
+        charlie.Trusts(tom)
+
+        with self.assertRaises(TagCompositionError):
+            Call(charlie)
+
+        self.assertNotIn(charlie, E1)
+        self.assertNotIn(charlie, E4)
+
+        for contact in (tom, una):
+            tags = {tag.__qualname__ for tag in _state_of(charlie.Knows[contact]).active}
+            self.assertFalse({name for name in tags if name.startswith("E")}, f"{contact}'s Pair holds a Layer no Link calls for")
+
+        del charlie.Knows[una]                     # her Contact can still be unlinked
+        self.assertNotIn(una, charlie.Knows)
+        self.assertEqual(torn, [])                 # the Layer is not hers: no teardown of it runs
+
 
 if __name__ == "__main__":
     unittest.main()
