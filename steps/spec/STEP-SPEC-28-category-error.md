@@ -21,6 +21,8 @@ This preserves the **Brief Category Failure proposal**. `TagCategoryError` and t
 
 [STEP-SPEC-40](STEP-SPEC-40-agent-contract-truth.md) now settles ordinary host truth: an explicit direct or inherited `__bool__` is refused with a **Composition Failure**, while host length remains available and Agent truth reads Posts. Moving that refusal to the proposed Category Failure would therefore require an explicit amendment. The host-length question below is no longer open. [STEP-SPEC-37](STEP-SPEC-37-host-actualization.md) separately defines failed initial host preparation and its restoration boundary.
 
+Constant Tag bindings already refuse assignment and deletion under **[STEP-SPEC-34](STEP-SPEC-34-constant-contributions.md)**, with a **Composition Failure**. This protection is already implemented; preserving the broader Category Failure proposal does not reopen it or change its exception class.
+
 The draft’s other cases—Tag-scope assignment over Agent declarations, string Targets, mixed population domains, and future Projection/Relation misuse—must retain their individual decision boundaries. Some concern features not implemented on main. The list is preserved for review rather than treated as one blanket approval of every new refusal or exception-class change.
 
 ### Provenance and dependencies
