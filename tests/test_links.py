@@ -6254,6 +6254,195 @@ class Fifth_Round_Tests(unittest.TestCase):
                     del charlie.Knows[tom]
                     self.assertEqual(torn, ["Knows teardown"])
 
+    def test_a_shape_gained_by_an_extensions_record_reaches_the_pairs_of_a_base_link(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Record
+                def k1(agent, contact):
+                    return "k1"
+
+            @Link
+            class Trusts(Knows):
+                @Record
+                def t1(agent, contact):
+                    return "t1"
+
+        class E1(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Record
+                def e1(agent, contact):
+                    return "e1"
+
+        class E4(Circle):
+            @Link
+            class Trusts(Circle.Trusts):
+                @Record
+                def e4(agent, contact):
+                    if agent not in E1:
+                        E1(agent)          # a Shape gained by the Record of the extension being laid
+
+                    return "e4"
+
+        charlie, ruth, sam = People("Charlie", "Ruth", "Sam")
+        Circle(charlie)
+        charlie.Knows(ruth)                # held through Knows only
+        charlie.Trusts(sam)                # held through Trusts, a Shape Link of Knows
+        E4(charlie)
+
+        self.assertIn(charlie, E1)
+
+        for contact in (ruth, sam):
+            self.assertEqual(charlie.Knows[contact].e1, "e1", f"{contact}'s Pair lacks the Layer")
+
+    def test_a_shape_gained_after_a_linking_made_in_an_extensions_record_reaches_that_pair(self):
+        gained = []
+
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Record
+                def k1(agent, contact):
+                    return "k1"
+
+        charlie, sam, tom = People("Charlie", "Sam", "Tom")
+
+        class E3(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Record
+                def e3(agent, contact):
+                    return "e3"
+
+        class E1(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Record
+                def e1(agent, contact):
+                    if contact is sam and not gained:
+                        gained.append(True)
+                        agent.Knows(tom)   # a whole linking made in the extension's Record,
+                        E3(agent)          # and a Shape gained right after it
+
+                    return "e1"
+
+        Circle(charlie)
+        charlie.Knows(sam)
+        E1(charlie)
+
+        for contact in (sam, tom):
+            pair = charlie.Knows[contact]
+            self.assertEqual((pair.e1, pair.e3), ("e1", "e3"), f"{contact}'s Pair lacks a Layer")
+
+    def test_a_chain_started_as_a_contact_enters_reaches_her_pair(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Public
+                def Greet(agent, contact):
+                    return "knows"
+
+                @Record
+                def k1(agent, contact):
+                    return "k1"
+
+        class Club(Tag):
+            @Link
+            class Member(Tag):
+                @Public
+                def Greet(agent, contact):
+                    return "member"
+
+        class B(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Record
+                def b(agent, contact):
+                    return "b"
+
+        class A(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Record
+                def a(agent, contact):
+                    if agent not in B:
+                        B(agent)           # a Shape gained by the extension's Record
+
+                    return "a"
+
+        charlie, ruth, tom = People("Charlie", "Ruth", "Tom")
+        Circle(charlie)
+        Club(charlie)
+        charlie.Knows(ruth)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            charlie.Member(tom)            # her line Greet is Member's
+
+        def as_she_enters(message, category, filename, lineno, file=None, line=None):
+            if charlie not in A:
+                A(charlie)                 # the Shape is gained while Tom enters
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            previous, warnings.showwarning = warnings.showwarning, as_she_enters
+
+            try:
+                charlie.Knows(tom)
+            finally:
+                warnings.showwarning = previous
+
+        self.assertIn(charlie, A)
+        self.assertIn(charlie, B)
+
+        for contact in (ruth, tom):
+            pair = charlie.Knows[contact]
+            self.assertEqual((pair.a, pair.b), ("a", "b"), f"{contact}'s Pair lacks a Layer")
+
+    def test_a_refused_extension_leaves_nothing_owed_to_the_next_one(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Record
+                def k1(agent, contact):
+                    return "k1"
+
+        class B(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Record
+                def b(agent, contact):
+                    return "b"
+
+        class C(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Record
+                def c(agent, contact):
+                    return "c"
+
+        class A(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Record
+                def a(agent, contact):
+                    B(agent)               # a Shape gained by the extension's Record: deferred to it
+                    raise ValueError("A refused")
+
+        charlie, ruth = People("Charlie", "Ruth")
+        Circle(charlie)
+        charlie.Knows(ruth)
+        family = _record_of(charlie.Knows).family
+
+        with self.assertRaises(TagCompositionError):
+            A(charlie)
+
+        self.assertNotIn(charlie, B)
+        self.assertFalse(family.deferred)   # what the refused extension had owed is not owed
+        C(charlie)
+        self.assertEqual(charlie.Knows[ruth].c, "c")
+
 
 if __name__ == "__main__":
     unittest.main()

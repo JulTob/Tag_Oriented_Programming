@@ -2285,10 +2285,21 @@ def _extend(
                     written,
                     )
 
-        while family.deferred and not nested:   # a Shape gained meanwhile, by their Records, is laid on every Pair too
+        while family.deferred and not nested:   # a Shape gained meanwhile, by their Records, is laid on every Pair of the family too
             family.deferred = False
+            found = {id(laying.pair): laying for laying in layings}
 
-            for laying in layings:
+            for pair in list(family.pairs.values()):
+                laying = found.get(id(pair))
+
+                if laying is None:
+                    if not _owed_meanwhile(pair):
+                        continue
+
+                    laying = _Laying(pair)   # a Pair the outer extension did not find: a Base Link's, or one made meanwhile
+                    layings.append(laying)   # so that the undo takes its share back
+                    found[id(pair)] = laying
+
                 _lay_owed(
                         laying,
                         written,
@@ -2300,6 +2311,9 @@ def _extend(
         raise
     finally:
         family.extending -= 0 if nested else 1
+
+        if not nested:
+            family.deferred = False   # whatever a refused or failed extension left owed is not owed
 
     def Write() -> None:
         try:
@@ -2493,10 +2507,13 @@ def _is_settled(
 
 def _extension_tags(
         pair: Pair,
+        entering: bool = False,
         ) -> list[type]:
     """The Pair Tags that extensions owe a Pair: those of the extension
     Layers of every Link that holds its Contact, in the order the Agent
-    gained them."""
+    gained them. With ``entering``, also those of the Links she is about
+    to enter, once the Pair's Parts are done: a Shape gained as she
+    enters owes her Pair its Layers before she is a member."""
 
     ends = _pair_ends(pair)
     contact = ends.contact()
@@ -2508,7 +2525,7 @@ def _extension_tags(
     return _extension_tags_of([
             link
             for link in ends.family.Links()
-            if link in state.active
+            if link in state.active or (entering and _is_entering(pair, link))
             ])
 
 
@@ -2609,7 +2626,7 @@ def _lacking(
 
     return [
             tag
-            for tag in _extension_tags(pair)
+            for tag in _extension_tags(pair, entering=True)
             if tag not in state.active
             ]
 
