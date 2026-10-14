@@ -81,21 +81,22 @@ On Shapes, the Director specified **“they don't need a copy, as the base is
 tagged before a shape is”**. In the Crew/Pilots example below, the Director
 then confirmed **“The requirement is about Crew as a whole”**. A native
 Post declared by a Base continues to judge that Base; it is not rebound to
-the Shape's Field as a separate requirement. Whether the Base's failed
-verdict also makes the Shape invalid remains to be settled separately.
+the Shape's Field as a separate requirement. The Director further confirmed
+**“Only Crew becomes invalid”** when that requirement fails. Its verdict
+does not automatically participate in the Shape's validity.
 
 ## Proposed semantics — remaining decisions
 
-The following records execution by name and the Base as the subject of its
-own Post, as clarified above; other choices remain recommendations unless
-explicitly confirmed.
+The following records execution by name and independent Agency validity:
+a Base's native Post belongs to the Base's own contract. Other choices
+remain recommendations unless explicitly confirmed.
 
 ### Declaration, receiver and reads
 
 1. Both decorator orders declare the same Tag-level Post. Its body receives
    the Tag whose promise it declares, takes no Tagging inputs, and follows
-   existing Post verdict,
-   assertion, synchronous-result and recursion rules. This does not make
+   existing Post verdict, assertion, synchronous-result and recursion rules.
+   This does not make
    arbitrary decorator combinations valid.
 2. `Tag.Ready` invokes the check immediately, without `()`, and returns its
    current boolean verdict under the existing condition rules. Each ordinary
@@ -103,10 +104,11 @@ explicitly confirmed.
    check guards still apply. The proposal returns the plain verdict, with no
    additional callable/boolean proxy. Operation chooses the receiver in this
    combination; Post chooses the condition behavior.
-3. The declaration contributes to the same visible contract used by
+3. The declaration contributes to its declaring Tag's visible contract used by
    `bool(Tag)`, `Contract.Postconditions(Tag)`, `Contract.Status(Tag)` and
    the existing diagnostic views. Named failures use the existing Post
    failure conventions. There is no second truth API or implicit Pin.
+   A Base's native Post is not automatically part of a Shape's own contract.
 4. A plain `@Post` in the same class still promises something about its
    member Agents. Neither kind is silently copied into the other's contract.
    No Pin membership, Pin Field entry or fabricated self-Tagging is created.
@@ -163,24 +165,30 @@ the Tag it is called through. Post-Operation retains its Base as the subject
 of the promise. It therefore needs an explicit combined-declaration rule;
 ordinary Operation inheritance alone is insufficient.
 
-One question remains: if Crew falls below two members, does only
-`bool(Crew)` become False, or does `bool(Pilots)` also become False because
-Crew is its Base? Either choice still checks Crew's Field. The answer must
-also guide inherited named access and diagnostics; none is inferred here.
+If Crew falls below two members, **only Crew becomes invalid** from this
+Post. `bool(Pilots)` continues to answer Pilots' own Posts; absent another
+failed promise, it remains True. A Shape can declare its own native Post or
+receive Posts through its Pins. Native Post registration and diagnostics
+must not silently gather the Base's native Post into the Shape's contract.
+
+Inherited named access needs a separate spelling decision: should
+`Pilots.Ready` expose Crew's check with Crew as receiver, or should that
+check be reached only through `Crew.Ready`? Neither option may add Crew's
+Post to Pilots' contract or rebind its body to Pilots.
 
 Existing Posts gained through a Pin remain specific to the Tag actually
-pinned under the current rules; Pin membership does not inherit. The
-dependent Overlay/deletion recommendations below await the remaining
-contract-applicability decision.
+pinned under the current rules; Pin membership does not inherit. This
+decision concerns Tag-level Posts. Ordinary Agent Posts still follow the
+Agent's Base-first Tagging and existing Overlay rules.
 
 Recommend one visible Post per name **within one Agency's own contract**,
 using existing Post Overlay, Underlay, Contract Warning and Constant
 protection. A Pin must not create two enforced Posts named Ready on that
-Agency while `Tag.Ready` reports only one. If Base validity also participates
-in Shape validity, same-named Posts owned by distinct Agencies need an
-explicit resolution and diagnostic rule; do not silently overwrite Crew's
-promise with Pilots' own promise. Same-name Record/Action/Report/ordinary
-Operation collisions must follow an explicit condition collision rule.
+Agency while `Tag.Ready` reports only one. A Post declared by Pilots does not
+overwrite Crew's separate promise merely by having the same name. Shape
+name resolution and inherited Constant protection still need explicit rules.
+Same-name Record/Action/Report/ordinary Operation collisions must follow an
+explicit condition collision rule.
 
 Native/Pin Overlay is a real design extension: current Pin rules distinguish
 patchable Tag-scope Contributions from protected protocol declarations.
@@ -191,12 +199,11 @@ with a receiving Tag's retained Pin history.
 Recommend computed-condition write protection: `Tag.Ready = True` and
 `del Tag.Ready` cannot bypass its calculation. Deliberate removal uses
 `Contract.Delete(Tag, "Ready")` for a non-Constant condition owned by that
-Tag. If a Shape's contract includes the Base's Post, explicitly settle
-whether deletion on the Shape is refused or can release that dependency;
-it must not silently erase the Base's own promise or its other Shapes'
-contracts. Deletion's persistence across later declaration edits or Pin
-reapplication also needs an explicit decision and tests; a deleted promise
-must not silently reappear.
+Tag. Deletion on Pilots must not erase Crew's own promise. If inherited
+named access exposes Crew's check through Pilots, that must not turn
+`Contract.Delete(Pilots, "Ready")` into a cross-Agency deletion. Deletion's
+persistence across later declaration edits or Pin reapplication also needs
+an explicit decision and tests; a deleted promise must not silently reappear.
 
 `@Constant` would protect the binding and implementation, not freeze the
 condition's verdict: a fixed check still answers current state. Rip of a Pin
@@ -248,7 +255,8 @@ After the design is Cleared, the implementation must:
 
 - Both decorator orders evaluate an initially false Tag Post without a Pin;
   a state repair makes truth true. No-Post Tags remain true under STEP-SPEC-40.
-- Named reads, truth and diagnostics agree, including errors, non-boolean
+- For each Agency's own contract, named checks, truth and diagnostics use
+  the same visible Posts and verdict rules, including errors, non-boolean
   verdicts, assertion fall-through, recursive checks and lazy results.
 - Access by name invokes the body immediately without `()`; a later access
   observes changed state rather than returning a cached verdict or handle.
@@ -256,8 +264,9 @@ After the design is Cleared, the implementation must:
   published and no implicit membership appears.
 - A Pin's sound/broken partition reflects a receiving Tag's native failure;
   the receiving Tag's own member cardinalities and algebra remain unchanged.
-- Verify that the Crew/Pilots check counts Crew, not Pilots. Cover the agreed
-  propagation or independence of Base validity, non-inherited Pin contracts,
+- Verify that the Crew/Pilots check counts Crew, not Pilots, and a failure
+  makes only Crew invalid. Cover independent Agency validity and diagnostics,
+  non-inherited Pin contracts,
   ordered multiple Bases, Post Underlay, warnings and same-name collisions.
 - Cover native/Pin coexistence and Overlay, Constant refusal, Pin Rip and
   reapplication, agreed deletion rules for a Shape and subsequent declaration
@@ -288,8 +297,9 @@ scope meaning is possible, but less consistent with TOP's current vocabulary.
 
 1. Confirm the combined declaration spelling; execution by name without
    `()` is clarified above.
-2. Decide whether a Base's failed Post also makes its Shapes invalid. The
-   Post continues to judge the Base; it does not become a Shape-local check.
+2. Decide whether named access through a Shape exposes its Base's native
+   check or requires an explicit Base name. Its Base receiver and independent
+   contract validity are already settled.
 3. Confirm native/Pin Post Overlay and explicit per-Tag deletion, including
    later declaration changes and Constant protection.
 4. Confirm explicit validity checks and existing Pin boundaries, without
@@ -298,6 +308,6 @@ scope meaning is possible, but less consistent with TOP's current vocabulary.
 ### Decision *(filled by the Director)*
 
 Status remains **Brief**. The feature request and clarifications authorize
-this proposal and record execution by name and a Base Post judging the Base
-without copying it to Shapes; they do not settle the remaining choices above
-or Clear the STEP.
+this proposal and record execution by name, a Base Post judging the Base,
+and independent Shape validity. They do not settle the remaining choices
+above or Clear the STEP.
