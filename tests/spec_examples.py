@@ -321,7 +321,7 @@ def Run() -> None:
     cora.Trusts(rue)
     assert cora.Knows[rue] is cora.Trusts[rue]                     # one Pair across the Form
     rue.honest = False
-    assert list(~cora.Trusts) == [rue] and Contract.Holds(rue)     # a broken Pair, a sound Contact
+    assert list(~cora.Trusts) == [rue] and bool(rue)     # a broken Pair, a sound Contact
     try: del cora.Knows[rue]; raise SystemExit("a Shape Link holds her")
     except TagCompositionError: pass
     del cora.Trusts[rue]; del cora.Knows[rue]

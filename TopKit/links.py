@@ -2341,7 +2341,7 @@ def _hook(
         if record.hook is None:
             record.hook = _leaving(link)
 
-        state.rips[link] = (record.hook,)
+        state.rips[link] = ((link.__name__, record.hook),)   # (name, teardown), as an ordinary Tag's Rips
 
 
 def _leaving(

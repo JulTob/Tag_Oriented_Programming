@@ -131,7 +131,7 @@ class Granting_Tests(unittest.TestCase):
             def __init__(self, name): self.name = name
             def __setattr__(agent, name, value):
                 writes.append(name)
-                agent.__dict__[name] = value
+                object.__setattr__(agent, name, value)   # a host must let the kit give it its runtime type (STEP-SPEC-37)
 
         lou = Logging("Lou")
         Social(lou)
@@ -423,7 +423,7 @@ class Pair_Tests(unittest.TestCase):
         self.assertFalse(charlie.Trusts[ruth])
         self.assertEqual(list(charlie.Trusts), [])
         self.assertEqual(list(~charlie.Trusts), [ruth])
-        self.assertTrue(Contract.Holds(ruth))             # finding 4: never defective elsewhere
+        self.assertTrue(bool(ruth))             # finding 4: never defective elsewhere
 
     def test_the_sound_population_needs_the_contacts_own_contract_too(self):
         class Honest(Tag):
@@ -1287,7 +1287,7 @@ class Finding_Tests(unittest.TestCase):
         reference = Grow()
         gc.collect()
         self.assertIsNone(reference())
-        self.assertTrue(Contract.Holds(ruth))
+        self.assertTrue(bool(ruth))
 
     def test_finding_2_two_agents_records_never_share_a_slot_on_the_contact(self):
         charlie, bob, ruth = People("Charlie", "Bob", "Ruth")
@@ -1324,7 +1324,7 @@ class Finding_Tests(unittest.TestCase):
         ruth.honest = False
         self.assertFalse(charlie.Trusts[ruth])
         self.assertEqual(ruth.banner, "guild")            # her own published members answer
-        self.assertTrue(Contract.Holds(ruth))
+        self.assertTrue(bool(ruth))
 
     def test_finding_5_the_links_protocols_never_land_on_the_contact(self):
         Net.log.clear()

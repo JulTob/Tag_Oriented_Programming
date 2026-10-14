@@ -16,6 +16,10 @@ import atexit
 
 from .declarations import _is_link
 from .declarations import _parameters_of
+from .declarations import _action_chain
+from .declarations import _discard_lazy_result
+from .declarations import _Lazy_Rip_Guard
+from .declarations import _lazy_rip_guard
 from .declarations import _takes_underlay
 from .errors import TagCompositionError
 from .errors import TagResolutionError
@@ -78,9 +82,10 @@ def _teardown(
     state.composing += 1
 
     try:
-        for teardown in teardowns:
+        for name, teardown in teardowns:
             try:
                 _call_teardown(
+                        name,
                         teardown,
                         agent,
                         state,
@@ -88,7 +93,7 @@ def _teardown(
             except Exception as error:
                 failures.append(
                         (
-                            teardown.__name__,
+                            name,
                             error,
                             )
                         )
@@ -132,9 +137,10 @@ def _teardown_all(
             if interrupted is not None and not _is_link(tag):
                 continue   # after an interruption only its exits from Links still run (STEP-SPEC-22 rule 8.4)
 
-            for teardown in state.rips.pop(tag, ()):
+            for name, teardown in state.rips.pop(tag, ()):
                 try:
                     _call_teardown(
+                            name,
                             teardown,
                             agent,
                             state,
@@ -167,6 +173,7 @@ def _teardown_all(
 
 
 def _call_teardown(
+        name: str,
         teardown: Any,
         agent: object,
         state: _State,
@@ -176,25 +183,48 @@ def _call_teardown(
     receives the Tag's original declarations, so un-patching is
     ``tag.Control = original.Control``."""
 
-    if state.pinned is None:
-        teardown(agent)
-        return
-
-    declared = getattr(
-            teardown,
-            "__wrapped__",
-            teardown,
+    guard = _Lazy_Rip_Guard(
+            name,
+            _action_chain(teardown)
             )
-    seats = _parameters_of(declared).positional
-    receiver_seats = 2 if _takes_underlay(declared) else 1
+    token = _lazy_rip_guard.set(guard)
 
-    if seats > receiver_seats:
-        teardown(
-                agent,
-                _Originals(state.originals),
+    try:
+        if state.pinned is None:
+            result = teardown(agent)
+        else:
+            declared = getattr(
+                    teardown,
+                    "__wrapped__",
+                    teardown,
+                    )
+            seats = _parameters_of(declared).positional
+            receiver_seats = 2 if _takes_underlay(declared, name) else 1
+
+            if seats > receiver_seats:
+                result = teardown(
+                        agent,
+                        _Originals(state.originals),
+                        )
+            else:
+                result = teardown(agent)
+    finally:
+        guard.active = False
+        _lazy_rip_guard.reset(token)
+
+    lazy = _discard_lazy_result(result)
+
+    if guard.failures:
+        raise guard.failures[0]
+
+    if lazy is not None:
+        article = "an" if lazy == "async generator" else "a"
+
+        raise TagCompositionError(
+                f"Rip protocol {str.__str__(name)!r} returned {article}"
+                f" {lazy}; a Rip protocol must complete synchronously."
+                " TOP does not await or iterate teardown protocols."
                 )
-    else:
-        teardown(agent)
 
 
 _exit_registry: dict[int, _Member] = {}   # by registration number; an entry leaves when its Agent dies

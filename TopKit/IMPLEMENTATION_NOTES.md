@@ -46,8 +46,9 @@ Actions; Agents are built once and play for a long time. So:
   every special method of the host keeps working. Its name is the host's
   name. It carries only what Python requires on a type: special-method
   Actions, and one descriptor per deleted, secret, or published name, plus
-  `__bool__` once a Postcondition is visible, `__getattr__` for views by
-  name, and `__del__` for deletion. Tags are **not** in the MRO;
+  the reserved contract `__bool__` from the first Tagging,
+  `__getattr__` for views by name, and `__del__` for deletion. Tags
+  are **not** in the MRO;
   `isinstance` is answered by the metaclass from the Agent's ever-set.
 - **Runtime types are shared** across every Agent whose host and
   type-level facts match, whatever Tags they carry. Ten thousand Agents of
@@ -159,6 +160,21 @@ read 64, plain method call 86, Action call 295, `agent in Tag` 291,
 over a Base costs about 60 µs per Agent; an empty Tag about 22 µs. Peak
 memory about 6 KB per Agent with two Tags.
 
+### Population expression evaluation
+
+Lazy combinations use explicit stacks for walks and membership rather
+than one Python call per expression node. The expression is not flattened:
+each union retains its own left-side identity referents until that node's
+walk ends, and each leaf starts only when its branch is reached. A walk
+frame also retains its last received Agent, as the recursive generator's
+loop variable did. A `finally` clears the frame stack and current iterator,
+frame and Agent references on exhaustion, close or failure, including when
+an exception traceback remains alive. Cleanup does not call an arbitrary
+leaf iterator's `close` method. The population itself keeps no walked
+Agents at rest. Membership keeps
+the same left-first short circuits and evaluates each reached predicate
+in its original order.
+
 ## Geometry memo ownership
 
 The first Form query memoizes a Tag's ordered Bases on that Tag itself,
@@ -211,6 +227,34 @@ Laying over the live state is safe because nothing reads the new Overlay
 before commit binds it on the Agent, and the entry snapshot is the only
 rollback target.
 
+## Synchronous protocol results
+
+Preconditions, Imprints, Postconditions and scheduled Rip teardowns are
+synchronous in the current Python runtime. Native coroutine, generator and
+async-generator results fail at their protocol boundary; ordinary Action
+returns and stored Record values retain their usual meanings. This does not
+amend the Specification: [STEP-SPEC-41](../steps/spec/STEP-SPEC-41-synchronous-protocol-results.md)
+separately proposes a language-wide rule.
+
+`declarations._discard_lazy_result` uses actual native types without reading
+an ordinary return value's `__class__` hook. It closes coroutines and
+synchronous generators, without starting an unentered body. Closing a started
+object can run `finally` code and can fail; the failure is reported with its
+original cause. Async generators are not driven through a new event loop.
+
+Scheduled Rips retain their declared names alongside the composed Actions.
+A flow-local guard checks only the selected teardown's Underlay chain and
+remembers a lazy-result failure even if user code catches it. Other Actions
+called during cleanup retain their ordinary return semantics. Ordinary
+failures are collected after remaining teardowns run; Python interruptions
+keep their propagation behavior. Best-effort deletion uses the same checks.
+
+Record and Imprint failures, and invalid Underlay declarations, use their
+Contribution names instead of requiring callable naming metadata. Private
+helpers retain ordinary exception detail and fall back when formatting it
+fails, preserving the original cause. These diagnostics do not alter the
+Tagging sequence or expand its rollback boundary.
+
 ## Judgment calls
 
 - **`in` vs `isinstance`.** `agent in Tag` is the is-now check; `isinstance`
@@ -223,13 +267,21 @@ rollback target.
   language syntax on the metaclass: `in`, `for`, `~`, `len`, `bool`,
   `[:]`, `[agent]`, `del Tag[agent]`, `format`. The population handle is
   the private `_topkit_field`; Geometry also keeps a private, owner-local
-  Form memo as described above. `bool(Tag)` is "any sound member", like a
-  collection.
-- **The empty-seat rule on Agents.** `__bool__`, `__format__`, `__copy__`
+  Form memo as described above. `bool(Tag)` checks the Tag's own visible
+  Posts, received from Pins, and is true without Posts. `len(Tag)` counts
+  sound members; `len(Tag[:])` counts all and `len(~Tag)` counts broken
+  members. Population views retain their existence truth question.
+- **The empty-seat rule on Agents.** `__format__`, `__copy__`
   and `__deepcopy__` are installed on the runtime type only when the host
-  defines none of its own (`__bool__` only once a Postcondition is
-  visible). Format specs are the display door: `f"{Tag:form}"`,
-  `f"{agent:tags}"`, `f"{agent:outline}"`, `f"{agent:contract}"`.
+  defines none of its own. Ordinary object Agents always receive the
+  contract `__bool__` from first Tagging. An explicit host truth seat is
+  refused before Tagging; Agent-scope truth Contributions are refused at
+  declaration or late assignment. Synthesized runtime hooks are recognized
+  without evaluating host truth. A host's `__len__` keeps `len`. A new
+  condition name still rebuilds the type for its protective data
+  descriptor. Format specs are the display door: `f"{Tag:form}"`,
+  `f"{agent:tags}"`,
+  `f"{agent:outline}"`, `f"{agent:contract}"`.
 - **Flags own the Agent's `in`.** `__contains__` is installed when a
   `@Flag` Tag lands (a type-level fact, part of the type key; a Flag
   landing on an Agent that is already tagged rebuilds its runtime type).
@@ -389,7 +441,13 @@ rollback target.
   `-` by `in` on the right side). `_population_of` turns a Tag into its
   sound partition; `MetaTag.__or__` falls back to `type.__or__` when the
   other side is not a population, so `Wizard | None` stays a typing
-  union. No kernel state changes.
+  union. `_Field.__iter__` holds the starting Agents in join order, then
+  checks the live identity entry at each turn. Rip therefore skips a
+  coming turn, re-Tagging restores that turn, and a new member waits.
+  A union walk retains the Agents it has seen on its left until that walk
+  ends, so Python cannot reuse one identity key for a distinct Agent on a
+  later side. Partitions—including their fast truth question—and
+  combinations all route through that walk. No kernel state changes.
 - **Condition members** (STEP-SPEC-14): an ordinary Agent answers a
   condition by name through `_Condition_Gate`; a pinned Tag keeps the
   metaclass miss path. Both call `contracts._condition_member`, which

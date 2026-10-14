@@ -13,11 +13,12 @@
   at the Director's request "finish the Links to make sure they are
   ready to use. Test everything"; see *Implementation, and the points it
   had to settle* below.
-- **Refs:** PR #26 (design history, where STEP-SPEC-23, 24, 26 and 29
-  live as Briefs, not on `main`); STEP-SPEC-30 (`@Requirement` retired);
-  STEP-SPEC-33 (Presence); STEP-SPEC-34 (Constant); STEP-SPEC-36 (Tools);
-  STEP-SPEC-39 (Tagging Admission, Cleared, PR #78, implemented in PR #89
-  and not yet on `main`); PR #43 (nested Imprint failures)
+- **Refs:** PR #26 (closed design history; STEP-SPEC-23, 24, 26 and 29 are
+  preserved as Briefs in PRs #188, #189, #191 and #194, not yet on `main`);
+  STEP-SPEC-30 (`@Requirement` retired); STEP-SPEC-33 (Presence);
+  STEP-SPEC-34 (Constant); STEP-SPEC-36 (Tools); STEP-SPEC-39 (Tagging
+  Admission, Cleared; its implementation is PR #174, still a Draft and not
+  on `main`); PR #43 (nested Imprint failures)
 
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
@@ -1114,10 +1115,10 @@ implementation follows `main`'s law as it stands, and says so:
 - *Section 9.* Built "without STEP-SPEC-23": every act on the Relation is
   a Composition Failure pointing to a Link.
 - *The tagging sequence.* Linking follows `main`'s §0.6 (Gate, Parts,
-  Commit, Write, Quality). When STEP-SPEC-39 lands (PR #78 via PR #89),
-  a Relation's Imprint failure leaves the Contact outside the Link's
+  Commit, Write, Quality). When STEP-SPEC-39 lands (PR #174), a
+  Relation's Imprint failure leaves the Contact outside the Link's
   Field with the Pair's Gains retained; `tests/test_links.py` is to be
-  re-run on that branch then.
+  re-run on that tree then.
 
 **Open questions, as implemented.**
 

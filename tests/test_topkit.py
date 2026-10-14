@@ -511,7 +511,7 @@ class KernelTests(unittest.TestCase):
         self.assertEqual(list(Field_Member), [ari])
         self.assertEqual(len(Field_Member[:]), 1)
         self.assertEqual(len(Field_Member), 1)
-        self.assertTrue(Field_Member)
+        self.assertGreater(len(Field_Member), 0)
         self.assertTrue(Field_Member[:])
         self.assertFalse(~Field_Member)
 
@@ -520,7 +520,7 @@ class KernelTests(unittest.TestCase):
 
         self.assertIsNone(reference())
         self.assertEqual(list(Field_Member[:]), [])
-        self.assertFalse(Field_Member)
+        self.assertEqual(len(Field_Member), 0)
         self.assertFalse(Field_Member[:])
 
     def test_fields_index_by_identity_not_equality(self) -> None:
@@ -649,12 +649,103 @@ class HostPreservationTests(unittest.TestCase):
         self.assertIn("x", bag)
         self.assertNotIn(Field_Member, bag)       # the host keeps its `in`
         self.assertEqual(bag | 1, "host-or")
+        self.assertEqual(len(bag), 1)             # and its `len`
         self.assertTrue(bool(bag))
 
         bag.items.clear()
 
-        self.assertFalse(bool(bag))
+        self.assertEqual(len(bag), 0)
+        self.assertTrue(bool(bag))                # its truth is its contract, not its length
         self.assertEqual(bag.dynamic, "from host getattr")
+
+    def test_an_agents_truth_is_its_contract_while_len_stays_the_hosts(self) -> None:
+        class Shelf:
+            def __init__(self) -> None:
+                self.books: list[str] = []
+                self.catalogued = True
+
+            def __len__(self) -> int:
+                return len(self.books)
+
+        class Library(Tag):
+            pass
+
+        class Catalogue(Tag):
+            @Post
+            def Catalogued(agent) -> bool:
+                return agent.catalogued
+
+        shelf = Shelf()
+        Library(shelf)
+
+        self.assertEqual(len(shelf), 0)
+        self.assertTrue(shelf)                    # no promise: nothing is broken
+
+        Catalogue(shelf)
+        shelf.books.append("Dune")
+        shelf.catalogued = False
+
+        self.assertEqual(len(shelf), 1)
+        self.assertFalse(shelf)                   # broken, whatever its length
+
+        shelf.books.clear()
+        shelf.catalogued = True
+
+        self.assertEqual(len(shelf), 0)
+        self.assertTrue(shelf)                    # sound, whatever its length
+
+    def test_an_untagged_object_from_an_agents_type_keeps_host_truth(self) -> None:
+        bag = self.Bag()
+        Field_Member(bag)
+        spare = type(bag)()
+
+        self.assertTrue(spare)
+        spare.items.clear()
+        self.assertFalse(spare)
+
+        class Host:
+            pass
+
+        class Sized(Tag):
+            def __len__(agent) -> int:
+                raise AssertionError("TOP behaviour leaked into a plain host")
+
+        tagged = Host()
+        Sized(tagged)
+
+        self.assertTrue(type(tagged)())            # ignores the Tag's __len__
+
+    def test_plain_runtime_truth_binds_a_non_descriptor_len_as_python_does(self) -> None:
+        class Length:
+            def __call__(self) -> int:
+                return 0
+
+        class Host:
+            __len__ = Length()
+
+        host = Host()
+        Field_Member(host)
+
+        self.assertFalse(type(host)())
+
+    def test_plain_runtime_truth_skips_every_synthesized_layer(self) -> None:
+        class Host:
+            pass
+
+        class Sized(Tag):
+            def __len__(agent) -> int:
+                raise AssertionError("an older TOP layer leaked")
+
+        first = Host()
+        Sized(first)
+
+        class Derived(type(first)):
+            pass
+
+        second = Derived()
+        Field_Member(second)
+
+        self.assertTrue(type(second)())
 
     def test_tag_members_do_not_leak_onto_the_agent(self) -> None:
         ari = Agent()
@@ -1544,7 +1635,7 @@ class DefectiveTaggingTests(unittest.TestCase):
         self.assertEqual(len(Candidate_Record), 1)
         self.assertEqual(len(~Candidate_Record), 1)
         self.assertEqual(len(Candidate_Record[:]), 2)
-        self.assertTrue(Candidate_Record)          # someone sound
+        self.assertGreater(len(Candidate_Record), 0)  # someone sound
         self.assertTrue(~Candidate_Record)         # someone broken
         self.assertTrue(Candidate_Record[:])       # anyone
 
@@ -1728,6 +1819,33 @@ class DefectiveTaggingTests(unittest.TestCase):
 
 
 class ContractNamespaceTests(unittest.TestCase):
+    def test_native_truth_replaces_holds_and_keeps_named_diagnostics(self) -> None:
+        self.assertNotIn("Holds", vars(Contract))
+
+        class Checked(Tag):
+            @Record
+            def contents(agent):
+                return []
+
+            @Post
+            def Ready(agent):
+                return agent.contents is not None
+
+        agent = Agent()
+        Checked(agent)
+        self.assertFalse(agent.contents)     # held values keep Python truth
+        self.assertTrue(agent)              # the empty list satisfies Ready
+        self.assertTrue(Contract.Postconditions(agent))
+
+        agent.contents = None
+        self.assertFalse(agent)
+        with self.assertRaises(TagPostconditionError.Ready):
+            Contract.Postconditions(agent)
+        self.assertEqual(Contract.Status(agent), {"Ready": False})
+
+        Contract.Delete(agent, "Ready")
+        self.assertTrue(agent)
+
     def test_contract_namespace_checks_pre_post_and_both(self) -> None:
         ari = Agent()
         ari.level = 1
@@ -1737,7 +1855,7 @@ class ContractNamespaceTests(unittest.TestCase):
         self.assertTrue(Contract.Preconditions(ari))
         self.assertTrue(Contract.Postconditions(ari))
         self.assertTrue(Contract.Conditions(ari))
-        self.assertTrue(Contract.Holds(ari))
+        self.assertTrue(bool(ari))
 
         del ari.spellbook
 
@@ -1915,7 +2033,7 @@ class PinTests(unittest.TestCase):
         self.assertEqual(list(Rare), [Wizard])
         self.assertEqual(list(Rare[:]), [Wizard])
         self.assertEqual(len(Rare), 1)
-        self.assertTrue(Rare)
+        self.assertGreater(len(Rare), 0)
         self.assertTrue(isinstance(Wizard, Rare))
         self.assertEqual(identity, (id(Wizard), hash(Wizard), Wizard.__name__, Form(Wizard)))
         self.assertIs(type(self.War_Caster), type(Tag))
@@ -1954,10 +2072,10 @@ class PinTests(unittest.TestCase):
         self.assertEqual(Tags(Wizard), (Rare,))
         self.assertEqual(Outline(Wizard), "Wizard\n  Rare")
         self.assertTrue(f"{Wizard:contract}".startswith("Wizard[Rare]"))
-        self.assertFalse(Wizard)                                      # still "any sound member"
+        self.assertEqual(len(Wizard), 0)                              # no sound members
         ari = Agent()
         Wizard(ari)
-        self.assertTrue(Wizard)
+        self.assertGreater(len(Wizard), 0)
 
     def test_refusals(self) -> None:
         Wizard, Rare = self.Wizard, self.Rare
@@ -2471,7 +2589,7 @@ class StickyConditionTests(unittest.TestCase):
         ari.book = None
 
         self.assertEqual(Contract.Status(ari), {"Has_Book": False})   # the promise stays, and fails loud
-        self.assertFalse(Contract.Holds(ari))
+        self.assertFalse(bool(ari))
 
     def test_a_ripped_gate_stays_on_the_record(self) -> None:
         class Gated(Tag):
@@ -2507,7 +2625,7 @@ class StickyConditionTests(unittest.TestCase):
         ari.oath = None
 
         self.assertEqual(Contract.Status(ari), {})
-        self.assertTrue(Contract.Holds(ari))
+        self.assertTrue(bool(ari))
 
     def test_the_author_guards_a_promise_with_membership(self) -> None:
         class Sworn(Tag):
@@ -2524,12 +2642,12 @@ class StickyConditionTests(unittest.TestCase):
         ari.oath = None
 
         self.assertEqual(Contract.Status(ari), {"Has_Oath": True})    # still listed, holds by the guard
-        self.assertTrue(Contract.Holds(ari))
+        self.assertTrue(bool(ari))
 
         with self.assertRaises(Postcondition.Has_Oath):
             Sworn(ari)                                                # back in: the promise bites again
 
-        self.assertFalse(Contract.Holds(ari))
+        self.assertFalse(bool(ari))
 
     def test_deleting_a_condition_that_is_not_there_is_refused(self) -> None:
         ari = Agent()
@@ -2584,7 +2702,7 @@ class StickyConditionTests(unittest.TestCase):
         del Alive[ari]
         ari.alive = False
 
-        self.assertTrue(Contract.Holds(ari))                          # the guard skipped the dead beat
+        self.assertTrue(bool(ari))                          # the guard skipped the dead beat
 
     def test_a_pins_promise_is_sticky_and_the_pin_may_end_it(self) -> None:
         class Wizard(Tag):
@@ -3282,6 +3400,42 @@ class FieldAlgebraTests(unittest.TestCase):
         self.assertEqual(list(self.Wizard[:] & ~self.Fighter), [])
         self.assertEqual(list(self.Fighter[:] - self.Wizard), [self.cal])
 
+    def test_tilde_absorbs_broken_twice_is_still_broken(self) -> None:
+        """The Director's rule: "bad bad = bad". Every run of ``~`` is
+        the defective population, never the sound one."""
+
+        broken = ~self.Fighter
+
+        for spelling in (
+                ~~self.Fighter,
+                ~~~self.Fighter,
+                ~~~~~~~~~~~~~self.Fighter,
+                ~broken,
+                ):
+            self.assertEqual(repr(spelling), "<defective Field>")
+            self.assertEqual(list(spelling), [self.cal])
+            self.assertEqual(len(spelling), 1)
+            self.assertTrue(spelling)
+            self.assertIn(self.cal, spelling)
+            self.assertNotIn(self.bo, spelling)
+
+        self.assertEqual(list(~~self.Wizard), [])
+        self.assertFalse(~~self.Wizard)
+
+        self.cal.fit = True
+        self.assertEqual(list(~~self.Fighter), [])
+        self.assertEqual(list(~~~self.Fighter), [])
+        self.assertEqual(list(self.Fighter), [self.bo, self.cal])
+
+    def test_a_combination_takes_no_tilde(self) -> None:
+        for combination in (
+                self.Wizard | self.Fighter,
+                self.Wizard[:] & self.Fighter[:],
+                ~self.Fighter - self.Wizard,
+                ):
+            with self.assertRaises(TypeError):
+                ~combination
+
     def test_a_combined_view_is_lazy(self) -> None:
         both = self.Wizard | self.Fighter
         dee = Agent()
@@ -3329,7 +3483,7 @@ class FieldAlgebraTests(unittest.TestCase):
         self.assertEqual(Choir._sound(), "the program's value")
         self.assertEqual(list(Choir), [solo])
         self.assertEqual(len(Choir), 1)
-        self.assertTrue(Choir)
+        self.assertGreater(len(Choir), 0)
         self.assertEqual(
                 list(Choir | self.Wizard),
                 [solo, self.ari, self.bo],
@@ -3357,6 +3511,329 @@ class FieldAlgebraTests(unittest.TestCase):
         self.assertEqual(list(Operated), [operation_agent])
         self.assertEqual(list(~Reported), [])
         self.assertEqual(list(Operated[:]), [operation_agent])
+
+
+class PopulationWalkTests(unittest.TestCase):
+    """STEP-SPEC-35: a walk saves join order, then asks membership at
+    each member's turn."""
+
+    @staticmethod
+    def walked(population, act) -> list[object]:
+        seen = []
+
+        for member in population:
+            seen.append(member)
+            act(member)
+
+        return seen
+
+    def test_a_ripped_member_is_skipped_by_each_field_view(self) -> None:
+        for view in ("sound", "whole", "defective"):
+            with self.subTest(view=view):
+                class Wizard(Tag):
+                    @Post
+                    def Ready(agent):
+                        return agent.ready
+
+                ari, bo, cal = Agent(), Agent(), Agent()
+
+                for member in (ari, bo, cal):
+                    Wizard(member)
+
+                if view == "defective":
+                    for member in (ari, bo, cal):
+                        member.ready = False
+
+                    population = ~Wizard
+                elif view == "whole":
+                    population = Wizard[:]
+                else:
+                    population = Wizard
+
+                def Rip_Cal(member) -> None:
+                    if member is ari:
+                        del Wizard[cal]
+
+                self.assertEqual(self.walked(population, Rip_Cal), [ari, bo])
+
+    def test_a_pin_walk_skips_a_tag_ripped_before_its_turn(self) -> None:
+        @Pin
+        class School(Tag):
+            pass
+
+        class Mage(Tag):
+            pass
+
+        class Bard(Tag):
+            pass
+
+        class Druid(Tag):
+            pass
+
+        for tag in (Mage, Bard, Druid):
+            School(tag)
+
+        def Rip_Druid(tag) -> None:
+            if tag is Mage:
+                del School[Druid]
+
+        self.assertEqual(self.walked(School, Rip_Druid), [Mage, Bard])
+
+    def test_combined_walks_skip_a_member_ripped_from_the_left(self) -> None:
+        for operator in ("|", "&", "-"):
+            with self.subTest(operator=operator):
+                class Left(Tag):
+                    pass
+
+                class Right(Tag):
+                    pass
+
+                ari, bo, cal = Agent(), Agent(), Agent()
+
+                for member in (ari, bo, cal):
+                    Left(member)
+
+                if operator != "-":
+                    for member in (ari, bo, cal):
+                        Right(member)
+
+                if operator == "|":
+                    population = Left[:] | Right[:]
+                elif operator == "&":
+                    population = Left[:] & Right[:]
+                else:
+                    population = Left[:] - Right[:]
+
+                def Rip_Bo(member) -> None:
+                    if member is ari:
+                        del Left[bo]
+
+                        if operator == "|":
+                            del Right[bo]
+
+                self.assertEqual(self.walked(population, Rip_Bo), [ari, cal])
+
+    def test_a_lazy_unions_right_field_starts_when_reached(self) -> None:
+        """This change preserves the algebra's per-side walk timing."""
+
+        class Wizard(Tag):
+            pass
+
+        class Fighter(Tag):
+            pass
+
+        ari, bo, cal = Agent(), Agent(), Agent()
+        Wizard(ari)
+        Fighter(bo)
+        combatants = Wizard[:] | Fighter[:]
+
+        def Join_Right(member) -> None:
+            if member is ari:
+                Fighter(cal)                                         # before the right Field starts
+
+        self.assertEqual(self.walked(combatants, Join_Right), [ari, bo, cal])
+
+    def test_a_union_walk_keeps_seen_identity_stable_until_it_finishes(self) -> None:
+        class Wizard(Tag):
+            pass
+
+        class Fighter(Tag):
+            pass
+
+        class Druid(Tag):
+            pass
+
+        ari, bo, cal = Agent(), Agent(), Agent()
+        Wizard(ari)
+        Fighter(bo)
+        Druid(cal)
+        reference = weakref.ref(ari)
+        combatants = iter((Wizard[:] | Fighter[:]) | Druid[:])
+
+        self.assertIs(next(combatants), ari)
+        del ari
+        self.assertIs(next(combatants), bo)
+        self.assertIs(next(combatants), cal)
+        gc.collect()
+
+        self.assertIsNotNone(reference())
+        self.assertEqual([member for member in combatants], [])
+        gc.collect()
+        self.assertIsNone(reference())
+
+    def test_a_new_member_waits_but_a_retagged_member_keeps_its_turn(self) -> None:
+        class Wizard(Tag):
+            pass
+
+        ari, bo, cal, dee = Agent(), Agent(), Agent(), Agent()
+
+        for member in (ari, bo, cal):
+            Wizard(member)
+
+        def Change_Field(member) -> None:
+            if member is ari:
+                del Wizard[bo]
+                Wizard(bo)                                           # in again before its saved turn
+                Wizard(dee)                                          # no saved turn in this walk
+
+        self.assertEqual(self.walked(Wizard, Change_Field), [ari, bo, cal])
+        self.assertEqual(list(Wizard), [ari, cal, bo, dee])
+
+    def test_retagging_after_a_saved_turn_does_not_visit_it_twice(self) -> None:
+        class Wizard(Tag):
+            pass
+
+        ari, bo, cal = Agent(), Agent(), Agent()
+
+        for member in (ari, bo, cal):
+            Wizard(member)
+
+        def Return_Ari(member) -> None:
+            if member is bo:
+                del Wizard[ari]
+                Wizard(ari)
+
+        self.assertEqual(self.walked(Wizard[:], Return_Ari), [ari, bo, cal])
+        self.assertEqual(list(Wizard[:]), [bo, cal, ari])
+
+    def test_population_queries_share_membership_at_turn(self) -> None:
+        def ask(question):
+            checks = []
+            changing = [False]
+            pair: list[object] = []
+
+            class Enemy(Tag):
+                @Post
+                def Standing(agent):
+                    checks.append(agent)
+
+                    if changing[0] and agent is pair[0]:
+                        del Enemy[pair[1]]
+                        return False
+
+                    return True
+
+            pair[:] = [Agent(), Agent()]
+            Enemy(pair[0])
+            Enemy(pair[1])
+            checks.clear()
+            changing[0] = True
+
+            return question(Enemy), checks, pair
+
+        questions = (
+                ("population truth", lambda population: bool(population & population), False),
+                ("length", len, 0),
+                ("iteration", lambda population: [member for member in population], []),
+                )
+
+        for name, question, expected in questions:
+            with self.subTest(question=name):
+                answer, checks, pair = ask(question)
+
+                self.assertEqual(answer, expected)
+                self.assertEqual(checks, [pair[0]])
+
+    def test_a_sound_view_rechecks_membership_after_its_postcondition(self) -> None:
+        ripping = [False]
+
+        class Wizard(Tag):
+            @Post
+            def Ready(agent):
+                if ripping[0]:
+                    del Wizard[agent]
+
+                return True
+
+        class Fighter(Tag):
+            pass
+
+        ari, bo = Agent(), Agent()
+        Wizard(ari)
+        Wizard(bo)
+        ripping[0] = True
+
+        self.assertEqual([member for member in Wizard], [])
+        self.assertNotIn(ari, Wizard[:])
+
+        cal = Agent()
+        ripping[0] = False
+        Wizard(cal)
+        ripping[0] = True
+        self.assertNotIn(cal, Wizard | Fighter)
+        self.assertNotIn(cal, Wizard[:])
+
+    def test_a_defective_view_rechecks_membership_after_its_postcondition(self) -> None:
+        ripping = [False]
+
+        class Wizard(Tag):
+            @Post
+            def Ready(agent):
+                if ripping[0]:
+                    del Wizard[agent]
+
+                return not ripping[0]
+
+        ari, bo = Agent(), Agent()
+        Wizard(ari)
+        Wizard(bo)
+        ripping[0] = True
+
+        self.assertEqual([member for member in ~Wizard], [])
+        self.assertNotIn(ari, Wizard[:])
+
+        cal = Agent()
+        ripping[0] = False
+        Wizard(cal)
+        ripping[0] = True
+        self.assertNotIn(cal, ~Wizard)
+        self.assertNotIn(cal, Wizard[:])
+
+    def test_retagging_while_judging_soundness_keeps_the_member(self) -> None:
+        ripping = [False]
+        reapplied = [False]
+
+        class Wizard(Tag):
+            @Post
+            def Ready(agent):
+                if ripping[0] and not reapplied[0]:
+                    reapplied[0] = True
+                    del Wizard[agent]
+                    Wizard(agent)
+
+                return True
+
+        class Fighter(Tag):
+            pass
+
+        ari = Agent()
+        Wizard(ari)
+        ripping[0] = True
+
+        self.assertEqual([member for member in Wizard], [ari])
+
+        reapplied[0] = False
+        self.assertIn(ari, Wizard | Fighter)
+        self.assertIn(ari, Wizard[:])
+
+    def test_a_one_pass_materialization_uses_a_comprehension(self) -> None:
+        checks = []
+
+        class Wizard(Tag):
+            @Post
+            def Ready(agent):
+                checks.append(agent)
+                return True
+
+        ari, bo = Agent(), Agent()
+        Wizard(ari)
+        Wizard(bo)
+        checks.clear()
+
+        members = [member for member in Wizard]
+
+        self.assertEqual(members, [ari, bo])
+        self.assertEqual(checks, [ari, bo])
 
 
 class ConditionMemberTests(unittest.TestCase):
@@ -4397,32 +4874,32 @@ class EfficiencyTests(unittest.TestCase):
 
         self.assertEqual(len(overwrites), 1)
 
-    def test_a_population_is_true_exactly_when_someone_counts(self) -> None:
+    def test_population_cardinality_tracks_sound_and_broken_members(self) -> None:
         class Fighter(Tag):
             @Post
             def Armed(agent) -> bool:
                 return agent.ready
 
-        self.assertFalse(Fighter)
+        self.assertEqual(len(Fighter), 0)
         self.assertFalse(~Fighter)
 
         broken = Agent()
         Fighter(broken)
         broken.ready = False
 
-        self.assertFalse(Fighter)          # nobody sound
+        self.assertEqual(len(Fighter), 0)   # nobody sound
         self.assertTrue(~Fighter)          # someone broken
 
         sound = Agent()
         Fighter(sound)
 
-        self.assertTrue(Fighter)
+        self.assertGreater(len(Fighter), 0)
         self.assertEqual(list(Fighter), [sound])
 
         del sound
         gc.collect()
 
-        self.assertFalse(Fighter)
+        self.assertEqual(len(Fighter), 0)
 
     def test_an_underlay_called_with_or_without_arguments(self) -> None:
         class Speaker(Tag):
@@ -4593,7 +5070,7 @@ print("end")
         self.assertNotIn("Werewolf", ari)
         self.assertIn("Wolf", ari)
 
-    def test_a_population_truth_agrees_with_its_walk(self) -> None:
+    def test_population_cardinality_agrees_with_its_walk(self) -> None:
         keep: dict[str, object] = {}
 
         class Enemy(Tag):
@@ -4619,9 +5096,9 @@ print("end")
                     pass
 
         del member                         # keep["b"] is b's last reference
-        answer = bool(Enemy)
+        count = len(Enemy)
 
-        self.assertTrue(answer)            # b was a member when the question began
+        self.assertEqual(count, 1)         # b was a member when the question began
 
 
 class LayeredDeletionTests(unittest.TestCase):

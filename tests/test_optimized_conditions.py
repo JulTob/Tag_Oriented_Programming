@@ -51,7 +51,7 @@ for role in (Assertion_Gate, Return_Gate, Assertion_Promise, Return_Promise):
     except TagPostconditionError:
         phase = "Postcondition"
     result = {"phase": phase, "member": agent in role[:],
-              "holds": Contract.Holds(agent)}
+              "holds": bool(agent)}
     if role in (Assertion_Promise, Return_Promise):
         locks = []
         for change in (lambda: setattr(agent, "Ready", False),
@@ -64,7 +64,7 @@ for role in (Assertion_Gate, Return_Gate, Assertion_Promise, Return_Promise):
             else:
                 locks.append(False)
         result.update(locks=locks, status=Contract.Status(agent),
-                      holds_after=Contract.Holds(agent))
+                      holds_after=bool(agent))
     results[role.__name__] = result
 print(json.dumps(results, sort_keys=True))
 """

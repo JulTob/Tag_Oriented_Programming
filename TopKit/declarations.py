@@ -11,9 +11,13 @@ A Tag class is scanned once; the result is cached per class.
 
 from __future__ import annotations
 
+from contextvars import ContextVar
 from dataclasses import dataclass
 from inspect import Parameter
 from inspect import signature
+from types import AsyncGeneratorType
+from types import CoroutineType
+from types import GeneratorType
 from typing import Any
 from typing import Callable
 from typing import NamedTuple
@@ -47,6 +51,7 @@ _RELATION = "_topkit_relation"   # on a Tag class marked @Link: a template, neve
 _LINK = "_topkit_link"           # on one Agent's Link: a Tag the kit built for that Agent
 _PAIR_TAG = "_topkit_pair_tag"   # on the Tag a Pair receives from a Relation
 KIND = "_topkit_kind"   # None on the root Tag; "relation", "link" or "pair" on the kit's special Tags
+_ACTION_CHAIN = "__topkit_action_chain__"
 
 STATE = "_TOPKIT_STATE"
 
@@ -55,6 +60,42 @@ _flags_declared = 0   # counts every @Flag, so an Agent's gathered words know wh
 _MISSING = object()
 
 Function = Callable[..., Any]
+
+
+class _Lazy_Rip_Guard:
+    """Failures found inside composed Rip Underlays during one teardown."""
+
+    __slots__ = (
+            "active",
+            "chain",
+            "failures",
+            "name",
+            )
+
+    def __init__(
+            guard,
+            name: str,
+            chain: object | None,
+            ) -> None:
+        guard.active = True
+        guard.chain = chain
+        guard.failures: list[TagCompositionError] = []
+        guard.name = name
+
+
+_lazy_rip_guard: ContextVar[_Lazy_Rip_Guard | None] = ContextVar(
+        "topkit_lazy_rip_guard",
+        default=None,
+        )
+
+
+def _action_chain(function: Function) -> object | None:
+    """Optional composition metadata cannot invalidate an accepted callable."""
+
+    try:
+        return getattr(function, _ACTION_CHAIN, None)
+    except Exception:
+        return None
 
 
 # ------------------------------------------------------------------
@@ -793,6 +834,37 @@ def _kind_of(
             )
 
 
+def _refuse_truth_gain(
+        owner: str,
+        name: str,
+        member: Any,
+        ) -> None:
+    """The Agent's truth protocol cannot be gained, replaced or deleted."""
+
+    if name != "__bool__":
+        return
+
+    if isinstance(member, Report):
+        gained = member.public
+    elif isinstance(member, (classmethod, staticmethod)):
+        gained = (
+                isinstance(member, classmethod)
+                and _kind_of(member) == "operation"
+                and _has_flag(member, _PUBLIC)
+                )
+    else:
+        gained = callable(member) and _kind_of(member) in (
+                None, "action", "record", "delete",
+                )
+
+    if gained:
+        raise TagDeclarationError(
+                f"{owner}.{name}: an Agent's truth is reserved for its"
+                " visible Postconditions; a Contribution cannot redefine"
+                " or delete it"
+                )
+
+
 def _refuse_condition_dunder(
         owner: str,
         name: str,
@@ -1230,6 +1302,7 @@ def _name_checks(
         if _is_private(name):
             continue
 
+        _refuse_truth_gain(owner, name, attribute)
         kind = _kind_of(attribute)
         _refuse_condition_dunder(owner, name, kind)
 
@@ -1282,6 +1355,7 @@ def _scan(
         if _is_private(name):
             continue
 
+        _refuse_truth_gain(tag.__name__, name, attribute)
         if managed is not None and (
                 name in managed.actions
                 or name in managed.records
@@ -1613,6 +1687,7 @@ def _parameters_of(
 
 def _takes_underlay(
         function: Function,
+        name: str,
         ) -> bool:
     """An Action or condition extends the prior contribution when marked
     @Underlay. The mark requires a second positional parameter."""
@@ -1622,7 +1697,7 @@ def _takes_underlay(
 
     if _parameters_of(function).positional < 2:
         raise TagDeclarationError(
-                f"{function.__qualname__} is marked @Underlay but has no"
+                f"{str.__str__(name)!r} is marked @Underlay but has no"
                 " second positional parameter to receive the underlay"
                 )
 
@@ -1673,3 +1748,35 @@ def _protocol_inputs(
                     )
 
     return bound
+
+
+def _discard_lazy_result(
+        result: Any,
+        ) -> str | None:
+    """Dispose of a lazy result a synchronous protocol cannot use.
+
+    Return its kind for the phase-specific failure message. Coroutines and
+    synchronous generators have a synchronous ``close`` operation that does
+    not start an unentered body. Async generators can only be closed by
+    awaiting ``aclose``; TOP does not invent an event loop merely to reject
+    one, so it leaves the unstarted object for Python to reclaim.
+    """
+
+    result_type = type(result)
+
+    # Native lazy types cannot be subclassed. Identity avoids consulting an
+    # ordinary return value's potentially effectful __class__ descriptor.
+    if result_type is CoroutineType:
+        result.close()
+
+        return "coroutine"
+
+    if result_type is AsyncGeneratorType:
+        return "async generator"
+
+    if result_type is GeneratorType:
+        result.close()
+
+        return "generator"
+
+    return None

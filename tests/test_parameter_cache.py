@@ -135,6 +135,9 @@ class ParameterCacheTests(unittest.TestCase):
                 return (0 if stored is None else stored) + increment
 
         builder = PureIdentity()
+        # CPython 3.12.3's inspect.signature compares callable objects with
+        # builtins. Supply the same signature so only the cache is under test.
+        builder.__signature__ = inspect.signature(builder.__call__)
 
         class Role(Tag):
             total = Record(builder)
