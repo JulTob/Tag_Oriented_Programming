@@ -163,8 +163,10 @@ Pair-scope contributions would be separate topics.
    `@Tool(Sword | Staff)` admits either class, `@Tool(Weapon | Staff)` a
    member of Weapon or an instance of Staff. `| None` admits None. A
    declared class admits its subclasses, including the runtime classes
-   TOP uses to actualize its instances; a declared Tag admits members of
-   its Shapes (§0.3, membership closed upward).
+   TOP uses to actualize its instances; a declared Tag admits its own
+   current members. Applying a Shape first applies its missing Bases
+   (§0.3), but a later Base Rip removes that kind even while the Shape
+   remains active (STEP-SPEC-26).
 3. A Tag term asks **membership now**, `value in T[:]`, sound or
    defective, never a Tag's `isinstance` history. The root `Tag` and
    `object` name no kind ("not just the root class"), nor does a Pin

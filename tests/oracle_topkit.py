@@ -2,8 +2,8 @@
 after every transition.
 
 The model knows the laws of the Specification and nothing of the kernel:
-Base-first Forms, membership and history, Rip refused while a Shape
-requires the Base, a block that holds Tags (tag before try, Rip in
+Base-first Forms, membership and history, Rip without automatic Base
+hostage checks, a block that holds Tags (tag before try, Rip in
 finally), the call boundary (each Tag gates at its own turn, acquired
 Gains precede admission, a broken promise keeps membership, and a failed
 Imprint leaves Gains without admission), sticky conditions ended by
@@ -185,6 +185,9 @@ def Model_Apply(
         model: Model,
         tag: type,
         ) -> None:
+    if tag in model.active:
+        return   # an already active Shape does not restore a Ripped Base
+
     for current in Form(tag):
         if current not in model.active:
             Model_Gain(model, current)
@@ -203,22 +206,13 @@ def Model_Tagging(
     the Agent is deficient. Active reapplication joins nothing and
     rechecks nothing (§0.7)."""
 
+    if tag in model.active:
+        return False
+
     pending = [member for member in Form(tag) if member not in model.active]
     Model_Apply(model, tag)
 
     return bool(pending) and not model.Sound()
-
-
-def Rip_Refused(
-        model: Model,
-        tag: type,
-        ) -> bool:
-    """Rip is refused while a Shape requires the Base; it never cascades."""
-
-    return any(
-            other is not tag and issubclass(other, tag)
-            for other in model.active
-            )
 
 
 def Rip_Failure(
@@ -229,9 +223,6 @@ def Rip_Failure(
 
     if tag not in model.active:
         return TagResolutionError
-
-    if Rip_Refused(model, tag):
-        return TagCompositionError
 
     return None
 
@@ -469,14 +460,6 @@ def Rip_It(
             return
 
         raise AssertionError((context, "inactive Rip succeeded", tag.__name__))
-
-    if Rip_Refused(model, tag):
-        try:
-            del tag[target]
-        except TagCompositionError:
-            return
-
-        raise AssertionError((context, "Rip of a required Base succeeded", tag.__name__))
 
     del tag[target]
     Model_Rip(model, tag)
@@ -1104,6 +1087,9 @@ def Model_Link(
     an existing Pair a Layer that an earlier extension never reached.
     """
 
+    if trusts and contact in model.trusts:
+        return   # an active Shape Link does not restore a Ripped Base Link
+
     if contact not in model.knows:
         model.knows[contact] = since
         if model.cover_declared:
@@ -1162,6 +1148,11 @@ def Run_Links(
                 holder.Knows(contact, since=step)
             except TagPreconditionError:
                 assert refused, (context, "a gate refused what the model admits")
+            except TagPostconditionError:
+                assert not refused and contact_name in model.promised and not contact.ok, (
+                        context, "a Base relink reported an unexpected broken Pair promise"
+                        )
+                Model_Link(model, contact_name, step)   # admission precedes Posts
             else:
                 assert not refused, (context, "the gate admitted a self-link of a picky holder")
                 Model_Link(model, contact_name, step)
@@ -1183,18 +1174,12 @@ def Run_Links(
 
                 Model_Link(model, contact_name, step, trusts=True)
         elif choice == 4:
-            if contact_name in model.trusts:
-                try:
-                    del holder.Knows[contact]
-                except TagCompositionError:
-                    pass
-                else:
-                    raise AssertionError((context, "unlinking a Base Link held by a Shape was not refused"))
-            elif contact_name in model.knows:
+            if contact_name in model.knows:
                 del holder.Knows[contact]
                 del model.knows[contact_name]
-                model.promised.discard(contact_name)               # the Pair ends
-                model.covered.discard(contact_name)
+                if contact_name not in model.trusts:
+                    model.promised.discard(contact_name)           # only the last Link ends the Pair
+                    model.covered.discard(contact_name)
                 expected_log.append((holder_name, contact_name, "Forget"))
             else:
                 try:
@@ -1207,6 +1192,9 @@ def Run_Links(
             if contact_name in model.trusts:
                 del holder.Trusts[contact]
                 model.trusts.discard(contact_name)
+                if contact_name not in model.knows:
+                    model.promised.discard(contact_name)
+                    model.covered.discard(contact_name)
                 expected_log.append((holder_name, contact_name, "Distrust"))
         elif choice == 6:
             if not model.undercover:

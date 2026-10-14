@@ -367,8 +367,28 @@ assert alicante.Road[valencia].travel_time == 85                # the Road's fac
 assert alicante.Motorway[valencia].toll == 12                   # and the Motorway's
 ```
 
-Use a Shape when the new link **is** the old one, plus more. Everywhere
-that asks for a Road finds the motorway too.
+Use a Shape when the new link **is** the old one, plus more. Linking the
+Motorway first also links the Road. After that, each Field membership
+stands on its own. For example, a motorway can remain after its Road
+membership is Ripped:
+
+```python
+del alicante.Road[valencia]
+
+assert valencia not in alicante.Road[:]
+assert valencia in alicante.Motorway[:]
+assert alicante.Motorway[valencia].distance == 170   # the Pair keeps its facts
+
+alicante.Motorway(valencia)                           # already linked: no new training
+assert valencia not in alicante.Road[:]
+
+alicante.Road(valencia, distance=170, speed_limit=120)  # explicitly train the Road again
+assert valencia in alicante.Road[:]
+```
+
+If a Motorway must remain a Road, declare that requirement in a Post.
+The Post makes its Pair defective when Road membership ends; it does
+not secretly refuse the Rip.
 
 ---
 

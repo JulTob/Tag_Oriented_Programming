@@ -86,7 +86,6 @@ from .errors import TagResolutionError
 from .errors import TagRogueAccessError
 from .geometry import _form_of
 from .geometry import _is_tag
-from .geometry import _requiring_shapes
 from .lifecycle import _rip
 from .memo import _memo_key
 from .memo import _memo_of
@@ -2296,8 +2295,6 @@ def _withdraw_pair_admission(
     for tag in reversed(admitted):
         if tag not in state.active:
             continue
-        if _requiring_shapes(tag, state.active):
-            continue   # an independent completed extension still needs this Base
         state.active.remove(tag)
         state.ever.discard(tag)
         tag.__dict__["_topkit_field"]._Remove(pair)
@@ -2599,9 +2596,8 @@ def _unlink_all(
         link: type,
         key: slice,
         ) -> None:
-    """``del charlie.Knows[:]``: unlink every Contact (rule 8.2). Refused,
-    nothing changed, while a Shape Link still holds any of them (§0.7);
-    every teardown runs, and the first failure is raised after."""
+    """``del charlie.Knows[:]``: unlink every Contact (rule 8.2).
+    Every teardown runs, and the first failure is raised after."""
 
     if key != slice(None):
         raise TypeError(
@@ -2610,19 +2606,6 @@ def _unlink_all(
                 )
 
     contacts = list(link.__dict__["_topkit_field"])
-    held = [
-            contact
-            for contact in contacts
-            if _requiring_shapes(link, _state_of(contact).active)
-            ]
-
-    if held:
-        raise TagCompositionError(
-                f"{link.__name__} is required by an active Shape Link for"
-                f" {len(held)} of its Contacts; unlink them from the Shape"
-                " first"
-                )
-
     first: BaseException | None = None
 
     for contact in contacts:
@@ -2637,7 +2620,7 @@ def _unlink_all(
         except TagCompositionError as error:
             first = first or error
 
-    contacts = held = None   # the Contacts are not ours to keep
+    contacts = None   # the Contacts are not ours to keep
 
     try:
         if first is not None:

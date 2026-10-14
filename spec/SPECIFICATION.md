@@ -113,9 +113,10 @@ for wizard in Wizard:               # the Field (its sound members, §2.5)
     Observe(wizard)
 ```
 
-Membership is **closed upward** through Bases: an Agent of a Shape is an
-Agent of every Base in the Shape's Form, and appears in each of those
-Fields.
+Tagging is **closed upward** through Bases: applying a new Shape also
+applies each missing Base in its Form, Bases first. Afterwards each
+membership stands alone. An Agent can leave a Base by Rip and remain a
+member of the Shape.
 
 ```python
 class Mortal(Tag): pass
@@ -126,7 +127,7 @@ assert charlie in Human
 assert charlie in Mortal
 ```
 
-Membership is **monotonic by design**. Only Rip (§0.7) ends it, and Rip
+Membership persists until Rip (§0.7), and Rip
 does not erase history: an Agent that has ever been a member of a Tag
 remains *an instance* of that Tag. In Python, `isinstance(agent, Tag)` is
 that has-been check and stays true after Rip. `agent in Tag` is the is-now
@@ -154,8 +155,10 @@ assert f"{Arcane_Duelist:form}" == "Spellcaster → Duelist → Arcane_Duelist"
 ```
 
 A Base reachable through several paths appears once. **Forming** follows
-the Form downward, general to specific. **Deforming** (Rip) goes the other
-way: a Shape leaves before the Bases that support it.
+the Form downward, general to specific. **Deforming** by explicit Rip
+ends only the named Tag's membership, in whichever order the program
+chooses. At an Agent's deletion or exit, TOP runs teardowns in reverse
+application order (§3.2).
 
 ## 0.5 Applying a Tag
 
@@ -165,9 +168,11 @@ The canonical act is:
 Tag(target, **inputs)
 ```
 
-It applies every Tag in the Form that is not yet active, Bases first, then
-returns the same Target. Keyword **inputs** are handed by name to the
-Preconditions, Record builders and Imprints run during that call (§1.3,
+If the requested Tag is already active, applying it does nothing, even if
+one of its Bases has since been Ripped. Otherwise it applies every missing
+Tag in the Form, Bases first, then returns the same Target. Keyword
+**inputs** are handed by name to the Preconditions, Record builders and
+Imprints run during that call (§1.3,
 §2.2, §2.3).
 
 ```python
@@ -302,9 +307,13 @@ Rip is the only exit from a Field, and it obeys three laws:
   Agent**: it has what it learned, but no active access to the Tag's Field,
   Operations, Reports or Agent-bound view. Rogue Agents are dangerous… but
   useful.
-- **Rip is refused while a Shape needs the Base.** `del Beast[wolf]` fails
-  while `Wolf` is active. Deform the Shape first. Rip never cascades: TOP
-  does not run other Tags' protocols behind your back.
+- **A Shape keeps no Base hostage.** `del Beast[wolf]` succeeds while
+  `Wolf` is active: the Agent leaves Beast, Beast's teardowns run, and it
+  stays a Wolf. This also holds when the Rip happens during the Shape's
+  Imprint. Rip never cascades: TOP does not run other Tags' protocols
+  behind your back. A Shape that needs continuing Base membership says so
+  in its own Postcondition. Rip does not add an automatic contract check;
+  the Agent's current Posts determine soundness when read or checked.
 - **Conditions are sticky too** (STEP-SPEC-12). Rip does not touch a
   Tag's Preconditions or Postconditions: a promise that outlives its
   Tag fails loud, never silently. Rip does one thing, and it is the one
@@ -1019,8 +1028,9 @@ an Agent may carry the word *Beast* without being a `Beast`, the way a
 secret identity carries a public name. A word that names another Tag is
 accepted, and says nothing about that Tag's Field. Many Tags may share a
 word; it answers while any of them is active. The words are the Tag's
-own: a Shape answers its Base's words because the Base is active (§0.3),
-never by inheriting them. Bare `@Flag` is the name alone. Words are
+own: a Shape's Agent answers its Base's words while that Base remains
+active (§0.3), never by inheriting them. Rip the Base and those words
+leave, even if the Shape stays. Bare `@Flag` is the name alone. Words are
 non-empty strings and match exactly, like names.
 
 A Flag needs the Agent's `in`, and one seat holds one meaning. Something
@@ -1304,10 +1314,11 @@ that later Shape Layer overlays them. An extension arriving after the
 Shape's training instead overlays the Shape. The kit does not reorder or
 replay existing Gains to erase these different histories. A successful
 linking or extension gives the Pair every required Layer; a failed attempt
-can leave partial Gains. Unlinking a Base Link is refused while a Shape
-Link holds her (§0.7). An ordinary Tag is never a Base of a Relation, and a Relation
-or a Link is never a Base of an ordinary Tag: a Link that writes a Tag on
-its Contact says so in an Imprint.
+can leave partial Gains. Unlinking a Base Link leaves the Contact in any
+Shape Link she holds, with the shared Pair retained while that Shape
+holds her (§0.7). An ordinary Tag is never a Base of a Relation, and a
+Relation or a Link is never a Base of an ordinary Tag: a Link that writes
+a Tag on its Contact says so in an Imprint.
 
 **Extending a held Link.** A Shape of the declaring Tag may extend its
 Base's Relation by name, `@Link class Knows(Social.Knows)`, naming it as
@@ -1376,8 +1387,9 @@ should answer back says so in its own Imprint.
 **Ending.** `del charlie.Knows[ruth]` ends her membership; the Link's
 teardowns run with `(charlie, ruth)`; the Pair ends unless another Link
 of the same Form still holds her, and then what the Ripped Link gave the
-Pair stays, sticky. `del charlie.Knows[:]` unlinks every Contact, refused
-while a Shape Link holds any of them. A Contact's deletion unlinks her,
+Pair stays, sticky. `del charlie.Knows[:]` unlinks every Contact in that
+Link's Field; a Contact in a Shape Link remains there, with her Pair
+retained. A Contact's deletion unlinks her,
 the teardowns running with the live Agent; the Agent's deletion ends its
 Links after its own teardowns, Shape Links first, with the dying Agent in
 the first seat; `At_Exit` ends them at interpreter exit (§3.2). When the
@@ -1925,7 +1937,7 @@ types but must keep these distinct.
 | Failure | Meaning | Effect |
 | --- | --- | --- |
 | **Tag Declaration Failure** | A Tag is written wrong: illegal mark combination, `@Underlay` without a parameter to receive it. | at class use |
-| **Tag Composition Failure** | Contributions cannot form the Overlay: cross-kind collision, Record over a host descriptor, a Record builder or teardown that failed, a Target that cannot carry state, a Base still required. | before FieldAdding: current Tag absent, acquired Gains and earlier turns stay; after admission: membership stays; or Rip refused |
+| **Tag Composition Failure** | Contributions cannot form the Overlay: cross-kind collision, Record over a host descriptor, a Record builder or teardown that failed, a Target that cannot carry state. | before FieldAdding: current Tag absent, acquired Gains and earlier turns stay; after admission: membership stays; a teardown failure is reported after that Tag's membership ends |
 | **Tag Resolution Failure** | A required Underlay, view, or membership is unavailable. | use refused; during Tagging, follows the current phase boundary |
 | **Tag Rogue Access Failure** | A Rogue Agent reached a published member of a Tag it has left or never entered. A Resolution Failure, and a TOP failure only: never dressed as a host-language attribute failure. | use refused |
 | **Tag Precondition Failure** | A Gate refused the incoming Agent. | that Tag does not apply; earlier turns stay |
@@ -1943,8 +1955,9 @@ A conforming implementation provides, ring by ring:
 
 **Ring 0**
 - stable object identity under tagging, and preserved host behaviour;
-- membership and Base membership (`agent in Tag`), closed upward, with a
-  has-been check that survives Rip;
+- membership and Base membership (`agent in Tag`), applied upward through
+  Bases but standing independently after admission, with a has-been check
+  that survives Rip;
 - non-owning, identity-indexed, iterable Fields;
 - Base-first Form application, each Base once, active reapply a no-op;
 - the five-step tagging sequence: each missing Tag's Gate, Gainings,
@@ -1953,8 +1966,9 @@ A conforming implementation provides, ring by ring:
   membership or history; earlier completed Tags stay, retry starts fresh,
   and current Posts decide members' deficiency;
 - Rip: sticky contributions and sticky conditions, ended by the author
-  (a guard, or `Contract.Delete` from the `@Rip` protocol), refusal while
-  a Shape requires the Base, no cascade;
+  (a guard, or `Contract.Delete` from the `@Rip` protocol); a Base Rip
+  leaves its Shapes active, never cascades, and lets explicit Posts state
+  any continuing Base requirement;
 - native spellings for every Tag-level act, leaving the Tag's dotted
   namespace to the program.
 
