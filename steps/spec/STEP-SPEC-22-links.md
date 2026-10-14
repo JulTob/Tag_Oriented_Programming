@@ -1179,6 +1179,11 @@ implementation follows `main`'s law as it stands, and says so:
 
 - A `@Public` line that an extension Layer adds reaches the Contacts
   linked after the extension; Contacts already linked keep their lines.
+  A Contact whose entry is under way when the Shape is gained keeps the
+  lines she had too, when the Shape is gained as she enters (an Overwrite
+  Warning handler, say) or at the Pair's Imprint: her lines were already
+  chosen. Gained at the Pair's gate or at a Record of the Pair, the
+  Shape's line reaches her.
 - A Link's code shuts the synchronous door of the Contact it is about
   for as long as it runs; an async door she opened in her own context is
   not shut by it; a generator or a coroutine function of the Relation
