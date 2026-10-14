@@ -140,10 +140,11 @@ def _gate(
 
     Every refusal the Tag's own declarations would meet is raised here,
     before any builder runs, and nothing is installed on the live state.
-    A Tag of ordinary Actions and Records is checked name by name against
-    the live state (``_preflight_ordinary_gains``). Any other Tag is laid
-    over a scratch copy of the state, on top of the Tags whose turns have
-    already finished, and its Preconditions run on that copy.
+    When a Tag can use the shortcut, ``_preflight_ordinary_gains`` checks
+    its ordinary Action and Record names against the live state, one by one.
+    Tags needing full composition are laid over a scratch copy of the state,
+    on top of completed Tags. Their composed Preconditions judge the live
+    Agent.
     """
 
     declarations = _declarations_of(tag)
