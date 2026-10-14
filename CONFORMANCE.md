@@ -21,11 +21,20 @@ not. Every failure in the failure model must stay distinct and named.
 
 ## The conformance suite
 
-`tests/test_topkit.py` is organized by ring and is the seed of the
-language-agnostic suite. Test classes named for a ring assert laws; a port
-in another language satisfies the behaviours those tests assert, in its
+[`tests/test_topkit/`](tests/test_topkit/) groups the conformance seed by
+behavior, with one TestCase class per file and shared hosts and Tags in
+`_fixtures.py`. Test classes assert laws; a port in another language
+satisfies the behaviours those tests assert, in its
 own spelling. Tests that exercise Python-only mechanics (garbage
 collection, weak references, warnings) are profile tests, not laws.
+
+Run all of it with `PYTHONPATH=. python3 -m unittest tests.test_topkit`, or
+choose a file such as `tests.test_topkit.test_record`. Existing class targets
+such as `tests.test_topkit.RecordTests` still work. Normal test discovery
+includes the package once; its `__init__.py` delegates to `unittest`.
+`PYTHONPATH=. python3 -m tests.test_topkit` remains an equivalent entry point.
+Historical STEP references to `tests/test_topkit.py` refer to these same
+test classes, now in the package.
 
 ## The "TOP Verified" mark
 
