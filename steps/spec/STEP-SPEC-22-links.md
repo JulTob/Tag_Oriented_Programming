@@ -13,10 +13,14 @@
   at the Director's request "finish the Links to make sure they are
   ready to use. Test everything". 2026-10-14: align linking and extension
   with STEP-SPEC-39 and record the Director's decision to keep completed
-  Pair training and partial Gains after a later failure. See *Implementation,
-  and the points it had to settle* below. The STEP remains **Vetting**.
-- **Refs:** PR #26 (closed design history; STEP-SPEC-23, 24, 26 and 29 are
-  preserved as Briefs in PRs #188, #189, #191 and #194);
+  Pair training and partial Gains after a later failure. The Director
+  also ruled that Ripping a Base after its Shape has entered the Field
+  does not require the Shape to leave; dependency belongs in an explicit
+  Post. See *Implementation, and the points it had to settle* below.
+  The STEP remains **Vetting**.
+- **Refs:** PR #26 (closed design history; STEP-SPEC-23, 24, 26 and 29 were
+  extracted through PRs #188, #189, #191 and #194; STEP-SPEC-26's core
+  Rip rule was subsequently cleared);
   STEP-SPEC-30 (`@Requirement` retired); STEP-SPEC-33 (Presence);
   STEP-SPEC-34 (Constant); STEP-SPEC-36 (Tools); STEP-SPEC-39 (Tagging
   Admission, Cleared; this branch integrates PR #174 and its #198
@@ -462,10 +466,13 @@ A Link is a Tag. Every Ring 0 act works on it:
    its Base Links first, Bases first, each once (§0.5).
    `charlie.Trusts(ruth)` makes Ruth a Contact of `charlie.Knows` too:
    linking is closed upward (§0.3), so `ruth in charlie.Knows`. After
-   that, unlinking the Base is refused while the Shape Link still holds
-   her, under §0.7 and STEP-SPEC-6. STEP-SPEC-26 proposes reversing that
-   rule and remains a separate Brief; this implementation does not clear
-   it. Unlink the Shape first; the Pair stays while another Link holds it.
+   that, each membership stands alone: unlinking the Base ends its own
+   membership and Pair teardown, while the Shape still holds the Contact
+   and the Pair. Reapplying the active Shape does not restore the Base;
+   applying the Base explicitly trains it again. A Shape that requires
+   continued Base membership says so in a Post. This applies the
+   Director's 2026-10-14 ruling on the core rule of STEP-SPEC-26; that
+   separate STEP clears only the core Rip rule and retains other open questions.
 3. **One Pair for each Contact, across a Link's Form.** A Link and its
    Base Links share one Pair for each Contact, as an Agent is one object
    across the Tags of its Form. `charlie.Knows[ruth]` and
@@ -574,10 +581,13 @@ A Link is a Tag. Every Ring 0 act works on it:
      `~charlie.Knows` holds those with either one broken.
    - A broken Pair never makes the Contact defective anywhere else
      (finding 4): her own truth is her own contract.
-4. **A Pair lives as long as its Contact is linked in the Form.** The
-   Link's own teardowns can still read it while they run, on every path
-   (rules 8.1, 8.3 and 8.4). That includes a Contact collected in a
-   reference cycle, who has already left the Field when her finalizer
+4. **A Pair stays while a Link of its family holds the Contact**, and
+   during unfinished training. A failed attempt may leave a Rogue Pair
+   with partial Gains that the Link's Agent can inspect and retrain.
+   Ripping a Base does not end the Pair while its Shape still holds the
+   Contact. The Link's teardowns can still read it while they run, on
+   every path (rules 8.1, 8.3 and 8.4). That includes a Contact collected
+   in a reference cycle, who has already left the Field when her finalizer
    runs: the Pair ends after the teardowns, not with the Field entry.
    After that, reaching it is a Resolution Failure. Linking again builds
    it fresh (§0.7).
@@ -594,8 +604,10 @@ A Link is a Tag. Every Ring 0 act works on it:
    Then the Pair ends, unless a Link of the same Form still holds her. In
    that case, what the Ripped Link gave the Pair stays on it, sticky
    (§0.7).
-2. **`del charlie.Knows[:]`** unlinks every Contact, as a Field Rip
-   (STEP-SPEC-24).
+2. **`del charlie.Knows[:]`** unlinks every Contact of that Link, as a
+   Field Rip (STEP-SPEC-24). Contacts also held by a Shape Link stay in
+   that Shape and keep their shared Pair; a Contact with no remaining
+   Link in the family loses its Pair after teardown.
 3. **The Agent's deletion ends its Links.**
    - Inside the Agent's finalizer (§3.2), after its own teardowns and
      before its `__del__` Layers, each of its Links is Field-Ripped, Shape
@@ -1094,8 +1106,9 @@ name: `Link`. No parameter name is reserved.
   - seats: each kind after the two seats (Underlay, stored, inputs), and
     every refusal of rules 3.3 and 3.4;
   - Bases: per-Agent resolution, completed Base admission before the
-    Shape's Gate, refusal to unlink a Base needed by a Shape, one Pair
-    across the Form, and an ordinary Tag refused as a Relation Base;
+    Shape's Gate, Base Rip leaving a Shape Contact and shared Pair in
+    place, explicit Base retraining, and an ordinary Tag refused as a
+    Relation Base;
   - extending a held Link: each Pair's own training sequence, completed
     and partial Gains kept when a later Pair fails, retry of unfinished
     training, and the Link's identity, Field and history kept;
@@ -1172,17 +1185,20 @@ the Shape enters its Field. The Contact can leave `Candidate` while training
 for `CIA` finishes, then enter `CIA` with `Candidate` absent. The Pair stays
 available through that transition and keeps the Gains it acquired. A failed
 Shape attempt retrains on retry; reapplying an admitted Shape remains a no-op.
-This is the same sequence as ordinary Tagging. Ripping a Base *after* Shape
-admission is addressed by STEP-SPEC-26.
+The same Base Rip is allowed after the Shape enters its Field. It ends only
+the Base membership and its teardowns; the Shape and Pair stay. A guarded
+Post on the Shape can require the Base and mark the Pair defective until
+the Base is explicitly applied again. This follows ordinary Tagging.
 
 **Other STEP boundaries.**
 
-- STEP-SPEC-26 proposes allowing a Base Rip while a Shape needs it. It
-  remains a Brief. This implementation keeps §0.7: unlink the Shape first.
-- `del charlie.Knows[:]` is implemented for Links. It refuses a Base
-  Field Rip while a Shape Link holds any affected Contact, runs all
-  selected teardowns, and reports the first failure afterward. This does
-  not implement STEP-SPEC-24's proposal for ordinary `del Wizard[:]`.
+- STEP-SPEC-26's core Base Rip rule was chosen by the Director on
+  2026-10-14. Its other questions remain open.
+- `del charlie.Knows[:]` is implemented for Links. It Rips only that
+  Link's Contacts, retaining any Shape membership and shared Pair,
+  runs all selected teardowns, and reports the first failure afterward.
+  This does not implement STEP-SPEC-24's proposal for ordinary
+  `del Wizard[:]`.
 - Agent deletion ends its Links after its own teardowns, Shape Links first.
   Cleanup refuses new linkings through every Link of that ending Agent,
   including a Link gained by a teardown. It holds the dying Agent for the

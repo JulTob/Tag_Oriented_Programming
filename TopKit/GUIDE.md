@@ -343,6 +343,52 @@ when the Tag applies and never changes, so every view stays true.
 `class Elf(Person)` makes Person a **Base** of Elf: applying Elf applies
 Person first. `Form(Elf)` lists that order; `f"{Elf:form}"` prints it.
 
+After Tagging, each membership stands alone. An Imprint may Rip a Base
+while its Shape is training: moving from Candidate to Officer does not
+require keeping the Candidate badge.
+
+```python
+class Candidate(Tag):
+    pass
+
+
+class Officer(Candidate):
+    @Imprint
+    def Graduate(agent):
+        del Candidate[agent]
+
+
+lia = Character("Lia")
+Officer(lia)                           # Candidate first, then graduation
+assert lia in Officer and lia not in Candidate
+
+Officer(lia)                           # already an Officer: no retraining
+assert lia not in Candidate
+Candidate(lia)                         # explicit reinstatement of the Base
+assert lia in Candidate
+```
+
+If an Agency needs its Base membership to continue, its author says so
+with a Post. Ripping that Base still works; the Agent then reads as
+defective until the requirement is met again.
+
+```python
+class GuardedOfficer(Candidate):
+    @Post
+    def Still_Candidate(agent):
+        if agent not in GuardedOfficer[:]:
+            return True               # the promise ends with this role
+        return agent in Candidate[:]
+
+
+rae = Character("Rae")
+GuardedOfficer(rae)
+del Candidate[rae]
+assert rae in GuardedOfficer and not bool(rae)
+Candidate(rae)
+assert bool(rae)
+```
+
 **Watch out.** An Action that calls *another* Action through the Agent
 (`agent.Attack()` inside `Combat`) uses whatever is visible *now*, not what
 was captured. Underlay is for the same name; the Agent is for the current

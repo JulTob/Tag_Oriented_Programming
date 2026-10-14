@@ -144,22 +144,6 @@ def _leaves(
             )
 
 
-def _requiring_shapes(
-        tag: type,
-        active: Iterable[type],
-        ) -> tuple[type, ...]:
-    """Active Shapes that still require ``tag`` as a Base."""
-
-    return tuple(
-            other
-            for other in active
-            if (
-                other is not tag
-                and issubclass(other, tag)
-                )
-            )
-
-
 def _is_base_of(
         base: type,
         shape: type,

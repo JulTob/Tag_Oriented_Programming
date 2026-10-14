@@ -346,9 +346,11 @@ def Run() -> None:
     assert cora.Knows[rue] is cora.Trusts[rue]                     # one Pair across the Form
     rue.honest = False
     assert list(~cora.Trusts) == [rue] and bool(rue)     # a broken Pair, a sound Contact
-    try: del cora.Knows[rue]; raise SystemExit("a Shape Link holds her")
-    except TagCompositionError: pass
-    del cora.Trusts[rue]; del cora.Knows[rue]
+    pair = cora.Trusts[rue]
+    del cora.Knows[rue]
+    assert rue not in cora.Knows and rue in cora.Trusts
+    assert cora.Knows[rue] is pair and cora.Trusts[rue] is pair
+    del cora.Trusts[rue]
     assert rue not in cora.Knows and isinstance(rue, cora.Knows)
     try: cora.Knows = 1; raise SystemExit("a held Link is read-only")
     except TagCompositionError: pass

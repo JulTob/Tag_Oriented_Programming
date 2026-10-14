@@ -4,6 +4,14 @@
 
 ### Specification
 
+- **A Shape keeps no Base hostage (STEP-SPEC-26):** Tagging a new Shape
+  still applies missing Bases first, but each membership stands alone
+  afterwards. Ripping a Base leaves its Shapes in place and never cascades.
+  A continued need for that Base is an explicit Postcondition, not a
+  condition inferred from the class tree. This supersedes STEP-SPEC-6's
+  original Base-Rip refusal; the STEP's separate publication, warning,
+  `Outline` and safehouse proposals remain open.
+
 - **Gates run per Tag:** each missing Tag passes its own Preconditions when
   its turn arrives. A later refusal or Overlay collision leaves completed
   Base Taggings in place and stops before the current Tag's Records, Field
@@ -11,6 +19,15 @@
   Base's own Gate; active Tags are still not re-asked.
 
 ### TopKit
+
+- **Base Rips leave Shapes:** an Agent or Contact can leave a Base while
+  remaining in its Shape, including when the Rip happens in an Imprint.
+  The Base's teardowns run, and the Shape's membership and acquired
+  Contributions stay. `del link[:]` applies the same rule to a Base Link's
+  Field. Applying an active Shape remains a no-op; applying its missing
+  Base explicitly trains that Base again. Rip does not automatically
+  inspect Posts; the Agent's current contract determines soundness when
+  queried.
 
 - **Tagging preparation cost:** ordinary Action/Record declarations reuse
   the existing collision and Underlay checks without constructing a

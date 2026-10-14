@@ -400,14 +400,28 @@ class Linking_Tests(unittest.TestCase):
         with self.assertRaises(TypeError):
             del charlie.Knows[0:1]
 
-    def test_unlink_every_contact_is_refused_while_a_shape_link_holds_one(self):
+    def test_unlinking_a_base_field_keeps_shape_contacts_and_their_pairs(self):
         charlie, ruth, sam = People("Charlie", "Ruth", "Sam")
         Social(charlie)
         charlie.Knows(sam)
-        charlie.Trusts(ruth)
-        with self.assertRaises(TagCompositionError):
-            del charlie.Knows[:]
-        self.assertEqual(list(charlie.Knows[:]), [sam, ruth])   # nothing changed
+        charlie.Trusts(ruth, since=2015)
+        ruth_pair = charlie.Trusts[ruth]
+        sam_pair = charlie.Knows[sam]
+
+        del charlie.Knows[:]
+
+        self.assertEqual(list(charlie.Knows[:]), [])
+        self.assertEqual(list(charlie.Trusts[:]), [ruth])
+        self.assertIs(charlie.Trusts[ruth], ruth_pair)
+        self.assertIs(charlie.Knows[ruth], ruth_pair)  # Pair belongs to the family
+        self.assertEqual(ruth_pair.since, 2015)      # the Base's Gain is sticky
+        self.assertFalse(_pair_ends(ruth_pair).ended)
+        self.assertTrue(_pair_ends(sam_pair).ended)  # no Link still holds Sam
+        with self.assertRaises(TagResolutionError):
+            charlie.Knows[sam]
+
+        del charlie.Trusts[ruth]
+        self.assertTrue(_pair_ends(ruth_pair).ended)
 
 
 # ------------------------------------------------------------------
@@ -674,17 +688,112 @@ class Base_Tests(unittest.TestCase):
         self.assertIn(ruth, charlie.Knows)
         self.assertIn(ruth, charlie.Trusts)
 
-    def test_unlinking_a_base_link_is_refused_while_a_shape_link_holds_her(self):
+    def test_unlinking_a_base_keeps_the_shape_and_shared_pair(self):
         charlie, ruth = People("Charlie", "Ruth")
         Social(charlie)
-        charlie.Trusts(ruth)
-        with self.assertRaises(TagCompositionError):
-            del charlie.Knows[ruth]                       # §0.7, as main says today
-        del charlie.Trusts[ruth]
-        self.assertIn(ruth, charlie.Knows)
-        self.assertIsNotNone(charlie.Knows[ruth])         # the Pair stays (rule 8.1)
+        charlie.Trusts(ruth, since=2015)
+        pair = charlie.Trusts[ruth]
+
         del charlie.Knows[ruth]
         self.assertNotIn(ruth, charlie.Knows)
+        self.assertIn(ruth, charlie.Trusts)
+        self.assertIs(charlie.Trusts[ruth], pair)
+        self.assertIs(charlie.Knows[ruth], pair)
+        self.assertEqual(pair.since, 2015)
+        self.assertEqual(pair.Confide("a secret"), "Charlie tells Ruth: a secret")
+
+        charlie.Trusts(ruth)  # an admitted Shape does not reapply its Base
+        self.assertNotIn(ruth, charlie.Knows)
+
+        del charlie.Trusts[ruth]
+        self.assertTrue(_pair_ends(pair).ended)
+        with self.assertRaises(TagResolutionError):
+            charlie.Trusts[ruth]
+
+    def test_a_shape_post_can_explicitly_require_its_base_link(self):
+        gained = []
+        left = []
+
+        class Stages(Tag):
+            @Link
+            class Candidate(Tag):
+                @Record
+                def badge(agent, contact):
+                    gained.append("Candidate")
+                    return "trained"
+
+                @Rip
+                def Leave(agent, contact):
+                    left.append("Candidate")
+
+            @Link
+            class CIA(Candidate):
+                @Post
+                def Needs_Candidate(agent, contact):
+                    return contact not in agent.CIA[:] or contact in agent.Candidate[:]
+
+        charlie, ruth = People("Charlie", "Ruth")
+        Stages(charlie)
+        charlie.CIA(ruth)
+        pair = charlie.CIA[ruth]
+
+        del charlie.Candidate[ruth]
+        self.assertEqual(left, ["Candidate"])
+        self.assertNotIn(ruth, charlie.Candidate)
+        self.assertIn(ruth, charlie.CIA)
+        self.assertEqual(pair.badge, "trained")
+        self.assertFalse(pair.Needs_Candidate)
+        self.assertFalse(bool(pair))
+        self.assertEqual(len(charlie.CIA[:]), 1)
+        self.assertEqual(len(charlie.CIA), 0)
+        self.assertEqual(len(~charlie.CIA), 1)
+        self.assertTrue(bool(ruth))  # the Pair's Post does not belong to Ruth
+
+        charlie.CIA(ruth)  # applying an active Shape does not restore a Base
+        self.assertNotIn(ruth, charlie.Candidate)
+        self.assertEqual(gained, ["Candidate"])
+
+        charlie.Candidate(ruth)  # explicit reapplication trains the Base again
+        self.assertIs(charlie.Candidate[ruth], pair)
+        self.assertIn(ruth, charlie.Candidate)
+        self.assertIn(ruth, charlie.CIA)
+        self.assertEqual(gained, ["Candidate", "Candidate"])
+        self.assertTrue(pair.Needs_Candidate)
+        self.assertTrue(bool(pair))
+        self.assertEqual(len(charlie.CIA), 1)
+
+    def test_base_field_rip_continues_after_a_pair_teardown_fails(self):
+        left = []
+
+        class Stages(Tag):
+            @Link
+            class Candidate(Tag):
+                @Rip
+                def Leave(agent, contact):
+                    left.append(contact.name)
+                    if contact.name == "Ruth":
+                        raise ValueError("Ruth's teardown failed")
+
+            @Link
+            class CIA(Candidate):
+                pass
+
+        charlie, ruth, sam = People("Charlie", "Ruth", "Sam")
+        Stages(charlie)
+        charlie.CIA(ruth)
+        charlie.Candidate(sam)
+        ruth_pair = charlie.CIA[ruth]
+        sam_pair = charlie.Candidate[sam]
+
+        with self.assertRaises(TagCompositionError):
+            del charlie.Candidate[:]
+
+        self.assertEqual(left, ["Ruth", "Sam"])
+        self.assertEqual(list(charlie.Candidate[:]), [])
+        self.assertEqual(list(charlie.CIA[:]), [ruth])
+        self.assertIs(charlie.CIA[ruth], ruth_pair)
+        self.assertFalse(_pair_ends(ruth_pair).ended)
+        self.assertTrue(_pair_ends(sam_pair).ended)
 
     def test_a_base_relation_from_a_base_of_the_declaring_tag(self):
         class Close(Social):

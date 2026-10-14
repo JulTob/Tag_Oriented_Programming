@@ -45,6 +45,13 @@ normative text.
 > remains, but the guaranteed tier is now written directly by the program:
 > tag before `try`, then Rip in `finally`.
 
+> **Later decision (2026-10-14):** [STEP-SPEC-26](STEP-SPEC-26-a-shape-keeps-no-base-hostage.md)
+> supersedes the Base-Rip refusal in item 1. A Base may now be Ripped while
+> its Shape remains active, including during that Shape's training. The
+> non-cascading part of item 1 remains law. A Shape's continued need for
+> the Base belongs in an explicit condition. Item 1 above records this
+> STEP's original 2026-09-05 decision, not the current Rip rule.
+
 ## Rationale
 
 Each choice picks the option that keeps TOP explicit: no hidden protocols

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import unittest
 from TopKit import Rip
+from TopKit import Post
 from TopKit import Tag
 from TopKit import TagCompositionError
 from TopKit import TagResolutionError
@@ -74,21 +75,62 @@ class RipTests(unittest.TestCase):
 
         self.assertNotIn(ari, Fragile)
 
-    def test_ripping_a_required_base_is_refused(self) -> None:
+    def test_ripping_a_base_keeps_the_admitted_shape(self) -> None:
         ari = Agent()
 
         Wolf(ari)
+        del Beast[ari]
 
-        with self.assertRaises(TagCompositionError):
-            del Beast[ari]
+        self.assertNotIn(ari, Beast)
+        self.assertIn(ari, Wolf)
+        self.assertEqual(ari.legs, 4)
+        self.assertEqual(ari.howl, "Awooo")
 
+        Wolf(ari)  # an active Shape does not silently restore a missing Base
+        self.assertNotIn(ari, Beast)
+
+        Beast(ari)  # explicit retagging trains the Base again
         self.assertIn(ari, Beast)
+        self.assertIn(ari, Wolf)
 
         del Wolf[ari]
         self.assertIn(ari, Beast)
 
-        del Beast[ari]
-        self.assertNotIn(ari, Beast)
+    def test_programmer_can_require_base_membership_with_a_post(self) -> None:
+        teardowns: list[str] = []
+
+        class Candidate(Tag):
+            @Rip
+            def Leave(agent) -> None:
+                teardowns.append("Candidate")
+
+        class CIA(Candidate):
+            @Post
+            def Still_Candidate(agent) -> bool:
+                return agent in Candidate[:]
+
+            @Rip
+            def Leave_CIA(agent) -> None:
+                teardowns.append("CIA")
+
+        ari = Agent()
+        CIA(ari)
+
+        del Candidate[ari]
+
+        self.assertEqual(teardowns, ["Candidate"])
+        self.assertIn(ari, CIA[:])
+        self.assertNotIn(ari, Candidate[:])
+        self.assertFalse(ari.Still_Candidate)
+        self.assertFalse(bool(ari))
+        self.assertEqual(len(CIA), 0)
+        self.assertEqual(len(CIA[:]), 1)
+
+        Candidate(ari)
+
+        self.assertTrue(ari.Still_Candidate)
+        self.assertTrue(bool(ari))
+        self.assertEqual(len(CIA), 1)
 
     def test_ripped_agent_is_not_yielded_by_field_iteration(self) -> None:
         ari = Agent()

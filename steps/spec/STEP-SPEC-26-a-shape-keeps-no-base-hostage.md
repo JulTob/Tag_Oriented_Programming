@@ -4,22 +4,37 @@
 - **Desk:** spec
 - **Title:** A Shape Keeps No Base Hostage
 - **Author:** Julio Toboso (@JulTob)
-- **Status:** Brief
+- **Status:** Cleared
 - **Created:** 2026-10-08
+- **Cleared:** 2026-10-14 (Base Rip and independent membership only)
 
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
 
-## Preservation and current review boundary — 2026-10-14
+## Cleared rule and remaining review boundary — 2026-10-14
 
 This file extracts the existing proposal from frozen [#26](https://github.com/JulTob/Tag_Oriented_Programming/pull/26),
-including [#77](https://github.com/JulTob/Tag_Oriented_Programming/pull/77)'s reconciliation where applicable. It stays
-**Brief**. No runtime code, current Specification amendment, or new Director
-clearance is included.
+including [#77](https://github.com/JulTob/Tag_Oriented_Programming/pull/77)'s reconciliation where applicable.
+The Director has now cleared its core Rip rule. Applying a new Shape still
+applies its missing Bases first. After admission, every Tag holds its own
+membership: `del Base[agent]` succeeds while `Shape` remains, runs only the
+Base's teardowns, and never Rips the Shape. The same rule applies to a Pin
+and to a Base Link, including `del link[:]` for Links. An Imprint may Rip a
+Base during its Shape's training; if training completes, that Shape can
+enter its Field without the Base. The programmer expresses a continued
+need for Base membership with an explicit condition, normally a Post.
+Rip itself does not run a new automatic Post check.
 
-This recovered **Brief** preserves the Director's recorded independent-Tag decision and #77's reconciliation without clearing the whole document. Current [Rip](https://github.com/JulTob/Tag_Oriented_Programming/blob/fcea45fd2535594fd82f54aee2af7e815e98e0ca/TopKit/lifecycle.py) still refuses a Base's removal while an active Shape requires it. Removing that restriction would allow the proposed spin-off; it does not itself settle publication lookup, immediate Post-failure reporting, Outline presentation or safehouse organization. Keep those remaining questions visible.
+The historical proposal below contains more than this cleared rule. Its
+suggestions for publication lookup, a warning or immediate Post-failure
+report at Rip, an `Outline` mark, and safehouse organization remain open.
+They are not cleared or implemented by this STEP's status. The historical
+comparison to [Rip on main at extraction](https://github.com/JulTob/Tag_Oriented_Programming/blob/fcea45fd2535594fd82f54aee2af7e815e98e0ca/TopKit/lifecycle.py)
+describes the old refusal, not current law.
 
-Allowing that spin-off would amend Specification §0.7 and reverse the active-Shape refusal in **Deployed [STEP-SPEC-6](STEP-SPEC-6-kernel-corrections.md), rule 1**. The separate rule that Rip never cascades would remain. Preserving this Brief does not itself amend either current rule.
+This decision amends Specification §0.7 and supersedes the active-Shape
+refusal in **Deployed [STEP-SPEC-6](STEP-SPEC-6-kernel-corrections.md), rule 1**.
+The separate rule that Rip never cascades remains.
 
 Historical references to S19's failed-Rip rollback describe an obsolete implementation proposal. Current ordinary Rip ends membership before teardown and does not restore it after a teardown fails. Proposed arrest and retry belong to STEP-32 and [#36](https://github.com/JulTob/Tag_Oriented_Programming/issues/36). Whole-Field cleanup is separately tracked by [#35](https://github.com/JulTob/Tag_Oriented_Programming/issues/35).
 
@@ -32,12 +47,12 @@ The retained body also predates [Requirement retirement](https://github.com/JulT
 - Review tracking: [#184](https://github.com/JulTob/Tag_Oriented_Programming/issues/184).
 - Related historical proposals: [SPEC-22](https://github.com/JulTob/Tag_Oriented_Programming/blob/7802fd75c07165aa4ea61267df290ba1fa2ff57f/steps/spec/STEP-SPEC-22-links.md), [SPEC-24](https://github.com/JulTob/Tag_Oriented_Programming/blob/7802fd75c07165aa4ea61267df290ba1fa2ff57f/steps/spec/STEP-SPEC-24-field-rip.md), [SPEC-25](https://github.com/JulTob/Tag_Oriented_Programming/blob/7802fd75c07165aa4ea61267df290ba1fa2ff57f/steps/spec/STEP-SPEC-25-commands-to-a-population.md), [SPEC-27](https://github.com/JulTob/Tag_Oriented_Programming/blob/7802fd75c07165aa4ea61267df290ba1fa2ff57f/steps/spec/STEP-SPEC-27-deletion-protocol.md), [SPEC-30](https://github.com/JulTob/Tag_Oriented_Programming/blob/7802fd75c07165aa4ea61267df290ba1fa2ff57f/steps/spec/STEP-SPEC-30-retire-requirement.md), [SPEC-31](https://github.com/JulTob/Tag_Oriented_Programming/blob/7802fd75c07165aa4ea61267df290ba1fa2ff57f/steps/spec/STEP-SPEC-31-retire-scope.md), [SPEC-32](https://github.com/JulTob/Tag_Oriented_Programming/blob/7802fd75c07165aa4ea61267df290ba1fa2ff57f/steps/spec/STEP-SPEC-32-the-arrest.md). These source links are navigable without merging sibling extraction PRs; they do not imply approval.
 
-The following original text is preserved **verbatim** for review, including
-its recorded decisions, alternatives and open questions. Its uses of
+The historical proposal below is preserved for review, including its
+alternatives and open questions. Its uses of
 “today,” “main,” “Built,” “Decided” and branch names describe the historical
-source. They do not override the current review boundary above or clear
-the whole STEP. Examples of proposed syntax are not executable current API
-guidance. Resolving the remaining design is a later, focused review.
+source. They do not override the clearance boundary above. The Decision
+section at the end records the later ruling; the remaining examples and
+implementation suggestions are not all current API guidance.
 
 ---
 
@@ -561,7 +576,15 @@ refusal: a trial merge gave 7 small conflicts, then 7 failing tests.
 
 ### Decision *(filled by the Director)*
 
-> Status set to **____** on YYYY-MM-DD, because ____.
+> **Cleared for the core Rip rule on 2026-10-14.** The Director confirmed
+> that a Shape need not keep its Base: joining the CIA may Rip Candidate
+> even though CIA was shaped from Candidate. A Shape's continued need for
+> a Base belongs in an explicit programmer-authored condition. Applying a
+> new Shape still brings in missing Bases; after admission, Ripping a Base
+> affects that Base alone. No automatic requirement or cascade follows.
+> Publication lookup, warnings, immediate contract reporting, `Outline`
+> marks and safehouse placement remain open proposals. The Cleared status
+> does not decide those additional questions.
 >
 > *The Director chose the model on 2026-10-08, ahead of the whole STEP:*
 > "So the best model is independent tags? Right? shapes just spin-off and
@@ -578,5 +601,5 @@ refusal: a trial merge gave 7 small conflicts, then 7 failing tests.
 > applying the Base again reinstates it ("it reinstates ari as Officer.
 > explicit. good.").
 >
-> The Status stays Brief until the Director has read this text and
-> answered the open questions.
+> The historical statements above explain how the Director arrived at the
+> core rule; they do not clear the remaining open questions.
