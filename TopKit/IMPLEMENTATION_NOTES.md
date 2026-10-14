@@ -45,8 +45,9 @@ Actions; Agents are built once and play for a long time. So:
   every special method of the host keeps working. Its name is the host's
   name. It carries only what Python requires on a type: special-method
   Actions, and one descriptor per deleted, secret, or published name, plus
-  `__bool__` once a Postcondition is visible, `__getattr__` for views by
-  name, and `__del__` for deletion. Tags are **not** in the MRO;
+  the reserved contract `__bool__` from the first Tagging,
+  `__getattr__` for views by name, and `__del__` for deletion. Tags
+  are **not** in the MRO;
   `isinstance` is answered by the metaclass from the Agent's ever-set.
 - **Runtime types are shared** across every Agent whose host and
   type-level facts match, whatever Tags they carry. Ten thousand Agents of
@@ -265,13 +266,21 @@ Tagging sequence or expand its rollback boundary.
   language syntax on the metaclass: `in`, `for`, `~`, `len`, `bool`,
   `[:]`, `[agent]`, `del Tag[agent]`, `format`. The population handle is
   the private `_topkit_field`; Geometry also keeps a private, owner-local
-  Form memo as described above. `bool(Tag)` is "any sound member", like a
-  collection.
-- **The empty-seat rule on Agents.** `__bool__`, `__format__`, `__copy__`
+  Form memo as described above. `bool(Tag)` checks the Tag's own visible
+  Posts, received from Pins, and is true without Posts. `len(Tag)` counts
+  sound members; `len(Tag[:])` counts all and `len(~Tag)` counts broken
+  members. Population views retain their existence truth question.
+- **The empty-seat rule on Agents.** `__format__`, `__copy__`
   and `__deepcopy__` are installed on the runtime type only when the host
-  defines none of its own (`__bool__` only once a Postcondition is
-  visible). Format specs are the display door: `f"{Tag:form}"`,
-  `f"{agent:tags}"`, `f"{agent:outline}"`, `f"{agent:contract}"`.
+  defines none of its own. Ordinary object Agents always receive the
+  contract `__bool__` from first Tagging. An explicit host truth seat is
+  refused before Tagging; Agent-scope truth Contributions are refused at
+  declaration or late assignment. Synthesized runtime hooks are recognized
+  without evaluating host truth. A host's `__len__` keeps `len`. A new
+  condition name still rebuilds the type for its protective data
+  descriptor. Format specs are the display door: `f"{Tag:form}"`,
+  `f"{agent:tags}"`,
+  `f"{agent:outline}"`, `f"{agent:contract}"`.
 - **Flags own the Agent's `in`.** `__contains__` is installed when a
   `@Flag` Tag lands (a type-level fact, part of the type key; a Flag
   landing on an Agent that is already tagged rebuilds its runtime type).

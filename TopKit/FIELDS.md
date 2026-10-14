@@ -72,11 +72,23 @@ assert list(~Fighter) == [cal]              # waiting for repair
 assert cal in Fighter                       # still a member
 assert cal in Fighter[:]                    # still in the Field
 assert list(~~Fighter) == [cal]             # broken twice is still broken
+assert len(Fighter) == 1                    # sound members
+assert len(~Fighter) == 1                   # defective members
+assert len(Fighter[:]) == 2                 # all members
 ```
 
 The plain loop, `for f in Fighter`, is the working population. `~Fighter`
-is the repair queue. `Fighter[:]` is the roster. `if Fighter:` asks
+is the repair queue. `Fighter[:]` is the roster. `len(Fighter) > 0` asks
 whether anyone is fit; `len(Fighter[:])` counts everyone.
+
+When migrating an old population guard, remember that `len(Fighter) > 0`
+counts the whole sound population. The former `bool(Fighter)` stopped at
+the first sound member, so the number of Post evaluations can differ.
+
+`if Fighter:` checks the Tag's own visible Posts, received from Pins.
+Without such Posts it is true, even with an empty Field. Population
+views keep their existence question: `if Fighter[:]` asks whether the
+roster has anyone, and `if ~Fighter` asks whether anyone needs repair.
 
 `~` reads "broken", never "not". It absorbs: `~~Fighter`,
 `~~~Fighter` and any longer run are `~Fighter`, the repair queue again.
@@ -155,10 +167,11 @@ member had no saved turn and waits for the next walk.
 
 The same rule governs a plain Tag, `Tag[:]`, `~Tag`, a Pin and every side
 of a combined population. Soundness and the right side of `&` or `-` are
-also read when the member's turn arrives. `bool(population)` and
-`len(population)` use the same membership checks. Each call is a separate
-live walk, so conditions that change state can produce different answers
-on successive calls.
+also read when the member's turn arrives. A population view's `bool`
+and `len` use the same membership checks; `len(Tag)` also walks its
+sound members. `bool(Tag)` checks the Tag's own Posts instead. Each
+population query is a separate live walk, so conditions that change
+state can produce different answers on successive calls.
 
 ---
 
@@ -256,6 +269,8 @@ assert list(Combat - Deprecated) == [Wizard]        # combat Tags still in use
   `Tag[:]` for everyone.
 - **Combine with `|`, `&`, `-`.** A Tag in an operator seat is its sound
   population; `Tag[:]` and `~Tag` say the other levels.
+- **Count the view you need.** `len(Tag)` counts sound members,
+  `len(~Tag)` defective members, and `len(Tag[:])` everyone.
 - **Keep views, not lists.** A view is alive; a list is a moment.
 - **Read a view in a condition** with `in`, and the gate follows the
   population.

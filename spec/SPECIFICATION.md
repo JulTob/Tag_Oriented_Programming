@@ -45,10 +45,12 @@ replaces it: before and after, it is the same object. Precisely:
   same equality);
 - every attribute and method the Target had keeps working the way it did,
   unless a Tag deliberately contributes a member of that name;
-- the Target's own special methods (`__contains__`, `__len__`, `__bool__`,
+- the accepted Target's own special methods (`__contains__`, `__len__`,
   operators, `__getattr__`) keep working, with one deliberate exception:
-  `bool(agent)` gains contract meaning once a Postcondition is visible
-  (§2.5);
+  an ordinary object Agent's `bool(agent)` is its visible Posts from
+  first Tagging, even if the host defines `__len__`; `len(agent)` stays
+  the host's (§2.5). A host with an explicit `__bool__` is refused as a
+  Target before Tagging effects;
 - the name of the object's type is unchanged.
 
 What TOP does **not** promise is nominal type identity: a Python
@@ -298,9 +300,10 @@ language, not a library's naming.
 | active member? | `agent in Wizard` |
 | carries a keyword? (Flags, §1.8) | `"Undead" in ghoul`, `Undead in ghoul`, `Keyword(ghoul, "Undead")`; a Flag's words the same, `"Wolf" in howler` |
 | ever a member? | `isinstance(agent, Wizard)` |
-| the sound population | `for w in Wizard`, `len(Wizard)`, `if Wizard:` |
+| the sound population | `for w in Wizard`, `len(Wizard)`, `if len(Wizard) > 0:` |
 | the defective population | `for w in ~Wizard`, `if ~Wizard:` |
 | everyone in the Field | `Wizard[:]`, `if Wizard[:]:` |
+| the Tag's own Posts hold | `bool(Wizard)`, `if Wizard:`; no Posts means true, even with an empty Field |
 | populations combined (§2.5) | `Wizard \| Fighter`, `Wizard & Fighter`, `Wizard - Sworn`; the same on `Wizard[:]` and `~Wizard` |
 | one condition, read on the Agent (§2.5) | `agent.Has_Book` |
 | a named Contribution is present (§1.1) | `"Attack" @ agent`, `"Attack" @ Wizard[agent]` |
@@ -319,10 +322,15 @@ language, not a library's naming.
 | a Tag carries a keyword? (Flag Pins, §1.9) | `"Deprecated" in Wizard`, `Keyword(Wizard, "Deprecated")` |
 | a Tag's Pins and contract, as text | `f"{Wizard:pins}"`, `f"{Wizard:contract}"` |
 
-Truth on a Tag is truth on a collection: `if Wizard:` asks whether anyone
-sound is a Wizard right now, `while Enemy:` fights while an enemy stands,
-`if not Boss:` spawns one, `if ~Wizard:` asks whether anyone waits for
-repair.
+Truth on a Tag checks its own visible Posts received through Pins (§1.9),
+just as truth on any Agent checks its Posts. It does not check the Posts
+the Tag declares for its members. A Tag with no Posts is true even with an
+empty Field. Population questions use their cardinalities: `len(Wizard) > 0`
+asks whether any sound Wizard exists, `while len(Enemy) > 0:` continues
+while a sound enemy stands, and `if len(Boss) == 0:` can spawn one.
+`len(Wizard[:])` counts everyone and `len(~Wizard)` counts defective members.
+Population views keep collection truth: `if ~Wizard:` asks whether anyone
+waits for repair, and `if Wizard[:]:` includes sound and defective members.
 
 The Agent's own `in` is reserved for **keywords**: Tags marked `@Flag`
 (§1.8). Ordinary Tags are asked from the Tag's side, `agent in Wizard`.
@@ -452,6 +460,7 @@ another meaning still relies on.
 
 The same rules bind special methods: a Tag may contribute `__add__`,
 `__eq__` and the like, and they actualize the Agent.
+The Agent truth protocol `__bool__` is reserved for Posts (§2.5).
 
 ## 1.3 Records
 
@@ -590,7 +599,8 @@ Three laws govern the slot:
    if it is seated again, and a class kind admits it. Admission never
    evaluates the object's contract. Presence (`"weapon" @ agent`),
    current membership (`agent.weapon in Weapon[:]`) and soundness
-   (`Contract.Holds(agent.weapon)`) stay three questions.
+   (`bool(agent.weapon)`, once it is known to be an Agent) stay three
+   questions. An untagged value retains ordinary Python truth.
 2. **The slot is never empty, unless its kind says so.** With a kind of
    Tags and classes alone, a builder that returns `None` and an
    assignment of `None` are Composition Failures. A kind written with
@@ -1081,9 +1091,12 @@ Field, a gate, a promise, a Rip that is an act, and a history
 `isinstance` remembers. A Tag says what something *is*; a Record says
 what it *has* right now.
 
-**Seats already taken.** `bool(Wizard)` remains "is anyone a sound
-Wizard" (§0.8); a pinned Tag's own promises are read from the Pin's side,
-`Wizard in ~Rare`, `Contract.Display(Wizard)`, `f"{Wizard:contract}"`.
+**The Tag's own contract.** `bool(Wizard)` checks its visible Pin Posts,
+including those retained after Rip; no Posts means true. The Tag's Field
+does not decide its truth. `len(Wizard) > 0` asks for a sound member (§0.8).
+A pinned Tag's promises can also be read from the Pin's side,
+`Wizard in ~Rare`, or inspected with `Contract.Display(Wizard)` and
+`f"{Wizard:contract}"`.
 `f"{Wizard:pins}"` names its Pins. `Wizard.Rare` is the Pin-bound view
 by name, on the same miss-path rule as `charlie.Wizard`.
 
@@ -1275,8 +1288,8 @@ for anyone in Wizard[:]:     # everyone, sound or defective
 assert broken in Wizard      # a defective Agent is still a member
 ```
 
-The plain loop is the working population, and `if Wizard:` asks whether
-it is empty. A broken Agent does not stop being a member (`in`), does not
+The plain loop is the working population, and `len(Wizard) > 0` asks whether
+it contains a member. A broken Agent does not stop being a member (`in`), does not
 leave `Wizard[:]`, and waits in `~Wizard` for repair or Rip. Membership and the loop deliberately disagree for it:
 the loop is the line, and a defective product is off the line.
 
@@ -1322,9 +1335,23 @@ pinned Tag reads its own conditions the same way (`Wizard.Has_Members`).
 A condition that outlived its Tag (§0.7) still reads by name until the
 author ends it.
 
-Truthiness on a plain object is vacuously true, so this fills an empty
-seat. A host that defines its own `__bool__` or `__len__` keeps it until a
-Postcondition becomes visible on that Agent.
+An ordinary object Agent with no visible Postcondition is truthy: it has
+no broken promise. A host's `__len__` keeps answering `len(agent)`; its
+length never answers the Agent's truth. Thus an empty Agent whose visible
+promises hold is still truthy.
+
+The Agent's `__bool__` protocol is reserved for that contract question.
+A Tag cannot gain or delete it, including through a Record, Action or
+published Report/Operation; a Declaration Failure refuses such a binding.
+An ordinary Python host defining `__bool__` directly or by inheritance is
+refused as a Target with a Composition Failure before Gates, Gainings or
+Target mutation. Its truth is not evaluated or replaced by Tagging.
+Objects held in Records retain their own truth. A Tag follows the same
+contract rule: `bool(Tag)` checks its own visible Posts received through
+Pins, independently of its members' Posts. No Posts means true even before
+any Pin or with an empty Field. A Pin can explicitly require sound members
+with a Post returning `len(tag) > 0`. Existing lengths and set algebra keep
+their population meanings (§0.8).
 
 ## 2.6 Naming the culprit
 
@@ -1365,7 +1392,6 @@ names the promise that broke:
 Contract.Postconditions(agent)   # promises hold, or raise naming one
 Contract.Preconditions(agent)    # gates still hold, or raise
 Contract.Conditions(agent)       # both, Pre then Post
-Contract.Holds(agent)            # the boolean form, spelled out
 Contract.Status(agent)           # {condition: holds?}, never raises
 print(Contract.Display(agent))
 # Hero[Wizard] contract:

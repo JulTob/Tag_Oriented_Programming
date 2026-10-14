@@ -59,7 +59,7 @@ Wizard(ari)
 
 assert ari in Wizard                 # Ari is a Wizard now
 assert list(Wizard) == [ari]         # the Field: everyone who is one
-assert Wizard                        # "is anyone a Wizard?" (yes)
+assert len(Wizard) > 0               # "is anyone a Wizard?" (yes)
 ```
 
 An empty Tag is already useful. It defines a category and a population, and
@@ -189,7 +189,7 @@ corruption = 0
 for creature in Undead:                 # every sound member
     corruption += creature.level
 
-if not Undead:                          # nobody is Undead: nothing to do
+if len(Undead) == 0:                    # no sound Undead members: nothing to do
     print("This area is safe")
 else:
     print(f"This area is corrupted by a level of {corruption}")
@@ -1057,9 +1057,9 @@ assert kit.Drive() == "Engine v1 at 2"
 **Watch out.** A Pin may replace what a Tag *shares* (its Operations
 and Reports), never what its Agents *do* (its Actions, Records and
 conditions); TopKit refuses that at the gate, because on a class the two
-live in one dictionary. `if Wizard:` still asks whether anyone is a
-sound Wizard, not whether Wizard's own promises hold; ask those from the
-Pin's side, `Wizard in ~Rare`. A Pin applies only to Tags, and an
+live in one dictionary. `if Wizard:` asks whether Wizard's own visible
+Posts hold, including those received from Pins. `len(Wizard) > 0` asks
+whether anyone is a sound Wizard. A Pin applies only to Tags, and an
 ordinary Tag only to objects, so a Field is never a mix of the two. A
 Flag Pin is a keyword on the Tag: `"Deprecated" in Wizard`. Prefer it to
 `Wizard.deprecated = True` for the same reason you prefer an `Undead` Tag
@@ -1081,13 +1081,25 @@ the architecture, with a Field to walk and a history that stays.
 | Are its promises holding? | `if agent:`, `Contract.Status(agent)`, `f"{agent:contract}"` |
 | What did it look like right after Wizard? | `agent.Wizard`, `Wizard[agent]` |
 
+An Agent's truth is its visible Postconditions. A Tag in the Agent's
+seat follows the same rule for its own Posts, received from Pins. With
+no Posts either is true: nothing promised is broken, even if a Tag's
+Field is empty. The ordinary Agent's truth seat is reserved:
+a Python host with an explicit `__bool__` is refused as a Target before
+its Gates or Gainings, and a Tag cannot gain or delete that name. A host's
+`__len__` still answers `len(agent)`, so an empty Agent can be sound and
+truthy. Boolean information can live in an ordinary Action or Record;
+objects held in Records keep their own truth.
+
 ## Reading a Tag
 
 | Question | Spelling |
 | --- | --- |
-| Who is one, and sound? | `for a in Wizard`, `len(Wizard)`, `if Wizard:` |
-| Who is one, and broken? | `for a in ~Wizard`, `if ~Wizard:` |
-| Everyone? | `Wizard[:]` |
+| Who is one, and sound? | `for a in Wizard`, `len(Wizard)` |
+| Is anyone sound? | `len(Wizard) > 0` |
+| Who is one, and broken? | `for a in ~Wizard`, `len(~Wizard)`, `if ~Wizard:` |
+| Everyone? | `Wizard[:]`, `len(Wizard[:])` |
+| Do the Tag's own Posts hold? | `if Wizard:` |
 | Either, both, without? | `Wizard \| Fighter`, `Wizard & Fighter`, `Wizard - Sworn` (the Fields Guide) |
 | What applies with it? | `Form(Wizard)`, `f"{Wizard:form}"` |
 | Take it away | `del Wizard[agent]` |

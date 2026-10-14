@@ -4,6 +4,12 @@
 
 ### TopKit
 
+- **Native contract truth:** removed `Contract.Holds` without an alias
+  (STEP-SPEC-40). Use `bool(agent)` or `if agent:`, including for Tags.
+  Named checks and diagnostic Contract tools remain. Held untagged values
+  keep ordinary Python truth; retain any required membership check before
+  interpreting a held value's truth as an Agent's contract.
+
 - **Deep population algebra:** lazy combinations evaluate walks and
   membership with explicit stacks, preserving left-first order, live
   per-leaf walk timing, short circuits and identity-based union ownership
@@ -113,6 +119,18 @@
   exposes public `Add` or `Remove` methods. Membership changes through
   Tagging and Rip, so the Field and the Agent's active Tags cannot be
   made to contradict each other through a partial internal operation.
+
+- **Agent truth is reserved for its Posts.** `bool(agent)` on an ordinary
+  object Agent reads its visible Posts from first Tagging, and is true
+  when it has none. Hosts with an explicit `__bool__` are refused before
+  Tagging effects; truth Gains and deletion are refused at declaration.
+  Tags follow the same rule for their own visible Pin Posts, independently
+  of their members; no Posts means true even with an empty Field. Use
+  `len(Tag) > 0` for a sound-member existence check. `len(Tag)`, `len(Tag[:])`,
+  `len(~Tag)`, iteration and population algebra retain their existing meanings.
+  Host `__len__` and Record-held value truth remain separate. Plain objects
+  created from an Agent's runtime type
+  keep native host truth, including inheritance order and descriptor binding.
 
 - **Ordinary condition names:** Preconditions and Postconditions refuse
   Python dunder names at Tag declaration and before late assignment.

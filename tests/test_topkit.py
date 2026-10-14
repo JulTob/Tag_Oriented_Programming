@@ -511,7 +511,7 @@ class KernelTests(unittest.TestCase):
         self.assertEqual(list(Field_Member), [ari])
         self.assertEqual(len(Field_Member[:]), 1)
         self.assertEqual(len(Field_Member), 1)
-        self.assertTrue(Field_Member)
+        self.assertGreater(len(Field_Member), 0)
         self.assertTrue(Field_Member[:])
         self.assertFalse(~Field_Member)
 
@@ -520,7 +520,7 @@ class KernelTests(unittest.TestCase):
 
         self.assertIsNone(reference())
         self.assertEqual(list(Field_Member[:]), [])
-        self.assertFalse(Field_Member)
+        self.assertEqual(len(Field_Member), 0)
         self.assertFalse(Field_Member[:])
 
     def test_fields_index_by_identity_not_equality(self) -> None:
@@ -649,12 +649,103 @@ class HostPreservationTests(unittest.TestCase):
         self.assertIn("x", bag)
         self.assertNotIn(Field_Member, bag)       # the host keeps its `in`
         self.assertEqual(bag | 1, "host-or")
+        self.assertEqual(len(bag), 1)             # and its `len`
         self.assertTrue(bool(bag))
 
         bag.items.clear()
 
-        self.assertFalse(bool(bag))
+        self.assertEqual(len(bag), 0)
+        self.assertTrue(bool(bag))                # its truth is its contract, not its length
         self.assertEqual(bag.dynamic, "from host getattr")
+
+    def test_an_agents_truth_is_its_contract_while_len_stays_the_hosts(self) -> None:
+        class Shelf:
+            def __init__(self) -> None:
+                self.books: list[str] = []
+                self.catalogued = True
+
+            def __len__(self) -> int:
+                return len(self.books)
+
+        class Library(Tag):
+            pass
+
+        class Catalogue(Tag):
+            @Post
+            def Catalogued(agent) -> bool:
+                return agent.catalogued
+
+        shelf = Shelf()
+        Library(shelf)
+
+        self.assertEqual(len(shelf), 0)
+        self.assertTrue(shelf)                    # no promise: nothing is broken
+
+        Catalogue(shelf)
+        shelf.books.append("Dune")
+        shelf.catalogued = False
+
+        self.assertEqual(len(shelf), 1)
+        self.assertFalse(shelf)                   # broken, whatever its length
+
+        shelf.books.clear()
+        shelf.catalogued = True
+
+        self.assertEqual(len(shelf), 0)
+        self.assertTrue(shelf)                    # sound, whatever its length
+
+    def test_an_untagged_object_from_an_agents_type_keeps_host_truth(self) -> None:
+        bag = self.Bag()
+        Field_Member(bag)
+        spare = type(bag)()
+
+        self.assertTrue(spare)
+        spare.items.clear()
+        self.assertFalse(spare)
+
+        class Host:
+            pass
+
+        class Sized(Tag):
+            def __len__(agent) -> int:
+                raise AssertionError("TOP behaviour leaked into a plain host")
+
+        tagged = Host()
+        Sized(tagged)
+
+        self.assertTrue(type(tagged)())            # ignores the Tag's __len__
+
+    def test_plain_runtime_truth_binds_a_non_descriptor_len_as_python_does(self) -> None:
+        class Length:
+            def __call__(self) -> int:
+                return 0
+
+        class Host:
+            __len__ = Length()
+
+        host = Host()
+        Field_Member(host)
+
+        self.assertFalse(type(host)())
+
+    def test_plain_runtime_truth_skips_every_synthesized_layer(self) -> None:
+        class Host:
+            pass
+
+        class Sized(Tag):
+            def __len__(agent) -> int:
+                raise AssertionError("an older TOP layer leaked")
+
+        first = Host()
+        Sized(first)
+
+        class Derived(type(first)):
+            pass
+
+        second = Derived()
+        Field_Member(second)
+
+        self.assertTrue(type(second)())
 
     def test_tag_members_do_not_leak_onto_the_agent(self) -> None:
         ari = Agent()
@@ -1544,7 +1635,7 @@ class DefectiveTaggingTests(unittest.TestCase):
         self.assertEqual(len(Candidate_Record), 1)
         self.assertEqual(len(~Candidate_Record), 1)
         self.assertEqual(len(Candidate_Record[:]), 2)
-        self.assertTrue(Candidate_Record)          # someone sound
+        self.assertGreater(len(Candidate_Record), 0)  # someone sound
         self.assertTrue(~Candidate_Record)         # someone broken
         self.assertTrue(Candidate_Record[:])       # anyone
 
@@ -1728,6 +1819,33 @@ class DefectiveTaggingTests(unittest.TestCase):
 
 
 class ContractNamespaceTests(unittest.TestCase):
+    def test_native_truth_replaces_holds_and_keeps_named_diagnostics(self) -> None:
+        self.assertNotIn("Holds", vars(Contract))
+
+        class Checked(Tag):
+            @Record
+            def contents(agent):
+                return []
+
+            @Post
+            def Ready(agent):
+                return agent.contents is not None
+
+        agent = Agent()
+        Checked(agent)
+        self.assertFalse(agent.contents)     # held values keep Python truth
+        self.assertTrue(agent)              # the empty list satisfies Ready
+        self.assertTrue(Contract.Postconditions(agent))
+
+        agent.contents = None
+        self.assertFalse(agent)
+        with self.assertRaises(TagPostconditionError.Ready):
+            Contract.Postconditions(agent)
+        self.assertEqual(Contract.Status(agent), {"Ready": False})
+
+        Contract.Delete(agent, "Ready")
+        self.assertTrue(agent)
+
     def test_contract_namespace_checks_pre_post_and_both(self) -> None:
         ari = Agent()
         ari.level = 1
@@ -1737,7 +1855,7 @@ class ContractNamespaceTests(unittest.TestCase):
         self.assertTrue(Contract.Preconditions(ari))
         self.assertTrue(Contract.Postconditions(ari))
         self.assertTrue(Contract.Conditions(ari))
-        self.assertTrue(Contract.Holds(ari))
+        self.assertTrue(bool(ari))
 
         del ari.spellbook
 
@@ -1915,7 +2033,7 @@ class PinTests(unittest.TestCase):
         self.assertEqual(list(Rare), [Wizard])
         self.assertEqual(list(Rare[:]), [Wizard])
         self.assertEqual(len(Rare), 1)
-        self.assertTrue(Rare)
+        self.assertGreater(len(Rare), 0)
         self.assertTrue(isinstance(Wizard, Rare))
         self.assertEqual(identity, (id(Wizard), hash(Wizard), Wizard.__name__, Form(Wizard)))
         self.assertIs(type(self.War_Caster), type(Tag))
@@ -1954,10 +2072,10 @@ class PinTests(unittest.TestCase):
         self.assertEqual(Tags(Wizard), (Rare,))
         self.assertEqual(Outline(Wizard), "Wizard\n  Rare")
         self.assertTrue(f"{Wizard:contract}".startswith("Wizard[Rare]"))
-        self.assertFalse(Wizard)                                      # still "any sound member"
+        self.assertEqual(len(Wizard), 0)                              # no sound members
         ari = Agent()
         Wizard(ari)
-        self.assertTrue(Wizard)
+        self.assertGreater(len(Wizard), 0)
 
     def test_refusals(self) -> None:
         Wizard, Rare = self.Wizard, self.Rare
@@ -2471,7 +2589,7 @@ class StickyConditionTests(unittest.TestCase):
         ari.book = None
 
         self.assertEqual(Contract.Status(ari), {"Has_Book": False})   # the promise stays, and fails loud
-        self.assertFalse(Contract.Holds(ari))
+        self.assertFalse(bool(ari))
 
     def test_a_ripped_gate_stays_on_the_record(self) -> None:
         class Gated(Tag):
@@ -2507,7 +2625,7 @@ class StickyConditionTests(unittest.TestCase):
         ari.oath = None
 
         self.assertEqual(Contract.Status(ari), {})
-        self.assertTrue(Contract.Holds(ari))
+        self.assertTrue(bool(ari))
 
     def test_the_author_guards_a_promise_with_membership(self) -> None:
         class Sworn(Tag):
@@ -2524,12 +2642,12 @@ class StickyConditionTests(unittest.TestCase):
         ari.oath = None
 
         self.assertEqual(Contract.Status(ari), {"Has_Oath": True})    # still listed, holds by the guard
-        self.assertTrue(Contract.Holds(ari))
+        self.assertTrue(bool(ari))
 
         with self.assertRaises(Postcondition.Has_Oath):
             Sworn(ari)                                                # back in: the promise bites again
 
-        self.assertFalse(Contract.Holds(ari))
+        self.assertFalse(bool(ari))
 
     def test_deleting_a_condition_that_is_not_there_is_refused(self) -> None:
         ari = Agent()
@@ -2584,7 +2702,7 @@ class StickyConditionTests(unittest.TestCase):
         del Alive[ari]
         ari.alive = False
 
-        self.assertTrue(Contract.Holds(ari))                          # the guard skipped the dead beat
+        self.assertTrue(bool(ari))                          # the guard skipped the dead beat
 
     def test_a_pins_promise_is_sticky_and_the_pin_may_end_it(self) -> None:
         class Wizard(Tag):
@@ -3365,7 +3483,7 @@ class FieldAlgebraTests(unittest.TestCase):
         self.assertEqual(Choir._sound(), "the program's value")
         self.assertEqual(list(Choir), [solo])
         self.assertEqual(len(Choir), 1)
-        self.assertTrue(Choir)
+        self.assertGreater(len(Choir), 0)
         self.assertEqual(
                 list(Choir | self.Wizard),
                 [solo, self.ari, self.bo],
@@ -3578,7 +3696,7 @@ class PopulationWalkTests(unittest.TestCase):
         self.assertEqual(self.walked(Wizard[:], Return_Ari), [ari, bo, cal])
         self.assertEqual(list(Wizard[:]), [bo, cal, ari])
 
-    def test_truth_length_and_iteration_share_membership_at_turn(self) -> None:
+    def test_population_queries_share_membership_at_turn(self) -> None:
         def ask(question):
             checks = []
             changing = [False]
@@ -3604,7 +3722,7 @@ class PopulationWalkTests(unittest.TestCase):
             return question(Enemy), checks, pair
 
         questions = (
-                ("truth", bool, False),
+                ("population truth", lambda population: bool(population & population), False),
                 ("length", len, 0),
                 ("iteration", lambda population: [member for member in population], []),
                 )
@@ -4756,32 +4874,32 @@ class EfficiencyTests(unittest.TestCase):
 
         self.assertEqual(len(overwrites), 1)
 
-    def test_a_population_is_true_exactly_when_someone_counts(self) -> None:
+    def test_population_cardinality_tracks_sound_and_broken_members(self) -> None:
         class Fighter(Tag):
             @Post
             def Armed(agent) -> bool:
                 return agent.ready
 
-        self.assertFalse(Fighter)
+        self.assertEqual(len(Fighter), 0)
         self.assertFalse(~Fighter)
 
         broken = Agent()
         Fighter(broken)
         broken.ready = False
 
-        self.assertFalse(Fighter)          # nobody sound
+        self.assertEqual(len(Fighter), 0)   # nobody sound
         self.assertTrue(~Fighter)          # someone broken
 
         sound = Agent()
         Fighter(sound)
 
-        self.assertTrue(Fighter)
+        self.assertGreater(len(Fighter), 0)
         self.assertEqual(list(Fighter), [sound])
 
         del sound
         gc.collect()
 
-        self.assertFalse(Fighter)
+        self.assertEqual(len(Fighter), 0)
 
     def test_an_underlay_called_with_or_without_arguments(self) -> None:
         class Speaker(Tag):
@@ -4952,7 +5070,7 @@ print("end")
         self.assertNotIn("Werewolf", ari)
         self.assertIn("Wolf", ari)
 
-    def test_a_population_truth_agrees_with_its_walk(self) -> None:
+    def test_population_cardinality_agrees_with_its_walk(self) -> None:
         keep: dict[str, object] = {}
 
         class Enemy(Tag):
@@ -4978,9 +5096,9 @@ print("end")
                     pass
 
         del member                         # keep["b"] is b's last reference
-        answer = bool(Enemy)
+        count = len(Enemy)
 
-        self.assertTrue(answer)            # b was a member when the question began
+        self.assertEqual(count, 1)         # b was a member when the question began
 
 
 class LayeredDeletionTests(unittest.TestCase):

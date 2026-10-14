@@ -614,7 +614,7 @@ print(f"{enterprise:contract}")
 
 enterprise.Vent()
 enterprise.Vent()
-assert Contract.Holds(enterprise)
+assert enterprise
 ```
 
 ---
@@ -622,16 +622,23 @@ assert Contract.Holds(enterprise)
 ## 11. Contracts on Tags themselves
 
 A Pin (Guide, pattern 11) puts a Tag in the Agent's seat, so everything
-above applies to Tags too. Fleet command can require that a protocol Tag
-has at least one trained crew member before it counts as *Certified*.
+above applies to Tags too. `bool(tag)` checks its own visible Posts,
+not the Agents in its Field. Without Posts it is true, even when that
+Field is empty. Fleet command can explicitly require a protocol Tag
+to have at least one sound crew member while it is *Certified*.
 
 ```python
+assert len(Quarantined[:]) == 0
+assert Quarantined                     # no Pin Posts: true even when empty
+
+
 @Pin
 class Certified(Tag):
 
     @Pre
+    @Post
     def Has_Trained_Crew(tag):
-        return bool(tag[:])
+        return len(tag) > 0
 
 
 try:
@@ -641,6 +648,15 @@ except Precondition.Has_Trained_Crew:
 
 Certified(Bridge)                       # Worf is on the bridge
 assert Bridge in Certified
+assert Bridge                          # its own Post holds
+
+del Bridge[worf]
+assert len(Bridge) == 0
+assert not Bridge                      # Has_Trained_Crew now fails
+assert Bridge in Certified             # still Certified, now deficient
+
+Bridge(worf)
+assert Bridge                          # the promise holds again
 ```
 
 ---

@@ -12,6 +12,7 @@ from __future__ import annotations
 from functools import partial
 from typing import Any
 from typing import Callable
+import operator
 import sys
 
 from . import declarations
@@ -94,11 +95,45 @@ def _host_in_seat(
     return None
 
 
+def _refuse_host_truth(
+        target: object,
+        ) -> None:
+    """Refuse custom host truth without evaluating it or changing the Target."""
+
+    host = type(target)
+
+    # Read Python's type data directly: custom metaclass lookup must not
+    # hide a real protocol declaration or run while eligibility is checked.
+    for klass in type.__dict__["__mro__"].__get__(host):
+        namespace = type.__dict__["__dict__"].__get__(klass)
+
+        if "__bool__" not in namespace:
+            continue
+
+        if (
+                namespace.get("_TOPKIT_HOST_TYPE") is not None
+                and namespace["__bool__"] is _agent_bool
+                ):
+            continue   # the kit's hook on a synthesized runtime layer
+
+        raise TagCompositionError(
+                f"{type.__dict__['__name__'].__get__(host)} defines __bool__;"
+                " an Agent's truth is"
+                " reserved for its visible Postconditions"
+                )
+
+
 def _hooks_for(
         host_type: type,
-        has_posts: bool,
         has_flags: bool,
         ) -> dict[str, Any]:
+    """The kit's special methods for one host.
+
+    Ordinary object Agents use contract truth from the first Tagging.
+    Their hosts may supply ``__len__``, but custom ``__bool__`` is refused
+    before Tagging. Tags use their metaclass's own-contract truth.
+    """
+
     hooks: dict[str, Any] = {
             "__getattr__": _agent_getattr,
             "__del__": _agent_del,
@@ -106,7 +141,7 @@ def _hooks_for(
             "_TOPKIT_HOST_GETATTR": _host_member(host_type, "__getattr__"),
             }
 
-    if has_posts and _host_member(host_type, "__bool__") is None:
+    if not issubclass(host_type, type):
         hooks["__bool__"] = _agent_bool
 
     if _host_member(host_type, "__format__") is None:
@@ -292,7 +327,65 @@ def _keyword(
 def _agent_bool(
         agent: object,
         ) -> bool:
+    """Reserved Agent contract truth; a plain object
+    constructed from an Agent's runtime type keeps ordinary host truth."""
+
+    state = _state_of(agent)
+
+    if state is None:
+        return _host_truth(agent)
+
+    if not state.postconditions:
+        return True   # nothing promised
+
     return _holds(agent)
+
+
+def _host_truth(
+        agent: object,
+        ) -> bool:
+    """An untagged runtime object keeps its host's native truth.
+
+    The actual MRO already contains the underlying host classes. Skip the
+    synthesized layers without moving an older host ahead of an override.
+    """
+
+    host = type(agent)
+
+    for klass in type.__dict__["__mro__"].__get__(host):
+        namespace = type.__dict__["__dict__"].__get__(klass)
+
+        if namespace.get("_TOPKIT_HOST_TYPE") is not None:
+            continue
+
+        if "__len__" not in namespace:
+            continue
+
+        length = namespace["__len__"]
+
+        # Python's descriptor slot reads __get__ from the real type data,
+        # independently of a metaclass's attribute lookup or class equality.
+        for descriptor_type in type.__dict__["__mro__"].__get__(type(length)):
+            descriptor_namespace = type.__dict__["__dict__"].__get__(descriptor_type)
+
+            if "__get__" in descriptor_namespace:
+                call = descriptor_namespace["__get__"](length, agent, host)
+                break
+
+        else:
+            call = length
+
+        result = operator.index(call())
+
+        if result < 0:
+            raise ValueError("__len__() should return >= 0")
+
+        if result > sys.maxsize:
+            raise OverflowError("cannot fit 'int' into an index-sized integer")
+
+        return result != 0
+
+    return True
 
 
 def _host_finalizer(
