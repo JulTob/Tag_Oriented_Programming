@@ -57,7 +57,7 @@ the intended combination. Acceptance of the syntax is not implementation.
 
 | Criterion | `@Post` + `@Operation` | `@Post` + proposed `@Private` |
 | --- | --- | --- |
-| Identifies the Tag receiver | Uses Operation's existing receiver | Needs a new meaning for Private |
+| Identifies Tag scope | Uses Operation's Tag scope; the combined Post keeps its declaring Agency as subject rather than rebinding to a Shape | Needs a new meaning for Private |
 | Separates scope from visibility | Keeps the two questions separate | Uses a visibility word to choose scope |
 | Reuses the modifier vocabulary | Adds a supported combination of existing marks | Adds a new mark beside Secret/Public |
 | Invoking the check by name | Execute the Post body on named access, with the Tag as receiver | Could also execute on named access, but receiver selection would depend on the new privacy rule |
@@ -78,21 +78,23 @@ verdict nor a handle waiting to be called. This clarification concerns the
 Post-Operation; it does not introduce a general change to Action invocation.
 
 On Shapes, the Director specified **“they don't need a copy, as the base is
-tagged before a shape is”**. Record the no-copy constraint. The receiver of
-the shared declaration remains to be clarified: applying a Base before a
-Shape to a member Agent does not itself apply that Base to the Shape class.
-Reusing one declaration does not require copying its body in any of the
-receiver choices described below.
+tagged before a shape is”**. In the Crew/Pilots example below, the Director
+then confirmed **“The requirement is about Crew as a whole”**. A native
+Post declared by a Base continues to judge that Base; it is not rebound to
+the Shape's Field as a separate requirement. Whether the Base's failed
+verdict also makes the Shape invalid remains to be settled separately.
 
 ## Proposed semantics — remaining decisions
 
-The following records execution by name as clarified above; other choices
-remain recommendations unless explicitly confirmed.
+The following records execution by name and the Base as the subject of its
+own Post, as clarified above; other choices remain recommendations unless
+explicitly confirmed.
 
 ### Declaration, receiver and reads
 
 1. Both decorator orders declare the same Tag-level Post. Its body receives
-   the Tag, takes no Tagging inputs, and follows existing Post verdict,
+   the Tag whose promise it declares, takes no Tagging inputs, and follows
+   existing Post verdict,
    assertion, synchronous-result and recursion rules. This does not make
    arbitrary decorator combinations valid.
 2. `Tag.Ready` invokes the check immediately, without `()`, and returns its
@@ -150,32 +152,35 @@ could supply further Posts about Fleet without being needed to establish
 
 ### Shapes, Overlay and protection
 
-No copy of the Base's Post body is needed. The earlier recommendation was
-to reuse it with **the Shape** as receiver, as inherited Operations do.
-The Director's Base-first answer does not yet settle that receiver; keep
-this choice open rather than treating no-copy as either acceptance or
-rejection of Shape-bound evaluation.
+Crew declares a Post-Operation requiring two members. Pilots is a Shape of
+Crew. There are ten Crew members, but only one Pilot. The Director confirmed
+that the requirement counts **Crew as a whole**: Crew passes; this declaration
+does not demand two Pilots. No copy of the Post is needed. This supersedes
+the earlier recommendation to rebind the Base's Post to the receiving Shape.
 
-Concrete decision: Crew declares a Post-Operation requiring two members.
-Pilots is a Shape of Crew. There are ten Crew members, but only one Pilot.
-Tagging that Pilot already applied Crew first, as the Director describes.
-Does Pilots nevertheless need two Pilots to be valid, or does the Post
-govern Crew as a whole? This is about which Agency the requirement judges,
-not whether its declaration is copied. If it governs Crew only, separately
-settle whether Crew's failure contributes to Pilots' truth.
+This is a distinction from an ordinary inherited Operation, which receives
+the Tag it is called through. Post-Operation retains its Base as the subject
+of the promise. It therefore needs an explicit combined-declaration rule;
+ordinary Operation inheritance alone is insufficient.
 
-The Director requested a simpler explanation of this question; no answer
-about the receiver or applicability has yet been recorded.
+One question remains: if Crew falls below two members, does only
+`bool(Crew)` become False, or does `bool(Pilots)` also become False because
+Crew is its Base? Either choice still checks Crew's Field. The answer must
+also guide inherited named access and diagnostics; none is inferred here.
+
 Existing Posts gained through a Pin remain specific to the Tag actually
-pinned under the current rules; Pin membership does not inherit. Revisit
-the example and the dependent Overlay/deletion recommendations below once
-the native Post receiver is settled.
+pinned under the current rules; Pin membership does not inherit. The
+dependent Overlay/deletion recommendations below await the remaining
+contract-applicability decision.
 
-Recommend one visible Post per name, using existing Post Overlay, Underlay,
-Contract Warning and Constant protection. A Shape or a Pin should not create
-two simultaneously enforced promises named Ready while `Tag.Ready` reports
-only one of them. Same-name Record/Action/Report/ordinary Operation collisions
-must follow an explicit condition collision rule, not silently hide a Post.
+Recommend one visible Post per name **within one Agency's own contract**,
+using existing Post Overlay, Underlay, Contract Warning and Constant
+protection. A Pin must not create two enforced Posts named Ready on that
+Agency while `Tag.Ready` reports only one. If Base validity also participates
+in Shape validity, same-named Posts owned by distinct Agencies need an
+explicit resolution and diagnostic rule; do not silently overwrite Crew's
+promise with Pilots' own promise. Same-name Record/Action/Report/ordinary
+Operation collisions must follow an explicit condition collision rule.
 
 Native/Pin Overlay is a real design extension: current Pin rules distinguish
 patchable Tag-scope Contributions from protected protocol declarations.
@@ -185,11 +190,13 @@ with a receiving Tag's retained Pin history.
 
 Recommend computed-condition write protection: `Tag.Ready = True` and
 `del Tag.Ready` cannot bypass its calculation. Deliberate removal uses
-`Contract.Delete(Tag, "Ready")` for a non-Constant condition. For an inherited
-native Post, this must affect that receiving Tag only, not erase its Base's
-declaration or sibling Shapes' contracts. The deletion's persistence across
-later Shape edits or Pin reapplication needs an explicit decision and tests;
-it must not silently resurrect a deleted promise.
+`Contract.Delete(Tag, "Ready")` for a non-Constant condition owned by that
+Tag. If a Shape's contract includes the Base's Post, explicitly settle
+whether deletion on the Shape is refused or can release that dependency;
+it must not silently erase the Base's own promise or its other Shapes'
+contracts. Deletion's persistence across later declaration edits or Pin
+reapplication also needs an explicit decision and tests; a deleted promise
+must not silently reappear.
 
 `@Constant` would protect the binding and implementation, not freeze the
 condition's verdict: a fixed check still answers current state. Rip of a Pin
@@ -249,10 +256,11 @@ After the design is Cleared, the implementation must:
   published and no implicit membership appears.
 - A Pin's sound/broken partition reflects a receiving Tag's native failure;
   the receiving Tag's own member cardinalities and algebra remain unchanged.
-- Cover the agreed Shape receiver and non-inherited Pin contract behavior,
+- Verify that the Crew/Pilots check counts Crew, not Pilots. Cover the agreed
+  propagation or independence of Base validity, non-inherited Pin contracts,
   ordered multiple Bases, Post Underlay, warnings and same-name collisions.
 - Cover native/Pin coexistence and Overlay, Constant refusal, Pin Rip and
-  reapplication, explicit deletion on one Shape and subsequent declaration
+  reapplication, agreed deletion rules for a Shape and subsequent declaration
   edits, including cache refresh.
 - Ordinary Operations remain callable and available for repair; a false
   Tag Post alone does not become a member Gate or add hidden checkpoints.
@@ -280,8 +288,8 @@ scope meaning is possible, but less consistent with TOP's current vocabulary.
 
 1. Confirm the combined declaration spelling; execution by name without
    `()` is clarified above.
-2. Resolve the Base/Shape receiver and applicability example above, while
-   reusing the declaration without copying it.
+2. Decide whether a Base's failed Post also makes its Shapes invalid. The
+   Post continues to judge the Base; it does not become a Shape-local check.
 3. Confirm native/Pin Post Overlay and explicit per-Tag deletion, including
    later declaration changes and Constant protection.
 4. Confirm explicit validity checks and existing Pin boundaries, without
@@ -290,5 +298,6 @@ scope meaning is possible, but less consistent with TOP's current vocabulary.
 ### Decision *(filled by the Director)*
 
 Status remains **Brief**. The feature request and clarifications authorize
-this proposal and record execution by name and the no-copy constraint;
-they do not settle the remaining choices above or Clear the STEP.
+this proposal and record execution by name and a Base Post judging the Base
+without copying it to Shapes; they do not settle the remaining choices above
+or Clear the STEP.
