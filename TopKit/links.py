@@ -2536,6 +2536,35 @@ def _extension_tags_of(
     return _pair_tags_of([relation for _number, relation in gained])
 
 
+def _called_for(
+        pair: Pair,
+        ) -> list[type]:
+    """Every Pair Tag that the Links still holding the Contact call for:
+    their own Layers, Base Layers included, and the Layers the Agent's
+    extensions gave them. None of these leaves a Pair with a linking."""
+
+    ends = _pair_ends(pair)
+    contact = ends.contact()
+    state = None if contact is None else _state_of(contact)
+
+    if state is None:
+        return []
+
+    held = [
+            link
+            for link in ends.family.Links()
+            if link in state.active
+            ]
+    called: list[type] = []
+
+    for link in held:
+        called.extend(_pair_form(link))
+
+    called.extend(_extension_tags_of(held))
+
+    return called
+
+
 def _left_tags(
         pair: Pair,
         links: list[type],
@@ -2549,7 +2578,7 @@ def _left_tags(
     if state is None:
         return []
 
-    kept = _extension_tags(pair)
+    kept = _called_for(pair)
 
     return [
             tag

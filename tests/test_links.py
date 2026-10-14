@@ -6096,5 +6096,164 @@ def Agents_Of_Any_Link(contact):
     return [tag for tag in state.active if _is_link(tag)]
 
 
+# ------------------------------------------------------------------
+# The fifth review round (an extension gained during a linking)
+# ------------------------------------------------------------------
+
+
+class Fifth_Round_Tests(unittest.TestCase):
+    def circle(self):
+        """Circle: Knows, and its Shape Link Trusts; Elite extends Trusts.
+        Knows has a teardown, which ``torn`` records."""
+
+        torn = []
+
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Record
+                def since(agent, contact, *, since=None):
+                    return since
+
+                @Rip
+                def Forget(agent, contact):
+                    torn.append("Knows teardown")
+
+                def Greet(agent, contact):
+                    return "knows"
+
+            @Link
+            class Trusts(Knows):
+                @Record
+                def level(agent, contact, *, level=None):
+                    return level
+
+                @Public
+                def Hail(agent, contact):          # a line Member's Hail meets at her entry (an Overwrite Warning)
+                    return "hail"
+
+        class Elite(Circle):
+            @Link
+            class Trusts(Circle.Trusts):
+                @Record
+                def elite(agent, contact):
+                    return "elite"
+
+        return Circle, Elite, torn
+
+    def missing_layers(self, link, contact):
+        """The Layers of ``link`` that her Pair no longer holds. A sticky undo
+        leaves the Shape's own values on a Pair, so Whole() is too strict here."""
+
+        pair = _record_of(link).family.Pair_Of(contact)
+        active = _state_of(pair).active
+
+        return [tag.__qualname__ for tag in _pair_form(link) if tag not in active]
+
+    def test_an_undone_shape_linking_leaves_the_base_links_layer_on_a_held_pair(self):
+        Circle, Elite, torn = self.circle()
+
+        class Failing_Call(Tag):
+            @Record
+            def work(agent, *, by=None):
+                by.Trusts(agent, level=5)
+                by.Knows[agent].since = "updated by the call"   # the Pair is written on, so it cannot be restored whole
+                return True
+
+            @Record
+            def broken(agent):
+                raise ValueError("the call fails")
+
+        charlie, tom = People("Charlie", "Tom")
+        Circle(charlie)
+        charlie.Knows(tom, since=3)               # her Pair is held through Knows
+        Elite(charlie)                            # an extension of the Shape Link Trusts
+
+        with self.assertRaises(TagCompositionError):
+            Failing_Call(tom, by=charlie)         # her call rolls back, and her Trusts linking with it
+
+        self.assertIn(tom, charlie.Knows)
+        self.assertNotIn(tom, charlie.Trusts)
+        self.assertEqual(charlie.Knows[tom].Greet(), "knows")    # Knows' own Layer stays on her Pair
+        self.assertEqual(self.missing_layers(charlie.Knows, tom), [])
+        del charlie.Knows[tom]
+        self.assertEqual(torn, ["Knows teardown"])               # and so does its teardown
+
+    def test_a_rolled_back_call_on_the_agent_leaves_the_base_links_layer_on_a_held_pair(self):
+        Circle, Elite, torn = self.circle()
+
+        class Call(Tag):
+            @Record
+            def work(agent, *, contact=None):
+                Elite(agent)                                # his Shape, then ...
+                agent.Trusts(contact, level=5)              # ... a linking through it, then ...
+                agent.Knows[contact].since = "updated"      # ... a write on the Pair
+                return True
+
+            @Record
+            def broken(agent):
+                raise ValueError("the call fails")
+
+        charlie, tom = People("Charlie", "Tom")
+        Circle(charlie)
+        charlie.Knows(tom, since=3)
+
+        with self.assertRaises(TagCompositionError):
+            Call(charlie, contact=tom)
+
+        self.assertNotIn(charlie, Elite)
+        self.assertNotIn(tom, charlie.Trusts)
+        self.assertEqual(self.missing_layers(charlie.Knows, tom), [])
+        del charlie.Knows[tom]
+        self.assertEqual(torn, ["Knows teardown"])
+
+    def test_a_refusal_at_her_entry_leaves_the_base_links_layer_whoever_wrote_on_the_pair(self):
+        for gained_first in (False, True):
+            for written_on in (False, True):
+                with self.subTest(gained_first=gained_first, written_on=written_on):
+                    Circle, Elite, torn = self.circle()
+
+                    class Club(Tag):
+                        @Link
+                        class Member(Tag):
+                            @Public
+                            def Hail(agent, contact):
+                                return "member hail"
+
+                    charlie, tom = People("Charlie", "Tom")
+                    Circle(charlie)
+                    Club(charlie)
+                    charlie.Knows(tom, since=3)
+
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        charlie.Member(tom)
+
+                    if gained_first:
+                        Elite(charlie)
+
+                    def at_her_entry(message, category, filename, lineno, file=None, line=None):
+                        if written_on:
+                            charlie.Knows[tom].since = "written at her entry"
+
+                        raise ValueError("her entry is refused")
+
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("always")
+                        previous, warnings.showwarning = warnings.showwarning, at_her_entry
+
+                        try:
+                            charlie.Trusts(tom, level=5)
+                        except ValueError:
+                            pass
+                        finally:
+                            warnings.showwarning = previous
+
+                    self.assertEqual(charlie.Knows[tom].Greet(), "knows")
+                    self.assertEqual(self.missing_layers(charlie.Knows, tom), [])
+                    del charlie.Knows[tom]
+                    self.assertEqual(torn, ["Knows teardown"])
+
+
 if __name__ == "__main__":
     unittest.main()
