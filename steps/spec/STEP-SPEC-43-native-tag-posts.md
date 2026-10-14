@@ -60,7 +60,7 @@ the intended combination. Acceptance of the syntax is not implementation.
 | Identifies the Tag receiver | Uses Operation's existing receiver | Needs a new meaning for Private |
 | Separates scope from visibility | Keeps the two questions separate | Uses a visibility word to choose scope |
 | Reuses the modifier vocabulary | Adds a supported combination of existing marks | Adds a new mark beside Secret/Public |
-| Reading the condition | Must explicitly resolve Operation's callable form against Post's boolean read | Can retain a Post's boolean read, but leaves receiver selection implicit in the new privacy rule |
+| Invoking the check by name | Execute the Post body on named access, with the Tag as receiver | Could also execute on named access, but receiver selection would depend on the new privacy rule |
 | Describes the desired locality | Says which object is checked | Suggests a locally held promise, but could also suggest a hidden Agent Post |
 
 **Recommendation:** Post-Operation. This is a supported combined declaration,
@@ -69,9 +69,25 @@ callable. The cost to acknowledge is that Post-Operation must follow one
 clear access rule; restoring the old callable/boolean condition proxy would
 conflict with the current condition model.
 
-## Proposed semantics — awaiting decisions
+## Director's clarifications, 2026-10-14
 
-The following are recommendations, not additional Director rulings.
+On the named check, the Director specified **“callable just by name without
+\"()\", not just read”**. Evaluating `Tag.Ready` must execute the Post body
+immediately and yield its current verdict. It retrieves neither a stored
+verdict nor a handle waiting to be called. This clarification concerns the
+Post-Operation; it does not introduce a general change to Action invocation.
+
+On Shapes, the Director specified **“they don't need a copy, as the base is
+tagged before a shape is”**. Record the no-copy constraint. The receiver of
+the shared declaration remains to be clarified: applying a Base before a
+Shape to a member Agent does not itself apply that Base to the Shape class.
+Reusing one declaration does not require copying its body in any of the
+receiver choices described below.
+
+## Proposed semantics — remaining decisions
+
+The following records execution by name as clarified above; other choices
+remain recommendations unless explicitly confirmed.
 
 ### Declaration, receiver and reads
 
@@ -79,9 +95,12 @@ The following are recommendations, not additional Director rulings.
    the Tag, takes no Tagging inputs, and follows existing Post verdict,
    assertion, synchronous-result and recursion rules. This does not make
    arbitrary decorator combinations valid.
-2. Recommend `Tag.Ready` as a computed plain boolean. `Tag.Ready()` would be
-   invalid, as it is for an ordinary condition read. Operation chooses the
-   receiver in this combination; Post chooses the condition behavior.
+2. `Tag.Ready` invokes the check immediately, without `()`, and returns its
+   current boolean verdict under the existing condition rules. Each ordinary
+   access evaluates current state; it is not a saved result. Existing nested
+   check guards still apply. The proposal returns the plain verdict, with no
+   additional callable/boolean proxy. Operation chooses the receiver in this
+   combination; Post chooses the condition behavior.
 3. The declaration contributes to the same visible contract used by
    `bool(Tag)`, `Contract.Postconditions(Tag)`, `Contract.Status(Tag)` and
    the existing diagnostic views. Named failures use the existing Post
@@ -114,7 +133,7 @@ class Fleet(Tag):
         return agent.charge > 0
 
 
-if Fleet.Within_Capacity:    # the Tag's named promise
+if Fleet.Within_Capacity:    # execute the Tag's named check now, without ()
     pass
 
 if Fleet:                  # all of the Tag's own visible Posts
@@ -131,11 +150,26 @@ could supply further Posts about Fleet without being needed to establish
 
 ### Shapes, Overlay and protection
 
-Recommend inherited native Tag Posts behave like Tag-scope declarations:
-a Shape inherits the promise and evaluates it with **the Shape** as receiver.
-Its inherited `Within_Capacity` therefore checks its own Field and Report.
+No copy of the Base's Post body is needed. The earlier recommendation was
+to reuse it with **the Shape** as receiver, as inherited Operations do.
+The Director's Base-first answer does not yet settle that receiver; keep
+this choice open rather than treating no-copy as either acceptance or
+rejection of Shape-bound evaluation.
+
+Concrete decision: Crew declares a Post-Operation requiring two members.
+Pilots is a Shape of Crew. There are ten Crew members, but only one Pilot.
+Tagging that Pilot already applied Crew first, as the Director describes.
+Does Pilots nevertheless need two Pilots to be valid, or does the Post
+govern Crew as a whole? This is about which Agency the requirement judges,
+not whether its declaration is copied. If it governs Crew only, separately
+settle whether Crew's failure contributes to Pilots' truth.
+
+The Director requested a simpler explanation of this question; no answer
+about the receiver or applicability has yet been recorded.
 Existing Posts gained through a Pin remain specific to the Tag actually
-pinned; Pin membership and its contract do not start inheriting.
+pinned under the current rules; Pin membership does not inherit. Revisit
+the example and the dependent Overlay/deletion recommendations below once
+the native Post receiver is settled.
 
 Recommend one visible Post per name, using existing Post Overlay, Underlay,
 Contract Warning and Constant protection. A Shape or a Pin should not create
@@ -209,6 +243,8 @@ After the design is Cleared, the implementation must:
   a state repair makes truth true. No-Post Tags remain true under STEP-SPEC-40.
 - Named reads, truth and diagnostics agree, including errors, non-boolean
   verdicts, assertion fall-through, recursive checks and lazy results.
+- Access by name invokes the body immediately without `()`; a later access
+  observes changed state rather than returning a cached verdict or handle.
 - Native Posts and ordinary member Posts stay separate; none is implicitly
   published and no implicit membership appears.
 - A Pin's sound/broken partition reflects a receiving Tag's native failure;
@@ -242,8 +278,10 @@ scope meaning is possible, but less consistent with TOP's current vocabulary.
 
 ## Decisions to settle
 
-1. Confirm the spelling and whether the name reads as a boolean or is called.
-2. Confirm Shape inheritance with the receiving Shape as the subject.
+1. Confirm the combined declaration spelling; execution by name without
+   `()` is clarified above.
+2. Resolve the Base/Shape receiver and applicability example above, while
+   reusing the declaration without copying it.
 3. Confirm native/Pin Post Overlay and explicit per-Tag deletion, including
    later declaration changes and Constant protection.
 4. Confirm explicit validity checks and existing Pin boundaries, without
@@ -251,5 +289,6 @@ scope meaning is possible, but less consistent with TOP's current vocabulary.
 
 ### Decision *(filled by the Director)*
 
-Status remains **Brief**. The feature request authorizes this proposal and
-comparison; it does not by itself settle the choices above or Clear the STEP.
+Status remains **Brief**. The feature request and clarifications authorize
+this proposal and record execution by name and the no-copy constraint;
+they do not settle the remaining choices above or Clear the STEP.
