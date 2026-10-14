@@ -410,6 +410,16 @@ the tag to two. then they can operate together." Section 10 shows it
    Link and the Shape that extends it apply in one call, the Link is
    built with both Layers at once.
 
+   The Agent may gain the Shape while a linking of the Link is under way
+   (from the Pair's gate, Records or Imprint, or at the Contact's entry),
+   and it works as any tagging. The Pair being linked is not the Link's
+   yet: while its Parts are not done, its linking gives it the Layer with
+   the others, as a linking made after the Shape would. Once they are
+   done, or if the Link holds it already, the Pair receives the Layer
+   as the others do, nested in the linking's own work. The Layer is the
+   Agent's own tagging: a refused or undone linking never takes it back,
+   and takes back from its Pair only what it gave it.
+
    A Pin may not patch what an ordinary Tag's Agents do (§1.9), because
    on a class the Agent scope and the Tag scope share one dictionary. A
    Link is composed by the kit for each Agent, so its Layers are the
@@ -1206,13 +1216,27 @@ implementation follows `main`'s law as it stands, and says so:
   Records, but at the declaring Shape's Parts, after the Shape's own
   Records, not at the Agent's step 1. A refusal still refuses the whole
   call, nothing changed.
-- While a linking or an extension of a family is under way, from a
-  Pair's gate to the Contact's entry, the family gains no Layer: a Shape
-  gained by the Pair's own gate or Records ("promote on the n-th
-  friend") is refused; the Pair's Imprint may grant it.
+- A Shape gained while a linking is under way ("promote on the n-th
+  friend", from the Pair's gate, Records or Imprint, or at the Contact's
+  entry) extends the Link as any tagging does. The Pair being linked
+  receives the Layer from its linking, as a linking made after the Shape
+  would give it (with the same inputs), unless its Parts are done: then,
+  like a Pair the Link holds, it is tagged nested in the linking's own
+  work, its Imprints at once and its promises with the linking's. A Pair
+  that a nested tagging reaches in the middle of its Parts sees the
+  Layers as they stand at that moment, and lies beneath what the linking
+  gives it later (arrival order, §1.2).
+- A Pair's Layer that a Record builds a second time, when a refused or
+  undone linking has restored the Pair and the Agent's extensions are laid
+  on it again, is built with no gate, no Imprints and no promises, since
+  those ran with the Agent's call. A Record that fails then leaves the
+  Pair as the linking left it (its Layers leave it as an unlinking does)
+  when it still holds every Layer of its Links, and otherwise raises: the
+  Pair then lacks a Layer its Link holds.
 - An undone linking on a Pair another Link still holds restores the
-  Pair when nothing reached it since; otherwise its Layers leave the Pair
-  as an unlinking does, their contributions sticky (§0.7).
+  Pair when nothing reached it since but the Layers the Agent's own
+  extensions gave it, which are laid on it again; otherwise its Layers
+  leave the Pair as an unlinking does, their contributions sticky (§0.7).
 - An undone linking takes back only what it gave the Contact: she
   leaves the Links silently, her history of them forgotten, and what else
   she gained or did since stays. The lines they published stay on her,
@@ -1340,9 +1364,18 @@ settled as rules instead (below).
   other (rule 3.6), holding the Agent, the Pair and the Contacts weakly.
   The refusal stays for an async generator function and for the kinds the
   kit never iterates or awaits.
-- *A family gains no Layer while a linking or an extension of it is
-  under way.* Laying it on the Pair in flight made one undo take back
-  the other's work.
+- *A Shape gained during a linking works as any tagging.* A first answer
+  refused it (a family gained no Layer while a linking or an extension of
+  it was under way), because laying the Layer on the Pair in flight made
+  one undo take back the other's work. The Director chose: "it should
+  work like any other tagging". The accounting that makes it so: a
+  linking undoes the Pair Tags it set out to give, and no other; the
+  Layers the Agent's extensions gave a Pair are recorded on the Link
+  (`extended`), and a Pair restored to an older snapshot is laid with them
+  again; an extension keeps where each Pair stood before it, and, once the
+  linking that was under way is over, where it stood before the linking.
+  A join of two families is no longer refused meanwhile: it gives no Pair
+  a Layer, and a Pair in flight moves with its family.
 - *A refused linking* undoes the linkings made at its Pair's Parts that
   belong to its Agent or its Contact; a call that finished inside it
   keeps what it did, as §0.6 says.
@@ -1387,6 +1420,13 @@ Shown by `tests/test_links.py`, by the Acceptance list above:
   cancellation, by hand, closed or collected in another context or in
   her own Action: `Step_Contextvar_Tests`; their refusals, and a
   generator handed through a Link left alone: `New_Code_Review_Tests`.
+- a Shape gained while a linking is under way, from the Pair's gate,
+  Records or Imprint or at the Contact's entry, for a new Pair and for a
+  Pair held through a Base Link; the linking then succeeding, refused at a
+  later Record, at the Contact's entry or after it, or undone with a
+  call on the Agent, on the Contact or on a third Agent; two extensions in
+  a row; an extension refused in the middle, caught or not; interrupts at
+  each step; families joined meanwhile: `Ext_Nested_Tests`.
 
 Also: `tests/spec_examples.py` runs §1.10's examples; the oracle's
 `Run_Links` walks Links, Shape Links, extensions, and Agents and Contacts

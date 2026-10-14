@@ -224,8 +224,9 @@
   door shut; a generator or coroutine function of a Pair Action, an
   Operation or a class method takes each step behind the doors (an async
   generator, and a lazy Record, condition, Imprint, teardown or Report
-  builder, are refused); a family gains no Layer
-  while one of its linkings is under way; a Contact's history holds
+  builder, are refused); a Shape gained while a linking is under way
+  extends the Link as any tagging does, and a refused or undone linking
+  never takes the Agent's extension back; a Contact's history holds
   Links weakly. A Relation is declared once, in its declaring Tag's body
   under its own name; binding it again is a Declaration Failure. The
   wiki page "Links: a Tag of one's own" runs as one program under the

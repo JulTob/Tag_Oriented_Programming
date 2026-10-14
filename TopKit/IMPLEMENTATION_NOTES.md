@@ -538,14 +538,25 @@ Tagging sequence or expand its rollback boundary.
   Relation's first binding
   is recorded (`declarations._relation_homes`, weakly) once its whole
   body passed: the Tag body that made it, under its own name. A later
-  binding is refused as an alias while that Tag lives. A `_Family`
-  counts the linkings and extensions under way (`busy`); while it is
-  above zero, `_extend` and a join in `_family_for` are refused. A
-  refused linking runs only its own linking steps (`_Undo_Step.linking`,
+  binding is refused as an alias while that Tag lives. A Pair knows
+  the linkings under way on it (`_Ends.flights`, each a `_Flight` with
+  the Links her Contact is about to enter, the form it applies and the
+  Pair as it was before it), so `_extend` also reaches a Pair whose Parts
+  are done and whose Contact is about to enter the Link (`_is_entering`);
+  a Pair whose Parts are not done gets the Layer from its linking
+  (`_give_late_layers`, a loop over `_pair_form`, as a linking made after
+  the extension would). A linking undoes only what it set out to give
+  (`_Flight.given`, `_applied_by`). The Layers extensions add are listed
+  on the Link's record (`extended`); a Pair restored to an older snapshot
+  is laid with them again (`_is_restored`, `_relay`), its Records built
+  anew, and `_Ends.settled` says whether anyone but the kit wrote on it
+  since. A refused
+  linking runs only its own linking steps (`_Undo_Step.linking`,
   `_undo_refused_linking`) and hands the rest outward; undo steps compare
   by identity (`eq=False`), never by an owner's own `__eq__`. An
   extension's undo takes off each Pair only the Pair Tags it gave
-  (`_undo_pair_layers` with the extension's `given` and `settled`), so a
+  (`_take_back` with the extension's `_Laying`, which keeps the Pair as
+  the extension found it and as it was before the linking in flight), so a
   Pair dropped since stays dropped. A name that is a
   line in one Layer and a member of the Link in another is refused at
   class use along one Link's extension chain (`_refuse_a_name_both_ways`)

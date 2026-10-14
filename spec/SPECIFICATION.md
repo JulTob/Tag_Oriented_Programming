@@ -1228,7 +1228,8 @@ teardown, and her history of it is forgotten; what else she gained or
 did since stays, and if she was no Agent before and holds nothing else,
 she is a plain object again, with the values she held before. A Pair
 another Link still holds goes back to its state before the linking when
-nothing reached it since; otherwise the undone Layers leave it as an
+nothing reached it since but the Layers the Agent's own extensions gave
+it, which are laid on it again; otherwise the undone Layers leave it as an
 unlinking leaves it, their contributions sticky (§0.7), and what other
 calls gave it or wrote on it stays. An Agent
 linked as a Contact during its own call is restored as it was at the
@@ -1276,11 +1277,19 @@ identity, its Field and its history, and the Layer applies to every Pair
 it holds in the same call: every Pair's gate, then every Pair's Records,
 one refusal refusing the whole call; then every Pair's Imprints and
 promises, after the Agent's Commit. Later linkings get every Layer.
-While a linking or an extension of a Link's family is under way, from a
-Pair's gate to the Contact's entry, the family gains no Layer: an
-extension of one of its Links, or a join of it with another family, is a
-Composition Failure then. A Pair's Imprint runs after her entry, so it
-may extend the Link.
+The Agent may gain the Shape while a linking is under way, from the
+Pair's gate, its Records or its Imprint, or at the Contact's entry; it
+works as any tagging. A Pair whose Parts the linking has not done is not
+the Link's yet: the linking gives it the Layer with the others, as a
+linking made after the Shape would, and a gate or a Record of the Layer
+that refuses her refuses her linking, while the Agent's tagging stands.
+A Pair the Link holds, or whose Parts are done, receives it as the others
+do, nested in the linking's own work when that is still under way: its
+Imprints run at the call's Write, and its promises are checked with the
+linking's. The Layer is the Agent's own tagging: it stays when his call
+finishes, goes with his call if it rolls back, and a refused or undone
+linking never takes it back; a Pair that linking made is dropped, and an
+older one goes back to what it was, the Layer laid on it again.
 
 **Seen by the Contact, or in-house.** A `@Public` Pair member is a line
 onto the Contact: `ruth.Greet()` runs the Pair's `Greet(charlie, ruth)`,

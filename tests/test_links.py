@@ -4,7 +4,7 @@ Organised as the STEP's Acceptance requirements: the rules and their
 refusals, the five findings of the hand-made workaround as regressions,
 the Pair, the seats, Bases, extending a held Link, the closed slot, the
 doors, the Relation's refused spellings, ending in reference cycles, and
-the barrier.
+the barrier; and a Shape gained while a linking is under way.
 """
 
 import asyncio
@@ -21,12 +21,13 @@ import weakref
 from TopKit import (Action, At_Exit, Contract, Delete, Flag, Imprint,
                     Keyword, Link, Operation, Outline, Pin, Post, Pre, Public, Record,
                     Report, Rip, Secret, Tag, TagCompositionError,
-                    TagDeclarationError, TagImprintError,
+                    TagDeclarationError, TagError, TagImprintError,
                     TagOverwriteWarning, TagPostconditionError,
                     TagPreconditionError, TagResolutionError,
                     TagRogueAccessError, Tags, Tool, Underlay)
 from TopKit.lifecycle import _teardown_all
 from TopKit.links import _stepper_of
+from TopKit.links import _pair_ends, _pair_form, _pair_tag, _pair_tags_of, _record_of
 from TopKit.state import _state_of
 
 
@@ -2674,42 +2675,6 @@ class Variant_Tests(unittest.TestCase):
         self.assertEqual(ruth.Ask_By_Keyword(charlie.Member), "shut")
         self.assertEqual(charlie.Member.Peek(contact=ruth), "shut")
 
-    def test_an_extension_waits_until_the_linking_is_done(self):
-        class Circle(Tag):
-            @Link
-            class Knows(Tag):
-                @Record
-                def since(agent, contact, *, since=None):
-                    if since == "promote":
-                        Popular(agent)                    # inside the linking: refused
-                    return since
-
-                @Imprint
-                def Celebrate(agent, contact):
-                    if agent.Knows[contact].since == "celebrate" and agent not in Popular:
-                        Popular(agent)                    # after her entry: allowed
-
-        class Popular(Circle):
-            @Link
-            class Knows(Circle.Knows):
-                @Record
-                def vip(agent, contact):
-                    return True
-
-        charlie, ruth, sam, tom = People("Charlie", "Ruth", "Sam", "Tom")
-        Circle(charlie)
-        charlie.Knows(ruth, since=1)
-        with self.assertRaises(TagCompositionError):
-            charlie.Knows(sam, since="promote")
-        self.assertNotIn(charlie, Popular)                # nothing changed
-        self.assertNotIn(sam, charlie.Knows)
-        self.assertFalse(hasattr(charlie.Knows[ruth], "vip"))
-        charlie.Knows(sam, since="celebrate")             # the Pair's Imprint extends the Link
-        charlie.Knows(tom, since=3)
-        self.assertIn(charlie, Popular)
-        for contact in (ruth, sam, tom):                  # every Pair holds every Layer
-            self.assertTrue(charlie.Knows[contact].vip)
-
     def test_a_refused_linking_keeps_what_finished_calls_inside_it_did(self):
         holder = {}
 
@@ -3407,7 +3372,7 @@ class Third_Round_Tests(unittest.TestCase):
 
         self.assertIs(Circle.Knows, relation)
 
-    def test_an_undone_linking_on_a_shared_pair_leaves_it_as_an_unlinking_does(self):
+    def test_an_undone_linking_on_a_shared_pair_keeps_what_the_agents_extension_gave_it(self):
         class Circle(Tag):
             @Link
             class Knows(Tag):
@@ -3446,9 +3411,9 @@ class Third_Round_Tests(unittest.TestCase):
         bob.Knows(ruth)
         with self.assertRaises(TagCompositionError):
             Joining(ruth, by=bob)
-        self.assertNotIn(ruth, bob.Trusts)                # she left Trusts silently
+        self.assertNotIn(ruth, bob.Trusts)                # she left Trusts
         self.assertTrue(bob.Knows[ruth].vetted)           # what Bob's call gave stays
-        self.assertEqual(bob.Knows[ruth].level, 5)        # and what Trusts gave stays, sticky (§0.7)
+        self.assertFalse(hasattr(bob.Knows[ruth], "level"))   # and only that: nothing of Trusts stays, no sticky Record
 
 
 class Final_Round_Tests(unittest.TestCase):
@@ -4521,6 +4486,1600 @@ class Step_Contextvar_Tests(unittest.TestCase):
         self.assertIsNone(_stepper_of(handed_back))       # what it hands back runs under whoever runs it
         self.assertIsNotNone(_stepper_of(generator))
         self.assertIsNotNone(_stepper_of(coroutine))
+
+
+# ------------------------------------------------------------------
+# An extension while a linking is under way (rule 4.6)
+# ------------------------------------------------------------------
+
+
+def Whole(test, agent):
+    """Section 1.10's law, read from the kit's own books: every Pair of
+    every Link of the Agent holds every Layer of the Links that hold her
+    Contact, holds no Layer none of them has, carries no name such a Layer
+    does not declare, has no linking left in flight; every door is shut."""
+
+    members = [agent]
+
+    for link, _layers in _state_of(agent).links.values():
+        if link is None:
+            continue
+
+        family = _record_of(link).family
+        known = set(_pair_tags_of([
+                relation
+                for member in family.Links()
+                for relation in _record_of(member).layers
+                ]))
+
+        for contact in link.__dict__["_topkit_field"]:
+            members.append(contact)
+            pair = family.Pair_Of(contact)
+            test.assertIsNotNone(pair, f"{contact} is a Contact without a Pair")
+
+            for tag in _pair_form(link):
+                test.assertIn(tag, _state_of(pair).active, f"the Pair of {contact} lacks {tag.__qualname__}")
+
+        for pair in family.pairs.values():
+            ends = _pair_ends(pair)
+            contact = ends.contact()
+            state = _state_of(pair)
+            holding = [member for member in family.Links() if member in _state_of(contact).active]
+            declared = set()
+
+            for tag in _pair_tags_of([relation for member in holding for relation in _record_of(member).layers]):
+                declared.update(name for name in tag.__dict__ if not name.startswith("_"))
+
+            for tag in state.active:
+                test.assertIn(tag, known, f"the Pair of {contact} holds {tag.__qualname__}, which its Links lack")
+
+            leftovers = {name for name in vars(pair) if not name.startswith("_")} - declared
+            test.assertEqual(leftovers, set(), f"the Pair of {contact} carries what no Layer of its Links declares")
+            test.assertEqual(ends.flights, [], "a linking is left in flight")
+            test.assertEqual(state.composing, 0, "a Pair's door is left open")
+
+    for member in members:
+        test.assertEqual(_state_of(member).composing, 0, f"{member}'s door is left open")
+
+
+def Promoting_Circle(plan):
+    """A Circle of Knows and Trusts Links, and the Popular Shape that
+    extends Knows, for tests that gain the Shape in the middle of a
+    linking. ``plan`` says where the Agent gains it (``promote_at``: the
+    ``gate``, the ``record`` or the ``imprint`` of Knows, or the same of
+    Trusts under ``trusts_``), for which Contact (``target``), and where
+    a linking fails (``fail_at``, the ``record`` or the ``imprint``)."""
+
+    def Promote(agent, contact, where):
+        if plan.get("promote_at") == where and contact is plan.get("target") and agent not in Popular:
+            plan.get("promote", Popular)(agent)
+
+    def Fail(contact, where):
+        if plan.get("fail_at") == where and contact is plan.get("target"):
+            raise ValueError(f"refused at {where}")
+
+    def Interrupt(contact, where):
+        if plan.get("interrupt_at") == where and contact is plan.get("target"):
+            raise KeyboardInterrupt(where)
+
+    class Circle(Tag):
+        @Link
+        class Knows(Tag):
+            @Pre
+            def Gate(agent, contact):
+                Promote(agent, contact, "gate")
+                return True
+
+            @Record
+            def since(agent, contact, *, since=None):
+                Promote(agent, contact, "record")
+                return since
+
+            @Record
+            def later(agent, contact):
+                Fail(contact, "record")
+                Interrupt(contact, "after_promotion")
+                return "later"
+
+            @Imprint
+            def Note(agent, contact):
+                Promote(agent, contact, "imprint")
+                Fail(contact, "imprint")
+                Interrupt(contact, "imprint")
+
+            @Rip
+            def Forget(agent, contact):
+                plan.setdefault("torn", []).append(contact.name)
+
+            @Public
+            def Greet(agent, contact):
+                return "knows"
+
+        @Link
+        class Trusts(Knows):
+            @Pre
+            def Trust_Gate(agent, contact):
+                Promote(agent, contact, "trusts_gate")
+                return True
+
+            @Record
+            def level(agent, contact, stored=None, *, level=None):
+                plan.setdefault("stored", []).append(stored)
+                Promote(agent, contact, "trusts_record")
+                return level
+
+            @Record
+            def trust_later(agent, contact):
+                Fail(contact, "trusts_record")
+                Interrupt(contact, "after_promotion")
+                return "later"
+
+            @Imprint
+            def Trust_Note(agent, contact):
+                Promote(agent, contact, "trusts_imprint")
+                Fail(contact, "trusts_imprint")
+                Interrupt(contact, "imprint")
+
+            @Public
+            def Hail(agent, contact):
+                return "hail"
+
+    class Popular(Circle):
+        @Link
+        class Knows(Circle.Knows):
+            @Pre
+            def Vip_Gate(agent, contact):
+                plan.setdefault("gated", []).append(contact.name)
+                Interrupt(contact, "popular_gate")
+                return True
+
+            @Record
+            def vip(agent, contact):
+                Interrupt(contact, "popular_record")
+                builds = plan.setdefault("builds", {})
+                builds[contact.name] = builds.get(contact.name, 0) + 1
+
+                if contact is plan.get("target") and builds[contact.name] == plan.get("vip_fails_on"):
+                    raise ValueError("this Record cannot be built a second time")
+
+                if contact is plan.get("target") and builds[contact.name] == plan.get("vip_interrupted_on"):
+                    raise KeyboardInterrupt("this Record is interrupted the second time it is built")
+
+                return True
+
+            @Imprint
+            def Vip_Note(agent, contact):
+                Interrupt(contact, "popular_imprint")
+
+            @Action
+            @Underlay
+            def Greet(agent, contact, underlay):
+                return underlay() + " and vips"
+
+    return Circle, Popular
+
+
+class Lining_Club(Tag):
+    """A Link whose lines take the names Knows and Trusts publish: a Contact
+    it holds meets the Overwrite Warning at her entry into either."""
+
+    @Link
+    class Member(Tag):
+        @Public
+        def Greet(agent, contact):
+            return "member"
+
+        @Public
+        def Hail(agent, contact):
+            return "member hail"
+
+
+class Failing_Call(Tag):
+    """A call on any Agent that links, then fails at a later Record: it rolls
+    back, and the linking inside it is undone with it when the call is on
+    the Link's Agent or on the Contact (rule 5.6)."""
+
+    @Record
+    def linking(agent, *, through=None, contact=None, inputs=None):
+        through(contact, **(inputs or {}))
+        return True
+
+    @Record
+    def broken(agent):
+        raise ValueError("the call fails at a later Record")
+
+
+class Ext_Nested_Tests(unittest.TestCase):
+    """The Agent gains a Shape that extends one of his Links while a
+    linking of that Link's family is under way (rule 4.6): it works as
+    any tagging. The Layer reaches every Pair the Link holds, the Pair
+    being linked included; it is the Agent's tagging, so it stays or goes
+    with his call; a refused or undone linking undoes only its own work."""
+
+    def Make(self, plan, held=False):
+        Circle, Popular = Promoting_Circle(plan)
+        charlie, ruth, sam, tom = People("Charlie", "Ruth", "Sam", "Tom")
+        Circle(charlie)
+        charlie.Knows(ruth, since=1)
+        charlie.Knows(sam, since=2)
+
+        if held:
+            charlie.Knows(tom, since=3)                   # her Pair is held through the Base Link
+
+        plan["target"] = tom
+
+        return Circle, Popular, charlie, ruth, sam, tom
+
+    def Assert_Extended(self, charlie, Popular, contacts):
+        self.assertIn(charlie, Popular)
+
+        for contact in contacts:
+            self.assertTrue(charlie.Knows[contact].vip, contact.name)
+            self.assertEqual(charlie.Knows[contact].Greet(), "knows and vips", contact.name)
+
+        Whole(self, charlie)
+
+    # --- where the extension comes from, the Pair being linked is new ---
+
+    def test_an_extension_from_the_pairs_gate_reaches_the_pair_being_linked(self):
+        plan = {"promote_at": "gate"}
+        _Circle, Popular, charlie, ruth, sam, tom = self.Make(plan)
+        charlie.Knows(tom)
+        self.Assert_Extended(charlie, Popular, [ruth, sam, tom])
+
+    def test_an_extension_from_the_pairs_records_reaches_the_pair_being_linked(self):
+        plan = {"promote_at": "record"}
+        _Circle, Popular, charlie, ruth, sam, tom = self.Make(plan)
+        charlie.Knows(tom)
+        self.Assert_Extended(charlie, Popular, [ruth, sam, tom])
+        self.assertEqual(ruth.Greet(), "knows and vips")  # her line reads the Pair, whole
+
+    def test_an_extension_from_the_pairs_imprint_reaches_the_pair_being_linked(self):
+        plan = {"promote_at": "imprint"}
+        _Circle, Popular, charlie, ruth, sam, tom = self.Make(plan)
+        charlie.Knows(tom)
+        self.Assert_Extended(charlie, Popular, [ruth, sam, tom])
+
+    def test_an_extension_from_the_contacts_own_entry_reaches_the_pair_being_linked(self):
+        class Club(Tag):
+            @Link
+            class Member(Tag):
+                @Public
+                def Greet(agent, contact):
+                    return "member"
+
+        plan = {}
+        Circle, Popular = Promoting_Circle(plan)
+        charlie, ruth, tom = People("Charlie", "Ruth", "Tom")
+        Circle(charlie)
+        Club(charlie)
+        charlie.Knows(ruth)
+        charlie.Member(tom)                               # her line Greet is taken: Knows replaces it at her entry
+        plan["target"] = tom
+
+        def Gain_At_Entry(message, category, filename, lineno, file=None, line=None):
+            if charlie not in Popular:
+                Popular(charlie)                          # while she enters, with her Pair whole and not yet a member
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            previous, warnings.showwarning = warnings.showwarning, Gain_At_Entry
+
+            try:
+                charlie.Knows(tom)
+            finally:
+                warnings.showwarning = previous
+
+        self.Assert_Extended(charlie, Popular, [ruth, tom])
+        self.assertIn(tom, charlie.Knows)
+
+    # --- ... or already held through a Base Link of the same family ---
+
+    def test_an_extension_reaches_a_shared_pair_from_the_shape_links_gate(self):
+        for where in ("trusts_gate", "trusts_record", "trusts_imprint"):
+            with self.subTest(where=where):
+                plan = {"promote_at": where}
+                _Circle, Popular, charlie, ruth, sam, tom = self.Make(plan, held=True)
+                charlie.Trusts(tom, level=7)
+                self.Assert_Extended(charlie, Popular, [ruth, sam, tom])
+                self.assertEqual(charlie.Trusts[tom].level, 7)
+                self.assertEqual(plan["stored"], [None])  # her Trusts Record saw nothing stored
+
+    def test_an_extension_from_a_new_shape_links_pair_reaches_it_whole(self):
+        plan = {"promote_at": "trusts_record"}
+        _Circle, Popular, charlie, ruth, sam, tom = self.Make(plan)
+        charlie.Trusts(tom, level=3)                      # linked through the Shape: both Layers at once
+        self.Assert_Extended(charlie, Popular, [ruth, sam, tom])
+        self.assertEqual(charlie.Trusts[tom].level, 3)
+        self.assertIn(tom, charlie.Knows)
+
+    def test_the_extension_lies_over_the_layers_it_extends_on_every_pair(self):
+        plan = {"promote_at": "gate"}
+        _Circle, Popular, charlie, ruth, sam, tom = self.Make(plan)
+        charlie.Knows(tom)
+        for contact in (ruth, sam, tom):                  # the Underlay finds the Layer it extends below it
+            self.assertEqual(charlie.Knows[contact].Greet(), "knows and vips")
+
+    def test_linkings_after_the_extension_get_every_layer(self):
+        plan = {"promote_at": "record"}
+        _Circle, Popular, charlie, ruth, sam, tom = self.Make(plan)
+        charlie.Knows(tom)
+        late = Character("Late")
+        charlie.Knows(late)
+        self.Assert_Extended(charlie, Popular, [ruth, sam, tom, late])
+
+    # --- the linking is refused, or fails, after the extension ---
+
+    def test_a_refused_linking_keeps_the_extension_and_drops_a_new_pair(self):
+        plan = {"promote_at": "record", "fail_at": "record"}
+        _Circle, Popular, charlie, ruth, sam, tom = self.Make(plan)
+
+        with self.assertRaises(TagCompositionError):
+            charlie.Knows(tom)
+
+        self.assertNotIn(tom, charlie.Knows)              # the linking is refused
+        with self.assertRaises(TagResolutionError):
+            charlie.Knows[tom]                            # and her Pair never was
+        self.assertIn(charlie, Popular)                   # his own tagging finished: it stays
+        self.Assert_Extended(charlie, Popular, [ruth, sam])   # with its Layer on every Pair
+        plan["fail_at"] = None
+        charlie.Knows(tom)
+        self.Assert_Extended(charlie, Popular, [ruth, sam, tom])
+
+    def test_a_refused_linking_keeps_the_extension_on_the_held_pair(self):
+        for where in ("trusts_gate", "trusts_record"):
+            with self.subTest(where=where):
+                plan = {"promote_at": where, "fail_at": "trusts_record"}
+                _Circle, Popular, charlie, ruth, sam, tom = self.Make(plan, held=True)
+
+                with self.assertRaises(TagCompositionError):
+                    charlie.Trusts(tom, level=9)
+
+                self.assertNotIn(tom, charlie.Trusts)
+                self.assertIn(tom, charlie.Knows)         # she was a Contact before
+                self.assertFalse(hasattr(charlie.Knows[tom], "level"))   # the refused Layer left nothing on her Pair
+                self.Assert_Extended(charlie, Popular, [ruth, sam, tom])   # and his Layer is there, laid again
+
+                plan["fail_at"] = None
+                plan["stored"] = []
+                charlie.Trusts(tom, level=4)
+                self.assertEqual(plan["stored"], [None])  # no value of the refused Layer reached the next linking
+                self.assertEqual(charlie.Trusts[tom].level, 4)
+                self.Assert_Extended(charlie, Popular, [ruth, sam, tom])
+
+    def test_a_linking_refused_at_the_contacts_entry_keeps_the_extension(self):
+        for held in (False, True):
+            with self.subTest(held=held):
+                plan = {"promote_at": "trusts_record" if held else "record"}
+                Circle, Popular = Promoting_Circle(plan)
+                charlie, ruth, tom = People("Charlie", "Ruth", "Tom")
+                Circle(charlie)
+                Lining_Club(charlie)
+                charlie.Knows(ruth)
+
+                if held:
+                    charlie.Knows(tom)                    # her Pair is held through the Base Link
+
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    charlie.Member(tom)                   # her lines Greet and Hail are now Member's
+
+                plan["target"] = tom
+
+                with warnings.catch_warnings():
+                    warnings.simplefilter("error", TagOverwriteWarning)
+
+                    with self.assertRaises(TagOverwriteWarning):
+                        (charlie.Trusts if held else charlie.Knows)(tom)
+
+                self.assertIn(charlie, Popular)
+                self.assertNotIn(tom, charlie.Trusts if held else charlie.Knows)
+                self.Assert_Extended(charlie, Popular, [ruth, tom] if held else [ruth])
+
+    def test_a_linking_whose_imprint_fails_stays_with_the_extension(self):
+        plan = {"promote_at": "record", "fail_at": "imprint"}
+        _Circle, Popular, charlie, ruth, sam, tom = self.Make(plan)
+
+        with self.assertRaises(TagImprintError):
+            charlie.Knows(tom)
+
+        self.assertIn(tom, charlie.Knows)                 # after her entry the failure raises and the linking stays
+        self.Assert_Extended(charlie, Popular, [ruth, sam, tom])
+
+    # --- the call around everything rolls back, or does not ---
+
+    def test_a_rolled_back_call_on_the_agent_takes_the_extension_and_the_linking_back(self):
+        for held in (False, True):
+            with self.subTest(held=held):
+                plan = {"promote_at": "trusts_record" if held else "record"}
+                _Circle, Popular, charlie, ruth, sam, tom = self.Make(plan, held=held)
+                through = charlie.Trusts if held else charlie.Knows
+
+                with self.assertRaises(TagCompositionError):
+                    Failing_Call(charlie, through=through, contact=tom, inputs={})
+
+                self.assertNotIn(charlie, Popular)
+                self.assertNotIn(tom, charlie.Trusts)
+                self.assertEqual(tom in charlie.Knows, held)
+                for contact in ([ruth, sam, tom] if held else [ruth, sam]):
+                    self.assertFalse(hasattr(charlie.Knows[contact], "vip"))
+                    self.assertEqual(charlie.Knows[contact].Greet(), "knows")
+                Whole(self, charlie)
+                self.assertEqual(plan.get("torn", []), [])   # a Pair that never was ends with no teardown
+
+                plan["promote_at"] = None                 # and the Link can be extended again, then linked
+                Popular(charlie)
+                if not held:
+                    charlie.Knows(tom)
+                self.Assert_Extended(charlie, Popular, [ruth, sam, tom])
+
+    def test_a_rolled_back_call_on_the_contact_undoes_the_linking_and_keeps_the_extension(self):
+        for held in (False, True):
+            with self.subTest(held=held):
+                plan = {"promote_at": "trusts_record" if held else "record"}
+                _Circle, Popular, charlie, ruth, sam, tom = self.Make(plan, held=held)
+                through = charlie.Trusts if held else charlie.Knows
+
+                with self.assertRaises(TagCompositionError):
+                    Failing_Call(tom, through=through, contact=tom, inputs={"level": 5} if held else {})
+
+                self.assertIn(charlie, Popular)           # his tagging finished, and is not hers to undo
+                self.assertNotIn(tom, charlie.Trusts)
+                self.assertEqual(tom in charlie.Knows, held)
+                self.Assert_Extended(charlie, Popular, [ruth, sam, tom] if held else [ruth, sam])
+                if held:
+                    self.assertFalse(hasattr(charlie.Knows[tom], "level"))   # no Record of the undone Layer stays
+                    plan["stored"] = []
+                    charlie.Trusts(tom, level=8)
+                    self.assertEqual(plan["stored"], [None])
+                    self.assertEqual(charlie.Trusts[tom].level, 8)
+
+    def test_a_rolled_back_call_on_a_third_agent_undoes_nothing(self):
+        plan = {"promote_at": "record"}
+        _Circle, Popular, charlie, ruth, sam, tom = self.Make(plan)
+
+        with self.assertRaises(TagCompositionError):
+            Failing_Call(sam, through=charlie.Knows, contact=tom, inputs={})
+
+        self.assertIn(tom, charlie.Knows)                 # her call is not his, nor hers
+        self.Assert_Extended(charlie, Popular, [ruth, sam, tom])
+
+    # --- two extensions in a row ---
+
+    def test_two_extensions_in_one_linking_reach_every_pair(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Record
+                def since(agent, contact, *, since=None):
+                    if since == "promote":
+                        Popular(agent)
+                        Vetting(agent)                    # a second Shape, in the same Record
+                    return since
+
+        class Popular(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Record
+                def vip(agent, contact):
+                    return True
+
+        class Vetting(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Record
+                def vetted(agent, contact):
+                    return "vetted"
+
+        charlie, ruth, sam = People("Charlie", "Ruth", "Sam")
+        Circle(charlie)
+        charlie.Knows(ruth)
+        charlie.Knows(sam, since="promote")
+        for contact in (ruth, sam):
+            self.assertTrue(charlie.Knows[contact].vip)
+            self.assertEqual(charlie.Knows[contact].vetted, "vetted")
+        Whole(self, charlie)
+
+    def test_an_extension_whose_record_gains_another_reaches_every_pair(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Record
+                def since(agent, contact, *, since=None):
+                    return since
+
+        class First(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Record
+                def first(agent, contact):
+                    if agent not in Second:
+                        Second(agent)                     # gained by the extension's own Record, on its first Pair
+                    return "first"
+
+        class Second(First):
+            @Link
+            class Knows(First.Knows):
+                @Record
+                def second(agent, contact):
+                    return "second"
+
+        charlie, ruth, sam = People("Charlie", "Ruth", "Sam")
+        Circle(charlie)
+        charlie.Knows(ruth)
+        charlie.Knows(sam)
+        First(charlie)
+        self.assertIn(charlie, Second)
+        for contact in (ruth, sam):
+            self.assertEqual(charlie.Knows[contact].first, "first")
+            self.assertEqual(charlie.Knows[contact].second, "second")
+        Whole(self, charlie)
+
+    def test_an_extension_chain_started_in_a_pairs_record_reaches_every_pair(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Record
+                def since(agent, contact, *, since=None):
+                    if since == "promote" and agent not in First:
+                        First(agent)
+                    return since
+
+        class First(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Record
+                def first(agent, contact, *, since=None):
+                    if since == "promote" and agent not in Second:
+                        Second(agent)                     # given to the Pair being linked with its linking's inputs
+                    return "first"
+
+        class Second(First):
+            @Link
+            class Knows(First.Knows):
+                @Record
+                def second(agent, contact):
+                    return "second"
+
+        charlie, ruth, sam = People("Charlie", "Ruth", "Sam")
+        Circle(charlie)
+        charlie.Knows(ruth)
+        charlie.Knows(sam, since="promote")
+        self.assertIn(charlie, First)
+        self.assertIn(charlie, Second)
+        for contact in (ruth, sam):
+            self.assertEqual(charlie.Knows[contact].first, "first")
+            self.assertEqual(charlie.Knows[contact].second, "second")
+        Whole(self, charlie)
+
+    def test_two_extensions_then_a_refused_linking_keep_both(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                pass
+
+            @Link
+            class Trusts(Knows):
+                @Record
+                def level(agent, contact, *, level=None):
+                    if level == "promote":
+                        Popular(agent)
+                        Vetting(agent)
+                    return level
+
+                @Record
+                def later(agent, contact, *, level=None):
+                    if level == "promote":
+                        raise ValueError("the linking is refused")
+                    return 1
+
+        class Popular(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Record
+                def vip(agent, contact):
+                    return True
+
+        class Vetting(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Record
+                def vetted(agent, contact):
+                    return "vetted"
+
+        charlie, ruth, sam = People("Charlie", "Ruth", "Sam")
+        Circle(charlie)
+        charlie.Knows(ruth)
+        charlie.Knows(sam)                                # held through the Base Link
+        with self.assertRaises(TagCompositionError):
+            charlie.Trusts(sam, level="promote")
+        self.assertIn(charlie, Popular)
+        self.assertIn(charlie, Vetting)
+        self.assertNotIn(sam, charlie.Trusts)
+        for contact in (ruth, sam):
+            self.assertTrue(charlie.Knows[contact].vip)
+            self.assertEqual(charlie.Knows[contact].vetted, "vetted")
+        self.assertFalse(hasattr(charlie.Knows[sam], "level"))
+        Whole(self, charlie)
+
+    # --- an extension that is refused in the middle of a linking ---
+
+    def Strict_Circle(self, catching):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Record
+                def since(agent, contact, *, since=None):
+                    if since == "promote":
+                        try:
+                            Strict(agent)
+                        except TagError:
+                            if not catching:
+                                raise
+                    return since
+
+            @Link
+            class Trusts(Knows):
+                @Record
+                def level(agent, contact, *, level=None):
+                    if level == "promote":
+                        try:
+                            Strict(agent)
+                        except TagError:
+                            if not catching:
+                                raise
+                    return level
+
+        class Strict(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Pre
+                def Only_Honest(agent, contact):
+                    return contact.honest
+
+                @Record
+                def vetted(agent, contact):
+                    return True
+
+        return Circle, Strict
+
+    def test_a_refusal_by_a_held_pair_is_the_extensions_and_a_catching_record_goes_on(self):
+        Circle, Strict = self.Strict_Circle(catching=True)
+        charlie, ruth, liar = People("Charlie", "Ruth", "Liar")
+        liar.honest = False
+        Circle(charlie)
+        charlie.Knows(ruth)
+        charlie.Knows(liar)
+        charlie.Trusts(ruth, level="promote")             # Strict refuses the liar's Pair: his call is refused, nothing changed
+        self.assertNotIn(charlie, Strict)
+        self.assertIn(ruth, charlie.Trusts)               # her Record caught it, and the linking went on
+        self.assertFalse(hasattr(charlie.Knows[ruth], "vetted"))
+        self.assertFalse(hasattr(charlie.Knows[liar], "vetted"))
+        Whole(self, charlie)
+
+    def test_a_refusal_by_a_held_pair_refuses_the_linking_when_nothing_catches_it(self):
+        Circle, Strict = self.Strict_Circle(catching=False)
+        charlie, ruth, liar = People("Charlie", "Ruth", "Liar")
+        liar.honest = False
+        Circle(charlie)
+        charlie.Knows(ruth)
+        charlie.Knows(liar)
+        with self.assertRaises(TagPreconditionError):
+            charlie.Trusts(ruth, level="promote")
+        self.assertNotIn(charlie, Strict)
+        self.assertNotIn(ruth, charlie.Trusts)
+        self.assertFalse(hasattr(charlie.Knows[ruth], "level"))
+        Whole(self, charlie)
+
+    def test_the_pair_being_linked_is_refused_by_the_layer_not_the_extension(self):
+        Circle, Strict = self.Strict_Circle(catching=False)
+        charlie, ruth, liar = People("Charlie", "Ruth", "Liar")
+        liar.honest = False
+        Circle(charlie)
+        charlie.Knows(ruth)
+        with self.assertRaises(TagPreconditionError):
+            charlie.Knows(liar, since="promote")          # she is not a Contact yet: Strict's gate refuses her linking
+        self.assertIn(charlie, Strict)                    # the Agent's tagging stands: every Contact he has holds it
+        self.assertTrue(charlie.Knows[ruth].vetted)
+        self.assertNotIn(liar, charlie.Knows)
+        with self.assertRaises(TagPreconditionError):
+            charlie.Knows(liar)                           # and the Link's gate holds for her from now on
+        Whole(self, charlie)
+
+    def test_a_promise_of_the_extension_is_checked_for_the_pair_in_flight_with_its_linking(self):
+        for held in (False, True):
+            with self.subTest(held=held):
+                class Circle(Tag):
+                    @Link
+                    class Knows(Tag):
+                        @Record
+                        def since(agent, contact, *, since=None):
+                            if since == "promote" and not held and agent not in Popular:
+                                Popular(agent)
+                            return since
+
+                    @Link
+                    class Trusts(Knows):
+                        @Record
+                        def level(agent, contact, *, level=None):
+                            if level == "promote" and agent not in Popular:
+                                Popular(agent)
+                            return level
+
+                class Popular(Circle):
+                    @Link
+                    class Knows(Circle.Knows):
+                        @Post
+                        def Still_Honest(agent, contact):
+                            return contact.honest
+
+                charlie, ruth, tom = People("Charlie", "Ruth", "Tom")
+                tom.honest = False
+                Circle(charlie)
+                charlie.Knows(ruth)
+
+                if held:
+                    charlie.Knows(tom)
+
+                with self.assertRaises(TagPostconditionError):
+                    if held:
+                        charlie.Trusts(tom, level="promote")
+                    else:
+                        charlie.Knows(tom, since="promote")
+
+                self.assertIn(charlie, Popular)           # after her entry the failure raises, and the Layers stay
+                self.assertIn(tom, charlie.Knows)
+                self.assertEqual(list(~charlie.Knows), [tom])   # her Pair holds the promise and breaks it
+                self.assertEqual(list(charlie.Knows), [ruth])
+                Whole(self, charlie)
+
+    def test_a_call_that_extends_then_links_and_fails_leaves_the_pair_as_it_was(self):
+        plan = {"promote_at": None}
+        Circle, Popular = Promoting_Circle(plan)
+
+        class Promoting_Call(Tag):                        # a call on the Agent: his extension first, then a linking, then it fails
+            @Record
+            def promote(agent):
+                Popular(agent)
+                return True
+
+            @Record
+            def link(agent, *, contact=None):
+                agent.Trusts(contact, level=3)
+                return True
+
+            @Record
+            def broken(agent):
+                raise ValueError("the call fails")
+
+        charlie, ruth, tom = People("Charlie", "Ruth", "Tom")
+        Circle(charlie)
+        charlie.Knows(ruth)
+        charlie.Knows(tom)
+
+        with self.assertRaises(TagCompositionError):
+            Promoting_Call(charlie, contact=tom)
+
+        self.assertNotIn(charlie, Popular)
+        self.assertNotIn(tom, charlie.Trusts)
+        for contact in (ruth, tom):
+            self.assertFalse(hasattr(charlie.Knows[contact], "vip"))   # neither the Layer nor the linking's stays
+        self.assertFalse(hasattr(charlie.Knows[tom], "level"))
+        Whole(self, charlie)
+
+    def test_a_silent_undo_of_a_linking_never_takes_the_extension_with_it(self):
+        plan = {"promote_at": "trusts_record"}
+        Circle, Popular = Promoting_Circle(plan)
+        charlie, ruth, tom = People("Charlie", "Ruth", "Tom")
+        Circle(charlie)
+        Lining_Club(charlie)
+        charlie.Knows(ruth)
+        charlie.Knows(tom)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            charlie.Member(tom)                           # her line Hail is Member's: Trusts' replaces it at her entry
+
+        plan["target"] = tom
+
+        def Write_Then_Refuse(message, category, filename, lineno, file=None, line=None):
+            charlie.Knows[tom].since = "written at her entry"   # someone writes on the Pair, then her entry is refused
+            raise ValueError("her entry is refused")
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            previous, warnings.showwarning = warnings.showwarning, Write_Then_Refuse
+
+            try:
+                with self.assertRaises(ValueError):
+                    charlie.Trusts(tom, level=2)
+            finally:
+                warnings.showwarning = previous
+
+        self.assertNotIn(tom, charlie.Trusts)
+        self.assertEqual(charlie.Knows[tom].since, "written at her entry")   # what was written stays
+        self.assertIn(charlie, Popular)
+        self.assertTrue(charlie.Knows[tom].vip)           # and the Agent's Layer, which is not the linking's to take
+        self.assertIn(_pair_tag(Popular.Knows), _state_of(charlie.Knows[tom]).active)
+        self.assertNotIn(_pair_tag(Circle.Trusts), _state_of(charlie.Knows[tom]).active)   # the linking's Layer left, sticky
+
+    def test_an_extension_undone_after_its_contact_was_unlinked_leaves_the_ended_pair_alone(self):
+        plan = {"promote_at": None}
+        Circle, Popular = Promoting_Circle(plan)
+
+        class Promoting_Call(Tag):                        # his extension, then an unlinking that nothing rolls back, then a failure
+            @Record
+            def promote(agent):
+                Popular(agent)
+                return True
+
+            @Record
+            def unlink(agent, *, contact=None):
+                del agent.Knows[contact]
+                return True
+
+            @Record
+            def broken(agent):
+                raise ValueError("the call fails")
+
+        charlie, ruth, tom = People("Charlie", "Ruth", "Tom")
+        Circle(charlie)
+        charlie.Knows(ruth)
+        charlie.Knows(tom)
+
+        with self.assertRaises(TagCompositionError) as refusal:
+            Promoting_Call(charlie, contact=tom)
+
+        self.assertIn("the call fails", str(refusal.exception))   # the undoing added no failure of its own
+        self.assertNotIn(charlie, Popular)
+        self.assertNotIn(tom, charlie.Knows)              # an unlinking is never rolled back (§0.7)
+        self.assertFalse(hasattr(charlie.Knows[ruth], "vip"))
+        Whole(self, charlie)
+
+    def test_the_extension_does_not_check_the_promises_of_a_pair_still_being_made(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                pass
+
+            @Link
+            class Trusts(Knows):
+                @Post
+                def Has_Level(agent, contact):
+                    return agent.Knows[contact].level is not None   # true once her Records are built
+
+                @Record
+                def level(agent, contact, *, level=None):
+                    if agent not in Popular:
+                        Popular(agent)                    # while this very Record builds, her promise cannot hold yet
+                    return level
+
+        class Popular(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Record
+                def vip(agent, contact):
+                    return True
+
+        charlie, tom = People("Charlie", "Tom")
+        Circle(charlie)
+        charlie.Knows(tom)
+        charlie.Trusts(tom, level=4)                      # her promise is checked with her linking, when it is whole
+        self.assertTrue(charlie.Knows[tom].vip)
+        self.assertIn(tom, charlie.Trusts)
+        Whole(self, charlie)
+
+    def test_an_interrupt_while_the_repair_lays_a_layer_again_is_raised_and_the_pair_stays_whole(self):
+        plan = {"promote_at": "trusts_record", "vip_interrupted_on": 2}
+        _Circle, Popular, charlie, ruth, sam, tom = self.Make(plan, held=True)
+        plan["builds"] = {}
+
+        class Joining(Tag):                               # a call on the Contact: her linking is undone, his extension stays
+            @Record
+            def trusted(agent, *, by=None):
+                by.Trusts(agent, level=5)
+                return True
+
+            @Record
+            def broken(agent):
+                raise ValueError("her call fails")
+
+        with self.assertRaises(KeyboardInterrupt):
+            Joining(tom, by=charlie)                      # the undoing is interrupted, and the interrupt is what is raised
+
+        self.assertTrue(charlie.Knows[tom].vip)           # her Pair still holds his Layer
+        self.assertIn(charlie, Popular)
+        for member in (charlie, ruth, sam, tom):
+            self.assertEqual(_state_of(member).composing, 0)
+        for contact in (ruth, sam, tom):
+            self.assertEqual(_pair_ends(charlie.Knows[contact]).flights, [])
+
+    def test_an_input_that_would_fill_a_seat_of_the_new_layer_refuses_the_linking_not_the_agent(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Record
+                def since(agent, contact, *, since=None):
+                    if since == "promote" and agent not in Popular:
+                        Popular(agent)
+                    return since
+
+        class Popular(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Record
+                def vip(agent, tier):                     # its seat for the Contact is named like an input
+                    return True
+
+        charlie, ruth, sam = People("Charlie", "Ruth", "Sam")
+        Circle(charlie)
+        charlie.Knows(ruth)
+
+        with self.assertRaises(TagDeclarationError):
+            charlie.Knows(sam, since="promote", tier=1)   # an input never fills a seat (rule 3.4): as for any linking after the Shape
+
+        self.assertNotIn(sam, charlie.Knows)
+        self.assertIn(charlie, Popular)                   # his tagging stands
+        self.assertTrue(charlie.Knows[ruth].vip)
+        with self.assertRaises(TagResolutionError):
+            charlie.Knows[sam]                            # and her Pair never was
+        Whole(self, charlie)
+
+    def test_an_extension_of_the_first_link_at_the_entry_into_the_second_reaches_her_once(self):
+        plan = {}
+        Circle, Popular = Promoting_Circle(plan)
+        charlie, ruth, tom = People("Charlie", "Ruth", "Tom")
+        Circle(charlie)
+        Lining_Club(charlie)
+        charlie.Knows(ruth)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            charlie.Member(tom)                           # her line Hail is Member's: Trusts' replaces it at her entry
+
+        def Gain_At_Entry(message, category, filename, lineno, file=None, line=None):
+            if "Hail" in str(message) and charlie not in Popular:
+                Popular(charlie)                          # she is a member of Knows already, and enters Trusts
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            previous, warnings.showwarning = warnings.showwarning, Gain_At_Entry
+
+            try:
+                charlie.Trusts(tom, level=1)
+            finally:
+                warnings.showwarning = previous
+
+        self.assertIn(tom, charlie.Trusts)
+        self.Assert_Extended(charlie, Popular, [ruth, tom])
+        self.assertEqual(charlie.Trusts[tom].level, 1)
+        self.assertEqual(sorted(plan["gated"]), ["Ruth", "Tom"])   # the Layer's gate asked once for each Pair
+
+    def test_a_layer_given_late_to_a_pair_held_through_another_link_leaves_with_a_refusal(self):
+        class Two(Tag):
+            @Link
+            class Knows(Tag):
+                @Record
+                def known(agent, contact, *, promote=False):
+                    if promote and agent not in Popular:
+                        Popular(agent)
+                    return "known"
+
+            @Link
+            class Likes(Tag):
+                @Record
+                def liked(agent, contact):
+                    return "liked"
+
+            @Link
+            class Bonded(Knows, Likes):
+                @Public
+                def Hail(agent, contact):
+                    return "bonded hail"
+
+        class Popular(Two):
+            @Link
+            class Knows(Two.Knows):
+                @Record
+                def vip(agent, contact):
+                    return True
+
+        charlie, ruth = People("Charlie", "Ruth")
+        Two(charlie)
+        Lining_Club(charlie)
+        charlie.Likes(ruth)                               # her Pair is held through Likes
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            charlie.Member(ruth)                          # her line Hail is Member's: Bonded's replaces it at her entry
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", TagOverwriteWarning)
+
+            with self.assertRaises(TagOverwriteWarning):
+                charlie.Bonded(ruth, promote=True)        # Knows' Layer is given late, then her entry is refused
+
+        self.assertIn(charlie, Popular)                   # the Agent's tagging stands, and she is not in Knows
+        self.assertNotIn(ruth, charlie.Knows)
+        self.assertFalse(hasattr(charlie.Likes[ruth], "vip"))   # her Pair holds what it did, and none of the refused Layers
+        self.assertFalse(hasattr(charlie.Likes[ruth], "known"))
+        Whole(self, charlie)
+
+    def test_an_undo_after_an_imprint_wrote_on_the_pair_still_goes_back_exactly(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Record
+                def since(agent, contact, *, since=None):
+                    return since
+
+        class Popular(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Imprint
+                def Stamp(agent, contact):
+                    agent.Knows[contact].since = "stamped by the extension"   # the Agent's Layer writes, and that is its own
+
+        class Promoting_Call(Tag):
+            @Record
+            def promote(agent):
+                Popular(agent)
+                return True
+
+            @Record
+            def broken(agent):
+                raise ValueError("the call fails")
+
+        charlie, ruth = People("Charlie", "Ruth")
+        Circle(charlie)
+        charlie.Knows(ruth, since=1)
+
+        with self.assertRaises(TagCompositionError):
+            Promoting_Call(charlie)
+
+        self.assertEqual(charlie.Knows[ruth].since, 1)    # back to what it was, not left as the Imprint wrote it
+        Whole(self, charlie)
+
+    def test_the_layers_two_links_gained_are_laid_again_in_the_order_they_were_gained(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                def Greet(agent, contact):
+                    return "k"
+
+            @Link
+            class Trusts(Knows):
+                pass
+
+            @Link
+            class Likes(Knows):
+                @Record
+                def liked(agent, contact, *, promote=False):
+                    if promote:
+                        Shaping_Trusts(agent)             # Trusts' extension first, then Knows'
+                        Shaping_Knows(agent)
+                        raise ValueError("the linking is refused")
+
+                    return "liked"
+
+        class Shaping_Trusts(Circle):
+            @Link
+            class Trusts(Circle.Trusts):
+                @Action
+                @Underlay
+                def Greet(agent, contact, underlay):
+                    return underlay() + "S"
+
+        class Shaping_Knows(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Action
+                @Underlay
+                def Greet(agent, contact, underlay):
+                    return underlay() + "K"
+
+        charlie, ruth, sam = People("Charlie", "Ruth", "Sam")
+        Circle(charlie)
+        charlie.Trusts(ruth)                              # her Pair is held through Trusts and Knows
+
+        with self.assertRaises(TagCompositionError):
+            charlie.Likes(ruth, promote=True)             # both Layers are laid on her Pair, then the linking is refused
+
+        self.assertEqual(charlie.Knows[ruth].Greet(), "kSK")
+        charlie.Trusts(sam)
+        self.assertEqual(charlie.Knows[sam].Greet(), "kSK")   # as a Pair linked after them
+        Whole(self, charlie)
+
+    # --- an interrupt at each step ---
+
+    def test_an_interrupt_at_any_step_leaves_every_pair_whole(self):
+        for held in (False, True):
+            for where in ("popular_gate", "popular_record", "popular_imprint", "after_promotion", "imprint"):
+                with self.subTest(held=held, where=where):
+                    plan = {"promote_at": "trusts_record" if held else "record", "interrupt_at": where}
+                    _Circle, Popular, charlie, ruth, sam, tom = self.Make(plan, held=held)
+                    through = charlie.Trusts if held else charlie.Knows
+
+                    with self.assertRaises(KeyboardInterrupt):
+                        through(tom)
+
+                    record = _record_of(charlie.Knows)
+                    self.assertEqual(charlie in Popular, Popular.Knows in record.layers)   # the Agent and his Link agree
+                    Whole(self, charlie)
+
+                    plan["interrupt_at"] = None           # and the Link links on, with whatever Layers it holds
+                    through(tom)
+                    Whole(self, charlie)
+
+    def test_an_interrupt_is_not_swallowed_by_the_undoing(self):
+        plan = {"promote_at": "record", "interrupt_at": "after_promotion"}
+        _Circle, Popular, charlie, ruth, sam, tom = self.Make(plan)
+
+        with self.assertRaises(KeyboardInterrupt):
+            Failing_Call(charlie, through=charlie.Knows, contact=tom, inputs={})   # interrupted inside the call
+
+        self.assertNotIn(charlie, Popular)
+        self.assertNotIn(tom, charlie.Knows)
+        Whole(self, charlie)
+
+    # --- a nested call of the Agent that gains the Shape and fails ---
+
+    def test_a_nested_call_that_gains_the_shape_and_fails_leaves_the_linking_whole(self):
+        for held in (False, True):
+            with self.subTest(held=held):
+                plan = {"promote_at": "trusts_record" if held else "record"}
+                _Circle, Popular, charlie, ruth, sam, tom = self.Make(plan, held=held)
+
+                class Gaining(Tag):                       # the Agent's own call, inside the linking: it gains the Shape, then fails
+                    @Record
+                    def gain(agent):
+                        Popular(agent)
+                        return True
+
+                    @Record
+                    def broken(agent):
+                        raise ValueError("the nested call fails")
+
+                def Try(agent):
+                    try:
+                        Gaining(agent)
+                    except TagCompositionError:
+                        plan["caught"] = True
+
+                plan["promote"] = Try
+                (charlie.Trusts if held else charlie.Knows)(tom)
+                self.assertTrue(plan["caught"])
+                self.assertNotIn(charlie, Popular)
+                self.assertNotIn(Popular.Knows, _record_of(charlie.Knows).layers)
+                for contact in (ruth, sam, tom):
+                    self.assertFalse(hasattr(charlie.Knows[contact], "vip"))
+                Whole(self, charlie)
+
+    # --- what stays sticky: a value someone else wrote on the Pair ---
+
+    def test_a_value_written_since_stays_with_the_extension_and_the_undone_layers_contributions(self):
+        plan = {"promote_at": None}
+        Circle, Popular = Promoting_Circle(plan)
+
+        class Annotating(Tag):                            # the Agent's own call: it finishes, and writes on the Pair
+            @Record
+            def note(agent, *, about=None):
+                agent.Knows[about].since = "annotated by Charlie"
+                return True
+
+        class Joining(Tag):                               # a call on the Contact
+            @Record
+            def trusted(agent, *, by=None):
+                by.Trusts(agent, level=5)
+                return True
+
+            @Record
+            def promoted(agent, *, by=None):
+                Popular(by)
+                return True
+
+            @Record
+            def annotated(agent, *, by=None):
+                Annotating(by, about=agent)
+                return True
+
+            @Record
+            def broken(agent):
+                raise ValueError("her call fails")
+
+        charlie, ruth, tom = People("Charlie", "Ruth", "Tom")
+        Circle(charlie)
+        charlie.Knows(ruth, since=1)
+        charlie.Knows(tom, since=2)
+
+        with self.assertRaises(TagCompositionError):
+            Joining(tom, by=charlie)
+
+        self.assertNotIn(tom, charlie.Trusts)
+        self.assertEqual(charlie.Knows[tom].since, "annotated by Charlie")   # what he wrote stays
+        self.assertTrue(charlie.Knows[tom].vip)           # and his Layer
+        self.assertEqual(charlie.Knows[tom].level, 5)     # the undone Layer leaves as an unlinking leaves it: sticky (§0.7)
+        self.assertTrue(charlie.Knows[ruth].vip)
+
+    def test_an_undone_linking_leaves_the_pair_as_the_extension_found_it(self):
+        plan = {"promote_at": None}
+        Circle, Popular = Promoting_Circle(plan)
+
+        class Joining(Tag):                               # a call on the Contact
+            @Record
+            def trusted(agent, *, by=None):
+                by.Trusts(agent, level=5)
+                return True
+
+            @Record
+            def promoted(agent, *, by=None):
+                Popular(by)                               # his call reaches her Pair since, and nobody writes on it
+                return True
+
+            @Record
+            def broken(agent):
+                raise ValueError("her call fails")
+
+        charlie, ruth, tom = People("Charlie", "Ruth", "Tom")
+        Circle(charlie)
+        charlie.Knows(tom, since=2)
+        plan["stored"] = []
+
+        with self.assertRaises(TagCompositionError):
+            Joining(tom, by=charlie)
+
+        self.assertTrue(charlie.Knows[tom].vip)
+        self.assertFalse(hasattr(charlie.Knows[tom], "level"))   # no Record of the undone Layer stays
+        Whole(self, charlie)
+        charlie.Trusts(tom, level=6)
+        self.assertEqual(plan["stored"], [None, None])    # and none reaches the next linking
+        self.assertEqual(charlie.Trusts[tom].level, 6)
+
+    def test_an_undone_extension_after_an_undone_linking_leaves_the_pair_as_it_was(self):
+        plan = {"promote_at": None}
+        Circle, Popular = Promoting_Circle(plan)
+
+        class Elsewhere(Tag):
+            @Link
+            class Other(Tag):
+                @Record
+                def trusted(agent, contact, *, tom=None):
+                    agent.Trusts(tom, level=5)            # undone with the refusal
+                    return True
+
+                @Record
+                def promoted(agent, contact, *, tom=None):
+                    Popular(agent)                        # his finished call, handed outward
+                    return True
+
+                @Record
+                def broken(agent, contact, *, tom=None):
+                    raise ValueError("the Other linking is refused")
+
+        class Outer(Tag):
+            @Record
+            def first(agent, *, sam=None, tom=None):
+                agent.Other(sam, tom=tom)                 # the refusal rolls Outer back too
+                return True
+
+        charlie, tom, sam = People("Charlie", "Tom", "Sam")
+        Circle(charlie)
+        Elsewhere(charlie)
+        charlie.Knows(tom, since=2)
+
+        with self.assertRaises(TagCompositionError):
+            Outer(charlie, sam=sam, tom=tom)
+
+        self.assertNotIn(charlie, Popular)
+        self.assertFalse(hasattr(charlie.Knows[tom], "vip"))      # nothing of either stays on her Pair
+        self.assertFalse(hasattr(charlie.Knows[tom], "level"))
+        Whole(self, charlie)
+
+    # --- a Record that cannot be built a second time: the repair's own failure ---
+
+    def test_a_pair_that_cannot_be_laid_again_stays_as_the_linking_left_it(self):
+        plan = {"promote_at": "trusts_record", "vip_fails_on": 2}
+        _Circle, Popular, charlie, ruth, sam, tom = self.Make(plan, held=True)
+        plan["builds"] = {}
+
+        class Joining(Tag):                               # a call on the Contact: her linking is undone, his extension stays
+            @Record
+            def trusted(agent, *, by=None):
+                by.Trusts(agent, level=5)
+                return True
+
+            @Record
+            def broken(agent):
+                raise ValueError("her call fails")
+
+        with self.assertRaises(TagCompositionError) as refusal:
+            Joining(tom, by=charlie)
+
+        self.assertIn("her call fails", str(refusal.exception))   # the undoing swallowed nothing and replaced nothing
+        self.assertNotIn(tom, charlie.Trusts)
+        self.assertTrue(charlie.Knows[tom].vip)           # its Layer was not taken off: the Record is not built again
+        self.assertIn(charlie, Popular)
+
+    def test_a_pair_the_repair_cannot_lay_again_raises_what_failed(self):
+        plan = {"promote_at": "trusts_record", "fail_at": "trusts_record", "vip_fails_on": 2}
+        _Circle, Popular, charlie, ruth, sam, tom = self.Make(plan, held=True)
+        plan["builds"] = {}
+
+        with self.assertRaises(TagCompositionError) as failure:
+            charlie.Trusts(tom, level=3)                  # refused at Parts: her Pair goes back, his Layer is laid again
+
+        self.assertIn("cannot be built a second time", str(failure.exception))   # the Pair lacks it now, and says so
+        self.assertIsInstance(failure.exception.__context__, ValueError)
+        self.assertIn(charlie, Popular)                   # his tagging stands
+        self.assertNotIn(tom, charlie.Trusts)
+        for contact in (ruth, sam):
+            self.assertTrue(charlie.Knows[contact].vip)
+
+    # --- families joined while a linking is under way ---
+
+    def test_a_family_joined_while_a_linking_is_under_way_is_not_refused(self):
+        class Two(Tag):
+            @Link
+            class Knows(Tag):
+                @Record
+                def known(agent, contact, *, joining=False):
+                    if joining and agent not in Close:
+                        Close(agent)                      # the Agent gains a Shape that joins Knows and Likes
+                    return "known"
+
+            @Link
+            class Likes(Tag):
+                @Record
+                def liked(agent, contact):
+                    return "liked"
+
+        class Close(Two):
+            @Link
+            class Bonded(Two.Knows, Two.Likes):
+                pass
+
+        charlie, ruth, sam, dave = People("Charlie", "Ruth", "Sam", "Dave")
+        Two(charlie)
+        charlie.Likes(sam)
+        charlie.Knows(ruth, joining=True)
+        self.assertIn(charlie, Close)
+        self.assertIn(ruth, charlie.Knows)
+        charlie.Bonded(dave)
+        self.assertIs(charlie.Likes[dave], charlie.Knows[dave])   # one family, one Pair
+        Whole(self, charlie)
+
+    def test_a_family_joined_during_a_linking_is_split_again_with_the_call_that_rolls_back(self):
+        class Two(Tag):
+            @Link
+            class Knows(Tag):
+                @Record
+                def known(agent, contact, *, joining=False):
+                    if joining and agent not in Close:
+                        Close(agent)
+                    return "known"
+
+            @Link
+            class Likes(Tag):
+                @Record
+                def liked(agent, contact):
+                    return "liked"
+
+        class Close(Two):
+            @Link
+            class Bonded(Two.Knows, Two.Likes):
+                pass
+
+        charlie, ruth, sam = People("Charlie", "Ruth", "Sam")
+        Two(charlie)
+        charlie.Likes(sam)
+
+        with self.assertRaises(TagCompositionError):
+            Failing_Call(charlie, through=charlie.Knows, contact=ruth, inputs={"joining": True})
+
+        self.assertNotIn(charlie, Close)
+        self.assertNotIn(ruth, charlie.Knows)
+        charlie.Likes(ruth)
+        charlie.Knows(ruth)
+        self.assertIsNot(charlie.Likes[ruth], charlie.Knows[ruth])   # Knows and Likes are apart again
+        Whole(self, charlie)
+
+    # --- the Agent links himself; nothing keeps the Agents alive ---
+
+    def test_an_agent_that_links_himself_can_gain_the_shape_in_the_pairs_record(self):
+        plan = {"promote_at": "record"}
+        Circle, Popular = Promoting_Circle(plan)
+        charlie, = People("Charlie")
+        Circle(charlie)
+        plan["target"] = charlie
+        charlie.Knows(charlie)
+        self.assertTrue(charlie.Knows[charlie].vip)
+        Whole(self, charlie)
+
+    def test_nothing_of_a_refused_or_extended_linking_keeps_an_agent_alive(self):
+        for where in ("record", "gate"):
+            with self.subTest(where=where):
+                plan = {"promote_at": where, "fail_at": "record"}
+                _Circle, Popular, charlie, ruth, sam, tom = self.Make(plan)
+
+                with self.assertRaises(TagCompositionError):
+                    charlie.Knows(tom)
+
+                references = [weakref.ref(charlie), weakref.ref(ruth), weakref.ref(sam), weakref.ref(tom)]
+                plan.clear()                              # the plan itself holds her Contact
+                del plan, _Circle, Popular, charlie, ruth, sam, tom, where
+                gc.collect()
+                self.assertEqual([reference() for reference in references], [None] * 4)
+
+    # --- more cases ---
+
+    def test_an_extension_at_the_contacts_entry_is_kept_when_her_entry_is_then_refused(self):
+        for held in (False, True):
+            with self.subTest(held=held):
+                plan = {}
+                Circle, Popular = Promoting_Circle(plan)
+                charlie, ruth, tom = People("Charlie", "Ruth", "Tom")
+                Circle(charlie)
+                Lining_Club(charlie)
+                charlie.Knows(ruth)
+
+                if held:
+                    charlie.Knows(tom)                    # her Pair is held through the Base Link
+
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    charlie.Member(tom)                   # her lines are Member's: the Link's replace them at her entry
+
+                plan["target"] = tom
+
+                def Gain_Then_Refuse(message, category, filename, lineno, file=None, line=None):
+                    if charlie not in Popular:
+                        Popular(charlie)                  # while she enters, her Pair whole
+                        raise ValueError("her entry is refused")
+
+                with warnings.catch_warnings():
+                    warnings.simplefilter("always")
+                    previous, warnings.showwarning = warnings.showwarning, Gain_Then_Refuse
+
+                    try:
+                        with self.assertRaises(ValueError):
+                            (charlie.Trusts if held else charlie.Knows)(tom)
+                    finally:
+                        warnings.showwarning = previous
+
+                self.assertNotIn(tom, charlie.Trusts if held else charlie.Knows)
+                self.Assert_Extended(charlie, Popular, [ruth, tom] if held else [ruth])
+
+    def test_a_linking_made_at_a_pairs_records_is_given_the_layer_too(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Record
+                def since(agent, contact, *, since=None, then=None, promote=False):
+                    if then is not None:
+                        agent.Knows(then, promote=True)   # a second linking, in flight inside the first
+                    if promote and agent not in Popular:
+                        Popular(agent)
+                    return since
+
+        class Popular(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Record
+                def vip(agent, contact):
+                    return True
+
+        charlie, ruth, sam = People("Charlie", "Ruth", "Sam")
+        Circle(charlie)
+        charlie.Knows(ruth, then=sam)
+        self.assertIn(charlie, Popular)
+        for contact in (ruth, sam):
+            self.assertTrue(charlie.Knows[contact].vip)
+        Whole(self, charlie)
+
+    def test_the_first_linking_of_a_link_can_gain_the_shape_too(self):
+        plan = {"promote_at": "record"}
+        Circle, Popular = Promoting_Circle(plan)
+        charlie, ruth = People("Charlie", "Ruth")
+        Circle(charlie)
+        plan["target"] = ruth
+        charlie.Knows(ruth)                               # the Link holds no Contact yet
+        self.Assert_Extended(charlie, Popular, [ruth])
+
+    def test_a_pair_reached_while_it_enters_a_joined_family_is_given_the_layer(self):
+        class Two(Tag):
+            @Link
+            class Knows(Tag):
+                @Record
+                def known(agent, contact, *, promote=False):
+                    if promote and agent not in Popular:
+                        Popular(agent)
+                    return "known"
+
+            @Link
+            class Likes(Tag):
+                @Record
+                def liked(agent, contact):
+                    return "liked"
+
+            @Link
+            class Bonded(Knows, Likes):
+                pass
+
+        class Popular(Two):
+            @Link
+            class Knows(Two.Knows):
+                @Record
+                def vip(agent, contact):
+                    return True
+
+        charlie, ruth, sam = People("Charlie", "Ruth", "Sam")
+        Two(charlie)
+        charlie.Likes(ruth)                               # her Pair is held through Likes
+        charlie.Knows(sam)
+        charlie.Bonded(ruth, promote=True)                # and she enters Knows and Bonded, gaining the Shape on the way
+        self.assertTrue(charlie.Bonded[ruth].vip)
+        self.assertTrue(charlie.Knows[sam].vip)
+        Whole(self, charlie)
+
+    def test_the_extensions_teardowns_run_once_for_each_pair_it_reached(self):
+        torn = []
+
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Record
+                def since(agent, contact, *, promote=False):
+                    if promote and agent not in Popular:
+                        Popular(agent)
+                    return 1
+
+            @Link
+            class Trusts(Knows):
+                @Record
+                def level(agent, contact, *, promote=False):
+                    if promote and agent not in Popular:
+                        Popular(agent)
+                    return 1
+
+        class Popular(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Rip
+                def Goodbye(agent, contact):
+                    torn.append(contact.name)
+
+        charlie, ruth, sam, tom = People("Charlie", "Ruth", "Sam", "Tom")
+        Circle(charlie)
+        charlie.Knows(ruth)
+        charlie.Knows(sam)
+        charlie.Trusts(sam, promote=True)                 # a held Pair in flight reached
+        charlie.Knows(tom, promote=False)                 # a Pair linked after the extension
+        del charlie.Trusts[sam]
+        del charlie.Knows[sam]
+        del charlie.Knows[ruth]
+        del charlie.Knows[tom]
+        self.assertEqual(sorted(torn), ["Ruth", "Sam", "Tom"])
+
+    def test_a_linking_refused_at_the_contacts_entry_takes_back_all_it_gave_a_held_pair(self):
+        plan = {}
+        Circle, Popular = Promoting_Circle(plan)
+        charlie, ruth, tom = People("Charlie", "Ruth", "Tom")
+        Circle(charlie)
+        Lining_Club(charlie)
+        charlie.Knows(tom, level=0)                       # her Pair is held through the Base Link
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            charlie.Member(tom)                           # her line Hail is Member's: Trusts' replaces it at her entry
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", TagOverwriteWarning)
+
+            with self.assertRaises(TagOverwriteWarning):
+                charlie.Trusts(tom, level=4)
+
+        self.assertFalse(hasattr(charlie.Knows[tom], "level"))   # a failure up to her entry changes nothing
+        Whole(self, charlie)
 
 
 def Agents_Of_Any_Link(contact):
