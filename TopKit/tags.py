@@ -32,6 +32,7 @@ from typing import Iterator
 from .access import _keyword
 from .access import _refuse_host_truth
 from .access import _view_of
+from .contracts import _holds
 from .declarations import _MISSING
 from .declarations import _check_constant_declarations
 from .declarations import _check_constant_shapes

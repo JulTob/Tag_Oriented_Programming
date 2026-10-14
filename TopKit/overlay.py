@@ -72,6 +72,8 @@ _quiet: ContextVar[int] = ContextVar(   # above zero while a scratch pass lays T
         "topkit_quiet",
         default=0,
         )
+
+
 def _nothing_beneath(
         agent: object,
         *args: Any,
