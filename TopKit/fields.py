@@ -26,8 +26,11 @@ import weakref
 
 from .contracts import _holds_for_population
 from .errors import TagCompositionError
+from .errors import TagResolutionError
 from .geometry import _is_tag_class
+from .geometry import _tag_classes
 from .memo import _class_namespace
+from .state import _actualized_state_of
 
 
 FIELD_SEAT = "_topkit_field"   # the kit's own seat on every Tag class; MetaTag.__new__ fills it
@@ -44,8 +47,11 @@ def _field_of(
 
 def _sound_of(
         tag: type,
-        ) -> "_Partition":
+        ) -> "_Population":
     """The Tag's sound population."""
+
+    if tag is _tag_classes()[1]:
+        return _Root_Query("sound")
 
     return _Partition(
             _field_of(tag),
@@ -59,6 +65,7 @@ class _Population:
     the algebra. ``__iter__`` and ``__contains__`` come from the subclass."""
 
     _label: str = "population"
+    _walkable: bool = True
 
     def __iter__(
             population,
@@ -153,6 +160,58 @@ class _Population:
         return f"<{population._label} Field>"
 
 
+class _Root_Query(_Population):
+    """Membership of actualized Agents, with no global Agent retention.
+
+    Root Tag has no enumerable Field. These queries can still filter a
+    concrete population on its right and participate in membership algebra.
+    """
+
+    __slots__ = ("_part", "_label")
+    _walkable = False
+
+    def __init__(query, part: str) -> None:
+        query._part = part
+        query._label = f"root {part}"
+
+    def __contains__(query, agent: object) -> bool:
+        if _actualized_state_of(agent) is None:
+            return False
+
+        if query._part == "whole":
+            return True
+
+        sound = _holds_for_population(agent)
+        return sound if query._part == "sound" else not sound
+
+    def __iter__(query) -> Iterator[object]:
+        raise TagResolutionError(
+                "root Tag has no Field to walk; use a concrete Tag"
+                " population and filter it with root Tag"
+                )
+
+    def __len__(query) -> int:
+        raise TagResolutionError("root Tag has no Field to count")
+
+    def __bool__(query) -> bool:
+        raise TagResolutionError(
+                "root Tag has no Field to test for members;"
+                " check a particular Agent with `agent in Tag`"
+                )
+
+    def __invert__(query) -> "_Root_Query":
+        if query._part == "defective":
+            return query
+
+        if query._part == "sound":
+            return _Root_Query("defective")
+
+        return NotImplemented
+
+    def __repr__(query) -> str:
+        return f"<{query._label} Agent query>"
+
+
 def _population_of(
         candidate: Any,
         ) -> Any:
@@ -178,6 +237,12 @@ def _combine(
 
     if left is NotImplemented or right is NotImplemented:
         return NotImplemented
+
+    if operator == "|" and (not left._walkable or not right._walkable):
+        raise TagResolutionError(
+                "a root Tag query cannot form a population union:"
+                " root Tag has no Field to walk"
+                )
 
     return _Combined(
             left,
@@ -205,10 +270,21 @@ class _Combined(_Population):
         combined._right = right
         combined._operator = operator
         combined._label = f"{left._label} {operator} {right._label}"
+        combined._walkable = (
+                left._walkable
+                and (operator != "|" or right._walkable)
+                )
 
     def __iter__(
             combined,
             ) -> Iterator[object]:
+        if not combined._walkable:
+            raise TagResolutionError(
+                    "root Tag has no Field to walk in this population;"
+                    " put the root query on the right of a concrete"
+                    " population filter"
+                    )
+
         return _walk_combined(combined)
 
     def __contains__(

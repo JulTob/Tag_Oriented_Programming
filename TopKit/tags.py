@@ -52,6 +52,7 @@ from .errors import TagCompositionError
 from .fields import FIELD_SEAT
 from .fields import _Field
 from .fields import _Partition
+from .fields import _Root_Query
 from .fields import _field_of
 from .fields import _population_of
 from .fields import _sound_of
@@ -59,6 +60,7 @@ from .geometry import _form_of
 from .geometry import _is_tag
 from .lifecycle import _rip
 from .state import Tagged
+from .state import _actualized_state_of
 from .state import _name_of
 from .state import _state_of
 from .transactions import _apply
@@ -166,25 +168,30 @@ class MetaTag(type):
             ) -> bool:
         """``agent in Wizard``: sound membership, as in the plain loop.
         ``agent in Wizard[:]`` is raw membership. A string asks for a
-        keyword among the Tag's Flag Pins, never Agent membership."""
+        keyword among the Tag's Flag Pins unless it is an actualized Agent."""
 
-        if isinstance(candidate, str):
+        if isinstance(candidate, str) and _actualized_state_of(candidate) is None:
             return _keyword(
                     tag,
                     candidate,
                     )
 
         field = _field_of(tag)
-        return (
-                candidate in field
-                and _holds_for_population(candidate)
-                and candidate in field
-                )
+
+        if candidate not in field:
+            # The root has no Field; ordinary Tags reject an absent member
+            # before they ask the Agent's Posts.
+            return tag is Tag and candidate in _sound_of(tag)
+
+        return _holds_for_population(candidate) and candidate in field
 
     def __instancecheck__(
             tag,
             candidate: object,
             ) -> bool:
+        if tag is Tag:
+            return _actualized_state_of(candidate) is not None
+
         state = _state_of(candidate)
 
         if state is not None and tag in state.ever:
@@ -209,7 +216,7 @@ class MetaTag(type):
 
     def __invert__(
             tag,
-            ) -> _Partition:
+            ) -> _Partition | _Root_Query:
         return ~_sound_of(tag)
 
     def __or__(
@@ -268,6 +275,9 @@ class MetaTag(type):
                         "Tag[:] is the whole Field; positional slices have"
                         " no meaning for a population"
                         )
+
+            if tag is Tag:
+                return _Root_Query("whole")
 
             return _field_of(tag)
 

@@ -38,11 +38,13 @@ from .errors import TagPostconditionError
 from .errors import TagPreconditionError
 from .fields import _field_of
 from .geometry import _form_of
+from .geometry import _is_tag
 from .overlay import _install
 from .overlay import _gainings
 from .overlay import _quiet
 from .overlay import _preflight_ordinary_gains
 from .state import STATE
+from .state import Tagged
 from .state import _Published
 from .state import _Snapshot
 from .state import _State
@@ -279,7 +281,10 @@ def _apply_one(
             if rip_actions:
                 state.rips[tag] = rip_actions
 
-            _enter_field(agent, state, tag, declarations)
+            # Root Tag gives an object Agent behavior without admitting it
+            # to an Agency. Its queries have no enumerable Field.
+            if _is_tag(tag):
+                _enter_field(agent, state, tag, declarations)
         except BaseException:
             if tag not in state.active:
                 if previous is not None:
@@ -437,6 +442,16 @@ def _actualize(
             if type(type(agent).__dict__.get(name)) is _Published:
                 break
         else:
+            # A host may re-enter Tagging from its first __class__ setter.
+            # The nested Tag sees the already-installed TOP runtime before
+            # the outer transition has set this marker.
+            runtime_type = type(agent)
+            if (
+                    not state.actualized
+                    and runtime_type.__dict__.get("_TOPKIT_HOST_TYPE") is state.host_type
+                    and issubclass(runtime_type, Tagged)
+                    ):
+                state.actualized = True
             return
 
     next_type = _runtime_type_for(state)
@@ -446,6 +461,8 @@ def _actualize(
             _actualize_runtime_type(agent, next_type, state)
         else:
             _set_runtime_type(agent, next_type)
+
+    state.actualized = True
 
 
 def _enter_field(
