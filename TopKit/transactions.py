@@ -323,16 +323,25 @@ def _apply_one(
             state.training.discard(tag)
             state.composing -= 1
             try:
-                if nested_during_actualization and _is_flag(tag):
-                    # The nested runtime was built while this unfinished
-                    # Flag was still training. Drop its temporary Flag seat.
+                if nested_during_actualization:
+                    # The Host may have reassigned this unfinished Tag's
+                    # requested class after the nested Tagging completed.
+                    # Restore all current hooks, and drop any temporary
+                    # Flag seat of the failed outer turn.
                     next_type = _runtime_type_for(state)
                     if type(agent) is not next_type:
                         _set_runtime_type(agent, next_type)
             except BaseException as repair_error:
-                if primary_failure is not None:
-                    raise repair_error from primary_failure
-                raise
+                if primary_failure is None:
+                    raise
+                try:
+                    primary_failure.add_note(
+                            "The nested Tagging's runtime could not be"
+                            f" restored: {type(repair_error).__name__}:"
+                            f" {repair_error}"
+                            )
+                except BaseException:
+                    pass
             finally:
                 primary_failure = None
 

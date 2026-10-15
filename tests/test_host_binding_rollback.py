@@ -302,6 +302,9 @@ class HostBindingRollbackTests(unittest.TestCase):
                     object.__setattr__(self, "kept", "outer preparation")
                     object.__setattr__(self, name, value)
                     Inner(self)
+                    # A hostile setter may put the requested outer runtime
+                    # back after Inner has already installed its Post gate.
+                    object.__setattr__(self, name, value)
                     raise RuntimeError("outer refusal")
                 object.__setattr__(self, name, value)
 
