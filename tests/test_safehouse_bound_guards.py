@@ -10,8 +10,6 @@ from unittest.mock import patch
 
 from TopKit import Action
 from TopKit import Pin
-from TopKit import Operation
-from TopKit import Public
 from TopKit import Tag
 from TopKit import TagArrestedAccessError
 from TopKit.arrest import _Arrest
@@ -127,13 +125,11 @@ class SafehouseBoundGuardTests(unittest.TestCase):
         source.close()
         self.assertEqual(events, ["finalized"])
 
-    def test_started_published_async_generator_is_held_on_agent_arrest(self) -> None:
+    def test_started_action_async_generator_is_held_on_agent_arrest(self) -> None:
         events = []
 
         class Fighter(Tag):
-            @Public
-            @Operation
-            def Work(tag, agent):
+            def Work(agent):
                 async def Steps():
                     try:
                         yield "started"
