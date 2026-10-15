@@ -1481,6 +1481,44 @@ class Late_Pin_Tests(unittest.TestCase):
 
         self.assertTrue(issubclass(Shape, Base))
 
+    def test_a_fake_base_cannot_allow_a_pin_over_an_ordinary_base(self):
+        @Pin
+        class Rare(Tag):
+            pass
+
+        class Base(Tag):
+            pass
+
+        class Fake(MetaTag):
+            def __getattribute__(cls, name):
+                if name == "__bases__" and cls.__name__ == "Shape":
+                    return (Rare,)
+                return super().__getattribute__(name)
+
+        class Shape(Base, metaclass=Fake):
+            pass
+
+        with self.assertRaises(TagDeclarationError):
+            Pin(Shape)
+        self.assertNotIn("__topkit_pin__", Shape.__dict__)
+
+    def test_a_hidden_tag_base_still_counts_for_pin_eligibility(self):
+        class Hide(MetaTag):
+            def __getattribute__(cls, name):
+                if name == "__bases__" and cls.__name__ == "Base":
+                    return ()
+                return super().__getattribute__(name)
+
+        class Base(Tag, metaclass=Hide):
+            pass
+
+        class Shape(Base):
+            pass
+
+        with self.assertRaises(TagDeclarationError):
+            Pin(Shape)
+        self.assertNotIn("__topkit_pin__", Shape.__dict__)
+
     def test_a_metaclass_attribute_mask_cannot_hide_a_real_pin(self):
         class Mask(MetaTag):
             def __getattribute__(cls, name):

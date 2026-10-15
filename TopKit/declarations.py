@@ -44,6 +44,7 @@ from .memo import _memo_key
 from .memo import _memo_of
 from .memo import _namespace_snapshot
 from .memo import _remember_memo
+from .memo import _type_bases
 from .memo import _type_mro
 
 
@@ -610,7 +611,7 @@ def _is_tag_base(
 
     return _is_tag_class(base) and any(
             _is_tag_class(deeper)
-            for deeper in base.__bases__
+            for deeper in _type_bases.__get__(base)
             )
 
 
@@ -621,7 +622,7 @@ def _check_pin_bases(
 
     bases = tuple(
             base
-            for base in tag.__bases__
+            for base in _type_bases.__get__(tag)
             if _is_tag_base(base)
             )
     pins = [
