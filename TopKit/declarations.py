@@ -38,11 +38,13 @@ from .errors import TagPostconditionError
 from .errors import TagPreconditionError
 from .geometry import _is_tag
 from .geometry import _is_tag_class
+from .memo import _class_namespace
 from .memo import _forget_memo
 from .memo import _memo_key
 from .memo import _memo_of
 from .memo import _namespace_snapshot
 from .memo import _remember_memo
+from .memo import _type_mro
 
 
 _KIND = "__topkit_kind__"
@@ -512,7 +514,7 @@ def Pin(
                 )
 
     with _pin_mark_lock:
-        if tag.__dict__.get(_PIN, False):
+        if _class_namespace(tag).get(_PIN) is True:
             return tag   # restating the mark changes nothing
 
         _refuse_late_pin(tag)
@@ -520,7 +522,7 @@ def Pin(
                 tag,
                 _namespace_snapshot(tag),
                 )
-        setattr(
+        type.__setattr__(
                 tag,
                 _PIN,
                 True,
@@ -531,7 +533,7 @@ def Pin(
             _invalidate_declarations(tag)   # a scan made before the mark never validated it as a Pin
             _declarations_of(tag)        # validate the members now, not at first pinning
         except BaseException:
-            delattr(tag, _PIN)           # refused: nothing changed
+            type.__delattr__(tag, _PIN)  # refused: nothing changed
             _invalidate_declarations(tag)
             raise
 
@@ -581,14 +583,12 @@ def _refuse_late_pin(
 def _is_pin(
         tag: type,
         ) -> bool:
-    """A Shape of a Pin is a Pin."""
+    """A Shape of a Pin is a Pin. Read each layer's physical mark: a
+    metaclass descriptor may mask the public attribute lookup."""
 
-    return bool(
-            getattr(
-                    tag,
-                    _PIN,
-                    False,
-                    )
+    return any(
+            _class_namespace(layer).get(_PIN) is True
+            for layer in _type_mro.__get__(tag)
             )
 
 
@@ -619,7 +619,7 @@ def _check_pin_bases(
             for base in bases
             if _is_pin(base)
             ]
-    marked = bool(tag.__dict__.get(_PIN, False))
+    marked = _class_namespace(tag).get(_PIN) is True
 
     if not bases or len(pins) == len(bases):
         return
