@@ -9,6 +9,7 @@ import warnings
 from TopKit import Action, Imprint, Post, Record, Tag, TagContractWarning
 from TopKit import TagDeclarationError
 from TopKit import TagOverwriteWarning, Underlay
+from TopKit.tags import MetaTag
 
 
 class Host:
@@ -68,6 +69,31 @@ class FormWarningTests(unittest.TestCase):
             with self.assertRaises(TagOverwriteWarning):
                 class C(A, B):
                     pass
+
+    def test_custom_metatag_subclass_keeps_declaration_diagnosis(self) -> None:
+        class Extension(MetaTag):
+            pass
+
+        class A(Tag):
+            @Action
+            def Fine(agent):
+                return "A"
+
+        class B(Tag):
+            @Action
+            def Fine(agent):
+                return "B"
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            class C(A, B, metaclass=Extension):
+                pass
+
+            C(Host())
+            C(Host())
+
+        self.assertEqual(len(caught), 1, caught)
+        self.assertIn("C's Form", str(caught[0].message))
 
     def test_invalid_underlay_keeps_its_application_time_failure(self) -> None:
         class A(Tag):

@@ -95,7 +95,7 @@ class MetaTag(type):
         _check_pin_bases(tag)
         _check_constant_declarations(tag, namespace)
         _check_tool_declarations(tag, namespace)
-        if any(isinstance(base, meta) for base in bases):
+        if any(isinstance(base, MetaTag) for base in bases):
             # The root Tag is still being built, so Geometry cannot bind it.
             _declared_collisions(tag)
 
