@@ -832,6 +832,33 @@ broken, so a veteran who is a broken Sentry keeps the Tag too. With
 several Tags, tag them all before the `try`, and Rip them in the
 `finally` in reverse order.
 
+That reverse order is a cleanup pattern, not a restriction on Rip. Each
+completed Tag has its own membership: an Agent can leave a Base and remain
+in its Shape. For example, graduating can end the Candidate role without
+ending the Officer role:
+
+```python
+class Candidate(Tag): pass
+class Officer(Candidate): pass
+
+ari = Character("Ari")
+Officer(ari)                      # Candidate enters first, then Officer
+del Candidate[ari]               # only Candidate leaves; Officer stays
+
+assert ari in Officer
+assert ari not in Candidate
+Officer(ari)                      # already active: no new Tagging
+Candidate(ari)                    # explicit return: fresh Tagging
+assert ari in Candidate
+```
+
+The Gains and Posts already acquired stay after a Rip. If an Officer
+really must remain a Candidate, the author can declare a Post on Officer
+that checks `agent in Candidate[:]`. Ripping Candidate then leaves Officer
+in its Field but defective while that Post fails. Guard the Post with
+Officer membership if the promise should stop mattering after Officer is
+also Ripped.
+
 This frees `with` for ordinary Python context protocols. A host or an
 Agent may still define `__enter__` and `__exit__` (or the asynchronous
 forms); TOP simply gives those methods no automatic Tagging or Rip rule.
