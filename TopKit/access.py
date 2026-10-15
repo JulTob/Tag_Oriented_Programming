@@ -25,6 +25,7 @@ from .declarations import STATE
 from .declarations import _MISSING
 from .declarations import _is_flag
 from .declarations import _words_of
+from .geometry import _form_of
 from .lifecycle import _teardown_all
 from .state import _Composing_Bound
 from .state import _Pinned_Operation
@@ -505,12 +506,12 @@ def _agent_deepcopy(
 # ------------------------------------------------------------------
 
 
-def _view_report_present(
+def _view_report_source(
         view: "_Tag_View",
         name: str,
         snapshot: _Snapshot,
-        ) -> bool:
-    """A Report belongs to the Tag being searched, at its current value.
+        ) -> type | None:
+    """Find the Tag whose current Report is visible at this view position.
 
     A new Report declaration or Pin Record can appear after Tagging;
     neither changes that Tagging's Action and Record snapshot.
@@ -518,11 +519,21 @@ def _view_report_present(
 
     tag = view._tag
     member = _class_namespace(tag).get(name, _MISSING)
+    entry = snapshot.reports.get(name)
 
     if member is _MISSING:
-        return False
+        if entry is None or entry[0] is tag:
+            return None
+        tag = entry[0]
+        if (
+                not any(base is tag for base in _form_of(view._tag))
+                or not any(active is tag for active in _state_of(view._agent).active)
+                ):
+            return None
+        member = _class_namespace(tag).get(name, _MISSING)
+        if member is _MISSING:
+            return None
 
-    entry = snapshot.reports.get(name)
     existing = (
             entry is not None
             and entry[0] is tag
@@ -530,28 +541,28 @@ def _view_report_present(
             )
 
     if isinstance(member, declarations.Report):
-        return True
+        return tag
 
     if isinstance(member, (classmethod, property, staticmethod)):
-        return False
+        return None
 
     pinned = _state_of(tag)
 
     if pinned is not None:
         if name in pinned.records:
-            return (
+            return tag if (
                     name in pinned.published
                     and (name not in pinned.secrets or _is_composing(pinned))
-                    )
+                    ) else None
 
         if name in pinned.actions:
-            return False
+            return None
 
     if getattr_static(member, declarations._KIND, None) is not None:
-        return False
+        return None
 
     # Only a plain value write keeps the earlier Report binding.
-    return existing
+    return tag if existing else None
 
 
 def _view_snapshot(
@@ -602,8 +613,9 @@ class _Tag_View:
         snapshot: _Snapshot = view._snapshot
         agent = view._agent
 
-        if _view_report_present(view, name, snapshot):
-            return getattr(view._tag, name)
+        report_source = _view_report_source(view, name, snapshot)
+        if report_source is not None:
+            return getattr(report_source, name)
 
         if name in snapshot.deleted:
             raise AttributeError(
@@ -664,7 +676,7 @@ class _Tag_View:
         name = str.__str__(name)
         snapshot = view._snapshot
 
-        if _view_report_present(view, name, snapshot):
+        if _view_report_source(view, name, snapshot) is not None:
             return True
 
         if name in snapshot.deleted:
