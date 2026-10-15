@@ -2,9 +2,9 @@
 after every transition.
 
 The model knows the laws of the Specification and nothing of the kernel:
-Base-first Forms, membership and history, Rip refused while a Shape
-requires the Base, a block that holds Tags (tag before try, Rip in
-finally), the call boundary (each Tag gates at its own turn, acquired
+Base-first Forms, independent membership after admission, Rip of one Tag
+without cascading into its Shapes, a block that holds Tags (tag before
+try, Rip in finally), the call boundary (each Tag gates at its own turn, acquired
 Gains precede admission, a broken promise keeps membership, and a failed
 Imprint leaves Gains without admission), sticky conditions ended by
 the author, published members answering sound members only, condition
@@ -184,6 +184,9 @@ def Model_Apply(
         model: Model,
         tag: type,
         ) -> None:
+    if tag in model.active:
+        return
+
     for current in Form(tag):
         if current not in model.active:
             Model_Gain(model, current)
@@ -202,22 +205,13 @@ def Model_Tagging(
     the Agent is deficient. Active reapplication joins nothing and
     rechecks nothing (§0.7)."""
 
+    if tag in model.active:
+        return False
+
     pending = [member for member in Form(tag) if member not in model.active]
     Model_Apply(model, tag)
 
     return bool(pending) and not model.Sound()
-
-
-def Rip_Refused(
-        model: Model,
-        tag: type,
-        ) -> bool:
-    """Rip is refused while a Shape requires the Base; it never cascades."""
-
-    return any(
-            other is not tag and issubclass(other, tag)
-            for other in model.active
-            )
 
 
 def Rip_Failure(
@@ -228,9 +222,6 @@ def Rip_Failure(
 
     if tag not in model.active:
         return TagResolutionError
-
-    if Rip_Refused(model, tag):
-        return TagCompositionError
 
     return None
 
@@ -468,14 +459,6 @@ def Rip_It(
             return
 
         raise AssertionError((context, "inactive Rip succeeded", tag.__name__))
-
-    if Rip_Refused(model, tag):
-        try:
-            del tag[target]
-        except TagCompositionError:
-            return
-
-        raise AssertionError((context, "Rip of a required Base succeeded", tag.__name__))
 
     del tag[target]
     Model_Rip(model, tag)

@@ -4,6 +4,13 @@
 
 ### Specification
 
+- **A Shape keeps no Base hostage (STEP-SPEC-26):** applying a Shape still
+  brings in missing Bases first. Later, `del Base[agent]` ends only that
+  Base's membership and runs its teardowns; the Shape stays, with acquired
+  Gains and Posts. An active Shape call remains a no-op, and explicitly
+  applying the Base trains it again. A Shape that needs continued Base
+  membership states that in a Post.
+
 - **Gates run per Tag:** each missing Tag passes its own Preconditions when
   its turn arrives. A later refusal or Overlay collision leaves completed
   Base Taggings in place and stops before the current Tag's Records, Field
