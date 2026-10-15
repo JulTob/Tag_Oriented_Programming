@@ -95,6 +95,10 @@ class TagResolutionError(TagError):
     """A required Underlay, Tag view, or contribution is unavailable."""
 
 
+class TagArrestedAccessError(TagResolutionError):
+    """An arrested Agent was used outside its saved Rip protocol."""
+
+
 class TagRogueAccessError(TagResolutionError):
     """A Rogue Agent reached a published member of a Tag it has left.
 
