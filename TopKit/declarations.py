@@ -1531,7 +1531,7 @@ def _wraps_callable(function: Function) -> Function:
     access to either), while ``__wrapped__`` still identifies its source.
     """
 
-    if isinstance(function, (FunctionType, MethodType, BuiltinFunctionType)):
+    if type(function) in (FunctionType, MethodType, BuiltinFunctionType):
         return wraps(function)
 
     return wraps(function, assigned=(), updated=())
@@ -1548,8 +1548,11 @@ def _signature_of(function: Function) -> Any:
 
     explicit = getattr_static(function, "__signature__", _MISSING)
 
+    kind = type(function)
+
     if (
-            isinstance(function, (FunctionType, MethodType, BuiltinFunctionType, type, partial))
+            kind in (FunctionType, MethodType, BuiltinFunctionType)
+            or issubclass(kind, (type, partial))
             or (explicit is not _MISSING and explicit is not None)
             or getattr_static(function, "__code__", _MISSING) is not _MISSING
             or getattr_static(function, "__text_signature__", _MISSING) is not _MISSING

@@ -59,6 +59,26 @@ def _target(pinned):
 
 
 class CallableSignatureMetadataTests(unittest.TestCase):
+    def test_callable_kind_does_not_read_an_optional_instance_class(self):
+        class HostileClass(_Hostile):
+            @property
+            def __class__(self):
+                raise AssertionError("optional callable class was read")
+
+            def __call__(self, agent):
+                return True
+
+        callable_object = HostileClass()
+        self.assertEqual(_parameters_of(callable_object).named[0][0], "agent")
+
+        @_wraps_callable(callable_object)
+        def Wrapper(agent):
+            return callable_object(agent)
+
+        self.assertIs(Wrapper.__wrapped__, callable_object)
+        self.assertTrue(Wrapper(Host()))
+        self.assertEqual(callable_object.metadata_reads, [])
+
     def test_failing_rips_keep_the_original_and_later_teardowns(self):
         for pinned in (False, True):
             with self.subTest(pinned=pinned):
