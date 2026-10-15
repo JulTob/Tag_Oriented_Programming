@@ -696,7 +696,7 @@ take the Agent. The four kinds are one pattern, two scopes:
 | | behaviour | data |
 | --- | --- | --- |
 | **Agent** | `@Action def f(agent, ...)` | `@Record def r(agent, stored)` |
-| **Tag** | `@Operation def f(tag, ...)` | `@Report def r(tag, inherited)` |
+| **Tag** | `@Operation def f(tag, ...)` | `@Report def r(tag, base_value)` |
 
 ```python
 class Community(Tag):
@@ -713,18 +713,22 @@ Community.colour            # "green"
 Community.Greet("Ari")      # "Community:Ari"
 ```
 
-An ordinary Report builder runs once per Tag, on first read, and its value
-is held on the Tag: one copy for the whole Field. Like a Record, it may declare a
-second parameter, which receives the value the Tag's Bases give that name,
-or `None`, so a Shape can extend a Base's Report rather than replace it.
+An ordinary Report builder runs once on its declaring Tag, on first read,
+and its value is held on that Tag: one copy for its whole Field. A Shape
+does not acquire a Base's Report or Operation in its own dotted namespace.
+`Base.report` belongs to Base; `Shape.report` is absent unless Shape
+declares that name itself. Applying Shape still applies Base first, so the
+Agent may reach Base's shared members through `Base[agent]` or publication.
+Like a Record, a Shape's own Report may declare a second parameter; it
+explicitly receives the value a Base gives that name, or `None`, so the
+Shape can calculate its own value using Base's.
 
 A Constant Report initializes once on its **declaring Tag**, on first
-read through that Tag or any Shape. The builder receives the declaring
-Tag. Every Shape shares the exact same resulting value; no Shape runs a
-separate initialization. Its binding cannot be replaced or deleted, but
-the value's contents may mutate. A Constant Operation instead fixes the
-implementation: it still runs on every call with the Tag through which
-it was called as receiver.
+read there or through a permitted Agent-bound view. Its binding cannot be
+replaced or deleted on that Tag or crushed through a Shape, but the value's
+contents may mutate. A Constant Operation fixes the declaring Tag's
+implementation; its calls receive that Tag. Constant does not give a Shape
+direct access to either member.
 
 Reports and Operations are **not visible on the Agent**. `ari.colour` does
 not exist after `Community(ari)`, and neither does `ari.Greet`. Projecting
@@ -936,6 +940,11 @@ Paladin.Operation(...)
 Paladin[:]                    # its Field
 ```
 
+Direct Tag access reads that Tag's own Reports and Operations. The Shape
+applies its Bases to the Agent before its own turn; it does not acquire the
+Bases' shared names in its own dotted namespace. Read a Base's Report or
+Operation on the Base itself.
+
 Worked example:
 
 ```python
@@ -1085,11 +1094,11 @@ Agents and Tags.
 
 **The receiver rule** (§1.1). The first parameter of a Pin's Agent-scope
 member is the pinned Tag; write it `tag`. A Pin's Record lands as a
-Report of the pinned Tag: one value, held on the Tag, inherited by its
-Shapes, and readable through the `inherited` seat of a Shape's own Report
-(§1.4). A Pin's Action lands as an Operation: read from the pinned Tag or
-any of its Shapes, it receives the Tag it was read from, as an Operation
-does. Membership does not inherit: `War_Caster in Rare` is False until
+Report of the pinned Tag: one value, held on that Tag. A Pin's Action lands
+as an Operation of the pinned Tag. Neither is directly read from a Shape
+unless that Shape receives its own Pin gain. A Shape's own Report may use
+an explicit second builder input that links to its Base's Report (§1.4).
+Membership does not inherit: `War_Caster in Rare` is False until
 `Rare(War_Caster)`. Nothing a Pin lands is ever projected onto the Tag's
 Agents. A Pin's own Operations and Reports stay on the Pin.
 
