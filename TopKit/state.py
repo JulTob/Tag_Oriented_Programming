@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from dataclasses import field
 from dataclasses import FrozenInstanceError
 from functools import wraps
+from inspect import getattr_static
 from inspect import signature
 from threading import RLock
 from types import FunctionType
@@ -29,6 +30,8 @@ from weakref import WeakValueDictionary
 import weakref
 
 from .declarations import STATE
+from .declarations import Report
+from .declarations import _KIND
 from .declarations import _MISSING
 from .declarations import _Words
 from .declarations import _is_dunder
@@ -102,24 +105,76 @@ def _report_changed(
         names[name] = (writes + 1, deletions + int(deleted))
 
 
+@dataclass(frozen=True, slots=True)
+class _Report_Binding:
+    origin: type
+    declaration: Any | None   # None for a Pin-published Record
+    deletions: int
+    public: bool
+
+
+def _remember_report(
+        state: "_State",
+        name: str,
+        origin: type,
+        declaration: Any | None,
+        public: bool,
+        ) -> None:
+    """Lay a Report over earlier Reports without mutating a scratch copy."""
+
+    earlier = state.reports.get(name, ())
+    state.reports[name] = (
+            *(binding for binding in earlier if binding.origin is not origin),
+            _Report_Binding(
+                    origin,
+                    declaration,
+                    _report_epochs(origin, name)[1],
+                    public,
+                    ),
+            )
+
+
+def _current_report_binding(
+        state: "_State",
+        name: str,
+        ) -> _Report_Binding | None:
+    for binding in reversed(state.reports.get(name, ())):
+        origin = binding.origin
+
+        if _report_epochs(origin, name)[1] != binding.deletions:
+            continue
+
+        member = _class_namespace(origin).get(name, _MISSING)
+
+        if member is _MISSING:
+            continue
+
+        if binding.declaration is None:
+            pinned = _state_of(origin)
+
+            if (
+                    pinned is None
+                    or name not in pinned.records
+                    or name not in pinned.published
+                    ):
+                continue
+        elif not isinstance(member, Report):
+            if isinstance(member, (classmethod, property, staticmethod)):
+                continue
+            if getattr_static(member, _KIND, None) is not None:
+                continue
+
+        return binding
+
+    return None
+
+
 def _current_report_origin(
         state: "_State",
         name: str,
         ) -> type | None:
-    binding = state.reports.get(name)
-
-    if binding is None:
-        return None
-
-    origin, _declaration, recorded_deletions = binding
-
-    if (
-            _report_epochs(origin, name)[1] != recorded_deletions
-            or name not in _class_namespace(origin)
-            ):
-        return None
-
-    return origin
+    binding = _current_report_binding(state, name)
+    return None if binding is None else binding.origin
 
 
 # ------------------------------------------------------------------
@@ -149,7 +204,7 @@ class _State:
     records: dict[str, type] = field(default_factory=dict)
     preconditions: dict[str, Check] = field(default_factory=dict)
     postconditions: dict[str, Check] = field(default_factory=dict)
-    reports: dict[str, tuple[type, Any, int]] = field(default_factory=dict)
+    reports: dict[str, tuple[_Report_Binding, ...]] = field(default_factory=dict)
     operations: dict[str, tuple[type, Function]] = field(default_factory=dict)
     published: set[str] = field(default_factory=set)
     secrets: set[str] = field(default_factory=set)
@@ -1267,20 +1322,20 @@ class _Published:
             return gate
 
         state = _namespace_of(agent)[STATE]
-        origin = _current_report_origin(state, gate.name)
+        binding = _current_report_binding(state, gate.name)
 
-        if origin is None:
+        if binding is None or not binding.public:
             raise AttributeError(gate.name)
 
         _require_membership(
                 agent,
-                origin,
+                binding.origin,
                 gate.name,
                 "Report",
                 )
 
         return getattr(
-                origin,
+                binding.origin,
                 gate.name,
                 )
 

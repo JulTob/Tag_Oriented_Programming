@@ -54,6 +54,7 @@ from .state import _name_of
 from .state import _namespace_of
 from .state import _rebind_all
 from .state import _report_epochs
+from .state import _remember_report
 from .state import _restore_namespace
 from .state import _restore_host_bindings
 from .state import _runtime_type_for
@@ -570,7 +571,7 @@ def _publish_into(
                 continue
             _refuse_constant(agent_state, name)
         if name in state.records:
-            agent_state.reports[name] = (pinned, None, _report_epochs(pinned, name)[1])
+            _remember_report(agent_state, name, pinned, None, True)
             agent_state.published.add(name)
             if name in state.constants:
                 agent_state.constants[name] = (pinned, "report", None)

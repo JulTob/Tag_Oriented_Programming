@@ -12,7 +12,7 @@ from .declarations import _MISSING
 from .state import _Deleted
 from .state import _Published
 from .state import _Secret_Gate
-from .state import _current_report_origin
+from .state import _current_report_binding
 from .state import _real_namespace_of
 from .state import _is_composing
 from .constants import _Constant_Gate
@@ -111,14 +111,14 @@ def _present(
         if state is None:
             return False
 
-        origin = _current_report_origin(state, name)
+        binding = _current_report_binding(state, name)
 
-        if origin is None:
+        if binding is None or not binding.public:
             return False
 
         return (
-                origin in state.active
-                and getattr_static(origin, name, _MISSING) is not _MISSING
+                binding.origin in state.active
+                and getattr_static(binding.origin, name, _MISSING) is not _MISSING
                 )
 
     if issubclass(type(member), MemberDescriptorType):
