@@ -62,6 +62,9 @@ class _Named(type):
         Made once per name, when the check is declared.
         """
 
+        # The registry is process-global. Keep identifier text, never a
+        # caller-owned str subclass which may hold an Agent or Tag.
+        name = str.__str__(name)
         names = cls.__dict__["_names"]
 
         if name not in names:

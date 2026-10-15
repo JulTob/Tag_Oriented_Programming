@@ -423,7 +423,10 @@ Tagging sequence or expand its rollback boundary.
   `Failure.X` with `name = "X"`, and attribute access answers only names
   that were declared. Names are registered in `MetaTag.__new__`
   (`_name_checks`) so the handler is valid as soon as the Tag class
-  exists. `Precondition`, `Postcondition` and `Imprint` are `_Check_Mark`
+  exists. The process-wide registry stores plain string text, copied with
+  `str.__str__` from a subclass name without calling its conversion hooks;
+  it does not own that declaration object's attached references.
+  `Precondition`, `Postcondition` and `Imprint` are `_Check_Mark`
   objects: called, they mark; read, they forward to their failure class.
   Per kind, not per Tag, on purpose: the handler reads the program's own
   word, and the Tag is already in the message.

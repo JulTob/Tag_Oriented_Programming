@@ -19,6 +19,11 @@
 
 ### TopKit
 
+- **Named failures release declaration-name objects:** the process-wide
+  Precondition, Imprint and Postcondition failure registries keep plain
+  identifier text, so a `str` subclass name cannot hold an Agent or Tag
+  alive after its declaration is gone.
+
 - **Tagging preparation cost:** ordinary Action/Record declarations reuse
   the existing collision and Underlay checks without constructing a
   disposable Overlay. Tags with deletions, conditions, Secrets, special
