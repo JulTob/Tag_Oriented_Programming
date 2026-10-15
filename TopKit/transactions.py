@@ -24,6 +24,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .contracts import _condition_turn
 from .contracts import _evaluate
 from .declarations import _Declarations
 from .declarations import _discard_lazy_result
@@ -362,7 +363,7 @@ def _inspect(
 
     try:
         _evaluate(
-                state.postconditions.items(),
+                _condition_turn(state, "postconditions"),
                 agent,
                 {},
                 TagPostconditionError,

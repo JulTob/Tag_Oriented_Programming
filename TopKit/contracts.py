@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any
 from typing import Callable
 from typing import Iterable
+from typing import Iterator
 
 from .declarations import _MISSING
 from .declarations import _protocol_inputs
@@ -32,6 +33,63 @@ from .state import _state_of
 
 
 Check = Callable[[object, dict[str, Any]], Any]
+Condition_Turn = tuple[tuple[str, Check], ...]
+
+
+def _condition_turn(
+        state: _State,
+        scope: str,
+        saved: Condition_Turn | None = None,
+        ) -> Iterator[tuple[str, Check]]:
+    """Walk the names present at the query's start, once and in order.
+
+    An earlier condition may explicitly end or replace a later one. Skip
+    that old turn; a newly acquired check waits for the next query. Read
+    the current dictionary on every turn because a rollback can replace
+    the dictionary itself, not merely its entries.
+    """
+
+    if saved is None:
+        saved = tuple(getattr(state, scope).items())
+
+    for name, check in saved:
+        if getattr(state, scope).get(name) is check:
+            yield name, check
+
+
+def _saved_conditions(
+        agent: object,
+        ) -> tuple[Condition_Turn, Condition_Turn]:
+    """Save both scopes before a combined Contract query starts running."""
+
+    state = _state_of(agent)
+
+    if state is None:
+        return (), ()
+
+    return (
+            tuple(state.preconditions.items()),
+            tuple(state.postconditions.items()),
+            )
+
+
+def _unexamined_post(
+        state: _State,
+        saved: Condition_Turn,
+        ) -> str | None:
+    """Name a currently visible Post added or replaced since this turn began.
+
+    A successful earlier check cannot certify a new promise that appeared
+    while it ran. Removed Posts are not unexamined promises on the Agent.
+    """
+
+    original = dict(saved)
+
+    for name, check in state.postconditions.items():
+        if name not in original or original[name] is not check:
+            return name
+
+    return None
 
 
 def _refuse_condition_binding(
@@ -297,6 +355,7 @@ def _guarded(
         detailed: bool,
         failure: _Named,
         phase: str,
+        saved: Condition_Turn | None = None,
         ) -> bool:
     """Run one scope of the Agent's visible conditions on demand.
 
@@ -313,7 +372,10 @@ def _guarded(
     state.composing += 1
 
     try:
-        checks = getattr(state, scope).items()
+        if saved is None:
+            saved = tuple(getattr(state, scope).items())
+
+        checks = _condition_turn(state, scope, saved)
 
         if detailed:
             _evaluate(
@@ -324,6 +386,15 @@ def _guarded(
                     phase,
                     )
 
+            if scope == "postconditions":
+                unexamined = _unexamined_post(state, saved)
+
+                if unexamined is not None:
+                    raise failure.Named(unexamined)(
+                            f"{phase} {unexamined!r} became visible during"
+                            " this check; retry to judge the new promise"
+                            )
+
             return True
 
         for name, check in checks:
@@ -332,6 +403,9 @@ def _guarded(
                     return False
             except Exception:
                 return False
+
+        if scope == "postconditions" and _unexamined_post(state, saved) is not None:
+            return False
 
         return True
     finally:
@@ -353,14 +427,30 @@ def _holds(
     state.composing += 1
 
     try:
-        for name, check in state.postconditions.items():
+        if len(state.postconditions) == 1:
+            # Save the sole turn before calling it. It may end or replace
+            # itself, but there is no later dictionary turn to inspect.
+            name, check = next(iter(state.postconditions.items()))
+            saved = ((name, check),)
+
             try:
                 if not _verdict(check(agent, {}), name):
                     return False
             except Exception:
                 return False
 
-        return True
+            return _unexamined_post(state, saved) is None
+
+        saved = tuple(state.postconditions.items())
+
+        for name, check in _condition_turn(state, "postconditions", saved):
+            try:
+                if not _verdict(check(agent, {}), name):
+                    return False
+            except Exception:
+                return False
+
+        return _unexamined_post(state, saved) is None
     finally:
         state.composing -= 1
         state.checking = False
@@ -405,6 +495,7 @@ def _condition_member(
 def _status_of(
         agent: object,
         scope: str,
+        saved: Condition_Turn | None = None,
         ) -> dict[str, bool]:
     state = _state_of(agent)
 
@@ -417,7 +508,7 @@ def _status_of(
     status: dict[str, bool] = {}
 
     try:
-        for name, check in getattr(state, scope).items():
+        for name, check in _condition_turn(state, scope, saved):
             try:
                 status[name] = _verdict(
                         check(agent, {}),
@@ -483,8 +574,23 @@ class Contract:
     def Conditions(
             agent: object,
             ) -> bool:
-        Contract.Preconditions(agent)
-        Contract.Postconditions(agent)
+        pre, post = _saved_conditions(agent)
+        _guarded(
+                agent,
+                "preconditions",
+                True,
+                TagPreconditionError,
+                "Precondition",
+                pre,
+                )
+        _guarded(
+                agent,
+                "postconditions",
+                True,
+                TagPostconditionError,
+                "Postcondition",
+                post,
+                )
 
         return True
 
@@ -546,11 +652,18 @@ class Contract:
     def Status(
             agent: object,
             ) -> dict[str, bool]:
-        """``{condition: holds?}`` for every visible condition, never raising."""
+        """Snapshot diagnostic ``{condition: holds?}``, never raising.
+
+        A Post gained or replaced during this read appears on the next read.
+        Use ``bool(agent)`` or ``Contract.Postconditions`` as a guard; those
+        fail closed if the visible Post set changes mid-query.
+        """
+
+        pre, post = _saved_conditions(agent)
 
         return {
-                **_status_of(agent, "preconditions"),
-                **_status_of(agent, "postconditions"),
+                **_status_of(agent, "preconditions", pre),
+                **_status_of(agent, "postconditions", post),
                 }
 
     @staticmethod
@@ -558,8 +671,9 @@ class Contract:
             agent: object,
             ) -> str:
         title = _title_of(agent)
-        pre = _status_of(agent, "preconditions")
-        post = _status_of(agent, "postconditions")
+        saved_pre, saved_post = _saved_conditions(agent)
+        pre = _status_of(agent, "preconditions", saved_pre)
+        post = _status_of(agent, "postconditions", saved_post)
 
         if not pre and not post:
             return f"{title}: no conditions"
