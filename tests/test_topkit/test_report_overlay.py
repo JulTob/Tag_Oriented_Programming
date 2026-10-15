@@ -85,6 +85,112 @@ class ReportOverlayTests(unittest.TestCase):
         with self.assertRaises(AttributeError):
             Later[agent].signal
 
+    def test_a_pin_report_reappears_after_a_later_report_is_deleted(self) -> None:
+        class Pinned(Tag):
+            pass
+
+        @Pin
+        class Publish(Tag):
+            @Public
+            @Record
+            def signal(tag):
+                return "pinned"
+
+        Publish(Pinned)
+
+        class Later(Tag):
+            @Public
+            @Report
+            def signal(tag):
+                return "later"
+
+        agent = self.Host()
+        Pinned(agent)
+        Later(agent)
+        self.assertEqual(agent.signal, "later")
+
+        del Later.signal
+
+        self.assertEqual(agent.signal, "pinned")
+        self.assertEqual(Pinned[agent].signal, "pinned")
+        self.assertTrue("signal" @ agent)
+
+    def test_each_report_keeps_its_own_publication_status(self) -> None:
+        class Internal(Tag):
+            @Report
+            def signal(tag):
+                return "private"
+
+        class Published(Tag):
+            @Public
+            @Report
+            def signal(tag):
+                return "public"
+
+        first = self.Host()
+        Published(first)
+        Internal(first)
+        self.assertEqual(Internal[first].signal, "private")
+        with self.assertRaises(AttributeError):
+            first.signal
+        self.assertFalse("signal" @ first)
+
+        del Internal.signal
+        self.assertEqual(first.signal, "public")
+        self.assertTrue("signal" @ first)
+
+        class EarlierInternal(Tag):
+            @Report
+            def signal(tag):
+                return "private"
+
+        class LaterPublished(Tag):
+            @Public
+            @Report
+            def signal(tag):
+                return "public"
+
+        second = self.Host()
+        EarlierInternal(second)
+        LaterPublished(second)
+        self.assertEqual(second.signal, "public")
+
+        del LaterPublished.signal
+        self.assertEqual(EarlierInternal[second].signal, "private")
+        with self.assertRaises(AttributeError):
+            second.signal
+        self.assertFalse("signal" @ second)
+
+    def test_a_fresh_report_declaration_updates_publication_in_place(self) -> None:
+        class Signal(Tag):
+            @Public
+            @Report
+            def value(tag):
+                return "public"
+
+        agent = self.Host()
+        Signal(agent)
+        self.assertEqual(agent.value, "public")
+
+        @Report
+        def value(tag):
+            return "internal"
+
+        Signal.value = value
+        self.assertEqual(Signal[agent].value, "internal")
+        with self.assertRaises(AttributeError):
+            agent.value
+        self.assertFalse("value" @ agent)
+
+        @Public
+        @Report
+        def value(tag):
+            return "public again"
+
+        Signal.value = value
+        self.assertEqual(agent.value, "public again")
+        self.assertTrue("value" @ agent)
+
     def test_delete_clears_earlier_report_layers(self) -> None:
         class Earlier(Tag):
             @Public

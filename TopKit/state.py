@@ -149,7 +149,17 @@ def _current_report_binding(
         if member is _MISSING:
             continue
 
-        if binding.declaration is None:
+        if isinstance(member, Report):
+            # A fresh Report declaration on this Tag keeps the Agent's
+            # Overlay rank, but its current @Public mark governs access.
+            if member.public != binding.public:
+                return _Report_Binding(
+                        binding.origin,
+                        binding.declaration,
+                        binding.deletions,
+                        member.public,
+                        )
+        elif binding.declaration is None:
             pinned = _state_of(origin)
 
             if (
@@ -158,7 +168,7 @@ def _current_report_binding(
                     or name not in pinned.published
                     ):
                 continue
-        elif not isinstance(member, Report):
+        else:
             if isinstance(member, (classmethod, property, staticmethod)):
                 continue
             if getattr_static(member, _KIND, None) is not None:
