@@ -32,6 +32,7 @@ from typing import Iterator
 from .access import _keyword
 from .access import _refuse_host_truth
 from .access import _view_of
+from .arrest import _arrest_of
 from .contracts import _holds
 from .declarations import _MISSING
 from .declarations import _check_constant_declarations
@@ -50,6 +51,7 @@ from .errors import TagCompositionError
 from .fields import FIELD_SEAT
 from .fields import _Field
 from .fields import _Partition
+from .fields import _Safehouse
 from .fields import _field_of
 from .fields import _population_of
 from .fields import _sound_of
@@ -176,6 +178,7 @@ class MetaTag(type):
         return (
                 state is not None
                 and tag in state.active
+                and _arrest_of(candidate) is None
                 )
 
     def __instancecheck__(
@@ -259,6 +262,9 @@ class MetaTag(type):
             tag,
             key: Any,
             ) -> Any:
+        if key is Ellipsis:
+            return _Safehouse(None if tag is Tag else tag)
+
         if isinstance(key, slice):
             if key != slice(None):
                 raise TypeError(
