@@ -1339,6 +1339,53 @@ class Host_Tests(unittest.TestCase):
 
 
 class Late_Pin_Tests(unittest.TestCase):
+    def test_a_metaclass_dict_mask_cannot_fake_a_pin_mark(self):
+        class Mask(MetaTag):
+            @property
+            def __dict__(cls):
+                return {"__topkit_pin__": True}
+
+        class Plain(Tag, metaclass=Mask):
+            pass
+
+        class Wizard(Tag):
+            pass
+
+        self.assertIs(Pin(Plain), Plain)
+        Plain(Wizard)
+        self.assertIn(Wizard, Plain[:])
+
+    def test_a_metaclass_dict_mask_cannot_make_a_shape_mixed(self):
+        class Mask(MetaTag):
+            @property
+            def __dict__(cls):
+                return {"__topkit_pin__": True}
+
+        class Base(Tag):
+            pass
+
+        class Shape(Base, metaclass=Mask):
+            pass
+
+        self.assertTrue(issubclass(Shape, Base))
+
+    def test_a_metaclass_attribute_mask_cannot_hide_a_real_pin(self):
+        class Mask(MetaTag):
+            def __getattribute__(cls, name):
+                if name == "__topkit_pin__":
+                    return False
+                return super().__getattribute__(name)
+
+        @Pin
+        class Rare(Tag, metaclass=Mask):
+            pass
+
+        class Wizard(Tag):
+            pass
+
+        Rare(Wizard)
+        self.assertIn(Wizard, Rare[:])
+
     def test_a_tag_with_a_shape_is_not_marked_a_pin_later(self):
         class Order(Tag):
             pass
