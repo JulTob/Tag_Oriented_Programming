@@ -47,7 +47,8 @@ class PinnedHandleIdentityTests(unittest.TestCase):
             pass
 
         original = target.Work
-        self.assertNotEqual(original, Shape.Work)
+        with self.assertRaises(AttributeError):
+            Shape.Work
         self.assertEqual(original, target.Work)
 
         @Pin
@@ -137,7 +138,7 @@ class PinnedHandleIdentityTests(unittest.TestCase):
         self.assertEqual(repr(first), "<pinned Operation Work of Target>")
         self.assertIs(first(), target)
 
-    def test_representation_names_the_function_and_receiving_shape(self):
+    def test_representation_names_the_function_and_own_receiving_tag(self):
         def Calculate(tag):
             return tag
 
@@ -147,6 +148,14 @@ class PinnedHandleIdentityTests(unittest.TestCase):
             pass
 
         self.assertEqual(repr(target.Work), "<pinned Operation Calculate of Target>")
+        with self.assertRaises(AttributeError):
+            Shape.Work
+
+        @Pin
+        class ShapeOwn(Tag):
+            Work = Action(Calculate)
+
+        ShapeOwn(Shape)
         self.assertEqual(repr(Shape.Work), "<pinned Operation Calculate of Shape>")
 
     def test_handle_keys_survive_first_secret_and_close_composition_after_call(self):

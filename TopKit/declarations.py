@@ -12,6 +12,7 @@ A Tag class is scanned once; the result is cached per class.
 from __future__ import annotations
 
 from contextvars import ContextVar
+from copy import copy
 from dataclasses import dataclass
 from dataclasses import field
 from dataclasses import replace
@@ -211,8 +212,9 @@ def Constant(
 
     Records keep their initial binding; their values may still be mutable.
     Actions and Posts cannot be replaced or deleted. Constant Reports
-    keep the declaring Tag's value, shared by its Shapes, and Constant
-    Operations keep their implementation. Stacks with the declaration's
+    keep one value on their declaring Tag, while that Tag's Agents may
+    still reach it; Constant Operations keep their implementation. Stacks
+    with the declaration's
     other modifiers in either order.
     """
 
@@ -327,6 +329,40 @@ def Delete(
             )
 
 
+class _Own_Operation(classmethod):
+    """A classmethod Operation belongs to each Tag that declares it."""
+
+    def __init__(self, function: Function, original: classmethod | None = None) -> None:
+        super().__init__(function)
+        self._original = original
+        self._names: tuple[str, ...] = ()
+        self._owner_ref = None
+
+    def __set_name__(self, owner: type, name: str) -> None:
+        first_binding = name not in self._names
+        if first_binding:
+            self._names += (name,)
+        if self._owner_ref is None:
+            self._owner_ref = ref(owner)
+        if first_binding and self._original is not None:
+            callback = getattr(type(self._original), "__set_name__", None)
+            if callback is not None:
+                callback(self._original, owner, name)
+
+    def _copy_for_new_owner(self) -> "_Own_Operation":
+        return _Own_Operation(self.__func__, self._original)
+
+    def __get__(self, instance: object, owner: type | None = None) -> Any:
+        if owner is None:
+            owner = type(instance)
+        namespace = type.__dict__["__dict__"].__get__(owner)
+        if not any(namespace.get(name) is self for name in self._names):
+            raise AttributeError(f"{owner.__name__} has no own Operation")
+        if self._original is not None:
+            return self._original.__get__(instance, owner)
+        return super().__get__(instance, owner)
+
+
 def Operation(
         function: Function,
         ) -> classmethod:
@@ -337,7 +373,7 @@ def Operation(
             "operation",
             )
 
-    return classmethod(function)
+    return _Own_Operation(function)
 
 
 def Secret(
@@ -586,11 +622,10 @@ class Report:
         def hit_die(tag):
             return 8
 
-    The builder receives the Tag and runs once per Tag, on first read. A
-    second positional parameter receives the value the Tag's Bases give
-    that name, or None, so a Shape can extend a Base's Report the way a
-    Record extends what is stored. With @Constant, the builder instead
-    runs once on the declaring Tag; every Shape reads that same value.
+    The builder receives its declaring Tag and runs once, on first read. A
+    second positional parameter explicitly receives the value a Base Tag
+    gives that name, or None, so a Shape's own Report can extend it. With
+    @Constant, the same declaring-Tag value is locked against replacement.
     """
 
     def __init__(
@@ -607,6 +642,7 @@ class Report:
         report.__name__ = builder.__name__
         report.__doc__ = builder.__doc__
         report._name = builder.__name__
+        report._names: tuple[str, ...] = ()
         report._owner_ref = None
         report._values: "WeakKeyDictionary[type, Any]" = WeakKeyDictionary()
 
@@ -616,9 +652,22 @@ class Report:
             name: str,
             ) -> None:
         report._name = name
+        if name not in report._names:
+            report._names += (name,)
 
         if report._owner_ref is None:
             report._owner_ref = ref(owner)
+
+    def _copy_for_new_owner(report) -> "Report":
+        copied = copy(report)
+        if copied is report or not isinstance(copied, Report):
+            raise TagDeclarationError(
+                    "a Report reused on another Tag must have an independent binding"
+                    )
+        copied._names = ()
+        copied._owner_ref = None
+        copied._values = WeakKeyDictionary()
+        return copied
 
     def __get__(
             report,
@@ -627,6 +676,10 @@ class Report:
             ) -> Any:
         if owner is None:
             owner = type(instance)
+
+        namespace = type.__dict__["__dict__"].__get__(owner)
+        if not any(namespace.get(name) is report for name in report._names):
+            raise AttributeError(f"{owner.__name__} has no own Report {report._name!r}")
 
         if _is_constant(report) and report._owner_ref is not None:
             declaring = report._owner_ref()
@@ -651,17 +704,21 @@ class Report:
         if _parameters_of(report.builder).positional >= 2:
             return report.builder(
                     owner,
-                    report._inherited(owner),
+                    report._base_report_value(owner),
                     )
 
         return report.builder(owner)
 
-    def _inherited(
+    def _base_report_value(
             report,
             owner: type,
             ) -> Any:
-        """The value the Bases give this name, or None: the first member of
-        that name declared after this Report's own class in the MRO."""
+        """The value a Base owns under this name, or None: the first member
+        declared after this Report's own class in the MRO."""
+
+        # State imports declarations, so the Pin carrier is read here only
+        # when a Shape explicitly asks for its Base Report's value.
+        from .state import _Pinned_Value
 
         passed_own_class = False
 
@@ -678,8 +735,11 @@ class Report:
             if isinstance(member, Report):
                 return member.__get__(
                         None,
-                        owner,
+                        klass,
                         )
+
+            if isinstance(member, _Pinned_Value):
+                return member.value
 
             return member
 

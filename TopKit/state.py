@@ -180,6 +180,23 @@ def _is_composing(
             )
 
 
+class _Pinned_Value:
+    """A Pin Record kept on its receiving Tag, not given to Shapes."""
+
+    __slots__ = ("value", "owner")
+
+    def __init__(self, value: Any, owner: type) -> None:
+        self.value = value
+        self.owner = owner
+
+    def __get__(self, instance: object, owner: type | None = None) -> Any:
+        if owner is None:
+            owner = type(instance)
+        if owner is not self.owner:
+            raise AttributeError(f"{owner.__name__} has no own pinned Report")
+        return self.value
+
+
 class _Class_Namespace:
     """The namespace of a Tag used as a Target (a pinned Tag).
 
@@ -201,10 +218,11 @@ class _Class_Namespace:
             name: str,
             default: Any = None,
             ) -> Any:
-        return namespace._owner.__dict__.get(
+        member = namespace._owner.__dict__.get(
                 name,
                 default,
                 )
+        return member.value if isinstance(member, _Pinned_Value) else member
 
     def __getitem__(
             namespace,
@@ -682,18 +700,19 @@ class _Bound:
 class _Pinned_Operation:
     """An Action a Pin landed on a Tag: an Operation of that Tag.
 
-    Read from the pinned Tag or from any of its Shapes, it binds to the
-    Tag it was read from, as a classmethod does, so a Shape inherits it
-    the way it inherits every Tag-scope member.
+    Read directly from the pinned Tag, it binds to that Tag. A Shape
+    receives its own Operation only if a Pin also lands one there.
     """
 
-    __slots__ = ("_function",)
+    __slots__ = ("_function", "_owner")
 
     def __init__(
             operation,
             function: Function,
+            owner: type,
             ) -> None:
         operation._function = function
+        operation._owner = owner
 
     def __get__(
             operation,
@@ -702,6 +721,9 @@ class _Pinned_Operation:
             ) -> Any:
         if owner is None:
             owner = type(instance)
+
+        if owner is not operation._owner:
+            raise AttributeError(f"{owner.__name__} has no own pinned Operation")
 
         return MethodType(
                 operation._function,
@@ -848,7 +870,7 @@ class _Composing_Pinned_Operation(_Pinned_Operation):
             state: "_State",
             name: str,
             ) -> None:
-        super().__init__(function)
+        super().__init__(function, state.pinned)
         operation._state = state
         operation._name = name
 
@@ -859,6 +881,9 @@ class _Composing_Pinned_Operation(_Pinned_Operation):
             ) -> Any:
         if owner is None:
             owner = type(instance)
+
+        if owner is not operation._owner:
+            raise AttributeError(f"{owner.__name__} has no own pinned Operation")
 
         function = operation._function
         try:

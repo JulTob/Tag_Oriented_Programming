@@ -101,7 +101,12 @@ def pattern_hot_fix(fleet: list[Drone]) -> None:
     Firmware_2(Flyer)                           # one act
     after = [drone.Fly(100) for drone in fleet]
     assert after == ["Flyer v2: thrust 80"] * len(fleet)
-    assert Courier.firmware == "v2"             # Shapes inherit the patched Report
+    try:
+        Courier.firmware
+    except AttributeError:
+        pass                                   # Flyer owns the patched Report
+    else:
+        raise AssertionError("Courier acquired Flyer's Report")
     print("   patched:", after[0])
 
     del Firmware_2[Flyer]                       # one act back
@@ -133,7 +138,12 @@ def pattern_catalog() -> None:
     print("2. catalog")
     Certified(Flyer)
     assert Flyer.certified_by == "aviation board"
-    assert Courier.certified_by == "aviation board"     # inherited by the Shape
+    try:
+        Courier.certified_by
+    except AttributeError:
+        pass                                           # Flyer owns this Report
+    else:
+        raise AssertionError("Courier acquired Flyer's Report")
     assert Courier not in Certified                     # membership does not inherit
 
     Retired(Courier)
