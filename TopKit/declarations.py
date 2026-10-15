@@ -781,14 +781,14 @@ def _kind_of(
             )
 
 
-def _refuse_truth_gain(
+def _refuse_reserved_agent_gain(
         owner: str,
         name: str,
         member: Any,
         ) -> None:
-    """The Agent's truth protocol cannot be gained, replaced or deleted."""
+    """Keep contract truth and Python's Agent storage seats out of Gains."""
 
-    if name != "__bool__":
+    if name not in ("__bool__", "__class__", "__dict__"):
         return
 
     if isinstance(member, Report):
@@ -805,10 +805,16 @@ def _refuse_truth_gain(
                 )
 
     if gained:
+        if name == "__bool__":
+            raise TagDeclarationError(
+                    f"{owner}.{name}: an Agent's truth is reserved for its"
+                    " visible Postconditions; a Contribution cannot redefine"
+                    " or delete it"
+                    )
         raise TagDeclarationError(
-                f"{owner}.{name}: an Agent's truth is reserved for its"
-                " visible Postconditions; a Contribution cannot redefine"
-                " or delete it"
+                f"{owner}.{name}: an Agent's {name} is needed for Python"
+                " object structure; a Contribution cannot redefine or"
+                " delete it"
                 )
 
 
@@ -1044,7 +1050,7 @@ def _name_checks(
         if _is_private(name):
             continue
 
-        _refuse_truth_gain(owner, name, attribute)
+        _refuse_reserved_agent_gain(owner, name, attribute)
         kind = _kind_of(attribute)
         _refuse_condition_dunder(owner, name, kind)
 
@@ -1106,7 +1112,7 @@ def _scan(
                 )
 
     for name, attribute in namespace.items():
-        _refuse_truth_gain(tag.__name__, name, attribute)
+        _refuse_reserved_agent_gain(tag.__name__, name, attribute)
         if managed is not None and (
                 name in managed.actions
                 or name in managed.records

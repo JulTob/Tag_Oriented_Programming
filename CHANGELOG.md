@@ -19,6 +19,12 @@
 
 ### TopKit
 
+- **Structural Agent seats:** a declaration that would gain or delete
+  `__class__` or `__dict__` is refused when the Tag is declared, before an
+  Agent changes. These names carry Python's type and instance storage;
+  ordinary special-method Actions remain available. A late assignment of
+  such a Contribution is refused as well (#83).
+
 - **Tagging preparation cost:** ordinary Action/Record declarations reuse
   the existing collision and Underlay checks without constructing a
   disposable Overlay. Tags with deletions, conditions, Secrets, special
