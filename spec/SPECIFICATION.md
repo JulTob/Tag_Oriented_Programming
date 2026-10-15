@@ -109,9 +109,10 @@ for wizard in Wizard:               # the Field (its sound members, §2.5)
     Observe(wizard)
 ```
 
-Membership is **closed upward** through Bases: an Agent of a Shape is an
-Agent of every Base in the Shape's Form, and appears in each of those
-Fields.
+Tagging is **closed upward** through Bases: applying a Shape also applies
+each missing Base in its Form, and the Agent enters each completed Tag's
+Field. Afterwards each membership stands alone. Ripping a Base does not
+remove the Agent from an active Shape's Field (§0.7).
 
 ```python
 class Mortal(Tag): pass
@@ -150,8 +151,9 @@ assert f"{Arcane_Duelist:form}" == "Spellcaster → Duelist → Arcane_Duelist"
 ```
 
 A Base reachable through several paths appears once. **Forming** follows
-the Form downward, general to specific. **Deforming** (Rip) goes the other
-way: a Shape leaves before the Bases that support it.
+the Form downward, general to specific. The program may Rip memberships in
+any order (§0.7). When TOP runs an Agent's teardowns at deletion or exit,
+they run in reverse order of application (§3.2).
 
 ## 0.5 Applying a Tag
 
@@ -161,10 +163,10 @@ The canonical act is:
 Tag(target, **inputs)
 ```
 
-It applies every Tag in the Form that is not yet active, Bases first, then
-returns the same Target. Keyword **inputs** are handed by name to the
-Preconditions, Record builders and Imprints run during that call (§1.3,
-§2.2, §2.3).
+If the requested Tag is not active, it applies every missing Tag in its
+Form, Bases first, then returns the same Target. Keyword **inputs** are
+handed by name to the Preconditions, Record builders and Imprints that
+run during that call (§1.3, §2.2, §2.3).
 
 ```python
 MI6(bond, code="007")      # every protocol that names `code` receives it
@@ -174,75 +176,112 @@ MI6(bond, code="007")      # every protocol that names `code` receives it
 membership, does not rerun Imprints, and does not rebuild Records. Rip ends
 membership but leaves sticky Contributions. Applying the Tag after Rip is
 fresh Tagging: that Tag's ordinary Record builders run again. Bases already
-active are not reapplied. A builder without a second positional seat replaces
-the current binding with its returned value;
+active are not reapplied. If a Shape remains active after its Base is Ripped,
+calling the Shape again still does nothing; applying the Base explicitly
+reinstates it through fresh Tagging. A builder without a second positional
+seat replaces the current binding with its returned value;
 a builder with that seat receives the current stored value and determines
 how to evolve it. As in §1.3, an absent, deleted or Action binding supplies
 `None`; `stored` is the example parameter name, not a required spelling.
 
 ## 0.6 The tagging sequence
 
-Think of a factory line. Once, for the whole call:
+Think of a factory line. For each missing Tag in the Form, in order:
 
-1. **Gate.** The Preconditions visible in the Form this call will produce
-   inspect the incoming Agent and the inputs. A Shape's Precondition
-   overrides its Base's, so a Shape can relax the gate. A failed gate stops
-   the call before anything changes.
+1. **Gate.** That Tag's declarations are checked against the current
+   Overlay, then its own Preconditions inspect the Agent and the inputs.
+   A failed check or Precondition stops before that Tag begins; Tags whose
+   turns have finished stay applied.
 
-Then for each Tag in the Form, in order:
-
-2. **Parts.** That Tag's Records are built, each allowed to read the value
-   already stored under its name.
-3. **Commit.** The Agent enters the Tag's Field; the Overlay and the
-   Agent-bound view are set.
-4. **Write.** That Tag's Imprints run, in declaration order.
+2. **Gainings.** That Tag's declarations are applied in order, top to bottom:
+   Actions, Records, condition definitions and deletions take effect at their
+   declared positions. Each acquired Gain or condition is visible to later
+   declarations. A Record builder may read earlier Actions and Records as
+   well as the value already stored under its own name. The Gate has already
+   evaluated all of this Tag's own Preconditions before Gainings begin.
+3. **Imprints.** That Tag's Imprints run, in declaration order, with the
+   acquired Actions and Records available. The Agent is not yet in this Tag.
+4. **FieldAdding.** After its Imprints finish, the Agent enters the Tag's
+   Field. Membership and history are established together. The Tag's
+   published Reports and Operations become accessible through the Agent,
+   and its Agent-bound view is captured.
 
 Then, once for the whole call:
 
-5. **Quality check.** Every visible Postcondition inspects the finished
-   Agent.
+5. **Posts.** Every visible Postcondition inspects the finished Agent.
+   Checking once after the completed Form lets a Base promise what a later
+   Shape supplies.
 
 The **call boundary** decides what a failure means:
 
-- A failure in steps 1 or 2, for any Tag in the Form, **rolls the whole
-  call back**. The Agent is exactly as it was at the call, including Bases
-  pulled in by this call. Tags committed by earlier calls are untouched.
-  Nothing partial is ever published.
-- A failure in steps 4 or 5 **raises, but the Tags stay**. The product left
-  the line. A defective product is not melted back to materials: it is
-  flagged, repaired, or Ripped (§2.5).
+- A refusal in step 1 stops that Tag before its Gainings, Contributions, Field
+  entry or Imprints. Earlier Tags completed during this call stay applied.
+- A failure in steps 2 or 3 **raises and preserves acquired Gains**, but the
+  Agent does not enter this Tag. It is a **Rogue Agent** with respect to this
+  Tag: it acquired something without completing admission. Earlier completed
+  Tags, including Tags applied by an Imprint, remain applied.
+- A failure in step 5 **raises, but membership stays**. The product left the
+  line. A defective product is flagged, repaired, or Ripped (§2.5).
+
+| Outcome | Gains from this attempt | Membership in this Tag |
+| --- | --- | --- |
+| Gate refuses | none | absent |
+| Gainings or Imprints fail | actually acquired Gains remain | absent; Rogue |
+| Posts fail after admission | acquired Gains remain | present; defective while Posts fail |
+| Posts hold after admission | acquired Gains remain | present; sound |
+
+Calling `Tag(agent)` again after unfinished training starts a fresh attempt:
+the Gate judges the Agent's current state, ordinary Gains overlay that state,
+and Imprints start again. It does not resume at the failed instruction.
+Successfully established Constants remain protected (§1.5); a Constant Record
+whose builder never returned a value has no established binding to preserve.
+
+Acquired conditions also remain after unfinished training, including Posts
+and Constant Posts. As after Rip, being outside the Agency does not remove
+the Agent's established contracts. Place a safety Post before the Action
+that needs it, so the contract is present when that Action arrives. Ordinary
+Posts follow TOP's existing composition rules; Constant Posts cannot be
+replaced or deleted. Declaring a Post does not itself wrap ordinary Action
+calls: an Action that must enforce it can read its named condition before
+effects, such as `if not agent.Insulated: raise PermissionError(...)`.
 
 The phase belongs to the call running the protocol. A nested refusal
 inside an Imprint is that Imprint's failure, with the refusal as its cause;
-a nested failure inside a Record still refuses Parts. Python interruptions
-follow the same boundary and propagate unchanged. Failure to capture the
-Tag-bound view after Write also preserves the committed Tags. If capture
-fails while an Imprint failure or interruption is already being
-raised, the original failure stays primary and the capture failure is
-reported as a note when possible.
+a failure in a Record builder is a Gainings failure, not a Gate refusal.
+Python interruptions follow the same boundary and propagate unchanged.
+Before FieldAdding they leave acquired Gains without membership; after
+FieldAdding they preserve membership. Failure to capture an admitted Tag's
+view also preserves its membership.
 
 An exceptional return does not itself make an Agent permanently defective.
 Its current visible Postconditions determine soundness (§2.5), so a finished
-Agent whose promises hold may be sound despite a failed Imprint or an
-interruption after Commit.
+Agent whose promises hold is sound. A Rogue may also satisfy its visible
+Posts; soundness does not establish membership or complete unfinished
+training.
 
 ```text
 Citadel(ari)                      Form: Territory, Citadel
-    gate       Has_Charter FAILS
-→ TagPreconditionError; ari in Territory == False, ari in Citadel == False
+    Territory  Gate, Gainings, Imprints, FieldAdding
+    Citadel    gate: Has_Charter FAILS
+→ TagPreconditionError; ari in Territory == True, ari in Citadel == False
 
 Broken_Wizard(ari)                Form: Person, Broken_Wizard
-    gate       ok
-    Person     parts, commit, write
-    Wizard     parts, commit, write
+    Person     Gate, Gainings, Imprints, FieldAdding
+    Wizard     Gate, Gainings, Imprints, FieldAdding
     check      Has_Spellbook FAILS
 → TagPostconditionError; ari in Person and ari in Wizard; bool(ari) == False
 ```
 
-Tagging is otherwise side-effect free: TOP-managed state is restored on
-rollback. An Imprint's in-place mutation of a pre-existing mutable value
-(`events.append(...)`) is outside what TOP can undo; keep such effects for
-step 4, where they are never rolled back, or hold them in Records.
+Preconditions judge by reading and querying. Record builders read and query
+to calculate their initial returned values. Applying or Ripping Tags and
+changing the world belong to Imprints, not Preconditions or Record builders.
+These authoring rules are not a Python sandbox: automatic copies cannot undo
+arbitrary Python or external effects.
+
+Unfinished training does not trigger Rip: the Agent never entered that Tag.
+It is outside `Tag[:]`, and `del Tag[agent]` cannot expel a nonmember. The
+program owns cleanup of resources acquired during that attempt, using
+ordinary Python error handling. TOP does not undo Imprint effects.
 
 ## 0.7 Rip
 
@@ -256,16 +295,19 @@ assert bond not in MI6
 assert isinstance(bond, MI6)      # once an agent, always an agent
 ```
 
-Rip is the only exit from a Field, and it obeys three laws:
+Rip is the only exit from a Field, and it obeys these laws:
 
 - **Contributions are sticky.** Actions and Records stay on the Agent after
   Rip unless a `@Rip` protocol (§3.1) changes them. The result is a **Rogue
   Agent**: it has what it learned, but no active access to the Tag's Field,
   Operations, Reports or Agent-bound view. Rogue Agents are dangerous… but
   useful.
-- **Rip is refused while a Shape needs the Base.** `del Beast[wolf]` fails
-  while `Wolf` is active. Deform the Shape first. Rip never cascades: TOP
-  does not run other Tags' protocols behind your back.
+- **Each membership stands alone.** `del Beast[wolf]` ends Beast membership
+  even while `Wolf` remains active. Beast's teardowns run; Wolf stays in its
+  Field, with its acquired Actions and Records. Rip never cascades: TOP does
+  not run other Tags' protocols behind your back. If Wolf needs continuing
+  Beast membership, its author states that dependency in a Postcondition;
+  the Rip then leaves Wolf defective while that Post fails (§2.5).
 - **Conditions are sticky too** (STEP-SPEC-12). Rip does not touch a
   Tag's Preconditions or Postconditions: a promise that outlives its
   Tag fails loud, never silently. Rip does one thing, and it is the one
@@ -374,7 +416,8 @@ A name identifies **one slot per scope**: `(scope, name)`. In Agent scope
 that slot holds an Action or a Record, never both at once:
 
 - **Independent** Tags (neither in the other's Form) cannot place an Action
-  and a Record at the same Agent name. The Tagging fails at step 1, atomic.
+  and a Record at the same Agent name. The current Tag fails at step 1 and
+  never enters its Field; completed earlier turns stay applied.
 - Within one Form, a Shape may **change the kind** of a Base slot: fix a
   Base Action as a Record, or compute a Base Record with an Action. The
   Base's view (§1.7) keeps the prior kind.
@@ -476,8 +519,9 @@ A Record is Agent state contributed by a Tag. A Tag is something you
 | Spellcaster: learned capability | spell slots left |
 | Access Pass: recognized by the system | clearance: the specific level |
 
-A Record is declared as a **builder**. The builder runs at step 2 of the
-tagging sequence; its value is stored on the Agent, fresh for each Agent:
+A Record is declared as a **builder**. The builder runs during Gainings,
+step 2 of the tagging sequence; its value is stored on the Agent, fresh for
+each Agent:
 
 ```python
 class Inventory(Tag):
@@ -776,8 +820,8 @@ published member **answers members only, and only sound ones**
 (STEP-SPEC-10). At every use, an Operation's call or a Report's read, TOP
 checks that the Agent still belongs to the publishing Tag and that every
 promise on the Agent holds, whichever Tag made it: the same soundness
-`if agent:` and the loop ask about. A Rogue Agent (it left) gets a
-**Rogue Access Failure**, a Resolution Failure; a stale
+`if agent:` and the loop ask about. A Rogue Agent (it left or never completed
+admission) gets a **Rogue Access Failure**, a Resolution Failure; a stale
 `send = agent.dispatch` captured before Rip fails the same way. A
 defective Agent (a promise broke) gets the **broken promise by name**,
 `except Postcondition.Has_Homeland`, so it can repair what the failure
@@ -980,11 +1024,12 @@ A Flag needs the Agent's `in`, and one seat holds one meaning. Something
 else may already answer it: the host, through its own `__contains__` or
 `__iter__` (a container, a party that iterates its members), or a Tag's
 Action of either name, a published Operation included. A Flag and any of
-them collide, in either order, and within one Form before any of it
-applies. The later one fails with a Composition Failure naming both
-sides, like a Record over a host property, and nothing changes: a seat
-never changes meaning in silence. A Flag that declares such an Action
-itself is a Declaration Failure.
+them collide, in either order. The later one fails with a Composition
+Failure naming both sides, like a Record over a host property. Within one
+Form, the collision is checked when that Tag's turn arrives: completed
+Base Tags stay, while the colliding Tag never begins. A seat never changes
+meaning in silence. A Flag that declares such an Action itself is a
+Declaration Failure.
 
 The host's seat is read as the language reads `in`. In Python, for
 `__contains__` and then `__iter__`, the first class in the MRO that
@@ -1100,11 +1145,12 @@ A pinned Tag's promises can also be read from the Pin's side,
 `f"{Wizard:pins}"` names its Pins. `Wizard.Rare` is the Pin-bound view
 by name, on the same miss-path rule as `charlie.Wizard`.
 
-**Contracts, Imprints, Rip.** A Pin's Preconditions gate the pinning and
-receive the Tag; a failed gate leaves the Tag exactly as it was, its
-metaclass included. Postconditions are checked once per pinning and
+**Contracts, Imprints, Rip.** A Pin's Preconditions gate its own turn and
+receive the Tag; a failed Gate leaves that Pin unapplied and its metaclass
+unchanged, while completed Base Pins stay. Postconditions are checked once per pinning and
 re-checked at later pinning boundaries of that Tag; a broken promise
-leaves the Tag pinned and defective (§2.5). Imprints run after commit.
+leaves the Tag pinned and defective (§2.5). Imprints run before FieldAdding;
+unfinished pinning leaves its acquired Gains without membership in the Pin.
 `del Rare[Wizard]` runs the Pin's Rip protocols; landed values and
 Operations stay, sticky, and `isinstance(Wizard, Rare)` stays True.
 Pinning again after a Rip is a fresh pinning (§0.7).
@@ -1155,12 +1201,17 @@ permits. Legal until written into law.
 ## 2.2 Preconditions: the gate
 
 A Precondition inspects the **incoming materials**: may this Agent, with
-these inputs, enter the line? It runs at step 1, once per call, for **the
-Tags applied in the current call only**, as they will be composed: a
-Shape's gate replaces its Base's. An earlier Tag's gate is not re-asked
-when a later, unrelated Tag arrives; it already let its Agent in. Because
-the gate runs before any Base applies, a Precondition sees the Agent as it
-arrives, never what a Base's Imprint is about to write.
+these inputs, enter this Tag? It runs at step 1 when **that Tag's turn**
+arrives. Missing Bases take their own turns first, so a later Shape's Gate
+sees the Records, Actions, membership and Imprints of every Base that
+completed. An active Tag's Gate is not re-asked; it already let its Agent
+in.
+
+A Shape cannot waive a missing Base's Gate: the Base must pass before the
+Shape has a turn. A same-named Precondition declared by the Shape controls
+the Shape's own Gate and the condition visible afterwards. `@Underlay`
+deliberately calls the condition visible before the Shape as part of the
+Shape's Gate.
 
 Preconditions, like Record builders and Imprints, receive application
 inputs by name:
@@ -1178,15 +1229,16 @@ Coded(bond, code="007")  # applies
 A parameter the caller did not supply keeps its declared default, or is
 `None` when it has none.
 
-Preconditions **relax backward**. A Shape may ask for less than its Base,
-never more, so a Shape can stand in wherever its Base is expected. Override
-freely; compose with `@Underlay` when you want the Base's gate too:
+Preconditions overlay **backward** within the current Tag's Gate. A Shape
+may ask for less on its own turn, but it does not rewrite a Base's earlier
+turn. Override freely; compose with `@Underlay` when the Shape should ask
+the prior visible condition again:
 
 ```python
 class Founder(Guild):
     @Pre
     def Dues_Paid(agent):
-        return True                # founders skip the dues gate
+        return True                # the Founder's own Gate is open
 
 class Apprentice(Wizard):
     @Pre
@@ -1195,6 +1247,10 @@ class Apprentice(Wizard):
         assert agent.mentor        # also needs a mentor
         return base()              # then the Base's gate
 ```
+
+An unpaid fresh Agent still fails `Guild` before `Founder` has a turn. If
+the Agent is already in `Guild`, applying `Founder` asks only Founder's
+Gate; `Guild` is not re-asked.
 
 This is also how **synergy** is expressed: a feat that requires two other
 Tags gates on both.
@@ -1208,8 +1264,11 @@ class War_Caster(Tag):
 
 ## 2.3 Imprints: the writing
 
-An Imprint performs the work of tagging: it runs at step 4, after the Tag
-has committed, in declaration order, with the application inputs by name.
+An Imprint performs the training work of tagging: it runs at step 3, after
+Gainings and before FieldAdding, in declaration order, with application
+inputs by name. Earlier Gains are available; this Tag's published Reports,
+Operations and Agent-bound view are unavailable through the Agent until
+admission. Previously active Tags retain their ordinary access rules.
 
 ```python
 class MI6(Tag):
@@ -1219,10 +1278,12 @@ class MI6(Tag):
         agent.status = "Full"
 ```
 
-An Imprint may apply further Tags to the same Agent; those are ordinary
-later calls. If an Imprint fails, the Tag **stays** and the call raises an
-Imprint Failure: the machine broke while writing, and the product is on the
-line for inspection.
+An Imprint may apply further Tags to the same Agent; those are independent
+Taggings. Applying the same Tag to this Agent while its training is already
+underway is a no-op, rather than recursive training. If an Imprint fails,
+the call raises its named Imprint Failure. Actual Gains and completed
+Taggings stay, but the unfinished Tag is absent. Another `Tag(agent)` makes
+a fresh attempt, including its Gate, Gainings and Imprints.
 
 ## 2.4 Postconditions: the promise
 
@@ -1231,8 +1292,15 @@ Postcondition runs at step 5, **once per call, after the whole Form**, so a
 Base may promise what its Shape delivers. Postconditions take no inputs:
 they judge the Agent, not the materials.
 
+Its definition is acquired at its declaration position during Gainings.
+If a later Gain or Imprint fails, the acquired Post remains on the Rogue and
+participates in current contract queries and published-member guards. This
+does not establish membership in the unfinished Tag. A Constant Post retains
+its protection there just as it does after Rip.
+
 Every visible Postcondition is re-checked at each later tagging boundary,
-so a later Tagging can be refused by an earlier Tag's promise. Conditions
+so a later completed Tagging can report an earlier Tag's broken promise.
+That is a Postcondition failure, not a Gate refusal. Conditions
 do not check themselves during play; what must be watched continuously is
 a Record.
 
@@ -1452,9 +1520,10 @@ successful behaviour; express those requirements separately.
 
 ## 3.1 Rip protocols
 
-Imprint and Rip are duals: constructor and destructor. A `@Rip` Action
-runs when the Agent leaves the Tag's Field. It is also an ordinary,
-callable Action.
+An Imprint trains before admission; a `@Rip` Action runs when the Agent
+leaves the Tag's Field. It is also an ordinary, callable Action. Unfinished
+training never entered the Field and therefore does not run Rip
+automatically (§0.6).
 
 ```python
 class MI6(Tag):
@@ -1599,13 +1668,13 @@ types but must keep these distinct.
 | Failure | Meaning | Effect |
 | --- | --- | --- |
 | **Tag Declaration Failure** | A Tag is written wrong: illegal mark combination, `@Underlay` without a parameter to receive it. | at class use |
-| **Tag Composition Failure** | Contributions cannot form the Overlay: cross-kind collision, Record over a host descriptor, a Record builder or teardown that failed, a Target that cannot carry state, a Base still required. | call rolled back (or Rip refused) |
-| **Tag Resolution Failure** | A required Underlay, view, or membership is unavailable. | call rolled back |
-| **Tag Rogue Access Failure** | A Rogue Agent reached a published member of a Tag it has left. A Resolution Failure, and a TOP failure only: never dressed as a host-language attribute failure. | use refused |
-| **Tag Precondition Failure** | A gate refused the incoming Agent. | call rolled back |
-| **Tag Imprint Failure** | An Imprint failed after commit. | Tags stay |
+| **Tag Composition Failure** | Contributions cannot form the Overlay: cross-kind collision, Record over a host descriptor, a Record builder or teardown that failed, a Target that cannot carry state. | before FieldAdding: current Tag absent, acquired Gains and earlier turns stay; after admission: membership stays; a teardown failure is reported after its Rip ends membership |
+| **Tag Resolution Failure** | A required Underlay, view, or membership is unavailable. | use refused; during Tagging, follows the current phase boundary |
+| **Tag Rogue Access Failure** | A Rogue Agent reached a published member of a Tag it has left or never entered. A Resolution Failure, and a TOP failure only: never dressed as a host-language attribute failure. | use refused |
+| **Tag Precondition Failure** | A Gate refused the incoming Agent. | that Tag does not apply; earlier turns stay |
+| **Tag Imprint Failure** | An Imprint failed before FieldAdding. | acquired Gains and completed Tags stay; unfinished Tag absent |
 | **Tag Postcondition Failure** | The finished Agent breaks a promise. | Tags stay, Agent defective |
-| **Tag Contract Failure** | A condition returned a non-boolean. | gate: call rolled back; quality check: Tags stay, Agent defective |
+| **Tag Contract Failure** | A condition returned a non-boolean. | Gate: that Tag does not apply; quality check: Tags stay, Agent defective |
 | **Overwrite Warning** | An independent Tag replaced a visible Action or Record without an Underlay. | diagnostic |
 | **Contract Warning** | A Tag replaced another Tag’s visible Postcondition without an Underlay (Base, Shape, or independent Tag). | diagnostic |
 
@@ -1617,15 +1686,18 @@ A conforming implementation provides, ring by ring:
 
 **Ring 0**
 - stable object identity under tagging, and preserved host behaviour;
-- membership and Base membership (`agent in Tag`), closed upward, with a
-  has-been check that survives Rip;
+- membership (`agent in Tag`) gained Base-first and thereafter independent,
+  with a has-been check that survives Rip;
 - non-owning, identity-indexed, iterable Fields;
 - Base-first Form application, each Base once, active reapply a no-op;
-- the five-step tagging sequence with the call boundary: rollback on gate
-  and Record failure, Tags stay on Imprint and Postcondition failure;
-- Rip: sticky contributions and sticky conditions, ended by the author
-  (a guard, or `Contract.Delete` from the `@Rip` protocol), refusal while
-  a Shape requires the Base, no cascade;
+- the five-step tagging sequence: each missing Tag's Gate, Gainings,
+  Imprints and FieldAdding, then Posts once after the completed Form;
+  failed Gainings or Imprints leave acquired Gains without that Tag's
+  membership or history; earlier completed Tags stay, retry starts fresh,
+  and current Posts decide members' deficiency;
+- Rip: one membership ends without cascade, while acquired contributions
+  and conditions stay; the author ends a condition with a guard or
+  `Contract.Delete` from the `@Rip` protocol;
 - native spellings for every Tag-level act, leaving the Tag's dotted
   namespace to the program.
 
@@ -1660,8 +1732,8 @@ A conforming implementation provides, ring by ring:
   snapshots requiring active membership.
 
 **Ring 2**
-- strict boolean conditions; Preconditions gating only the current call,
-  with inputs; Imprints after commit, with inputs; Postconditions once per
+- strict boolean conditions; each Tag gating when its turn arrives, with
+  inputs; Imprints before FieldAdding, with inputs; Postconditions once per
   call after the whole Form, re-checked at every later boundary, without
   inputs;
 - the contract direction, with weakened Postconditions diagnosed;
