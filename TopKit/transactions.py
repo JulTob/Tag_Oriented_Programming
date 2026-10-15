@@ -212,12 +212,14 @@ def _apply_one(
     state.training.add(tag)
     state.composing += 1
     primary_failure: BaseException | None = None
+    nested_during_actualization = False
 
     try:
         # Mechanical actualization precedes every builder and Imprint.
         # A rejected host transition has not acquired any new Gains yet.
         entry_class = type(agent)
         first = "_TOPKIT_HOST_TYPE" not in entry_class.__dict__
+        effects_before = state.effect_serial
         entry_host = (
                 _host_bindings_of(agent)
                 if first and state.pinned is None else None
@@ -229,7 +231,12 @@ def _apply_one(
         try:
             _actualize(agent, state, tag, declarations.header, entering=_is_flag(tag))
         except BaseException:
-            if entry_host is not None:
+            if state.effect_serial != effects_before:
+                # A Host hook may have completed another Tagging while this
+                # transition was in progress. Its Gains and Imprint effects
+                # belong to that other turn and cannot be rolled back here.
+                nested_during_actualization = True
+            elif entry_host is not None:
                 _restore_host_bindings(agent, entry_host)
             elif entry_namespace is not None:
                 if type(agent) is not entry_class:
@@ -260,7 +267,7 @@ def _apply_one(
                 if declarations.rips else ()
                 )
 
-        _imprint(agent, declarations, inputs)
+        _imprint(agent, state, declarations, inputs)
 
         # Tag-scope services arrive with admission. A failed representation
         # must not replace the services of an already active Agency.
@@ -313,9 +320,21 @@ def _apply_one(
                     except BaseException:
                         pass
         finally:
-            primary_failure = None
             state.training.discard(tag)
             state.composing -= 1
+            try:
+                if nested_during_actualization and _is_flag(tag):
+                    # The nested runtime was built while this unfinished
+                    # Flag was still training. Drop its temporary Flag seat.
+                    next_type = _runtime_type_for(state)
+                    if type(agent) is not next_type:
+                        _set_runtime_type(agent, next_type)
+            except BaseException as repair_error:
+                if primary_failure is not None:
+                    raise repair_error from primary_failure
+                raise
+            finally:
+                primary_failure = None
 
 
 def _refuse_conditions_shadowed_by_the_agent(
@@ -463,6 +482,7 @@ def _enter_field(
     state.active.append(tag)
     state.words = None
     state.ever.add(tag)
+    state.effect_serial += 1
 
     if state.pinned is not None:
         state.published.update(declarations.published)
@@ -585,10 +605,15 @@ def _publish_into(
 
 def _imprint(
         agent: object,
+        state: _State,
         declarations: _Declarations,
         inputs: dict[str, Any],
         ) -> None:
     for name, imprint in declarations.imprints:
+        # An Imprint may write to the Host before failing. A reentrant
+        # Tagging's caller must not restore an earlier physical snapshot
+        # over those writes.
+        state.effect_serial += 1
         try:
             result = imprint(
                     agent,

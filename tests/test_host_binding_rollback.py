@@ -6,7 +6,9 @@ import unittest
 import weakref
 import time
 
-from TopKit import Action, Imprint, Pre, Record, Tag, TagCompositionError, Tags
+from TopKit import (Action, Flag, Imprint, Keyword, Post, Pre, Record,
+                    Tag, TagCompositionError, TagImprintError,
+                    TagPreconditionError, Tags)
 
 
 class HostBindingRollbackTests(unittest.TestCase):
@@ -272,6 +274,152 @@ class HostBindingRollbackTests(unittest.TestCase):
         self.assertEqual(tuple(host), original)
         self.assertEqual(Tags(host), ())
         self.assertNotIn(host, self.Role[:])
+
+    def test_completed_nested_tagging_survives_host_actualization_refusal(self):
+        class Inner(Tag):
+            @Record
+            def value(agent):
+                return 3
+
+            @Post
+            def Ready(agent):
+                return agent.value == 3 and agent.kept == "inner imprint"
+
+            @Imprint
+            def Train(agent):
+                agent.kept = "inner imprint"
+
+        class Outer(Tag):
+            @Record
+            def unfinished(agent):
+                return "never built"
+
+        class Host:
+            __slots__ = ("kept", "__dict__", "__weakref__")
+
+            def __setattr__(self, name, value):
+                if name == "__class__":
+                    object.__setattr__(self, "kept", "outer preparation")
+                    object.__setattr__(self, name, value)
+                    Inner(self)
+                    raise RuntimeError("outer refusal")
+                object.__setattr__(self, name, value)
+
+        host = Host()
+        host.kept = "original"
+
+        with self.assertRaisesRegex(TagCompositionError, "actualized in place") as raised:
+            Outer(host)
+
+        self.assertIsInstance(raised.exception.__cause__, RuntimeError)
+        self.assertEqual(str(raised.exception.__cause__), "outer refusal")
+        self.assertIsNot(type(host), Host)
+        self.assertEqual(Tags(host), (Inner,))
+        self.assertIn(host, Inner[:])
+        self.assertIn(host, Inner)
+        self.assertTrue(isinstance(host, Inner))
+        self.assertTrue(host.Ready)
+        self.assertTrue(bool(host))
+        self.assertEqual(host.kept, "inner imprint")
+        self.assertEqual(host.value, 3)
+        self.assertNotIn(host, Outer[:])
+        self.assertNotIn("unfinished", vars(host))
+
+        host.kept = "broken"
+        self.assertFalse(host.Ready)
+        self.assertFalse(bool(host))
+        self.assertIn(host, Inner)   # raw admission remains until Rip
+        self.assertIn(host, ~Inner)
+        self.assertIn(host, Inner[:])
+
+    def test_failed_nested_imprint_keeps_its_host_write(self):
+        class Inner(Tag):
+            @Imprint
+            def Write(agent):
+                agent.kept = "inner imprint"
+                raise ValueError("unfinished")
+
+        class Outer(Tag):
+            pass
+
+        class Host:
+            def __setattr__(self, name, value):
+                if name == "__class__":
+                    object.__setattr__(self, name, value)
+                    try:
+                        Inner(self)
+                    except TagImprintError.Write:
+                        pass
+                    raise RuntimeError("outer refusal")
+                object.__setattr__(self, name, value)
+
+        host = Host()
+        host.kept = "original"
+        with self.assertRaises(TagCompositionError):
+            Outer(host)
+
+        self.assertIsNot(type(host), Host)
+        self.assertEqual(host.kept, "inner imprint")
+        self.assertNotIn(host, Inner[:])
+        self.assertNotIn(host, Outer[:])
+
+    def test_nested_gate_refusal_still_restores_unacquired_host_bindings(self):
+        class Inner(Tag):
+            @Pre
+            def Refuse(agent):
+                return False
+
+        class Outer(Tag):
+            pass
+
+        class Host:
+            def __setattr__(self, name, value):
+                if name == "__class__":
+                    object.__setattr__(self, "kept", "temporary")
+                    object.__setattr__(self, name, value)
+                    try:
+                        Inner(self)
+                    except TagPreconditionError.Refuse:
+                        pass
+                    raise RuntimeError("outer refusal")
+                object.__setattr__(self, name, value)
+
+        host = Host()
+        host.kept = "original"
+        with self.assertRaises(TagCompositionError):
+            Outer(host)
+
+        self.assertIs(type(host), Host)
+        self.assertEqual(host.kept, "original")
+        self.assertEqual(Tags(host), ())
+
+    def test_unfinished_flag_does_not_leave_its_protocol_on_a_nested_agent(self):
+        class Inner(Tag):
+            @Record
+            def value(agent):
+                return 1
+
+        @Flag("outer")
+        class Outer(Tag):
+            pass
+
+        class Host:
+            def __setattr__(self, name, value):
+                if name == "__class__":
+                    object.__setattr__(self, name, value)
+                    Inner(self)
+                    raise RuntimeError("outer refusal")
+                object.__setattr__(self, name, value)
+
+        host = Host()
+        with self.assertRaises(TagCompositionError):
+            Outer(host)
+
+        self.assertIn(host, Inner[:])
+        self.assertFalse(Keyword(host, "outer"))
+        self.assertFalse(Keyword(host, Outer))
+        with self.assertRaises(TypeError):
+            "outer" in host
 
 
 if __name__ == "__main__":

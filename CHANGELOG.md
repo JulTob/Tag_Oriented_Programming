@@ -19,6 +19,12 @@
 
 ### TopKit
 
+- **Nested Tagging during Host preparation:** if a Host's first runtime
+  transition completes another Tagging before refusing the outer one, that
+  completed Tag and its contract hooks remain. A refusal before nested work
+  has any Gains, Imprint effects or Field entry still restores the Host's
+  original bindings (#241).
+
 - **Tagging preparation cost:** ordinary Action/Record declarations reuse
   the existing collision and Underlay checks without constructing a
   disposable Overlay. Tags with deletions, conditions, Secrets, special
