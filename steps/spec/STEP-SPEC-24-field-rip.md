@@ -18,12 +18,14 @@
 
 This file extracts the existing proposal from frozen [#26](https://github.com/JulTob/Tag_Oriented_Programming/pull/26),
 including [#77](https://github.com/JulTob/Tag_Oriented_Programming/pull/77)'s reconciliation where applicable. It stays
-**Brief**. No runtime code, current Specification amendment, or new Director
-clearance is included.
+**Brief**. No runtime code or current Specification amendment is included.
+The later Director rulings recorded below do not clear the whole STEP.
 
 This is a recovered **Brief**, not clearance or an implementation claim. The retained text below includes #77's corrections. On current main, `Tag[:]` reads the whole Field, but `del Tag[:]` is not whole-Field cleanup. [#35](https://github.com/JulTob/Tag_Oriented_Programming/issues/35) tracks that requirement. Since [#207](https://github.com/JulTob/Tag_Oriented_Programming/pull/207), ordinary Rip can remove a Base while its Shape stays active: only the Base leaves and its teardowns run. Rip attempts every teardown despite ordinary failures, without an arrest/retry ledger. This does not implement the whole-Field Rip proposed below.
 
-Review this proposal alongside STEP-26's independent memberships and STEP-32's proposed cleanup obligations ([#36](https://github.com/JulTob/Tag_Oriented_Programming/issues/36)). Cross-member continuation, interruptions and fresh Tagging during failed cleanup remain STEP-32 open questions 16, 17 and 14; #35's existing acceptance wording must not settle them by implication. Pin/Link failure and Tag finalization remain separate boundaries, including [#39](https://github.com/JulTob/Tag_Oriented_Programming/issues/39). The weak-Tag-retention and automatic Tag-end sections propose additional lifetime behavior; they are not consequences of supporting `del Tag[:]`. Preserve them for separate review before implementation. Historical S19 paths, line numbers and population spellings are supporting history, not current API guarantees.
+Review this proposal alongside STEP-26's independent memberships and STEP-32's proposed cleanup obligations ([#36](https://github.com/JulTob/Tag_Oriented_Programming/issues/36)). The Director has since settled the choices that the preserved text calls STEP-32 open questions 14, 16 and 17: a Field Rip moves its initial members out of the Field and into pending Safehouse custody before any teardown; cleanup runs in join order and stops at the first failure or interruption, retaining the current and unvisited work for retry. If an old Rip re-Tags its Agent before later old cleanup fails, the fresh membership and Gains stand, while the old application keeps that Agent arrested until its saved cleanup succeeds. An arrested Agent still in another or freshly joined Field counts in that Field's broken population (`~Tag`) without evaluating Posts; one no longer in the Field belongs to neither of its partitions. These are design decisions, not behavior on current main or clearance of the whole STEP.
+
+Pin/Link failure and Tag finalization remain separate boundaries, including [#39](https://github.com/JulTob/Tag_Oriented_Programming/issues/39). The weak-Tag-retention and automatic Tag-end sections propose additional lifetime behavior; they are not consequences of supporting `del Tag[:]`. Preserve them for separate review before implementation. Historical S19 paths, line numbers and population spellings are supporting history, not current API guarantees.
 
 ### Provenance and dependencies
 
