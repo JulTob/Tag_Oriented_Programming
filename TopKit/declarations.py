@@ -920,6 +920,21 @@ def _tool_kind_of(
             )
 
 
+def _tool_kind_of_static(attribute: Any) -> Any:
+    """Read a late Tool mark without running a Host object's lookup hooks."""
+
+    actual_type = type(attribute)
+
+    if issubclass(actual_type, Report):
+        attribute = attribute.builder
+    elif issubclass(actual_type, (classmethod, staticmethod)):
+        attribute = attribute.__func__
+    elif not callable(attribute):
+        return None
+
+    return getattr_static(attribute, _TOOL, None)
+
+
 def _is_constant(
         member: Any,
         ) -> bool:
@@ -1093,6 +1108,19 @@ def _note_kinds(
             _kinds_named[key] = (ref(alternative, Forget), owners)
 
 
+def _refuse_pin_tool_kind(owner: type, name: str, kind: Any) -> None:
+    """A Tool marked before its kind became a Pin must still be refused
+    when the declaring Tag is made or gains that Tool later."""
+
+    for term in kind.terms:
+        for alternative in term:
+            if _is_tag(alternative) and _is_pin(alternative):
+                raise TagDeclarationError(
+                        f"{owner.__name__}.{name}: @Tool cannot name"
+                        f" {alternative.__name__}, now a Pin (§1.3)"
+                        )
+
+
 def _check_tool_declarations(
         tag: type,
         namespace: dict[str, Any],
@@ -1124,11 +1152,17 @@ def _check_tool_declarations(
                 namespace,
                 )
 
-    for member in namespace.values():
-        kind = _tool_kind_of(member)
+    tools = [
+            (name, kind)
+            for name, member in namespace.items()
+            if (kind := _tool_kind_of(member)) is not None
+            ]
 
-        if kind is not None:
-            _note_kinds(tag, kind)
+    for name, kind in tools:
+        _refuse_pin_tool_kind(tag, name, kind)
+
+    for _name, kind in tools:
+        _note_kinds(tag, kind)
 
 
 _NAMED_FAILURES: dict[str, type] = {

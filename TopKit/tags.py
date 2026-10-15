@@ -44,8 +44,12 @@ from .declarations import _is_dunder
 from .declarations import _is_pin
 from .declarations import _kind_of
 from .declarations import _name_checks
+from .declarations import _note_kinds
 from .declarations import _refuse_condition_dunder
+from .declarations import _refuse_pin_tool_kind
+from .declarations import _refuse_tools_on_a_pin
 from .declarations import _refuse_truth_gain
+from .declarations import _tool_kind_of_static
 from .errors import TagCompositionError
 from .fields import FIELD_SEAT
 from .fields import _Field
@@ -100,6 +104,13 @@ class MetaTag(type):
             name: str,
             value: Any,
             ) -> None:
+        tool_kind = _tool_kind_of_static(value)
+
+        if tool_kind is not None:
+            if _is_pin(tag):
+                _refuse_tools_on_a_pin(tag, {name: value})
+            _refuse_pin_tool_kind(tag, name, tool_kind)
+
         _refuse_truth_gain(tag.__name__, name, value)
         if _is_dunder(name):
             _refuse_condition_dunder(tag.__name__, name, _kind_of(value))
@@ -113,6 +124,9 @@ class MetaTag(type):
 
         _check_constant_shapes(tag, name)
         super().__setattr__(name, value)
+
+        if tool_kind is not None:
+            _note_kinds(tag, tool_kind)
 
     def __delattr__(
             tag,
