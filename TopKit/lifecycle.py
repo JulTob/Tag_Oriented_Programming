@@ -115,17 +115,17 @@ def _rip_field(
         state.words = None
         snapshot = state.snapshots.pop(tag, None)
         field._Remove(agent)
-        teardowns = state.rips.pop(tag, ())
-        pending.append((agent, state, teardowns, words, snapshot))
+        run = _RipRun(tag, state.rips.pop(tag, ()))
+        pending.append((agent, state, run, words, snapshot))
 
     # Arrest and ordered retry belong to STEP-SPEC-32. Until that protocol
     # is decided, use the existing per-Agent teardown behavior and finish
     # attempting cleanup for every member before reporting failures.
     failures: list[Exception] = []
 
-    for agent, state, teardowns, _words, _snapshot in pending:
+    for agent, state, run, _words, _snapshot in pending:
         try:
-            _teardown(agent, state, tag, teardowns)
+            _teardown(agent, state, run)
         except Exception as error:
             failures.append(error)
 
