@@ -19,6 +19,12 @@
 
 ### TopKit
 
+- **Sound membership:** `agent in Tag` now asks whether the Agent is still
+  in that Field and its visible Posts hold, matching `for agent in Tag`.
+  `agent in Tag[:]` asks for raw Field membership, including defective
+  Agents. A Post that asks for its own Agent's sound membership raises a
+  Contract Failure; use `Tag[:]` when the Post needs raw admission.
+
 - **Tagging preparation cost:** ordinary Action/Record declarations reuse
   the existing collision and Underlay checks without constructing a
   disposable Overlay. Tags with deletions, conditions, Secrets, special
