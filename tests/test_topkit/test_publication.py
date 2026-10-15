@@ -100,15 +100,36 @@ class PublicationTests(unittest.TestCase):
 
         self.assertEqual(base_view.colour, "red")
         self.assertTrue("colour" @ base_view)
-        with self.assertRaises(AttributeError):
-            shape_view.colour
-        self.assertFalse("colour" @ shape_view)
+        self.assertEqual(shape_view.colour, "red")
+        self.assertTrue("colour" @ shape_view)
 
         Base.colour = "blue"
         self.assertEqual(base_view.colour, "blue")
         self.assertEqual(Base[agent].colour, "blue")
+        self.assertEqual(shape_view.colour, "blue")
         self.assertEqual(shape_view.rank, 1)
         self.assertTrue("colour" @ base_view)
+
+    def test_shape_view_reads_its_own_report_over_a_base_layer(self) -> None:
+        class Base(Tag):
+            @Report
+            def colour(tag):
+                return "red"
+
+        class Shape(Base):
+            @Report
+            def colour(tag):
+                return "green"
+
+        agent = Agent()
+        Shape(agent)
+        view = Shape[agent]
+
+        self.assertEqual(Base[agent].colour, "red")
+        self.assertEqual(view.colour, "green")
+        Shape.colour = "blue"
+        self.assertEqual(view.colour, "blue")
+        self.assertEqual(Base[agent].colour, "red")
 
     def test_a_later_pin_report_reaches_captured_and_fresh_tag_views(self) -> None:
         class Source(Tag):
