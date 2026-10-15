@@ -18,13 +18,13 @@ jobs:
           persist-credentials: false
 
   test:
-    name: Standard suite prefix ${{ matrix.count }} on Python 3.13
+    name: Standard suite ${{ matrix.mode }} on Python 3.13
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        count: [400, 600, 775, 875]
+        mode: [plain, quiet, buffer, verbose]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -33,7 +33,13 @@ jobs:
         with:
           python-version: "3.13"
       - name: The suite
-        run: PYTHONPATH=. python .github/scripts/root233_cli_prefix.py ${{ matrix.count }} > /dev/null 2>&1
+        run: |
+          case "${{ matrix.mode }}" in
+            plain) PYTHONPATH=. python -m unittest discover -s tests -t . > /dev/null 2>&1 ;;
+            quiet) PYTHONPATH=. python -m unittest discover -s tests -t . -q > /dev/null 2>&1 ;;
+            buffer) PYTHONPATH=. python -m unittest discover -s tests -t . -b > /dev/null 2>&1 ;;
+            verbose) PYTHONPATH=. python -m unittest discover -s tests -t . -v > /dev/null 2>&1 ;;
+          esac
 
   build:
     name: Build and check
