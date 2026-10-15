@@ -3,7 +3,7 @@
 Three access forms, three meanings:
 
     agent.name          the current visible Overlay (Agent scope)
-    agent.Wizard.name   the Overlay as it was right after Wizard applied
+    agent.Wizard.name   captured Actions/Records, current Wizard Reports
     Wizard.name         the Tag itself (Tag scope)
 """
 
@@ -504,25 +504,65 @@ def _agent_deepcopy(
 # ------------------------------------------------------------------
 
 
-def _snapshot_report_present(
-        snapshot: _Snapshot,
+def _view_report_present(
+        view: "_Tag_View",
         name: str,
         ) -> bool:
-    entry = snapshot.reports.get(name)
+    """A Report belongs to the Tag being searched, at its current value.
 
-    if entry is None:
+    The captured binding survives value writes, but not deletion. A new
+    Report declaration or a Pin Record can also appear after the view was
+    captured; neither changes the captured Action and Record stack.
+    """
+
+    tag = view._tag
+    member = _class_namespace(tag).get(name, _MISSING)
+
+    if member is _MISSING:
         return False
 
-    origin, writes, _value = entry
-
-    return (
-            _report_epochs(origin, name)[0] == writes
-            and name in _class_namespace(origin)
+    entry = view._snapshot.reports.get(name)
+    existing = (
+            entry is not None
+            and entry[0] is tag
+            and _report_epochs(tag, name)[1] == entry[1]
             )
+
+    if not existing:
+        state = _state_of(view._agent)
+
+        if state is None or not any(active is tag for active in state.active):
+            # A captured view cannot acquire names added after its Agent
+            # left this Field; an old captured Report keeps its binding.
+            return False
+
+    if isinstance(member, declarations.Report):
+        return True
+
+    if (
+            isinstance(member, (classmethod, property, staticmethod))
+            or callable(member)
+            ):
+        return False
+
+    pinned = _state_of(tag)
+
+    if pinned is not None:
+        if name in pinned.records:
+            return (
+                    name in pinned.published
+                    and (name not in pinned.secrets or _is_composing(pinned))
+                    )
+
+        if name in pinned.actions:
+            return False
+
+    # Only a plain value write keeps the earlier Report binding.
+    return existing
 
 
 class _Tag_View:
-    """The Overlay snapshot captured right after one Tag applied."""
+    """The captured Agent Overlay, with current Reports of this Tag."""
 
     __slots__ = (
             "_agent",
@@ -546,6 +586,9 @@ class _Tag_View:
             ) -> Any:
         snapshot: _Snapshot = view._snapshot
         agent = view._agent
+
+        if _view_report_present(view, name):
+            return getattr(view._tag, name)
 
         if name in snapshot.deleted:
             raise AttributeError(
@@ -573,9 +616,6 @@ class _Tag_View:
         if name in snapshot.records:
             return snapshot.records[name]
 
-        if _snapshot_report_present(snapshot, name):
-            return snapshot.reports[name][2]
-
         if name in snapshot.operations:
             origin, operation = snapshot.operations[name]
 
@@ -593,7 +633,7 @@ class _Tag_View:
             name: str,
             value: Any,
             ) -> None:
-        raise AttributeError("a Tag view is a snapshot; it is read-only")
+        raise AttributeError("a Tag view is read-only")
 
     def __rmatmul__(
             view,
@@ -609,6 +649,9 @@ class _Tag_View:
         name = str.__str__(name)
         snapshot = view._snapshot
 
+        if _view_report_present(view, name):
+            return True
+
         if name in snapshot.deleted:
             return False
 
@@ -618,7 +661,6 @@ class _Tag_View:
         return (
                 name in snapshot.actions
                 or name in snapshot.records
-                or _snapshot_report_present(snapshot, name)
                 or name in snapshot.operations
                 )
 
