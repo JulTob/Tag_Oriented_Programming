@@ -11,7 +11,6 @@ from TopKit import Record
 from TopKit import Report
 from TopKit import Rip
 from TopKit import Tag
-from TopKit import TagCompositionError
 from TopKit.tags import MetaTag
 
 from ._fixtures import Agent
@@ -286,33 +285,27 @@ class FieldRipTests(unittest.TestCase):
                 with self.assertRaisesRegex(TypeError, "positional slices"):
                     del Stable[key]
 
-    def test_ordinary_failures_still_attempt_later_teardowns_and_members(self) -> None:
-        seen = []
+    def test_failure_is_reported_after_all_initial_memberships_end(self) -> None:
+        seen_membership = []
 
         class Hazard(Tag):
             @Rip
-            def First(agent):
-                seen.append((agent.label, "first"))
-
-                if agent.label == "a":
+            def Fail(agent):
+                if agent is first:
+                    seen_membership.append(
+                            tuple(member in Hazard for member in members)
+                            )
                     raise ValueError("failed")
 
-            @Rip
-            def Later(agent):
-                seen.append((agent.label, "later"))
+        members = [Agent(), Agent()]
+        first = members[0]
 
-        first, second = Agent(), Agent()
-        first.label = "a"
-        second.label = "b"
-        Hazard(first)
-        Hazard(second)
+        for member in members:
+            Hazard(member)
 
-        with self.assertRaises(TagCompositionError):
+        # STEP-SPEC-32 still decides whether later teardowns run.
+        with self.assertRaises(Exception):
             del Hazard[:]
 
-        self.assertEqual(
-                seen,
-                [("a", "first"), ("a", "later"),
-                 ("b", "first"), ("b", "later")],
-                )
+        self.assertEqual(seen_membership, [(False, False)])
         self.assertEqual(list(Hazard[:]), [])
