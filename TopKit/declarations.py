@@ -791,25 +791,20 @@ def _refuse_reserved_agent_gain(
     if name not in ("__bool__", "__class__", "__dict__"):
         return
 
+    kind = _kind_of(member)
+    structural = name != "__bool__"
     if isinstance(member, Report):
-        gained = member.public
+        gained = structural or member.public
     elif isinstance(member, (classmethod, staticmethod)):
         gained = (
-                isinstance(member, classmethod)
-                and _kind_of(member) == "operation"
-                and _has_flag(member, _PUBLIC)
+                kind == "operation"
+                and (structural or (isinstance(member, classmethod)
+                                    and _has_flag(member, _PUBLIC)))
                 )
     else:
-        gained = callable(member) and _kind_of(member) in (
+        gained = callable(member) and kind in (
                 None, "action", "record", "delete",
                 )
-
-    # A Tag-owned Report or Operation at one of these names is unusable as
-    # well: Python already owns the structural class seat.
-    if name != "__bool__" and (
-            isinstance(member, Report) or _kind_of(member) == "operation"
-            ):
-        gained = True
 
     if gained:
         if name == "__bool__":
@@ -819,9 +814,9 @@ def _refuse_reserved_agent_gain(
                     " or delete it"
                     )
         raise TagDeclarationError(
-                f"{owner}.{name}: an Agent's {name} is needed for Python"
-                " object structure; a Contribution cannot redefine or"
-                " delete it"
+                f"{owner}.{name}: Python reserves {name} for object"
+                " structure; a TOP Contribution cannot redefine or delete"
+                " it"
                 )
 
 
