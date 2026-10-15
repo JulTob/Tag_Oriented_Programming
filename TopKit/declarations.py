@@ -522,7 +522,7 @@ def Pin(
                 tag,
                 _namespace_snapshot(tag),
                 )
-        setattr(
+        type.__setattr__(
                 tag,
                 _PIN,
                 True,
@@ -533,7 +533,7 @@ def Pin(
             _invalidate_declarations(tag)   # a scan made before the mark never validated it as a Pin
             _declarations_of(tag)        # validate the members now, not at first pinning
         except BaseException:
-            delattr(tag, _PIN)           # refused: nothing changed
+            type.__delattr__(tag, _PIN)  # refused: nothing changed
             _invalidate_declarations(tag)
             raise
 

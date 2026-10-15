@@ -1339,6 +1339,42 @@ class Host_Tests(unittest.TestCase):
 
 
 class Late_Pin_Tests(unittest.TestCase):
+    def test_a_metaclass_cannot_discard_the_pin_mark(self):
+        class Discard(MetaTag):
+            def __setattr__(cls, name, value):
+                if name == "__topkit_pin__":
+                    return
+                super().__setattr__(name, value)
+
+        class Rare(Tag, metaclass=Discard):
+            pass
+
+        class Wizard(Tag):
+            pass
+
+        self.assertIs(Pin(Rare), Rare)
+        Rare(Wizard)
+        self.assertIn(Wizard, Rare[:])
+
+    def test_a_metaclass_cannot_discard_a_refused_pins_rollback(self):
+        class Discard(MetaTag):
+            def __delattr__(cls, name):
+                if name == "__topkit_pin__":
+                    return
+                super().__delattr__(name)
+
+        class Odd(Tag, metaclass=Discard):
+            @Delete
+            def name(agent):
+                pass
+
+        with self.assertRaises(TagDeclarationError):
+            Pin(Odd)
+        self.assertNotIn("__topkit_pin__", Odd.__dict__)
+        charlie = Character("Charlie")
+        Odd(charlie)
+        self.assertIn(charlie, Odd)
+
     def test_a_metaclass_dict_mask_cannot_fake_a_pin_mark(self):
         class Mask(MetaTag):
             @property
