@@ -130,6 +130,27 @@ class ShapeTagScopeTests(unittest.TestCase):
         self.assertEqual(Base.label, "Base")
         self.assertEqual(built_for, [Base])
 
+    def test_shape_report_link_reads_a_pinned_base_value(self):
+        class Base(Tag):
+            @Report
+            def label(tag):
+                return "original"
+
+        class Shape(Base):
+            @Report
+            def label(tag, base):
+                return f"{base}-shape"
+
+        @Pin
+        class Patch(Tag):
+            @Record
+            def label(tag, stored):
+                return "red"
+
+        Patch(Base)
+        self.assertEqual(Base.label, "red")
+        self.assertEqual(Shape.label, "red-shape")
+
     def test_pin_action_underlay_on_shape_calls_null_not_base_operation(self):
         class Base(Tag):
             @Operation

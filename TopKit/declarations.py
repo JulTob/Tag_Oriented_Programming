@@ -711,6 +711,10 @@ class Report:
         """The value a Base owns under this name, or None: the first member
         declared after this Report's own class in the MRO."""
 
+        # State imports declarations, so the Pin carrier is read here only
+        # when a Shape explicitly asks for its Base Report's value.
+        from .state import _Pinned_Value
+
         passed_own_class = False
 
         for klass in owner.__mro__:
@@ -728,6 +732,9 @@ class Report:
                         None,
                         klass,
                         )
+
+            if isinstance(member, _Pinned_Value):
+                return member.value
 
             return member
 
