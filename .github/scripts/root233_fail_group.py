@@ -14,7 +14,6 @@ def flatten(suite):
             yield member
 
 
-ids = [case.id() for case in flatten(unittest.TestLoader().discover("tests", top_level_dir="."))]
 result = subprocess.run(
     [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-t", "."],
     stdout=subprocess.PIPE,
@@ -25,6 +24,7 @@ result = subprocess.run(
 if result.returncode == 0:
     raise SystemExit(0)
 
+ids = [case.id() for case in flatten(unittest.TestLoader().discover("tests", top_level_dir="."))]
 headers = re.findall(
     r"^(?:FAIL|ERROR): ([A-Za-z_][A-Za-z_0-9]*) \((tests\.[A-Za-z_0-9.]+)\)",
     result.stdout.decode(errors="replace"),
