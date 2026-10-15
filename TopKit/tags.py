@@ -43,6 +43,7 @@ from .declarations import _constant_owner
 from .declarations import _is_dunder
 from .declarations import _is_pin
 from .declarations import _kind_of
+from .declarations import _invalidate_declarations
 from .declarations import _name_checks
 from .declarations import _refuse_condition_dunder
 from .declarations import _refuse_truth_gain
@@ -127,6 +128,7 @@ class MetaTag(type):
                     )
 
         super().__delattr__(name)
+        _invalidate_declarations(tag)
 
     def __call__(
             tag,

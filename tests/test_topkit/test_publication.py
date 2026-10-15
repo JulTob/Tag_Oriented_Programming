@@ -100,6 +100,13 @@ class PublicationTests(unittest.TestCase):
             agent.colour
         self.assertEqual(builds, [Signal])
 
+        later = Agent()
+        Signal(later)
+        self.assertIn(later, Signal[:])
+        with self.assertRaises(AttributeError):
+            later.colour
+        self.assertEqual(builds, [Signal])
+
     def test_published_operation_is_an_action_with_the_agent_as_second_input(self) -> None:
         ember = Agent()
 
