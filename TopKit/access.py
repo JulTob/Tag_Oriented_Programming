@@ -452,9 +452,6 @@ def _agent_bool(
     if state is None:
         return _host_truth(agent)
 
-    if not state.postconditions:
-        return True   # nothing promised
-
     return _holds(agent)
 
 
