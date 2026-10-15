@@ -5,7 +5,7 @@ import unittest
 import weakref
 
 from TopKit import Action, Constant, Delete, Pin, Public, Record
-from TopKit import Report, Secret, Tag, Tool
+from TopKit import Report, Secret, Tag, TagCompositionError, Tool
 from TopKit import state as runtime
 
 
@@ -60,6 +60,22 @@ class RuntimeIdentifierOwnershipTests(unittest.TestCase):
 
     def test_published_report_name_does_not_root_a_field(self):
         self.retain_field(lambda: Public(Report(lambda tag: 41)), "signal")
+
+    def test_subclass_names_still_gate_secret_and_constant_bindings(self):
+        name = Name("vault")
+        role = type("Role", (Tag,), {
+                name: Constant(Secret(Record(lambda agent: 41))),
+                "Read": Action(lambda agent: agent.vault),
+                })
+        agent = Host()
+        role(agent)
+        self.assertEqual(agent.Read(), 41)
+        with self.assertRaises(AttributeError):
+            agent.vault
+        with self.assertRaises(TagCompositionError):
+            agent.vault = 42
+        with self.assertRaises(TagCompositionError):
+            del agent.vault
 
     def test_all_key_seats_own_plain_text_without_calling_name_hooks(self):
         class Names(str):
