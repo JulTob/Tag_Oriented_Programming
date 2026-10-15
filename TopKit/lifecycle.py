@@ -222,13 +222,21 @@ def _call_teardown(
             result = teardown(agent)
         else:
             seats = _parameters_of(declared).positional
-            receiver_seats = 2 if _takes_underlay(declared, name) else 1
+            underlay = _takes_underlay(declared, name)
+            receiver_seats = 2 if underlay else 1
 
             if seats > receiver_seats:
-                result = teardown(
-                        agent,
-                        _Originals(state.originals),
-                        )
+                originals = _Originals(state.originals)
+                if underlay:
+                    # Only the selected composed Rip receives this protocol
+                    # seat. Its prior Action is called without it unless the
+                    # declaration passes it explicitly with prior(originals).
+                    guard.selected = teardown
+                    guard.originals = originals
+                    guard.inject = True
+                    result = teardown(agent)
+                else:
+                    result = teardown(agent, originals)
             else:
                 result = teardown(agent)
     finally:
