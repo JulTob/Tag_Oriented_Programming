@@ -778,7 +778,7 @@ class Base_Tests(unittest.TestCase):
         self.assertTrue(bool(pair))
         self.assertEqual(len(charlie.CIA), 1)
 
-    def test_base_field_rip_continues_after_a_pair_teardown_fails(self):
+    def test_base_field_rip_stops_at_the_first_failed_contact(self):
         left = []
 
         class Stages(Tag):
@@ -804,12 +804,48 @@ class Base_Tests(unittest.TestCase):
         with self.assertRaises(TagCompositionError):
             del charlie.Candidate[:]
 
-        self.assertEqual(left, ["Ruth", "Sam"])
-        self.assertEqual(list(charlie.Candidate[:]), [])
+        self.assertEqual(left, ["Ruth"])
+        self.assertEqual(list(charlie.Candidate[:]), [sam])
         self.assertEqual(list(charlie.CIA[:]), [ruth])
         self.assertIs(charlie.CIA[ruth], ruth_pair)
         self.assertFalse(_pair_ends(ruth_pair).ended)
-        self.assertTrue(_pair_ends(sam_pair).ended)
+        self.assertIs(charlie.Candidate[sam], sam_pair)
+        self.assertFalse(_pair_ends(sam_pair).ended)
+
+        # Candidate order: revoke each Contact at its turn. STEP-SPEC-24
+        # also proposes revoking the whole Field before any teardown;
+        # that timing remains a Director choice for Safehouse integration.
+        del charlie.Candidate[:]
+        self.assertEqual(left, ["Ruth", "Sam"])
+        self.assertEqual(list(charlie.Candidate[:]), [])
+
+    def test_pair_teardown_stops_before_the_next_layer(self):
+        torn = []
+
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Rip
+                def Base_Leave(agent, contact):
+                    torn.append("base")
+
+        class Extended(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Rip
+                def Added_Leave(agent, contact):
+                    torn.append("added")
+                    raise ValueError("the newer Pair Layer failed")
+
+        charlie, ruth = People("Charlie", "Ruth")
+        Circle(charlie)
+        charlie.Knows(ruth)
+        Extended(charlie)   # adds a later Layer to the held Link's Pair
+
+        with self.assertRaises(TagCompositionError):
+            del charlie.Knows[ruth]
+
+        self.assertEqual(torn, ["added"])
 
     def test_a_base_relation_from_a_base_of_the_declaring_tag(self):
         class Close(Social):

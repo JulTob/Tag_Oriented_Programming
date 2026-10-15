@@ -141,7 +141,7 @@ class LinkEndingTests(unittest.TestCase):
         del agent.Knows[contact]
         self.assertEqual(cleanup, ["extension", "shape", "base"])
 
-    def test_retained_tag_teardown_failure_does_not_skip_its_completed_bases(self):
+    def test_retained_tag_teardown_failure_stops_before_its_completed_bases(self):
         def fail(agent, contact):
             raise ValueError("extension teardown failed")
 
@@ -151,8 +151,7 @@ class LinkEndingTests(unittest.TestCase):
         with self.assertRaises(TagCompositionError):
             del agent.Knows[contact]
 
-        self.assertEqual(cleanup, ["extension", "shape", "base"])
-        self.assertIsNone(_record_of(agent.Knows).family.Pair_Of(contact))
+        self.assertEqual(cleanup, ["extension"])
 
     def test_failed_shape_training_keeps_a_completed_base_extensions_teardown(self):
         cleanup = []

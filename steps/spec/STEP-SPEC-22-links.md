@@ -17,6 +17,10 @@
   also ruled that Ripping a Base after its Shape has entered the Field
   does not require the Shape to leave; dependency belongs in an explicit
   Post. See *Implementation, and the points it had to settle* below.
+  2026-10-15: a draft Link Field Rip implementation stops at the first
+  failed Contact or Pair Layer. Its per-Contact Field revocation differs
+  from STEP-SPEC-24's Brief proposal to revoke the whole snapshot first.
+  That timing and saved Rip work need Safehouse review (issue #254).
   The STEP remains **Vetting**.
 - **Refs:** PR #26 (closed design history; STEP-SPEC-23, 24, 26 and 29 were
   extracted through PRs #188, #189, #191 and #194; STEP-SPEC-26's core
@@ -1196,7 +1200,14 @@ the Base is explicitly applied again. This follows ordinary Tagging.
   2026-10-14. Its other questions remain open.
 - `del charlie.Knows[:]` is implemented for Links. It Rips only that
   Link's Contacts, retaining any Shape membership and shared Pair,
-  runs all selected teardowns, and reports the first failure afterward.
+  in Field order and stops at the first failed Contact. A Pair's later
+  Layers likewise stop after a failed Layer. The failed Contact has
+  already left this Link; this branch does not yet save its unfinished
+  Rip work or arrest it for Safehouse retry (issue #254). The later
+  Contacts remain admitted in this draft; STEP-SPEC-24's Brief proposes
+  revoking all Contacts first, a choice still to settle. The older
+  best-effort wording in rule 8.3 describes finalization, not this
+  explicit Field Rip.
   This does not implement STEP-SPEC-24's proposal for ordinary
   `del Wizard[:]`.
 - Agent deletion ends its Links after its own teardowns, Shape Links first.
