@@ -14,6 +14,7 @@ from .memo import _memo_of
 from .memo import _remember_memo
 
 
+_tag_meta: type | None = None
 _tag_types: tuple[type, type] | None = None
 # Compatibility fallback for non-Tags; ordinary classes have no TOP Bases.
 _bases_cache: "WeakKeyDictionary[type, tuple[type, ...]]" = WeakKeyDictionary()
@@ -23,18 +24,30 @@ def _form_key(tag: type) -> str:
     return _memo_key(tag, "BASES")
 
 
+def _tag_metaclass(
+        ) -> type:
+    """Bind ``MetaTag`` without needing the root ``Tag`` while it is built."""
+
+    global _tag_meta
+
+    if _tag_meta is None:
+        from .tags import MetaTag
+
+        _tag_meta = MetaTag
+
+    return _tag_meta
+
+
 def _tag_classes(
         ) -> tuple[type, type]:
-    """``MetaTag`` and the root ``Tag``, bound on first use: ``tags``
-    imports this module, so they cannot be imported at the top."""
+    """``MetaTag`` and the root ``Tag``, bound after ``Tag`` exists."""
 
     global _tag_types
 
     if _tag_types is None:
-        from .tags import MetaTag
         from .tags import Tag
 
-        _tag_types = (MetaTag, Tag)
+        _tag_types = (_tag_metaclass(), Tag)
 
     return _tag_types
 
@@ -45,9 +58,7 @@ def _is_tag_class(
     """A class made by ``MetaTag``, the root ``Tag`` included. A Tag is
     identified by its metaclass, never by a lookalike name."""
 
-    meta, _root = _tag_classes()
-
-    return isinstance(candidate, meta)
+    return isinstance(candidate, _tag_metaclass())
 
 
 def _is_tag(

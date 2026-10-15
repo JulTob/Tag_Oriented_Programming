@@ -837,7 +837,7 @@ def _own_declaration(
 
         declared = klass.__dict__[name]
 
-        if not hasattr(klass, "_topkit_field"):
+        if not _is_tag_class(klass):
             return (klass, "protocol", declared)
 
         declarations = _declarations_of(klass)

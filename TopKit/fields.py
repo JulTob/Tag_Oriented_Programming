@@ -27,6 +27,7 @@ import weakref
 from .contracts import _holds
 from .errors import TagCompositionError
 from .geometry import _is_tag_class
+from .memo import _class_namespace
 
 
 FIELD_SEAT = "_topkit_field"   # the kit's own seat on every Tag class; MetaTag.__new__ fills it
@@ -38,7 +39,7 @@ def _field_of(
     """The Tag's own Field, read from its class dictionary: never through
     attribute lookup, which the programmer's namespace could shadow."""
 
-    return tag.__dict__[FIELD_SEAT]
+    return _class_namespace(tag)[FIELD_SEAT]
 
 
 def _sound_of(
