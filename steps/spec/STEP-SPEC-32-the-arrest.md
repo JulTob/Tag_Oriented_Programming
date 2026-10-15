@@ -52,9 +52,10 @@ Question 6's proposal to exclude an arrested Agent from both sound and defective
 4. **Orphaned work stays with its original Tag application.** A new Tag
    class with the same name begins with its own empty Safehouse; it does
    not receive an ended Tag's arrested Agents or teardown protocol.
-   Root `Tag` has no Field: `Tag[...]` locates orphaned work in its
-   Safehouse, and `del Tag[agent]` retries all of that Agent's saved
-   orphan teardowns. There is no separate root membership to Rip.
+   Root `Tag` has no Field: `Tag(agent)` gives the host TOP's default
+   Agent behavior without admitting it to a Field. `Tag[...]` locates
+   orphaned work in its Safehouse, and `del Tag[agent]` retries all of
+   that Agent's saved orphan teardowns. There is no root membership to Rip.
    This does not itself establish
    when a Tag class ends or make a same-name replacement its successor.
 5. **An ordinary act retries before it starts.** A read or Action on an
