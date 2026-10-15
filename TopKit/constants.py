@@ -93,7 +93,9 @@ def _constant_overlay(state, tag: type, declarations):
                     raise TagCompositionError(
                             f"{owner.__name__}.{name} is Constant; a Pin cannot replace it"
                             )
-                if name in declarations.constants:
+                # A pinned Tag Post is this Tag's contract alone. Its lock
+                # cannot be hidden by a Shape's separate same-name Post.
+                if name in declarations.constants and kind != "postcondition":
                     _check_pin_lock(state.pinned, name)
 
             entries.append(entry)

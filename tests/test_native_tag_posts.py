@@ -306,9 +306,113 @@ class NativeTagPostTests(unittest.TestCase):
                     del Crew.Ready
                 self.assertIs(Crew.Ready, True)
 
-                with self.assertRaises(TagDeclarationError):
-                    class Shape(Crew):
-                        Ready = False
+                class Shape(Crew):
+                    @Post
+                    @Operation
+                    def Ready(tag):
+                        return False
+
+                self.assertIs(Crew.Ready, True)
+                self.assertIs(Shape.Ready, False)
+                self.assertTrue(Crew)
+                self.assertFalse(Shape)
+
+    def test_a_base_constant_does_not_lock_a_shapes_separate_pin_post(self):
+        class Crew(Tag):
+            @Constant
+            @Post
+            @Operation
+            def Ready(tag):
+                return True
+
+        class Pilots(Crew):
+            pass
+
+        @Pin
+        class Pilot_Check(Tag):
+            @Post
+            def Ready(tag):
+                return False
+
+        with self.assertRaises(TagPostconditionError.Ready):
+            Pilot_Check(Pilots)
+
+        self.assertIs(Crew.Ready, True)
+        self.assertTrue(Crew)
+        self.assertIs(Pilots.Ready, False)
+        self.assertFalse(Pilots)
+        self.assertEqual(Contract.Status(Crew), {"Ready": True})
+        self.assertEqual(Contract.Status(Pilots), {"Ready": False})
+
+        with self.assertRaises(TagCompositionError):
+            Pilot_Check(Crew)
+
+    def test_base_and_shape_native_posts_with_same_name_are_independent(self):
+        class Crew(Tag):
+            ready = True
+
+            @Post
+            @Operation
+            def Ready(tag):
+                return tag.ready
+
+        class Pilots(Crew):
+            ready = False
+
+            @Post
+            @Operation
+            def Ready(tag):
+                return tag.ready
+
+        self.assertTrue(Crew)
+        self.assertFalse(Pilots)
+        Crew.ready = False
+        Pilots.ready = True
+        self.assertFalse(Crew)
+        self.assertTrue(Pilots)
+        self.assertIs(Crew.Ready, False)
+        self.assertIs(Pilots.Ready, True)
+
+        Contract.Delete(Pilots, "Ready")
+        self.assertEqual(Contract.Status(Pilots), {})
+        self.assertEqual(Contract.Status(Crew), {"Ready": False})
+
+    def test_constant_pin_post_on_base_does_not_reach_shapes_own_post(self):
+        class Crew(Tag):
+            pass
+
+        class Pilots(Crew):
+            @Post
+            @Operation
+            def Ready(tag):
+                return False
+
+        @Pin
+        class Crew_Check(Tag):
+            @Constant
+            @Post
+            def Ready(tag):
+                return True
+
+        Crew_Check(Crew)
+        self.assertIs(Crew.Ready, True)
+        self.assertIs(Pilots.Ready, False)
+        self.assertTrue(Crew)
+        self.assertFalse(Pilots)
+
+        @Pin
+        class Pilot_Repair(Tag):
+            @Post
+            def Ready(tag):
+                return True
+
+        with self.assertWarns(TagContractWarning):
+            Pilot_Repair(Pilots)
+        self.assertIs(Pilots.Ready, True)
+        self.assertIs(Crew.Ready, True)
+
+        with self.assertRaises(TagCompositionError):
+            Pilot_Repair(Crew)
 
     def test_unsupported_combinations_fail_at_declaration(self):
         with self.assertRaises(TagDeclarationError):

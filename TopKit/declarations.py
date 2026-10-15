@@ -947,18 +947,24 @@ def _constant_owner(
 
     Look through the complete MRO: an ordinary earlier binding must not
     hide the protection of a later Base. Only raw namespaces are read;
-    asking about protection never initializes a Report.
+    asking about protection never initializes a Report. A Tag Post belongs
+    only to its declaring Tag, so its lock does not extend to Shapes.
     """
 
     for klass in tag.__mro__:
         namespace = vars(klass)
+        member = namespace.get(name)
 
-        if _is_constant(namespace.get(name)):
+        if _is_constant(member) and (
+                klass is tag or _kind_of(member) != "tag_postcondition"
+                ):
             return klass
 
         managed = namespace.get(STATE)
 
-        if managed is not None and name in managed.constants:
+        if (managed is not None and name in managed.constants
+                and (klass is tag
+                     or managed.constants[name][1] != "postcondition")):
             return klass
 
     return None
@@ -1011,15 +1017,22 @@ def _check_constant_declarations(
 
     for base in tag.__mro__[1:]:
         base_namespace = _namespace_snapshot(base)
+        # Agent Contributions still pass through the Base on Tagging. A
+        # native or pinned Tag Post judges only the Base Tag itself.
         protected = {
                 name
                 for name, member in base_namespace.items()
                 if _is_constant(member)
+                and _kind_of(member) != "tag_postcondition"
                 }
         managed = base_namespace.get(STATE)
 
         if managed is not None:
-            protected.update(managed.constants)
+            protected.update(
+                    name
+                    for name, lock in managed.constants.items()
+                    if lock[1] != "postcondition"
+                    )
 
         for name in protected:
             if name in namespace:
