@@ -535,6 +535,68 @@ class GainingPreflightFallbackTests(unittest.TestCase):
         self.assertGreaterEqual(copies_made_by_the_gate(Ordinary, agent), 1)
 
 
+class GainingSharedMembersTests(unittest.TestCase):
+    """Reports and Operations next to ordinary Gains."""
+
+    def refused_with(self, extra):
+        built = []
+
+        def earlier(agent):
+            built.append("earlier")
+            return 1
+
+        def occupied(agent):
+            return "replacement"
+
+        members = {"earlier": Record(earlier), "occupied": Record(occupied)}
+        members.update(extra)
+        Arriving = type("Arriving", (Tag,), members)
+
+        class PropertyHost:
+            @property
+            def occupied(self):
+                return "host"
+
+        agent = PropertyHost()
+        with self.assertRaises(TagCompositionError):
+            Arriving(agent)
+        self.assertEqual(built, [])
+        self.assertNotIn("earlier", agent.__dict__)
+        self.assertNotIn(agent, Arriving)
+
+    def test_an_internal_report_does_not_change_the_gate(self):
+        self.refused_with({"note": Report(lambda tag: 1)})
+
+    def test_an_internal_operation_does_not_change_the_gate(self):
+        self.refused_with({"helper": Operation(lambda tag: 1)})
+
+    def test_a_public_report_does_not_change_the_gate(self):
+        self.refused_with({"note": Public(Report(lambda tag: 1))})
+
+    def test_a_tag_with_an_internal_report_or_operation_takes_the_shortcut(self):
+        class WithReport(Tag):
+            @Record
+            def rec(agent):
+                return 1
+
+            @Report
+            def note(tag):
+                return 1
+
+        class WithOperation(Tag):
+            @Record
+            def rec(agent):
+                return 1
+
+            @Operation
+            def helper(tag):
+                return 1
+
+        for tag in (WithReport, WithOperation):
+            with self.subTest(tag=tag.__name__):
+                self.assertEqual(copies_made_by_the_gate(tag, Host()), 0)
+
+
 class GainingReplacementTests(unittest.TestCase):
     """What installing an Action or a Record over another one leaves behind."""
 
