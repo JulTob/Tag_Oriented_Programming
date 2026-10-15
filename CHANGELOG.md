@@ -4,6 +4,12 @@
 
 ### Specification
 
+- **Live Base Report link (STEP-SPEC-45):** a Shape's own two-parameter
+  `@Report` recalculates from the current same-name Base value on every
+  read, including after a Pin change, replacement, or in-place mutation.
+  A linked `@Constant @Report` keeps its first successful result;
+  one-parameter Reports keep their once-per-Tag behavior.
+
 - **Null Action Underlay (STEP-SPEC-44):** an `@Underlay` Action with no
   earlier Action now receives a callable no-op returning `None`. The rule
   also covers Pin, Rip and special-method Actions; conditions retain their
