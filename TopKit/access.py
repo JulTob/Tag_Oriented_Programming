@@ -25,6 +25,7 @@ from .declarations import STATE
 from .declarations import _MISSING
 from .declarations import _is_flag
 from .declarations import _words_of
+from .geometry import _form_of
 from .lifecycle import _teardown_all
 from .state import _Composing_Bound
 from .state import _Pinned_Operation
@@ -524,6 +525,11 @@ def _view_report_source(
         if entry is None or entry[0] is tag:
             return None
         tag = entry[0]
+        if (
+                not any(base is tag for base in _form_of(view._tag))
+                or not any(active is tag for active in _state_of(view._agent).active)
+                ):
+            return None
         member = _class_namespace(tag).get(name, _MISSING)
         if member is _MISSING:
             return None

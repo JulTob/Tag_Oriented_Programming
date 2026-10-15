@@ -131,6 +131,30 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(view.colour, "blue")
         self.assertEqual(Base[agent].colour, "red")
 
+    def test_view_does_not_search_unrelated_or_departed_report_layers(self) -> None:
+        class Base(Tag):
+            @Report
+            def colour(tag):
+                return "red"
+
+        class Shape(Base):
+            pass
+
+        class Unrelated(Tag):
+            pass
+
+        agent = Agent()
+        Shape(agent)
+        Unrelated(agent)
+
+        self.assertEqual(Shape[agent].colour, "red")
+        with self.assertRaises(AttributeError):
+            Unrelated[agent].colour
+
+        del Base[agent]
+        with self.assertRaises(AttributeError):
+            Shape[agent].colour
+
     def test_a_later_pin_report_reaches_captured_and_fresh_tag_views(self) -> None:
         class Source(Tag):
             @Record
