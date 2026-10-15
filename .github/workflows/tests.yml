@@ -18,13 +18,13 @@ jobs:
           persist-credentials: false
 
   test:
-    name: Prefix ${{ matrix.count }} on Python 3.13
+    name: Standard suite with output discarded on Python 3.13
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        count: [400, 600, 700, 775, 825, 850, 875]
+        count: [875]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -33,7 +33,7 @@ jobs:
         with:
           python-version: "3.13"
       - name: The suite
-        run: PYTHONPATH=. python .github/scripts/root233_prefix.py ${{ matrix.count }} > /dev/null 2>&1
+        run: PYTHONPATH=. python -m unittest discover -s tests -t . > /dev/null 2>&1
 
   build:
     name: Build and check
