@@ -23,7 +23,12 @@ The historical “Open questions” section has 17 numbered entries, not 17 unde
 
 Separate membership, pending cleanup obligations and retention before implementation. Agent deletion, Tag collection, Pins/Links, interpreter exit, bulk retry and concurrent access remain within the listed open questions, not extensions already settled by the explicit-Rip decision. The later rulings below settle the specified reapplication, cross-member and interruption boundaries for [whole-Field cleanup](https://github.com/JulTob/Tag_Oriented_Programming/issues/35).
 
-Question 6's proposal to exclude an arrested Agent from both sound and defective populations is superseded below for any Field the Agent still belongs to. The global Safehouse's mixed population domain is separately open in [#37](https://github.com/JulTob/Tag_Oriented_Programming/issues/37); Pair cleanup evidence is [#39](https://github.com/JulTob/Tag_Oriented_Programming/issues/39). Act interception is a TOP behavior boundary, not a Python security sandbox.
+Question 6's proposal to keep arrest separate from sound and defective
+populations is confirmed below, including when the Agent still belongs to
+a Field. This creates a third status within that Field; the current
+Specification's two-way Field partition needs an explicit amendment when
+the Safehouse is implemented. The global Safehouse's mixed population
+domain is separately open in [#37](https://github.com/JulTob/Tag_Oriented_Programming/issues/37); Pair cleanup evidence is [#39](https://github.com/JulTob/Tag_Oriented_Programming/issues/39). Act interception is a TOP behavior boundary, not a Python security sandbox.
 
 ### Later Director decisions — 2026-10-15
 
@@ -42,13 +47,15 @@ Question 6's proposal to exclude an arrested Agent from both sound and defective
    interruption does not mean cleanup succeeded. This supersedes the
    continuation recommendation in historical question 16 and answers
    the stopping and retention boundary in question 17.
-3. **Arrest counts as broken where membership still exists.** An Agent
-   kept by any Safehouse is absent from the sound population of every
-   Field it still belongs to and present in that Field's `~Tag`, without
-   evaluating its Posts or attempting a retry. Its raw membership in
-   `Tag[:]` remains. If it left a particular Field and has not rejoined
-   it, it belongs to neither partition of that Field. This supersedes
-   historical question 6's proposed exclusion from both partitions.
+3. **Arrest is separate from a broken Post.** An Agent kept by any
+   Safehouse is absent from both the sound population and `~Tag` of every
+   Field it still belongs to, without evaluating its Posts or attempting
+   a retry. Its raw membership in `MyTag[:]` remains. `MyTag[...]` contains
+   pending work owed to that Tag; root `Tag[...]` contains all arrested
+   Agents. Thus `Fighter[:] & Tag[...]` finds Fighters arrested by any Tag,
+   including one whose Fighter Posts hold. After all pending Rips succeed,
+   each remaining membership is classified by its current Posts. This
+   confirms the separate status proposed in historical question 6.
 4. **Orphaned work stays with its original Tag application.** A new Tag
    class with the same name begins with its own empty Safehouse; it does
    not receive an ended Tag's arrested Agents or teardown protocol.
