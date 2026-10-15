@@ -804,6 +804,13 @@ def _refuse_reserved_agent_gain(
                 None, "action", "record", "delete",
                 )
 
+    # A Tag-owned Report or Operation at one of these names is unusable as
+    # well: Python already owns the structural class seat.
+    if name != "__bool__" and (
+            isinstance(member, Report) or _kind_of(member) == "operation"
+            ):
+        gained = True
+
     if gained:
         if name == "__bool__":
             raise TagDeclarationError(

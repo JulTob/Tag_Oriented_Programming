@@ -21,12 +21,16 @@ class StructuralGainTests(unittest.TestCase):
                     with self.assertRaisesRegex(TagDeclarationError, name):
                         type("Invalid", (Tag,), {name: _member(mark)})
 
-    def test_published_tag_contributions_cannot_occupy_agent_storage(self):
+    def test_tag_contributions_cannot_occupy_structural_names(self):
         for name in ("__class__", "__dict__"):
             for mark in (Report, Operation):
-                with self.subTest(name=name, mark=mark):
-                    with self.assertRaisesRegex(TagDeclarationError, name):
-                        type("Invalid", (Tag,), {name: Public(mark(_member(None)))})
+                for public in (False, True):
+                    with self.subTest(name=name, mark=mark, public=public):
+                        member = mark(_member(None))
+                        if public:
+                            member = Public(member)
+                        with self.assertRaisesRegex(TagDeclarationError, name):
+                            type("Invalid", (Tag,), {name: member})
 
     def test_late_declaration_is_refused_before_touching_agent_or_tag(self):
         class Host:
