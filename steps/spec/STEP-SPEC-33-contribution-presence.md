@@ -85,3 +85,17 @@ Actions and Records change category, so no kind identifier is needed.
 On 2026-10-09 the Director explicitly authorized merging the tested feature
 and publishing its wiki page. This records that approval as **Cleared**;
 it does not introduce a separate design decision.
+
+### Later view ruling — 2026-10-15
+
+The Director ruled that a saved `view = Tag[agent]` is a live reference:
+`"name" @ view` must behave like `"name" @ Tag[agent]` at the time of the
+query. Rule 5's captured-view wording above describes the original
+implementation and is superseded for a saved view after Rip or reTagging.
+An active Tag's view still sees the Overlay recorded at that Tag's most
+recent application; later Tags do not rewrite that position. A saved view
+loses access on Rip and selects the new position after reTagging. This
+includes a `TagResolutionError` for a presence query on the saved view
+after Rip, just as constructing a fresh `Tag[agent]` would raise. This
+does not retroactively change a bound Action or Operation already read
+from the view, which is a separate Python value.
