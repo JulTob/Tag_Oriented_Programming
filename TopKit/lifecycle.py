@@ -11,6 +11,7 @@ before ``try`` and Rips in ``finally`` (STEP-SPEC-31).
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 import atexit
 
@@ -29,17 +30,24 @@ from .state import _State
 from .state import _state_of
 
 
+@dataclass(frozen=True, slots=True)
+class _RipRun:
+    """The teardown work saved when one Tag application leaves its Field."""
+
+    tag: type
+    teardowns: tuple[tuple[str, Any], ...]
+
+
 def _rip(
         agent: object,
         tag: type,
         ) -> object:
-    state, teardowns = _revoke_membership(agent, tag)
+    state, run = _revoke_membership(agent, tag)
 
     _teardown(
             agent,
             state,
-            tag,
-            teardowns,
+            run,
             )
 
     return agent
@@ -48,7 +56,7 @@ def _rip(
 def _revoke_membership(
         agent: object,
         tag: type,
-        ) -> tuple[_State, tuple[tuple[str, Any], ...]]:
+        ) -> tuple[_State, _RipRun]:
     """End one membership and save its Rip chain before callbacks run."""
 
     state = _state_of(agent)
@@ -63,22 +71,21 @@ def _revoke_membership(
     state.snapshots.pop(tag, None)   # a view needs membership: never read again
     _field_of(tag)._Remove(agent)
 
-    return state, state.rips.pop(tag, ())
+    return state, _RipRun(tag, state.rips.pop(tag, ()))
 
 
 def _teardown(
         agent: object,
         state: _State,
-        tag: type,
-        teardowns: tuple[tuple[str, Any], ...],
+        run: _RipRun,
         ) -> None:
-    """Run every @Rip teardown of ``tag`` once, then report failures."""
+    """Run every saved @Rip teardown once, then report failures."""
 
     failures: list[tuple[str, Exception]] = []
     state.composing += 1
 
     try:
-        for name, teardown in teardowns:
+        for name, teardown in run.teardowns:
             try:
                 _call_teardown(
                         name,
@@ -103,7 +110,7 @@ def _teardown(
                 )
 
         raise TagCompositionError(
-                f"{tag.__name__} teardown failed in: {names}"
+                f"{run.tag.__name__} teardown failed in: {names}"
                 ) from failures[0][1]
 
 
