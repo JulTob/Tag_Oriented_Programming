@@ -12,6 +12,7 @@ before ``try`` and Rips in ``finally`` (STEP-SPEC-31).
 from __future__ import annotations
 
 from typing import Any
+from types import MappingProxyType
 import atexit
 
 from .declarations import _parameters_of
@@ -79,7 +80,14 @@ def _rip_field(
     for agent in list(field):
         # Read the real state without asking a host's __dict__ property.
         namespace = _real_namespace_of(agent)
-        state = namespace.get(STATE) if namespace is not None else None
+        if namespace is None:
+            state = None
+        elif issubclass(type(namespace), dict):
+            # A host may use a dict subclass with a user-defined get().
+            state = dict.get(namespace, STATE)
+        else:
+            # A Pin's native namespace is a mappingproxy.
+            state = MappingProxyType.get(namespace, STATE)
 
         if state is None:
             raise TagResolutionError(

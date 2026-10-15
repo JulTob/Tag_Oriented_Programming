@@ -18,6 +18,39 @@ from ._fixtures import Agent
 
 
 class FieldRipTests(unittest.TestCase):
+    def test_accepted_dict_subclass_cannot_run_during_revocation(self) -> None:
+        seen = []
+        armed = False
+
+        class NoisyDict(dict):
+            def get(self, key, default=None):
+                if armed:
+                    seen.append(len(Squad[:]))
+
+                return super().get(key, default)
+
+        class Host:
+            def __init__(self):
+                self.__dict__ = NoisyDict()
+
+        class Squad(Tag):
+            pass
+
+        members = [Host(), Host()]
+
+        for member in members:
+            Squad(member)
+
+        armed = True
+
+        try:
+            del Squad[:]
+        finally:
+            armed = False
+
+        self.assertEqual(seen, [])
+        self.assertEqual(list(Squad[:]), [])
+
     def test_accepted_host_dict_property_cannot_run_during_revocation(self) -> None:
         seen = []
         armed = False
