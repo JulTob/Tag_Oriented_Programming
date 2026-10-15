@@ -407,6 +407,20 @@ def _refuse_misfit(
         return
 
     origin, kind = slot
+    _refuse_tool_value(origin, kind, name, value, agent, built=built)
+
+
+def _refuse_tool_value(
+        origin: type,
+        kind: _Kind,
+        name: str,
+        value: Any,
+        agent: object,
+        *,
+        built: bool = False,
+        ) -> None:
+    """Check a proposed value before changing the live Tool binding or kind."""
+
     where = f"{origin.__name__}.{name}"
 
     if value is None:
