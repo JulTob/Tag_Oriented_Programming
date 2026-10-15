@@ -24,7 +24,7 @@ from typing import Callable
 from typing import Iterator
 import weakref
 
-from .contracts import _holds
+from .contracts import _holds_for_population
 from .errors import TagCompositionError
 from .geometry import _is_tag_class
 from .memo import _class_namespace
@@ -49,7 +49,7 @@ def _sound_of(
 
     return _Partition(
             _field_of(tag),
-            _holds,
+            _holds_for_population,
             "sound",
             )
 
