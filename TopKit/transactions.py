@@ -36,6 +36,7 @@ from .errors import TagCompositionError
 from .errors import TagImprintError
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
+from .fields import _field_of
 from .geometry import _form_of
 from .overlay import _install
 from .overlay import _gainings
@@ -458,7 +459,7 @@ def _enter_field(
     if state.pinned is not None and declarations.published:
         plans = _publication_plans(state.pinned, declarations.published)
 
-    tag._topkit_field._Add(agent)
+    _field_of(tag)._Add(agent)
     state.active.append(tag)
     state.words = None
     state.ever.add(tag)

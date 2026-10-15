@@ -33,6 +33,25 @@ class TagRecognitionTests(unittest.TestCase):
         self.assertEqual(list(Special[:]), [member])
         self.assertEqual(list(Special), [member])
 
+    def test_tagging_and_rip_update_the_tags_own_field(self) -> None:
+        class Masked(MetaTag):
+            def __getattribute__(tag, name):
+                if name == "_topkit_field":
+                    raise AttributeError(name)
+                return super().__getattribute__(name)
+
+        class Special(Tag, metaclass=Masked):
+            pass
+
+        member = Agent()
+        Special(member)
+        self.assertIn(member, Special)
+        self.assertEqual(list(Special[:]), [member])
+
+        del Special[member]
+        self.assertNotIn(member, Special)
+        self.assertEqual(list(Special[:]), [])
+
     def test_flag_and_pin_refuse_a_host_that_only_looks_like_a_tag(self) -> None:
         class Lookalike:
             _topkit_field = object()
