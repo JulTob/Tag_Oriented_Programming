@@ -110,6 +110,32 @@ class SafehouseHostContextTests(unittest.TestCase):
         ready = True
         del Tag[host]
 
+    def test_unmatched_exit_cannot_return_after_catching_failed_rip(self) -> None:
+        events = []
+        ready = False
+
+        class Host:
+            def __exit__(self, kind, value, traceback):
+                try:
+                    del Custody[self]
+                except TagCompositionError:
+                    events.append("rip failed")
+                return True
+
+        class Custody(Tag):
+            @Rip
+            def Leave(agent):
+                if not ready:
+                    raise RuntimeError("unfinished")
+
+        host = Host()
+        Custody(host)
+        with self.assertRaises(TagArrestedAccessError):
+            type(host).__dict__["__exit__"](host, None, None, None)
+        self.assertEqual(events, ["rip failed"])
+        ready = True
+        del Tag[host]
+
     def test_async_exit_stays_open_when_arrest_starts_during_await(self) -> None:
         events = []
         started = asyncio.Event()
@@ -224,6 +250,87 @@ class SafehouseHostContextTests(unittest.TestCase):
         self.assertEqual(events, ["entry started"])
         ready = True
         del Tag[host]
+
+    def test_unmatched_async_exit_cannot_resume_during_arrest(self) -> None:
+        events = []
+        started = asyncio.Event()
+        finish = asyncio.Event()
+        ready = False
+
+        class Host:
+            async def __aexit__(self, kind, value, traceback):
+                events.append("exit started")
+                started.set()
+                await finish.wait()
+                events.append("exit resumed")
+
+        class Custody(Tag):
+            @Rip
+            def Leave(agent):
+                if not ready:
+                    raise RuntimeError("unfinished")
+
+        host = Host()
+        Custody(host)
+
+        async def Scenario() -> None:
+            exit_hook = type(host).__dict__["__aexit__"](
+                    host, None, None, None,
+                    )
+            task = asyncio.create_task(exit_hook)
+            await started.wait()
+            with self.assertRaises(TagCompositionError):
+                del Custody[host]
+            finish.set()
+            with self.assertRaises(TagArrestedAccessError):
+                await task
+
+        asyncio.run(Scenario())
+        self.assertEqual(events, ["exit started"])
+        ready = True
+        del Tag[host]
+
+    def test_unmatched_custom_awaitable_exit_cannot_resume_during_arrest(self) -> None:
+        events = []
+        started = asyncio.Event()
+        finish = asyncio.Event()
+
+        class Pending:
+            def __await__(self):
+                async def Run():
+                    events.append("exit started")
+                    started.set()
+                    await finish.wait()
+                    events.append("exit resumed")
+
+                return Run().__await__()
+
+        class Host:
+            def __aexit__(self, kind, value, traceback):
+                return Pending()
+
+        class Custody(Tag):
+            @Rip
+            def Leave(agent):
+                raise RuntimeError("unfinished")
+
+        host = Host()
+        Custody(host)
+
+        async def Scenario() -> None:
+            exit_hook = type(host).__dict__["__aexit__"](
+                    host, None, None, None,
+                    )
+            task = asyncio.create_task(exit_hook)
+            await started.wait()
+            with self.assertRaises(TagCompositionError):
+                del Custody[host]
+            finish.set()
+            with self.assertRaises(TagArrestedAccessError):
+                await task
+
+        asyncio.run(Scenario())
+        self.assertEqual(events, ["exit started"])
 
     def test_entered_async_exit_closes_from_another_context(self) -> None:
         class Host:

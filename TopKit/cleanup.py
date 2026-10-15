@@ -15,6 +15,7 @@ import weakref
 from .arrest import _arrest_of
 from .arrest import _require_available
 from .arrest import _rip_door
+from .lazy_guard import _guard_lazy_result
 
 
 class _Entry:
@@ -71,7 +72,9 @@ def _exit(
         ) -> Any:
     if not _take_entry(agent, kind):
         _require_available(agent, f"context {kind} exit")
-        return invoke()
+        result = invoke()
+        _require_available(agent, f"context {kind} exit")
+        return result
 
     was_arrested = _arrest_of(agent) is not None
 
@@ -102,7 +105,17 @@ async def _aexit(
         ) -> Any:
     if not _take_entry(agent, "async"):
         _require_available(agent, "async context exit")
-        return await invoke()
+
+        async def Await_Exit() -> Any:
+            return await invoke()
+
+        # Guard the outer coroutine, including custom Awaitable results
+        # whose own continuations the native-result helper cannot inspect.
+        result = await _guard_lazy_result(
+                Await_Exit(), agent, "async context exit", _require_available,
+                )
+        _require_available(agent, "async context exit")
+        return result
 
     was_arrested = _arrest_of(agent) is not None
     with _rip_door(agent):
