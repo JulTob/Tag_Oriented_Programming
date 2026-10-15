@@ -734,12 +734,16 @@ except Postcondition.Has_Oath:          # the refusal names what is broken
 ```
 
 Notice the symmetry. A Report is written exactly like a Record, with the
-Tag instead of the Agent as its first input; it runs once per Tag and its
-value is shared by the whole Field. `def hit_die(tag, inherited)` extends
-the Base's value, as `def spells(agent, stored)` extends what is stored.
+Tag instead of the Agent as its first input; it runs once on its declaring
+Tag and its value is shared by that Tag's Field. A Shape does not directly
+acquire a Base's Report or Operation. The Shape's own
+`def hit_die(tag, base_value)` can explicitly link to the Base's Report
+when it calculates its own value, as `def spells(agent, stored)` uses
+stored Agent data.
 
-A Constant Report initializes once on its declaring Tag; all its Shapes
-share that exact value. Constant protects the binding without freezing
+A Constant Report initializes once on its declaring Tag. Applying a Shape
+first applies that Base to the Agent, so the Agent may still reach the
+Base's published value. Constant protects the binding without freezing
 the value's contents or changing its publication rules. See
 [Constant Contributions](CONSTANTS.md) for the Report and Operation patterns.
 
@@ -1077,8 +1081,9 @@ for tag in Rare:                            # walk the rare Tags
 
 Notice the first parameter is `tag`, because the receiver is a Tag. What
 a Pin gives lands on the Tag the way a Report or an Operation does: one
-value shared by the whole Field, inherited by the Tag's Shapes
-(`War_Caster.rarity` is `"rare"` too), and never on the Tag's Agents.
+value shared by that Tag's Field and never on the Tag's Agents. A Shape
+does not directly acquire it; pin the Shape separately when it needs its
+own Report or Operation.
 
 A Pin can also **patch** what a Tag shares. Say a Tag has an Operation
 that controls an engine, and the engine changed. A Pin Action of the

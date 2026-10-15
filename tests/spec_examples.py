@@ -267,7 +267,10 @@ def Run() -> None:
     assert Wizard.rarity == "rare" and Wizard.Describe() == "Wizard is rare"
     assert not hasattr(charlie, "rarity")
     class War_Caster(Wizard): pass
-    assert War_Caster.rarity == "rare" and War_Caster not in Rare
+    assert War_Caster not in Rare
+    try: War_Caster.rarity
+    except AttributeError: pass
+    else: raise AssertionError("a Shape acquired its Base's Report")
     try: Rare(charlie); raise SystemExit("pin on object")
     except TagCompositionError: pass
     try: Wizard(Rare); raise SystemExit("tag on class")

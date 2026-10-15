@@ -7,6 +7,14 @@
 - **Status:** Cleared
 - **Created:** 2026-10-09
 
+> **Later scope ruling (2026-10-15).** The Director clarified that a Shape
+> cannot directly read a Base's Report or Operation. The direct-Shape reads
+> in rule 3, the alternatives and the Decision below record the earlier
+> implementation and are superseded for direct Tag reads. The Constant
+> still has one value on its declaring Tag and cannot be redeclared by a
+> Shape. An Agent tagged with the Shape can reach the Base's Contribution
+> through its Base view or publication.
+
 ## Summary
 
 `@Constant` fixes a named Contribution's binding once it is established.

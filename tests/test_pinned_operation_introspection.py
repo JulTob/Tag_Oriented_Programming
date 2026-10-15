@@ -38,7 +38,7 @@ class PinnedOperationIntrospectionTests(unittest.TestCase):
         self.assertEqual(handle.__doc__, calculate.__doc__)
         self.assertFalse(hasattr(handle, "__wrapped__"))
 
-    def test_inherited_handle_binds_to_the_receiving_shape(self):
+    def test_a_shape_needs_its_own_pin_to_receive_an_operation(self):
         def calculate(tag, value=7):
             return tag, value
 
@@ -46,6 +46,15 @@ class PinnedOperationIntrospectionTests(unittest.TestCase):
 
         class Shape(target):
             pass
+
+        with self.assertRaises(AttributeError):
+            Shape.Work
+
+        @Pin
+        class ShapeWork(Tag):
+            Work = Action(calculate)
+
+        ShapeWork(Shape)
 
         for receiver in (target, Shape):
             with self.subTest(receiver=receiver):

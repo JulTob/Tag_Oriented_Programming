@@ -460,7 +460,7 @@ class ConstantTests(unittest.TestCase):
                     with self.assertRaises(TagCompositionError):
                         delattr(tag, name)
 
-    def test_report_builds_once_for_its_declaring_tag_even_if_shape_reads_first(self):
+    def test_constant_report_builds_once_for_its_declaring_tag(self):
         builds = []
 
         class Base(Tag):
@@ -476,13 +476,16 @@ class ConstantTests(unittest.TestCase):
         class Later(Shape):
             pass
 
-        value = Shape.label
+        with self.assertRaises(AttributeError):
+            Shape.label
+        with self.assertRaises(AttributeError):
+            Later.label
+        value = Base.label
         self.assertEqual(value, {"name": "Base"})
         self.assertIs(Base.label, value)
-        self.assertIs(Later.label, value)
         self.assertEqual(builds, [Base])
         value["count"] = 1
-        self.assertEqual(Later.label["count"], 1)
+        self.assertEqual(Base.label["count"], 1)
 
     def test_report_is_locked_on_base_and_shapes(self):
         class Base(Tag):
@@ -500,14 +503,18 @@ class ConstantTests(unittest.TestCase):
                     tag.label = "changed"
                 with self.assertRaises(TagCompositionError):
                     del tag.label
-                self.assertEqual(tag.label, "Base")
+                if tag is Base:
+                    self.assertEqual(tag.label, "Base")
+                else:
+                    with self.assertRaises(AttributeError):
+                        tag.label
         with self.assertRaises(TagDeclarationError):
             class Override(Base):
                 @Report
                 def label(tag):
                     return "changed"
 
-    def test_operation_keeps_the_receiving_shape_but_implementation_is_locked(self):
+    def test_constant_operation_belongs_to_its_declaring_tag(self):
         class Base(Tag):
             @Constant
             @Operation
@@ -517,7 +524,9 @@ class ConstantTests(unittest.TestCase):
         class Shape(Base):
             pass
 
-        self.assertEqual((Base.Name(), Shape.Name()), ("Base", "Shape"))
+        self.assertEqual(Base.Name(), "Base")
+        with self.assertRaises(AttributeError):
+            Shape.Name()
         for tag in (Base, Shape):
             with self.subTest(tag=tag):
                 with self.assertRaises(TagCompositionError):
@@ -614,7 +623,8 @@ class ConstantTests(unittest.TestCase):
         future = Host()
         Base(future)
         original = Base.label
-        self.assertIs(Shape.label, original)
+        with self.assertRaises(AttributeError):
+            Shape.label
         del Given[Base]
 
         class More(Tag):
@@ -665,7 +675,7 @@ class ConstantTests(unittest.TestCase):
                     pin(Given)
         self.assertEqual((Given.label, Given.Work()), ("original", "original"))
 
-    def test_pin_constants_stay_inherited_and_locked_after_rip(self):
+    def test_pin_constants_stay_on_their_tag_and_locked_after_rip(self):
         @Pin
         class Given(Tag):
             @Constant
@@ -687,8 +697,12 @@ class ConstantTests(unittest.TestCase):
 
         value = Base.label
         del Given[Base]
-        self.assertIs(Shape.label, value)
-        self.assertEqual((Base.Name(), Shape.Name()), ("Base", "Shape"))
+        with self.assertRaises(AttributeError):
+            Shape.label
+        with self.assertRaises(AttributeError):
+            Shape.Name()
+        self.assertIs(Base.label, value)
+        self.assertEqual(Base.Name(), "Base")
         for tag in (Base, Shape):
             for name in ("label", "Name"):
                 with self.subTest(tag=tag, name=name):
@@ -722,7 +736,9 @@ class ConstantTests(unittest.TestCase):
 
         with self.assertRaises(TagError):
             Replace(Shape)
-        self.assertEqual(Shape.label, "original")
+        self.assertEqual(Base.label, "original")
+        with self.assertRaises(AttributeError):
+            Shape.label
 
     def test_multiple_bases_may_hide_an_ordinary_report_but_not_a_constant(self):
         class Fixed(Tag):
@@ -742,7 +758,9 @@ class ConstantTests(unittest.TestCase):
         class Allowed(Fixed, Ordinary):
             pass
 
-        self.assertEqual(Allowed.label, "fixed")
+        self.assertEqual(Fixed.label, "fixed")
+        with self.assertRaises(AttributeError):
+            Allowed.label
         for bases in ((Ordinary, Fixed), (Fixed, Also_Fixed)):
             with self.subTest(bases=bases):
                 with self.assertRaises(TagDeclarationError):
@@ -790,7 +808,9 @@ class ConstantTests(unittest.TestCase):
 
         with self.assertRaises(TagError):
             Given(Base)
-        self.assertEqual(Shape.label, "existing")
+        self.assertEqual(Earlier.label, "existing")
+        with self.assertRaises(AttributeError):
+            Shape.label
         self.assertNotIn(Base, Given[:])
 
     def test_a_sibling_base_cannot_acquire_a_binding_that_hides_a_constant(self):
@@ -831,7 +851,9 @@ class ConstantTests(unittest.TestCase):
                         Candidate(Base)
                     self.assertEqual(list(Candidate[:]), [])
 
-                self.assertEqual(Shape.label, "locked")
+                self.assertEqual(Other.label, "locked")
+                with self.assertRaises(AttributeError):
+                    Shape.label
                 self.assertIs(Base.anchor, anchor)
                 self.assertIs(type(Base), prior_type)
                 self.assertEqual(list(Existing[:]), [Base])
@@ -864,7 +886,9 @@ class ConstantTests(unittest.TestCase):
                     self.assertIn(Base, Given[:])
 
                 self.assertEqual(Base.label, "ordinary")
-                self.assertEqual(Shape.label, "locked")
+                self.assertEqual(Other.label, "locked")
+                with self.assertRaises(AttributeError):
+                    Shape.label
 
     def test_diamond_inheritance_keeps_the_same_constant_declaration(self):
         class Base(Tag):
@@ -885,9 +909,12 @@ class ConstantTests(unittest.TestCase):
         class Diamond(Left, Right):
             pass
 
-        self.assertIs(Diamond.token, Base.token)
+        with self.assertRaises(AttributeError):
+            Diamond.token
+        token = Base.token
         agent = Host()
         Diamond(agent)
+        self.assertIs(Base[agent].token, token)
         self.assertEqual(agent.value, 1)
         with self.assertRaises(TagCompositionError):
             agent.value = 2
