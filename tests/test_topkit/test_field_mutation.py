@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from TopKit import Post, Tag
+from TopKit.fields import _Field
 from TopKit.fields import _Population
 
 from ._fixtures import Agent
@@ -202,6 +204,72 @@ class CompoundFieldMutationTests(unittest.TestCase):
 
         self.assertNotIn(agent, population)
         self.assertEqual(checks, [agent])
+
+    def test_invalid_inner_intersection_skips_the_next_post(self) -> None:
+        class First(Tag):
+            pass
+
+        armed = [False]
+        calls = []
+
+        class Ripper(Tag):
+            @Post
+            def Ready(agent):
+                if armed[0]:
+                    del First[agent]
+                return True
+
+        class Later(_Population):
+            def __contains__(self, agent):
+                calls.append(agent)
+                return True
+
+        agent = Agent()
+        First(agent)
+        Ripper(agent)
+        armed[0] = True
+        calls.clear()
+
+        self.assertNotIn(agent, (First[:] & Ripper) & Later())
+        self.assertEqual(calls, [])
+
+    def test_deep_sound_intersections_check_each_field_a_bounded_number_of_times(self) -> None:
+        class Member(Tag):
+            pass
+
+        agent = Agent()
+        Member(agent)
+        distinct = [
+                type(f"Field_{index}", (Tag,), {})
+                for index in range(300)
+                ]
+        for tag in distinct:
+            tag(agent)
+        original = _Field.__contains__
+
+        for tags in ([Member] * 500, distinct):
+            for direction in ("left", "right"):
+                with self.subTest(fields=len(set(tags)), direction=direction):
+                    population = tags[0]
+
+                    for tag in tags[1:]:
+                        population = (
+                                population & tag
+                                if direction == "left"
+                                else tag & population
+                                )
+
+                    checks = [0]
+
+                    def counted(field, member):
+                        checks[0] += 1
+                        return original(field, member)
+
+                    with patch.object(_Field, "__contains__", counted):
+                        self.assertIn(agent, population)
+                        self.assertEqual([member for member in population], [agent])
+
+                    self.assertLess(checks[0], 10 * len(tags))
 
 
 if __name__ == "__main__":

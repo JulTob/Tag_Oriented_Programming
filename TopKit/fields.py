@@ -31,6 +31,9 @@ from .memo import _class_namespace
 
 
 FIELD_SEAT = "_topkit_field"   # the kit's own seat on every Tag class; MetaTag.__new__ fills it
+# A fresh identity marks each physical Field change. Compound queries can
+# then avoid rescanning a growing set of witnesses when no Field has changed.
+_field_change_token = object()
 
 
 def _field_of(
@@ -308,23 +311,60 @@ def _positive_field(population: _Population) -> "_Field | None":
     return None
 
 
-def _still_in_fields(agent: object, fields: list["_Field"]) -> bool:
-    return all(agent in field for field in fields)
+class _Evidence:
+    """Selected positive Fields, with the last membership observation.
+
+    A Post may change any Field while a later operand is evaluated. Recheck
+    only after such a change; an ordinary deep intersection then costs one
+    Field lookup per leaf instead of rescanning every earlier witness at
+    every parent node.
+    """
+
+    __slots__ = ("fields", "token")
+
+    def __init__(evidence, field: "_Field | None" = None) -> None:
+        evidence.fields = {field} if field is not None else set()
+        evidence.token = _field_change_token
+
+    def _Merge(evidence, other: "_Evidence") -> "_Evidence":
+        # Combine into the larger set, so a right-nested expression does not
+        # repeatedly copy all of the witnesses already collected there.
+        if len(evidence.fields) < len(other.fields):
+            evidence, other = other, evidence
+
+        evidence.fields.update(other.fields)
+
+        if evidence.token is not other.token:
+            evidence.token = None
+
+        return evidence
+
+    def _Holds(evidence, agent: object) -> bool:
+        if evidence.token is _field_change_token:
+            return True
+
+        if not all(agent in field for field in evidence.fields):
+            return False
+
+        evidence.token = _field_change_token
+        return True
 
 
 def _probe_combined(
         combined: _Combined,
         agent: object,
-        ) -> tuple[bool, list["_Field"]]:
+        ) -> tuple[bool, _Evidence]:
     """Judge a compound query once, retaining the selected Field evidence.
 
     Each node checks its selected positive Fields before returning to its
-    parent. Later Posts cannot leave an Agent in a population that has
-    already lost a required Field. No Post is run merely to recheck a Field.
+    parent if any physical Field changed since the last check. No Post is
+    run merely to recheck a Field.
     """
 
     # Each frame holds a node, its left/right stage and left's evidence.
-    pending: list[tuple[_Combined, int, list[_Field]]] = [(combined, 0, [])]
+    pending: list[tuple[_Combined, int, _Evidence]] = [
+            (combined, 0, _Evidence()),
+            ]
     population: _Population = combined._left
 
     while True:
@@ -334,7 +374,7 @@ def _probe_combined(
 
         verdict = agent in population
         field = _positive_field(population) if verdict else None
-        evidence = [field] if field is not None else []
+        evidence = _Evidence(field)
 
         while pending:
             node, stage, left_evidence = pending[-1]
@@ -343,13 +383,14 @@ def _probe_combined(
             if stage == 0:
                 # The left side has just returned. A valid union left wins;
                 # a false intersection/difference left decides its node.
+                if verdict:
+                    verdict = evidence._Holds(agent)
+
                 if operator == "|" and verdict:
-                    verdict = _still_in_fields(agent, evidence)
-                    if verdict:
-                        pending.pop()
-                        continue
+                    pending.pop()
+                    continue
                 elif operator != "|" and not verdict:
-                    evidence = []
+                    evidence = _Evidence()
                     pending.pop()
                     continue
 
@@ -361,21 +402,22 @@ def _probe_combined(
 
             if operator == "&":
                 if verdict:
-                    left_evidence.extend(evidence)
-                    evidence = left_evidence
-                    verdict = _still_in_fields(agent, evidence)
+                    evidence = left_evidence._Merge(evidence)
+                    verdict = evidence._Holds(agent)
                 else:
-                    evidence = []
+                    evidence = _Evidence()
             elif operator == "-":
-                verdict = not verdict
-                evidence = left_evidence if verdict else []
                 if verdict:
-                    verdict = _still_in_fields(agent, evidence)
+                    verdict = evidence._Holds(agent)
+                verdict = not verdict
+                evidence = left_evidence if verdict else _Evidence()
+                if verdict:
+                    verdict = evidence._Holds(agent)
             elif verdict:
-                verdict = _still_in_fields(agent, evidence)
+                verdict = evidence._Holds(agent)
 
             if not verdict:
-                evidence = []
+                evidence = _Evidence()
         else:
             return verdict, evidence
 
@@ -436,14 +478,14 @@ def _walk_combined(combined: _Combined) -> Iterator[object]:
                     continue
 
                 field = _positive_field(population)
-                evidence = [field] if field is not None else []
+                evidence = _Evidence(field)
 
                 for frame in reversed(frames):
                     frame.agent = agent
 
                     if frame.operator == "|":
                         if not frame.on_right:
-                            if not _still_in_fields(agent, evidence):
+                            if not evidence._Holds(agent):
                                 break
                             frame.seen[id(agent)] = agent
                         elif frame.seen.get(id(agent)) is agent:
@@ -454,15 +496,15 @@ def _walk_combined(combined: _Combined) -> Iterator[object]:
                         else:
                             present = agent in frame.right
                             right_field = _positive_field(frame.right) if present else None
-                            right_evidence = [right_field] if right_field is not None else []
+                            right_evidence = _Evidence(right_field)
                         if not present:
                             break
-                        evidence.extend(right_evidence)
+                        evidence = evidence._Merge(right_evidence)
                     else:
                         if agent in frame.right:
                             break
 
-                    if not _still_in_fields(agent, evidence):
+                    if not evidence._Holds(agent):
                         break
                 else:
                     yield agent
@@ -534,6 +576,8 @@ class _Field(_Population):
 
         reference.key = key
         field._members[key] = reference
+        global _field_change_token
+        _field_change_token = object()
 
     def _Remove(
             field,
@@ -542,7 +586,9 @@ class _Field(_Population):
         """Rip's and rollback's half of leaving. Private: by itself it
         would skip the Agent's state change and every teardown."""
 
-        field._members.pop(id(agent), None)
+        if field._members.pop(id(agent), None) is not None:
+            global _field_change_token
+            _field_change_token = object()
 
     def _Forget(
             field,
@@ -550,6 +596,8 @@ class _Field(_Population):
             ) -> None:
         if field._members.get(expired.key) is expired:
             del field._members[expired.key]
+            global _field_change_token
+            _field_change_token = object()
 
     def __contains__(
             field,
