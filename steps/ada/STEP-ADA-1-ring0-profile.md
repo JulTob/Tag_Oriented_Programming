@@ -50,10 +50,11 @@ non-owning Field would overlook object destruction and address reuse.
 
 The Director's decisions control this proposal. A test is evidence of the
 current Python implementation, not authority to reverse those decisions.
-At the refresh baseline, `main` is `2665c50` (2026-10-13). Some Specification
-and test passages still describe whole-call restoration. The approved ordered
-Tagging design is being implemented in [PR #174](https://github.com/JulTob/Tag_Oriented_Programming/pull/174).
-This STEP records that mismatch instead of silently adopting it as Ada law.
+At the original refresh baseline, `main` was `2665c50` (2026-10-13), and some
+Specification and test passages still described whole-call restoration.
+[PR #174](https://github.com/JulTob/Tag_Oriented_Programming/pull/174) has
+since brought ordered Tagging to `main`. The Ada carrier and Field boundaries
+below remain open; Python's implementation is evidence, not an Ada profile.
 
 ## Specification
 
@@ -66,16 +67,19 @@ This STEP records that mismatch instead of silently adopting it as Ada law.
 | Membership (§0.3) | Distinguish active membership from has-been history; queries do not Tag; Fields are identity-indexed and non-owning | Established; initial Ada lifetime direction selected in STEP-ADA-3; storage and Field access details pending |
 | Form (§0.4) | Ordered Base-first closure, each Tag once; direct Bases retain declaration order; TOP Geometry is independent of a Target's Ada nominal inheritance | Established |
 | Apply (§0.5) | Apply pending Tags Base-first; active reapplication does nothing; fresh reapplication after Rip repeats ordinary training | Established |
-| Gate (§0.6) | Each pending Tag passes its own Gate when its turn arrives; completed earlier Taggings remain if a later Gate refuses | Director-approved; Python work tracked in #30 / PR #174 |
-| Gainings (§0.6) | After its Gate, each Tag applies gains and Imprints in declaration order, visible to later gains; failed training leaves acquired Actions, Records and Posts on a Rogue outside that Tag's Field | Director-approved; Python implementation tracked in #30 |
-| Admission (§0.6) | After Gainings/Imprints complete, the Agent enters the Field, then Posts judge the member; Reports and Operations become available through the Agent at Field entry | Director-approved sequence: Gate → Gains/Imprints → Field → Posts |
+| Gate (§0.6) | Each pending Tag passes its own Gate when its turn arrives; completed earlier Taggings remain if a later Gate refuses | Deployed in Python by #174; Ada implementation pending |
+| Gainings (§0.6) | After its Gate, each Tag applies gains and Imprints in declaration order, visible to later gains; failed training leaves acquired Actions, Records and Posts on a Rogue outside that Tag's Field | Deployed in Python by #174; Ada implementation pending |
+| Admission (§0.6) | After Gainings/Imprints complete, the Agent enters the Field, then Posts judge the member; Reports and Operations become available through the Agent at Field entry | Deployed in Python by #174; Ada implementation pending |
 | Current state (§2.5) | Postconditions define requirements; missing declared gains alone and a past Imprint failure do not permanently mark deficiency | Director-approved; existing Imprint/current-state tests cover part of it |
 | Rip (§0.7) | Rip ends active membership, not history; ordinary gains are sticky; reapplication is fresh; no implicit cascade | Established; several lifecycle extensions remain Brief |
 
 The profile must not import an irreversible-ban feature: a programmer can
 express a ban with a Report and Gate; no such TOP language feature has been
-decided. Existing required-Base Rip refusal is a deployed Python rule, not
-authority to settle the separate spin-off/arrest proposals.
+decided. A Shape no longer blocks Rip of its Base: the Director cleared that
+independent-membership rule in
+[STEP-SPEC-26](../spec/STEP-SPEC-26-a-shape-keeps-no-base-hostage.md), and
+[PR #207](https://github.com/JulTob/Tag_Oriented_Programming/pull/207)
+deployed it in Python. Arrest and Safehouse proposals remain separate.
 
 The current Ada Geometry experiment accepts raw ordered graphs that Python's
 class frontend refuses: duplicate direct Bases and C3-inconsistent Base
