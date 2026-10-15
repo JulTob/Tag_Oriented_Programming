@@ -726,7 +726,8 @@ name, or `None`. An ordinary linked Report recalculates on every read, so
 replacing or mutating the Base's value is visible on the Shape's next read.
 The Base search follows the Tag's MRO; deleting one Base binding exposes
 the next. This link gives the Shape its own calculation, not the Base's
-Report declaration.
+Report declaration. A standalone two-parameter Report receives `None`
+and retains the ordinary once-per-Tag calculation.
 
 A Constant Report initializes once on its **declaring Tag**, on the first
 successful read there or through a permitted Agent-bound view. A linked

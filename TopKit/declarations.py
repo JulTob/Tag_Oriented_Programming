@@ -692,9 +692,12 @@ class Report:
 
         # A Shape's explicit Base Report link is live: the Base may have
         # changed its value in place, been replaced by a Pin, or lost its
-        # binding since the previous read. Constant Reports still keep
-        # their first successfully calculated value.
-        if not constant and _parameters_of(report.builder).positional >= 2:
+        # binding since the previous read. A standalone two-parameter
+        # Report receives None but keeps its ordinary once-per-Tag value.
+        # Constant Reports keep their first successful calculation.
+        if (not constant
+                and _parameters_of(report.builder).positional >= 2
+                and any(_is_tag_base(base) for base in owner.__bases__)):
             return report._build(owner)
 
         try:

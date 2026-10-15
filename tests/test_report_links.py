@@ -6,6 +6,18 @@ from TopKit import Constant, Pin, Public, Record, Report, Tag
 
 
 class BaseReportLinkTests(unittest.TestCase):
+    def test_standalone_two_parameter_report_still_builds_once(self):
+        calls = []
+
+        class Solo(Tag):
+            @Report
+            def answer(tag, base_value):
+                calls.append(base_value)
+                return len(calls)
+
+        self.assertEqual((Solo.answer, Solo.answer), (1, 1))
+        self.assertEqual(calls, [None])
+
     def test_live_link_reads_mutation_rebinding_and_recovers_after_failure(self):
         class Base(Tag):
             @Report
