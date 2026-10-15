@@ -4,6 +4,11 @@
 
 ### Specification
 
+- **Null Action Underlay (STEP-SPEC-44):** an `@Underlay` Action with no
+  earlier Action now receives a callable no-op returning `None`. The rule
+  also covers Pin, Rip and special-method Actions; conditions retain their
+  existing Underlay requirement.
+
 - **A Shape keeps no Base hostage (STEP-SPEC-26):** applying a Shape still
   brings in missing Bases first. Later, `del Base[agent]` ends only that
   Base's membership and runs its teardowns; the Shape stays, with acquired

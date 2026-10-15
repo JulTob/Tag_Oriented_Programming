@@ -339,6 +339,9 @@ assert ari.Elf.Attack() == "With elven grace, Attack!"
 
 `@Underlay` hands you the Action as it was just before yours. It is captured
 when the Tag applies and never changes, so every view stays true.
+If this is the first Action of that name, its Underlay is a callable null
+Action: `underlay()` returns `None` and does nothing. Check that result if
+your new Action needs a value from the earlier one.
 
 `class Elf(Person)` makes Person a **Base** of Elf: applying Elf applies
 Person first. `Form(Elf)` lists that order; `f"{Elf:form}"` prints it.

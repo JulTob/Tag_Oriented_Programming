@@ -4,7 +4,7 @@ import unittest
 
 from TopKit import (Action, Delete, Imprint, Operation, Pin, Post,
                     Public, Record, Report, Secret, Tag, TagPostconditionError,
-                    TagResolutionError, Underlay)
+                    Underlay)
 
 
 class Host:
@@ -409,9 +409,10 @@ class ContributionPresenceTests(unittest.TestCase):
                 return underlay(operand)
 
         second = Derived()
-        with self.assertRaises(TagResolutionError):
-            RequiresUnderlay(second)
-        self.assertNotIn(second, RequiresUnderlay[:])
+        RequiresUnderlay(second)
+        self.assertIn(second, RequiresUnderlay[:])
+        self.assertIsNone(5 @ second)
+        self.assertFalse("absent" @ second)
 
     def test_a_nonstring_operand_without_a_matrix_operator_is_unsupported(self):
         class Marked(Tag):

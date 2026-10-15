@@ -8,7 +8,7 @@ from unittest import mock
 import TopKit.transactions as transactions
 from TopKit import (Action, Constant, Delete, Flag, Operation, Pin, Post, Pre,
                     Public, Record, Report, Rip, Secret, Tag,
-                    TagCompositionError, TagResolutionError, Tool, Underlay)
+                    TagCompositionError, Tool, Underlay)
 from TopKit.declarations import _invalidate_declarations
 from TopKit.state import _State, _state_of
 
@@ -48,7 +48,7 @@ class GainingPreflightTests(unittest.TestCase):
                 self.assertNotIn("earlier", agent.__dict__)
                 self.assertNotIn(agent, Arriving)
 
-    def test_a_missing_underlay_refuses_before_earlier_builders(self):
+    def test_a_missing_underlay_allows_earlier_builders_and_calls_null(self):
         built = []
 
         class Arriving(Tag):
@@ -62,11 +62,11 @@ class GainingPreflightTests(unittest.TestCase):
                 return underlay()
 
         agent = Host()
-        with self.assertRaises(TagResolutionError):
-            Arriving(agent)
-        self.assertEqual(built, [])
-        self.assertNotIn("earlier", agent.__dict__)
-        self.assertNotIn(agent, Arriving)
+        Arriving(agent)
+        self.assertEqual(built, ["earlier"])
+        self.assertEqual(agent.earlier, 1)
+        self.assertIsNone(agent.Work())
+        self.assertIn(agent, Arriving)
 
     def test_a_valid_underlay_composes_and_is_visible_to_the_next_builder(self):
         class WorkingHost:
@@ -159,6 +159,11 @@ class GainingPreflightTests(unittest.TestCase):
         class Sword:
             pass
 
+        class GuardedHost(Host):
+            @property
+            def blocked(self):
+                return "host value"
+
         class Equipped(Tag):
             @Tool(Sword)
             def weapon(agent, *, weapon):
@@ -176,11 +181,15 @@ class GainingPreflightTests(unittest.TestCase):
             def Missing(agent, underlay):
                 return underlay()
 
-        agent = Host()
+            @Record
+            def blocked(agent):
+                return "replacement"
+
+        agent = GuardedHost()
         sword = Sword()
         Equipped(agent, weapon=sword)
 
-        with self.assertRaises(TagResolutionError):
+        with self.assertRaises(TagCompositionError):
             Arriving(agent)
         self.assertEqual(built, [])
         self.assertIs(agent.weapon, sword)
@@ -210,12 +219,6 @@ def a_record_over_a_host_property():
     return "occupied", Record(lambda agent: 1), TagCompositionError, "host"
 
 
-def an_underlay_with_nothing_beneath():
-    def Missing(agent, underlay):
-        return underlay()
-    return "Missing", Underlay(Missing), TagResolutionError, "requires a visible Underlay"
-
-
 def a_record_over_an_independent_action():
     return ("taken_by_action", Record(lambda agent: 2), TagCompositionError,
             "is a Record but HasAction")
@@ -230,7 +233,6 @@ def an_action_over_an_independent_record():
 
 WAYS_TO_BE_REFUSED = (
     a_record_over_a_host_property,
-    an_underlay_with_nothing_beneath,
     a_record_over_an_independent_action,
     an_action_over_an_independent_record,
 )
