@@ -1288,12 +1288,16 @@ Agent becomes one when admitted; she receives membership and published
 lines, not the Pair's private Contributions. The kit never checks the
 linking Agent's membership or soundness: a Gate that cares says so.
 
-**The Pair** is reached only through the Link: `charlie.Knows[ruth]`,
-live, holding Records, Actions, conditions read by name, and secrets that
-resolve only inside the Link's own functions. On a Link this replaces the
-Agent-bound view of §1.7. `bool(charlie.Knows[ruth])` is the Pair's own
-contract. The Link's sound population, `contact in charlie.Knows` or
-`for contact in charlie.Knows`,
+**The Pair** is reached through a Link while that Link admits its Contact:
+`charlie.Knows[ruth]`, live, holding Records, Actions, conditions read by
+name, and secrets that resolve only inside the Link's own functions.
+The Link's own training and Rip can also read its Pair during their turn.
+An unfinished attempt keeps partial Pair Gains privately for retry; a
+Ripped Base Link has no fresh Pair view even when a Shape Link keeps the
+shared Pair. On a Link this replaces the Agent-bound view of §1.7.
+`bool(charlie.Knows[ruth])` is the Pair's own
+ contract. The Link's sound population, `contact in charlie.Knows` or
+ `for contact in charlie.Knows`,
 holds the Contacts whose own contract holds and whose Pair holds;
 `~charlie.Knows` the rest. A broken Pair never makes the Contact
 defective anywhere else. A Link marked `@Flag` answers its words on the

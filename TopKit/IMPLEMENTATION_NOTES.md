@@ -651,12 +651,12 @@ Tagging sequence or expand its rollback boundary.
 
   `_Family.Pair_Of` verifies Contact identity and also recognizes the
   held endpoint during teardown after cyclic collection clears weak
-  references. `_pair_of` currently returns any Pair still retained by
-  that family, not only an admitted Contact's Pair; this supports training
-  and cleanup reads. The public view policy for a retained failed attempt
-  remains a Director question, not a new ruling established by this
-  implementation note. A failed Gate that acquired nothing drops a newly
-  made Pair. A failed training attempt with Gains retains it for retry.
+  references. `_pair_of` resolves an ordinary Link view only while that
+  Link admits the Contact. A revocable context-local scope lets the
+  Link's own in-flight Pair training and teardown read it before Field
+  entry or after removal. A failed Gate that acquired nothing drops a newly
+  made Pair. A failed training attempt with Gains keeps the Pair privately
+  for retry, without making its Contact visible through `Link[contact]`.
   `_forget_pair` releases an unadmitted Pair when its Contact dies; an
   admitted Contact's hook keeps cleanup on its finalizer path.
 

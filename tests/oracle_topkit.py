@@ -1288,7 +1288,15 @@ def Assert_Links(
 
         for contact in knows[:]:
             pair = knows[contact]
-            assert pair is trusts[contact] or contact.name not in model.trusts, (context, "one Pair across the Form")
+            if contact.name in model.trusts:
+                assert pair is trusts[contact], (context, "one Pair across the Form")
+            else:
+                try:
+                    trusts[contact]
+                except TagResolutionError:
+                    pass
+                else:
+                    raise AssertionError((context, "unadmitted Link exposes a Pair"))
             assert pair.since == model.knows[contact.name], (context, "the Pair's since", holder_name, contact.name)
             assert (getattr(pair, "cover", None) is not None) is (contact.name in model.covered), (context, "completed Undercover Layer", holder_name, contact.name)
             assert Tags(contact) == Tags(contact), (context, "Tags readable")

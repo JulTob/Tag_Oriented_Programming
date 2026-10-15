@@ -349,7 +349,9 @@ def Run() -> None:
     pair = cora.Trusts[rue]
     del cora.Knows[rue]
     assert rue not in cora.Knows and rue in cora.Trusts[:]
-    assert cora.Knows[rue] is pair and cora.Trusts[rue] is pair
+    try: cora.Knows[rue]; raise SystemExit("a Ripped Link has no Pair view")
+    except TagResolutionError: pass
+    assert cora.Trusts[rue] is pair
     del cora.Trusts[rue]
     assert rue not in cora.Knows and isinstance(rue, cora.Knows)
     try: cora.Knows = 1; raise SystemExit("a held Link is read-only")
