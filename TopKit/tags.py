@@ -174,10 +174,18 @@ class MetaTag(type):
                     candidate,
                     )
 
+        state = _state_of(candidate)
         field = _field_of(tag)
+
+        if candidate not in field:
+            return False
+
+        if state is None or not state.postconditions:
+            # No Post ran after the Field check, so it needs no replay.
+            return True
+
         return (
-                candidate in field
-                and _holds_for_population(candidate)
+                _holds_for_population(candidate)
                 and candidate in field
                 )
 
