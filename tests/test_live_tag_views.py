@@ -100,6 +100,21 @@ class LiveTagViewTests(unittest.TestCase):
         Role(Receiver)
         self.assertEqual(saved.Work(), Role[Receiver].Work())
 
+    def test_nonstring_matrix_operands_keep_python_dispatch_after_rip(self):
+        class Role(Tag):
+            pass
+
+        agent = Host()
+        Role(agent)
+        saved = Role[agent]
+        del Role[agent]
+
+        self.assertIs(saved.__rmatmul__(object()), NotImplemented)
+        with self.assertRaises(TypeError):
+            object() @ saved
+        with self.assertRaises(TagResolutionError):
+            "Work" @ saved
+
 
 if __name__ == "__main__":
     unittest.main()

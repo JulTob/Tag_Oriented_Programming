@@ -656,14 +656,13 @@ class _Tag_View:
             ) -> bool:
         """Ask about Contributions at this Tag's current view position."""
 
-        snapshot = view._snapshot
-
         if not issubclass(type(name), str):
             return NotImplemented
 
         from .presence import _namespace
 
         name = str.__str__(name)
+        snapshot = view._snapshot
 
         if _view_report_present(view, name, snapshot):
             return True
