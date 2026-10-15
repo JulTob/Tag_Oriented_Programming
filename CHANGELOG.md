@@ -25,6 +25,11 @@
   has any Gains, Imprint effects or Field entry still restores the Host's
   original bindings (#241).
 
+- **Successful Host subclass preparation:** if a Host's `__init_subclass__`
+  completes a nested Tagging while the outer Agent runtime is built, the
+  finished outer transition composes that Agent's current Post guards rather
+  than installing the earlier runtime (#282).
+
 - **Tagging preparation cost:** ordinary Action/Record declarations reuse
   the existing collision and Underlay checks without constructing a
   disposable Overlay. Tags with deletions, conditions, Secrets, special
