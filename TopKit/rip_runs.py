@@ -1,8 +1,7 @@
 """Private ledger and ordered retry for unfinished Rip work.
 
-No public Rip path uses this module yet. The lifecycle supplies the actual
-membership revocation and teardown invocation when Safehouse is activated.
-The ledger is sequential; concurrent saves and retries need a separate
+The lifecycle supplies membership revocation and teardown invocation. The
+ledger is sequential; concurrent saves and retries need a separate
 STEP-32 task-safety ruling before they can share an Agent.
 """
 
@@ -90,12 +89,16 @@ def _retry_arrested(
         agent: object,
         revoke: Callable[[_RipRun], None],
         invoke: Callable[[_RipRun, str, Any], None],
+        *,
+        defer_running: bool = False,
         ) -> object:
     """Drain live saved runs in order, including work created during retry.
 
     The caller supplies ordinary TOP membership revocation and Rip calling.
     A revocation that is interrupted must be safe to resume from its last
-    boundary. The run remains held until all its teardowns complete.
+    boundary. The run remains held until all its teardowns complete. When a
+    Rip callback itself requests root retry, defer its currently running
+    step until that callback returns, without skipping earlier saved work.
     """
 
     if _arrest_of(agent) is None:
@@ -103,36 +106,57 @@ def _retry_arrested(
 
     while (arrest := _arrest_of(agent)) is not None:
         run = arrest.runs[0]
+        # A Rip callback may request the root retry. Its own unfinished
+        # step cannot run again until that callback returns. Keep the
+        # ordered ledger in place and let the outer call resume it.
+        if defer_running and run.running:
+            return agent
+        _run_saved(agent, run, revoke, invoke)
 
-        if run.running:
-            raise TagCompositionError(
-                    f"{_tag_name(run.tag)} teardown is already running"
-                    )
+    return agent
 
-        run.running = True
 
-        try:
+def _run_saved(
+        agent: object,
+        run: _RipRun,
+        revoke: Callable[[_RipRun], None],
+        invoke: Callable[[_RipRun, str, Any], None],
+        ) -> object:
+    """Finish one chosen run, even when older work is also pending.
+
+    An explicit Rip can perform its own new work before retrying older
+    arrests. The root retry uses this same primitive in ledger order.
+    """
+
+    if run.running:
+        raise TagCompositionError(
+                f"{_tag_name(run.tag)} teardown is already running"
+                )
+
+    run.running = True
+
+    try:
+        with _rip_door(agent):
             if not run.revoked:
                 revoke(run)
                 run.revoked = True
 
-            with _rip_door(agent):
-                while run.cursor < len(run.teardowns):
-                    name, teardown = run.teardowns[run.cursor]
+            while run.cursor < len(run.teardowns):
+                name, teardown = run.teardowns[run.cursor]
 
-                    try:
-                        invoke(run, name, teardown)
-                    except Exception as error:
-                        raise TagCompositionError(
-                                f"{_tag_name(run.tag)} teardown failed in:"
-                                f" {str.__str__(name)};"
-                                " the Agent is arrested"
-                                ) from error
+                try:
+                    invoke(run, name, teardown)
+                except Exception as error:
+                    raise TagCompositionError(
+                            f"{_tag_name(run.tag)} teardown failed in:"
+                            f" {str.__str__(name)};"
+                            " the Agent is arrested"
+                            ) from error
 
-                    run.cursor += 1
-        finally:
-            run.running = False
+                run.cursor += 1
+    finally:
+        run.running = False
 
-        _finish_run(agent, run)
+    _finish_run(agent, run)
 
     return agent

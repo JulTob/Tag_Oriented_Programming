@@ -8,14 +8,15 @@ from inspect import Signature
 import unittest
 import warnings
 from typing import Any
+from unittest.mock import patch
 
 from TopKit import Pin
 from TopKit import Record
 from TopKit import Rip
 from TopKit import Tag
 from TopKit import TagCompositionError
-from TopKit import TagResolutionError
 from TopKit import Underlay
+from TopKit.arrest import _safehouse
 from TopKit.lifecycle import _teardown_all
 
 
@@ -28,12 +29,18 @@ def _target(pinned: bool) -> object:
 
 
 class RipDiagnosticTests(unittest.TestCase):
-    def test_callable_failures_keep_the_cause_and_run_later_cleanup(self) -> None:
+    def setUp(self) -> None:
+        empty_ledger = patch.dict(_safehouse, clear=True)
+        empty_ledger.start()
+        self.addCleanup(empty_ledger.stop)
+
+    def test_callable_failures_keep_the_cause_and_save_later_cleanup(self) -> None:
         for pinned in (False, True):
             for hostile_metadata in (False, True):
                 with self.subTest(pinned=pinned, hostile_metadata=hostile_metadata):
                     events = []
                     original = RuntimeError("cleanup failed")
+                    ready = False
 
                     class Failing:
                         # Pin still inspects its seats; Python need not infer this
@@ -49,7 +56,8 @@ class RipDiagnosticTests(unittest.TestCase):
 
                         def __call__(self, agent: object) -> None:
                             events.append("first")
-                            raise original
+                            if not ready:
+                                raise original
 
                     class Closing(Tag):
                         First = Rip(Failing())
@@ -66,28 +74,35 @@ class RipDiagnosticTests(unittest.TestCase):
                     with self.assertRaises(TagCompositionError) as failure:
                         del Closing[target]
 
-                    self.assertEqual(str(failure.exception), "Closing teardown failed in: First")
+                    self.assertIn("Closing teardown failed in: First", str(failure.exception))
                     self.assertIs(failure.exception.__cause__, original)
-                    self.assertEqual(events, ["first", "later"])
+                    self.assertEqual(events, ["first"])
                     self.assertNotIn(target, Closing)
                     self.assertNotIn(target, Closing[:])
+                    self.assertIn(target, Closing[...])
 
-                    with self.assertRaises(TagResolutionError):
-                        del Closing[target]
+                    ready = True
+                    del Closing[target]
+                    self.assertEqual(events, ["first", "first", "later"])
+                    self.assertNotIn(target, Closing[...])
                     _teardown_all(target)
-                    self.assertEqual(events, ["first", "later"])
+                    self.assertEqual(events, ["first", "first", "later"])
 
     def test_aliased_functions_report_declaration_names_in_order(self) -> None:
         events = []
         original = RuntimeError("first failure")
+        first_ready = False
+        second_ready = False
 
         def Implementation(agent: object) -> None:
             events.append("first")
-            raise original
+            if not first_ready:
+                raise original
 
         def Other_Implementation(agent: object) -> None:
             events.append("second")
-            raise ValueError("second failure")
+            if not second_ready:
+                raise ValueError("second failure")
 
         class Closing(Tag):
             First = Rip(Implementation)
@@ -102,9 +117,19 @@ class RipDiagnosticTests(unittest.TestCase):
         with self.assertRaises(TagCompositionError) as failure:
             del Closing[target]
 
-        self.assertEqual(str(failure.exception), "Closing teardown failed in: First, Second")
+        self.assertIn("Closing teardown failed in: First", str(failure.exception))
         self.assertIs(failure.exception.__cause__, original)
-        self.assertEqual(events, ["first", "second", "later"])
+        self.assertEqual(events, ["first"])
+
+        first_ready = True
+        with self.assertRaises(TagCompositionError) as second_failure:
+            del Closing[target]
+        self.assertIn("Closing teardown failed in: Second", str(second_failure.exception))
+        self.assertEqual(events, ["first", "first", "second"])
+
+        second_ready = True
+        del Closing[target]
+        self.assertEqual(events, ["first", "first", "second", "second", "later"])
         self.assertEqual(Implementation.__name__, "Implementation")
         self.assertEqual(Other_Implementation.__name__, "Other_Implementation")
 
@@ -116,9 +141,13 @@ class RipDiagnosticTests(unittest.TestCase):
                     with self.subTest(pinned=pinned, kind=kind):
                         events = []
                         returned = []
+                        ready = False
 
                         class Lazy:
                             def __call__(self, agent: object) -> Any:
+                                if ready:
+                                    return None
+
                                 async def Coroutine():
                                     events.append("started")
 
@@ -158,12 +187,18 @@ class RipDiagnosticTests(unittest.TestCase):
                         self.assertIsInstance(cause, TagCompositionError)
                         self.assertIn("Rip protocol 'First' returned", str(cause))
                         self.assertIn(kind, str(cause))
-                        self.assertEqual(events, ["later"])
+                        self.assertEqual(events, [])
                         self.assertNotIn(target, Closing[:])
+                        self.assertIn(target, Closing[...])
                         if kind == "coroutine":
                             self.assertIsNone(returned[0].cr_frame)
                         elif kind == "generator":
                             self.assertIsNone(returned[0].gi_frame)
+
+                        ready = True
+                        del Closing[target]
+                        self.assertEqual(events, ["later"])
+                        self.assertNotIn(target, Closing[...])
 
             gc.collect()
         self.assertFalse(any("was never awaited" in str(item.message) for item in caught))
@@ -272,7 +307,8 @@ class RipDiagnosticTests(unittest.TestCase):
                 self.assertEqual(events, ["caught"])
                 self.assertIsNone(returned[0].gi_frame)
                 self.assertNotIn(target, Shape)
-                self.assertIn(target, Base)
+                self.assertIn(target, Base[:])
+                self.assertNotIn(target, Base)   # arrest is separate from soundness
 
                 # A captured Underlay is not a teardown after the Rip guard closes.
                 values = captured[0]()
@@ -377,7 +413,8 @@ class RipDiagnosticTests(unittest.TestCase):
                 self.assertIs(cause.__cause__, original)
                 self.assertIn("Rip protocol 'Close' returned a lazy result", str(cause))
                 self.assertIn("Unprintable: <exception text unavailable>", str(cause))
-                self.assertEqual(events, ["caught", "later"])
+                self.assertEqual(events, ["caught"])
+                self.assertIn(target, Shape[...])
                 self.assertIsNone(value.gi_frame)
                 self.assertNotIn(target, Shape[:])
 

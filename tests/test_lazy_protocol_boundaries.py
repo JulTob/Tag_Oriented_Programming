@@ -4,9 +4,11 @@ import gc
 import types
 import unittest
 import warnings
+from unittest.mock import patch
 
 from TopKit import (Imprint, Pin, Post, Pre, Rip, Tag, TagCompositionError,
                     TagContractError, Underlay)
+from TopKit.arrest import _safehouse
 
 
 class Host:
@@ -18,6 +20,11 @@ def target_for(pinned):
 
 
 class LazyProtocolBoundaryTests(unittest.TestCase):
+    def setUp(self):
+        empty_ledger = patch.dict(_safehouse, clear=True)
+        empty_ledger.start()
+        self.addCleanup(empty_ledger.stop)
+
     def check_ordinary_result(self, mark, pinned, advertised):
         calls = []
 
@@ -164,7 +171,8 @@ class LazyProtocolBoundaryTests(unittest.TestCase):
         with self.assertRaises(TagCompositionError) as raised:
             del shape[target]
         self.assertNotIn(target, shape)
-        self.assertIn(target, base)
+        self.assertIn(target, base[:])
+        self.assertNotIn(target, base)
         failure = raised.exception.__cause__
         self.assertIsInstance(failure, TagCompositionError)
         self.assertEqual(caught, [failure])

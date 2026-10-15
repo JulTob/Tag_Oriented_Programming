@@ -107,13 +107,26 @@ def _may_act(agent: object) -> bool:
 
 
 def _require_available(agent: object, act: str) -> None:
-    """Refuse a TOP act while this Agent has unfinished Rip work.
+    """Retry unfinished Rip work before an arrested Agent answers an act."""
 
-    Public Rip activation will first retry that work, then use this same
-    boundary to decide whether the requested act may proceed.
-    """
+    if _may_act(agent):
+        return
 
-    if not _may_act(agent):
+    # Import lazily: lifecycle opens this same door while invoking a Rip.
+    from .lifecycle import _retry_arrested
+
+    try:
+        _retry_arrested(agent)
+    except Exception as failure:
+        # The public denial names the original failing Rip callback as its
+        # cause. The intermediate composition error remains in __context__.
+        cause = failure.__cause__ if failure.__cause__ is not None else failure
         raise TagArrestedAccessError(
-                f"{act} is unavailable: this Agent has unfinished Rip work"
+                f"{act} is unavailable: the Agent is arrested;"
+                " its saved Rip protocol failed again"
+                ) from cause
+
+    if _arrest_of(agent) is not None:
+        raise TagArrestedAccessError(
+                f"{act} is unavailable: the Agent remains arrested"
                 )
