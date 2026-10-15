@@ -19,7 +19,7 @@ The later Director decisions below do not clear the whole STEP.
 
 This recovered **Brief** preserves the recorded ordinary explicit-Rip/Field-Rip decisions and #77's limits. Current [Rip](https://github.com/JulTob/Tag_Oriented_Programming/blob/fcea45fd2535594fd82f54aee2af7e815e98e0ca/TopKit/lifecycle.py) ends an allowed membership, consumes its teardown ledger, attempts all teardowns despite ordinary failures, then reports those failures. It has no Safehouse, arrested-act interception or ordered retry. [#36](https://github.com/JulTob/Tag_Oriented_Programming/issues/36) tracks the proposed replacement; do not port the historical S19 rollback implementation.
 
-The historical “Open questions” section has 17 numbered entries, not 17 undecided questions. Entries 1, 2, 4 and 5 record the Director's earlier decisions; entry 3 settles the failure's name while leaving its classification and cause open. The dated decisions below supersede parts of entries 6, 8, 14, 16 and 17. The other recommendations and unresolved choices remain open. None of these decisions clears the whole Brief or makes its historical implementation plan current.
+The historical “Open questions” section has 17 numbered entries, not 17 undecided questions. Entries 1, 2, 4, 5 and 9 record the Director's earlier decisions; entry 11 confirms `TagArrestedAccessError`, while entry 3 leaves its failure classification and cause open. Historical rule 4 already treats host member reads, host method calls and display as acts by an arrested Agent. The dated decisions below supersede parts of entries 6, 8, 14, 16 and 17. The remaining recommendations and unresolved choices stay open. None of these decisions clears the whole Brief or makes its historical implementation plan current.
 
 Separate membership, pending cleanup obligations and retention before implementation. Agent deletion, Tag collection, Pins/Links, interpreter exit, bulk retry and concurrent access remain within the listed open questions, not extensions already settled by the explicit-Rip decision. The later rulings below settle the specified reapplication, cross-member and interruption boundaries for [whole-Field cleanup](https://github.com/JulTob/Tag_Oriented_Programming/issues/35).
 
@@ -59,8 +59,8 @@ Question 6's proposal to exclude an arrested Agent from both sound and defective
 These decisions do not settle automatic Agent deletion, forced triage,
 automatic Tag finalization, Pin and Link teardown, concurrent access, or
 the exact Python interception of acts by an arrested Agent. The historical
-act-triggered retry rule remains recorded below; its host-method and
-captured-handle boundaries still need implementation review. If an Agent
+act-triggered retry rule remains recorded below; the Python mechanics for
+host methods and captured handles still need implementation review. If an Agent
 has both orphaned work and a separate live membership in root `Tag`, the
 precedence of `del Tag[agent]` between retry and Rip remains under review.
 
