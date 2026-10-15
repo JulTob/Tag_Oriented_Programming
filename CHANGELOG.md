@@ -19,6 +19,15 @@
 
 ### TopKit
 
+- **Saved Tag Operations obey Safehouse custody (#250):** an ordinary
+  `@Operation` handle captured before a Pin or arrest checks its Tag before
+  and after each call, including calls through `@Public` on an Agent.
+  Generator and coroutine results check again at each continuation, even
+  when created before the Tag became an Agent. Handles retain their original
+  callable, receiver, bound signature and method equality. Native async
+  generator results are refused until their finalization path is settled
+  in #243.
+
 - **Sound membership:** `agent in Tag` now asks whether the Agent is still
   in that Field and its visible Posts hold, matching `for agent in Tag`.
   `agent in Tag[:]` asks for raw Field membership, including defective
@@ -29,7 +38,6 @@
   than a strong Host reference. Transient Host/Agent cycles can collect,
   distinct Hosts with custom equality cannot share the wrong runtime type,
   and equivalent Agents of one Host still share their runtime type.
-
 - **Tagging preparation cost:** ordinary Action/Record declarations reuse
   the existing collision and Underlay checks without constructing a
   disposable Overlay. Tags with deletions, conditions, Secrets, special

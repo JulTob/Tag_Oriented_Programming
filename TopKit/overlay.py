@@ -27,6 +27,7 @@ from .constants import _refuse_constant
 from .declarations import _Declarations
 from .declarations import _ACTION_CHAIN
 from .declarations import _action_chain
+from .declarations import _call_tag_operation
 from .declarations import _discard_lazy_result
 from .declarations import _is_flag
 from .declarations import _lazy_rip_guard
@@ -270,7 +271,8 @@ def _adapter(
                 "Operation",
                 )
 
-        return operation(
+        return _call_tag_operation(
+                operation,
                 tag,
                 agent,
                 *args,
