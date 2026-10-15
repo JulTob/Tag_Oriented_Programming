@@ -416,8 +416,9 @@ Tagging sequence or expand its rollback boundary.
   descriptor that runs its builder once per Tag on first read and caches
   the value per Tag (weakly). `Tag.r += 1` replaces the descriptor with a
   plain value on that class, which is the documented counter pattern.
-  Agent-bound Tag views keep the Tag's Report binding but read its current
-  value; Actions, Records and Operations keep their captured view position.
+  Agent-bound Tag views require current membership to read the Tag's
+  Report binding and current value; Actions, Records and Operations keep
+  their captured view position.
   A published Report also reads live through the Agent.
 - **Failures name their check.** `TagPreconditionError`,
   `TagImprintError` and `TagPostconditionError` use the `_Named`

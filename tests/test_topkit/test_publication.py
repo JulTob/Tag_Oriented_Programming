@@ -407,7 +407,7 @@ class PublicationTests(unittest.TestCase):
             captured.mark
         self.assertFalse("mark" @ captured)
 
-    def test_a_ripped_agent_keeps_its_existing_report_view(self) -> None:
+    def test_a_ripped_agent_loses_report_view_until_retagging(self) -> None:
         class Source(Tag):
             @Public
             @Report
@@ -420,6 +420,11 @@ class PublicationTests(unittest.TestCase):
         del Source[agent]
         Source.mark = "current"
 
+        with self.assertRaises(AttributeError):
+            captured.mark
+        self.assertFalse("mark" @ captured)
+
+        Source(agent)
         self.assertEqual(captured.mark, "current")
         self.assertTrue("mark" @ captured)
 

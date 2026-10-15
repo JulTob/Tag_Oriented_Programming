@@ -511,12 +511,17 @@ def _view_report_present(
         ) -> bool:
     """A Report belongs to the Tag being searched, at its current value.
 
-    The captured binding survives value writes, but not deletion. A new
-    Report declaration or a Pin Record can also appear after the view was
-    captured; neither changes the captured Action and Record stack.
+    The Agent must still belong to the Tag. A new Report declaration or
+    Pin Record can appear after the view was captured; neither changes
+    its captured Action and Record stack.
     """
 
     tag = view._tag
+    state = _state_of(view._agent)
+
+    if state is None or not any(active is tag for active in state.active):
+        return False
+
     member = _class_namespace(tag).get(name, _MISSING)
 
     if member is _MISSING:
@@ -528,14 +533,6 @@ def _view_report_present(
             and entry[0] is tag
             and _report_epochs(tag, name)[1] == entry[1]
             )
-
-    if not existing:
-        state = _state_of(view._agent)
-
-        if state is None or not any(active is tag for active in state.active):
-            # A captured view cannot acquire names added after its Agent
-            # left this Field; an old captured Report keeps its binding.
-            return False
 
     if isinstance(member, declarations.Report):
         return True
