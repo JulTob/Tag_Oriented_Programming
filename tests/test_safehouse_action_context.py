@@ -55,6 +55,63 @@ class SafehouseActionContextTests(unittest.TestCase):
         ready = True
         del Tag[agent]
 
+    def test_top_exit_first_arrest_surfaces_rip_over_body_error(self) -> None:
+        class Context(Tag):
+            @Action
+            def __enter__(agent):
+                return agent
+
+            @Action
+            def __exit__(agent, kind, value, traceback):
+                del Custody[agent]
+
+        class Custody(Tag):
+            @Rip
+            def Leave(agent):
+                raise RuntimeError("rip failed")
+
+        agent = type("Host", (), {})()
+        Context(agent)
+        Custody(agent)
+
+        with self.assertRaises(TagCompositionError) as caught:
+            with agent:
+                raise ValueError("body failed")
+
+        self.assertIsInstance(caught.exception.__cause__, RuntimeError)
+        self.assertIn(agent, Tag[...])
+
+    def test_async_top_exit_cannot_hide_its_caught_first_rip_failure(self) -> None:
+        class Context(Tag):
+            @Action
+            async def __aenter__(agent):
+                return agent
+
+            @Action
+            async def __aexit__(agent, kind, value, traceback):
+                try:
+                    del Custody[agent]
+                except TagCompositionError:
+                    return True
+
+        class Custody(Tag):
+            @Rip
+            def Leave(agent):
+                raise RuntimeError("rip failed")
+
+        agent = type("Host", (), {})()
+        Context(agent)
+        Custody(agent)
+
+        async def Scenario() -> None:
+            with self.assertRaises(TagArrestedAccessError) as caught:
+                async with agent:
+                    pass
+            self.assertIsInstance(caught.exception.__cause__, RuntimeError)
+
+        asyncio.run(Scenario())
+        self.assertIn(agent, Tag[...])
+
     def test_host_entry_and_top_exit_share_one_cleanup_entry(self) -> None:
         events = []
 
@@ -309,7 +366,8 @@ class SafehouseActionContextTests(unittest.TestCase):
             with self.assertRaises(TagCompositionError):
                 del Context[agent]
             finish.set()
-            await task
+            with self.assertRaises(TagArrestedAccessError):
+                await task
 
         asyncio.run(Scenario())
         self.assertEqual(events, ["exit started", ("exit finished", "open")])
