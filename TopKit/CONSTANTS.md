@@ -3,7 +3,7 @@
 `@Constant` fixes a Contribution's binding. A Record keeps its initialized
 value; an Action or Operation keeps its implementation; a Post keeps its
 promise. A Constant Report belongs to its declaring Tag. Applying a Shape
-also applies that Base to the Agent; the Shape itself does not inherit the
+also applies that Base to the Agent; the Shape itself does not acquire the
 Report as a direct Tag member.
 
 Constant protects the binding, not everything inside the value. It also

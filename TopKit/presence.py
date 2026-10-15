@@ -74,9 +74,9 @@ def _present(
         # otherwise find a Base's Report or Operation, even when this
         # Shape does not own it.
         from .tags import MetaTag
-        from .tags import _inherited_tag_member
+        from .tags import _base_tag_member
         if (issubclass(type(agent), MetaTag)
-                and _inherited_tag_member(agent, name)):
+                and _base_tag_member(agent, name)):
             return False
 
     if state is not None and name in state.secrets:

@@ -414,12 +414,12 @@ Tagging sequence or expand its rollback boundary.
   key gates both. The gate reads the Agent's own value first, so it is
   harmless for the stored Layer and it keeps a host property of that name
   hidden. A type rebuilt later for another reason keeps it.
-- **Reports are builders.** `@Report def r(tag[, inherited])` is a
+- **Reports are builders.** `@Report def r(tag[, base_value])` is a
   descriptor that runs its builder once on its declaring Tag on first read
   and caches that Tag's value weakly. A Shape's own Report may explicitly
-  ask for a Base's value through `inherited`. `Tag.r += 1` replaces the
-  descriptor with a plain value on that class, which is the documented
-  counter pattern.
+  link to a Base Report through that optional second input. `Tag.r += 1`
+  replaces the descriptor with a plain value on that class, which is the
+  documented counter pattern.
   Views snapshot the computed value; a published Report reads live.
 - **Failures name their check.** `TagPreconditionError`,
   `TagImprintError` and `TagPostconditionError` use the `_Named`
@@ -445,7 +445,7 @@ Tagging sequence or expand its rollback boundary.
   optional introspection cannot prevent reading or calling an accepted
   callable. A landed Record is held by a small descriptor in the pinned
   Tag's class dictionary: it returns the stored value on that Tag and
-  refuses an inherited read from a Shape. `_scan` skips
+  refuses a Shape read of that Base-owned value. `_scan` skips
   names the class state manages, so a pinned Tag never projects them onto
   its Agents. The Tag's own Operations and Reports are host members to a
   Pin (`_pinned_host_function`, `_pinned_stored`); its Agent-scope names

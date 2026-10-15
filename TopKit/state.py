@@ -181,7 +181,7 @@ def _is_composing(
 
 
 class _Pinned_Value:
-    """A Pin Record kept on its receiving Tag, never inherited by Shapes."""
+    """A Pin Record kept on its receiving Tag, not given to Shapes."""
 
     __slots__ = ("value", "owner")
 

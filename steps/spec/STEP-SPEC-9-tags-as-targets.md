@@ -12,14 +12,14 @@
 > STEP.
 
 > **Later scope ruling (2026-10-15).** The Director clarified that a Shape
-> does not directly inherit a Base's Reports or Operations, including
-> Contributions a Pin landed on that Base. The direct-Shape inheritance
-> language in §3, the rationale and validation below records the earlier
+> does not directly acquire a Base's Reports or Operations, including
+> Contributions a Pin landed on that Base. The earlier direct-Shape access
+> language in §3, the rationale and validation below record the earlier
 > implementation and is superseded for direct Tag reads. A Pin applied to
 > the Shape gives the Shape its own Contributions. Applying a Shape still
 > applies its Bases to an Agent, so the Agent and its Tag-bound Overlay view
 > can reach their Contributions. A non-Constant Shape Report can explicitly
-> read a Base Report through its `inherited` builder input.
+> link to a Base Report through its optional second builder input.
 
 ## Summary
 

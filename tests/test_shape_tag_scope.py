@@ -92,8 +92,8 @@ class ShapeTagScopeTests(unittest.TestCase):
 
         class Shape(Base):
             @Report
-            def traits(tag, inherited):
-                return inherited + ["armoured"]
+            def traits(tag, base_value):
+                return base_value + ["armoured"]
 
             @Operation
             def Name(tag):

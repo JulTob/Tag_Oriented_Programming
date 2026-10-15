@@ -118,7 +118,7 @@ def _metaclass_data_member(tag: type, name: str) -> bool:
     return False
 
 
-def _inherited_tag_member(
+def _base_tag_member(
         tag: type,
         name: str,
         ) -> bool:

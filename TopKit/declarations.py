@@ -699,12 +699,12 @@ class Report:
         if _parameters_of(report.builder).positional >= 2:
             return report.builder(
                     owner,
-                    report._inherited(owner),
+                    report._base_report_value(owner),
                     )
 
         return report.builder(owner)
 
-    def _inherited(
+    def _base_report_value(
             report,
             owner: type,
             ) -> Any:

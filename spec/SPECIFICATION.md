@@ -696,7 +696,7 @@ take the Agent. The four kinds are one pattern, two scopes:
 | | behaviour | data |
 | --- | --- | --- |
 | **Agent** | `@Action def f(agent, ...)` | `@Record def r(agent, stored)` |
-| **Tag** | `@Operation def f(tag, ...)` | `@Report def r(tag, inherited)` |
+| **Tag** | `@Operation def f(tag, ...)` | `@Report def r(tag, base_value)` |
 
 ```python
 class Community(Tag):
@@ -715,7 +715,7 @@ Community.Greet("Ari")      # "Community:Ari"
 
 An ordinary Report builder runs once on its declaring Tag, on first read,
 and its value is held on that Tag: one copy for its whole Field. A Shape
-does not inherit a Base's Report or Operation in its own dotted namespace.
+does not acquire a Base's Report or Operation in its own dotted namespace.
 `Base.report` belongs to Base; `Shape.report` is absent unless Shape
 declares that name itself. Applying Shape still applies Base first, so the
 Agent may reach Base's shared members through `Base[agent]` or publication.
@@ -1097,7 +1097,7 @@ member is the pinned Tag; write it `tag`. A Pin's Record lands as a
 Report of the pinned Tag: one value, held on that Tag. A Pin's Action lands
 as an Operation of the pinned Tag. Neither is directly read from a Shape
 unless that Shape receives its own Pin gain. A Shape's own Report may use
-the explicit `inherited` seat to calculate from its Base's Report (§1.4).
+an explicit second builder input that links to its Base's Report (§1.4).
 Membership does not inherit: `War_Caster in Rare` is False until
 `Rare(War_Caster)`. Nothing a Pin lands is ever projected onto the Tag's
 Agents. A Pin's own Operations and Reports stay on the Pin.

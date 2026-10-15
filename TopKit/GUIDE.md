@@ -736,9 +736,10 @@ except Postcondition.Has_Oath:          # the refusal names what is broken
 Notice the symmetry. A Report is written exactly like a Record, with the
 Tag instead of the Agent as its first input; it runs once on its declaring
 Tag and its value is shared by that Tag's Field. A Shape does not directly
-inherit a Base's Report or Operation. The Shape's own
-`def hit_die(tag, inherited)` can explicitly calculate from the Base's
-Report, as `def spells(agent, stored)` calculates from stored Agent data.
+acquire a Base's Report or Operation. The Shape's own
+`def hit_die(tag, base_value)` can explicitly link to the Base's Report
+when it calculates its own value, as `def spells(agent, stored)` uses
+stored Agent data.
 
 A Constant Report initializes once on its declaring Tag. Applying a Shape
 first applies that Base to the Agent, so the Agent may still reach the
@@ -1081,7 +1082,7 @@ for tag in Rare:                            # walk the rare Tags
 Notice the first parameter is `tag`, because the receiver is a Tag. What
 a Pin gives lands on the Tag the way a Report or an Operation does: one
 value shared by that Tag's Field and never on the Tag's Agents. A Shape
-does not directly inherit it; pin the Shape separately when it needs its
+does not directly acquire it; pin the Shape separately when it needs its
 own Report or Operation.
 
 A Pin can also **patch** what a Tag shares. Say a Tag has an Operation
