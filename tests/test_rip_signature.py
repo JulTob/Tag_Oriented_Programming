@@ -113,8 +113,8 @@ class RipSignatureTests(unittest.TestCase):
 
                 @Pin
                 class Base(Tag):
-                    def Finish(tag, *extras):
-                        events.append(("base", len(extras)))
+                    def Finish(tag):
+                        events.append("base")
 
                 if with_originals:
                     def Added(tag, prior, originals):
@@ -135,9 +135,74 @@ class RipSignatureTests(unittest.TestCase):
 
                 Shape(Target)
                 del Shape[Target]
-                self.assertEqual(events, [("base", int(with_originals)), "added"])
+                self.assertEqual(events, ["base", "added"])
                 self.assertEqual(Target.colour,
                                  "original" if with_originals else "original-patched")
+
+    def test_originals_reach_only_the_selected_rip_in_a_nested_chain(self):
+        events = []
+
+        class Target(Tag):
+            colour = "original"
+
+        @Pin
+        class Base(Tag):
+            @Rip
+            def Finish(tag):
+                events.append("base")
+
+        class Middle(Base):
+            @Rip
+            @Underlay
+            def Finish(tag, prior):
+                prior()
+                events.append("middle")
+
+        class Shape(Middle):
+            @Record
+            def colour(tag, stored):
+                return stored + "-patched"
+
+            @Rip
+            @Underlay
+            def Finish(tag, prior, originals):
+                prior()
+                tag.colour = originals.colour
+                events.append("shape")
+
+        Shape(Target)
+        del Shape[Target]
+        self.assertEqual(events, ["base", "middle", "shape"])
+        self.assertEqual(Target.colour, "original")
+
+    def test_direct_action_arguments_still_reach_the_underlay(self):
+        events = []
+
+        class Target(Tag):
+            pass
+
+        @Pin
+        class Base(Tag):
+            @Rip
+            def Finish(tag, *extras):
+                events.append(("base", extras))
+
+        class Shape(Base):
+            @Rip
+            @Underlay
+            def Finish(tag, prior, extra):
+                prior()
+                events.append(("shape", extra))
+
+        Shape(Target)
+        Target.Finish("direct")
+        self.assertEqual(events, [("base", ("direct",)), ("shape", "direct")])
+
+        del Shape[Target]
+        self.assertEqual(events[2][0], "base")
+        self.assertEqual(events[2][1], ())
+        self.assertEqual(events[3][0], "shape")
+        self.assertEqual(events[3][1].__class__.__name__, "_Originals")
 
     def test_state_copy_keeps_the_selected_rip_declaration(self):
         events = []
