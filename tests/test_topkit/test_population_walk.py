@@ -233,6 +233,17 @@ class PopulationWalkTests(unittest.TestCase):
                 self.assertEqual(answer, expected)
                 self.assertEqual(checks, [pair[0]])
 
+    def test_sound_membership_ignores_an_unrelated_host_namespace(self) -> None:
+        class Wizard(Tag):
+            pass
+
+        class Unrelated:
+            @property
+            def __dict__(self):
+                raise RuntimeError("not an Agent's namespace")
+
+        self.assertNotIn(Unrelated(), Wizard)
+
     def test_a_sound_view_rechecks_membership_after_its_postcondition(self) -> None:
         ripping = [False]
 
