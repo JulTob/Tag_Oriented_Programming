@@ -1246,6 +1246,28 @@ _ASYNC_CONTEXT_ACTIONS = frozenset((
         "__aexit__",
         ))
 
+# These synchronous Python value protocols invoke an authored Action.  Name
+# lookup, attribute writes, construction, descriptors, and deferred protocols
+# are deliberately absent: opening their door could authorize the outside
+# request itself, or run before an Agent has state.
+_SYNC_PROTOCOL_ACTIONS = frozenset((
+        "__str__", "__repr__", "__format__", "__bytes__", "__hash__",
+        "__lt__", "__le__", "__eq__", "__ne__", "__gt__", "__ge__",
+        "__call__", "__len__", "__length_hint__", "__getitem__",
+        "__setitem__", "__delitem__", "__iter__", "__next__",
+        "__reversed__", "__contains__", "__fspath__", "__int__",
+        "__float__", "__complex__", "__index__", "__round__",
+        "__trunc__", "__floor__", "__ceil__", "__neg__", "__pos__",
+        "__abs__", "__invert__", "__divmod__", "__rdivmod__",
+        )) | frozenset(
+        f"__{prefix}{operation}__"
+        for operation in (
+                "add", "sub", "mul", "matmul", "truediv", "floordiv",
+                "mod", "pow", "lshift", "rshift", "and", "xor", "or",
+                )
+        for prefix in ("", "r", "i")
+        )
+
 
 def _context_action(
         name: str,
@@ -1318,6 +1340,30 @@ def _context_action(
     return Context
 
 
+def _sync_protocol_action(function: Function) -> Function:
+    """Open an authored synchronous value protocol's composition door.
+
+    A runtime instance can exist before its first Tagging.  Its hook keeps
+    its old behavior until TOP has installed state on that instance.
+    """
+
+    @wraps(function)
+    def Protocol(agent: object, *args: Any, **kwargs: Any) -> Any:
+        state = _state_of(agent)
+
+        if state is None:
+            return function(agent, *args, **kwargs)
+
+        state.composing += 1
+
+        try:
+            return function(agent, *args, **kwargs)
+        finally:
+            state.composing -= 1
+
+    return Protocol
+
+
 def _runtime_dunder_actions(
         selected: dict[str, Function],
         ) -> dict[str, Function]:
@@ -1327,7 +1373,8 @@ def _runtime_dunder_actions(
             name: (
                     _context_action(name, function)
                     if name in _CONTEXT_ACTIONS
-                    else function
+                    else (_sync_protocol_action(function)
+                          if name in _SYNC_PROTOCOL_ACTIONS else function)
                     )
             for name, function in selected.items()
             }
