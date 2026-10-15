@@ -657,8 +657,6 @@ class _Bound:
                 *args,
                 **kwargs,
                 )
-        if _safehouse:
-            _require_available(agent, "Action")
         return _guard_lazy_result(result, agent, "Action", _require_available)
 
     @property
@@ -809,8 +807,6 @@ class _Pinned_Bound:
 
         try:
             result = bound._function(bound._owner, *args, **kwargs)
-            if _safehouse:
-                _require_available(bound._owner, "Operation")
             return _guard_lazy_result(
                     result, bound._owner, "Operation", _require_available
                     )
@@ -952,8 +948,6 @@ class _Composing_Bound(_Bound):
                     *args,
                     **kwargs,
                     )
-            if _safehouse:
-                _require_available(agent, "Action")
             return _guard_lazy_result(result, agent, "Action", _require_available)
         finally:
             state.composing -= 1
