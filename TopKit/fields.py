@@ -205,6 +205,10 @@ class _Combined(_Population):
         combined._right = right
         combined._operator = operator
         combined._label = f"{left._label} {operator} {right._label}"
+        combined._pure_fields = (
+                _pure_fields(left)
+                and _pure_fields(right)
+                )
 
     def __iter__(
             combined,
@@ -216,6 +220,15 @@ class _Combined(_Population):
             agent: object,
             ) -> bool:
         return _contains_combined(combined, agent)
+
+
+def _pure_fields(population: _Population) -> bool:
+    """This branch can only read raw Fields; evaluating it runs no Posts."""
+
+    return (
+            type(population) is _Field
+            or type(population) is _Combined and population._pure_fields
+            )
 
 
 def _uses_combined_method(population: _Population, name: str) -> bool:
@@ -246,8 +259,43 @@ def _contains_combined(combined: _Combined, agent: object) -> bool:
     """Evaluate membership with the same left-first short circuits, without
     borrowing Python's call stack for the expression's depth."""
 
+    if combined._pure_fields:
+        return _contains_pure_fields(combined, agent)
+
     verdict, _ = _probe_combined(combined, agent)
     return verdict
+
+
+def _contains_pure_fields(combined: _Combined, agent: object) -> bool:
+    """The original short-circuit path for branches with no user calls."""
+
+    pending: list[tuple[_Population | None, str]] = [
+            (combined._right, combined._operator),
+            ]
+    population: _Population = combined._left
+
+    while True:
+        while _uses_combined_method(population, "__contains__"):
+            pending.append((population._right, population._operator))
+            population = population._left
+
+        verdict = agent in population
+
+        while pending:
+            right, operator = pending.pop()
+
+            if right is None:
+                verdict = not verdict
+            elif operator == "|" and verdict or operator != "|" and not verdict:
+                continue
+            else:
+                if operator not in ("|", "&"):
+                    pending.append((None, "-"))
+
+                population = right
+                break
+        else:
+            return verdict
 
 
 def _positive_field(population: _Population) -> "_Field | None":
@@ -356,6 +404,7 @@ def _walk_combined(combined: _Combined) -> Iterator[object]:
 
     frames = [_Walk_Frame(combined)]
     population: _Population = frames[0].left
+    pure_fields = combined._pure_fields
 
     try:
         while True:
@@ -368,6 +417,24 @@ def _walk_combined(combined: _Combined) -> Iterator[object]:
             iterator = iter(population)
 
             for agent in iterator:
+                if pure_fields:
+                    for frame in reversed(frames):
+                        frame.agent = agent
+
+                        if frame.operator == "|":
+                            if not frame.on_right:
+                                frame.seen[id(agent)] = agent
+                            elif frame.seen.get(id(agent)) is agent:
+                                break
+                        elif (agent in frame.right) != (frame.operator == "&"):
+                            break
+                    else:
+                        yield agent
+
+                    agent = None
+                    frame = None
+                    continue
+
                 field = _positive_field(population)
                 evidence = [field] if field is not None else []
 

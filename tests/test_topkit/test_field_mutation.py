@@ -5,6 +5,7 @@ from __future__ import annotations
 import unittest
 
 from TopKit import Post, Tag
+from TopKit.fields import _Population
 
 from ._fixtures import Agent
 
@@ -182,6 +183,25 @@ class CompoundFieldMutationTests(unittest.TestCase):
         # Excluded's Tagging checks the already established Post too.
         self.assertEqual(calls, [agent, agent])
         self.assertIn(agent, Excluded[:])
+
+    def test_custom_population_can_invalidate_an_earlier_field(self) -> None:
+        class Left(Tag):
+            pass
+
+        checks = []
+
+        class RipLeft(_Population):
+            def __contains__(self, agent):
+                checks.append(agent)
+                del Left[agent]
+                return True
+
+        agent = Agent()
+        Left(agent)
+        population = Left[:] & RipLeft()
+
+        self.assertNotIn(agent, population)
+        self.assertEqual(checks, [agent])
 
 
 if __name__ == "__main__":
