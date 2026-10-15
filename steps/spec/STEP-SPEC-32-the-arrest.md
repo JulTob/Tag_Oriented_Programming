@@ -59,8 +59,7 @@ domain is separately open in [#37](https://github.com/JulTob/Tag_Oriented_Progra
 4. **Orphaned work stays with its original Tag application.** A new Tag
    class with the same name begins with its own empty Safehouse; it does
    not receive an ended Tag's arrested Agents or teardown protocol.
-   Root `Tag` has no Field: `Tag(agent)` gives the host TOP's default
-   Agent behavior without admitting it to a Field. Root `Tag`, `~Tag` and
+   Root `Tag` has no Field. Root `Tag`, `~Tag` and
    `Tag[:]` answer membership questions without walking a Field; their
    proposed query rules are recorded separately in
    [STEP-SPEC-46 (#235)](https://github.com/JulTob/Tag_Oriented_Programming/pull/235).
@@ -87,7 +86,9 @@ automatic Tag finalization, Pin and Link teardown, concurrent access, or
 the exact Python interception of acts by an arrested Agent. The Director
 chose a stronger **opt-in** guard for captured Python Host methods; its
 API, coverage and compatibility costs still need a separate design and
-implementation review.
+implementation review. `Tag(agent)` was suggested as a way to actualize a
+host without Field admission; its exact behavior remains a separate root
+Tag decision in STEP-SPEC-46.
 
 ### Provenance and dependencies
 
