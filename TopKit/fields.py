@@ -362,14 +362,14 @@ def _probe_combined(
     """
 
     # Each frame holds a node, its left/right stage and left's evidence.
-    pending: list[tuple[_Combined, int, _Evidence]] = [
-            (combined, 0, _Evidence()),
+    pending: list[tuple[_Combined, int, _Evidence | None]] = [
+            (combined, 0, None),
             ]
     population: _Population = combined._left
 
     while True:
         while _uses_combined_method(population, "__contains__"):
-            pending.append((population, 0, _Evidence()))
+            pending.append((population, 0, None))
             population = population._left
 
         verdict = agent in population
@@ -399,6 +399,8 @@ def _probe_combined(
                 break
 
             pending.pop()
+            if left_evidence is None:
+                raise RuntimeError("a compound population lost its left evidence")
 
             if operator == "&":
                 if verdict:
