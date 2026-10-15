@@ -7,8 +7,9 @@ whenever the two disagree.
 ## Module map
 
 One idea per module, with 600 physical lines as the migration target. The
-target is not yet met: `declarations.py`, `overlay.py`, and `state.py` are the
-current exceptions. [Issue #15](https://github.com/JulTob/Tag_Oriented_Programming/issues/15)
+target is not yet met: `access.py`, `declarations.py`, `overlay.py`, `state.py`,
+and `transactions.py` are the current exceptions.
+[Issue #15](https://github.com/JulTob/Tag_Oriented_Programming/issues/15)
 tracks splitting them by idea without changing semantics.
 
 | Module | Idea |
@@ -20,14 +21,17 @@ tracks splitting them by idea without changing semantics.
 | `state.py` | the per-Agent state, bound Actions, the runtime type and its descriptors |
 | `overlay.py` | laying one Tag's declarations over a state; materializing Records |
 | `contracts.py` | strict verdicts, binding conditions, `Contract` |
-| `constants.py` | protecting Constant bindings without freezing their values |
-| `tools.py` | Tool slots: a Record's kind, a Tag or a class, admission at the gaining and at every write |
-| `presence.py` | Contribution presence without evaluating values or conditions |
 | `transactions.py` | the tagging sequence and the call boundary |
 | `lifecycle.py` | Rip, teardown, `At_Exit` |
 | `access.py` | the hooks on the runtime type, Agent-bound views |
 | `tags.py` | `Tag` and its metaclass |
 | `queries.py` | `Apply`, `Form`, `Keyword`, `Tags`, `Outline` |
+
+`constants.py`, `tools.py`, and `presence.py` are planned modules, not files in
+the current implementation. Their proposed ideas are, respectively, protecting
+Constant bindings without freezing their values; Tool slots and their admission
+and write checks; and Contribution presence without evaluating values or
+conditions.
 
 ## The access design
 
