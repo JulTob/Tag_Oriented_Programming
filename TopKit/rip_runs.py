@@ -1,8 +1,7 @@
 """Private ledger and ordered retry for unfinished Rip work.
 
-No public Rip path uses this module yet. The lifecycle supplies the actual
-membership revocation and teardown invocation when Safehouse is activated.
-The ledger is sequential; concurrent saves and retries need a separate
+The lifecycle supplies membership revocation and teardown invocation. The
+ledger is sequential; concurrent saves and retries need a separate
 STEP-32 task-safety ruling before they can share an Agent.
 """
 
@@ -90,19 +89,29 @@ def _retry_arrested(
         agent: object,
         revoke: Callable[[_RipRun], None],
         invoke: Callable[[_RipRun, str, Any], None],
+        *,
+        defer_running: bool = False,
         ) -> object:
     """Drain live saved runs in order, including work created during retry.
 
     The caller supplies ordinary TOP membership revocation and Rip calling.
     A revocation that is interrupted must be safe to resume from its last
-    boundary. The run remains held until all its teardowns complete.
+    boundary. The run remains held until all its teardowns complete. When a
+    Rip callback itself requests root retry, defer its currently running
+    step until that callback returns, without skipping earlier saved work.
     """
 
     if _arrest_of(agent) is None:
         raise TagResolutionError("this Agent has no saved Rip work")
 
     while (arrest := _arrest_of(agent)) is not None:
-        _run_saved(agent, arrest.runs[0], revoke, invoke)
+        run = arrest.runs[0]
+        # A Rip callback may request the root retry. Its own unfinished
+        # step cannot run again until that callback returns. Keep the
+        # ordered ledger in place and let the outer call resume it.
+        if defer_running and run.running:
+            return agent
+        _run_saved(agent, run, revoke, invoke)
 
     return agent
 

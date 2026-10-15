@@ -15,6 +15,7 @@ from typing import Any
 import atexit
 
 from .arrest import _arrest_of
+from .arrest import _may_act
 from .declarations import _parameters_of
 from .declarations import _action_chain
 from .declarations import _discard_lazy_result
@@ -52,7 +53,7 @@ def _rip(
 
     if pending is not None:
         _run_one(agent, state, pending)
-        if _arrest_of(agent) is not None:
+        if _arrest_of(agent) is not None and not _may_act(agent):
             _retry_arrested(agent)
         return agent
 
@@ -64,7 +65,9 @@ def _rip(
     teardowns = state.rips.get(tag, ())
 
     if teardowns:
-        run = _RipRun(tag, tuple(teardowns))
+        # This exact tuple identifies the Tag application. A fresh
+        # reTagging builds a new Rip tuple, even for the same declarations.
+        run = _RipRun(tag, teardowns)
         # Publish the original work before the Agent leaves the Field.
         # A failing callback can then never strand an unrecorded suffix.
         _save_run(agent, run)
@@ -72,14 +75,18 @@ def _rip(
     else:
         # No callback can fail or remain unfinished. Keep ordinary Rip's
         # short path, including its one Field removal and sticky Gains.
+        _field_of(tag)._Remove(agent)
         state.active.remove(tag)
         state.words = None
         state.snapshots.pop(tag, None)
-        _field_of(tag)._Remove(agent)
 
     # An explicit other-Tag Rip runs its own protocol first. After it
     # succeeds, any older arrested work must clear before the Agent is free.
-    if (teardowns or arrest is not None) and _arrest_of(agent) is not None:
+    if (
+            (teardowns or arrest is not None)
+            and _arrest_of(agent) is not None
+            and not _may_act(agent)
+            ):
         _retry_arrested(agent)
 
     return agent
@@ -104,6 +111,7 @@ def _retry_arrested(
                 lambda run, name, teardown: _call_teardown(
                         name, teardown, agent, state,
                         ),
+                defer_running=_may_act(agent),
                 )
     finally:
         state.composing -= 1
@@ -137,6 +145,17 @@ def _revoke(agent: object, state: _State, run: _RipRun) -> None:
     if run.revoked:
         return
 
+    # The Rip tuple is this application identity. If the old membership
+    # was removed before an interruption and the Agent reTagged, the new
+    # application has a different tuple. Never revoke its fresh Field.
+    if state.rips.get(run.tag) is not run.teardowns:
+        run.revoked = True
+        return
+
+    # Remove the Field seat before dropping active. Until active leaves,
+    # another Tagging of this same Tag is still a no-op. If interrupted
+    # later, the tuple above tells retry whether that seat is still old.
+    _field_of(run.tag)._Remove(agent)
     for index, active in enumerate(state.active):
         if active is run.tag:
             state.active.pop(index)
@@ -146,8 +165,8 @@ def _revoke(agent: object, state: _State, run: _RipRun) -> None:
     snapshot = state.snapshots.get(run.tag)
     state.words = None
     state.snapshots.pop(run.tag, None)
-    _field_of(run.tag)._Remove(agent)
     state.rips.pop(run.tag, None)
+    run.revoked = True
     _ = (words, snapshot)
 
 
