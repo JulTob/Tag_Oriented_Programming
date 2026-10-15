@@ -83,6 +83,7 @@ class _State:
     tools: dict[str, tuple[type, Any]] = field(default_factory=dict)   # origin, kind: a Tool slot admits only its kind
     composing: int = 0
     checking: bool = False
+    arrestable: bool = False   # a gained Rip keeps the Host read gate after re-Tagging
     words: _Words | None = None   # what its Flags answer to; None after its Tags change
 
     def Restore(
@@ -131,6 +132,7 @@ class _State:
         copied.tools = state.tools.copy()
         copied.composing = state.composing
         copied.checking = state.checking
+        copied.arrestable = state.arrestable
         copied.words = state.words
         return copied
 
@@ -1374,6 +1376,7 @@ def _type_key_of(
                     ) if state.actions else (),
             frozenset(state.constants) if state.constants else _EMPTY_NAMES,
             frozenset(state.tools) if state.tools else _EMPTY_NAMES,
+            state.arrestable,
             )
 
 
@@ -1389,6 +1392,8 @@ def _runtime_type_for(
     if shared is not None:
         return shared
 
+    from .access import _arrest_read_hook
+    from .access import _arrest_write_hook
     from .access import _hooks_for   # access imports this module
     from .contracts import _Condition_Gate
     from .presence import _presence_hook
@@ -1410,6 +1415,8 @@ def _runtime_type_for(
             host_type,
             has_flags,
             )
+    if state.arrestable:
+        hooks["__getattribute__"] = _arrest_read_hook(host_type)
     namespace: dict[str, Any] = dict(hooks)
     namespace.update(dunders)
 
@@ -1454,6 +1461,14 @@ def _runtime_type_for(
 
     if conditions or state.constants or state.tools or issubclass(host_type, type):
         _binding_write_hooks(namespace, host_type, force=ungated_tools)
+
+    if state.arrestable:
+        for writer in ("__setattr__", "__delattr__"):
+            namespace[writer] = _arrest_write_hook(
+                    host_type,
+                    writer,
+                    namespace.get(writer, _MISSING),
+                    )
 
     if not issubclass(host_type, type):
         namespace["__bool__"] = hooks["__bool__"]   # the contract owns this seat
