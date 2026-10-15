@@ -52,17 +52,25 @@ Question 6's proposal to exclude an arrested Agent from both sound and defective
 4. **Orphaned work stays with its original Tag application.** A new Tag
    class with the same name begins with its own empty Safehouse; it does
    not receive an ended Tag's arrested Agents or teardown protocol.
-   `Tag[...]` can still locate those Agents, and `del Tag[agent]` retries
-   their saved original teardown work. This does not itself establish
+   Root `Tag` has no Field: `Tag[...]` locates orphaned work in its
+   Safehouse, and `del Tag[agent]` retries all of that Agent's saved
+   orphan teardowns. There is no separate root membership to Rip.
+   This does not itself establish
    when a Tag class ends or make a same-name replacement its successor.
+5. **An ordinary act retries before it starts.** A read or Action on an
+   arrested Agent first retries its saved Rip work. The act proceeds only
+   when every pending teardown succeeds. A failed retry refuses the act.
+   This confirms the act-triggered retry rule in the historical Summary.
+6. **Another explicit Rip is allowed.** If Ada is arrested by Wizard but
+   still belongs to Fighter, `del Fighter[ada]` runs Fighter's Rip first.
+   It then retries Wizard's saved Rip work. A failure keeps Ada arrested;
+   neither Rip silently discards the other's pending work.
 
 These decisions do not settle automatic Agent deletion, forced triage,
 automatic Tag finalization, Pin and Link teardown, concurrent access, or
-the exact Python interception of acts by an arrested Agent. The historical
-act-triggered retry rule remains recorded below; the Python mechanics for
-host methods and captured handles still need implementation review. If an Agent
-has both orphaned work and a separate live membership in root `Tag`, the
-precedence of `del Tag[agent]` between retry and Rip remains under review.
+the exact Python interception of acts by an arrested Agent. The Python
+mechanics for host methods and captured handles still need implementation
+review.
 
 ### Provenance and dependencies
 
