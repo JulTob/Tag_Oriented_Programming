@@ -20,6 +20,7 @@ from functools import partialmethod
 from inspect import Parameter
 from inspect import getattr_static
 from inspect import signature
+from threading import RLock
 from types import AsyncGeneratorType
 from types import CoroutineType
 from types import GeneratorType
@@ -510,28 +511,29 @@ def Pin(
                 "@Pin marks a Tag class"
                 )
 
-    if tag.__dict__.get(_PIN, False):
-        return tag   # restating the mark changes nothing
+    with _pin_mark_lock:
+        if tag.__dict__.get(_PIN, False):
+            return tag   # restating the mark changes nothing
 
-    _refuse_late_pin(tag)
-    _refuse_tools_on_a_pin(
-            tag,
-            _namespace_snapshot(tag),
-            )
-    setattr(
-            tag,
-            _PIN,
-            True,
-            )
+        _refuse_late_pin(tag)
+        _refuse_tools_on_a_pin(
+                tag,
+                _namespace_snapshot(tag),
+                )
+        setattr(
+                tag,
+                _PIN,
+                True,
+                )
 
-    try:
-        _check_pin_bases(tag)
-        _invalidate_declarations(tag)   # a scan made before the mark never validated it as a Pin
-        _declarations_of(tag)        # validate the members now, not at first pinning
-    except BaseException:
-        delattr(tag, _PIN)           # refused: nothing changed
-        _invalidate_declarations(tag)
-        raise
+        try:
+            _check_pin_bases(tag)
+            _invalidate_declarations(tag)   # a scan made before the mark never validated it as a Pin
+            _declarations_of(tag)        # validate the members now, not at first pinning
+        except BaseException:
+            delattr(tag, _PIN)           # refused: nothing changed
+            _invalidate_declarations(tag)
+            raise
 
     return tag
 
@@ -1058,6 +1060,9 @@ def _refuse_tools_on_a_pin(
                     )
 
 
+# A late Pin mark and a Tool owner's declaration must see one another.
+# The lock owns no Tag; the registry below keeps only weak references.
+_pin_mark_lock = RLock()
 _kinds_named: dict[int, tuple[ref[type], WeakValueDictionary[int, type]]] = {}
 
 
@@ -1099,9 +1104,10 @@ def _note_kinds(
                 continue
 
             def Forget(expired: ref[type], key: int = key) -> None:
-                entry = _kinds_named.get(key)
-                if entry is not None and entry[0] is expired:
-                    del _kinds_named[key]
+                with _pin_mark_lock:
+                    entry = _kinds_named.get(key)
+                    if entry is not None and entry[0] is expired:
+                        del _kinds_named[key]
 
             owners: WeakValueDictionary[int, type] = WeakValueDictionary()
             owners[id(owner)] = owner
