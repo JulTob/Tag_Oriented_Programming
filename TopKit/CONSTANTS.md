@@ -2,8 +2,9 @@
 
 `@Constant` fixes a Contribution's binding. A Record keeps its initialized
 value; an Action or Operation keeps its implementation; a Post keeps its
-promise. A Constant Report belongs to its declaring Tag, whose Shapes
-share that exact value.
+promise. A Constant Report belongs to its declaring Tag. Applying a Shape
+also applies that Base to the Agent; the Shape itself does not inherit the
+Report as a direct Tag member.
 
 Constant protects the binding, not everything inside the value. It also
 does not change who may access the Contribution: `@Public` and `@Secret`
@@ -72,7 +73,7 @@ modifier also stacks in either order with the other supported Contribution
 declarations. It can mark a named Post; it cannot turn an anonymous
 expression into a registered promise.
 
-## One Constant Report, shared by all Shapes
+## One Constant Report on its declaring Tag
 
 ```python
 initialized_for = []
@@ -100,22 +101,34 @@ class West(Network):
 
 
 assert initialized_for == []
-directory = East.directory              # first read is through a Shape
+directory = Network.directory
 assert initialized_for == [Network]     # the builder received its owner
-assert directory is Network.directory is West.directory
-West.directory["dispatch"] = "ready"
+assert directory is Network.directory
+try:
+    East.directory
+except AttributeError:
+    pass
+else:
+    raise AssertionError("a Shape acquired its Base's Report")
+directory["dispatch"] = "ready"
 assert Network.directory == {"dispatch": "ready"}
 assert initialized_for == [Network]
-assert East.Name() == "East"
-assert West.Name() == "West"
+assert Network.Name() == "Network"
+try:
+    West.Name()
+except AttributeError:
+    pass
+else:
+    raise AssertionError("a Shape acquired its Base's Operation")
 ```
 
-A Constant Report initializes lazily on its declaring Tag, once. Reading
-it through a Shape does not initialize another value. Its contents can
-still change, as the shared dictionary shows.
+A Constant Report initializes lazily on its declaring Tag, once. Its
+contents can still change, as the shared dictionary shows. The Shape
+cannot redeclare its name, and an Agent tagged with the Shape can read
+the Base's value through its Base view or publication.
 
-A Constant Operation keeps its implementation and still receives the Tag
-it is called through. It is not a cached result. A Constant Action likewise
+A Constant Operation keeps its implementation and receives its declaring
+Tag when called directly. It is not a cached result. A Constant Action likewise
 runs normally on its Agent; Constant does not make its work read-only.
 
 ## Keep a promise, and add other promises by their own names
