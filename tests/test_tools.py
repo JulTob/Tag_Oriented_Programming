@@ -19,7 +19,7 @@ from threading import Event, Thread
 from typing import Any, Protocol, runtime_checkable
 from unittest.mock import patch
 
-from TopKit import (Action, Constant, Contract, Delete, Imprint, Keyword,
+from TopKit import (Action, Constant, Contract, Delete, Form, Imprint, Keyword,
                     Operation, Pin, Post, Pre, Public, Record, Report, Rip,
                     Secret, Tag, TagCompositionError, TagDeclarationError,
                     TagImprintError, TagOverwriteWarning, TagPreconditionError,
@@ -1339,6 +1339,155 @@ class Host_Tests(unittest.TestCase):
 
 
 class Late_Pin_Tests(unittest.TestCase):
+    def test_cold_form_hash_hook_cannot_pin_the_tag_before_reservation(self):
+        armed = [False]
+        refusals = []
+
+        class Hashing(MetaTag):
+            def __hash__(cls):
+                if armed[0]:
+                    armed[0] = False
+                    try:
+                        Pin(cls)
+                    except TagDeclarationError as error:
+                        refusals.append(str(error))
+                return type.__hash__(cls)
+
+        class Candidate(Tag, metaclass=Hashing):
+            pass
+
+        armed[0] = True
+        ari = Character("Ari")
+        Candidate(ari)
+
+        self.assertEqual(len(refusals), 1)
+        self.assertIn("Tagging is in flight", refusals[0])
+        self.assertNotIn("__topkit_pin__", Candidate.__dict__)
+        self.assertIn(ari, Candidate[:])
+
+    def test_cold_form_failure_releases_provisional_pin_reservation(self):
+        armed = [False]
+
+        class Hashing(MetaTag):
+            def __hash__(cls):
+                if armed[0]:
+                    armed[0] = False
+                    raise ValueError("cold Form failed")
+                return type.__hash__(cls)
+
+        class Candidate(Tag, metaclass=Hashing):
+            pass
+
+        armed[0] = True
+        with self.assertRaisesRegex(ValueError, "cold Form failed"):
+            Candidate(Character("Ari"))
+
+        self.assertIs(Pin(Candidate), Candidate)
+
+    def test_cached_form_base_stays_reserved_after_real_bases_change(self):
+        refusals = []
+
+        class Old(Tag):
+            @Imprint
+            def Train(agent):
+                try:
+                    Pin(Old)
+                except TagDeclarationError as error:
+                    refusals.append(str(error))
+
+        class New(Tag):
+            pass
+
+        class Shape(Old):
+            pass
+
+        self.assertEqual(Form(Shape), (Old, Shape))
+        Shape.__bases__ = (New,)
+
+        ari = Character("Ari")
+        Shape(ari)
+
+        self.assertEqual(len(refusals), 1)
+        self.assertIn("Tagging is in flight", refusals[0])
+        self.assertNotIn("__topkit_pin__", Old.__dict__)
+        self.assertIn(ari, Old[:])
+
+    def test_an_imprint_cannot_turn_its_unfinished_tag_into_a_pin(self):
+        refusals = []
+
+        class Candidate(Tag):
+            @Imprint
+            def Train(agent):
+                Candidate(agent)                  # same-Tag reentry is a no-op
+                try:
+                    Pin(Candidate)
+                except TagDeclarationError as error:
+                    refusals.append(str(error))
+
+        ari = Character("Ari")
+        Candidate(ari)
+        self.assertEqual(len(refusals), 1)
+        self.assertIn("Tagging is in flight", refusals[0])
+        self.assertNotIn("__topkit_pin__", Candidate.__dict__)
+        self.assertIn(ari, Candidate[:])
+
+    def test_a_concurrent_pin_cannot_reclassify_an_unfinished_tag(self):
+        entered = Event()
+        resume = Event()
+        outcome = []
+
+        class Candidate(Tag):
+            @Imprint
+            def Train(agent):
+                entered.set()
+                if not resume.wait(2):
+                    raise TimeoutError("Tagging did not resume")
+
+        ari = Character("Ari")
+
+        def apply():
+            try:
+                Candidate(ari)
+            except BaseException as error:
+                outcome.append(type(error).__name__)
+            else:
+                outcome.append("tagged")
+
+        worker = Thread(target=apply)
+        worker.start()
+        try:
+            self.assertTrue(entered.wait(2))
+            with self.assertRaises(TagDeclarationError) as refusal:
+                Pin(Candidate)
+            self.assertIn("Tagging is in flight", str(refusal.exception))
+        finally:
+            resume.set()
+            worker.join(2)
+
+        self.assertEqual(outcome, ["tagged"])
+        self.assertFalse(worker.is_alive())
+        self.assertNotIn("__topkit_pin__", Candidate.__dict__)
+        self.assertIn(ari, Candidate[:])
+
+    def test_a_refused_or_interrupted_gate_releases_the_pending_mark(self):
+        class Refused(Tag):
+            @Pre
+            def Gate(agent):
+                return False
+
+        class Interrupted(Tag):
+            @Pre
+            def Gate(agent):
+                raise KeyboardInterrupt
+
+        with self.assertRaises(TagPreconditionError):
+            Refused(Character("Ari"))
+        with self.assertRaises(KeyboardInterrupt):
+            Interrupted(Character("Bob"))
+
+        self.assertIs(Pin(Refused), Refused)
+        self.assertIs(Pin(Interrupted), Interrupted)
+
     def test_a_metaclass_cannot_discard_the_pin_mark(self):
         class Discard(MetaTag):
             def __setattr__(cls, name, value):
@@ -1404,6 +1553,44 @@ class Late_Pin_Tests(unittest.TestCase):
             pass
 
         self.assertTrue(issubclass(Shape, Base))
+
+    def test_a_fake_base_cannot_allow_a_pin_over_an_ordinary_base(self):
+        @Pin
+        class Rare(Tag):
+            pass
+
+        class Base(Tag):
+            pass
+
+        class Fake(MetaTag):
+            def __getattribute__(cls, name):
+                if name == "__bases__" and cls.__name__ == "Shape":
+                    return (Rare,)
+                return super().__getattribute__(name)
+
+        class Shape(Base, metaclass=Fake):
+            pass
+
+        with self.assertRaises(TagDeclarationError):
+            Pin(Shape)
+        self.assertNotIn("__topkit_pin__", Shape.__dict__)
+
+    def test_a_hidden_tag_base_still_counts_for_pin_eligibility(self):
+        class Hide(MetaTag):
+            def __getattribute__(cls, name):
+                if name == "__bases__" and cls.__name__ == "Base":
+                    return ()
+                return super().__getattribute__(name)
+
+        class Base(Tag, metaclass=Hide):
+            pass
+
+        class Shape(Base):
+            pass
+
+        with self.assertRaises(TagDeclarationError):
+            Pin(Shape)
+        self.assertNotIn("__topkit_pin__", Shape.__dict__)
 
     def test_a_metaclass_attribute_mask_cannot_hide_a_real_pin(self):
         class Mask(MetaTag):

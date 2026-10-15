@@ -64,6 +64,7 @@ def _apply(
         agent: object,
         tag: type,
         inputs: dict[str, Any],
+        form: tuple[type, ...] | None = None,
         ) -> object:
     """Apply ``tag`` and its missing Bases to ``agent`` as one call."""
 
@@ -74,7 +75,8 @@ def _apply(
             ):
         return agent
 
-    form = _form_of(tag)
+    if form is None:
+        form = _form_of(tag)
 
     if entry_state is not None:
         for member in form:

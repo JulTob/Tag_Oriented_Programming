@@ -12,6 +12,7 @@ from weakref import WeakKeyDictionary
 from .memo import _memo_key
 from .memo import _memo_of
 from .memo import _remember_memo
+from .memo import _type_bases
 
 
 _tag_meta: type | None = None
@@ -82,7 +83,7 @@ def _direct_bases(
 
     return tuple(
             base
-            for base in tag.__bases__
+            for base in _type_bases.__get__(tag)
             if _is_tag(base)
             )
 

@@ -7,9 +7,25 @@ import unittest
 
 from TopKit import Form
 from TopKit import Tag
+from TopKit.tags import MetaTag
 
 
 class GeometryRegressionTests(unittest.TestCase):
+
+    def test_form_reads_real_bases_despite_metaclass_mask(self) -> None:
+        class Phantom(Tag):
+            pass
+
+        class Mask(MetaTag):
+            def __getattribute__(cls, name):
+                if name == "__bases__":
+                    return (Phantom,)
+                return super().__getattribute__(name)
+
+        class Candidate(Tag, metaclass=Mask):
+            pass
+
+        self.assertEqual(Form(Candidate), (Candidate,))
 
     def test_form_does_not_use_python_recursion_depth(self) -> None:
         depth = 250
