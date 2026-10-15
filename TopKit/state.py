@@ -15,7 +15,6 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from dataclasses import field
 from dataclasses import FrozenInstanceError
-from functools import wraps
 from inspect import signature
 from types import FunctionType
 from types import GetSetDescriptorType
@@ -32,6 +31,7 @@ from .declarations import _MISSING
 from .declarations import _Words
 from .declarations import _is_dunder
 from .declarations import _is_flag
+from .declarations import _wraps_callable
 from .errors import TagCompositionError
 from .memo import _namespace_snapshot
 
@@ -1259,7 +1259,7 @@ def _context_action(
     """
 
     if name in _ASYNC_CONTEXT_ACTIONS:
-        @wraps(function)
+        @_wraps_callable(function)
         async def Async_Context(
                 agent: object,
                 *args: Any,
@@ -1297,7 +1297,7 @@ def _context_action(
 
         return Async_Context
 
-    @wraps(function)
+    @_wraps_callable(function)
     def Context(
             agent: object,
             *args: Any,

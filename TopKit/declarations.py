@@ -16,13 +16,18 @@ from dataclasses import dataclass
 from dataclasses import field
 from dataclasses import replace
 from functools import cached_property
+from functools import partial
 from functools import partialmethod
+from functools import wraps
 from inspect import Parameter
 from inspect import getattr_static
 from inspect import signature
 from types import AsyncGeneratorType
 from types import CoroutineType
 from types import GeneratorType
+from types import BuiltinFunctionType
+from types import FunctionType
+from types import MethodType
 from typing import Any
 from typing import Callable
 from typing import NamedTuple
@@ -1518,6 +1523,59 @@ def _reject_both(
 # ------------------------------------------------------------------
 
 
+def _wraps_callable(function: Function) -> Function:
+    """Keep a wrapper's callable link without requiring optional names.
+
+    Python functions and methods retain their ordinary metadata. A callable
+    object need not have ``__name__`` or ``__qualname__`` (and may refuse
+    access to either), while ``__wrapped__`` still identifies its source.
+    """
+
+    if type(function) in (FunctionType, MethodType, BuiltinFunctionType):
+        return wraps(function)
+
+    return wraps(function, assigned=(), updated=())
+
+
+def _signature_of(function: Function) -> Any:
+    """Inspect a callable object without asking it for function names.
+
+    ``inspect.signature`` asks an object for ``__name__`` before reaching its
+    physical ``__call__``. The latter is the callable signature unless an
+    explicit signature or wrapper was supplied; retain Python's own handling
+    for those overrides and for its native callable kinds.
+    """
+
+    explicit = getattr_static(function, "__signature__", _MISSING)
+
+    kind = type(function)
+
+    if (
+            kind in (FunctionType, MethodType, BuiltinFunctionType)
+            or issubclass(kind, (type, partial))
+            or (explicit is not _MISSING and explicit is not None)
+            or getattr_static(function, "__code__", _MISSING) is not _MISSING
+            or getattr_static(function, "__text_signature__", _MISSING) is not _MISSING
+            or (
+                    explicit is _MISSING
+                    and getattr_static(function, "__wrapped__", _MISSING) is not _MISSING
+                    )
+            ):
+        return signature(function)
+
+    call = getattr_static(type(function), "__call__", None)
+
+    if call is None:
+        return signature(function)
+
+    get = getattr(type(call), "__get__", None)
+
+    if get is not None:
+        call = get(call, function, type(function))
+
+    return signature(call)
+
+
 @dataclass(frozen=True)
 class _Parameters:
     positional: int
@@ -1541,7 +1599,7 @@ def _parameters_of(
     named: list[tuple[str, bool]] = []
     var_keyword = False
 
-    for parameter in signature(function).parameters.values():
+    for parameter in _signature_of(function).parameters.values():
         if parameter.kind is Parameter.VAR_KEYWORD:
             var_keyword = True
             continue
