@@ -95,7 +95,7 @@ class UnderlayDiagnosticTests(unittest.TestCase):
 
     def test_validation_families_names_and_timing_match_function_controls(self):
         cases = [(mark, seats, False, TagResolutionError if seats == 2 else TagDeclarationError)
-                 for mark in (Action, Pre, Post) for seats in (1, 2)]
+                 for mark in (Pre, Post) for seats in (1, 2)]
         cases += [(Action, 1, True, TagDeclarationError),
                   (Post, 1, True, TagDeclarationError),
                   (Record, 2, False, TagDeclarationError)]
@@ -135,6 +135,10 @@ class UnderlayDiagnosticTests(unittest.TestCase):
                 for seats in ((2,) if mark is Record else (1, 2)):
                     with self.subTest(mark=mark, pinned=pinned, seats=seats):
                         role, target, _, _, _ = self.build(mark, seats, "missing", pinned, name=name)
+                        if mark is Action and seats == 2:
+                            role(target)
+                            self.assertIs(target.Work(), True)
+                            continue
                         declarations = _declarations_of(role)
                         contributions = getattr(declarations, {
                                 Action: "actions", Pre: "preconditions",
@@ -159,6 +163,16 @@ class UnderlayDiagnosticTests(unittest.TestCase):
                 self.assertIn("def Work(agent, *, stored)", str(caught.exception))
                 self.assertEqual(events, [])
                 self.assertNotIn(target, role[:])
+
+    def test_action_extends_a_null_prior_for_ordinary_agents_and_pins(self):
+        for pinned in (False, True):
+            for mode in ("function", "missing"):
+                with self.subTest(pinned=pinned, mode=mode):
+                    role, target, events, _, _ = self.build(Action, 2, mode, pinned)
+                    role(target)
+                    self.assertIn(target, role[:])
+                    self.assertIs(target.Work(), True)
+                    self.assertEqual(events, ["Work"])
 
     def test_successful_underlays_and_stored_records_are_unchanged(self):
         for mark in (Action, Pre, Post, Record):
