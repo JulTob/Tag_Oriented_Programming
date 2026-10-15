@@ -20,6 +20,7 @@ from TopKit import Tag
 from TopKit import TagCompositionError
 from TopKit import TagContractError
 from TopKit import TagImprintError
+from TopKit import TagResolutionError
 from TopKit import Underlay
 
 
@@ -234,7 +235,7 @@ class LazyProtocolTests(unittest.TestCase):
         self.assertIsInstance(failure.exception.__cause__, RuntimeError)
         self.assertNotIn(target, Gated)
 
-    def test_lazy_imprints_fail_after_membership_without_starting(self) -> None:
+    def test_lazy_imprints_fail_before_membership_without_starting(self) -> None:
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
 
@@ -262,7 +263,11 @@ class LazyProtocolTests(unittest.TestCase):
 
                         self.assertIn(kind, str(failure.exception))
                         self.assertFalse(hasattr(target, marker))
-                        self.assertIn(target, tag)
+                        self.assertNotIn(target, tag)
+                        self.assertNotIn(target, tag[:])
+                        self.assertFalse(isinstance(target, tag))
+                        with self.assertRaises(TagResolutionError):
+                            tag[target]
 
             gc.collect()
 

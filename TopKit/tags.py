@@ -47,9 +47,12 @@ from .declarations import _name_checks
 from .declarations import _refuse_condition_dunder
 from .declarations import _refuse_truth_gain
 from .errors import TagCompositionError
+from .fields import FIELD_SEAT
 from .fields import _Field
 from .fields import _Partition
+from .fields import _field_of
 from .fields import _population_of
+from .fields import _sound_of
 from .geometry import _form_of
 from .geometry import _is_tag
 from .lifecycle import _rip
@@ -57,18 +60,6 @@ from .state import Tagged
 from .state import _name_of
 from .state import _state_of
 from .transactions import _apply
-
-
-def _sound_of(
-        tag: type,
-        ) -> _Partition:
-    """The Tag's sound population, outside its programmer-owned namespace."""
-
-    return _Partition(
-            tag.__dict__["_topkit_field"],
-            _holds,
-            "sound",
-            )
 
 
 class MetaTag(type):
@@ -82,7 +73,7 @@ class MetaTag(type):
             **kwargs: Any,
             ) -> "MetaTag":
         namespace.setdefault(
-                "_topkit_field",
+                FIELD_SEAT,
                 _Field(),
                 )
         _check_rip_declarations(
@@ -275,7 +266,7 @@ class MetaTag(type):
                         " no meaning for a population"
                         )
 
-            return tag._topkit_field
+            return _field_of(tag)
 
         return _view_of(
                 key,

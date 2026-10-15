@@ -2,7 +2,7 @@
 
 Rip ends active membership. Contributions are sticky: Actions and Records
 stay on the Agent (a Rogue Agent) unless the Tag's @Rip teardowns change
-them. Ripping a Base is refused while an active Shape still requires it.
+them. Each Rip removes only the named Tag, even if a Shape stays active.
 
 Of the three deletion tiers (§3.2), the kit gives the finalizer's
 teardowns and At_Exit. The guaranteed tier is the program's own: it tags
@@ -23,7 +23,7 @@ from .declarations import _takes_underlay
 from .errors import TagCompositionError
 from .errors import TagResolutionError
 from .fields import _Member
-from .geometry import _requiring_shapes
+from .fields import _field_of
 from .state import _Originals
 from .state import _State
 from .state import _state_of
@@ -40,25 +40,10 @@ def _rip(
                 f"{tag.__name__} is not active on this Agent"
                 )
 
-    blocking = _requiring_shapes(
-            tag,
-            state.active,
-            )
-
-    if blocking:
-        names = ", ".join(
-                shape.__name__
-                for shape in blocking
-                )
-
-        raise TagCompositionError(
-                f"{tag.__name__} is required by active Shape(s): {names}"
-                )
-
     state.active.remove(tag)
     state.words = None
     state.snapshots.pop(tag, None)   # a view needs membership: never read again
-    tag._topkit_field._Remove(agent)
+    _field_of(tag)._Remove(agent)
 
     _teardown(
             agent,

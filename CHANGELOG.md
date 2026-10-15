@@ -2,12 +2,52 @@
 
 ## Unreleased
 
+### Specification
+
+- **A Shape keeps no Base hostage (STEP-SPEC-26):** applying a Shape still
+  brings in missing Bases first. Later, `del Base[agent]` ends only that
+  Base's membership and runs its teardowns; the Shape stays, with acquired
+  Gains and Posts. An active Shape call remains a no-op, and explicitly
+  applying the Base trains it again. A Shape that needs continued Base
+  membership states that in a Post.
+
+- **Gates run per Tag:** each missing Tag passes its own Preconditions when
+  its turn arrives. A later refusal or Overlay collision leaves completed
+  Base Taggings in place and stops before the current Tag's Records, Field
+  entry or Imprints. A Shape's Precondition no longer suppresses a missing
+  Base's own Gate; active Tags are still not re-asked.
+
 ### TopKit
 
 - **Runtime type cache does not own Hosts:** keys use Host identity rather
   than a strong Host reference. Transient Host/Agent cycles can collect,
   distinct Hosts with custom equality cannot share the wrong runtime type,
   and equivalent Agents of one Host still share their runtime type.
+
+- **Tagging preparation cost:** ordinary Action/Record declarations reuse
+  the existing collision and Underlay checks without constructing a
+  disposable Overlay. Tags with deletions, conditions, Secrets, special
+  methods, published members, Constants, Tools, public Reports, public
+  Operations, or a Flag, and Agents that are Tags or already hold Constants,
+  retain scratch composition. An internal Report or Operation does not by
+  itself prevent the shortcut. State copies and empty runtime-type keys also
+  avoid temporary allocations. Both physical host snapshots, live declaration
+  lookup after Gate, and the ordered Gainings/admission boundary remain.
+  The existing performance budgets are unchanged (#175).
+
+- Actions, Records, conditions and deletions now take effect from top to
+  bottom in each Tag. Record builders see earlier declarations, while
+  successful Constant bindings are protected before later Gainings.
+- Gate and candidate-Overlay evaluation now follow the Base-first Tag chain
+  without removing completed Bases when a later Tag refuses or collides.
+- **Admission follows completed training (STEP-SPEC-39):** each Tag passes
+  its Gate, acquires Gains in declaration order, finishes its Imprints, then
+  enters the Field. Failed Gainings or Imprints retain acquired Gains and
+  Posts without admitting the unfinished Tag. Earlier completed Tags stay;
+  Tagging again starts a fresh attempt. Posts judge the completed Form once
+  and a failed Post preserves membership. Tool gains use the same order:
+  their proposed kind is checked before replacing the prior binding or rule,
+  and an acquired Tool remains guarded on a Rogue.
 
 - **Invalid Rip declarations fail at declaration:** `@Rip` marks an Action,
   because a teardown remains an ordinary callable Action. Stacking it on
