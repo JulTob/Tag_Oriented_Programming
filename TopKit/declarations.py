@@ -332,6 +332,51 @@ def Delete(
             )
 
 
+class _Callable_Operation(classmethod):
+    """Bind a callable object as a classmethod without probing its metadata.
+
+    ``classmethod(callable_object)`` copies optional Python function names
+    during construction. Keep the original as ``__func__`` so declaration
+    scanning and bound-method introspection still see the author's callable.
+    """
+
+    def __init__(
+            operation,
+            function: Function,
+            ) -> None:
+        operation._function = function
+
+        @_wraps_callable(function)
+        def Call(tag: type, *args: Any, **kwargs: Any) -> Any:
+            return function(tag, *args, **kwargs)
+
+        # The native descriptor can still be used directly; its safe wrapper
+        # also keeps __wrapped__ linked to the author's original callable.
+        super().__init__(Call)
+
+    def __set_name__(
+            operation,
+            owner: type,
+            name: str,
+            ) -> None:
+        operation.__name__ = name
+        operation.__qualname__ = f"{owner.__qualname__}.{name}"
+
+    @property
+    def __func__(operation) -> Function:
+        return operation._function
+
+    def __get__(
+            operation,
+            instance: object,
+            owner: type | None = None,
+            ) -> MethodType:
+        if owner is None:
+            owner = type(instance)
+
+        return MethodType(operation._function, owner)
+
+
 def Operation(
         function: Function,
         ) -> classmethod:
@@ -342,7 +387,10 @@ def Operation(
             "operation",
             )
 
-    return classmethod(function)
+    if type(function) in (FunctionType, MethodType, BuiltinFunctionType):
+        return classmethod(function)
+
+    return _Callable_Operation(function)
 
 
 def Secret(
@@ -609,9 +657,17 @@ class Report:
 
         report.builder = builder
         report.public = _has_flag(builder, _PUBLIC)
-        report.__name__ = builder.__name__
-        report.__doc__ = builder.__doc__
-        report._name = builder.__name__
+        if type(builder) in (FunctionType, MethodType, BuiltinFunctionType):
+            report.__name__ = builder.__name__
+            report.__doc__ = builder.__doc__
+        else:
+            # Physical lookup retains simple authored metadata without
+            # invoking a callable object's optional Python hooks.
+            name = getattr_static(builder, "__name__", None)
+            doc = getattr_static(builder, "__doc__", None)
+            report.__name__ = name if type(name) is str else None
+            report.__doc__ = doc if type(doc) is str else None
+        report._name = report.__name__
         report._owner_ref = None
         report._values: "WeakKeyDictionary[type, Any]" = WeakKeyDictionary()
 
@@ -621,6 +677,9 @@ class Report:
             name: str,
             ) -> None:
         report._name = name
+
+        if report.__name__ is None:
+            report.__name__ = name
 
         if report._owner_ref is None:
             report._owner_ref = ref(owner)
@@ -1380,6 +1439,8 @@ def _has_rip_declaration(
                     )
         elif isinstance(member, Report):
             pending.append(getattr_static(member, "builder", None))
+        elif isinstance(member, _Callable_Operation):
+            pending.append(member.__func__)
         elif isinstance(member, classmethod):
             pending.append(classmethod.__func__.__get__(member))
         elif isinstance(member, staticmethod):
