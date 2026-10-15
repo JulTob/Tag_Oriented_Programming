@@ -1458,6 +1458,51 @@ class Late_Pin_Tests(unittest.TestCase):
         self.assertIsNone(collector())
         self.assertIs(Pin(Prize), Prize)
 
+    def test_a_tool_marked_before_the_pin_is_checked_at_class_creation(self):
+        class Prize(Tag):
+            pass
+
+        with self.assertRaises(TagDeclarationError) as refusal:
+            class Collector(Tag):
+                @Tool(Prize)
+                def prize(agent):
+                    return None
+
+                Pin(Prize)                             # after the decorator, before Collector exists
+
+        self.assertIn("now a Pin", str(refusal.exception))
+
+    def test_a_late_tool_binding_also_prevents_a_late_pin(self):
+        class Prize(Tag):
+            pass
+
+        class Collector(Tag):
+            pass
+
+        @Tool(Prize)
+        def prize(agent):
+            return None
+
+        Collector.prize = prize
+        with self.assertRaises(TagDeclarationError):
+            Pin(Prize)
+
+    def test_a_late_tool_binding_on_a_pin_is_refused(self):
+        @Pin
+        class Rare(Tag):
+            pass
+
+        class Prize(Tag):
+            pass
+
+        @Tool(Prize)
+        def prize(tag):
+            return None
+
+        with self.assertRaises(TagDeclarationError):
+            Rare.prize = prize
+        self.assertNotIn("prize", Rare.__dict__)
+
     def test_a_refused_pin_leaves_no_mark(self):
         class Odd(Tag):
             @Delete
