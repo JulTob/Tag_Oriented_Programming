@@ -534,6 +534,12 @@ class Contract:
                 scope.pop(name, None)
 
         if state is not None and names:
+            # A native Tag Post lives in its declaring Tag's private
+            # contract even before any Pin has made that Tag an Agent.
+            # Ending it needs no runtime-type change or implicit Tagging.
+            if state.pinned is agent and type(agent) is state.host_type:
+                return
+
             from .state import _runtime_type_for
             from .state import _set_runtime_type
 

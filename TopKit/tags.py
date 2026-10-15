@@ -32,7 +32,9 @@ from typing import Iterator
 from .access import _keyword
 from .access import _refuse_host_truth
 from .access import _view_of
+from .contracts import _bind_condition
 from .contracts import _holds
+from .contracts import _refuse_condition_binding
 from .declarations import _MISSING
 from .declarations import _check_constant_declarations
 from .declarations import _check_constant_shapes
@@ -43,10 +45,17 @@ from .declarations import _constant_owner
 from .declarations import _is_dunder
 from .declarations import _is_pin
 from .declarations import _kind_of
+from .declarations import _Tag_Post
+from .declarations import _has_flag
+from .declarations import _PUBLIC
+from .declarations import _SECRET
+from .declarations import _UNDERLAY
+from .declarations import _is_constant
 from .declarations import _name_checks
 from .declarations import _refuse_condition_dunder
 from .declarations import _refuse_truth_gain
 from .errors import TagCompositionError
+from .errors import TagDeclarationError
 from .fields import FIELD_SEAT
 from .fields import _Field
 from .fields import _Partition
@@ -59,6 +68,7 @@ from .lifecycle import _rip
 from .state import Tagged
 from .state import _name_of
 from .state import _state_of
+from .state import _state_for
 from .transactions import _apply
 
 
@@ -92,6 +102,7 @@ class MetaTag(type):
         _check_pin_bases(tag)
         _check_constant_declarations(tag, namespace)
         _check_tool_declarations(tag, namespace)
+        _bind_native_posts(tag, namespace)
 
         return tag
 
@@ -100,9 +111,17 @@ class MetaTag(type):
             name: str,
             value: Any,
             ) -> None:
+        if isinstance(value, _Tag_Post):
+            raise TagDeclarationError(
+                    f"{tag.__name__}.{name}: declare a native Tag Post in"
+                    " the Tag body; late @Post + @Operation assignment is"
+                    " not defined"
+                    )
+
         _refuse_truth_gain(tag.__name__, name, value)
         if _is_dunder(name):
             _refuse_condition_dunder(tag.__name__, name, _kind_of(value))
+        _refuse_condition_binding(tag, name)
         owner = _constant_owner(tag, name)
 
         if owner is not None:
@@ -118,6 +137,7 @@ class MetaTag(type):
             tag,
             name: str,
             ) -> None:
+        _refuse_condition_binding(tag, name)
         owner = _constant_owner(tag, name)
 
         if owner is not None:
@@ -328,6 +348,46 @@ def _check_pin_target(
         raise TagCompositionError(
                 f"{pin.__name__} cannot pin itself"
                 )
+
+
+def _bind_native_posts(
+        tag: type,
+        namespace: dict[str, Any],
+        ) -> None:
+    """Establish this Tag's own promises without Tagging it or its members."""
+
+    declared = [
+            (name, member)
+            for name, member in namespace.items()
+            if isinstance(member, _Tag_Post)
+            ]
+
+    if not declared:
+        return
+
+    for name, member in declared:
+        if _has_flag(member, _PUBLIC) or _has_flag(member, _SECRET):
+            raise TagDeclarationError(
+                    f"{tag.__name__}.{name}: a Tag Post is read on its Tag;"
+                    " @Public and @Secret cannot change its scope"
+                    )
+
+        if _has_flag(member, _UNDERLAY):
+            raise TagDeclarationError(
+                    f"{tag.__name__}.{name}: a native Tag Post has no prior"
+                    " check to Underlay; a later Pin Post may Underlay it"
+                    )
+
+    state = _state_for(tag)
+
+    for name, member in declared:
+        function = member.__func__
+        check = _bind_condition(function, None, False, name)
+        check.__topkit_origin__ = tag
+        state.postconditions[name] = check
+
+        if _is_constant(member):
+            state.constants[name] = (tag, "postcondition", function)
 
 
 class Tag(metaclass=MetaTag):

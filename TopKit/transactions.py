@@ -29,6 +29,7 @@ from .declarations import _Declarations
 from .declarations import _discard_lazy_result
 from .declarations import _declarations_of
 from .declarations import _is_flag
+from .declarations import _Tag_Post
 from .declarations import _protocol_inputs
 from .errors import _exception_text
 from .errors import _type_name
@@ -339,6 +340,8 @@ def _refuse_conditions_shadowed_by_the_agent(
                 and name not in state.records
                 and name not in state.actions
                 and name != STATE
+                and not (state.pinned is agent
+                         and isinstance(namespace.get(name), _Tag_Post))
                 ):
             raise TagCompositionError(
                     f"{tag.__name__}.{name} is a condition, but"

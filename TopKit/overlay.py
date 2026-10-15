@@ -29,6 +29,7 @@ from .declarations import _ACTION_CHAIN
 from .declarations import _action_chain
 from .declarations import _discard_lazy_result
 from .declarations import _is_flag
+from .declarations import _kind_of
 from .declarations import _lazy_rip_guard
 from .declarations import _parameters_of
 from .declarations import _protocol_inputs
@@ -838,6 +839,9 @@ def _own_declaration(
         declared = klass.__dict__[name]
 
         if not _is_tag_class(klass):
+            return (klass, "protocol", declared)
+
+        if _kind_of(declared) == "tag_postcondition":
             return (klass, "protocol", declared)
 
         declarations = _declarations_of(klass)

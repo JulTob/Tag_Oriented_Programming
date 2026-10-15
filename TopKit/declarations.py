@@ -272,6 +272,18 @@ class _Check_Mark:
             mark,
             function: Function,
             ) -> Function:
+        if isinstance(function, classmethod):
+            if mark.kind == "postcondition" and _kind_of(function) == "operation":
+                declared = function.__func__
+                _mark(declared, "tag_postcondition")
+                return _Tag_Post(declared)
+
+            if mark.kind in ("precondition", "postcondition"):
+                raise TagDeclarationError(
+                        f"@{mark.__name__} cannot mark a classmethod;"
+                        " only @Post with @Operation declares a Tag Post"
+                        )
+
         return _mark(
                 function,
                 mark.kind,
@@ -332,12 +344,62 @@ def Operation(
         ) -> classmethod:
     """Tag behaviour. The Tag is its first input."""
 
+    kind = _kind_of(function)
+
+    if kind == "postcondition":
+        _mark(function, "tag_postcondition")
+        return _Tag_Post(function)
+
+    if kind in ("precondition", "condition"):
+        raise TagDeclarationError(
+                "@Operation with @Pre has no Tag-level Gate to run;"
+                " @Post with @Operation declares a Tag Post"
+                )
+
     _mark(
             function,
             "operation",
             )
 
     return classmethod(function)
+
+
+class _Tag_Post(classmethod):
+    """A native Tag Post: read its current verdict on the declaring Tag.
+
+    The class body keeps the declaration so scanning can distinguish it from
+    an Operation. Python passes a Shape as ``owner`` for a Base descriptor;
+    that Shape can read only a condition actually belonging to itself.
+    """
+
+    def __set_name__(
+            post,
+            owner: type,
+            name: str,
+            ) -> None:
+        post.owner = owner
+        post.name = name
+
+    def __get__(
+            post,
+            instance: object,
+            owner: type | None = None,
+            ) -> bool:
+        if owner is None:
+            raise AttributeError(post.name)
+
+        from .contracts import _condition_member
+        from .state import _state_of
+
+        state = _state_of(owner)
+        if state is not None:
+            verdict = _condition_member(owner, state, post.name)
+            if verdict is not None:
+                return verdict
+
+        raise AttributeError(
+                f"{owner.__name__} has no Tag Post {post.name!r}"
+                )
 
 
 def Secret(
@@ -819,7 +881,7 @@ def _refuse_condition_dunder(
         ) -> None:
     """Conditions expose verdicts; Python's protocol names need callables."""
 
-    if _is_dunder(name) and kind in _CONDITION_KINDS:
+    if _is_dunder(name) and kind in (*_CONDITION_KINDS, "tag_postcondition"):
         raise TagDeclarationError(
                 f"{owner}.{name}: a Precondition or Postcondition must have"
                 " an ordinary name; dunder names belong to Python protocols"
@@ -934,7 +996,8 @@ def _check_constant_declarations(
         kind = _kind_of(member)
         supported = (
                 isinstance(member, Report)
-                or isinstance(member, classmethod) and kind == "operation"
+                or isinstance(member, classmethod)
+                and kind in ("operation", "tag_postcondition")
                 or not isinstance(member, (classmethod, staticmethod))
                 and callable(member)
                 and kind in (None, "action", "record", "postcondition", "condition")
@@ -1027,6 +1090,7 @@ _NAMED_FAILURES: dict[str, type] = {
         "imprint": TagImprintError,
         "precondition": TagPreconditionError,
         "postcondition": TagPostconditionError,
+        "tag_postcondition": TagPostconditionError,
         }
 
 
@@ -1142,6 +1206,14 @@ def _scan(
         _refuse_condition_dunder(tag.__name__, name, kind)
         secret = _has_flag(attribute, _SECRET)
         public = _has_flag(attribute, _PUBLIC)
+
+        if kind == "tag_postcondition":
+            if not isinstance(attribute, _Tag_Post):
+                raise TagDeclarationError(
+                        f"{tag.__name__}.{name}: a Tag Post must combine"
+                        " @Post with @Operation"
+                        )
+            continue   # it judges this Tag, never a member Agent
 
         if kind == "operation":
             _reject_both(tag, name, secret, public)
