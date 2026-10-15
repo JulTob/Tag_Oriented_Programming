@@ -6,7 +6,6 @@ import asyncio
 import gc
 import inspect
 import unittest
-from collections.abc import AsyncGenerator
 from collections.abc import Coroutine
 from collections.abc import Generator
 from types import SimpleNamespace
@@ -71,7 +70,7 @@ class SafehouseLazyProxyTests(unittest.TestCase):
             gc.collect()
             self.assertEqual(events, ["first", "finally"])
 
-    def test_coroutine_and_async_generator_keep_asyncio_protocols(self) -> None:
+    def test_coroutine_keeps_asyncio_protocol(self) -> None:
         receiver = Receiver()
         checks = []
 
@@ -82,26 +81,34 @@ class SafehouseLazyProxyTests(unittest.TestCase):
             await asyncio.sleep(0)
             return 2
 
-        async def Values():
-            yield 3
-
         coroutine = _guard_lazy_result(Value(), receiver, "Action Value", Check)
-        async_generator = _guard_lazy_result(
-                Values(), receiver, "Operation Values", Check,
-                )
         self.assertIsInstance(coroutine, Coroutine)
-        self.assertIsInstance(async_generator, AsyncGenerator)
         self.assertFalse(inspect.iscoroutine(coroutine))
-        self.assertFalse(inspect.isasyncgen(async_generator))
         self.assertTrue(inspect.isawaitable(coroutine))
 
         async def Run():
             task = asyncio.create_task(coroutine)
-            return await task, [item async for item in async_generator]
+            return await task
 
-        self.assertEqual(asyncio.run(Run()), (2, [3]))
+        self.assertEqual(asyncio.run(Run()), 2)
         self.assertTrue(all(target is receiver for target, _ in checks))
-        self.assertGreaterEqual(len(checks), 3)
+        self.assertGreaterEqual(len(checks), 2)
+
+    def test_native_async_generator_is_refused_before_loop_can_close_it(self) -> None:
+        receiver = Receiver()
+        events = []
+
+        async def Values():
+            try:
+                events.append("started")
+                yield 3
+            finally:
+                events.append("finally")
+
+        with self.assertRaisesRegex(TypeError, "async generator results"):
+            _guard_lazy_result(Values(), receiver, "Operation", lambda *_: None)
+        asyncio.run(asyncio.sleep(0))
+        self.assertEqual(events, [])
 
     def test_async_resumption_checks_again_after_suspension(self) -> None:
         receiver = Receiver()
