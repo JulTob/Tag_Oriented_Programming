@@ -64,40 +64,61 @@ def _host_member(
     return None
 
 
-def _host_buffer_hooks(
-        acquire: FunctionType | None,
-        release: FunctionType | None,
+def _buffer_hooks(
+        acquire: Any | None,
+        release: Any | None,
         ) -> dict[str, Callable[..., Any]]:
-    """Guard ordinary Host buffer methods from the first actualization."""
+    """Guard the selected Python buffer pair from the first actualization."""
+
+    def Call(member: Any, agent: object, *args: Any, **kwargs: Any) -> Any:
+        if isinstance(member, FunctionType):
+            return member(agent, *args, **kwargs)
+
+        bound = member
+        member_type = type(member)
+        # Python's special lookup uses the descriptor type's real MRO, not
+        # its metaclass's potentially customized __getattribute__ result.
+        for owner in type.__getattribute__(member_type, "__mro__"):
+            namespace = type.__getattribute__(owner, "__dict__")
+            if "__get__" in namespace:
+                bound = namespace["__get__"](member, agent, type(agent))
+                break
+        return bound(*args, **kwargs)
 
     hooks: dict[str, Callable[..., Any]] = {}
 
     if acquire is not None:
-        @wraps(acquire)
         def Buffer(agent: object, *args: Any, **kwargs: Any) -> Any:
             def Invoke() -> Any:
-                return acquire(agent, *args, **kwargs)
+                return Call(acquire, agent, *args, **kwargs)
 
             release_hook = None
             if release is not None:
                 def Release(view: memoryview) -> Any:
-                    return release(agent, view)
+                    return Call(release, agent, view)
 
                 release_hook = Release
 
             return _acquire_buffer(agent, Invoke, release_hook)
 
+        if isinstance(acquire, FunctionType):
+            wraps(acquire)(Buffer)
+        else:
+            Buffer.__name__ = "__buffer__"
         hooks["__buffer__"] = Buffer
 
     if release is not None:
-        @wraps(release)
         def Release(agent: object, *args: Any, **kwargs: Any) -> Any:
             def Invoke() -> Any:
-                return release(agent, *args, **kwargs)
+                return Call(release, agent, *args, **kwargs)
 
             view = args[0] if args else kwargs.get("view", _MISSING)
             return _release_buffer(agent, view, Invoke)
 
+        if isinstance(release, FunctionType):
+            wraps(release)(Release)
+        else:
+            Release.__name__ = "__release_buffer__"
         hooks["__release_buffer__"] = Release
 
     return hooks
@@ -328,7 +349,7 @@ def _hooks_for(
 
     buffer_member = _buffer_member(host_type, "__buffer__")
     release_member = _buffer_member(host_type, "__release_buffer__")
-    hooks.update(_host_buffer_hooks(
+    hooks.update(_buffer_hooks(
             buffer_member if isinstance(buffer_member, FunctionType) else None,
             release_member if isinstance(release_member, FunctionType) else None,
             ))

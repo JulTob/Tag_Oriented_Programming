@@ -1394,6 +1394,8 @@ def _runtime_type_for(
 
     from .access import _arrest_read_hook
     from .access import _arrest_write_hook
+    from .access import _buffer_hooks
+    from .access import _buffer_member
     from .access import _hooks_for   # access imports this module
     from .contracts import _Condition_Gate
     from .presence import _presence_hook
@@ -1419,6 +1421,29 @@ def _runtime_type_for(
         hooks["__getattribute__"] = _arrest_read_hook(host_type)
     namespace: dict[str, Any] = dict(hooks)
     namespace.update(dunders)
+
+    if "__buffer__" in selected_dunders or "__release_buffer__" in selected_dunders:
+        # A selected TOP Action replaces a Host protocol seat. Wrap the
+        # final pair together so either Host/Action combination shares the
+        # same acquired-view release tickets, without nesting Host guards.
+        acquire = selected_dunders.get("__buffer__")
+        if acquire is None:
+            host_acquire = _buffer_member(host_type, "__buffer__")
+            acquire = (
+                    host_acquire
+                    if isinstance(host_acquire, FunctionType) else None
+                    )
+        release = selected_dunders.get("__release_buffer__")
+        if release is None:
+            host_release = _buffer_member(host_type, "__release_buffer__")
+            release = (
+                    host_release
+                    if isinstance(host_release, FunctionType) else None
+                    )
+        namespace.update(_buffer_hooks(
+                acquire,
+                release,
+                ))
 
     if not issubclass(host_type, type):
         # A Tag's gates are answered on its miss path, never by a data
