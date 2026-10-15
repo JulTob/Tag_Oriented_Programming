@@ -1534,7 +1534,7 @@ def _wraps_callable(function: Function) -> Function:
     if isinstance(function, (FunctionType, MethodType, BuiltinFunctionType)):
         return wraps(function)
 
-    return wraps(function, assigned=())
+    return wraps(function, assigned=(), updated=())
 
 
 def _signature_of(function: Function) -> Any:

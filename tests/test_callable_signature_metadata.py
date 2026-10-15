@@ -19,7 +19,7 @@ class _Hostile:
         self.metadata_reads = []
 
     def __getattribute__(self, name):
-        if name in ("__name__", "__qualname__"):
+        if name in ("__name__", "__qualname__", "__dict__"):
             object.__getattribute__(self, "metadata_reads").append(name)
             raise AssertionError("optional callable name was read")
         return object.__getattribute__(self, name)
