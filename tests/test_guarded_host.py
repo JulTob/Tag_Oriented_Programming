@@ -170,6 +170,24 @@ class GuardedHostTests(unittest.TestCase):
                     result.send(None)
                 self.assertEqual(completed.exception.value, "secret")
 
+    def test_unweakrefable_untaggable_host_keeps_lazy_python_calls(self) -> None:
+        @GuardedHost
+        class Vault:
+            __slots__ = ()
+
+            def steps(self):
+                yield "first"
+
+            async def read(self):
+                return "value"
+
+        vault = Vault()
+        self.assertEqual(next(vault.steps()), "first")
+        result = vault.read()
+        with self.assertRaises(StopIteration) as completed:
+            result.send(None)
+        self.assertEqual(completed.exception.value, "value")
+
     def test_captured_host_getter_and_setter_are_guarded(self) -> None:
         @GuardedHost
         class Vault:
@@ -269,6 +287,12 @@ class GuardedHostTests(unittest.TestCase):
             @GuardedHost
             class Child(Base):
                 pass
+
+        with self.assertRaisesRegex(TagDeclarationError, "cleanup hook"):
+            @GuardedHost
+            class Finalizer:
+                def __del__(self):
+                    pass
 
     def test_async_generator_method_is_refused_before_partial_decoration(self) -> None:
         class Vault:

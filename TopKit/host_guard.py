@@ -21,14 +21,13 @@ from .lazy_guard import _guard_lazy_result
 
 _CLEANUP_HOOKS = frozenset((
         "__enter__", "__exit__", "__aenter__", "__aexit__",
-        "__buffer__", "__getbuffer__", "__release_buffer__",
+        "__buffer__", "__getbuffer__", "__release_buffer__", "__del__",
         ))
 
 # These are class creation/finalization hooks, not ordinary instance acts.
 # Their direct-call policy is part of the open Safehouse design.
 _CLASS_HOOKS = frozenset((
         "__new__", "__init_subclass__", "__class_getitem__",
-        "__del__",
         ))
 
 
@@ -57,8 +56,8 @@ def GuardedHost(host: type) -> type:
     """Mark a Host whose own instance functions must respect Rip custody.
 
     Decorate the completed class, outermost to ``@dataclass`` and similar
-    class decorators. A class with context or buffer cleanup hooks is
-    refused until their already-entered cleanup door is implemented.
+    class decorators. A class with context, buffer, or finalization hooks
+    is refused until its cleanup boundary is designed.
     Python descriptors, class/static methods and unmarked Python Bases are
     outside this first, intentionally narrow profile.
     """
