@@ -7,16 +7,27 @@
 - **Status:** Deployed
 - **Created:** 2026-09-04
 - **Deployed:** 2026-09-05
+- **Amended:** 2026-10-09
 
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
+
+> **Supersession, 2026-10-12:** [STEP-SPEC-39: Tagging Admission](STEP-SPEC-39-tagging-admission.md)
+> replaces this STEP's training and admission boundaries. Gainings and
+> Imprints now precede FieldAdding; unfinished training leaves actual Gains
+> without membership. Posts still judge admitted members after the completed
+> Form, and the sound/defective Field partitions are unchanged. The text below
+> records the earlier design and its Gate amendment.
 
 ## Summary
 
 A Tagging whose Postcondition fails is **applied and defective**: the call
 raises, the Tags stay, and the Agent is a member whose promise is broken.
-An Imprint failure likewise leaves the Tags applied. Preconditions and
-Record failures still roll the whole call back.
+Under the earlier sequence, an Imprint failure likewise left the Tags
+applied. Each missing Tag now passes its own Gate when its turn arrives; a
+later refusal leaves Tags whose turns finished in place. This Gate amendment
+left the remaining phases unchanged at the time; STEP-SPEC-39 later
+superseded their order.
 
 Fields partition into the **sound** population (`for a in Tag`) and the
 **defective** one (`for a in ~Tag`); `Tag[:]` is everyone. Membership
@@ -36,13 +47,15 @@ nobody disappears from a plain loop silently.
 
 ## Specification
 
-1. The tagging sequence: once per call, the gate (the Preconditions
-   visible in the composed Form of the call, so a Shape relaxes its Base);
-   then per Tag in the Form: parts, commit, write; then once per call,
+1. The original tagging sequence, for each missing Tag in Form order:
+   that Tag's Gate, Parts, Field entry and Imprints; then once per call,
    after the whole Form: quality check (every visible Postcondition).
-2. A failure in gate or parts, for any Tag in the Form, rolls the whole
-   call back (STEP-SPEC-6 keeps that law).
-3. A failure in write raises a Tag Imprint Failure; the Tags stay.
+2. A Gate refusal stops before that Tag's Parts, Contributions, Field entry
+   or Imprints. Tags whose turns already finished stay applied. Record
+   failures at the time restored the whole call; STEP-SPEC-39 superseded
+   this boundary.
+3. Under that sequence, a failure in an Imprint raises a Tag Imprint
+   Failure; the Tags stay.
 4. A failure in quality check raises a Tag Postcondition Failure; the Tags
    stay; the Agent is defective while any visible Postcondition fails.
 5. For an Agent, including a Tag receiving Pins, `bool(agent)` is true
@@ -62,6 +75,10 @@ Checking Postconditions once per call, after the whole Form, lets a Base
 promise what its Shape delivers ("an Element has an attack"). Checking
 per Tag would refuse every such Base at its own step.
 
+Gates are different: every Tag independently decides whether the Agent may
+enter that Tag. A missing Base must pass its own Gate before a Shape gets a
+turn; the chain is not erased when a later Gate refuses.
+
 The plain loop is the working population: gameplay iterates the Agents
 fit to play, repair iterates `~Wizard`, and `Wizard[:]` is there when a
 program wants everyone. A defective Agent never loses membership, so
@@ -73,14 +90,16 @@ leave `Tag.name` to the program (Specification §0.8).
 
 Programs that relied on a failed Postcondition rolling back must Rip the
 defective Tag themselves, or check `bool(agent)` after the call. The
-`CONFORMANCE.md` line "atomic taggings, all-or-nothing" is reworded: gate
-and parts are atomic; write and quality check are not.
+original `CONFORMANCE.md` line "atomic taggings, all-or-nothing" was
+reworded when this STEP first deployed. This amendment supersedes its Gate
+half; STEP-SPEC-39 later superseded the post-Gate Parts behavior.
 
 ## Alternatives considered
 
 | Alternative | Verdict |
 | --- | --- |
 | Roll back on any failure (0.1 behaviour) | Rejected by the Director: a product is not unmade |
+| One composed Gate before the whole Form | Superseded by the Director's chain decision: each Tag passes its own Gate at its turn |
 | Author chooses per Tag | Set aside; two laws to explain |
 | Default iteration is the whole Field, `Tag[:]` the sound one | Rejected by the Director; the loop should be the working population, with `~Tag` one character away |
 | `Tag.Field`, `Tag.Rip(agent)` as dotted methods | Rejected; `Tag.name` belongs to the program (§0.8) |
@@ -89,9 +108,9 @@ and parts are atomic; write and quality check are not.
 ## Acceptance requirements
 
 The original rules are covered by
-`tests/test_topkit.py::DefectiveTaggingTests`. The 2026-10-09 amendment is
-covered by `HostPreservationTests`: zero and nonzero host lengths, sound
-and defective contracts, and no Posts.
+`tests.test_topkit.DefectiveTaggingTests`. The 2026-10-09 amendment is
+covered by `tests.test_topkit.HostPreservationTests`: zero and nonzero
+host lengths, sound and defective contracts, and no Posts.
 
 ## Amendment: a host's length is not an Agent's truth
 
@@ -107,6 +126,25 @@ true even with an empty Field. `len(Tag)`, `len(Tag[:])` and `len(~Tag)`
 retain the sound, whole and defective cardinalities. STEP-SPEC-40 records
 and clears these amendments; the earlier Tag population-truth exception
 is superseded without changing Rule 6's population meanings.
+
+---
+
+## Amendment, 2026-10-09
+
+The original deployed text gave the whole Form one composed Gate and made a
+later Shape's Precondition suppress its Base's own Gate. During issue #30's
+review, the Director clarified that Tags are independent and Form application
+is a chain, "not a house of cards": completed Tags stay when a later Tag's
+Gate refuses. The Director then explicitly selected **each Tag passes its own
+Gate**.
+
+This amendment implements only the Gate chain. On 2026-10-12, the Director
+approved the follow-up order **Gate → Gainings/Imprints → FieldAdding → Posts**.
+Unfinished training leaves acquired Gains outside the Tag; a failure in Posts
+leaves a deficient member. Those phases are now the current rule in
+STEP-SPEC-39; the sequence above records the earlier implementation.
+
+Covered by `tests.test_topkit.PreconditionTests`.
 
 ---
 

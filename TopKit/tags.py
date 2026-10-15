@@ -37,6 +37,7 @@ from .declarations import _MISSING
 from .declarations import _check_constant_declarations
 from .declarations import _check_constant_shapes
 from .declarations import _check_pin_bases
+from .declarations import _check_rip_declarations
 from .declarations import _check_tool_declarations
 from .declarations import _constant_owner
 from .declarations import _is_dunder
@@ -74,6 +75,10 @@ class MetaTag(type):
         namespace.setdefault(
                 FIELD_SEAT,
                 _Field(),
+                )
+        _check_rip_declarations(
+                name,
+                namespace,
                 )
         _name_checks(namespace, name)
 
