@@ -64,7 +64,6 @@ from .fields import _sound_of
 from .geometry import _form_of
 from .geometry import _is_tag
 from .lifecycle import _rip
-from .memo import _type_mro
 from .state import Tagged
 from .state import _name_of
 from .state import _state_of
@@ -165,15 +164,11 @@ class MetaTag(type):
         try:
             with _pin_mark_lock:
                 pin = _is_pin(tag)
-                # The physical MRO contains exactly the Tags this ordinary
-                # Form may apply. Reserve them before a Gate or Host hook
-                # can reenter and try to turn one into a Pin.
+                # Reserve the exact Form that _apply will use, including a
+                # cached Form after a class's real Bases change. Do this
+                # before a Gate or Host hook can turn a Base into a Pin.
                 if not pin:
-                    pending_tags = tuple(
-                            member
-                            for member in _type_mro.__get__(tag)
-                            if _is_tag(member)
-                            )
+                    pending_tags = _form_of(tag)
                     _begin_ordinary_form(pending_tags)
 
             if pin:
@@ -192,6 +187,7 @@ class MetaTag(type):
                     target,
                     tag,
                     inputs,
+                    form=pending_tags,
                     )
         finally:
             if pending_tags is not None:

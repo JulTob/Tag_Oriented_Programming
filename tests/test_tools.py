@@ -19,7 +19,7 @@ from threading import Event, Thread
 from typing import Any, Protocol, runtime_checkable
 from unittest.mock import patch
 
-from TopKit import (Action, Constant, Contract, Delete, Imprint, Keyword,
+from TopKit import (Action, Constant, Contract, Delete, Form, Imprint, Keyword,
                     Operation, Pin, Post, Pre, Public, Record, Report, Rip,
                     Secret, Tag, TagCompositionError, TagDeclarationError,
                     TagImprintError, TagOverwriteWarning, TagPreconditionError,
@@ -1339,6 +1339,34 @@ class Host_Tests(unittest.TestCase):
 
 
 class Late_Pin_Tests(unittest.TestCase):
+    def test_cached_form_base_stays_reserved_after_real_bases_change(self):
+        refusals = []
+
+        class Old(Tag):
+            @Imprint
+            def Train(agent):
+                try:
+                    Pin(Old)
+                except TagDeclarationError as error:
+                    refusals.append(str(error))
+
+        class New(Tag):
+            pass
+
+        class Shape(Old):
+            pass
+
+        self.assertEqual(Form(Shape), (Old, Shape))
+        Shape.__bases__ = (New,)
+
+        ari = Character("Ari")
+        Shape(ari)
+
+        self.assertEqual(len(refusals), 1)
+        self.assertIn("Tagging is in flight", refusals[0])
+        self.assertNotIn("__topkit_pin__", Old.__dict__)
+        self.assertIn(ari, Old[:])
+
     def test_an_imprint_cannot_turn_its_unfinished_tag_into_a_pin(self):
         refusals = []
 
