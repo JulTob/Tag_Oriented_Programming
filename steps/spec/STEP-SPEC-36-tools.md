@@ -86,9 +86,9 @@ exported as `TopKit.Tool`), with `tests/test_tools.py`, a Tool exercise
 in the oracle, the Specification's §1.3 "Tools" subsection, and the
 [wiki page](https://github.com/JulTob/Tag_Oriented_Programming/wiki/1.4-TopKit-Tools)
 running its `@Tool` blocks. The failure outcomes follow the tagging
-sequence the kit runs: whole-call rollback on `main` today, STEP-SPEC-39's
-retained Gains once PR #78 lands; the laws of this STEP do not change
-between the two.
+sequence STEP-SPEC-39 now runs on `main`: acquired Gains remain if a
+later Gaining or Imprint fails, while the unfinished Tag has no Field
+member (#174). The laws of this STEP do not change with that sequence.
 
 ## Director's decisions recorded in this revision
 
@@ -226,15 +226,11 @@ The order is STEP-SPEC-39's **Gate → Gainings/Imprints → Field → Posts**.
 Gains are acquired in declaration order and visible to subsequent Gains.
 The class check runs at this Record's turn, not in a preliminary pass.
 
-> **On `main` today.** STEP-SPEC-39 is Cleared but not yet on `main`
-> (PR #78; its implementation is PR #174, still a Draft). Until it lands, the kit follows the
-> Specification's §0.6: **Gate → Parts → Commit → Write → Quality**.
-> A builder or admission failure is a Record failure at Parts, so the
-> whole call rolls back and an occupied slot keeps the Tool it held.
-> Field entry is at Commit, before the Imprints: an Imprint failure
-> raises with the Agent in the Field and the gained Tool kept. The
-> bullets below describe STEP-SPEC-39's sequence; `tests/test_tools.py`
-> (`Sequence_Tests`) pins today's.
+> **On `main` today.** #174 implements STEP-SPEC-39's sequence. A refused
+> Tool value is not gained, while earlier acquired Gains remain. An
+> Imprint failure keeps an acquired Tool but leaves the unfinished Tag's
+> Field empty for that Agent. `tests/test_tools.py` (`Sequence_Tests`)
+> checks these boundaries.
 
 - A refused Gate gains nothing for that Tag; completed independent
   Taggings remain.
@@ -459,11 +455,10 @@ its audited size (`--seeds 50 --steps 1200 --population 18`).
   bearer until the bearer is of the kind; a kind of two Tags, and of a
   class and a Tag, asks for all; a union of a Tag and a class admits
   either: `Tag_Kind_Tests`, `Class_Kind_Tests`;
-- bad initial values are not gained; on `main` today the whole call rolls
-  back and the host keeps its own type
-  (`test_a_builder_returning_a_non_member_refuses_the_gaining`); under
-  STEP-SPEC-39 the same refusal leaves the Gains already acquired, to be
-  re-run on that branch when PR #78 lands;
+- bad initial values are not gained; earlier acquired Gains remain, while
+  the unfinished Tag does not gain a Field member
+  (`test_a_builder_returning_a_non_member_refuses_the_gaining`,
+  `Sequence_Tests`);
 - ordinary and kernel-path writes preserve the old binding on refusal;
   dropping makes Presence false and reassignment stays guarded; a host's
   own setter runs only after admission; a frozen dataclass host gains

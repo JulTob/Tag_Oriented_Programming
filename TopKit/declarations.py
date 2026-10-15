@@ -27,7 +27,6 @@ from typing import Any
 from typing import Callable
 from typing import NamedTuple
 from weakref import WeakKeyDictionary
-from weakref import WeakSet
 from weakref import ref
 
 from .errors import TagDeclarationError
@@ -35,6 +34,7 @@ from .errors import TagCompositionError
 from .errors import TagImprintError
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
+from .geometry import _is_tag
 from .geometry import _is_tag_class
 from .memo import _forget_memo
 from .memo import _memo_key
@@ -538,11 +538,10 @@ def Pin(
 def _refuse_late_pin(
         tag: type,
         ) -> None:
-    """``@Pin`` marks a Tag at its declaration, before anything relies on
-    it being an ordinary Tag. Marked later, it would change three things
-    without a check: its Shapes would become Pins (a Shape of a Pin is a
-    Pin), its Agents would sit in a Field of Tags, and a Tool that names
-    it would hold Tags (§1.3, §1.9)."""
+    """Refuse a late mark that would change current ordinary-Tag use:
+    Shapes would become Pins, the Field could mix objects and Tags, or
+    a declared Tool kind would start admitting Tags (§1.3, §1.9). Past
+    Taggings no longer in the Field are a separate unresolved case."""
 
     shapes = type.__subclasses__(tag)
 
@@ -554,7 +553,9 @@ def _refuse_late_pin(
                 " before its Shapes"
                 )
 
-    agents = list(tag.__dict__["_topkit_field"])
+    from .fields import _field_of   # fields imports declarations through contracts
+
+    agents = list(_field_of(tag))
 
     if agents:
         raise TagDeclarationError(
@@ -563,7 +564,9 @@ def _refuse_late_pin(
                 " objects (§1.9)"
                 )
 
-    if tag in _kinds_named:
+    named = _kinds_named.get(id(tag))
+
+    if named is not None and named() is tag:
         raise TagDeclarationError(
                 f"@Pin marks {tag.__name__} at its declaration, and a @Tool"
                 f" already names {tag.__name__} as its kind: a Pin is no"
@@ -1038,7 +1041,7 @@ def _refuse_tools_on_a_pin(
                     )
 
 
-_kinds_named: "WeakSet[type]" = WeakSet()   # the Tags a declared @Tool names as its kind
+_kinds_named: dict[int, ref[type]] = {}   # weak, by Tag identity
 
 
 def _note_kinds(
@@ -1049,8 +1052,20 @@ def _note_kinds(
 
     for term in kind.terms:
         for alternative in term:
-            if hasattr(alternative, "_topkit_field"):
-                _kinds_named.add(alternative)
+            if not _is_tag(alternative):
+                continue
+
+            key = id(alternative)
+            current = _kinds_named.get(key)
+
+            if current is not None and current() is alternative:
+                continue
+
+            def Forget(expired: ref[type], key: int = key) -> None:
+                if _kinds_named.get(key) is expired:
+                    del _kinds_named[key]
+
+            _kinds_named[key] = ref(alternative, Forget)
 
 
 def _check_tool_declarations(

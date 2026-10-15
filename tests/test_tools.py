@@ -22,6 +22,7 @@ from TopKit import (Action, Constant, Contract, Delete, Imprint, Keyword,
                     Secret, Tag, TagCompositionError, TagDeclarationError,
                     TagImprintError, TagOverwriteWarning, TagPreconditionError,
                     Tool)
+from TopKit.tags import MetaTag
 
 
 class Character:
@@ -1382,6 +1383,64 @@ class Late_Pin_Tests(unittest.TestCase):
         collector.prize = trophy
         self.assertIs(collector.prize, trophy)
 
+    def test_a_host_lookalike_with_unhashable_metaclass_remains_a_class_kind(self):
+        class Unhashable(type):
+            __hash__ = None
+
+        class Host(metaclass=Unhashable):
+            _topkit_field = object()                     # a name is not a Tag
+
+        class Holder(Tag):
+            @Tool(Host)
+            def held(agent):
+                return Host()
+
+        agent = Character("Charlie")
+        Holder(agent)
+        self.assertIsInstance(agent.held, Host)
+
+    def test_equal_but_distinct_tag_classes_have_separate_kind_history(self):
+        class Equal_Meta(MetaTag):
+            def __eq__(cls, other):
+                return isinstance(other, Equal_Meta)
+
+            def __hash__(cls):
+                return 17
+
+        class Prize(Tag, metaclass=Equal_Meta):
+            pass
+
+        class Other(Tag, metaclass=Equal_Meta):
+            pass
+
+        class Collector(Tag):
+            @Tool(Prize)
+            def prize(agent):
+                return None
+
+        self.assertIsNot(Prize, Other)
+        self.assertEqual(Prize, Other)
+        self.assertIs(Pin(Other), Other)                   # only Prize was named
+        with self.assertRaises(TagDeclarationError):
+            Pin(Prize)
+
+    def test_named_tool_kinds_are_tracked_weakly(self):
+        def declare():
+            class Prize(Tag):
+                pass
+
+            class Collector(Tag):
+                @Tool(Prize)
+                def prize(agent):
+                    return None
+
+            return weakref.ref(Prize), weakref.ref(Collector)
+
+        prize, collector = declare()
+        gc.collect()
+        self.assertIsNone(collector())
+        self.assertIsNone(prize())
+
     def test_a_refused_pin_leaves_no_mark(self):
         class Odd(Tag):
             @Delete
@@ -1440,6 +1499,10 @@ class Late_Pin_Tests(unittest.TestCase):
 class Sequence_Tests(unittest.TestCase):
     def test_a_refused_tool_over_an_occupied_slot_keeps_the_held_tool(self):
         class Rearmed(Fighter):
+            @Record
+            def checkpoint(agent):
+                return "gained before the refused Tool"
+
             @Tool(Weapon)
             def weapon(agent, stored):
                 return Sword("an unforged blade")         # not a Weapon: refused at its turn
@@ -1449,8 +1512,9 @@ class Sequence_Tests(unittest.TestCase):
         held = charlie.weapon
         with self.assertRaises(TagCompositionError):
             Rearmed(charlie)
-        self.assertIs(charlie.weapon, held)               # the call rolled back (§0.6)
-        self.assertNotIn(charlie, Rearmed)
+        self.assertIs(charlie.weapon, held)               # the refused Tool did not replace it
+        self.assertEqual(charlie.checkpoint, "gained before the refused Tool")
+        self.assertNotIn(charlie, Rearmed[:])             # no Field entry for unfinished training
         with self.assertRaises(TagCompositionError):
             charlie.weapon = Sword("plain")               # Fighter's rule still guards the slot
 
@@ -1468,7 +1532,8 @@ class Sequence_Tests(unittest.TestCase):
         with self.assertRaises(TagImprintError) as failure:
             Trained(charlie)
         self.assertIsInstance(failure.exception.__cause__, RuntimeError)
-        self.assertIn(charlie.weapon, Weapon[:])          # the gained Tool stays (§0.6), guarded
+        self.assertIn(charlie.weapon, Weapon[:])          # acquired Tool stays on a Rogue
+        self.assertNotIn(charlie, Trained[:])
         with self.assertRaises(TagCompositionError):
             charlie.weapon = Sword("plain")
 
