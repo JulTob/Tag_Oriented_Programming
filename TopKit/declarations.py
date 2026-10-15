@@ -34,6 +34,7 @@ from .errors import TagCompositionError
 from .errors import TagImprintError
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
+from .geometry import _is_tag_class
 from .memo import _forget_memo
 from .memo import _memo_key
 from .memo import _memo_of
@@ -415,7 +416,7 @@ def _mark_flag(
         tag: type,
         aliases: frozenset[str],
         ) -> type:
-    if not isinstance(tag, type) or not hasattr(tag, "_topkit_field"):
+    if not _is_tag_class(tag):
         raise TagDeclarationError(
                 "@Flag marks a Tag class"
                 )
@@ -502,7 +503,7 @@ def Pin(
     nothing else, and its Bases must be Pins.
     """
 
-    if not isinstance(tag, type) or not hasattr(tag, "_topkit_field"):
+    if not _is_tag_class(tag):
         raise TagDeclarationError(
                 "@Pin marks a Tag class"
                 )
@@ -543,8 +544,8 @@ def _is_tag_base(
     """A Tag class other than the root ``Tag`` (the root is the only Tag
     with no Tag among its own bases)."""
 
-    return hasattr(base, "_topkit_field") and any(
-            hasattr(deeper, "_topkit_field")
+    return _is_tag_class(base) and any(
+            _is_tag_class(deeper)
             for deeper in base.__bases__
             )
 

@@ -49,6 +49,7 @@ from .declarations import STATE
 from .declarations import Report
 from .declarations import _declarations_of
 from .geometry import _is_base_of
+from .geometry import _is_tag_class
 from .geometry import _related
 from .declarations import _MISSING
 from .presence import _Presence
@@ -76,18 +77,6 @@ _quiet: ContextVar[int] = ContextVar(   # above zero while a scratch pass lays T
         "topkit_quiet",
         default=0,
         )
-_MetaTag: type | None = None   # imported on first use: tags imports this module
-
-
-def _is_tag_type(
-        candidate: object,
-        ) -> bool:
-    global _MetaTag
-
-    if _MetaTag is None:
-        from .tags import MetaTag as _MetaTag
-
-    return isinstance(candidate, _MetaTag)
 
 
 def _nothing_beneath(
@@ -106,7 +95,7 @@ def _independent(
     """True when ``origin`` is a Tag unrelated to ``tag`` (not in its Form)."""
 
     return (
-            _is_tag_type(origin)
+            _is_tag_class(origin)
             and not _related(tag, origin)
             )
 
@@ -848,7 +837,7 @@ def _own_declaration(
 
         declared = klass.__dict__[name]
 
-        if not hasattr(klass, "_topkit_field"):
+        if not _is_tag_class(klass):
             return (klass, "protocol", declared)
 
         declarations = _declarations_of(klass)

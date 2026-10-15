@@ -23,6 +23,7 @@ from .declarations import _takes_underlay
 from .errors import TagCompositionError
 from .errors import TagResolutionError
 from .fields import _Member
+from .fields import _field_of
 from .geometry import _requiring_shapes
 from .state import _Originals
 from .state import _State
@@ -58,7 +59,7 @@ def _rip(
     state.active.remove(tag)
     state.words = None
     state.snapshots.pop(tag, None)   # a view needs membership: never read again
-    tag._topkit_field._Remove(agent)
+    _field_of(tag)._Remove(agent)
 
     _teardown(
             agent,
