@@ -11,6 +11,7 @@ from TopKit import Record
 from TopKit import Report
 from TopKit import Rip
 from TopKit import Tag
+from TopKit import TagCompositionError
 from TopKit.tags import MetaTag
 
 from ._fixtures import Agent
@@ -304,7 +305,7 @@ class FieldRipTests(unittest.TestCase):
             Hazard(member)
 
         # STEP-SPEC-32 still decides whether later teardowns run.
-        with self.assertRaises(Exception):
+        with self.assertRaises(TagCompositionError):
             del Hazard[:]
 
         self.assertEqual(seen_membership, [(False, False)])
