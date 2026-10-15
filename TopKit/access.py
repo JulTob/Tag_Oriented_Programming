@@ -71,6 +71,9 @@ def _buffer_hooks(
     """Guard the selected Python buffer pair from the first actualization."""
 
     def Call(member: Any, agent: object, *args: Any, **kwargs: Any) -> Any:
+        if isinstance(member, FunctionType):
+            return member(agent, *args, **kwargs)
+
         bound = member
         member_type = type(member)
         # Python's special lookup uses the descriptor type's real MRO, not
