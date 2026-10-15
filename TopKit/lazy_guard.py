@@ -35,6 +35,7 @@ from typing import Callable
 from weakref import ref
 
 from .arrest import _hold_lazy_result
+from .arrest import _safehouse
 from .errors import TagArrestedAccessError
 
 
@@ -176,13 +177,23 @@ def _guard_lazy_result(
         act: str,
         authorize: _Check,
         ) -> Any:
-    """Return an ordinary value unchanged; guard supported lazy results.
+    """Check the receiver after its call and guard supported lazy results.
 
     A published Operation passes through a Tag call and then an Agent Action.
     Nesting proxies keeps both receivers' arrest checks on every resume.
+    A started result must enter custody before a new arrest can deny its
+    return: dropping it otherwise runs its finalizer outside the Rip door.
     """
 
     kind = type(result)
+    if _safehouse:
+        try:
+            authorize(receiver, act)
+        except BaseException:
+            if kind in _LAZY_TYPES or kind is AsyncGeneratorType:
+                _hold_lazy_result(receiver, result)
+            raise
+
     if kind is AsyncGeneratorType:
         # Python's event loop can close a started native async generator
         # directly at shutdown. Keep it if already arrested, then refuse
