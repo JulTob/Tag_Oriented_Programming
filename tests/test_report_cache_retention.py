@@ -266,6 +266,28 @@ class ReportCacheRetentionTests(unittest.TestCase):
         self.assertTrue(any(type(member) is _Report_Value
                             for member in vars(Shape).values()))
 
+    def test_retired_slot_releases_report_if_a_metaclass_blocks_its_removal(self):
+        class Meta(MetaTag):
+            pass
+
+        class Base(Tag, metaclass=Meta):
+            @Report
+            def value(tag):
+                return tag
+
+        report = vars(Base)["value"]
+        self.assertIs(Base.value, Base)
+        slot = next(name for name, member in vars(Base).items()
+                    if type(member) is _Report_Value)
+        setattr(Meta, slot, property(lambda tag: None))
+
+        Base.value = "changed"
+        self.assertIsNone(vars(Base)[slot].report)
+        old_report = weakref.ref(report)
+        del report
+        gc.collect()
+        self.assertIsNone(old_report())
+
     def test_equal_comparing_tags_keep_distinct_report_values(self):
         class Equal_Meta(MetaTag):
             def __eq__(tag, other):

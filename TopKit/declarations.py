@@ -587,7 +587,7 @@ class _Report_Value:
     """A Report value owned by the receiving Tag, including a real None."""
 
     owner: type
-    report: "Report"
+    report: "Report | None"
     payload: tuple[Any, ...]
 
 
@@ -727,6 +727,9 @@ class Report:
                 if (type(existing) is _Report_Value
                         and existing.owner is owner
                         and existing.report is report):
+                    if existing.payload:
+                        report._track(owner, name)
+                        return existing.payload[0]
                     existing.payload = (value,)
                     report._track(owner, name)
                     return value
@@ -763,7 +766,15 @@ class Report:
                     cached.payload = ()
                     if (not _metaclass_binding(owner, name)
                             and _class_namespace(owner).get(name) is cached):
-                        type.__delattr__(owner, name)
+                        try:
+                            type.__delattr__(owner, name)
+                        except (AttributeError, TypeError):
+                            # A concurrent metaclass binding can refuse
+                            # deletion. The retired wrapper must still let
+                            # go of the removed declaration.
+                            cached.report = None
+                    else:
+                        cached.report = None
                 if report._slots.get(key, (None,))[0] is reference:
                     report._slots.pop(key, None)
         # Releasing a value can run user finalizers. Do that outside the
