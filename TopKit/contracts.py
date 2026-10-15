@@ -636,7 +636,8 @@ class Contract:
     def Status(
             agent: object,
             ) -> dict[str, bool]:
-        """``{condition: holds?}`` for every visible condition, never raising."""
+        """Verdicts for visible conditions. Ordinary check errors become
+        False; a self-referential soundness query raises Contract Failure."""
 
         return {
                 **_status_of(agent, "preconditions"),
