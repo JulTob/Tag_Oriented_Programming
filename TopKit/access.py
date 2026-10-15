@@ -256,10 +256,7 @@ def _host_context_hook(name: str, member: Any) -> Callable[..., Any]:
             return bound(*args, **kwargs)
 
         if name == "__enter__":
-            result = _enter(agent, "sync", Invoke)
-            return _guard_lazy_result(
-                    result, agent, "host context entry", _require_available,
-                    )
+            return _enter(agent, "sync", Invoke)
         if name == "__exit__":
             failure = args[1] if len(args) > 1 else None
             return _exit(agent, "sync", failure, Invoke)

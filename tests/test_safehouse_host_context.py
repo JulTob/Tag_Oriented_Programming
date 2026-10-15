@@ -58,6 +58,28 @@ class SafehouseHostContextTests(unittest.TestCase):
         ready = True
         del Tag[host]
 
+    def test_sync_host_entry_returns_ordinary_async_generator_payload(self) -> None:
+        async def Payload():
+            yield "content"
+
+        payload = Payload()
+
+        class Host:
+            def __enter__(self):
+                return payload
+
+            def __exit__(self, kind, value, traceback):
+                return False
+
+        class Custody(Tag):
+            pass
+
+        host = Host()
+        Custody(host)
+        with host as received:
+            self.assertIs(received, payload)
+        asyncio.run(payload.aclose())
+
     def test_exit_failure_does_not_hide_the_rip_failure(self) -> None:
         class Host:
             def __enter__(self):
