@@ -181,6 +181,52 @@ class RipSignatureTests(unittest.TestCase):
         self.assertEqual(events, ["base", "middle", "shape"])
         self.assertEqual(Target.colour, "original")
 
+    def test_saved_nested_pin_rip_retries_with_the_same_originals_seat(self):
+        events = []
+        fail_once = [True]
+
+        class Target(Tag):
+            colour = "original"
+
+        @Pin
+        class Base(Tag):
+            @Rip
+            def Finish(tag):
+                events.append("base")
+
+        class Middle(Base):
+            @Rip
+            @Underlay
+            def Finish(tag, prior):
+                prior()
+                events.append("middle")
+
+        class Shape(Middle):
+            @Record
+            def colour(tag, stored):
+                return stored + "-patched"
+
+            @Rip
+            @Underlay
+            def Finish(tag, prior, originals):
+                prior()
+                tag.colour = originals.colour
+                events.append("shape")
+                if fail_once[0]:
+                    fail_once[0] = False
+                    raise ValueError("retry me")
+
+        Shape(Target)
+        with self.assertRaises(TagCompositionError) as failed:
+            del Shape[Target]
+        self.assertIsInstance(failed.exception.__cause__, ValueError)
+        self.assertIn(Target, Shape[...])
+
+        del Tag[Target]
+        self.assertEqual(events, ["base", "middle", "shape"] * 2)
+        self.assertEqual(Target.colour, "original")
+        self.assertNotIn(Target, Tag[...])
+
     def test_direct_action_arguments_still_reach_the_underlay(self):
         events = []
 
