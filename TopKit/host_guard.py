@@ -21,7 +21,7 @@ from .lazy_guard import _guard_lazy_result
 
 _CLEANUP_HOOKS = frozenset((
         "__enter__", "__exit__", "__aenter__", "__aexit__",
-        "__getbuffer__", "__release_buffer__",
+        "__buffer__", "__getbuffer__", "__release_buffer__",
         ))
 
 # These are class creation/finalization hooks, not ordinary instance acts.
@@ -71,7 +71,14 @@ def GuardedHost(host: type) -> type:
                 )
 
     namespace = dict(type.__getattribute__(host, "__dict__"))
-    blocked = _CLEANUP_HOOKS.intersection(namespace)
+    blocked = {
+            name
+            for owner in type.__getattribute__(host, "__mro__")
+            if owner is not object
+            for name in _CLEANUP_HOOKS.intersection(
+                    type.__getattribute__(owner, "__dict__")
+                    )
+            }
     if blocked:
         name = sorted(blocked)[0]
         raise TagDeclarationError(

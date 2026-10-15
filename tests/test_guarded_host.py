@@ -261,6 +261,15 @@ class GuardedHostTests(unittest.TestCase):
                 def __exit__(self, error_type, error, traceback):
                     return False
 
+        class Base:
+            def __release_buffer__(self, buffer):
+                pass
+
+        with self.assertRaisesRegex(TagDeclarationError, "cleanup hook"):
+            @GuardedHost
+            class Child(Base):
+                pass
+
     def test_async_generator_method_is_refused_before_partial_decoration(self) -> None:
         class Vault:
             def read(self):
