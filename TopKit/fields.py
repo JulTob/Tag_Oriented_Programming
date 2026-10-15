@@ -369,7 +369,7 @@ def _probe_combined(
 
     while True:
         while _uses_combined_method(population, "__contains__"):
-            pending.append((population, 0, []))
+            pending.append((population, 0, _Evidence()))
             population = population._left
 
         verdict = agent in population
