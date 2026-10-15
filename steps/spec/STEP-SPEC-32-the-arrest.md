@@ -19,7 +19,7 @@ The later Director decisions below do not clear the whole STEP.
 
 This recovered **Brief** preserves the recorded ordinary explicit-Rip/Field-Rip decisions and #77's limits. Current [Rip](https://github.com/JulTob/Tag_Oriented_Programming/blob/fcea45fd2535594fd82f54aee2af7e815e98e0ca/TopKit/lifecycle.py) ends an allowed membership, consumes its teardown ledger, attempts all teardowns despite ordinary failures, then reports those failures. It has no Safehouse, arrested-act interception or ordered retry. [#36](https://github.com/JulTob/Tag_Oriented_Programming/issues/36) tracks the proposed replacement; do not port the historical S19 rollback implementation.
 
-The historical “Open questions” section has 17 numbered entries, not 17 undecided questions. Entries 1, 2, 4, 5 and 9 record the Director's earlier decisions; entry 11 confirms `TagArrestedAccessError`, while entry 3 leaves its failure classification and cause open. Historical rule 4 already treats host member reads, host method calls and display as acts by an arrested Agent. The dated decisions below supersede parts of entries 6, 8, 14, 16 and 17. The remaining recommendations and unresolved choices stay open. None of these decisions clears the whole Brief or makes its historical implementation plan current.
+The historical “Open questions” section has 17 numbered entries, not 17 undecided questions. Entries 1, 2, 4, 5 and 9 record the Director's earlier decisions; entry 11 confirms `TagArrestedAccessError`, while entry 3's failure classification and cause are settled below. Historical rule 4 already treats host member reads, host method calls and display as acts by an arrested Agent. The dated decisions below supersede parts of entries 6, 8, 14, 16 and 17. The remaining recommendations and unresolved choices stay open. None of these decisions clears the whole Brief or makes its historical implementation plan current.
 
 Separate membership, pending cleanup obligations and retention before implementation. Agent deletion, Tag collection, Pins/Links, interpreter exit, bulk retry and concurrent access remain within the listed open questions, not extensions already settled by the explicit-Rip decision. The later rulings below settle the specified reapplication, cross-member and interruption boundaries for [whole-Field cleanup](https://github.com/JulTob/Tag_Oriented_Programming/issues/35).
 
@@ -60,7 +60,11 @@ domain is separately open in [#37](https://github.com/JulTob/Tag_Oriented_Progra
    class with the same name begins with its own empty Safehouse; it does
    not receive an ended Tag's arrested Agents or teardown protocol.
    Root `Tag` has no Field: `Tag(agent)` gives the host TOP's default
-   Agent behavior without admitting it to a Field. `Tag[...]` locates
+   Agent behavior without admitting it to a Field. Root `Tag`, `~Tag` and
+   `Tag[:]` answer membership questions without walking a Field; their
+   proposed query rules are recorded separately in
+   [STEP-SPEC-46 (#235)](https://github.com/JulTob/Tag_Oriented_Programming/pull/235).
+   `Tag[...]` locates
    orphaned work in its Safehouse, and `del Tag[agent]` retries all of
    that Agent's saved orphan teardowns. There is no root membership to Rip.
    This does not itself establish
@@ -73,12 +77,17 @@ domain is separately open in [#37](https://github.com/JulTob/Tag_Oriented_Progra
    still belongs to Fighter, `del Fighter[ada]` runs Fighter's Rip first.
    It then retries Wizard's saved Rip work. A failure keeps Ada arrested;
    neither Rip silently discards the other's pending work.
+7. **Refused access is a Resolution Failure.** If an attempted act retries
+   a saved Rip and it fails again, `TagArrestedAccessError` is a
+   `TagResolutionError`, with the original Rip failure as its cause. The
+   act does not start.
 
 These decisions do not settle automatic Agent deletion, forced triage,
 automatic Tag finalization, Pin and Link teardown, concurrent access, or
-the exact Python interception of acts by an arrested Agent. The Python
-mechanics for host methods and captured handles still need implementation
-review.
+the exact Python interception of acts by an arrested Agent. The Director
+chose a stronger **opt-in** guard for captured Python Host methods; its
+API, coverage and compatibility costs still need a separate design and
+implementation review.
 
 ### Provenance and dependencies
 
