@@ -138,8 +138,15 @@ def _gate(
         ) -> None:
     """Let one Tag inspect the Agent before that Tag begins.
 
-    The scratch Overlay composes this Tag's own declarations over Tags whose
-    turns have already finished. Nothing is installed on the live state.
+    Every refusal the Tag's own declarations would meet is raised here,
+    before any builder runs, and nothing is installed on the live state.
+    When a Tag can use the shortcut, ``_preflight_ordinary_gains`` checks
+    its ordinary Action and Record names against the live state, one by one.
+    An internal Report or Operation does not by itself require scratch
+    composition; a public one does.
+    Tags needing full composition are laid over a scratch copy of the state,
+    on top of completed Tags. Their composed Preconditions judge the live
+    Agent.
     """
 
     declarations = _declarations_of(tag)

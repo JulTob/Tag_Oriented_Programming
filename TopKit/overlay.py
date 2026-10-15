@@ -502,15 +502,25 @@ def _preflight_ordinary_gains(
         ) -> bool:
     """Check independent ordinary names without building a scratch Overlay.
 
-    The scanner gives each declaration one name. With no deletions, shared
-    members or runtime gates, installing one name cannot affect another
-    name's checks. The real installation uses these same refusal helpers.
+    Returns True when it checked the whole Tag, and False when the Tag needs
+    the scratch pass instead: any runtime fact (deletions, conditions,
+    Secrets, special methods, published members, Constants, Tools, public
+    Reports), a public Operation, a Constant the Agent already holds, an
+    Agent that is a Tag (a Pin), or a Flag. An internal Report or Operation
+    occupies only Tag-scope service tables, so it creates no Agent-name
+    collision at the Gate.
+
+    The scanner gives each declaration one name, and an ordinary Action or
+    Record installed under one name changes nothing another name's checks
+    read. The real installation uses these same refusal helpers, so the
+    first refusal reported is the first one declared. The checks read the
+    live state step by step, not a copy taken before the first user hook
+    ran.
     """
 
     if (
-            declarations.runtime
-            or declarations.reports
-            or declarations.operations
+            declarations.runtime   # includes every public Report (_runtime_facts)
+            or any(public for _name, _operation, public in declarations.operations)   # installs an Agent Action
             or state.constants
             or state.pinned is not None
             or _is_flag(tag)
@@ -523,6 +533,8 @@ def _preflight_ordinary_gains(
             function = one.actions[0][1]
             _refuse_action(state, tag, name)
             underlay = _action_underlay(state, name)
+            # The result is unused: the call keeps the Gate reading the same
+            # metadata, in the same order, as _install_action does.
             _action_replacement(state, tag, name, function, underlay)
             _compose(function, underlay, name)
         else:
