@@ -647,9 +647,15 @@ Tagging sequence or expand its rollback boundary.
   its own teardowns run, including when cyclic collection has cleared its
   weak references. `_end_links` then sets `state.links_ending` before Link
   cleanup, so `_agent_of` refuses linking through an existing or newly
-  granted Link of that ending Agent. Links are Ripped Shape-first, all
-  selected Contacts receive cleanup despite an interruption, and the first
-  interruption is propagated afterward. Newly granted empty Links and
+  granted Link of that ending Agent. This draft's explicit `del Link[:]`
+  stops at the first Contact whose Rip fails and leaves later Contacts
+  admitted; `_leave` stops before later Pair Layers after a failed Layer.
+  STEP-SPEC-24's Brief instead revokes the whole snapshot before cleanup.
+  The failed Contact's unfinished work is not yet saved for Safehouse retry
+  (issue #254). At Agent finalization, Links are
+  Ripped Shape-first, all selected Contacts receive best-effort cleanup
+  despite an interruption, and the first interruption is propagated
+  afterward. Newly granted empty Links and
   retained unadmitted Pairs end in the cleanup's `finally`; no Link Rip is
   invented for a Pair that never entered. `_Family.End` marks ended Pairs
   and clears scheduled Rips so collection does not replay them.

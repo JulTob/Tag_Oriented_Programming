@@ -2560,7 +2560,8 @@ def _leave(
                         pair_tag,
                         )   # runs that Layer's teardowns, with the Pair
             except TagCompositionError as error:
-                first = first or error
+                first = error
+                break   # do not start later Pair Layers after this failure
     finally:
         ends.held = None
         state.composing = opened
@@ -2597,7 +2598,7 @@ def _unlink_all(
         key: slice,
         ) -> None:
     """``del charlie.Knows[:]``: unlink every Contact (rule 8.2).
-    Every teardown runs, and the first failure is raised after."""
+    Stop at the first failed Contact; later Field members stay."""
 
     if key != slice(None):
         raise TypeError(
@@ -2606,27 +2607,18 @@ def _unlink_all(
                 )
 
     contacts = list(link.__dict__["_topkit_field"])
-    first: BaseException | None = None
+    try:
+        for contact in contacts:
+            if link not in _state_of(contact).active:
+                continue   # an earlier Contact's teardown already unlinked her
 
-    for contact in contacts:
-        if link not in _state_of(contact).active:
-            continue   # an earlier Contact's teardown already unlinked her
-
-        try:
             _rip(
                     contact,
                     link,
                     )
-        except TagCompositionError as error:
-            first = first or error
-
-    contacts = None   # the Contacts are not ours to keep
-
-    try:
-        if first is not None:
-            raise first
     finally:
-        first = None   # never keep Agents alive through a traceback that holds this frame
+        contact = None   # the last turn can otherwise survive in the traceback
+        contacts = None   # never keep Contacts alive through this frame's traceback
 
 
 def _own_records(
