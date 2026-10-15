@@ -343,10 +343,6 @@ def _call_tag_operation(
         _require_available(tag, "Operation")
 
     result = function(tag, *args, **kwargs)
-
-    if _safehouse:
-        _require_available(tag, "Operation")
-
     return _guard_lazy_result(result, tag, "Operation", _require_available)
 
 
@@ -371,10 +367,6 @@ class _Operation_Bound:
             _require_available(tag, "Operation")
 
         result = bound._function(tag, *args, **kwargs)
-
-        if _safehouse:
-            _require_available(tag, "Operation")
-
         return _guard_lazy_result(result, tag, "Operation", _require_available)
 
     def __eq__(bound, other: object) -> Any:

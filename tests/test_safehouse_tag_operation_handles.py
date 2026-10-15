@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import gc
 from inspect import signature
 from types import MethodType
 from types import SimpleNamespace
@@ -111,6 +112,79 @@ class SafehouseTagOperationTests(unittest.TestCase):
         with patch.dict(_safehouse, {}, clear=True):
             with self.assertRaises(TagArrestedAccessError):
                 Crew.Work()
+
+    def test_started_ordinary_operation_result_stays_in_custody(self):
+        events = []
+
+        @Pin
+        class Licensed(Tag):
+            pass
+
+        class Crew(Tag):
+            @Operation
+            def Work(tag):
+                def Steps():
+                    try:
+                        yield "started"
+                    finally:
+                        events.append("finalized")
+
+                source = Steps()
+                next(source)
+                _safehouse[id(tag)] = _arrest(tag, Licensed)
+                return source
+
+        Licensed(Crew)
+        saved = Crew.Work
+        with patch.dict(_safehouse, {}, clear=True):
+            with self.assertRaises(TagArrestedAccessError):
+                saved()
+            gc.collect()
+            self.assertEqual(events, [])
+            arrest = _safehouse[id(Crew)]
+            self.assertEqual(len(arrest.lazy), 1)
+            source = arrest.lazy[0]
+
+        source.close()
+        self.assertEqual(events, ["finalized"])
+
+    def test_started_public_operation_result_stays_in_tag_custody(self):
+        events = []
+
+        @Pin
+        class Licensed(Tag):
+            pass
+
+        class Crew(Tag):
+            @Public
+            @Operation
+            def Work(tag, agent):
+                def Steps():
+                    try:
+                        yield "started"
+                    finally:
+                        events.append("finalized")
+
+                source = Steps()
+                next(source)
+                _safehouse[id(tag)] = _arrest(tag, Licensed)
+                return source
+
+        agent = Host()
+        Crew(agent)
+        Licensed(Crew)
+        saved = agent.Work
+        with patch.dict(_safehouse, {}, clear=True):
+            with self.assertRaises(TagArrestedAccessError):
+                saved()
+            gc.collect()
+            self.assertEqual(events, [])
+            arrest = _safehouse[id(Crew)]
+            self.assertEqual(len(arrest.lazy), 1)
+            source = arrest.lazy[0]
+
+        source.close()
+        self.assertEqual(events, ["finalized"])
 
     def test_public_operation_checks_both_tag_and_agent(self):
         for public_first in (True, False):
