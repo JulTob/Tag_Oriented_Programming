@@ -102,37 +102,52 @@ def _retry_arrested(
         raise TagResolutionError("this Agent has no saved Rip work")
 
     while (arrest := _arrest_of(agent)) is not None:
-        run = arrest.runs[0]
+        _run_saved(agent, arrest.runs[0], revoke, invoke)
 
-        if run.running:
-            raise TagCompositionError(
-                    f"{_tag_name(run.tag)} teardown is already running"
-                    )
+    return agent
 
-        run.running = True
 
-        try:
+def _run_saved(
+        agent: object,
+        run: _RipRun,
+        revoke: Callable[[_RipRun], None],
+        invoke: Callable[[_RipRun, str, Any], None],
+        ) -> object:
+    """Finish one chosen run, even when older work is also pending.
+
+    An explicit Rip can perform its own new work before retrying older
+    arrests. The root retry uses this same primitive in ledger order.
+    """
+
+    if run.running:
+        raise TagCompositionError(
+                f"{_tag_name(run.tag)} teardown is already running"
+                )
+
+    run.running = True
+
+    try:
+        with _rip_door(agent):
             if not run.revoked:
                 revoke(run)
                 run.revoked = True
 
-            with _rip_door(agent):
-                while run.cursor < len(run.teardowns):
-                    name, teardown = run.teardowns[run.cursor]
+            while run.cursor < len(run.teardowns):
+                name, teardown = run.teardowns[run.cursor]
 
-                    try:
-                        invoke(run, name, teardown)
-                    except Exception as error:
-                        raise TagCompositionError(
-                                f"{_tag_name(run.tag)} teardown failed in:"
-                                f" {str.__str__(name)};"
-                                " the Agent is arrested"
-                                ) from error
+                try:
+                    invoke(run, name, teardown)
+                except Exception as error:
+                    raise TagCompositionError(
+                            f"{_tag_name(run.tag)} teardown failed in:"
+                            f" {str.__str__(name)};"
+                            " the Agent is arrested"
+                            ) from error
 
-                    run.cursor += 1
-        finally:
-            run.running = False
+                run.cursor += 1
+    finally:
+        run.running = False
 
-        _finish_run(agent, run)
+    _finish_run(agent, run)
 
     return agent

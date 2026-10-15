@@ -33,6 +33,7 @@ from .access import _keyword
 from .access import _refuse_host_truth
 from .access import _view_of
 from .arrest import _arrest_of
+from .arrest import _require_available
 from .contracts import _holds
 from .declarations import _MISSING
 from .declarations import _check_constant_declarations
@@ -58,6 +59,7 @@ from .fields import _sound_of
 from .geometry import _form_of
 from .geometry import _is_tag
 from .lifecycle import _rip
+from .lifecycle import _retry_arrested
 from .state import Tagged
 from .state import _name_of
 from .state import _state_of
@@ -283,6 +285,13 @@ class MetaTag(type):
             tag,
             agent: object,
             ) -> None:
+        if _arrest_of(tag) is not None:
+            _require_available(tag, "Rip")
+
+        if tag is Tag:
+            _retry_arrested(agent)
+            return
+
         _rip(
                 agent,
                 tag,
