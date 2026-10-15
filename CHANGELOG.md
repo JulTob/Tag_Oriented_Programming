@@ -19,6 +19,15 @@
 
 ### TopKit
 
+- **Saved Tag Operations obey Safehouse custody (#250):** an ordinary
+  `@Operation` handle captured before a Pin or arrest checks its Tag before
+  and after each call, including calls through `@Public` on an Agent.
+  Generator and coroutine results check again at each continuation, even
+  when created before the Tag became an Agent. Handles retain their original
+  callable, receiver, bound signature and method equality. Native async
+  generator results are refused until their finalization path is settled
+  in #243.
+
 - **Tagging preparation cost:** ordinary Action/Record declarations reuse
   the existing collision and Underlay checks without constructing a
   disposable Overlay. Tags with deletions, conditions, Secrets, special

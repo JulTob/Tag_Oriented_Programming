@@ -35,6 +35,7 @@ from .access import _view_of
 from .arrest import _arrest_of
 from .contracts import _holds
 from .declarations import _MISSING
+from .declarations import _Guarded_Operation
 from .declarations import _check_constant_declarations
 from .declarations import _check_constant_shapes
 from .declarations import _check_pin_bases
@@ -115,6 +116,8 @@ class MetaTag(type):
 
         _check_constant_shapes(tag, name)
         super().__setattr__(name, value)
+        if isinstance(value, _Guarded_Operation):
+            value.__set_name__(tag, name)
 
     def __delattr__(
             tag,

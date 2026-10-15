@@ -23,18 +23,22 @@ from inspect import signature
 from types import AsyncGeneratorType
 from types import CoroutineType
 from types import GeneratorType
+from types import MethodType
 from typing import Any
 from typing import Callable
 from typing import NamedTuple
 from weakref import WeakKeyDictionary
 from weakref import ref
 
+from .arrest import _require_available
+from .arrest import _safehouse
 from .errors import TagDeclarationError
 from .errors import TagCompositionError
 from .errors import TagImprintError
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
 from .geometry import _is_tag_class
+from .lazy_guard import _guard_lazy_result
 from .memo import _forget_memo
 from .memo import _memo_key
 from .memo import _memo_of
@@ -327,6 +331,110 @@ def Delete(
             )
 
 
+def _call_tag_operation(
+        function: Function,
+        tag: type,
+        *args: Any,
+        **kwargs: Any,
+        ) -> Any:
+    """Check a Tag's custody around its own Operation and later work."""
+
+    if _safehouse:
+        _require_available(tag, "Operation")
+
+    result = function(tag, *args, **kwargs)
+    return _guard_lazy_result(result, tag, "Operation", _require_available)
+
+
+class _Operation_Bound:
+    """A Tag Operation handle that remains revocable after capture."""
+
+    __slots__ = ("_function", "_tag", "_name")
+
+    def __init__(
+            bound,
+            function: Function,
+            tag: type,
+            name: str,
+            ) -> None:
+        bound._function = function
+        bound._tag = tag
+        bound._name = name
+
+    def __call__(bound, *args: Any, **kwargs: Any) -> Any:
+        tag = bound._tag
+        if _safehouse:
+            _require_available(tag, "Operation")
+
+        result = bound._function(tag, *args, **kwargs)
+        return _guard_lazy_result(result, tag, "Operation", _require_available)
+
+    def __eq__(bound, other: object) -> Any:
+        if isinstance(other, _Operation_Bound):
+            other = MethodType(other._function, other._tag)
+
+        return MethodType(bound._function, bound._tag).__eq__(other)
+
+    def __hash__(bound) -> int:
+        return hash(MethodType(bound._function, bound._tag))
+
+    def __repr__(bound) -> str:
+        return f"<Operation {bound._name} of {bound._tag.__name__}>"
+
+    @property
+    def __self__(bound) -> type:
+        return bound._tag
+
+    @property
+    def __func__(bound) -> Function:
+        return bound._function
+
+    @property
+    def __signature__(bound) -> Any:
+        return signature(MethodType(bound._function, bound._tag))
+
+    @property
+    def __name__(bound) -> str:
+        try:
+            name = getattr(bound._function, "__name__", None)
+        except Exception:
+            name = None
+        return name if isinstance(name, str) else bound._name
+
+    def __getattr__(bound, name: str) -> Any:
+        if name in ("__qualname__", "__annotations__"):
+            return getattr(bound._function, name)
+        raise AttributeError(name)
+
+    @property
+    def __doc__(bound) -> str | None:
+        try:
+            return getattr(bound._function, "__doc__", None)
+        except Exception:
+            return None
+
+
+class _Guarded_Operation(classmethod):
+    """The classmethod source, returning a guarded bound handle."""
+
+    def __set_name__(operation, owner: type, name: str) -> None:
+        operation._name = name
+
+    def __get__(
+            operation,
+            instance: object,
+            owner: type | None = None,
+            ) -> _Operation_Bound:
+        if owner is None:
+            owner = type(instance)
+
+        return _Operation_Bound(
+                operation.__func__,
+                owner,
+                getattr(operation, "_name", "Operation"),
+                )
+
+
 def Operation(
         function: Function,
         ) -> classmethod:
@@ -337,7 +445,7 @@ def Operation(
             "operation",
             )
 
-    return classmethod(function)
+    return _Guarded_Operation(function)
 
 
 def Secret(
