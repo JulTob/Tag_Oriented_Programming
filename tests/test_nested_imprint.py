@@ -410,7 +410,7 @@ class NestedImprintTests(unittest.TestCase):
         agent.Release()
         self.assertEqual(events, ["release"])
 
-    def test_snapshot_only_failure_preserves_finished_work(self):
+    def test_deleted_report_does_not_fail_after_finished_work(self):
         class Finished(Tag):
             @Record
             def ready(agent):
@@ -429,11 +429,12 @@ class NestedImprintTests(unittest.TestCase):
                 return agent.ready
 
         agent = Host()
-        with self.assertRaises(AttributeError):
-            Finished(agent)
+        Finished(agent)
         self.assertIn(agent, Finished[:])
         self.assertTrue(agent.Work())
         self.assertTrue(bool(agent))
+        with self.assertRaises(AttributeError):
+            Finished[agent].status
         del Finished[agent]
 
     def test_unfinished_training_preserves_existing_exception_notes(self):

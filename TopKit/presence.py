@@ -12,6 +12,7 @@ from .declarations import _MISSING
 from .state import _Deleted
 from .state import _Published
 from .state import _Secret_Gate
+from .state import _current_report_origin
 from .state import _real_namespace_of
 from .state import _is_composing
 from .constants import _Constant_Gate
@@ -107,10 +108,14 @@ def _present(
         return name in namespace
 
     if issubclass(type(member), _Published):
-        if state is None or name not in state.reports:
+        if state is None:
             return False
 
-        origin, _report = state.reports[name]
+        origin = _current_report_origin(state, name)
+
+        if origin is None:
+            return False
+
         return (
                 origin in state.active
                 and getattr_static(origin, name, _MISSING) is not _MISSING

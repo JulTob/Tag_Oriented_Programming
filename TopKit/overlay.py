@@ -59,6 +59,7 @@ from .state import _Published
 from .state import _State
 from .state import _name_of
 from .state import _namespace_of
+from .state import _report_epochs
 from .state import _state_of
 from .state import _restore_namespace
 from .state import _set_runtime_type
@@ -443,7 +444,7 @@ def _install(
                 )
 
     for name, report, public in declarations.reports:
-        state.reports[name] = (tag, report)
+        state.reports[name] = (tag, report, _report_epochs(tag, name)[1])
 
         if public:
             state.published.add(name)
