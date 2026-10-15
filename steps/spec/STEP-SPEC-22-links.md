@@ -29,6 +29,16 @@
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
 
+> **2026-10-15 review boundary:** The Director later ruled that a Link is
+> a Tag and an unfinished Imprint does not retain its Contact in the Link.
+> The proposed implementation in issue #253 lets the Pair keep partial
+> Gains privately for retry, but a normal `Link[contact]` read requires
+> that Link's current Field admission. This supersedes the older public
+> reachability wording in rules 7.1 and 7.4, including after a Base Link
+> Rip. The Pair remains readable during its own training and Rip. How to
+> reconcile two separate Pairs for one Contact when independent Link
+> families later join remains open in #253. This STEP remains Vetting.
+
 ## Summary
 
 A Tag may grant each of its Agents **a Tag of its own**: a **Link**.
