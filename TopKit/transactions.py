@@ -291,6 +291,7 @@ def _apply_one(
                     state.Restore(previous)
                 else:
                     state.rips.pop(tag, None)
+                    state.no_rip_applications.pop(tag, None)
             raise
     except BaseException as error:
         primary_failure = error
@@ -468,6 +469,12 @@ def _enter_field(
     plans = None
     if state.pinned is not None and declarations.published:
         plans = _publication_plans(state.pinned, declarations.published)
+
+    # A no-@Rip Tag still needs a fresh application identity if its later
+    # Field removal is interrupted. Establish it before the Field entry;
+    # the captured view may fail to build after admission.
+    if not declarations.rips:
+        state.no_rip_applications[tag] = object()
 
     _field_of(tag)._Add(agent)
     state.active.append(tag)

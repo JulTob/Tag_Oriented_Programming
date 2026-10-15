@@ -77,6 +77,7 @@ class _State:
     restored: frozenset[str] = frozenset()   # deleted, then stored again; shared until used
     snapshots: dict[type, _Snapshot] = field(default_factory=dict)
     rips: dict[type, tuple[tuple[str, Function], ...]] = field(default_factory=dict)
+    no_rip_applications: dict[type, object] = field(default_factory=dict)
     secret_values: dict[str, Any] = field(default_factory=dict)   # a pinned Tag's @Secret members
     originals: dict[str, Any] = field(default_factory=dict)       # what a Pin patched, as declared
     constants: dict[str, tuple[type, str, Any]] = field(default_factory=dict)  # origin, kind, declaration
@@ -126,6 +127,7 @@ class _State:
         copied.restored = state.restored
         copied.snapshots = state.snapshots.copy()
         copied.rips = state.rips.copy()
+        copied.no_rip_applications = state.no_rip_applications.copy()
         copied.secret_values = state.secret_values.copy()
         copied.originals = state.originals.copy()
         copied.constants = state.constants.copy()
