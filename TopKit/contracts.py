@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any
 from typing import Callable
 from typing import Iterable
+from typing import Iterator
 
 from .declarations import _MISSING
 from .declarations import _protocol_inputs
@@ -32,6 +33,44 @@ from .state import _state_of
 
 
 Check = Callable[[object, dict[str, Any]], Any]
+Condition_Turn = tuple[tuple[str, Check], ...]
+
+
+def _condition_turn(
+        state: _State,
+        scope: str,
+        saved: Condition_Turn | None = None,
+        ) -> Iterator[tuple[str, Check]]:
+    """Walk the names present at the query's start, once and in order.
+
+    An earlier condition may explicitly end or replace a later one. Skip
+    that old turn; a newly acquired check waits for the next query. Read
+    the current dictionary on every turn because a rollback can replace
+    the dictionary itself, not merely its entries.
+    """
+
+    if saved is None:
+        saved = tuple(getattr(state, scope).items())
+
+    for name, check in saved:
+        if getattr(state, scope).get(name) is check:
+            yield name, check
+
+
+def _saved_conditions(
+        agent: object,
+        ) -> tuple[Condition_Turn, Condition_Turn]:
+    """Save both scopes before a combined Contract query starts running."""
+
+    state = _state_of(agent)
+
+    if state is None:
+        return (), ()
+
+    return (
+            tuple(state.preconditions.items()),
+            tuple(state.postconditions.items()),
+            )
 
 
 def _refuse_condition_binding(
@@ -297,6 +336,7 @@ def _guarded(
         detailed: bool,
         failure: _Named,
         phase: str,
+        saved: Condition_Turn | None = None,
         ) -> bool:
     """Run one scope of the Agent's visible conditions on demand.
 
@@ -313,7 +353,7 @@ def _guarded(
     state.composing += 1
 
     try:
-        checks = getattr(state, scope).items()
+        checks = _condition_turn(state, scope, saved)
 
         if detailed:
             _evaluate(
@@ -353,7 +393,17 @@ def _holds(
     state.composing += 1
 
     try:
-        for name, check in state.postconditions.items():
+        if len(state.postconditions) == 1:
+            # Save the sole turn before calling it. It may end or replace
+            # itself, but there is no later dictionary turn to inspect.
+            name, check = next(iter(state.postconditions.items()))
+
+            try:
+                return _verdict(check(agent, {}), name)
+            except Exception:
+                return False
+
+        for name, check in _condition_turn(state, "postconditions"):
             try:
                 if not _verdict(check(agent, {}), name):
                     return False
@@ -405,6 +455,7 @@ def _condition_member(
 def _status_of(
         agent: object,
         scope: str,
+        saved: Condition_Turn | None = None,
         ) -> dict[str, bool]:
     state = _state_of(agent)
 
@@ -417,7 +468,7 @@ def _status_of(
     status: dict[str, bool] = {}
 
     try:
-        for name, check in getattr(state, scope).items():
+        for name, check in _condition_turn(state, scope, saved):
             try:
                 status[name] = _verdict(
                         check(agent, {}),
@@ -483,8 +534,23 @@ class Contract:
     def Conditions(
             agent: object,
             ) -> bool:
-        Contract.Preconditions(agent)
-        Contract.Postconditions(agent)
+        pre, post = _saved_conditions(agent)
+        _guarded(
+                agent,
+                "preconditions",
+                True,
+                TagPreconditionError,
+                "Precondition",
+                pre,
+                )
+        _guarded(
+                agent,
+                "postconditions",
+                True,
+                TagPostconditionError,
+                "Postcondition",
+                post,
+                )
 
         return True
 
@@ -548,9 +614,11 @@ class Contract:
             ) -> dict[str, bool]:
         """``{condition: holds?}`` for every visible condition, never raising."""
 
+        pre, post = _saved_conditions(agent)
+
         return {
-                **_status_of(agent, "preconditions"),
-                **_status_of(agent, "postconditions"),
+                **_status_of(agent, "preconditions", pre),
+                **_status_of(agent, "postconditions", post),
                 }
 
     @staticmethod
@@ -558,8 +626,9 @@ class Contract:
             agent: object,
             ) -> str:
         title = _title_of(agent)
-        pre = _status_of(agent, "preconditions")
-        post = _status_of(agent, "postconditions")
+        saved_pre, saved_post = _saved_conditions(agent)
+        pre = _status_of(agent, "preconditions", saved_pre)
+        post = _status_of(agent, "postconditions", saved_post)
 
         if not pre and not post:
             return f"{title}: no conditions"

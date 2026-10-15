@@ -19,6 +19,13 @@
 
 ### TopKit
 
+- **Contract queries with changing promises:** a Post that Rips a Tag or
+  explicitly ends another condition no longer exposes Python's dictionary
+  iteration error. Each query visits its starting condition names once,
+  skipping checks ended or replaced before their turn; new checks wait for
+  the next query. A check already running reports its result once, even
+  if it ends itself (#101, proposed evaluation order).
+
 - **Tagging preparation cost:** ordinary Action/Record declarations reuse
   the existing collision and Underlay checks without constructing a
   disposable Overlay. Tags with deletions, conditions, Secrets, special
