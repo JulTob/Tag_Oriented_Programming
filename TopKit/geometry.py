@@ -89,8 +89,14 @@ def _direct_bases(
 
 def _form_of(
         tag: type,
+        *,
+        remember: bool = True,
         ) -> tuple[type, ...]:
-    """Base-first closure of one Tag: every required Base once, then the Tag."""
+    """Base-first closure of one Tag: every required Base once, then the Tag.
+
+    Class-declaration diagnostics use ``remember=False`` so merely defining
+    a Shape does not publish its otherwise lazy Form memo.
+    """
 
     owned = _is_tag(tag)
 
@@ -144,11 +150,11 @@ def _form_of(
 
     result = tuple(form)
 
-    if owned:
+    if owned and remember:
         # A Base's Contributions may point back to its Shape. Keep that
         # cycle on the Tag, never in a global cache or its public Field.
         return _remember_memo(tag, name, result[:-1]) + (tag,)
-    else:
+    elif not owned and remember:
         _bases_cache[tag] = result[:-1]
 
     return result
