@@ -246,33 +246,90 @@ def _contains_combined(combined: _Combined, agent: object) -> bool:
     """Evaluate membership with the same left-first short circuits, without
     borrowing Python's call stack for the expression's depth."""
 
-    pending: list[tuple[_Population | None, str]] = [
-            (combined._right, combined._operator),
-            ]
+    verdict, _ = _probe_combined(combined, agent)
+    return verdict
+
+
+def _positive_field(population: _Population) -> "_Field | None":
+    """A Field that can prove a positive leaf verdict without another Post."""
+
+    if type(population) is _Field:
+        return population
+    if type(population) is _Partition:
+        return population._field
+    return None
+
+
+def _still_in_fields(agent: object, fields: list["_Field"]) -> bool:
+    return all(agent in field for field in fields)
+
+
+def _probe_combined(
+        combined: _Combined,
+        agent: object,
+        ) -> tuple[bool, list["_Field"]]:
+    """Judge a compound query once, retaining the selected Field evidence.
+
+    Each node checks its selected positive Fields before returning to its
+    parent. Later Posts cannot leave an Agent in a population that has
+    already lost a required Field. No Post is run merely to recheck a Field.
+    """
+
+    # Each frame holds a node, its left/right stage and left's evidence.
+    pending: list[tuple[_Combined, int, list[_Field]]] = [(combined, 0, [])]
     population: _Population = combined._left
 
     while True:
         while _uses_combined_method(population, "__contains__"):
-            pending.append((population._right, population._operator))
+            pending.append((population, 0, []))
             population = population._left
 
         verdict = agent in population
+        field = _positive_field(population) if verdict else None
+        evidence = [field] if field is not None else []
 
         while pending:
-            right, operator = pending.pop()
+            node, stage, left_evidence = pending[-1]
+            operator = node._operator
 
-            if right is None:   # the right verdict of a difference is negated
-                verdict = not verdict
-            elif operator == "|" and verdict or operator != "|" and not verdict:
-                continue   # the left side already decides this node
-            else:
-                if operator not in ("|", "&"):
-                    pending.append((None, "-"))
+            if stage == 0:
+                # The left side has just returned. A valid union left wins;
+                # a false intersection/difference left decides its node.
+                if operator == "|" and verdict:
+                    verdict = _still_in_fields(agent, evidence)
+                    if verdict:
+                        pending.pop()
+                        continue
+                elif operator != "|" and not verdict:
+                    evidence = []
+                    pending.pop()
+                    continue
 
-                population = right
+                pending[-1] = (node, 1, evidence)
+                population = node._right
                 break
+
+            pending.pop()
+
+            if operator == "&":
+                if verdict:
+                    left_evidence.extend(evidence)
+                    evidence = left_evidence
+                    verdict = _still_in_fields(agent, evidence)
+                else:
+                    evidence = []
+            elif operator == "-":
+                verdict = not verdict
+                evidence = left_evidence if verdict else []
+                if verdict:
+                    verdict = _still_in_fields(agent, evidence)
+            elif verdict:
+                verdict = _still_in_fields(agent, evidence)
+
+            if not verdict:
+                evidence = []
         else:
-            return verdict
+            return verdict, evidence
 
 
 class _Walk_Frame:
@@ -311,15 +368,34 @@ def _walk_combined(combined: _Combined) -> Iterator[object]:
             iterator = iter(population)
 
             for agent in iterator:
+                field = _positive_field(population)
+                evidence = [field] if field is not None else []
+
                 for frame in reversed(frames):
                     frame.agent = agent
 
                     if frame.operator == "|":
                         if not frame.on_right:
+                            if not _still_in_fields(agent, evidence):
+                                break
                             frame.seen[id(agent)] = agent
                         elif frame.seen.get(id(agent)) is agent:
                             break
-                    elif (agent in frame.right) != (frame.operator == "&"):
+                    elif frame.operator == "&":
+                        if _uses_combined_method(frame.right, "__contains__"):
+                            present, right_evidence = _probe_combined(frame.right, agent)
+                        else:
+                            present = agent in frame.right
+                            right_field = _positive_field(frame.right) if present else None
+                            right_evidence = [right_field] if right_field is not None else []
+                        if not present:
+                            break
+                        evidence.extend(right_evidence)
+                    else:
+                        if agent in frame.right:
+                            break
+
+                    if not _still_in_fields(agent, evidence):
                         break
                 else:
                     yield agent
