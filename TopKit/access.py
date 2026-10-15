@@ -518,21 +518,45 @@ def _view_report_source(
     """
 
     tag = view._tag
+    if _class_namespace(tag).get(name, _MISSING) is not _MISSING:
+        return _own_view_report_source(tag, name, snapshot)
+
+    # The snapshot's single Report seat may belong to an independent Tag
+    # that entered between this Shape's Base and the Shape. Search the
+    # active Bases' own recorded seats rather than treating that unrelated
+    # Report as the end of the Shape's Base layer.
+    state = _state_of(view._agent)
+
+    for base in reversed(_form_of(tag)[:-1]):
+        if not any(active is base for active in state.active):
+            continue
+
+        base_snapshot = state.snapshots.get(base)
+
+        if base_snapshot is None:
+            continue
+
+        source = _own_view_report_source(base, name, base_snapshot)
+
+        if source is not None:
+            return source
+
+    return None
+
+
+def _own_view_report_source(
+        tag: type,
+        name: str,
+        snapshot: _Snapshot,
+        ) -> type | None:
+    """Read this Tag's Report binding at its own recorded view position."""
+
     member = _class_namespace(tag).get(name, _MISSING)
-    entry = snapshot.reports.get(name)
 
     if member is _MISSING:
-        if entry is None or entry[0] is tag:
-            return None
-        tag = entry[0]
-        if (
-                not any(base is tag for base in _form_of(view._tag))
-                or not any(active is tag for active in _state_of(view._agent).active)
-                ):
-            return None
-        member = _class_namespace(tag).get(name, _MISSING)
-        if member is _MISSING:
-            return None
+        return None
+
+    entry = snapshot.reports.get(name)
 
     existing = (
             entry is not None
