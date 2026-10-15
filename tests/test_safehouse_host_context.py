@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import asyncio
 from contextvars import copy_context
+import inspect
 import unittest
 from unittest.mock import patch
 
 from TopKit import Action
+from TopKit import Flag
 from TopKit import Rip
 from TopKit import Tag
 from TopKit import TagArrestedAccessError
@@ -79,6 +81,339 @@ class SafehouseHostContextTests(unittest.TestCase):
         with host as received:
             self.assertIs(received, payload)
         asyncio.run(payload.aclose())
+
+    def test_host_exit_property_binds_before_body_changes_resource(self) -> None:
+        events = []
+
+        class Host:
+            resource = "old"
+
+            def __enter__(self):
+                events.append("entered")
+                return self
+
+            @property
+            def __exit__(self):
+                saved = self.resource
+                events.append(("bound", saved))
+
+                def Exit(*args):
+                    events.append(("exit", saved))
+
+                return Exit
+
+        class Present(Tag):
+            pass
+
+        host = Host()
+        Present(host)
+        with host:
+            host.resource = "new"
+        self.assertEqual(
+                events,
+                [("bound", "old"), "entered", ("exit", "old")],
+                )
+
+    def test_host_exit_property_keeps_read_only_binding(self) -> None:
+        class Host:
+            def __enter__(self):
+                return self
+
+            @property
+            def __exit__(self):
+                return lambda *args: None
+
+        class Custody(Tag):
+            @Rip
+            def Leave(agent):
+                raise RuntimeError("unfinished")
+
+        host = Host()
+        Custody(host)
+        captured_exit = host.__exit__
+        with self.assertRaises(AttributeError):
+            host.__exit__ = lambda *args: None
+        with self.assertRaises(AttributeError):
+            del host.__exit__
+        with host:
+            pass
+
+        with self.assertRaises(TagCompositionError):
+            del Custody[host]
+        with self.assertRaises(TagArrestedAccessError):
+            captured_exit(None, None, None)
+        with self.assertRaises(TagArrestedAccessError):
+            host.__exit__ = lambda *args: None
+        with self.assertRaises(TagArrestedAccessError):
+            del host.__exit__
+
+    def test_host_context_data_descriptor_keeps_set_and_delete(self) -> None:
+        events = []
+
+        class ExitSeat:
+            def __get__(self, host, owner):
+                return lambda *args: events.append("exit")
+
+            def __set__(self, host, value):
+                events.append(("set", value))
+
+            def __delete__(self, host):
+                events.append("delete")
+
+        class Host:
+            def __enter__(self):
+                return self
+
+            __exit__ = ExitSeat()
+
+        class Custody(Tag):
+            @Rip
+            def Leave(agent):
+                raise RuntimeError("unfinished")
+
+        host = Host()
+        Custody(host)
+        host.__exit__ = "other"
+        del host.__exit__
+        with host:
+            pass
+        self.assertEqual(events, [("set", "other"), "delete", "exit"])
+
+        with self.assertRaises(TagCompositionError):
+            del Custody[host]
+        with self.assertRaises(TagArrestedAccessError):
+            host.__exit__ = "blocked"
+        with self.assertRaises(TagArrestedAccessError):
+            del host.__exit__
+        self.assertEqual(events, [("set", "other"), "delete", "exit"])
+
+    def test_async_host_exit_property_binds_before_body_changes_resource(self) -> None:
+        events = []
+
+        class Host:
+            resource = "old"
+
+            async def __aenter__(self):
+                events.append("entered")
+                return self
+
+            @property
+            def __aexit__(self):
+                saved = self.resource
+                events.append(("bound", saved))
+
+                async def Exit(*args):
+                    events.append(("exit", saved))
+
+                return Exit
+
+        class Present(Tag):
+            pass
+
+        host = Host()
+        Present(host)
+
+        async def Scenario() -> None:
+            async with host:
+                host.resource = "new"
+
+        asyncio.run(Scenario())
+        self.assertEqual(
+                events,
+                [("bound", "old"), "entered", ("exit", "old")],
+                )
+
+    def test_raising_exit_property_prevents_sync_and_async_entry(self) -> None:
+        events = []
+
+        class Host:
+            def __enter__(self):
+                events.append("entered")
+                return self
+
+            @property
+            def __exit__(self):
+                events.append("bound sync exit")
+                raise LookupError("no sync exit")
+
+            async def __aenter__(self):
+                events.append("async entered")
+                return self
+
+            @property
+            def __aexit__(self):
+                events.append("bound async exit")
+                raise LookupError("no async exit")
+
+        class Present(Tag):
+            pass
+
+        host = Host()
+        Present(host)
+
+        with self.assertRaises(LookupError):
+            with host:
+                self.fail("body must not start")
+
+        async def Scenario() -> None:
+            with self.assertRaises(LookupError):
+                async with host:
+                    self.fail("body must not start")
+
+        asyncio.run(Scenario())
+        self.assertEqual(events, ["bound sync exit", "bound async exit"])
+
+    def test_arrest_blocks_sync_context_descriptor_binding(self) -> None:
+        events = []
+
+        class ExitHost:
+            def __enter__(self):
+                events.append("entered")
+                return self
+
+            @property
+            def __exit__(self):
+                events.append("exit bound")
+                return lambda *args: None
+
+        class EntryHost:
+            @property
+            def __enter__(self):
+                events.append("entry bound")
+                return lambda: self
+
+            def __exit__(self, kind, value, traceback):
+                events.append("exited")
+
+        class Custody(Tag):
+            @Rip
+            def Leave(agent):
+                raise RuntimeError("unfinished")
+
+        for host_type in (ExitHost, EntryHost):
+            with self.subTest(host_type=host_type):
+                host = host_type()
+                Custody(host)
+                if host_type is ExitHost:
+                    captured_exit = host.__exit__
+                    events.clear()
+                with self.assertRaises(TagCompositionError):
+                    del Custody[host]
+                with self.assertRaises(TagArrestedAccessError):
+                    with host:
+                        self.fail("arrested body must not start")
+                self.assertEqual(events, [])
+                if host_type is ExitHost:
+                    with self.assertRaises(TagArrestedAccessError):
+                        captured_exit(None, None, None)
+
+    def test_arrest_blocks_async_context_descriptor_binding(self) -> None:
+        events = []
+
+        class ExitHost:
+            async def __aenter__(self):
+                events.append("entered")
+                return self
+
+            @property
+            def __aexit__(self):
+                events.append("exit bound")
+
+                async def Exit(*args):
+                    return None
+
+                return Exit
+
+        class EntryHost:
+            @property
+            def __aenter__(self):
+                events.append("entry bound")
+
+                async def Enter():
+                    return self
+
+                return Enter
+
+            async def __aexit__(self, kind, value, traceback):
+                events.append("exited")
+
+        class Custody(Tag):
+            @Rip
+            def Leave(agent):
+                raise RuntimeError("unfinished")
+
+        async def Scenario() -> None:
+            for host_type in (ExitHost, EntryHost):
+                with self.subTest(host_type=host_type):
+                    host = host_type()
+                    Custody(host)
+                    with self.assertRaises(TagCompositionError):
+                        del Custody[host]
+                    with self.assertRaises(TagArrestedAccessError):
+                        async with host:
+                            self.fail("arrested body must not start")
+                    self.assertEqual(events, [])
+
+        asyncio.run(Scenario())
+
+    def test_host_classmethod_exit_keeps_owner_selected_before_retag(self) -> None:
+        owners = []
+
+        class Host:
+            def __enter__(self):
+                return self
+
+            @classmethod
+            def __exit__(cls, kind, value, traceback):
+                owners.append(cls)
+
+        class Present(Tag):
+            pass
+
+        @Flag
+        class Later(Tag):
+            pass
+
+        host = Host()
+        Present(host)
+        before = type(host)
+        bound_exit = host.__exit__
+        self.assertTrue(inspect.ismethod(bound_exit))
+        self.assertIs(bound_exit.__self__, before)
+        self.assertTrue(hasattr(bound_exit, "__func__"))
+        self.assertEqual(
+                tuple(inspect.signature(bound_exit).parameters),
+                ("kind", "value", "traceback"),
+                )
+        with host:
+            Later(host)
+
+        self.assertIsNot(type(host), before)
+        self.assertEqual(owners, [before])
+
+    def test_host_staticmethod_exit_remains_callable(self) -> None:
+        events = []
+
+        class Host:
+            def __enter__(self):
+                return self
+
+            @staticmethod
+            def __exit__(kind, value, traceback):
+                events.append("exit")
+
+        class Present(Tag):
+            pass
+
+        host = Host()
+        Present(host)
+        self.assertEqual(
+                tuple(inspect.signature(host.__exit__).parameters),
+                ("kind", "value", "traceback"),
+                )
+        with host:
+            events.append("body")
+        self.assertEqual(events, ["body", "exit"])
 
     def test_exit_failure_does_not_hide_the_rip_failure(self) -> None:
         class Host:
