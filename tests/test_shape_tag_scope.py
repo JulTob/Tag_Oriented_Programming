@@ -105,6 +105,32 @@ class ShapeTagScopeTests(unittest.TestCase):
         Shape.Fourth = Shape.__dict__["Third"]
         self.assertEqual((Shape.fourth, Shape.Fourth()), ("Shape", "Shape"))
 
+    def test_marked_classmethod_receives_its_python_set_name_callback(self):
+        bindings = []
+
+        class Bound(classmethod):
+            def __set_name__(self, owner, name):
+                bindings.append((owner, name))
+                self.owning_tag = owner
+                self.name = name
+
+            def __get__(self, instance, owner=None):
+                return (self.owning_tag.__name__, self.name,
+                        super().__get__(instance, owner)())
+
+        marked = Operation(lambda tag: tag.__name__)
+
+        class Base(Tag):
+            Name = Bound(marked.__func__)
+
+        class Shape(Base):
+            pass
+
+        self.assertEqual(bindings, [(Base, "Name")])
+        self.assertEqual(Base.Name, ("Base", "Name", "Base"))
+        self.assertFalse(hasattr(Shape, "Name"))
+        self.assertEqual(bindings, [(Base, "Name")])
+
     def test_pin_stored_input_does_not_use_a_base_report(self):
         built_for = []
 
