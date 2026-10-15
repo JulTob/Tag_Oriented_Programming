@@ -252,6 +252,13 @@ def _apply_one(
                 prepare,
                 )
 
+        # A nested Imprint may lay another Action over a Rip name. Remember
+        # this Tag's acquired layer before training can change the Overlay.
+        rip_actions = (
+                tuple((name, state.actions[name]) for name in declarations.rips)
+                if declarations.rips else ()
+                )
+
         _imprint(agent, declarations, inputs)
 
         # Tag-scope services arrive with admission. A failed representation
@@ -268,8 +275,8 @@ def _apply_one(
                 _install(state, tag, header)
                 _prepare_gains(agent, state, deleted_before, tag, header)
 
-            if declarations.rips:
-                state.rips[tag] = tuple((name, state.actions[name]) for name in declarations.rips)
+            if rip_actions:
+                state.rips[tag] = rip_actions
 
             _enter_field(agent, state, tag, declarations)
         except BaseException:

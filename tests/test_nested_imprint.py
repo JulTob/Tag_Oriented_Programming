@@ -4,10 +4,10 @@ import gc
 import unittest
 import weakref
 
-from TopKit import (Action, Imprint, Post, Pre, Record, Report,
+from TopKit import (Action, Imprint, Pin, Post, Pre, Record, Report,
                     Rip, Tag, TagCompositionError, TagContractError,
                     TagImprintError, TagPostconditionError, TagPreconditionError,
-                    TagResolutionError)
+                    TagResolutionError, TagOverwriteWarning)
 
 
 class Host:
@@ -19,6 +19,62 @@ class Stop(BaseException):
 
 
 class NestedImprintTests(unittest.TestCase):
+    def test_nested_tag_does_not_replace_outer_rip_teardown(self):
+        calls = []
+
+        class Inner(Tag):
+            @Action
+            def Cleanup(agent):
+                calls.append("inner")
+
+        class Outer(Tag):
+            @Rip
+            def Cleanup(agent):
+                calls.append("outer")
+
+            @Imprint
+            def Train(agent):
+                Inner(agent)
+
+        agent = Host()
+        with self.assertWarns(TagOverwriteWarning):
+            Outer(agent)
+        self.assertIn(agent, Outer[:])
+        self.assertIn(agent, Inner[:])
+
+        del Outer[agent]
+        self.assertEqual(calls, ["outer"])
+
+    def test_nested_pin_does_not_replace_outer_rip_teardown(self):
+        calls = []
+
+        class Receiver(Tag):
+            pass
+
+        @Pin
+        class Inner(Tag):
+            @Action
+            def Cleanup(tag):
+                calls.append("inner")
+
+        @Pin
+        class Outer(Tag):
+            @Rip
+            def Cleanup(tag):
+                calls.append("outer")
+
+            @Imprint
+            def Train(tag):
+                Inner(tag)
+
+        with self.assertWarns(TagOverwriteWarning):
+            Outer(Receiver)
+        self.assertIn(Receiver, Outer[:])
+        self.assertIn(Receiver, Inner[:])
+
+        del Outer[Receiver]
+        self.assertEqual(calls, ["outer"])
+
     def test_nested_gate_failure_keeps_outer_gains_without_admission_or_auto_rip(self):
         events = []
 
