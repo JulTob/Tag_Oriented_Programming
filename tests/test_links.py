@@ -465,6 +465,22 @@ class Pair_Tests(unittest.TestCase):
         self.assertEqual(list(~charlie.Trusts), [ruth])
         self.assertTrue(bool(ruth))             # finding 4: never defective elsewhere
 
+    def test_link_as_a_filter_checks_the_pair_as_well_as_the_contact(self):
+        class Classmate(Tag):
+            pass
+
+        charlie, ruth = People("Charlie", "Ruth")
+        Social(charlie)
+        charlie.Trusts(ruth)
+        Classmate(ruth)
+        ruth.honest = False
+
+        self.assertTrue(bool(ruth))
+        self.assertEqual(list(charlie.Trusts), [])
+        self.assertEqual(list(Classmate & charlie.Trusts), [])
+        self.assertNotIn(ruth, Classmate & charlie.Trusts)
+        self.assertEqual(list(Classmate - charlie.Trusts), [ruth])
+
     def test_the_sound_population_needs_the_contacts_own_contract_too(self):
         class Honest(Tag):
             @Post

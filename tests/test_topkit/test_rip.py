@@ -3,18 +3,18 @@
 from __future__ import annotations
 
 import unittest
-from TopKit import Rip
+from TopKit import Pin
 from TopKit import Post
+from TopKit import Record
+from TopKit import Rip
 from TopKit import Tag
 from TopKit import TagCompositionError
 from TopKit import TagResolutionError
 from TopKit import Underlay
 
 from ._fixtures import Agent
-from ._fixtures import Beast
 from ._fixtures import Knighted
 from ._fixtures import Squire
-from ._fixtures import Wolf
 
 
 class RipTests(unittest.TestCase):
@@ -75,42 +75,28 @@ class RipTests(unittest.TestCase):
 
         self.assertNotIn(ari, Fragile)
 
-    def test_ripping_a_base_keeps_the_admitted_shape(self) -> None:
-        ari = Agent()
-
-        Wolf(ari)
-        del Beast[ari]
-
-        self.assertNotIn(ari, Beast)
-        self.assertIn(ari, Wolf)
-        self.assertEqual(ari.legs, 4)
-        self.assertEqual(ari.howl, "Awooo")
-
-        Wolf(ari)  # an active Shape does not silently restore a missing Base
-        self.assertNotIn(ari, Beast)
-
-        Beast(ari)  # explicit retagging trains the Base again
-        self.assertIn(ari, Beast)
-        self.assertIn(ari, Wolf)
-
-        del Wolf[ari]
-        self.assertIn(ari, Beast)
-
-    def test_programmer_can_require_base_membership_with_a_post(self) -> None:
+    def test_ripping_a_base_keeps_its_shape_and_trains_the_base_again_on_request(self) -> None:
         teardowns: list[str] = []
 
         class Candidate(Tag):
+            @Record
+            def training(agent, stored):
+                return (stored or 0) + 1
+
+            def Call(agent):
+                return "Candidate"
+
             @Rip
-            def Leave(agent) -> None:
+            def Leave_Candidate(agent):
                 teardowns.append("Candidate")
 
         class CIA(Candidate):
-            @Post
-            def Still_Candidate(agent) -> bool:
-                return agent in Candidate[:]
+            @Underlay
+            def Call(agent, base):
+                return f"CIA after {base()}"
 
             @Rip
-            def Leave_CIA(agent) -> None:
+            def Leave_CIA(agent):
                 teardowns.append("CIA")
 
         ari = Agent()
@@ -118,19 +104,75 @@ class RipTests(unittest.TestCase):
 
         del Candidate[ari]
 
-        self.assertEqual(teardowns, ["Candidate"])
-        self.assertIn(ari, CIA[:])
-        self.assertNotIn(ari, Candidate[:])
-        self.assertFalse(ari.Still_Candidate)
-        self.assertFalse(bool(ari))
-        self.assertEqual(len(CIA), 0)
-        self.assertEqual(len(CIA[:]), 1)
-
-        Candidate(ari)
-
-        self.assertTrue(ari.Still_Candidate)
+        self.assertNotIn(ari, Candidate)
+        self.assertIn(ari, CIA)
+        self.assertEqual(list(CIA[:]), [ari])
+        self.assertEqual(list(CIA), [ari])
         self.assertTrue(bool(ari))
-        self.assertEqual(len(CIA), 1)
+        self.assertTrue(isinstance(ari, Candidate))
+        self.assertEqual(ari.training, 1)
+        self.assertEqual(ari.Call(), "CIA after Candidate")
+        self.assertEqual(teardowns, ["Candidate"])
+
+        with self.assertRaises(TagResolutionError):
+            Candidate[ari]
+        self.assertIsNotNone(CIA[ari])
+
+        CIA(ari)                          # an active Shape does not silently restore a Base
+        self.assertNotIn(ari, Candidate)
+        self.assertEqual(ari.training, 1)
+
+        Candidate(ari)                    # an explicit new Tagging trains the Base again
+        self.assertIn(ari, Candidate)
+        self.assertIn(ari, CIA)
+        self.assertEqual(ari.training, 2)
+
+        del CIA[ari]
+        self.assertEqual(teardowns, ["Candidate", "CIA"])
+
+    def test_a_shape_can_require_its_base_with_a_post(self) -> None:
+        class Agency(Tag):
+            pass
+
+        class Operative(Agency):
+            @Post
+            def Still_Agency(agent):
+                return agent not in Operative[:] or agent in Agency[:]
+
+        ari = Agent()
+        Operative(ari)
+
+        del Agency[ari]
+
+        self.assertIn(ari, Operative)
+        self.assertFalse(bool(ari))
+        self.assertEqual(list(Operative), [])
+        self.assertEqual(list(~Operative), [ari])
+
+        Agency(ari)
+        self.assertTrue(bool(ari))
+        self.assertEqual(list(Operative), [ari])
+
+    def test_ripping_a_base_pin_keeps_its_shape_pin(self) -> None:
+        @Pin
+        class Basic(Tag):
+            pass
+
+        class Special(Basic):
+            pass
+
+        class Agency(Tag):
+            pass
+
+        Special(Agency)
+        del Basic[Agency]
+
+        self.assertNotIn(Agency, Basic)
+        self.assertIn(Agency, Special)
+        self.assertEqual(list(Special[:]), [Agency])
+
+        Basic(Agency)
+        self.assertIn(Agency, Basic)
 
     def test_ripped_agent_is_not_yielded_by_field_iteration(self) -> None:
         ari = Agent()

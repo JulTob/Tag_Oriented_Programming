@@ -218,10 +218,16 @@ order, iterative traversal and lazy caching are unchanged; mutation of
 ## The tagging sequence
 
 `transactions._apply` walks the missing Tags in Base-first Form order.
-Before each turn, `_gate` lays only that Tag over a scratch copy of the
-current Overlay and runs its own Preconditions. A refusal does not remove
-Tags whose turns already finished. Gainings apply Actions, Records, condition
-definitions and deletions incrementally in declaration order, top to bottom,
+Before each turn, `_gate` checks only that Tag against the current Overlay.
+When a Tag can use the shortcut, `overlay._preflight_ordinary_gains` checks
+its ordinary Action and Record names against the live State one by one,
+without copying it. An internal Report or Operation does not by itself
+require a scratch copy; a public one does. Tags needing full composition
+are laid over a scratch copy of the current Overlay. Their composed
+Preconditions judge the live Agent. A refusal does not remove Tags whose
+turns already finished.
+Gainings apply Actions, Records, condition definitions and deletions
+incrementally in declaration order, top to bottom,
 establishing each before the next declaration runs. The Gate has already
 evaluated this Tag's own Preconditions. Imprints run after Gainings and
 before FieldAdding. The Tag's published members remain guarded by membership

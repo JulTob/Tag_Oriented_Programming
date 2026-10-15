@@ -4,13 +4,12 @@
 
 ### Specification
 
-- **A Shape keeps no Base hostage (STEP-SPEC-26):** Tagging a new Shape
-  still applies missing Bases first, but each membership stands alone
-  afterwards. Ripping a Base leaves its Shapes in place and never cascades.
-  A continued need for that Base is an explicit Postcondition, not a
-  condition inferred from the class tree. This supersedes STEP-SPEC-6's
-  original Base-Rip refusal; the STEP's separate publication, warning,
-  `Outline` and safehouse proposals remain open.
+- **A Shape keeps no Base hostage (STEP-SPEC-26):** applying a Shape still
+  brings in missing Bases first. Later, `del Base[agent]` ends only that
+  Base's membership and runs its teardowns; the Shape stays, with acquired
+  Gains and Posts. An active Shape call remains a no-op, and explicitly
+  applying the Base trains it again. A Shape that needs continued Base
+  membership states that in a Post.
 
 - **Gates run per Tag:** each missing Tag passes its own Preconditions when
   its turn arrives. A later refusal or Overlay collision leaves completed
@@ -31,8 +30,11 @@
 
 - **Tagging preparation cost:** ordinary Action/Record declarations reuse
   the existing collision and Underlay checks without constructing a
-  disposable Overlay. Declarations requiring runtime protection and Pins
-  retain scratch composition. State copies and empty runtime-type keys also
+  disposable Overlay. Tags with deletions, conditions, Secrets, special
+  methods, published members, Constants, Tools, public Reports, public
+  Operations, or a Flag, and Agents that are Tags or already hold Constants,
+  retain scratch composition. An internal Report or Operation does not by
+  itself prevent the shortcut. State copies and empty runtime-type keys also
   avoid temporary allocations. Both physical host snapshots, live declaration
   lookup after Gate, and the ordered Gainings/admission boundary remain.
   The existing performance budgets are unchanged (#175).

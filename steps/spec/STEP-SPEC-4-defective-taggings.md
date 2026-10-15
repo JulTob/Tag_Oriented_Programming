@@ -23,10 +23,11 @@
 
 A Tagging whose Postcondition fails is **applied and defective**: the call
 raises, the Tags stay, and the Agent is a member whose promise is broken.
-An Imprint failure likewise leaves the Tags applied. Each missing Tag now
-passes its own Gate when its turn arrives; a later refusal leaves Tags
-whose turns finished in place. This Gate amendment leaves the remaining
-phases unchanged; issue #30 separately tracks the approved admission order.
+Under the earlier sequence, an Imprint failure likewise left the Tags
+applied. Each missing Tag now passes its own Gate when its turn arrives; a
+later refusal leaves Tags whose turns finished in place. This Gate amendment
+left the remaining phases unchanged at the time; STEP-SPEC-39 later
+superseded their order.
 
 Fields partition into the **sound** population (`for a in Tag`) and the
 **defective** one (`for a in ~Tag`); `Tag[:]` is everyone. Membership
@@ -46,14 +47,15 @@ nobody disappears from a plain loop silently.
 
 ## Specification
 
-1. The tagging sequence, for each missing Tag in Form order: that Tag's
-   Gate, Parts, Field entry and Imprints; then once per call, after the
-   whole Form: quality check (every visible Postcondition).
+1. The original tagging sequence, for each missing Tag in Form order:
+   that Tag's Gate, Parts, Field entry and Imprints; then once per call,
+   after the whole Form: quality check (every visible Postcondition).
 2. A Gate refusal stops before that Tag's Parts, Contributions, Field entry
    or Imprints. Tags whose turns already finished stay applied. Record
-   failures currently restore the whole call; the admission follow-up
-   changes this boundary separately.
-3. A failure in an Imprint raises a Tag Imprint Failure; the Tags stay.
+   failures at the time restored the whole call; STEP-SPEC-39 superseded
+   this boundary.
+3. Under that sequence, a failure in an Imprint raises a Tag Imprint
+   Failure; the Tags stay.
 4. A failure in quality check raises a Tag Postcondition Failure; the Tags
    stay; the Agent is defective while any visible Postcondition fails.
 5. For an Agent, including a Tag receiving Pins, `bool(agent)` is true
@@ -90,7 +92,7 @@ Programs that relied on a failed Postcondition rolling back must Rip the
 defective Tag themselves, or check `bool(agent)` after the call. The
 original `CONFORMANCE.md` line "atomic taggings, all-or-nothing" was
 reworded when this STEP first deployed. This amendment supersedes its Gate
-half; issue #30 tracks the unfinished post-Gate Parts behavior.
+half; STEP-SPEC-39 later superseded the post-Gate Parts behavior.
 
 ## Alternatives considered
 
@@ -106,9 +108,9 @@ half; issue #30 tracks the unfinished post-Gate Parts behavior.
 ## Acceptance requirements
 
 The original rules are covered by
-`tests/test_topkit.py::DefectiveTaggingTests`. The 2026-10-09 amendment is
-covered by `HostPreservationTests`: zero and nonzero host lengths, sound
-and defective contracts, and no Posts.
+`tests.test_topkit.DefectiveTaggingTests`. The 2026-10-09 amendment is
+covered by `tests.test_topkit.HostPreservationTests`: zero and nonzero
+host lengths, sound and defective contracts, and no Posts.
 
 ## Amendment: a host's length is not an Agent's truth
 
@@ -139,10 +141,10 @@ Gate**.
 This amendment implements only the Gate chain. On 2026-10-12, the Director
 approved the follow-up order **Gate → Gainings/Imprints → FieldAdding → Posts**.
 Unfinished training leaves acquired Gains outside the Tag; a failure in Posts
-leaves a deficient member. The remaining phases above still describe the
-current implementation until that separate admission change lands.
+leaves a deficient member. Those phases are now the current rule in
+STEP-SPEC-39; the sequence above records the earlier implementation.
 
-Covered by `tests/test_topkit.py::PreconditionTests`.
+Covered by `tests.test_topkit.PreconditionTests`.
 
 ---
 

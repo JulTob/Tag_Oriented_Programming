@@ -45,12 +45,17 @@ normative text.
 > remains, but the guaranteed tier is now written directly by the program:
 > tag before `try`, then Rip in `finally`.
 
-> **Later decision (2026-10-14):** [STEP-SPEC-26](STEP-SPEC-26-a-shape-keeps-no-base-hostage.md)
-> supersedes the Base-Rip refusal in item 1. A Base may now be Ripped while
-> its Shape remains active, including during that Shape's training. The
-> non-cascading part of item 1 remains law. A Shape's continued need for
-> the Base belongs in an explicit condition. Item 1 above records this
-> STEP's original 2026-09-05 decision, not the current Rip rule.
+> **Later Director ruling on rule 1:** The automatic refusal to Rip a Base
+> while an active Shape remains is superseded. Applying a Shape still adds
+> its missing Bases first, but each completed membership then stands alone.
+> Ripping a Base leaves the Shape active and does not cascade; a Shape that
+> needs continuing Base membership states that need in a Postcondition.
+> Applying an already active Shape stays a no-op, while explicitly applying
+> the Ripped Base starts fresh Tagging. See Specification §§0.3, 0.5, 0.7
+> and [STEP-SPEC-26](STEP-SPEC-26-a-shape-keeps-no-base-hostage.md)
+> ([issue #184](https://github.com/JulTob/Tag_Oriented_Programming/issues/184)).
+> This note changes only the later law; the 2026-09-05 decision below is
+> retained as history.
 
 ## Rationale
 

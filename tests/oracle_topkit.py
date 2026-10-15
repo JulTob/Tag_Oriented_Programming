@@ -2,9 +2,9 @@
 after every transition.
 
 The model knows the laws of the Specification and nothing of the kernel:
-Base-first Forms, membership and history, Rip without automatic Base
-hostage checks, a block that holds Tags (tag before try, Rip in
-finally), the call boundary (each Tag gates at its own turn, acquired
+Base-first Forms, independent membership after admission, Rip of one Tag
+without cascading into its Shapes, a block that holds Tags (tag before
+try, Rip in finally), the call boundary (each Tag gates at its own turn, acquired
 Gains precede admission, a broken promise keeps membership, and a failed
 Imprint leaves Gains without admission), sticky conditions ended by
 the author, published members answering sound members only, condition
@@ -186,7 +186,7 @@ def Model_Apply(
         tag: type,
         ) -> None:
     if tag in model.active:
-        return   # an already active Shape does not restore a Ripped Base
+        return
 
     for current in Form(tag):
         if current not in model.active:

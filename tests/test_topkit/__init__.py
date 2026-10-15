@@ -23,6 +23,7 @@ from .test_exit_protocol import ExitProtocolTests
 from .test_try_finally import TryFinallyTests
 from .test_access import AccessTests
 from .test_field_algebra import FieldAlgebraTests
+from .test_tag_recognition import TagRecognitionTests
 from .test_population_walk import PopulationWalkTests
 from .test_condition_member import ConditionMemberTests
 from .test_query import QueryTests

@@ -38,6 +38,7 @@ from .errors import TagCompositionError
 from .errors import TagImprintError
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
+from .fields import _field_of
 from .geometry import _form_of
 from .overlay import _install
 from .overlay import _gainings
@@ -167,8 +168,15 @@ def _gate(
         ) -> None:
     """Let one Tag inspect the Agent before that Tag begins.
 
-    The scratch Overlay composes this Tag's own declarations over Tags whose
-    turns have already finished. Nothing is installed on the live state.
+    Every refusal the Tag's own declarations would meet is raised here,
+    before any builder runs, and nothing is installed on the live state.
+    When a Tag can use the shortcut, ``_preflight_ordinary_gains`` checks
+    its ordinary Action and Record names against the live state, one by one.
+    An internal Report or Operation does not by itself require scratch
+    composition; a public one does.
+    Tags needing full composition are laid over a scratch copy of the state,
+    on top of completed Tags. Their composed Preconditions judge the live
+    Agent.
     """
 
     declarations = _declarations_of(tag)
@@ -276,6 +284,13 @@ def _apply_one(
                 prepare,
                 )
 
+        # A nested Imprint may lay another Action over a Rip name. Remember
+        # this Tag's acquired layer before training can change the Overlay.
+        rip_actions = (
+                tuple((name, state.actions[name]) for name in declarations.rips)
+                if declarations.rips else ()
+                )
+
         _imprint(agent, declarations, inputs)
 
         # Tag-scope services arrive with admission. A failed representation
@@ -292,8 +307,8 @@ def _apply_one(
                 _install(state, tag, header)
                 _prepare_gains(agent, state, deleted_before, tag, header)
 
-            if declarations.rips:
-                state.rips[tag] = tuple((name, state.actions[name]) for name in declarations.rips)
+            if rip_actions:
+                state.rips[tag] = rip_actions
 
             _enter_field(agent, state, tag, declarations)
         except BaseException:
@@ -509,7 +524,7 @@ def _enter_field(
     if state.pinned is not None and declarations.published:
         plans = _publication_plans(state.pinned, declarations.published)
 
-    tag._topkit_field._Add(agent)
+    _field_of(tag)._Add(agent)
     state.active.append(tag)
     state.words = None
     if _is_link(tag):

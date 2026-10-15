@@ -50,9 +50,12 @@ from .declarations import _refuse_condition_dunder
 from .declarations import _refuse_truth_gain
 from .errors import TagCompositionError
 from .errors import TagDeclarationError
+from .fields import FIELD_SEAT
 from .fields import _Field
 from .fields import _Partition
+from .fields import _field_of
 from .fields import _population_of
+from .fields import _sound_of
 from .geometry import _form_of
 from .geometry import _is_tag
 from .lifecycle import _rip
@@ -60,28 +63,6 @@ from .state import Tagged
 from .state import _name_of
 from .state import _state_of
 from .transactions import _apply
-
-
-def _sound_of(
-        tag: type,
-        ) -> _Partition:
-    """The Tag's sound population, outside its programmer-owned namespace.
-    A Link's sound Contacts are those whose own contract holds and whose
-    Pair holds (STEP-SPEC-22 rule 7.3)."""
-
-    if tag._topkit_kind is not None:
-        _refuse_relation(tag)
-
-    holds = _holds
-
-    if _is_link_tag(tag):
-        holds = _links()._contact_holds(tag)
-
-    return _Partition(
-            tag.__dict__["_topkit_field"],
-            holds,
-            "sound",
-            )
 
 
 def _refuse_relation(
@@ -143,7 +124,7 @@ class MetaTag(type):
             **kwargs: Any,
             ) -> "MetaTag":
         namespace.setdefault(
-                "_topkit_field",
+                FIELD_SEAT,
                 _Field(),
                 )
         namespace.setdefault(
@@ -375,7 +356,7 @@ class MetaTag(type):
                         " no meaning for a population"
                         )
 
-            return tag._topkit_field
+            return _field_of(tag)
 
         if _is_link_tag(tag):
             return _links()._pair_of(

@@ -113,10 +113,10 @@ for wizard in Wizard:               # the Field (its sound members, §2.5)
     Observe(wizard)
 ```
 
-Tagging is **closed upward** through Bases: applying a new Shape also
-applies each missing Base in its Form, Bases first. Afterwards each
-membership stands alone. An Agent can leave a Base by Rip and remain a
-member of the Shape.
+Tagging is **closed upward** through Bases: applying a Shape also applies
+each missing Base in its Form, and the Agent enters each completed Tag's
+Field. Afterwards each membership stands alone. Ripping a Base does not
+remove the Agent from an active Shape's Field (§0.7).
 
 ```python
 class Mortal(Tag): pass
@@ -155,10 +155,9 @@ assert f"{Arcane_Duelist:form}" == "Spellcaster → Duelist → Arcane_Duelist"
 ```
 
 A Base reachable through several paths appears once. **Forming** follows
-the Form downward, general to specific. **Deforming** by explicit Rip
-ends only the named Tag's membership, in whichever order the program
-chooses. At an Agent's deletion or exit, TOP runs teardowns in reverse
-application order (§3.2).
+the Form downward, general to specific. The program may Rip memberships in
+any order (§0.7). When TOP runs an Agent's teardowns at deletion or exit,
+they run in reverse order of application (§3.2).
 
 ## 0.5 Applying a Tag
 
@@ -168,12 +167,10 @@ The canonical act is:
 Tag(target, **inputs)
 ```
 
-If the requested Tag is already active, applying it does nothing, even if
-one of its Bases has since been Ripped. Otherwise it applies every missing
-Tag in the Form, Bases first, then returns the same Target. Keyword
-**inputs** are handed by name to the Preconditions, Record builders and
-Imprints run during that call (§1.3,
-§2.2, §2.3).
+If the requested Tag is not active, it applies every missing Tag in its
+Form, Bases first, then returns the same Target. Keyword **inputs** are
+handed by name to the Preconditions, Record builders and Imprints that
+run during that call (§1.3, §2.2, §2.3).
 
 ```python
 MI6(bond, code="007")      # every protocol that names `code` receives it
@@ -183,8 +180,10 @@ MI6(bond, code="007")      # every protocol that names `code` receives it
 membership, does not rerun Imprints, and does not rebuild Records. Rip ends
 membership but leaves sticky Contributions. Applying the Tag after Rip is
 fresh Tagging: that Tag's ordinary Record builders run again. Bases already
-active are not reapplied. A builder without a second positional seat replaces
-the current binding with its returned value;
+active are not reapplied. If a Shape remains active after its Base is Ripped,
+calling the Shape again still does nothing; applying the Base explicitly
+reinstates it through fresh Tagging. A builder without a second positional
+seat replaces the current binding with its returned value;
 a builder with that seat receives the current stored value and determines
 how to evolve it. As in §1.3, an absent, deleted or Action binding supplies
 `None`; `stored` is the example parameter name, not a required spelling.
@@ -300,20 +299,19 @@ assert bond not in MI6
 assert isinstance(bond, MI6)      # once an agent, always an agent
 ```
 
-Rip is the only exit from a Field, and it obeys three laws:
+Rip is the only exit from a Field, and it obeys these laws:
 
 - **Contributions are sticky.** Actions and Records stay on the Agent after
   Rip unless a `@Rip` protocol (§3.1) changes them. The result is a **Rogue
   Agent**: it has what it learned, but no active access to the Tag's Field,
   Operations, Reports or Agent-bound view. Rogue Agents are dangerous… but
   useful.
-- **A Shape keeps no Base hostage.** `del Beast[wolf]` succeeds while
-  `Wolf` is active: the Agent leaves Beast, Beast's teardowns run, and it
-  stays a Wolf. This also holds when the Rip happens during the Shape's
-  Imprint. Rip never cascades: TOP does not run other Tags' protocols
-  behind your back. A Shape that needs continuing Base membership says so
-  in its own Postcondition. Rip does not add an automatic contract check;
-  the Agent's current Posts determine soundness when read or checked.
+- **Each membership stands alone.** `del Beast[wolf]` ends Beast membership
+  even while `Wolf` remains active. Beast's teardowns run; Wolf stays in its
+  Field, with its acquired Actions and Records. Rip never cascades: TOP does
+  not run other Tags' protocols behind your back. If Wolf needs continuing
+  Beast membership, its author states that dependency in a Postcondition;
+  the Rip then leaves Wolf defective while that Post fails (§2.5).
 - **Conditions are sticky too** (STEP-SPEC-12). Rip does not touch a
   Tag's Preconditions or Postconditions: a promise that outlives its
   Tag fails loud, never silently. Rip does one thing, and it is the one
@@ -1937,7 +1935,7 @@ types but must keep these distinct.
 | Failure | Meaning | Effect |
 | --- | --- | --- |
 | **Tag Declaration Failure** | A Tag is written wrong: illegal mark combination, `@Underlay` without a parameter to receive it. | at class use |
-| **Tag Composition Failure** | Contributions cannot form the Overlay: cross-kind collision, Record over a host descriptor, a Record builder or teardown that failed, a Target that cannot carry state. | before FieldAdding: current Tag absent, acquired Gains and earlier turns stay; after admission: membership stays; a teardown failure is reported after that Tag's membership ends |
+| **Tag Composition Failure** | Contributions cannot form the Overlay: cross-kind collision, Record over a host descriptor, a Record builder or teardown that failed, a Target that cannot carry state. | before FieldAdding: current Tag absent, acquired Gains and earlier turns stay; after admission: membership stays; a teardown failure is reported after its Rip ends membership |
 | **Tag Resolution Failure** | A required Underlay, view, or membership is unavailable. | use refused; during Tagging, follows the current phase boundary |
 | **Tag Rogue Access Failure** | A Rogue Agent reached a published member of a Tag it has left or never entered. A Resolution Failure, and a TOP failure only: never dressed as a host-language attribute failure. | use refused |
 | **Tag Precondition Failure** | A Gate refused the incoming Agent. | that Tag does not apply; earlier turns stay |
@@ -1955,9 +1953,8 @@ A conforming implementation provides, ring by ring:
 
 **Ring 0**
 - stable object identity under tagging, and preserved host behaviour;
-- membership and Base membership (`agent in Tag`), applied upward through
-  Bases but standing independently after admission, with a has-been check
-  that survives Rip;
+- membership (`agent in Tag`) gained Base-first and thereafter independent,
+  with a has-been check that survives Rip;
 - non-owning, identity-indexed, iterable Fields;
 - Base-first Form application, each Base once, active reapply a no-op;
 - the five-step tagging sequence: each missing Tag's Gate, Gainings,
@@ -1965,10 +1962,9 @@ A conforming implementation provides, ring by ring:
   failed Gainings or Imprints leave acquired Gains without that Tag's
   membership or history; earlier completed Tags stay, retry starts fresh,
   and current Posts decide members' deficiency;
-- Rip: sticky contributions and sticky conditions, ended by the author
-  (a guard, or `Contract.Delete` from the `@Rip` protocol); a Base Rip
-  leaves its Shapes active, never cascades, and lets explicit Posts state
-  any continuing Base requirement;
+- Rip: one membership ends without cascade, while acquired contributions
+  and conditions stay; the author ends a condition with a guard or
+  `Contract.Delete` from the `@Rip` protocol;
 - native spellings for every Tag-level act, leaving the Tag's dotted
   namespace to the program.
 

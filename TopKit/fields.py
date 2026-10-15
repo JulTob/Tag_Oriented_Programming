@@ -24,25 +24,46 @@ from typing import Callable
 from typing import Iterator
 import weakref
 
+from .contracts import _holds
 from .errors import TagCompositionError
+from .geometry import _is_tag_class
+from .memo import _class_namespace
 
 
-_MetaTag: type | None = None   # imported on first use: tags imports this module
+FIELD_SEAT = "_topkit_field"   # the kit's own seat on every Tag class; MetaTag.__new__ fills it
 
 
-def _is_tag_type(
-        candidate: object,
-        ) -> bool:
-    """A Tag is identified by its metaclass, never by a lookalike name."""
+def _field_of(
+        tag: type,
+        ) -> "_Field":
+    """The Tag's own Field, read from its class dictionary: never through
+    attribute lookup, which the programmer's namespace could shadow."""
 
-    global _MetaTag
+    return _class_namespace(tag)[FIELD_SEAT]
 
-    if _MetaTag is None:
-        from .tags import MetaTag
 
-        _MetaTag = MetaTag
+def _sound_of(
+        tag: type,
+        ) -> "_Partition":
+    """The Tag's sound population. A Link also checks each Contact's Pair."""
 
-    return isinstance(candidate, _MetaTag)
+    kind = tag._topkit_kind
+    if kind is not None:
+        # Relations and Pair Tags are templates, never populations.  Import
+        # here because tags.py uses this helper during ordinary Tag algebra.
+        from .tags import _refuse_relation
+        _refuse_relation(tag)
+
+    holds = _holds
+    if kind == "link":
+        from .tags import _links
+        holds = _links()._contact_holds(tag)
+
+    return _Partition(
+            _field_of(tag),
+            holds,
+            "sound",
+            )
 
 
 class _Population:
@@ -153,9 +174,7 @@ def _population_of(
     if isinstance(candidate, _Population):
         return candidate
 
-    if _is_tag_type(candidate):
-        from .tags import _sound_of
-
+    if _is_tag_class(candidate):
         return _sound_of(candidate)
 
     return NotImplemented
