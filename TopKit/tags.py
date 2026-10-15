@@ -175,9 +175,18 @@ class MetaTag(type):
                     )
 
         field = _field_of(tag)
+
+        if candidate not in field:
+            return False
+
+        state = _state_of(candidate)
+
+        if state is None or not state.postconditions:
+            # A Host's namespace read can still run code that Rips the Tag.
+            return candidate in field
+
         return (
-                candidate in field
-                and _holds_for_population(candidate)
+                _holds_for_population(candidate, state)
                 and candidate in field
                 )
 
