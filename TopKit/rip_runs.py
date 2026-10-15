@@ -24,7 +24,7 @@ class _RipRun:
     """One Tag application's original teardown sequence and next step."""
 
     tag: type
-    teardowns: tuple[tuple[str, Any], ...]
+    teardowns: tuple[tuple[str, Any, Any], ...]
     cursor: int = 0
     running: bool = False
     revoked: bool = False
@@ -88,7 +88,7 @@ def _finish_run(agent: object, run: _RipRun) -> None:
 def _retry_arrested(
         agent: object,
         revoke: Callable[[_RipRun], None],
-        invoke: Callable[[_RipRun, str, Any], None],
+        invoke: Callable[[_RipRun, str, Any, Any], None],
         *,
         defer_running: bool = False,
         ) -> object:
@@ -120,7 +120,7 @@ def _run_saved(
         agent: object,
         run: _RipRun,
         revoke: Callable[[_RipRun], None],
-        invoke: Callable[[_RipRun, str, Any], None],
+        invoke: Callable[[_RipRun, str, Any, Any], None],
         ) -> object:
     """Finish one chosen run, even when older work is also pending.
 
@@ -142,10 +142,10 @@ def _run_saved(
                 run.revoked = True
 
             while run.cursor < len(run.teardowns):
-                name, teardown = run.teardowns[run.cursor]
+                name, teardown, declared = run.teardowns[run.cursor]
 
                 try:
-                    invoke(run, name, teardown)
+                    invoke(run, name, teardown, declared)
                 except Exception as error:
                     raise TagCompositionError(
                             f"{_tag_name(run.tag)} teardown failed in:"
