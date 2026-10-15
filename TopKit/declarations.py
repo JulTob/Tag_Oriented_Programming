@@ -548,6 +548,16 @@ def _refuse_late_pin(
     a declared Tool kind would start admitting Tags (§1.3, §1.9). Past
     Taggings no longer in the Field are a separate unresolved case."""
 
+    if any(
+            member is tag
+            for form in _ordinary_inflight
+            for member in form
+            ):
+        raise TagDeclarationError(
+                f"@Pin cannot mark {tag.__name__} while its ordinary"
+                " Tagging is in flight"
+                )
+
     shapes = type.__subclasses__(tag)
 
     if shapes:
@@ -1064,6 +1074,26 @@ def _refuse_tools_on_a_pin(
 # The lock owns no Tag; the registry below keeps only weak references.
 _pin_mark_lock = RLock()
 _kinds_named: dict[int, tuple[ref[type], WeakValueDictionary[int, type]]] = {}
+_ordinary_inflight: list[tuple[type, ...]] = []
+
+
+def _begin_ordinary_form(form: tuple[type, ...]) -> None:
+    """Reserve every Tag in an ordinary Form before user code can run.
+    The caller holds ``_pin_mark_lock`` across the Pin check and this
+    reservation. Each live call owns one distinct tuple."""
+
+    _ordinary_inflight.append(form)
+
+
+def _end_ordinary_form(form: tuple[type, ...]) -> None:
+    """Release exactly this call's Form, even after an interruption.
+    A cancellation just before the append has nothing to release."""
+
+    with _pin_mark_lock:
+        for index, pending in enumerate(_ordinary_inflight):
+            if pending is form:
+                del _ordinary_inflight[index]
+                return
 
 
 def _tool_owner_naming(tag: type) -> type | None:

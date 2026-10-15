@@ -35,12 +35,14 @@ from .access import _refuse_host_truth
 from .access import _view_of
 from .contracts import _holds
 from .declarations import _MISSING
+from .declarations import _begin_ordinary_form
 from .declarations import _check_constant_declarations
 from .declarations import _check_constant_shapes
 from .declarations import _check_pin_bases
 from .declarations import _check_rip_declarations
 from .declarations import _check_tool_declarations
 from .declarations import _constant_owner
+from .declarations import _end_ordinary_form
 from .declarations import _is_dunder
 from .declarations import _is_pin
 from .declarations import _kind_of
@@ -62,6 +64,7 @@ from .fields import _sound_of
 from .geometry import _form_of
 from .geometry import _is_tag
 from .lifecycle import _rip
+from .memo import _type_mro
 from .state import Tagged
 from .state import _name_of
 from .state import _state_of
@@ -158,23 +161,41 @@ class MetaTag(type):
                     f" {tag.__name__}(target)"
                     )
 
-        if _is_pin(tag):
-            _check_pin_target(
-                    tag,
-                    target,
-                    )
-        elif isinstance(target, type):
-            raise TypeError(
-                    f"{tag.__name__} is applied to objects, not classes"
-                    )
-        else:
-            _refuse_host_truth(target)
+        pending_tags = None
+        try:
+            with _pin_mark_lock:
+                pin = _is_pin(tag)
+                # The physical MRO contains exactly the Tags this ordinary
+                # Form may apply. Reserve them before a Gate or Host hook
+                # can reenter and try to turn one into a Pin.
+                if not pin:
+                    pending_tags = tuple(
+                            member
+                            for member in _type_mro.__get__(tag)
+                            if _is_tag(member)
+                            )
+                    _begin_ordinary_form(pending_tags)
 
-        return _apply(
-                target,
-                tag,
-                inputs,
-                )
+            if pin:
+                _check_pin_target(
+                        tag,
+                        target,
+                        )
+            elif isinstance(target, type):
+                raise TypeError(
+                        f"{tag.__name__} is applied to objects, not classes"
+                        )
+            else:
+                _refuse_host_truth(target)
+
+            return _apply(
+                    target,
+                    tag,
+                    inputs,
+                    )
+        finally:
+            if pending_tags is not None:
+                _end_ordinary_form(pending_tags)
 
     def __contains__(
             tag,

@@ -1339,6 +1339,82 @@ class Host_Tests(unittest.TestCase):
 
 
 class Late_Pin_Tests(unittest.TestCase):
+    def test_an_imprint_cannot_turn_its_unfinished_tag_into_a_pin(self):
+        refusals = []
+
+        class Candidate(Tag):
+            @Imprint
+            def Train(agent):
+                Candidate(agent)                  # same-Tag reentry is a no-op
+                try:
+                    Pin(Candidate)
+                except TagDeclarationError as error:
+                    refusals.append(str(error))
+
+        ari = Character("Ari")
+        Candidate(ari)
+        self.assertEqual(len(refusals), 1)
+        self.assertIn("Tagging is in flight", refusals[0])
+        self.assertNotIn("__topkit_pin__", Candidate.__dict__)
+        self.assertIn(ari, Candidate[:])
+
+    def test_a_concurrent_pin_cannot_reclassify_an_unfinished_tag(self):
+        entered = Event()
+        resume = Event()
+        outcome = []
+
+        class Candidate(Tag):
+            @Imprint
+            def Train(agent):
+                entered.set()
+                if not resume.wait(2):
+                    raise TimeoutError("Tagging did not resume")
+
+        ari = Character("Ari")
+
+        def apply():
+            try:
+                Candidate(ari)
+            except BaseException as error:
+                outcome.append(type(error).__name__)
+            else:
+                outcome.append("tagged")
+
+        worker = Thread(target=apply)
+        worker.start()
+        try:
+            self.assertTrue(entered.wait(2))
+            with self.assertRaises(TagDeclarationError) as refusal:
+                Pin(Candidate)
+            self.assertIn("Tagging is in flight", str(refusal.exception))
+        finally:
+            resume.set()
+            worker.join(2)
+
+        self.assertEqual(outcome, ["tagged"])
+        self.assertFalse(worker.is_alive())
+        self.assertNotIn("__topkit_pin__", Candidate.__dict__)
+        self.assertIn(ari, Candidate[:])
+
+    def test_a_refused_or_interrupted_gate_releases_the_pending_mark(self):
+        class Refused(Tag):
+            @Pre
+            def Gate(agent):
+                return False
+
+        class Interrupted(Tag):
+            @Pre
+            def Gate(agent):
+                raise KeyboardInterrupt
+
+        with self.assertRaises(TagPreconditionError):
+            Refused(Character("Ari"))
+        with self.assertRaises(KeyboardInterrupt):
+            Interrupted(Character("Bob"))
+
+        self.assertIs(Pin(Refused), Refused)
+        self.assertIs(Pin(Interrupted), Interrupted)
+
     def test_a_metaclass_cannot_discard_the_pin_mark(self):
         class Discard(MetaTag):
             def __setattr__(cls, name, value):
