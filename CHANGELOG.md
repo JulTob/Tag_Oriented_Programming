@@ -19,6 +19,12 @@
 
 ### TopKit
 
+- **Link Pair views follow admission:** `agent.Link[contact]` resolves
+  through that Link only while it admits the Contact. A failed Imprint
+  keeps its Pair's partial Gains privately for retry; a Ripped Base Link
+  no longer reads a Pair retained by a Shape. The current Pair's training
+  and Rip may still read it while their protocols run.
+
 - **Base Rips leave Shapes:** an Agent or Contact can leave a Base while
   remaining in its Shape, including when the Rip happens in an Imprint.
   The Base's teardowns run, and the Shape's membership and acquired
