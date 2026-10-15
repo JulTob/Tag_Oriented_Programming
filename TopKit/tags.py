@@ -63,7 +63,9 @@ from .fields import _population_of
 from .fields import _sound_of
 from .geometry import _form_of
 from .geometry import _is_tag
+from .geometry import _is_tag_class
 from .lifecycle import _rip
+from .memo import _type_mro
 from .state import Tagged
 from .state import _name_of
 from .state import _state_of
@@ -168,8 +170,19 @@ class MetaTag(type):
                 # cached Form after a class's real Bases change. Do this
                 # before a Gate or Host hook can turn a Base into a Pin.
                 if not pin:
-                    pending_tags = _form_of(tag)
-                    _begin_ordinary_form(pending_tags)
+                    # A cold Form walk can invoke a custom metaclass hash.
+                    # Reserve the physical Tag lineage first, so even a
+                    # same-thread hash hook cannot Pin one of its Bases.
+                    provisional = tuple(
+                            member for member in _type_mro.__get__(tag)
+                            if _is_tag_class(member)
+                            )
+                    _begin_ordinary_form(provisional)
+                    try:
+                        pending_tags = _form_of(tag)
+                        _begin_ordinary_form(pending_tags)
+                    finally:
+                        _end_ordinary_form(provisional)
 
             if pin:
                 _check_pin_target(

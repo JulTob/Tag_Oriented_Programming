@@ -1339,6 +1339,51 @@ class Host_Tests(unittest.TestCase):
 
 
 class Late_Pin_Tests(unittest.TestCase):
+    def test_cold_form_hash_hook_cannot_pin_the_tag_before_reservation(self):
+        armed = [False]
+        refusals = []
+
+        class Hashing(MetaTag):
+            def __hash__(cls):
+                if armed[0]:
+                    armed[0] = False
+                    try:
+                        Pin(cls)
+                    except TagDeclarationError as error:
+                        refusals.append(str(error))
+                return type.__hash__(cls)
+
+        class Candidate(Tag, metaclass=Hashing):
+            pass
+
+        armed[0] = True
+        ari = Character("Ari")
+        Candidate(ari)
+
+        self.assertEqual(len(refusals), 1)
+        self.assertIn("Tagging is in flight", refusals[0])
+        self.assertNotIn("__topkit_pin__", Candidate.__dict__)
+        self.assertIn(ari, Candidate[:])
+
+    def test_cold_form_failure_releases_provisional_pin_reservation(self):
+        armed = [False]
+
+        class Hashing(MetaTag):
+            def __hash__(cls):
+                if armed[0]:
+                    armed[0] = False
+                    raise ValueError("cold Form failed")
+                return type.__hash__(cls)
+
+        class Candidate(Tag, metaclass=Hashing):
+            pass
+
+        armed[0] = True
+        with self.assertRaisesRegex(ValueError, "cold Form failed"):
+            Candidate(Character("Ari"))
+
+        self.assertIs(Pin(Candidate), Candidate)
+
     def test_cached_form_base_stays_reserved_after_real_bases_change(self):
         refusals = []
 
