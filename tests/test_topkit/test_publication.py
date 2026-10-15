@@ -75,6 +75,31 @@ class PublicationTests(unittest.TestCase):
         with self.assertRaises(AttributeError):
             ember.colour = "blue"
 
+    def test_deleting_a_report_removes_its_declaration_without_rebuilding(self) -> None:
+        builds: list[type] = []
+
+        class Signal(Tag):
+            @Public
+            @Report
+            def colour(tag) -> str:
+                builds.append(tag)
+                return "green"
+
+        agent = Agent()
+        Signal(agent)
+        self.assertEqual(Signal.colour, "green")
+        self.assertEqual(agent.colour, "green")
+        self.assertEqual(builds, [Signal])
+
+        del Signal.colour
+
+        self.assertNotIn("colour", vars(Signal))
+        with self.assertRaises(AttributeError):
+            Signal.colour
+        with self.assertRaises(AttributeError):
+            agent.colour
+        self.assertEqual(builds, [Signal])
+
     def test_published_operation_is_an_action_with_the_agent_as_second_input(self) -> None:
         ember = Agent()
 
