@@ -44,6 +44,8 @@ class SafehouseTagOperationTests(unittest.TestCase):
         self.assertIs(saved.__self__, Crew)
         self.assertIs(saved.__func__, do_work)
         self.assertEqual(signature(saved), signature(native))
+        self.assertEqual(saved.__qualname__, native.__qualname__)
+        self.assertEqual(saved.__annotations__, native.__annotations__)
         self.assertEqual(saved.__name__, "do_work")
         self.assertEqual(saved.__doc__, do_work.__doc__)
         self.assertEqual(repr(saved), "<Operation Work of Crew>")
@@ -95,6 +97,8 @@ class SafehouseTagOperationTests(unittest.TestCase):
         self.assertIsNone(saved.__doc__)
         self.assertEqual(repr(saved), "<Operation Work of Crew>")
         self.assertEqual(signature(saved), signature(MethodType(function, Crew)))
+        self.assertFalse(hasattr(saved, "__qualname__"))
+        self.assertFalse(hasattr(saved, "__annotations__"))
         self.assertEqual(saved(5), (Crew, 5))
 
     def test_operation_cannot_return_after_arresting_its_own_tag(self):

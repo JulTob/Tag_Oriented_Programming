@@ -401,6 +401,11 @@ class _Operation_Bound:
             name = None
         return name if isinstance(name, str) else bound._name
 
+    def __getattr__(bound, name: str) -> Any:
+        if name in ("__qualname__", "__annotations__"):
+            return getattr(bound._function, name)
+        raise AttributeError(name)
+
     @property
     def __doc__(bound) -> str | None:
         try:
