@@ -100,6 +100,25 @@ class SpecialActionDoorTests(unittest.TestCase):
 
         self.assertEqual(str(untrained), "label")
 
+    def test_callable_object_protocol_keeps_its_python_binding(self):
+        class Representation:
+            def __call__(self):
+                return "callable object"
+
+            def __getattribute__(self, name):
+                if name in ("__module__", "__name__", "__qualname__",
+                            "__doc__", "__annotations__", "__dict__"):
+                    raise RuntimeError("metadata is not needed")
+                return object.__getattribute__(self, name)
+
+        class Label(Tag):
+            __str__ = Representation()
+
+        agent = Host()
+        Label(agent)
+
+        self.assertEqual(str(agent), "callable object")
+
     def test_attribute_miss_hook_cannot_authorize_its_own_secret_read(self):
         class Private(Tag):
             @Secret

@@ -1249,7 +1249,9 @@ _ASYNC_CONTEXT_ACTIONS = frozenset((
 # These synchronous Python value protocols invoke an authored Action.  Name
 # lookup, attribute writes, construction, descriptors, and deferred protocols
 # are deliberately absent: opening their door could authorize the outside
-# request itself, or run before an Agent has state.
+# request itself, or run before an Agent has state.  A callable object also
+# keeps its original Python descriptor/calling behavior until its boundary
+# can be designed separately.
 _SYNC_PROTOCOL_ACTIONS = frozenset((
         "__str__", "__repr__", "__format__", "__bytes__", "__hash__",
         "__lt__", "__le__", "__eq__", "__ne__", "__gt__", "__ge__",
@@ -1374,7 +1376,9 @@ def _runtime_dunder_actions(
                     _context_action(name, function)
                     if name in _CONTEXT_ACTIONS
                     else (_sync_protocol_action(function)
-                          if name in _SYNC_PROTOCOL_ACTIONS else function)
+                          if name in _SYNC_PROTOCOL_ACTIONS
+                          and isinstance(function, FunctionType)
+                          else function)
                     )
             for name, function in selected.items()
             }
