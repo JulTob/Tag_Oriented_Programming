@@ -3,7 +3,8 @@
 import unittest
 import warnings
 
-from TopKit import Contract, Post, Pre, Rip, Tag
+from TopKit import Action, Contract, Post, Pre, Rip, Tag
+from TopKit import TagPostconditionError
 
 
 class Host:
@@ -181,13 +182,19 @@ class ConditionTurnTests(unittest.TestCase):
                 agent.add_later = True
                 events.clear()
 
-                answer = query(agent)
+                if query is Contract.Conditions:
+                    with self.assertRaisesRegex(
+                            TagPostconditionError.Later,
+                            "became visible",
+                            ):
+                        query(agent)
+                else:
+                    answer = query(agent)
+
                 if query is Contract.Status:
                     self.assertEqual(answer, {"Prepare": True, "Ready": True})
                 elif query is Contract.Display:
                     self.assertNotIn("Later", answer)
-                else:
-                    self.assertIs(answer, True)
                 self.assertEqual(events, ["later"])
                 self.assertIn("Later", Contract.Status(agent))
 
@@ -213,6 +220,95 @@ class ConditionTurnTests(unittest.TestCase):
         self.assertEqual(Contract.Status(agent), {"First": False})
         self.assertEqual(Contract.Status(agent), {"First": True})
         self.assertTrue(bool(agent))
+
+    def test_new_failing_post_does_not_pass_an_action_guard(self):
+        class Unsafe(Tag):
+            @Post
+            def Denied(agent):
+                return False
+
+        class Armed(Tag):
+            @Post
+            def Install(agent):
+                if agent.install:
+                    agent.install = False
+                    try:
+                        Unsafe(agent)
+                    except TagPostconditionError.Denied:
+                        pass
+                return True
+
+            @Action
+            def Launch(agent):
+                if agent:
+                    agent.launched = True
+
+        agent = Host()
+        agent.install = False
+        agent.launched = False
+        Armed(agent)
+        agent.install = True
+
+        agent.Launch()
+        self.assertFalse(agent.launched)
+        self.assertIn(agent, Unsafe[:])
+        self.assertFalse(bool(agent))
+
+        for query in (Contract.Postconditions, Contract.Conditions):
+            with self.subTest(query=query):
+                another = Host()
+                another.install = False
+                Armed(another)
+                another.install = True
+
+                with self.assertRaisesRegex(
+                        TagPostconditionError.Denied,
+                        "became visible",
+                        ):
+                    query(another)
+
+        # Status is a one-turn diagnostic: it says which checks were run,
+        # then shows the newly gained Post on the following read.
+        diagnostic = Host()
+        diagnostic.install = False
+        Armed(diagnostic)
+        diagnostic.install = True
+        self.assertEqual(Contract.Status(diagnostic), {"Install": True})
+        self.assertEqual(
+                Contract.Status(diagnostic),
+                {"Install": True, "Denied": False},
+                )
+
+    def test_replaced_failing_post_cannot_pass_this_turn(self):
+        class Replacement(Tag):
+            @Post
+            def Ready(agent):
+                return False
+
+        class Original(Tag):
+            @Post
+            def Install(agent):
+                if agent.replace:
+                    agent.replace = False
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        try:
+                            Replacement(agent)
+                        except TagPostconditionError.Ready:
+                            pass
+                return True
+
+            @Post
+            def Ready(agent):
+                return True
+
+        agent = Host()
+        agent.replace = False
+        Original(agent)
+        agent.replace = True
+
+        self.assertFalse(bool(agent))
+        self.assertFalse(agent.Ready)
 
 
 if __name__ == "__main__":

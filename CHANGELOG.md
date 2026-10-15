@@ -24,7 +24,10 @@
   iteration error. Each query visits its starting condition names once,
   skipping checks ended or replaced before their turn; new checks wait for
   the next query. A check already running reports its result once, even
-  if it ends itself (#101, proposed evaluation order).
+  if it ends itself. Truth guards fail closed if a new or replacement Post
+  remains unexamined at the end of the turn. `Contract.Status` reports its
+  saved diagnostic turn; the next read includes the new Post (#101,
+  proposed evaluation order).
 
 - **Tagging preparation cost:** ordinary Action/Record declarations reuse
   the existing collision and Underlay checks without constructing a
