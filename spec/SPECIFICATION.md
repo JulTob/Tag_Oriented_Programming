@@ -1751,9 +1751,10 @@ A conforming implementation provides, ring by ring:
   call after the whole Form, re-checked at every later boundary, without
   inputs;
 - the contract direction, with weakened Postconditions diagnosed;
-- defective Agents: contract truthiness; the plain loop as the sound
-  population, `~Tag` the defective one, `Tag[:]` everyone, membership
-  unchanged; a namespace that names the culprit.
+- defective Agents: contract truthiness; `agent in Tag` and the plain loop
+  select sound members, `~Tag` selects defective members, and `Tag[:]`
+  is the whole Field; a broken Post changes soundness without ending raw
+  Field membership; a namespace names the culprit.
 
 **Ring 3**
 - `@Rip` protocols run after membership ends, once, composed, failures
