@@ -66,11 +66,12 @@ object without keeping every Agent in a global root Field.
    `~Tag` and `Tag[:]` cannot be computed and raises the same error.
    Python's separate type-union spelling, such as `Tag | None`, keeps
    its normal meaning.
-7. `bool(Tag)` remains the verdict of root Tag's **own** visible Posts,
-   including Posts it receives as a Pin Target (STEP-SPEC-40). It does
-   not search for an Agent and does not evaluate all Agents' Posts.
-   Root `Tag[...]` retains its distinct Safehouse meaning. This STEP
-   does not define `del Tag[:]` or bulk Safehouse retry.
+7. `bool(Tag)` retains root Tag's own contract-truth rule
+   (STEP-SPEC-40). It does not search for an Agent or evaluate all
+   Agents' Posts. This STEP does not make root Tag eligible as a Pin
+   Target or add a new source of root Posts. Root `Tag[...]` retains its
+   distinct Safehouse meaning. This STEP does not define `del Tag[:]`
+   or bulk Safehouse retry.
 
 ```python
 class Host:
