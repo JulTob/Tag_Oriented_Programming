@@ -210,6 +210,8 @@ def _apply_one(
     declarations = _declarations_of(tag)
     deleted_before = set(state.deleted)
     state.training.add(tag)
+    if declarations.rips:
+        state.arrestable = True
     state.composing += 1
     primary_failure: BaseException | None = None
 
@@ -429,6 +431,14 @@ def _actualize(
             "_TOPKIT_HOST_TYPE" not in type(agent).__dict__
             or declarations.runtime
             or (entering and _is_flag(tag))
+            or (
+                    state.arrestable
+                    and not getattr(
+                            type(agent).__dict__.get("__getattribute__"),
+                            "_TOPKIT_ARREST_READ",
+                            False,
+                            )
+                    )
             )
 
     if not changes_type:
