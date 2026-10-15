@@ -73,12 +73,23 @@ def _rip(
         _save_run(agent, run)
         _run_one(agent, state, run)
     else:
-        # No callback can fail or remain unfinished. Keep ordinary Rip's
-        # short path, including its one Field removal and sticky Gains.
-        _field_of(tag)._Remove(agent)
-        state.active.remove(tag)
-        state.words = None
-        state.snapshots.pop(tag, None)
+        # Keep the ordinary no-@Rip path fast. If it is interrupted even
+        # after one seat changed, save its unfinished revocation for retry.
+        application = state.no_rip_applications.get(tag)
+
+        try:
+            _field_of(tag)._Remove(agent)
+            state.active.remove(tag)
+            state.words = None
+            state.snapshots.pop(tag, None)
+            state.no_rip_applications.pop(tag, None)
+        except BaseException:
+            _save_run(agent, _RipRun(
+                    tag, (),
+                    application=application,
+                    revocation_only=True,
+                    ))
+            raise
 
     # An explicit other-Tag Rip runs its own protocol first. After it
     # succeeds, any older arrested work must clear before the Agent is free.
@@ -145,10 +156,17 @@ def _revoke(agent: object, state: _State, run: _RipRun) -> None:
     if run.revoked:
         return
 
-    # The Rip tuple is this application identity. If the old membership
-    # was removed before an interruption and the Agent reTagged, the new
-    # application has a different tuple. Never revoke its fresh Field.
-    if state.rips.get(run.tag) is not run.teardowns:
+    # The Rip tuple identifies an application with teardowns. A Tag with
+    # none has its own fresh application key, set before Field entry and
+    # independent of whether its captured view was built successfully.
+    current_application = (
+            state.no_rip_applications.get(run.tag)
+            if run.revocation_only else state.rips.get(run.tag)
+            )
+    saved_application = (
+            run.application if run.revocation_only else run.teardowns
+            )
+    if current_application is not saved_application:
         run.revoked = True
         return
 
@@ -166,6 +184,7 @@ def _revoke(agent: object, state: _State, run: _RipRun) -> None:
     state.words = None
     state.snapshots.pop(run.tag, None)
     state.rips.pop(run.tag, None)
+    state.no_rip_applications.pop(run.tag, None)
     run.revoked = True
     _ = (words, snapshot)
 

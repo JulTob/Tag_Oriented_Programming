@@ -21,13 +21,15 @@ from .errors import TagResolutionError
 
 @dataclass(slots=True, eq=False)
 class _RipRun:
-    """One Tag application's original teardown sequence and next step."""
+    """One Tag application's revocation and original teardown sequence."""
 
     tag: type
     teardowns: tuple[tuple[str, Any], ...]
     cursor: int = 0
     running: bool = False
     revoked: bool = False
+    application: object | None = None
+    revocation_only: bool = False
 
 
 def _tag_name(tag: type) -> str:
@@ -39,7 +41,7 @@ def _tag_name(tag: type) -> str:
 def _save_run(agent: object, run: _RipRun) -> None:
     """Hold a pending run by Agent identity, never host hash or equality."""
 
-    if not run.teardowns:
+    if not run.teardowns and not run.revocation_only:
         return
 
     arrest = _arrest_of(agent)
