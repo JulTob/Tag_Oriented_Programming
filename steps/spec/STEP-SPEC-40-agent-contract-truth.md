@@ -4,11 +4,12 @@
 - **Desk:** spec
 - **Title:** Reserved Agent Truth and Host Eligibility
 - **Author:** Codex, recording the Director's Agent-truth rulings
-- **Status:** Cleared
+- **Status:** Deployed
 - **Created:** 2026-10-12
 - **Cleared:** 2026-10-14
+- **Deployed:** 2026-10-14
 - **Issue:** [#71](https://github.com/JulTob/Tag_Oriented_Programming/issues/71)
-- **Implementation proposal:** [#160](https://github.com/JulTob/Tag_Oriented_Programming/pull/160)
+- **Implementation:** [#160](https://github.com/JulTob/Tag_Oriented_Programming/pull/160), [#180](https://github.com/JulTob/Tag_Oriented_Programming/pull/180)
 
 ## Summary
 
@@ -129,6 +130,9 @@ The 2026-10-09 host-length and 2026-10-12 host-refusal decisions remain.
 The 2026-10-12 decision to **“Keep Tag population truth”** is superseded
 by this unified contract rule. The reason is one meaning for Agent truth,
 with explicit population cardinality preserving the existing set algebra.
-This clears the design and its specified amendments; Deployed status
-follows the validated implementation's merge. It clears no other STEP and
-does not change the independent Tagging admission sequence.
+The Director cleared the design and its specified amendments. The native
+truth implementation and removal of `Contract.Holds` merged in #160 and
+#180 on 2026-10-14. The corresponding Specification and guide amendments
+are on main, and the focused truth and Contract namespace tests pass. This
+deploys this STEP only; it clears no other STEP and does not change the
+independent Tagging admission sequence.
