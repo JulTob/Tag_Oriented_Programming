@@ -67,7 +67,9 @@ def _present(
     namespace = _namespace(agent)
     state = namespace.get(STATE)
 
-    if state is not None and name in state.secrets:
+    if (state is not None
+            and name in state.secrets
+            and _current_report_binding(state, name) is None):
         if not _is_composing(state):
             return False
 
@@ -113,7 +115,10 @@ def _present(
 
         binding = _current_report_binding(state, name)
 
-        if binding is None or not binding.public:
+        if binding is None:
+            return (name in state.actions or name in state.records) and name in namespace
+
+        if not binding.public:
             return False
 
         return (
