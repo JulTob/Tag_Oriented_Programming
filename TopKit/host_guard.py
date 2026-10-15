@@ -26,8 +26,7 @@ _CLEANUP_HOOKS = frozenset((
         "__buffer__", "__getbuffer__", "__release_buffer__", "__del__",
         ))
 
-# These are class creation/finalization hooks, not ordinary instance acts.
-# Their direct-call policy is part of the open Safehouse design.
+# These are class creation hooks, not ordinary instance acts.
 _CLASS_HOOKS = frozenset((
         "__new__", "__init_subclass__", "__class_getitem__",
         ))
@@ -72,8 +71,8 @@ def GuardedHost(host: type) -> type:
     Decorate the completed class, outermost to ``@dataclass`` and similar
     class decorators. A class with context, buffer, or finalization hooks
     is refused until its cleanup boundary is designed.
-    Python descriptors, class/static methods and unmarked Python Bases are
-    outside this first, intentionally narrow profile.
+    Python descriptors, class/static methods and methods declared on other
+    unmarked Python classes are outside this first, narrow profile.
     """
 
     if not isinstance(host, type):
