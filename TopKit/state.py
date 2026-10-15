@@ -561,6 +561,12 @@ def _frozen_dataclass_setter(
         ) -> bool:
     """Recognize the standard frozen-dataclass wrapper conservatively."""
 
+    # A GuardedHost mark wraps the generated setter after @dataclass has
+    # finished. Validate the original generated function, not its guard.
+    installed = setter
+    if type(setter) is FunctionType:
+        setter = setter.__dict__.get("__topkit_host_source__", setter)
+
     parameters = host_type.__dict__.get("__dataclass_params__")
 
     if (
@@ -596,7 +602,7 @@ def _frozen_dataclass_setter(
     return (
             "__slots__" in current
             and "__slots__" not in original
-            and original.get("__setattr__") is setter
+            and original.get("__setattr__") in (installed, setter)
             and original.get("__dataclass_params__") is parameters
             and original.get("__dataclass_fields__") is current.get("__dataclass_fields__")
             and declared_type.__name__ == host_type.__name__
