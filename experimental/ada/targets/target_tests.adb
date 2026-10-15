@@ -1,5 +1,6 @@
 with Ada.Assertions;
 with Ada.Finalization;
+with Ada.Streams;
 with Ada.Text_IO;
 with Ada.Unchecked_Deallocation;
 with Top_Targets;
@@ -13,6 +14,35 @@ procedure Target_Tests is
    Captured : Top_Targets.Identity_Handle;
    Host_Initialization_Failure : exception;
    Host_Finalization_Failure : exception;
+
+   Stream_Read_Calls : Natural := 0;
+   Stream_Write_Calls : Natural := 0;
+   type Probe_Stream is new Ada.Streams.Root_Stream_Type with null record;
+   overriding procedure Read
+     (Stream : in out Probe_Stream;
+      Item : out Ada.Streams.Stream_Element_Array;
+      Last : out Ada.Streams.Stream_Element_Offset);
+   overriding procedure Write
+     (Stream : in out Probe_Stream;
+      Item : Ada.Streams.Stream_Element_Array);
+
+   overriding procedure Read
+     (Stream : in out Probe_Stream;
+      Item : out Ada.Streams.Stream_Element_Array;
+      Last : out Ada.Streams.Stream_Element_Offset) is
+      pragma Unreferenced (Stream, Item);
+   begin
+      Stream_Read_Calls := Stream_Read_Calls + 1;
+      Last := 0;
+   end Read;
+
+   overriding procedure Write
+     (Stream : in out Probe_Stream;
+      Item : Ada.Streams.Stream_Element_Array) is
+      pragma Unreferenced (Stream, Item);
+   begin
+      Stream_Write_Calls := Stream_Write_Calls + 1;
+   end Write;
 
    procedure Pass (Name : String) is
    begin
@@ -281,6 +311,49 @@ begin
       pragma Assert (Top_Targets.Is_Live (Original));
    end;
    Pass ("exception cleanup of handles preserves living host");
+
+   declare
+      Object : Host;
+      Original : constant Top_Targets.Identity_Handle :=
+        Top_Targets.Identity (Object);
+      Read_Back : Top_Targets.Identity_Handle := Original;
+      Stream : aliased Probe_Stream;
+      Read_Refused, Write_Refused : Boolean := False;
+      Input_Refused, Output_Refused : Boolean := False;
+   begin
+      begin
+         Top_Targets.Identity_Handle'Read (Stream'Access, Read_Back);
+      exception
+         when Program_Error => Read_Refused := True;
+      end;
+      begin
+         Top_Targets.Identity_Handle'Write (Stream'Access, Original);
+      exception
+         when Program_Error => Write_Refused := True;
+      end;
+      begin
+         declare
+            Ignored : constant Top_Targets.Identity_Handle :=
+              Top_Targets.Identity_Handle'Input (Stream'Access);
+            pragma Unreferenced (Ignored);
+         begin
+            null;
+         end;
+      exception
+         when Program_Error => Input_Refused := True;
+      end;
+      begin
+         Top_Targets.Identity_Handle'Output (Stream'Access, Original);
+      exception
+         when Program_Error => Output_Refused := True;
+      end;
+      pragma Assert
+        (Read_Refused and Write_Refused and Input_Refused and Output_Refused);
+      pragma Assert (Stream_Read_Calls = 0 and Stream_Write_Calls = 0);
+      pragma Assert (Read_Back = Original);
+      pragma Assert (Top_Targets.Is_Live (Original));
+   end;
+   Pass ("streaming is refused before copying handle ownership");
 
    Ada.Text_IO.Put_Line (Natural'Image (Passed) & " Target identity tests passed");
 end Target_Tests;
