@@ -182,11 +182,11 @@ class MetaTag(type):
         state = _state_of(candidate)
 
         if state is None or not state.postconditions:
-            # No Post ran after the Field check, so it needs no replay.
-            return True
+            # A Host's namespace read can still run code that Rips the Tag.
+            return candidate in field
 
         return (
-                _holds_for_population(candidate)
+                _holds_for_population(candidate, state)
                 and candidate in field
                 )
 

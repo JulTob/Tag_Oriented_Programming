@@ -244,6 +244,56 @@ class PopulationWalkTests(unittest.TestCase):
 
         self.assertNotIn(Unrelated(), Wizard)
 
+    def test_sound_membership_rechecks_after_a_host_state_read(self) -> None:
+        class Base:
+            pass
+
+        class Host(Base):
+            @property
+            def __dict__(self):
+                namespace = Base.__dict__["__dict__"].__get__(self)
+
+                if namespace.get("rip_on_state_read", False):
+                    namespace["rip_on_state_read"] = False
+                    del Wizard[self]
+
+                return namespace
+
+        class Wizard(Tag):
+            pass
+
+        agent = Host()
+        Wizard(agent)
+        agent.rip_on_state_read = True
+
+        self.assertIn(agent, Wizard[:])
+        self.assertNotIn(agent, Wizard)
+        self.assertNotIn(agent, Wizard[:])
+
+    def test_sound_membership_reads_a_post_host_namespace_once(self) -> None:
+        reads = [0]
+
+        class Base:
+            pass
+
+        class Host(Base):
+            @property
+            def __dict__(self):
+                reads[0] += 1
+                return Base.__dict__["__dict__"].__get__(self)
+
+        class Wizard(Tag):
+            @Post
+            def Ready(agent):
+                return True
+
+        agent = Host()
+        Wizard(agent)
+        reads[0] = 0
+
+        self.assertIn(agent, Wizard)
+        self.assertEqual(reads[0], 1)
+
     def test_a_sound_view_rechecks_membership_after_its_postcondition(self) -> None:
         ripping = [False]
 
