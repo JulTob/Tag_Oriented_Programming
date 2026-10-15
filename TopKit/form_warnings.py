@@ -20,10 +20,11 @@ from .errors import TagOverwriteWarning
 from .geometry import _direct_bases
 from .geometry import _form_of
 from .geometry import _related
-from .memo import _class_namespace
+from .memo import _memo_key
+from .memo import _memo_of
+from .memo import _remember_memo
 
 
-_FORM_WARNINGS = "_TOPKIT_FORM_WARNINGS"
 _Collision = tuple[type, type, str, str]  # new Tag, prior Tag, kind, name
 _current: ContextVar[frozenset[_Collision]] = ContextVar(
         "topkit_form_warnings", default=frozenset(),
@@ -42,11 +43,11 @@ def _declared_collisions(shape: type) -> frozenset[_Collision]:
 
     bases = _direct_bases(shape)
     if len(bases) == 1:
-        result = _class_namespace(bases[0]).get(_FORM_WARNINGS, frozenset())
-        type.__setattr__(shape, _FORM_WARNINGS, result)
+        result = _collisions_of(bases[0])
+        _remember_memo(shape, _memo_key(shape, "FORM_WARNINGS"), result)
         return result
     if not bases:
-        type.__setattr__(shape, _FORM_WARNINGS, frozenset())
+        _remember_memo(shape, _memo_key(shape, "FORM_WARNINGS"), frozenset())
         return frozenset()
 
     ancestors = tuple(frozenset(_form_of(base, remember=False)) for base in bases)
@@ -125,7 +126,14 @@ def _declared_collisions(shape: type) -> frozenset[_Collision]:
         constants.update(declarations.header.constants)
 
     result = frozenset(collisions)
-    type.__setattr__(shape, _FORM_WARNINGS, result)
+    name = _memo_key(shape, "FORM_WARNINGS")
+    _remember_memo(shape, name, result)
+
+    # A programmer or metaclass can occupy even an identity-qualified
+    # private key. In that case, leave it untouched and keep the existing
+    # application-time diagnostics rather than claiming they were recorded.
+    if _memo_of(shape, name) is None:
+        return result
 
     for member, origin, kind, name in introduced:
         category: type[Warning] = (
@@ -144,7 +152,7 @@ def _declared_collisions(shape: type) -> frozenset[_Collision]:
 
 
 def _collisions_of(shape: type) -> frozenset[_Collision]:
-    return _class_namespace(shape).get(_FORM_WARNINGS, frozenset())
+    return _memo_of(shape, _memo_key(shape, "FORM_WARNINGS")) or frozenset()
 
 
 def _diagnosed(

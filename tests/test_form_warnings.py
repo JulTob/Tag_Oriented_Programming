@@ -5,6 +5,7 @@ from __future__ import annotations
 import inspect
 import unittest
 import warnings
+from unittest.mock import patch
 
 from TopKit import Action, Imprint, Post, Record, Tag, TagContractWarning
 from TopKit import TagDeclarationError
@@ -17,6 +18,45 @@ class Host:
 
 
 class FormWarningTests(unittest.TestCase):
+    def test_warning_bookkeeping_does_not_replace_a_programmer_member(self) -> None:
+        class A(Tag):
+            @Action
+            def Fine(agent):
+                return "A"
+
+        class B(Tag):
+            @Action
+            def Fine(agent):
+                return "B"
+
+        with warnings.catch_warnings(record=True) as declared:
+            warnings.simplefilter("always")
+            class C(A, B):
+                _TOPKIT_FORM_WARNINGS = "programmer value"
+
+        self.assertEqual(C.__dict__["_TOPKIT_FORM_WARNINGS"], "programmer value")
+        self.assertEqual(len(declared), 1, declared)
+        with warnings.catch_warnings(record=True) as applied:
+            warnings.simplefilter("always")
+            C(Host())
+        self.assertEqual(applied, [])
+
+        # Even a deliberate collision with the owner-qualified key leaves
+        # the programmer's binding alone. The warning then stays at the
+        # existing application boundary because no class memo was saved.
+        with patch("TopKit.form_warnings._memo_key", return_value="occupied"):
+            with warnings.catch_warnings(record=True) as declared:
+                warnings.simplefilter("always")
+                class D(A, B):
+                    occupied = "another programmer value"
+
+            self.assertEqual(D.__dict__["occupied"], "another programmer value")
+            self.assertEqual(declared, [])
+            with warnings.catch_warnings(record=True) as applied:
+                warnings.simplefilter("always")
+                D(Host())
+            self.assertEqual(len(applied), 1, applied)
+
     def test_sibling_collisions_warn_at_the_shape_declaration_only(self) -> None:
         for mark, warning_type in (
                 (Action, TagOverwriteWarning),
