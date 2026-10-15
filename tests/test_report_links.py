@@ -115,6 +115,29 @@ class BaseReportLinkTests(unittest.TestCase):
         del Right.label
         self.assertIsNone(Shape.label)
 
+    def test_link_keeps_an_explicit_none_base_value(self):
+        class Earlier(Tag):
+            @Report
+            def label(tag):
+                return "earlier"
+
+        class Base(Earlier):
+            @Report
+            def label(tag):
+                return "base"
+
+        class Shape(Base):
+            @Report
+            def label(tag, base_label):
+                return base_label
+
+        self.assertEqual(Shape.label, "base")
+        Base.label = None
+        self.assertIsNone(Base.label)
+        self.assertIsNone(Shape.label)
+        del Base.label
+        self.assertEqual(Shape.label, "earlier")
+
     def test_constant_link_fixes_first_success_but_other_report_builds_once(self):
         class Base(Tag):
             @Report
