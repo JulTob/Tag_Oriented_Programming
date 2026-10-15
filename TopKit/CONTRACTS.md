@@ -198,12 +198,12 @@ a host property's binding without evaluating its getter, and ignores
 names synthesized only by `__getattr__`.
 
 The actual Agent answers from its current contributions; `"kit" @
-Equipped_Crew[medic]` answers from the view captured when that Tag applied.
+Equipped_Crew[medic]` answers from that Tag's latest view of Medic.
 Secret names follow that Agent's composition door. Shared names count on
 the actual Agent through publication: a Report requires its active
 publisher, while an Operation's sticky Action can remain present after
-Rip even though using it is refused. Views check their captured shared
-contributions. Only string left operands ask this TOP
+Rip even though using it is refused. A saved view rechecks membership and
+selects the latest Tagging's shared contributions. Only string left operands ask this TOP
 question; other operands retain ordinary `@` behaviour. A Tag receiving
 Pins is an Agent for this purpose; a bare, unpinned Tag is not.
 

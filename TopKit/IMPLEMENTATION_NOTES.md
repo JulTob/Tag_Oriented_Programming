@@ -98,12 +98,13 @@ Actions; Agents are built once and play for a long time. So:
   still propagate. Operation publication is a separate repair (#138).
 
 Synchronous Actions selected through an Agent-bound Tag view use the same
-composition door, even when that snapshot preceded the first Secret
-Contribution. The view still selects its captured Action; reads inside
-that Action resolve against the live Agent unless it explicitly uses a
-view. Bindings keep the Agent weakly. A Secret Action selected through a
-view requires that same Agent's door to be open before invocation, so a
-handle captured during composition cannot authorize itself afterward.
+composition door, even when that Tagging preceded the first Secret
+Contribution. The view selects the Action in its latest Tagging's
+snapshot; reads inside that Action resolve against the live Agent unless
+it explicitly uses a view. Bindings keep the Agent weakly. A Secret Action
+selected through a view requires that same Agent's door to be open before
+invocation, so a handle captured during composition cannot authorize
+itself afterward.
 The guard preserves the captured Secret boundary when a later Layer is
 public.
 
@@ -145,9 +146,10 @@ An actual Agent counts shared Tag names only through publication. A
 published Report needs an active publisher; its descriptor supplies the
 binding without building the value. A published Operation follows its
 actual Action binding, which can remain after Rip although use is refused.
-A Tag-bound view checks its captured contributions,
-including captured shared entries. Secret names respect the underlying
-Agent's composition door. The query never evaluates Posts, so a Post can
+A Tag-bound view checks the latest snapshot for its active Tag,
+including its shared entries. A saved view rechecks membership on every
+name access; reTagging updates the snapshot it resolves. Secret names
+respect the underlying Agent's composition door. The query never evaluates Posts, so a Post can
 require a name without recursively checking soundness.
 
 The runtime hook reserves string left operands for presence and preserves
@@ -416,9 +418,9 @@ Tagging sequence or expand its rollback boundary.
   descriptor that runs its builder once per Tag on first read and caches
   the value per Tag (weakly). `Tag.r += 1` replaces the descriptor with a
   plain value on that class, which is the documented counter pattern.
-  Agent-bound Tag views require current membership to read the Tag's
-  Report binding and current value; Actions, Records and Operations keep
-  their captured view position.
+  Agent-bound Tag views require current membership on every lookup.
+  Their Actions, Records and Operations come from the latest snapshot
+  recorded for that Tag; Reports read the Tag's current binding and value.
   A published Report also reads live through the Agent.
 - **Failures name their check.** `TagPreconditionError`,
   `TagImprintError` and `TagPostconditionError` use the `_Named`
