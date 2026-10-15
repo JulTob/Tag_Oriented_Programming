@@ -137,6 +137,51 @@ class SafehouseLazyProxyTests(unittest.TestCase):
         self.assertEqual(done.exception.value, 5)
         self.assertEqual(events, ["start", "finish"])
 
+    def test_task_shutdown_cancels_wrapper_without_running_arrested_source(self) -> None:
+        receiver = Receiver()
+        arrest = _Arrest(receiver)
+        arrest.runs.append(SimpleNamespace(tag=object()))
+        allowed = True
+        events = []
+        tasks = []
+        loop_errors = []
+
+        def Check(target, act):
+            if not allowed:
+                raise TagArrestedAccessError("still arrested")
+
+        async def Source():
+            try:
+                events.append("start")
+                await asyncio.Event().wait()
+            finally:
+                events.append("finally")
+
+        with patch.dict(_safehouse, {id(receiver): arrest}, clear=True):
+            guarded = _guard_lazy_result(Source(), receiver, "Action", Check)
+
+            async def Run():
+                nonlocal allowed
+                asyncio.get_running_loop().set_exception_handler(
+                        lambda _loop, context: loop_errors.append(context)
+                        )
+                tasks.append(asyncio.create_task(guarded))
+                await asyncio.sleep(0)
+                allowed = False
+
+            asyncio.run(Run())  # cancels the outstanding Task at shutdown
+            self.assertTrue(tasks[0].cancelled())
+            self.assertEqual(loop_errors, [])
+            self.assertEqual(events, ["start"])
+            self.assertEqual(len(arrest.lazy), 1)
+
+            # A later successful Rip opens the act's door again, so cleanup
+            # can run after custody ends.
+            allowed = True
+            guarded.close()
+            self.assertEqual(events, ["start", "finally"])
+            arrest.lazy.clear()
+
     def test_stacked_guards_check_both_receivers(self) -> None:
         inner_receiver, outer_receiver = Receiver(), Receiver()
         checks = []

@@ -15,10 +15,16 @@ Native async generators are refused for now. After the source starts,
 ``asyncio.run`` may close it directly through its async-generator registry,
 bypassing any proxy. Pretending to guard that path would let its ``finally``
 run during arrest.
+
+If asyncio cancels a Task during arrest, the proxy reports cancellation to
+the Task but retains the native coroutine in the Safehouse. The source's
+``finally`` can run only after the Rip clears and the source is resumed or
+closed through the authorized path.
 """
 
 from __future__ import annotations
 
+from asyncio import CancelledError
 from collections.abc import Coroutine
 from collections.abc import Generator
 from types import AsyncGeneratorType
@@ -29,6 +35,7 @@ from typing import Callable
 from weakref import ref
 
 from .arrest import _hold_lazy_result
+from .errors import TagArrestedAccessError
 
 
 _Check = Callable[[object, str], None]
@@ -130,7 +137,19 @@ class _Guarded_Coroutine(Coroutine):
         return self._step().send(value)
 
     def throw(self, *args):
-        self._guard.check(self._source)
+        try:
+            self._guard.check(self._source)
+        except TagArrestedAccessError:
+            # asyncio cancels Tasks by throwing CancelledError into their
+            # coroutine. The Guard has already parked the native source;
+            # report a cancelled Task without delivering the exception to
+            # that source (which would run its finally during arrest).
+            cancellation = args[0] if args else None
+            if cancellation is CancelledError:
+                raise CancelledError from None
+            if isinstance(cancellation, CancelledError):
+                raise cancellation from None
+            raise
         return self._step().throw(*args)
 
     def close(self):
