@@ -7,6 +7,7 @@ from contextvars import copy_context
 import unittest
 from unittest.mock import patch
 
+from TopKit import Action
 from TopKit import Rip
 from TopKit import Tag
 from TopKit import TagArrestedAccessError
@@ -135,6 +136,78 @@ class SafehouseHostContextTests(unittest.TestCase):
         self.assertEqual(events, ["rip failed"])
         ready = True
         del Tag[host]
+
+    def test_top_exit_overlay_consumes_old_host_entry(self) -> None:
+        events = []
+
+        class Host:
+            def __enter__(self):
+                events.append("host enter")
+                return self
+
+            def __exit__(self, kind, value, traceback):
+                events.append("host exit")
+
+        class Replacement(Tag):
+            @Action
+            def __exit__(agent, kind, value, traceback):
+                events.append("top exit")
+
+        class Custody(Tag):
+            @Rip
+            def Leave(agent):
+                raise RuntimeError("unfinished")
+
+        host = Host()
+        Custody(host)
+        captured_host_exit = host.__exit__
+        Replacement(host)
+        with host:
+            events.append("body")
+
+        self.assertEqual(events, ["host enter", "body", "top exit"])
+        with self.assertRaises(TagCompositionError):
+            del Custody[host]
+        with self.assertRaises(TagArrestedAccessError):
+            captured_host_exit(None, None, None)
+        self.assertEqual(events, ["host enter", "body", "top exit"])
+
+    def test_async_top_exit_overlay_consumes_old_host_entry(self) -> None:
+        events = []
+
+        class Host:
+            async def __aenter__(self):
+                events.append("host enter")
+                return self
+
+            async def __aexit__(self, kind, value, traceback):
+                events.append("host exit")
+
+        class Replacement(Tag):
+            @Action
+            async def __aexit__(agent, kind, value, traceback):
+                events.append("top exit")
+
+        class Custody(Tag):
+            @Rip
+            def Leave(agent):
+                raise RuntimeError("unfinished")
+
+        host = Host()
+        Custody(host)
+        captured_host_exit = host.__aexit__
+        Replacement(host)
+
+        async def Scenario() -> None:
+            async with host:
+                events.append("body")
+            with self.assertRaises(TagCompositionError):
+                del Custody[host]
+            with self.assertRaises(TagArrestedAccessError):
+                await captured_host_exit(None, None, None)
+
+        asyncio.run(Scenario())
+        self.assertEqual(events, ["host enter", "body", "top exit"])
 
     def test_async_exit_stays_open_when_arrest_starts_during_await(self) -> None:
         events = []

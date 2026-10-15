@@ -29,6 +29,7 @@ import weakref
 
 from .arrest import _require_available
 from .arrest import _safehouse
+from .cleanup import _take_entry
 from .declarations import STATE
 from .declarations import _MISSING
 from .declarations import _Words
@@ -1288,6 +1289,11 @@ def _context_action(
                 *args: Any,
                 **kwargs: Any,
                 ) -> Any:
+            if name == "__aexit__":
+                # A Host entry may precede a TOP Action overlay of its
+                # exit. Do not leave a stale permission for that old Host
+                # exit handle after this actual exit runs.
+                _take_entry(agent, "async")
             state = _state_of(agent)
             door = _Async_Door(state)
             _async_doors.set(
@@ -1326,6 +1332,8 @@ def _context_action(
             *args: Any,
             **kwargs: Any,
             ) -> Any:
+        if name == "__exit__":
+            _take_entry(agent, "sync")
         state = _state_of(agent)
         state.composing += 1
 
