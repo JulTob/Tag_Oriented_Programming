@@ -1313,7 +1313,7 @@ _require_membership: Callable[..., None] | None = None
 
 
 class _Published:
-    """A published Report: reads the Tag-scope value, read-only on the Agent."""
+    """A published Report, or the Agent binding it covered after deletion."""
 
     __slots__ = ("name",)
 
@@ -1331,10 +1331,19 @@ class _Published:
         if agent is None:
             return gate
 
-        state = _namespace_of(agent)[STATE]
+        namespace = _namespace_of(agent)
+        state = namespace[STATE]
         binding = _current_report_binding(state, gate.name)
 
-        if binding is None or not binding.public:
+        if binding is None:
+            if gate.name in state.actions or gate.name in state.records:
+                if gate.name in state.secrets and not _is_composing(state):
+                    raise AttributeError(gate.name)
+                if gate.name in namespace:
+                    return namespace[gate.name]
+            raise AttributeError(gate.name)
+
+        if not binding.public:
             raise AttributeError(gate.name)
 
         _require_membership(
@@ -1354,9 +1363,44 @@ class _Published:
             agent: object,
             value: Any,
             ) -> None:
+        namespace = _namespace_of(agent)
+        state = namespace[STATE]
+
+        if (
+                _current_report_binding(state, gate.name) is None
+                and (gate.name in state.actions or gate.name in state.records)
+                ):
+            if gate.name in state.secrets and not _is_composing(state):
+                raise AttributeError(gate.name)
+            namespace[gate.name] = value
+            return
+
         raise AttributeError(
                 f"{gate.name!r} is a published Report; it is read-only on"
                 " the Agent and lives on the Tag"
+                )
+
+    def __delete__(
+            gate,
+            agent: object,
+            ) -> None:
+        namespace = _namespace_of(agent)
+        state = namespace[STATE]
+
+        if (
+                _current_report_binding(state, gate.name) is None
+                and (gate.name in state.actions or gate.name in state.records)
+                ):
+            if gate.name in state.secrets and not _is_composing(state):
+                raise AttributeError(gate.name)
+            try:
+                del namespace[gate.name]
+            except KeyError:
+                raise AttributeError(gate.name) from None
+            return
+
+        raise AttributeError(
+                f"{gate.name!r} is a published Report; delete it on the Tag"
                 )
 
 
