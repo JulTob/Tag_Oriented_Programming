@@ -10,6 +10,7 @@ Three access forms, three meanings:
 from __future__ import annotations
 
 from functools import partial
+from functools import wraps
 from types import FunctionType
 from typing import Any
 from typing import Callable
@@ -21,6 +22,10 @@ from .arrest import _require_available
 from .arrest import _safehouse
 from .contracts import _condition_member
 from .contracts import _holds
+from .cleanup import _aenter
+from .cleanup import _aexit
+from .cleanup import _enter
+from .cleanup import _exit
 from .errors import TagCompositionError
 from .errors import TagResolutionError
 from .declarations import STATE
@@ -28,6 +33,7 @@ from .declarations import _MISSING
 from .declarations import _is_flag
 from .declarations import _words_of
 from .lifecycle import _teardown_all
+from .lazy_guard import _guard_lazy_result
 from .state import _Composing_Bound
 from .state import _Pinned_Operation
 from .state import _Secret_Bound
@@ -240,6 +246,39 @@ def _refuse_host_truth(
                 )
 
 
+def _host_context_hook(name: str, member: Any) -> Callable[..., Any]:
+    """Keep a Host context protocol while tracking its matching cleanup."""
+
+    def Hook(agent: object, *args: Any, **kwargs: Any) -> Any:
+        def Invoke() -> Any:
+            getter = getattr(type(member), "__get__", None)
+            bound = getter(member, agent, type(agent)) if getter else member
+            return bound(*args, **kwargs)
+
+        if name == "__enter__":
+            result = _enter(agent, "sync", Invoke)
+            return _guard_lazy_result(
+                    result, agent, "host context entry", _require_available,
+                    )
+        if name == "__exit__":
+            failure = args[1] if len(args) > 1 else None
+            return _exit(agent, "sync", failure, Invoke)
+        if name == "__aenter__":
+            return _guard_lazy_result(
+                    _aenter(agent, Invoke), agent, "host async context entry",
+                    _require_available,
+                    )
+
+        failure = args[1] if len(args) > 1 else None
+        return _aexit(agent, failure, Invoke)
+
+    if isinstance(member, FunctionType):
+        wraps(member)(Hook)
+    else:
+        Hook.__name__ = name
+    return Hook
+
+
 def _hooks_for(
         host_type: type,
         has_flags: bool,
@@ -272,6 +311,13 @@ def _hooks_for(
 
     if _host_member(host_type, "__deepcopy__") is None:
         hooks["__deepcopy__"] = _agent_deepcopy
+
+    # Track entered Host contexts even before this Agent first gains Rip.
+    # Python may capture __exit__ before a later Tagging changes its type.
+    for name in ("__enter__", "__exit__", "__aenter__", "__aexit__"):
+        member = _host_member(host_type, name)
+        if member is not None:
+            hooks[name] = _host_context_hook(name, member)
 
     return hooks
 
