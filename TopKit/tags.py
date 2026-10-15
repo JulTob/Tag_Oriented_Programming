@@ -149,6 +149,11 @@ class MetaTag(type):
             raise TypeError(
                     f"{tag.__name__} is applied to objects, not classes"
                     )
+        elif isinstance(target, str):
+            raise TagCompositionError(
+                    f"{tag.__name__} cannot tag a string Target: a string"
+                    " asks for a keyword in a Tag, not Agent membership"
+                    )
         else:
             _refuse_host_truth(target)
 

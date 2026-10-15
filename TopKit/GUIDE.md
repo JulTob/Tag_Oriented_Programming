@@ -623,6 +623,8 @@ answers to its name: `"Wizard" in agent` says nothing about being a
 Wizard, and is `True` only while an active Flag is named Wizard or lists
 the word. Words are strings, `@Flag("Beast")`; `@Flag(Beast)` is the bare
 form applied to the class `Beast`, not a word.
+For the same reason, TopKit refuses a string or `str` subclass as a
+Tagging Target. Keep the text on a host object that can become an Agent.
 
 **One seat, one meaning.** A Flag cannot join an object that already
 answers `in`: a list, a party that iterates its members (`__iter__`), or
