@@ -19,6 +19,11 @@
 
 ### TopKit
 
+- **Report view capture leaves builders lazy:** closing a Tagging records
+  Report positions without reading their values. An optional Report that
+  fails on read cannot interrupt an unrelated Tagging, and a Report still
+  initializes on its first actual read.
+
 - **Tagging preparation cost:** ordinary Action/Record declarations reuse
   the existing collision and Underlay checks without constructing a
   disposable Overlay. Tags with deletions, conditions, Secrets, special

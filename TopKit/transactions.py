@@ -638,9 +638,8 @@ def _snapshot(
 
         if origin is not None:
             deletions = _report_epochs(origin, name)[1]
-            # Keep Tagging's existing Report-builder timing, while the
-            # view keeps no stale value: later reads ask the Tag itself.
-            getattr(origin, name)
+            # The view reads the current Tag value when asked. Capturing
+            # its position must not run an optional Report's builder.
             reports[name] = (
                     origin,
                     deletions,
