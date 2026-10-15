@@ -736,13 +736,13 @@ class Report:
         passed_own_class = False
 
         for klass in owner.__mro__:
-            member = klass.__dict__.get(report._name)
+            member = klass.__dict__.get(report._name, _MISSING)
 
             if member is report:
                 passed_own_class = True
                 continue
 
-            if not passed_own_class or member is None:
+            if not passed_own_class or member is _MISSING:
                 continue
 
             if isinstance(member, Report):
