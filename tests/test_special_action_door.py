@@ -1,5 +1,6 @@
-"""Synchronous Python value protocols obey an authored Action's door."""
+"""Synchronous value Actions compose; lookup and write hooks remain outside."""
 
+import operator
 import unittest
 
 from TopKit import Action, Record, Secret, Tag, Underlay
@@ -138,6 +139,70 @@ class SpecialActionDoorTests(unittest.TestCase):
             agent.missing
         with self.assertRaises(AttributeError):
             agent.code
+
+    def test_item_query_and_write_hooks_do_not_authorize_outside_access(self):
+        class Private(Tag):
+            @Secret
+            @Record
+            def code(agent):
+                return "inside"
+
+            @Action
+            def Inspect(agent):
+                return agent["code"]
+
+            def __getitem__(agent, key):
+                return agent.code
+
+            def __setitem__(agent, key, value):
+                agent.code = value
+
+            def __delitem__(agent, key):
+                del agent.code
+
+            def __contains__(agent, key):
+                return key == agent.code
+
+        agent = Host()
+        Private(agent)
+
+        self.assertEqual(agent.Inspect(), "inside")
+        with self.assertRaises(AttributeError):
+            agent["code"]
+        with self.assertRaises(AttributeError):
+            agent["code"] = "outside"
+        with self.assertRaises(AttributeError):
+            del agent["code"]
+        with self.assertRaises(AttributeError):
+            "inside" in agent
+        self.assertEqual(agent.Inspect(), "inside")
+
+    def test_iteration_hooks_do_not_open_an_ambient_door(self):
+        class Private(Tag):
+            @Secret
+            @Record
+            def code(agent):
+                return "inside"
+
+            def __iter__(agent):
+                return iter(agent.code)
+
+            def __next__(agent):
+                return agent.code
+
+            def __reversed__(agent):
+                return reversed(agent.code)
+
+            def __length_hint__(agent):
+                return len(agent.code)
+
+        agent = Host()
+        Private(agent)
+
+        for query in (iter, next, reversed, operator.length_hint):
+            with self.subTest(query=query.__name__):
+                with self.assertRaises(AttributeError):
+                    query(agent)
 
 
 if __name__ == "__main__":

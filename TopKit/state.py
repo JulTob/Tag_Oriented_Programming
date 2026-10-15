@@ -1247,17 +1247,15 @@ _ASYNC_CONTEXT_ACTIONS = frozenset((
         ))
 
 # These synchronous Python value protocols invoke an authored Action.  Name
-# lookup, attribute writes, construction, descriptors, and deferred protocols
-# are deliberately absent: opening their door could authorize the outside
-# request itself, or run before an Agent has state.  A callable object also
-# keeps its original Python descriptor/calling behavior until its boundary
-# can be designed separately.
+# lookup, item access/write, iteration, construction, descriptors, and
+# deferred protocols are deliberately absent: opening their door could
+# authorize the outside request itself, or run before an Agent has state.
+# Callable objects keep their Python descriptor/calling behavior until that
+# separate boundary is designed.
 _SYNC_PROTOCOL_ACTIONS = frozenset((
         "__str__", "__repr__", "__format__", "__bytes__", "__hash__",
         "__lt__", "__le__", "__eq__", "__ne__", "__gt__", "__ge__",
-        "__call__", "__len__", "__length_hint__", "__getitem__",
-        "__setitem__", "__delitem__", "__iter__", "__next__",
-        "__reversed__", "__contains__", "__fspath__", "__int__",
+        "__call__", "__len__", "__fspath__", "__int__",
         "__float__", "__complex__", "__index__", "__round__",
         "__trunc__", "__floor__", "__ceil__", "__neg__", "__pos__",
         "__abs__", "__invert__", "__divmod__", "__rdivmod__",
