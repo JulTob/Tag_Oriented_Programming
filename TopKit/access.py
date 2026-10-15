@@ -10,6 +10,7 @@ Three access forms, three meanings:
 from __future__ import annotations
 
 from functools import partial
+from inspect import getattr_static
 from typing import Any
 from typing import Callable
 import operator
@@ -539,10 +540,7 @@ def _view_report_present(
     if isinstance(member, declarations.Report):
         return True
 
-    if (
-            isinstance(member, (classmethod, property, staticmethod))
-            or callable(member)
-            ):
+    if isinstance(member, (classmethod, property, staticmethod)):
         return False
 
     pinned = _state_of(tag)
@@ -556,6 +554,9 @@ def _view_report_present(
 
         if name in pinned.actions:
             return False
+
+    if getattr_static(member, declarations._KIND, None) is not None:
+        return False
 
     # Only a plain value write keeps the earlier Report binding.
     return existing

@@ -324,6 +324,46 @@ class PublicationTests(unittest.TestCase):
             captured.mark
         self.assertFalse("mark" @ captured)
 
+    def test_callable_values_remain_reports_for_existing_bindings(self) -> None:
+        class CallableValue:
+            def __call__(self):
+                return "called"
+
+        value = CallableValue()
+
+        class Source(Tag):
+            @Public
+            @Report
+            def mark(tag):
+                return "initial"
+
+        agent = Agent()
+        Source(agent)
+        captured = Source[agent]
+        Source.mark = value
+
+        self.assertIs(agent.mark, value)
+        self.assertIs(captured.mark, value)
+        self.assertTrue("mark" @ captured)
+
+        class Pinned(Tag):
+            pass
+
+        pinned_value = Action(CallableValue())
+
+        @Pin
+        class Stamp(Tag):
+            @Public
+            @Record
+            def mark(tag):
+                return pinned_value
+
+        Stamp(Pinned)
+        another = Agent()
+        Pinned(another)
+        self.assertIs(Pinned[another].mark, pinned_value)
+        self.assertTrue("mark" @ Pinned[another])
+
     def test_a_pin_operation_replacing_a_report_is_not_read_as_a_report(self) -> None:
         class Source(Tag):
             @Public
