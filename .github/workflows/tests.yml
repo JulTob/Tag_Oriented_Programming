@@ -18,26 +18,22 @@ jobs:
           persist-credentials: false
 
   test:
-    name: Test on Python ${{ matrix.python }}
+    name: Prefix ${{ matrix.count }} on Python 3.13
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.13"]
+        count: [400, 600, 700, 775, 825, 850, 875]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: ${{ matrix.python }}
+          python-version: "3.13"
       - name: The suite
-        run: |
-          PYTHONPATH=. python -m unittest -v tests.test_root_agent_queries > /tmp/top233-ci.log 2>&1 || {
-            tail -n 100 /tmp/top233-ci.log | sed 's/^/::error::/'
-            exit 1
-          }
+        run: PYTHONPATH=. python .github/scripts/root233_prefix.py ${{ matrix.count }} > /dev/null 2>&1
 
   build:
     name: Build and check
