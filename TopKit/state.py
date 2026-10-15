@@ -1312,8 +1312,30 @@ _require_membership: Callable[..., None] | None = None
 # module, so it hands the check over when it loads (see overlay.py).
 
 
+def _host_member(
+        host_type: type,
+        name: str,
+        ) -> Any:
+    """Find the Host's own binding below an Agent's runtime gate."""
+
+    for owner in type.__getattribute__(host_type, "__mro__"):
+        member = type.__getattribute__(owner, "__dict__").get(name, _MISSING)
+
+        if member is not _MISSING:
+            return member
+
+    return _MISSING
+
+
+def _data_descriptor(member: Any) -> bool:
+    return (
+            getattr_static(type(member), "__set__", _MISSING) is not _MISSING
+            or getattr_static(type(member), "__delete__", _MISSING) is not _MISSING
+            )
+
+
 class _Published:
-    """A published Report, or the Agent binding it covered after deletion."""
+    """A published Report, or the Host/Agent binding it covered after deletion."""
 
     __slots__ = ("name",)
 
@@ -1336,11 +1358,27 @@ class _Published:
         binding = _current_report_binding(state, gate.name)
 
         if binding is None:
-            if gate.name in state.actions or gate.name in state.records:
-                if gate.name in state.secrets and not _is_composing(state):
+            if gate.name in state.secrets:
+                if not _is_composing(state) or gate.name not in namespace:
                     raise AttributeError(gate.name)
-                if gate.name in namespace:
-                    return namespace[gate.name]
+                return namespace[gate.name]
+
+            member = _host_member(state.host_type, gate.name)
+            hidden = gate.name in state.deleted or gate.name in state.restored
+
+            if not hidden and member is not _MISSING and _data_descriptor(member):
+                getter = getattr_static(type(member), "__get__", _MISSING)
+
+                if getter is not _MISSING:
+                    return member.__get__(agent, type(agent))
+
+            if gate.name in namespace:
+                return namespace[gate.name]
+
+            if not hidden and member is not _MISSING:
+                getter = getattr_static(type(member), "__get__", _MISSING)
+                return member if getter is _MISSING else member.__get__(agent, type(agent))
+
             raise AttributeError(gate.name)
 
         if not binding.public:
@@ -1366,12 +1404,25 @@ class _Published:
         namespace = _namespace_of(agent)
         state = namespace[STATE]
 
-        if (
-                _current_report_binding(state, gate.name) is None
-                and (gate.name in state.actions or gate.name in state.records)
-                ):
-            if gate.name in state.secrets and not _is_composing(state):
-                raise AttributeError(gate.name)
+        if _current_report_binding(state, gate.name) is None:
+            if gate.name in state.secrets:
+                if not _is_composing(state):
+                    raise AttributeError(gate.name)
+                namespace[gate.name] = value
+                return
+
+            member = _host_member(state.host_type, gate.name)
+            hidden = gate.name in state.deleted or gate.name in state.restored
+
+            if not hidden and member is not _MISSING and _data_descriptor(member):
+                setter = getattr_static(type(member), "__set__", _MISSING)
+
+                if setter is _MISSING:
+                    raise AttributeError(gate.name)
+
+                member.__set__(agent, value)
+                return
+
             namespace[gate.name] = value
             return
 
@@ -1387,12 +1438,25 @@ class _Published:
         namespace = _namespace_of(agent)
         state = namespace[STATE]
 
-        if (
-                _current_report_binding(state, gate.name) is None
-                and (gate.name in state.actions or gate.name in state.records)
-                ):
-            if gate.name in state.secrets and not _is_composing(state):
-                raise AttributeError(gate.name)
+        if _current_report_binding(state, gate.name) is None:
+            if gate.name in state.secrets:
+                if not _is_composing(state):
+                    raise AttributeError(gate.name)
+                namespace.pop(gate.name, None)
+                return
+
+            member = _host_member(state.host_type, gate.name)
+            hidden = gate.name in state.deleted or gate.name in state.restored
+
+            if not hidden and member is not _MISSING and _data_descriptor(member):
+                deleter = getattr_static(type(member), "__delete__", _MISSING)
+
+                if deleter is _MISSING:
+                    raise AttributeError(gate.name)
+
+                member.__delete__(agent)
+                return
+
             try:
                 del namespace[gate.name]
             except KeyError:
