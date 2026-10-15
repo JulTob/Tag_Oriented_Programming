@@ -446,6 +446,26 @@ def _state_of(
         return None
 
 
+def _actualized_state_of(
+        agent: object,
+        ) -> _State | None:
+    """Read Agent status from physical storage, not a host's ``__dict__``.
+
+    Root Tag queries include hosts that have left every ordinary Field, so
+    they cannot use Field membership to authenticate this state. A host may
+    expose an unrelated ``__dict__`` property; only its native storage can
+    hold TOP's successful actualization marker.
+    """
+
+    namespace = _real_namespace_of(agent)
+    state = namespace.get(STATE) if namespace is not None else None
+
+    if isinstance(state, _State) and state.actualized:
+        return state
+
+    return None
+
+
 def _state_for(
         agent: object,
         ) -> _State:

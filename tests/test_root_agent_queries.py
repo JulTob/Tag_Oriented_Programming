@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import unittest
 
+from TopKit import Flag
 from TopKit import Imprint
 from TopKit import Pin
 from TopKit import Post
@@ -17,9 +18,80 @@ from TopKit import TagPostconditionError
 from TopKit import TagPreconditionError
 from TopKit import TagResolutionError
 from TopKit import Tags
+from TopKit.state import STATE
+from TopKit.state import _State
 
 
 class RootAgentQueryTests(unittest.TestCase):
+    def test_host_dict_property_cannot_forge_root_agent_status(self) -> None:
+        class Host:
+            @property
+            def __dict__(self):
+                return {STATE: _State(host_type=Host, actualized=True)}
+
+        untouched = Host()
+        self.assertNotIn(untouched, Tag[:])
+        self.assertNotIn(untouched, Tag)
+        self.assertNotIn(untouched, ~Tag)
+        self.assertNotIsInstance(untouched, Tag)
+
+    def test_actualized_string_subclass_uses_membership_before_keyword(self) -> None:
+        class Text(str):
+            pass
+
+        class Fighter(Tag):
+            pass
+
+        @Pin
+        @Flag("Marked")
+        class Mark(Tag):
+            pass
+
+        Mark(Fighter)
+        self.assertIn("Marked", Fighter)   # plain strings remain keywords
+
+        agent = Text("unmarked")
+        Tag(agent)
+        self.assertIn(agent, Tag[:])
+        self.assertIn(agent, Tag)
+        self.assertNotIn(agent, Fighter)
+
+        Fighter(agent)
+        self.assertIn(agent, Fighter[:])
+        self.assertIn(agent, Fighter)
+        self.assertNotIn("unmarked", Fighter)
+
+    def test_nested_tagging_marks_a_completed_agent_during_first_transition(self) -> None:
+        class Extra(Tag):
+            pass
+
+        class Outer(Tag):
+            pass
+
+        class Host:
+            def __init__(self):
+                self.once = False
+
+            def __setattr__(self, name, value):
+                if name == "__class__" and not self.once:
+                    object.__setattr__(self, "once", True)
+                    object.__setattr__(self, name, value)
+                    Extra(self)
+                    raise RuntimeError("outer rejects after nested Tagging")
+                object.__setattr__(self, name, value)
+
+        agent = Host()
+        with self.assertRaises(TagCompositionError):
+            Outer(agent)
+
+        # Extra completed even though Outer failed. Restoring Outer also
+        # restores Host's plain runtime type; that separate host rollback
+        # defect is outside this root-status change.
+        self.assertIn(agent, Extra[:])
+        self.assertIn(agent, Tag[:])
+        self.assertIn(agent, Tag)
+        self.assertIsInstance(agent, Tag)
+
     def test_refused_gate_and_host_transition_do_not_make_an_agent(self) -> None:
         class Host:
             pass

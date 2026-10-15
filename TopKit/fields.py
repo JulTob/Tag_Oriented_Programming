@@ -30,7 +30,7 @@ from .errors import TagResolutionError
 from .geometry import _is_tag_class
 from .geometry import _tag_classes
 from .memo import _class_namespace
-from .state import _state_of
+from .state import _actualized_state_of
 
 
 FIELD_SEAT = "_topkit_field"   # the kit's own seat on every Tag class; MetaTag.__new__ fills it
@@ -175,9 +175,7 @@ class _Root_Query(_Population):
         query._label = f"root {part}"
 
     def __contains__(query, agent: object) -> bool:
-        state = _state_of(agent)
-
-        if state is None or not state.actualized:
+        if _actualized_state_of(agent) is None:
             return False
 
         if query._part == "whole":

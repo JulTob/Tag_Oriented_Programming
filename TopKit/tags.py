@@ -60,6 +60,7 @@ from .geometry import _form_of
 from .geometry import _is_tag
 from .lifecycle import _rip
 from .state import Tagged
+from .state import _actualized_state_of
 from .state import _name_of
 from .state import _state_of
 from .transactions import _apply
@@ -167,9 +168,9 @@ class MetaTag(type):
             ) -> bool:
         """``agent in Wizard``: sound membership, as in the plain loop.
         ``agent in Wizard[:]`` is raw membership. A string asks for a
-        keyword among the Tag's Flag Pins, never Agent membership."""
+        keyword among the Tag's Flag Pins unless it is an actualized Agent."""
 
-        if isinstance(candidate, str):
+        if isinstance(candidate, str) and _actualized_state_of(candidate) is None:
             return _keyword(
                     tag,
                     candidate,
@@ -188,10 +189,10 @@ class MetaTag(type):
             tag,
             candidate: object,
             ) -> bool:
-        state = _state_of(candidate)
-
         if tag is Tag:
-            return state is not None and state.actualized
+            return _actualized_state_of(candidate) is not None
+
+        state = _state_of(candidate)
 
         if state is not None and tag in state.ever:
             return True
