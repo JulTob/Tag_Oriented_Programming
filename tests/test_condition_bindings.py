@@ -86,7 +86,10 @@ class ConditionBindingTests(unittest.TestCase):
                     return
 
                 writes.append(("set", name))
-                agent.__dict__[name] = value
+                if name == "__class__":
+                    object.__setattr__(agent, name, value)
+                else:
+                    agent.__dict__[name] = value
 
             def __delattr__(agent, name):
                 writes.append(("delete", name))
@@ -154,7 +157,10 @@ class ConditionBindingTests(unittest.TestCase):
 
             def __setattr__(agent, name, value):
                 writes.append(("set", name))
-                agent.__dict__[name] = value
+                if name == "__class__":
+                    object.__setattr__(agent, name, value)
+                else:
+                    agent.__dict__[name] = value
 
             def __delattr__(agent, name):
                 writes.append(("delete", name))
