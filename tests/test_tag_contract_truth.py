@@ -2,7 +2,7 @@
 
 import unittest
 
-from TopKit import (Contract, Pin, Post, Pre, Tag, TagContractWarning,
+from TopKit import (Contract, Pin, Post, Pre, Tag, TagContractError, TagContractWarning,
                     TagPostconditionError)
 
 
@@ -186,7 +186,7 @@ class TagContractTruthTests(unittest.TestCase):
         Agency.verdict = None
         self.assertTrue(Agency)
 
-    def test_nested_tag_truth_uses_the_existing_contract_recursion_guard(self):
+    def test_a_pinned_tags_post_cannot_certify_its_own_truth(self):
         class Agency(Tag):
             ready = True
 
@@ -196,12 +196,10 @@ class TagContractTruthTests(unittest.TestCase):
             def Ready(tag):
                 return bool(tag) and tag.ready
 
-        Reflective(Agency)
-        self.assertTrue(Agency)
-        Agency.ready = False
-        self.assertFalse(Agency)
-        Agency.ready = True
-        self.assertTrue(Agency)
+        with self.assertRaisesRegex(TagContractError, "Ready.*Tag\\[:\\]"):
+            Reflective(Agency)
+        with self.assertRaisesRegex(TagContractError, "Tag\\[:\\]"):
+            bool(Agency)
 
     def test_a_pin_precondition_does_not_become_tag_truth(self):
         class Agency(Tag):
