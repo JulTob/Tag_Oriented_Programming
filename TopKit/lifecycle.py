@@ -108,8 +108,8 @@ def _retry_arrested(
         return _retry_saved_runs(
                 agent,
                 lambda run: _revoke(agent, state, run),
-                lambda run, name, teardown: _call_teardown(
-                        name, teardown, agent, state,
+                lambda run, name, teardown, declared: _call_teardown(
+                        name, teardown, declared, agent, state,
                         ),
                 defer_running=_may_act(agent),
                 )
@@ -127,8 +127,8 @@ def _run_one(agent: object, state: _State, run: _RipRun) -> None:
                 agent,
                 run,
                 lambda current: _revoke(agent, state, current),
-                lambda current, name, teardown: _call_teardown(
-                        name, teardown, agent, state,
+                lambda current, name, teardown, declared: _call_teardown(
+                        name, teardown, declared, agent, state,
                         ),
                 )
     finally:
@@ -184,11 +184,12 @@ def _teardown_all(
 
     try:
         for tag in reversed(list(state.active)):
-            for name, teardown in state.rips.pop(tag, ()):
+            for name, teardown, declared in state.rips.pop(tag, ()):
                 try:
                     _call_teardown(
                             name,
                             teardown,
+                            declared,
                             agent,
                             state,
                             )
@@ -201,6 +202,7 @@ def _teardown_all(
 def _call_teardown(
         name: str,
         teardown: Any,
+        declared: Any,
         agent: object,
         state: _State,
         ) -> None:
@@ -219,11 +221,6 @@ def _call_teardown(
         if state.pinned is None:
             result = teardown(agent)
         else:
-            declared = getattr(
-                    teardown,
-                    "__wrapped__",
-                    teardown,
-                    )
             seats = _parameters_of(declared).positional
             receiver_seats = 2 if _takes_underlay(declared, name) else 1
 

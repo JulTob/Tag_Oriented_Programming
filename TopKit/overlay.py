@@ -476,8 +476,9 @@ def _install(
         state.published.update(declarations.published)
 
     if declarations.rips:
+        rip_declarations = dict(declarations.actions)
         state.rips[tag] = tuple(
-                (name, state.actions[name])
+                (name, state.actions[name], rip_declarations[name])
                 for name in declarations.rips
                 )
 

@@ -34,7 +34,7 @@ class SafehouseRetryEngineTests(unittest.TestCase):
 
     def test_no_saved_work_is_a_resolution_failure(self) -> None:
         with self.assertRaisesRegex(TagResolutionError, "no saved Rip work"):
-            self._retry(object(), lambda run, name, teardown: None)
+            self._retry(object(), lambda run, name, teardown, declared: None)
 
     def test_ledger_uses_agent_and_tag_identity_without_host_protocols(self) -> None:
         class Host:
@@ -50,8 +50,8 @@ class SafehouseRetryEngineTests(unittest.TestCase):
         old_tag = type("Wizard", (), {})
         new_tag = type("Wizard", (), {})
         first, second = Host(), Host()
-        first_run = _RipRun(old_tag, (("first", object()),))
-        second_run = _RipRun(new_tag, (("second", object()),))
+        first_run = _RipRun(old_tag, (("first", object(), object()),))
+        second_run = _RipRun(new_tag, (("second", object(), object()),))
 
         _save_run(first, first_run)
         _save_run(second, second_run)
@@ -70,7 +70,7 @@ class SafehouseRetryEngineTests(unittest.TestCase):
 
     def test_first_run_exists_before_its_arrest_entry_is_published(self) -> None:
         agent = object()
-        run = _RipRun(type("Tag", (), {}), (("one", object()),))
+        run = _RipRun(type("Tag", (), {}), (("one", object(), object()),))
         observed = []
 
         class PublishingLedger(dict):
@@ -94,10 +94,10 @@ class SafehouseRetryEngineTests(unittest.TestCase):
         tag = type("Wizard", (), {})
         steps: list[str] = []
         failed = False
-        run = _RipRun(tag, tuple((name, object()) for name in ("a", "b", "c")))
+        run = _RipRun(tag, tuple((name, object(), object()) for name in ("a", "b", "c")))
         _save_run(agent, run)
 
-        def Invoke(current, name, teardown):
+        def Invoke(current, name, teardown, declared):
             nonlocal failed
             self.assertIs(current, run)
             self.assertTrue(_may_act(agent))
@@ -133,11 +133,11 @@ class SafehouseRetryEngineTests(unittest.TestCase):
 
         tag = Hostile("Wizard", (), {})
         agent = object()
-        run = _RipRun(tag, (("Stop", object()),))
+        run = _RipRun(tag, (("Stop", object(), object()),))
         _save_run(agent, run)
         original = ValueError("original teardown failure")
 
-        def Fail(current, name, teardown):
+        def Fail(current, name, teardown, declared):
             raise original
 
         with self.assertRaisesRegex(TagCompositionError, "Wizard teardown failed in: Stop") as caught:
@@ -152,9 +152,9 @@ class SafehouseRetryEngineTests(unittest.TestCase):
 
     def test_retry_drains_new_saved_runs_in_live_order(self) -> None:
         agent = object()
-        first = _RipRun(type("First", (), {}), (("first", object()),))
-        new = _RipRun(type("New", (), {}), (("new", object()),))
-        second = _RipRun(type("Second", (), {}), (("second", object()),))
+        first = _RipRun(type("First", (), {}), (("first", object(), object()),))
+        new = _RipRun(type("New", (), {}), (("new", object(), object()),))
+        second = _RipRun(type("Second", (), {}), (("second", object(), object()),))
         for run in (first, second):
             _save_run(agent, run)
         visited = []
@@ -163,7 +163,7 @@ class SafehouseRetryEngineTests(unittest.TestCase):
         def Revoke(run):
             revoked.append(run.tag.__name__)
 
-        def Invoke(run, name, teardown):
+        def Invoke(run, name, teardown, declared):
             visited.append(name)
             if run is first:
                 _save_run(agent, new)
@@ -176,7 +176,7 @@ class SafehouseRetryEngineTests(unittest.TestCase):
 
     def test_failed_revocation_prevents_teardown_and_is_retried(self) -> None:
         agent = object()
-        run = _RipRun(type("Tag", (), {}), (("one", object()),))
+        run = _RipRun(type("Tag", (), {}), (("one", object(), object()),))
         _save_run(agent, run)
         attempts = []
         visited = []
@@ -186,7 +186,7 @@ class SafehouseRetryEngineTests(unittest.TestCase):
             if len(attempts) == 1:
                 raise KeyboardInterrupt
 
-        def Invoke(current, name, teardown):
+        def Invoke(current, name, teardown, declared):
             visited.append(name)
 
         with self.assertRaises(KeyboardInterrupt):
@@ -204,10 +204,10 @@ class SafehouseRetryEngineTests(unittest.TestCase):
 
     def test_interrupted_teardown_keeps_cursor_and_closes_door(self) -> None:
         agent = object()
-        run = _RipRun(type("Tag", (), {}), (("one", object()),))
+        run = _RipRun(type("Tag", (), {}), (("one", object(), object()),))
         _save_run(agent, run)
 
-        def Interrupt(current, name, teardown):
+        def Interrupt(current, name, teardown, declared):
             raise KeyboardInterrupt
 
         with self.assertRaises(KeyboardInterrupt):
@@ -220,11 +220,11 @@ class SafehouseRetryEngineTests(unittest.TestCase):
 
     def test_same_run_cannot_be_reentered_from_its_teardown(self) -> None:
         agent = object()
-        run = _RipRun(type("Tag", (), {}), (("one", object()),))
+        run = _RipRun(type("Tag", (), {}), (("one", object(), object()),))
         _save_run(agent, run)
         refusals = []
 
-        def Invoke(current, name, teardown):
+        def Invoke(current, name, teardown, declared):
             try:
                 self._retry(agent, Invoke)
             except TagCompositionError as error:
@@ -237,7 +237,7 @@ class SafehouseRetryEngineTests(unittest.TestCase):
 
     def test_same_run_cannot_be_reentered_during_revocation(self) -> None:
         agent = object()
-        run = _RipRun(type("Tag", (), {}), (("one", object()),))
+        run = _RipRun(type("Tag", (), {}), (("one", object(), object()),))
         _save_run(agent, run)
         refusals = []
         visited = []
@@ -248,7 +248,7 @@ class SafehouseRetryEngineTests(unittest.TestCase):
             except TagCompositionError as error:
                 refusals.append(str(error))
 
-        def Invoke(current, name, teardown):
+        def Invoke(current, name, teardown, declared):
             visited.append(name)
 
         self._retry(agent, Invoke, Revoke)
@@ -259,14 +259,14 @@ class SafehouseRetryEngineTests(unittest.TestCase):
     def test_later_run_failure_does_not_repeat_completed_earlier_run(self) -> None:
         agent = object()
         tag = type("Tag", (), {})
-        first = _RipRun(tag, (("old", object()),))
-        second = _RipRun(tag, (("new", object()),))
+        first = _RipRun(tag, (("old", object(), object()),))
+        second = _RipRun(tag, (("new", object(), object()),))
         _save_run(agent, first)
         _save_run(agent, second)
         visited = []
         fail_once = True
 
-        def Invoke(current, name, teardown):
+        def Invoke(current, name, teardown, declared):
             nonlocal fail_once
             visited.append(name)
             if current is second and fail_once:
