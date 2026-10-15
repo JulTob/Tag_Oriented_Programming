@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
+import gc
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from TopKit import Action
 from TopKit import Pin
+from TopKit import Operation
+from TopKit import Public
 from TopKit import Tag
 from TopKit import TagArrestedAccessError
 from TopKit.arrest import _Arrest
@@ -54,6 +58,110 @@ class SafehouseBoundGuardTests(unittest.TestCase):
         with patch.dict(_safehouse, {}, clear=True):
             with self.assertRaises(TagArrestedAccessError):
                 agent.Train()
+
+    def test_started_action_generator_is_held_when_its_return_is_denied(self) -> None:
+        events = []
+
+        class Fighter(Tag):
+            def Train(agent):
+                def Steps():
+                    try:
+                        yield "started"
+                    finally:
+                        events.append("finalized")
+
+                source = Steps()
+                next(source)
+                arrest = _Arrest(agent)
+                arrest.runs.append(SimpleNamespace(tag=Fighter))
+                _safehouse[id(agent)] = arrest
+                return source
+
+        agent = Host()
+        Fighter(agent)
+        with patch.dict(_safehouse, {}, clear=True):
+            with self.assertRaises(TagArrestedAccessError):
+                agent.Train()
+            gc.collect()
+            self.assertEqual(events, [])
+            arrest = _safehouse[id(agent)]
+            self.assertEqual(len(arrest.lazy), 1)
+            source = arrest.lazy[0]
+
+        source.close()
+        self.assertEqual(events, ["finalized"])
+
+    def test_started_pin_coroutine_is_held_when_its_return_is_denied(self) -> None:
+        events = []
+
+        class Fighter(Tag):
+            pass
+
+        @Pin
+        class Trained(Tag):
+            @Action
+            def Work(tag):
+                async def Steps():
+                    try:
+                        await asyncio.sleep(0)
+                    finally:
+                        events.append("finalized")
+
+                source = Steps()
+                source.send(None)
+                arrest = _Arrest(tag)
+                arrest.runs.append(SimpleNamespace(tag=Trained))
+                _safehouse[id(tag)] = arrest
+                return source
+
+        Trained(Fighter)
+        with patch.dict(_safehouse, {}, clear=True):
+            with self.assertRaises(TagArrestedAccessError):
+                Fighter.Work()
+            gc.collect()
+            self.assertEqual(events, [])
+            arrest = _safehouse[id(Fighter)]
+            self.assertEqual(len(arrest.lazy), 1)
+            source = arrest.lazy[0]
+
+        source.close()
+        self.assertEqual(events, ["finalized"])
+
+    def test_started_published_async_generator_is_held_on_agent_arrest(self) -> None:
+        events = []
+
+        class Fighter(Tag):
+            @Public
+            @Operation
+            def Work(tag, agent):
+                async def Steps():
+                    try:
+                        yield "started"
+                    finally:
+                        events.append("finalized")
+
+                source = Steps()
+                step = source.__anext__()
+                with self.assertRaises(StopIteration):
+                    step.send(None)
+                arrest = _Arrest(agent)
+                arrest.runs.append(SimpleNamespace(tag=Fighter))
+                _safehouse[id(agent)] = arrest
+                return source
+
+        agent = Host()
+        Fighter(agent)
+        with patch.dict(_safehouse, {}, clear=True):
+            with self.assertRaises(TagArrestedAccessError):
+                agent.Work()
+            gc.collect()
+            self.assertEqual(events, [])
+            arrest = _safehouse[id(agent)]
+            self.assertEqual(len(arrest.lazy), 1)
+            source = arrest.lazy[0]
+
+        asyncio.run(source.aclose())
+        self.assertEqual(events, ["finalized"])
 
     def test_captured_pin_operation_checks_its_tag_receiver(self) -> None:
         class Fighter(Tag):
