@@ -84,15 +84,23 @@ def _exit(
         try:
             result = invoke()
         except BaseException:
-            if failure is not None and (
-                    was_arrested or _arrest_of(agent) is not None
-                    ):
+            # A failure already held by the with body wins over a failed
+            # cleanup of an *existing* arrest. If this exit caused the first
+            # arrest, its new Rip failure must be visible instead.
+            if failure is not None and was_arrested:
                 raise failure
             raise
 
-    if failure is not None and (
-            was_arrested or _arrest_of(agent) is not None
+    # An exit may have caught a failed Rip and returned True. When there is
+    # no body Rip error to preserve, check outside the cleanup door so the
+    # saved work is retried before this context returns to ordinary code.
+    if (
+            _arrest_of(agent) is not None
+            and (failure is None or not was_arrested)
             ):
+        _require_available(agent, f"context {kind} exit")
+
+    if failure is not None and was_arrested:
         return False
 
     return result
@@ -122,15 +130,17 @@ async def _aexit(
         try:
             result = await invoke()
         except BaseException:
-            if failure is not None and (
-                    was_arrested or _arrest_of(agent) is not None
-                    ):
+            if failure is not None and was_arrested:
                 raise failure
             raise
 
-    if failure is not None and (
-            was_arrested or _arrest_of(agent) is not None
+    if (
+            _arrest_of(agent) is not None
+            and (failure is None or not was_arrested)
             ):
+        _require_available(agent, "async context exit")
+
+    if failure is not None and was_arrested:
         return False
 
     return result

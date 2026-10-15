@@ -102,6 +102,184 @@ class SafehouseHostContextTests(unittest.TestCase):
         self.assertIsInstance(caught.exception.__cause__, RuntimeError)
         self.assertIsInstance(caught.exception.__context__, LookupError)
 
+    def test_first_arrest_in_exit_surfaces_its_rip_failure_over_body_error(self) -> None:
+        class Host:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, kind, value, traceback):
+                del Custody[self]
+
+        class Custody(Tag):
+            @Rip
+            def Leave(agent):
+                raise RuntimeError("rip failed")
+
+        host = Host()
+        Custody(host)
+
+        with self.assertRaises(TagCompositionError) as caught:
+            with host:
+                raise ValueError("body failed")
+
+        self.assertIsInstance(caught.exception.__cause__, RuntimeError)
+        self.assertIn(host, Tag[...])
+
+    def test_first_arrest_in_async_exit_surfaces_rip_over_body_error(self) -> None:
+        class Host:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, kind, value, traceback):
+                await asyncio.sleep(0)
+                del Custody[self]
+
+        class Custody(Tag):
+            @Rip
+            def Leave(agent):
+                raise RuntimeError("rip failed")
+
+        host = Host()
+        Custody(host)
+
+        async def Scenario() -> None:
+            with self.assertRaises(TagCompositionError) as caught:
+                async with host:
+                    raise ValueError("body failed")
+
+            self.assertIsInstance(caught.exception.__cause__, RuntimeError)
+
+        asyncio.run(Scenario())
+        self.assertIn(host, Tag[...])
+
+    def test_exit_that_catches_new_rip_failure_cannot_suppress_arrest(self) -> None:
+        events = []
+
+        class Host:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, kind, value, traceback):
+                try:
+                    del Custody[self]
+                except TagCompositionError:
+                    events.append("caught Rip")
+                return True
+
+        class Custody(Tag):
+            @Rip
+            def Leave(agent):
+                raise RuntimeError("rip failed")
+
+        host = Host()
+        Custody(host)
+
+        with self.assertRaises(TagArrestedAccessError) as caught:
+            with host:
+                raise ValueError("body failed")
+
+        self.assertEqual(events, ["caught Rip"])
+        self.assertIsInstance(caught.exception.__cause__, RuntimeError)
+        self.assertIn(host, Tag[...])
+
+    def test_async_exit_that_catches_new_rip_failure_cannot_suppress_arrest(self) -> None:
+        events = []
+
+        class Host:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, kind, value, traceback):
+                await asyncio.sleep(0)
+                try:
+                    del Custody[self]
+                except TagCompositionError:
+                    events.append("caught Rip")
+                return True
+
+        class Custody(Tag):
+            @Rip
+            def Leave(agent):
+                raise RuntimeError("rip failed")
+
+        host = Host()
+        Custody(host)
+
+        async def Scenario() -> None:
+            with self.assertRaises(TagArrestedAccessError) as caught:
+                async with host:
+                    raise ValueError("body failed")
+            self.assertIsInstance(caught.exception.__cause__, RuntimeError)
+
+        asyncio.run(Scenario())
+        self.assertEqual(events, ["caught Rip"])
+        self.assertIn(host, Tag[...])
+
+    def test_caught_body_rip_still_allows_entered_exit_then_denies_return(self) -> None:
+        events = []
+
+        class Host:
+            resource = "open"
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, kind, value, traceback):
+                events.append(("cleanup", self.resource))
+                return True
+
+        class Custody(Tag):
+            @Rip
+            def Leave(agent):
+                raise RuntimeError("rip failed")
+
+        host = Host()
+        Custody(host)
+
+        with self.assertRaises(TagArrestedAccessError) as caught:
+            with host:
+                try:
+                    del Custody[host]
+                except TagCompositionError:
+                    events.append("caught Rip")
+
+        self.assertEqual(events, ["caught Rip", ("cleanup", "open")])
+        self.assertIsInstance(caught.exception.__cause__, RuntimeError)
+
+    def test_caught_body_rip_allows_entered_async_exit_then_denies_return(self) -> None:
+        events = []
+
+        class Host:
+            resource = "open"
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, kind, value, traceback):
+                await asyncio.sleep(0)
+                events.append(("cleanup", self.resource))
+                return True
+
+        class Custody(Tag):
+            @Rip
+            def Leave(agent):
+                raise RuntimeError("rip failed")
+
+        host = Host()
+        Custody(host)
+
+        async def Scenario() -> None:
+            with self.assertRaises(TagArrestedAccessError) as caught:
+                async with host:
+                    try:
+                        del Custody[host]
+                    except TagCompositionError:
+                        events.append("caught Rip")
+            self.assertIsInstance(caught.exception.__cause__, RuntimeError)
+
+        asyncio.run(Scenario())
+        self.assertEqual(events, ["caught Rip", ("cleanup", "open")])
+
     def test_entry_cannot_finish_after_catching_failed_rip(self) -> None:
         events = []
         ready = False
@@ -266,7 +444,8 @@ class SafehouseHostContextTests(unittest.TestCase):
             with self.assertRaises(TagCompositionError):
                 del Custody[host]
             finish.set()
-            await task
+            with self.assertRaises(TagArrestedAccessError):
+                await task
 
         asyncio.run(Scenario())
         self.assertEqual(events, ["exit started", ("exit finished", "open")])
