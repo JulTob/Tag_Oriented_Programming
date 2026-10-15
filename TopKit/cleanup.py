@@ -2,7 +2,7 @@
 
 An entered context owns one cleanup call. Its exit may read the Agent to
 release resources even if a Rip failed after entry. This permission never
-escapes the exit hook and cannot suppress the Rip error from the with body.
+escapes the exit hook; unfinished Rip work cannot be suppressed.
 """
 
 from __future__ import annotations
@@ -84,24 +84,21 @@ def _exit(
         try:
             result = invoke()
         except BaseException:
-            # A failure already held by the with body wins over a failed
-            # cleanup of an *existing* arrest. If this exit caused the first
-            # arrest, its new Rip failure must be visible instead.
-            if failure is not None and was_arrested:
+            # Keep the body's failure when old Rip work is still pending.
+            # If cleanup repaired it, Python's new exit failure takes over.
+            if (
+                    failure is not None and was_arrested
+                    and _arrest_of(agent) is not None
+                    ):
                 raise failure
             raise
 
-    # An exit may have caught a failed Rip and returned True. When there is
-    # no body Rip error to preserve, check outside the cleanup door so the
-    # saved work is retried before this context returns to ordinary code.
-    if (
-            _arrest_of(agent) is not None
-            and (failure is None or not was_arrested)
-            ):
+    # A caught Rip may leave arrest behind. An already-arrested body's
+    # failure stays visible; otherwise retry outside the cleanup door.
+    if _arrest_of(agent) is not None:
+        if failure is not None and was_arrested:
+            return False
         _require_available(agent, f"context {kind} exit")
-
-    if failure is not None and was_arrested:
-        return False
 
     return result
 
@@ -130,17 +127,16 @@ async def _aexit(
         try:
             result = await invoke()
         except BaseException:
-            if failure is not None and was_arrested:
+            if (
+                    failure is not None and was_arrested
+                    and _arrest_of(agent) is not None
+                    ):
                 raise failure
             raise
 
-    if (
-            _arrest_of(agent) is not None
-            and (failure is None or not was_arrested)
-            ):
+    if _arrest_of(agent) is not None:
+        if failure is not None and was_arrested:
+            return False
         _require_available(agent, "async context exit")
-
-    if failure is not None and was_arrested:
-        return False
 
     return result

@@ -280,6 +280,75 @@ class SafehouseHostContextTests(unittest.TestCase):
         asyncio.run(Scenario())
         self.assertEqual(events, ["caught Rip", ("cleanup", "open")])
 
+    def test_sync_exit_may_suppress_body_error_after_repair(self) -> None:
+        for body_error in ("rip", "unrelated"):
+            with self.subTest(body_error=body_error):
+                ready = [False]
+
+                class Host:
+                    def __enter__(self):
+                        return self
+
+                    def __exit__(self, kind, value, traceback):
+                        ready[0] = True
+                        del Tag[self]
+                        return True
+
+                class Custody(Tag):
+                    @Rip
+                    def Leave(agent):
+                        if not ready[0]:
+                            raise RuntimeError("rip failed")
+
+                host = Host()
+                Custody(host)
+
+                with host:
+                    try:
+                        del Custody[host]
+                    except TagCompositionError:
+                        if body_error == "unrelated":
+                            raise ValueError("later body error")
+                        raise
+
+                self.assertNotIn(host, Tag[...])
+
+    def test_async_exit_may_suppress_body_error_after_repair(self) -> None:
+        for body_error in ("rip", "unrelated"):
+            with self.subTest(body_error=body_error):
+                ready = [False]
+
+                class Host:
+                    async def __aenter__(self):
+                        return self
+
+                    async def __aexit__(self, kind, value, traceback):
+                        await asyncio.sleep(0)
+                        ready[0] = True
+                        del Tag[self]
+                        return True
+
+                class Custody(Tag):
+                    @Rip
+                    def Leave(agent):
+                        if not ready[0]:
+                            raise RuntimeError("rip failed")
+
+                host = Host()
+                Custody(host)
+
+                async def Scenario() -> None:
+                    async with host:
+                        try:
+                            del Custody[host]
+                        except TagCompositionError:
+                            if body_error == "unrelated":
+                                raise ValueError("later body error")
+                            raise
+
+                asyncio.run(Scenario())
+                self.assertNotIn(host, Tag[...])
+
     def test_entry_cannot_finish_after_catching_failed_rip(self) -> None:
         events = []
         ready = False
