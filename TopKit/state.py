@@ -58,6 +58,7 @@ class _Snapshot:
 class _State:
     host_type: type
     pinned: type | None = None   # the Tag itself, when the Agent is a Tag
+    actualized: bool = False   # TOP accepted the first runtime transition
     active: list[type] = field(default_factory=list)
     training: set[type] = field(default_factory=set)   # not yet admitted
     ever: set[type] = field(default_factory=set)
@@ -106,6 +107,7 @@ class _State:
         copied = object.__new__(_State)
         copied.host_type = state.host_type
         copied.pinned = state.pinned
+        copied.actualized = state.actualized
         copied.active = state.active.copy()
         copied.training = state.training.copy()
         copied.ever = state.ever.copy()

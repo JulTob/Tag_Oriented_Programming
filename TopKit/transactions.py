@@ -38,6 +38,7 @@ from .errors import TagPostconditionError
 from .errors import TagPreconditionError
 from .fields import _field_of
 from .geometry import _form_of
+from .geometry import _is_tag
 from .overlay import _install
 from .overlay import _gainings
 from .overlay import _quiet
@@ -279,7 +280,10 @@ def _apply_one(
             if rip_actions:
                 state.rips[tag] = rip_actions
 
-            _enter_field(agent, state, tag, declarations)
+            # Root Tag gives an object Agent behavior without admitting it
+            # to an Agency. Its queries have no enumerable Field.
+            if _is_tag(tag):
+                _enter_field(agent, state, tag, declarations)
         except BaseException:
             if tag not in state.active:
                 if previous is not None:
@@ -446,6 +450,8 @@ def _actualize(
             _actualize_runtime_type(agent, next_type, state)
         else:
             _set_runtime_type(agent, next_type)
+
+    state.actualized = True
 
 
 def _enter_field(
