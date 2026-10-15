@@ -4,7 +4,8 @@ TOP borrows the language's own syntax for Tag-level acts and leaves the
 Tag's dotted namespace to the program:
 
     Wizard(charlie)               apply (Bases first)
-    charlie in Wizard             active membership, sound or defective
+    charlie in Wizard             sound membership, as in the plain loop
+    charlie in Wizard[:]          active membership, sound or defective
     "Deprecated" in Wizard        a keyword: the Tag carries the Flag Pin Deprecated
     Wizard in charlie             the same, from the Agent's side
     "Wizard" in charlie           the same, by name
@@ -34,7 +35,9 @@ from .access import _refuse_host_truth
 from .access import _view_of
 from .arrest import _arrest_of
 from .arrest import _require_available
+from .arrest import _safehouse
 from .contracts import _holds
+from .contracts import _holds_for_population
 from .declarations import _MISSING
 from .declarations import _check_constant_declarations
 from .declarations import _check_constant_shapes
@@ -53,6 +56,7 @@ from .fields import FIELD_SEAT
 from .fields import _Field
 from .fields import _Partition
 from .fields import _Safehouse
+from .fields import _Root_Query
 from .fields import _field_of
 from .fields import _population_of
 from .fields import _sound_of
@@ -61,6 +65,7 @@ from .geometry import _is_tag
 from .lifecycle import _rip
 from .lifecycle import _retry_arrested
 from .state import Tagged
+from .state import _actualized_state_of
 from .state import _name_of
 from .state import _state_of
 from .transactions import _apply
@@ -166,27 +171,46 @@ class MetaTag(type):
             tag,
             candidate: object,
             ) -> bool:
-        """``agent in Wizard``: membership. ``"Deprecated" in Wizard``: a
-        keyword among the Tag's Flag Pins; a string is never a member."""
+        """``agent in Wizard``: sound membership, as in the plain loop.
+        ``agent in Wizard[:]`` is raw membership. A string asks for a
+        keyword among the Tag's Flag Pins unless it is an actualized Agent."""
 
-        if isinstance(candidate, str):
+        if isinstance(candidate, str) and _actualized_state_of(candidate) is None:
             return _keyword(
                     tag,
                     candidate,
                     )
 
+        field = _field_of(tag)
+
+        if candidate not in field:
+            # The root has no Field; ordinary Tags reject an absent member
+            # before they ask the Agent's Posts.
+            return tag is Tag and candidate in _sound_of(tag)
+
+        if _safehouse and _arrest_of(candidate) is not None:
+            return False
+
         state = _state_of(candidate)
+        if state is None or not state.postconditions:
+            return (
+                    (not _safehouse or _arrest_of(candidate) is None)
+                    and candidate in field
+                    )
 
         return (
-                state is not None
-                and tag in state.active
-                and _arrest_of(candidate) is None
+                _holds_for_population(candidate)
+                and (not _safehouse or _arrest_of(candidate) is None)
+                and candidate in field
                 )
 
     def __instancecheck__(
             tag,
             candidate: object,
             ) -> bool:
+        if tag is Tag:
+            return _actualized_state_of(candidate) is not None
+
         state = _state_of(candidate)
 
         if state is not None and tag in state.ever:
@@ -211,7 +235,7 @@ class MetaTag(type):
 
     def __invert__(
             tag,
-            ) -> _Partition:
+            ) -> _Partition | _Root_Query:
         return ~_sound_of(tag)
 
     def __or__(
@@ -273,6 +297,9 @@ class MetaTag(type):
                         "Tag[:] is the whole Field; positional slices have"
                         " no meaning for a population"
                         )
+
+            if tag is Tag:
+                return _Root_Query("whole")
 
             return _field_of(tag)
 

@@ -45,7 +45,8 @@ class TagContractTruthTests(unittest.TestCase):
         self.assertEqual(calls, [])
         self.assertEqual(len(Agency), 0)
         self.assertNotEqual(calls, [])
-        self.assertIn(agent, Agency)
+        self.assertNotIn(agent, Agency)
+        self.assertIn(agent, Agency[:])
         self.assertIn(agent, ~Agency)
 
     def test_own_truth_and_field_cardinalities_are_independent(self):
@@ -88,7 +89,8 @@ class TagContractTruthTests(unittest.TestCase):
 
         # The Pin's Field filters Agency by Agency's contract; Agency's own
         # Field still filters its individual members by their contracts.
-        self.assertIn(Agency, Licensed)
+        self.assertNotIn(Agency, Licensed)
+        self.assertIn(Agency, Licensed[:])
         self.assertEqual(list(Licensed), [])
         self.assertEqual(list(~Licensed), [Agency])
         self.assertTrue(Licensed)
@@ -153,7 +155,8 @@ class TagContractTruthTests(unittest.TestCase):
         with self.assertRaises(TagPostconditionError.Ready):
             Certified(Agency)
         self.assertFalse(Agency)
-        self.assertIn(Agency, Certified)
+        self.assertNotIn(Agency, Certified)
+        self.assertIn(Agency, Certified[:])
         self.assertIn(Agency, ~Certified)
         Agency.ready = True
         self.assertTrue(Agency)
