@@ -163,8 +163,10 @@ Pair-scope contributions would be separate topics.
    `@Tool(Sword | Staff)` admits either class, `@Tool(Weapon | Staff)` a
    member of Weapon or an instance of Staff. `| None` admits None. A
    declared class admits its subclasses, including the runtime classes
-   TOP uses to actualize its instances; a declared Tag admits members of
-   its Shapes (§0.3, membership closed upward).
+   TOP uses to actualize its instances; a declared Tag admits its own
+   current members. Applying a Shape first applies its missing Bases
+   (§0.3), but a later Base Rip removes that kind even while the Shape
+   remains active (STEP-SPEC-26).
 3. A Tag term asks **membership now**, `value in T[:]`, sound or
    defective, never a Tag's `isinstance` history. The root `Tag` and
    `object` name no kind ("not just the root class"), nor does a Pin
@@ -340,9 +342,10 @@ value with Shapes. Guarded Reports are outside this STEP.
 
 Search from known bearers works today:
 `[f for f in Fighter[:] if "weapon" @ f and f.weapon is sword]`.
-There is no reverse-reference index. Links and Projection syntax remain
-separate Brief proposals, not APIs or dependencies required by Tools;
-see their [design history in PR #26](https://github.com/JulTob/Tag_Oriented_Programming/pull/26).
+There is no reverse-reference index. Links (STEP-SPEC-22, Vetting, now
+in TopKit: `steps/spec/STEP-SPEC-22-links.md`) and Projection syntax are
+not dependencies of Tools; Projection remains a Brief in the
+[design history of PR #26](https://github.com/JulTob/Tag_Oriented_Programming/pull/26).
 
 ### 8. Refusals
 

@@ -74,8 +74,11 @@ This STEP records that mismatch instead of silently adopting it as Ada law.
 
 The profile must not import an irreversible-ban feature: a programmer can
 express a ban with a Report and Gate; no such TOP language feature has been
-decided. Existing required-Base Rip refusal is a deployed Python rule, not
-authority to settle the separate spin-off/arrest proposals.
+decided. At this Brief's earlier refresh, required-Base Rip refusal was a
+deployed Python rule. [STEP-SPEC-26](../spec/STEP-SPEC-26-a-shape-keeps-no-base-hostage.md)
+has since cleared independent memberships after Tagging: Ripping a Base
+leaves its Shape active. This does not settle STEP-SPEC-26's remaining
+publication and diagnostic questions or STEP-SPEC-32's arrest proposal.
 
 The current Ada Geometry experiment accepts raw ordered graphs that Python's
 class frontend refuses: duplicate direct Bases and C3-inconsistent Base

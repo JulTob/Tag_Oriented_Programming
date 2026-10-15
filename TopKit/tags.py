@@ -36,17 +36,20 @@ from .contracts import _holds
 from .declarations import _MISSING
 from .declarations import _check_constant_declarations
 from .declarations import _check_constant_shapes
+from .declarations import _check_link_declarations
 from .declarations import _check_pin_bases
 from .declarations import _check_rip_declarations
 from .declarations import _check_tool_declarations
 from .declarations import _constant_owner
 from .declarations import _is_dunder
+from .declarations import _is_link
 from .declarations import _is_pin
 from .declarations import _kind_of
 from .declarations import _name_checks
 from .declarations import _refuse_condition_dunder
 from .declarations import _refuse_truth_gain
 from .errors import TagCompositionError
+from .errors import TagDeclarationError
 from .fields import FIELD_SEAT
 from .fields import _Field
 from .fields import _Partition
@@ -60,6 +63,54 @@ from .state import Tagged
 from .state import _name_of
 from .state import _state_of
 from .transactions import _apply
+
+
+def _refuse_relation(
+        tag: type,
+        ) -> None:
+    """A Relation is a template, never a Tag in play (STEP-SPEC-22 §9):
+    every act on it is refused and points to a Link; so is every act on
+    the kit's Tag for a Pair. One cached class lookup: an ordinary Tag
+    reads the root's None."""
+
+    kind = tag._topkit_kind
+
+    if kind is None or kind == "link":
+        return
+
+    if kind == "relation":
+        raise TagCompositionError(
+                f"{tag.__name__} is a Relation: link through an Agent,"
+                f" agent.{tag.__name__}(contact)"
+                )
+
+    raise TagCompositionError(
+            f"{tag.__name__} is the kit's Tag for a Pair: reach a Pair"
+            f" through its Link, agent.{tag.__name__}[contact]"
+            )
+
+
+def _is_link_tag(
+        tag: type,
+        ) -> bool:
+    """One Agent's Link, read on the hot paths: one cached class lookup."""
+
+    return tag._topkit_kind == "link"
+
+
+_making_link = 0   # raised by links while it builds one Agent's Link
+_links_module: Any = None   # links builds on this module: bound on first use
+
+
+def _links() -> Any:
+    global _links_module
+
+    if _links_module is None:
+        from . import links
+
+        _links_module = links
+
+    return _links_module
 
 
 class MetaTag(type):
@@ -76,11 +127,25 @@ class MetaTag(type):
                 FIELD_SEAT,
                 _Field(),
                 )
+        namespace.setdefault(
+                "_topkit_kind",
+                None,
+                )   # its own, never inherited: a Relation, a Link or a Pair Tag says so itself
         _check_rip_declarations(
                 name,
                 namespace,
                 )
         _name_checks(namespace, name)
+
+        if not _making_link and any(
+                _is_link(base)
+                for base in bases
+                ):
+            raise TagDeclarationError(
+                    f"{name}: an Agent's Link is never the Base of a Tag;"
+                    " a Shape of a Link is declared as a Relation,"
+                    " @Link class Trusts(Knows)"
+                    )
 
         tag = super().__new__(
                 meta,
@@ -92,6 +157,7 @@ class MetaTag(type):
         _check_pin_bases(tag)
         _check_constant_declarations(tag, namespace)
         _check_tool_declarations(tag, namespace)
+        _check_link_declarations(tag, namespace)
 
         return tag
 
@@ -134,10 +200,20 @@ class MetaTag(type):
             /,
             **inputs: Any,
             ) -> object:
+        if tag._topkit_kind is not None:
+            _refuse_relation(tag)   # a Relation or a Pair Tag; one attribute read for every other Tag
+
         if target is _MISSING:
             raise TypeError(
                     f"{tag.__name__} is a Tag: apply it to a Target,"
                     f" {tag.__name__}(target)"
+                    )
+
+        if _is_link_tag(tag):
+            return _links()._link(
+                    tag,
+                    target,
+                    inputs,
                     )
 
         if _is_pin(tag):
@@ -165,6 +241,9 @@ class MetaTag(type):
         """``agent in Wizard``: membership. ``"Deprecated" in Wizard``: a
         keyword among the Tag's Flag Pins; a string is never a member."""
 
+        if tag._topkit_kind is not None:
+            _refuse_relation(tag)   # a Relation or a Pair Tag; one attribute read for every other Tag
+
         if isinstance(candidate, str):
             return _keyword(
                     tag,
@@ -182,9 +261,14 @@ class MetaTag(type):
             tag,
             candidate: object,
             ) -> bool:
+        if tag._topkit_kind is not None:
+            _refuse_relation(tag)   # a Relation or a Pair Tag; one attribute read for every other Tag
         state = _state_of(candidate)
 
-        if state is not None and tag in state.ever:
+        if state is not None and (
+                tag in state.ever
+                or (state.ever_links is not None and tag in state.ever_links)
+                ):
             return True
 
         return super().__instancecheck__(candidate)
@@ -202,6 +286,9 @@ class MetaTag(type):
     def __bool__(
             tag,
             ) -> bool:
+        if tag._topkit_kind is not None:
+            _refuse_relation(tag)   # a Relation or a Pair Tag; one attribute read for every other Tag
+
         return _holds(tag)
 
     def __invert__(
@@ -259,6 +346,9 @@ class MetaTag(type):
             tag,
             key: Any,
             ) -> Any:
+        if tag._topkit_kind is not None:
+            _refuse_relation(tag)   # a Relation or a Pair Tag; one attribute read for every other Tag
+
         if isinstance(key, slice):
             if key != slice(None):
                 raise TypeError(
@@ -267,6 +357,12 @@ class MetaTag(type):
                         )
 
             return _field_of(tag)
+
+        if _is_link_tag(tag):
+            return _links()._pair_of(
+                    tag,
+                    key,
+                    )
 
         return _view_of(
                 key,
@@ -277,6 +373,16 @@ class MetaTag(type):
             tag,
             agent: object,
             ) -> None:
+        if tag._topkit_kind is not None:
+            _refuse_relation(tag)   # a Relation or a Pair Tag; one attribute read for every other Tag
+
+        if _is_link_tag(tag) and isinstance(agent, slice):
+            _links()._unlink_all(
+                    tag,
+                    agent,
+                    )
+            return
+
         _rip(
                 agent,
                 tag,
@@ -322,6 +428,15 @@ def _check_pin_target(
         raise TagCompositionError(
                 f"{pin.__name__} is a Pin: apply it to a Tag, not to"
                 f" {_name_of(target)}"
+                )
+
+    _refuse_relation(target)   # a template, or the kit's Tag for a Pair
+
+    if _is_link(target):
+        raise TagCompositionError(
+                f"{pin.__name__} is a Pin, and {target.__name__} is one"
+                " Agent's Link: Links between Tags need their own receiver"
+                " rule (STEP-SPEC-22)"
                 )
 
     if target in _form_of(pin):

@@ -343,6 +343,52 @@ when the Tag applies and never changes, so every view stays true.
 `class Elf(Person)` makes Person a **Base** of Elf: applying Elf applies
 Person first. `Form(Elf)` lists that order; `f"{Elf:form}"` prints it.
 
+After Tagging, each membership stands alone. An Imprint may Rip a Base
+while its Shape is training: moving from Candidate to Officer does not
+require keeping the Candidate badge.
+
+```python
+class Candidate(Tag):
+    pass
+
+
+class Officer(Candidate):
+    @Imprint
+    def Graduate(agent):
+        del Candidate[agent]
+
+
+lia = Character("Lia")
+Officer(lia)                           # Candidate first, then graduation
+assert lia in Officer and lia not in Candidate
+
+Officer(lia)                           # already an Officer: no retraining
+assert lia not in Candidate
+Candidate(lia)                         # explicit reinstatement of the Base
+assert lia in Candidate
+```
+
+If an Agency needs its Base membership to continue, its author says so
+with a Post. Ripping that Base still works; the Agent then reads as
+defective until the requirement is met again.
+
+```python
+class GuardedOfficer(Candidate):
+    @Post
+    def Still_Candidate(agent):
+        if agent not in GuardedOfficer[:]:
+            return True               # the promise ends with this role
+        return agent in Candidate[:]
+
+
+rae = Character("Rae")
+GuardedOfficer(rae)
+del Candidate[rae]
+assert rae in GuardedOfficer and not bool(rae)
+Candidate(rae)
+assert bool(rae)
+```
+
 **Watch out.** An Action that calls *another* Action through the Agent
 (`agent.Attack()` inside `Combat`) uses whatever is visible *now*, not what
 was captured. Underlay is for the same name; the Agent is for the current
@@ -1205,6 +1251,8 @@ your Reports and Operations there.
 - [The Contracts Guide](CONTRACTS.md): gates, promises and error control,
   aboard a starship; and one promise read by its name, `agent.Has_Oath`.
 - [The Fields Guide](FIELDS.md): populations, partitions and the algebra.
+- [The Links Guide](LINKS.md): things that are true of two: roads between
+  cities, routes, bookings, lessons, each a few lines.
 - [Constant Contributions](CONSTANTS.md): fixed bindings, shared values
   and promises that cannot be replaced or deleted.
 - [The Specification](../spec/SPECIFICATION.md): the laws, ring by ring.
