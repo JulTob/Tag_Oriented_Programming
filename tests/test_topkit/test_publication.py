@@ -155,6 +155,33 @@ class PublicationTests(unittest.TestCase):
         with self.assertRaises(AttributeError):
             Shape[agent].colour
 
+    def test_shape_view_finds_a_base_report_below_an_independent_report(self) -> None:
+        class Base(Tag):
+            @Report
+            def colour(tag):
+                return "base"
+
+        class Other(Tag):
+            @Report
+            def colour(tag):
+                return "other"
+
+        class Shape(Base):
+            pass
+
+        agent = Agent()
+        Base(agent)
+        Other(agent)
+        Shape(agent)
+
+        self.assertEqual(Base[agent].colour, "base")
+        self.assertEqual(Other[agent].colour, "other")
+        self.assertEqual(Shape[agent].colour, "base")
+
+        del Base.colour
+        with self.assertRaises(AttributeError):
+            Shape[agent].colour
+
     def test_a_later_pin_report_reaches_captured_and_fresh_tag_views(self) -> None:
         class Source(Tag):
             @Record
