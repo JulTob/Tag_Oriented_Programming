@@ -414,7 +414,9 @@ Tagging sequence or expand its rollback boundary.
   hidden. A type rebuilt later for another reason keeps it.
 - **Reports are builders.** `@Report def r(tag[, inherited])` is a
   descriptor that runs its builder once per Tag on first read and caches
-  the value per Tag (weakly). `Tag.r += 1` replaces the descriptor with a
+  the value on the receiving Tag. The descriptor keeps only weak receiver
+  references, so a Report value that refers back to its Tag cannot keep
+  that Tag alive through a Base. `Tag.r += 1` replaces the descriptor with a
   plain value on that class, which is the documented counter pattern.
   Views snapshot the computed value; a published Report reads live.
 - **Failures name their check.** `TagPreconditionError`,

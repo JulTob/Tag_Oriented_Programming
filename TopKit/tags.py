@@ -46,6 +46,7 @@ from .declarations import _kind_of
 from .declarations import _name_checks
 from .declarations import _refuse_condition_dunder
 from .declarations import _refuse_truth_gain
+from .declarations import Report
 from .errors import TagCompositionError
 from .fields import FIELD_SEAT
 from .fields import _Field
@@ -56,6 +57,7 @@ from .fields import _sound_of
 from .geometry import _form_of
 from .geometry import _is_tag
 from .lifecycle import _rip
+from .memo import _class_namespace
 from .state import Tagged
 from .state import _name_of
 from .state import _state_of
@@ -100,6 +102,7 @@ class MetaTag(type):
             name: str,
             value: Any,
             ) -> None:
+        original = _class_namespace(tag).get(name)
         _refuse_truth_gain(tag.__name__, name, value)
         if _is_dunder(name):
             _refuse_condition_dunder(tag.__name__, name, _kind_of(value))
@@ -113,11 +116,15 @@ class MetaTag(type):
 
         _check_constant_shapes(tag, name)
         super().__setattr__(name, value)
+        if (isinstance(original, Report)
+                and _class_namespace(tag).get(name) is not original):
+            original._retire_unbound()
 
     def __delattr__(
             tag,
             name: str,
             ) -> None:
+        original = _class_namespace(tag).get(name)
         owner = _constant_owner(tag, name)
 
         if owner is not None:
@@ -127,6 +134,9 @@ class MetaTag(type):
                     )
 
         super().__delattr__(name)
+        if (isinstance(original, Report)
+                and _class_namespace(tag).get(name) is not original):
+            original._retire_unbound()
 
     def __call__(
             tag,
