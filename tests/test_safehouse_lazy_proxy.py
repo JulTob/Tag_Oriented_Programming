@@ -182,6 +182,35 @@ class SafehouseLazyProxyTests(unittest.TestCase):
             self.assertEqual(events, ["start", "finally"])
             arrest.lazy.clear()
 
+    def test_proxy_destructor_parks_source_after_module_globals_clear(self) -> None:
+        receiver = Receiver()
+        arrest = _Arrest(receiver)
+        arrest.runs.append(SimpleNamespace(tag=object()))
+        events = []
+
+        def Source():
+            try:
+                yield 1
+            finally:
+                events.append("finally")
+
+        with patch.dict(_safehouse, {id(receiver): arrest}, clear=True):
+            guarded = _guard_lazy_result(
+                    Source(), receiver, "Action", lambda *_: None
+                    )
+            self.assertEqual(next(guarded), 1)
+            with patch("TopKit.arrest._safehouse", None):
+                with patch("TopKit.arrest._arrest_of", None):
+                    with patch("TopKit.arrest._hold_lazy_result", None):
+                        with patch("TopKit.lazy_guard._hold_lazy_result", None):
+                            del guarded
+                            gc.collect()
+            self.assertEqual(events, [])
+            self.assertEqual(len(arrest.lazy), 1)
+            arrest.lazy.clear()
+            gc.collect()
+            self.assertEqual(events, ["finally"])
+
     def test_stacked_guards_check_both_receivers(self) -> None:
         inner_receiver, outer_receiver = Receiver(), Receiver()
         checks = []
