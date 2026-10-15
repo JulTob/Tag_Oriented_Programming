@@ -124,12 +124,15 @@ class DefectiveTaggingTests(unittest.TestCase):
         del ari.spellbook
         self.assertFalse(bool(ari))
 
-    def test_if_agent_inside_a_post_does_not_recurse(self) -> None:
+    def test_if_agent_inside_a_post_cannot_certify_itself(self) -> None:
         ari = Agent()
 
-        Reflective(ari)
+        with self.assertRaisesRegex(TagContractError, "Self_Aware.*Tag\\[:\\]"):
+            Reflective(ari)
 
-        self.assertTrue(bool(ari))
+        self.assertIn(ari, Reflective[:])
+        with self.assertRaisesRegex(TagContractError, "Tag\\[:\\]"):
+            bool(ari)
 
     def test_condition_must_yield_a_strict_boolean(self) -> None:
         ari = Agent()
