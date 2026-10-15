@@ -30,6 +30,7 @@ from .errors import TagPostconditionError
 from .errors import TagPreconditionError
 from .errors import TagResolutionError
 from .errors import TagRogueAccessError
+from .host_guard import GuardedHost
 from .lifecycle import At_Exit
 from .queries import Apply
 from .queries import Form
@@ -50,6 +51,7 @@ __all__ = [
         "Delete",
         "Flag",
         "Form",
+        "GuardedHost",
         "Keyword",
         "Imprint",
         "Operation",

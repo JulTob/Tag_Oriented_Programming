@@ -50,7 +50,18 @@ class _Guard:
             act: str,
             authorize: _Check,
             ) -> None:
-        self.receiver = ref(receiver)
+        try:
+            self.receiver = ref(receiver)
+        except TypeError:
+            # A GuardedHost may be used before Tagging on a Host whose
+            # slots prohibit weak references. Such a Host cannot become
+            # an Agent, but its ordinary generator/coroutine must still
+            # run. Keep it through this result's lifetime, as a native
+            # generator frame would keep its receiver.
+            def Strong() -> object:
+                return receiver
+
+            self.receiver = Strong
         self.act = act
         self.authorize = authorize
         self.hold = _hold_lazy_result
