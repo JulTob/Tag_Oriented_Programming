@@ -33,7 +33,13 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: The suite
-        run: PYTHONPATH=. python -m unittest discover -s tests -t .
+        run: |
+          PYTHONPATH=. python -m unittest discover -s tests -t . > /tmp/topkit-suite.log 2>&1 || {
+            tail -n 70 /tmp/topkit-suite.log
+            echo "::error::$(tail -n 45 /tmp/topkit-suite.log | tr '\n' '|' | cut -c 1-3800)"
+            exit 1
+          }
+          cat /tmp/topkit-suite.log
 
   build:
     name: Build and check
