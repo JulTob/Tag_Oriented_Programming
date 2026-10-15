@@ -10,7 +10,7 @@
 - **Status:** Vetting
 - **Created:** 2026-10-12
 - **Refs:** PR #143 (this STEP and its implementation); PR #159 (Codex's
-  class-admission runtime on #89's base, whose fate the Director decides);
+  class-admission runtime, closed; its useful tests are carried here and in #174);
   STEP-SPEC-33 (Presence), STEP-SPEC-34 (Constant),
   STEP-SPEC-39 (Tagging Admission, Cleared, PR #78), STEP-SPEC-40
   (Agent contract truth, Cleared, PR #160), STEP-SPEC-42 (condition names,
@@ -86,9 +86,9 @@ exported as `TopKit.Tool`), with `tests/test_tools.py`, a Tool exercise
 in the oracle, the Specification's §1.3 "Tools" subsection, and the
 [wiki page](https://github.com/JulTob/Tag_Oriented_Programming/wiki/1.4-TopKit-Tools)
 running its `@Tool` blocks. The failure outcomes follow the tagging
-sequence the kit runs: whole-call rollback on `main` today, STEP-SPEC-39's
-retained Gains once PR #78 lands; the laws of this STEP do not change
-between the two.
+sequence STEP-SPEC-39 now runs on `main`: acquired Gains remain if a
+later Gaining or Imprint fails, while the unfinished Tag has no Field
+member (#174). The laws of this STEP do not change with that sequence.
 
 ## Director's decisions recorded in this revision
 
@@ -226,6 +226,12 @@ The order is STEP-SPEC-39's **Gate → Gainings/Imprints → Field → Posts**.
 Gains are acquired in declaration order and visible to subsequent Gains.
 The class check runs at this Record's turn, not in a preliminary pass.
 
+> **On `main` today.** #174 implements STEP-SPEC-39's sequence. A refused
+> Tool value is not gained, while earlier acquired Gains remain. An
+> Imprint failure keeps an acquired Tool but leaves the unfinished Tag's
+> Field empty for that Agent. `tests/test_tools.py` (`Sequence_Tests`)
+> checks these boundaries.
+
 - A refused Gate gains nothing for that Tag; completed independent
   Taggings remain.
 - If the builder or its class check fails, that value is not acquired.
@@ -294,13 +300,14 @@ isolation or automatic bearer reference. With self-reference, these are
 one Agent's door, not two independent doors.
 
 The Director's truth decisions are recorded in STEP-SPEC-40 and
-STEP-SPEC-42; the unified Agent/Tag truth implementation is PR #160:
+STEP-SPEC-42; their implementations are on `main` (PRs #155 and #160):
 
 - For ordinary object Agents, bool asks whether visible Posts hold,
   including before Field entry when Posts have already been gained.
 - Hosts with explicit or inherited `__bool__` are refused before Tagging
-  effects. Tool admission alone does not Tag a host, so it does not
-  trigger that eligibility check.
+  effects (STEP-SPEC-40, PR #160, on `main`). Tool admission alone does
+  not Tag a host, so it does not trigger that eligibility check.
+  Admission never asks the held thing's truth.
 - Plain objects retain Python truth, including their own `__bool__`.
   Holding one does not make it an Agent or give it TOP contract truth.
 - Conditions cannot use dunder names, and ordinary Agent truth cannot be
@@ -448,11 +455,10 @@ its audited size (`--seeds 50 --steps 1200 --population 18`).
   bearer until the bearer is of the kind; a kind of two Tags, and of a
   class and a Tag, asks for all; a union of a Tag and a class admits
   either: `Tag_Kind_Tests`, `Class_Kind_Tests`;
-- bad initial values are not gained; on `main` today the whole call rolls
-  back and the host keeps its own type
-  (`test_a_builder_returning_a_non_member_refuses_the_gaining`); under
-  STEP-SPEC-39 the same refusal leaves the Gains already acquired, to be
-  re-run on that branch when PR #78 lands;
+- bad initial values are not gained; earlier acquired Gains remain, while
+  the unfinished Tag does not gain a Field member
+  (`test_a_builder_returning_a_non_member_refuses_the_gaining`,
+  `Sequence_Tests`);
 - ordinary and kernel-path writes preserve the old binding on refusal;
   dropping makes Presence false and reassignment stays guarded; a host's
   own setter runs only after admission; a frozen dataclass host gains

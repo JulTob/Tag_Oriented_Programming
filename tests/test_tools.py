@@ -20,7 +20,9 @@ from typing import Any, Protocol, runtime_checkable
 from TopKit import (Action, Constant, Contract, Delete, Imprint, Keyword,
                     Operation, Pin, Post, Pre, Public, Record, Report, Rip,
                     Secret, Tag, TagCompositionError, TagDeclarationError,
-                    TagOverwriteWarning, TagPreconditionError, Tool)
+                    TagImprintError, TagOverwriteWarning, TagPreconditionError,
+                    Tool)
+from TopKit.tags import MetaTag
 
 
 class Character:
@@ -1279,6 +1281,284 @@ class Host_Tests(unittest.TestCase):
         with self.assertRaises(TagCompositionError):
             sam.__getattribute__ = Staff()
         self.assertEqual(sam.visible, "ordinary lookup")
+
+    def test_a_tool_named_del_keeps_finalization_and_field_removal(self):
+        seen = []                                         # from #159, on main's API
+
+        class Finalized_Host:
+            def __init__(host):
+                host.name = "host"
+
+            def __del__(host):
+                seen.append("host finalizer")
+
+        class Given(Tag):
+            @Tool(Sword)
+            def __del__(agent, *, tool):
+                return tool
+
+            @Rip
+            def Stand_Down(agent):
+                seen.append("Rip")
+
+        agent = Finalized_Host()
+        sword = Sword()
+        Given(agent, tool=sword)
+        self.assertIs(agent.__del__, sword)
+        self.assertIn(agent, Given[:])
+        reference = weakref.ref(agent)
+        del agent
+        gc.collect()
+        self.assertIsNone(reference())
+        self.assertEqual(list(Given[:]), [])
+        self.assertEqual(seen, ["Rip", "host finalizer"])
+
+    def test_a_late_plain_binding_never_reads_the_values_class(self):
+        observed = []                                     # from #159, on main's API
+
+        class Value:
+            @property
+            def __class__(value):
+                observed.append("read")
+                raise RuntimeError("a plain value must not be inspected")
+
+        class Example(Tag):
+            pass
+
+        value = Value()
+        Example.setting = value
+        self.assertIs(Example.__dict__["setting"], value)
+        self.assertEqual(observed, [])
+
+
+# ------------------------------------------------------------------
+# A Pin is marked at its declaration (§1.3, §1.9)
+# ------------------------------------------------------------------
+
+
+class Late_Pin_Tests(unittest.TestCase):
+    def test_a_tag_with_a_shape_is_not_marked_a_pin_later(self):
+        class Order(Tag):
+            pass
+
+        class Knight_Order(Order):
+            @Tool(Weapon)
+            def weapon(agent):
+                return Forge(agent)
+
+        with self.assertRaises(TagDeclarationError) as refusal:
+            Pin(Order)                                    # the Shape's Tool would land on Tags
+        self.assertIn("already has the Shape Knight_Order", str(refusal.exception))
+        charlie = Character("Charlie")
+        Knight_Order(charlie)                             # nothing changed: still an ordinary Tag
+        self.assertIn(charlie.weapon, Weapon[:])
+
+    def test_a_tag_with_agents_is_not_marked_a_pin_later(self):
+        class Noted(Tag):
+            pass
+
+        charlie = Character("Charlie")
+        Noted(charlie)
+        with self.assertRaises(TagDeclarationError) as refusal:
+            Pin(Noted)                                    # its Field would mix objects and Tags
+        self.assertIn("already has Agents", str(refusal.exception))
+        self.assertIn(charlie, Noted)
+
+    def test_a_tag_named_as_a_tool_kind_is_not_marked_a_pin_later(self):
+        class Prize(Tag):
+            pass
+
+        class Collector(Tag):
+            @Tool(Prize | None)
+            def prize(agent):
+                return None
+
+        with self.assertRaises(TagDeclarationError) as refusal:
+            Pin(Prize)                                    # the slot would admit Tags
+        self.assertIn("a @Tool already names Prize", str(refusal.exception))
+        collector = Character("Collector")
+        Collector(collector)
+        trophy = Sword("a trophy")
+        Prize(trophy)                                     # still applied to objects
+        collector.prize = trophy
+        self.assertIs(collector.prize, trophy)
+
+    def test_a_host_lookalike_with_unhashable_metaclass_remains_a_class_kind(self):
+        class Unhashable(type):
+            __hash__ = None
+
+        class Host(metaclass=Unhashable):
+            _topkit_field = object()                     # a name is not a Tag
+
+        class Holder(Tag):
+            @Tool(Host)
+            def held(agent):
+                return Host()
+
+        agent = Character("Charlie")
+        Holder(agent)
+        self.assertIsInstance(agent.held, Host)
+
+    def test_equal_but_distinct_tag_classes_have_separate_kind_history(self):
+        class Equal_Meta(MetaTag):
+            def __eq__(cls, other):
+                return isinstance(other, Equal_Meta)
+
+            def __hash__(cls):
+                return 17
+
+        class Prize(Tag, metaclass=Equal_Meta):
+            pass
+
+        class Other(Tag, metaclass=Equal_Meta):
+            pass
+
+        class Collector(Tag):
+            @Tool(Prize)
+            def prize(agent):
+                return None
+
+        self.assertIsNot(Prize, Other)
+        self.assertEqual(Prize, Other)
+        self.assertIs(Pin(Other), Other)                   # only Prize was named
+        with self.assertRaises(TagDeclarationError):
+            Pin(Prize)
+
+    def test_named_tool_kinds_are_tracked_weakly(self):
+        def declare():
+            class Prize(Tag):
+                pass
+
+            class Collector(Tag):
+                @Tool(Prize)
+                def prize(agent):
+                    return None
+
+            return weakref.ref(Prize), weakref.ref(Collector)
+
+        prize, collector = declare()
+        gc.collect()
+        self.assertIsNone(collector())
+        self.assertIsNone(prize())
+
+    def test_a_refused_pin_leaves_no_mark(self):
+        class Odd(Tag):
+            @Delete
+            def name(agent):
+                pass
+
+        with self.assertRaises(TagDeclarationError):
+            Pin(Odd)                                      # a Pin's members are plain
+        charlie = Character("Charlie")
+        Odd(charlie)                                      # still an ordinary Tag
+        self.assertIn(charlie, Odd)
+
+    def test_a_shape_refused_for_its_ordinary_base_leaves_no_mark(self):
+        class Base(Tag):
+            pass
+
+        class Mixed(Base):
+            pass
+
+        with self.assertRaises(TagDeclarationError):
+            Pin(Mixed)                                    # one Form is all Pins or no Pins
+        charlie = Character("Charlie")
+        Mixed(charlie)                                    # still an ordinary Tag
+        self.assertIn(charlie, Mixed)
+
+    def test_a_pin_scanned_before_its_mark_is_validated_at_the_mark(self):
+        class Plain(Tag):
+            @Delete
+            def name(agent):
+                pass
+
+        Plain(Character("Charlie"))                       # scanned as an ordinary Tag; the Agent dies at once
+        gc.collect()
+        with self.assertRaises(TagDeclarationError) as refusal:
+            Pin(Plain)                                    # the earlier scan is not taken as a Pin's
+        self.assertIn("@Delete of name", str(refusal.exception))
+
+    def test_restating_the_mark_changes_nothing(self):
+        @Pin
+        class Rare(Tag):
+            pass
+
+        class Wizard(Tag):
+            pass
+
+        Rare(Wizard)
+        self.assertIs(Pin(Rare), Rare)
+        self.assertIn(Wizard, Rare)
+
+
+# ------------------------------------------------------------------
+# Coverage the review asked for
+# ------------------------------------------------------------------
+
+
+class Sequence_Tests(unittest.TestCase):
+    def test_a_refused_tool_over_an_occupied_slot_keeps_the_held_tool(self):
+        class Rearmed(Fighter):
+            @Record
+            def checkpoint(agent):
+                return "gained before the refused Tool"
+
+            @Tool(Weapon)
+            def weapon(agent, stored):
+                return Sword("an unforged blade")         # not a Weapon: refused at its turn
+
+        charlie = Character("Charlie")
+        Fighter(charlie)
+        held = charlie.weapon
+        with self.assertRaises(TagCompositionError):
+            Rearmed(charlie)
+        self.assertIs(charlie.weapon, held)               # the refused Tool did not replace it
+        self.assertEqual(charlie.checkpoint, "gained before the refused Tool")
+        self.assertNotIn(charlie, Rearmed[:])             # no Field entry for unfinished training
+        with self.assertRaises(TagCompositionError):
+            charlie.weapon = Sword("plain")               # Fighter's rule still guards the slot
+
+    def test_an_imprint_failure_after_a_tool_gaining_keeps_the_tool(self):
+        class Trained(Tag):
+            @Tool(Weapon)
+            def weapon(agent):
+                return Forge(agent)
+
+            @Imprint
+            def Drill(agent):
+                raise RuntimeError("the drill went wrong")
+
+        charlie = Character("Charlie")
+        with self.assertRaises(TagImprintError) as failure:
+            Trained(charlie)
+        self.assertIsInstance(failure.exception.__cause__, RuntimeError)
+        self.assertIn(charlie.weapon, Weapon[:])          # acquired Tool stays on a Rogue
+        self.assertNotIn(charlie, Trained[:])
+        with self.assertRaises(TagCompositionError):
+            charlie.weapon = Sword("plain")
+
+    def test_admission_never_asks_the_held_things_truth(self):
+        class Touchy(Sword):
+            def __bool__(sword):
+                raise RuntimeError("asked for its truth")
+
+        class Holder(Tag):
+            @Tool(Sword)
+            def by_class(agent, *, held):
+                return held
+
+        class Tagged_Holder(Tag):
+            @Tool(Weapon)
+            def by_tag(agent, *, held):
+                return held
+
+        touchy = Touchy()                                 # a plain object keeps its own truth
+        sam = Character("Sam")
+        Holder(sam, held=touchy)                          # the class admission never called bool()
+        self.assertIs(sam.by_class, touchy)
+
+        with self.assertRaises(TagCompositionError):      # not a Weapon: refused, and still no bool()
+            Tagged_Holder(Character("Tam"), held=touchy)
 
 
 if __name__ == "__main__":
