@@ -56,6 +56,7 @@ from .fields import _sound_of
 from .geometry import _form_of
 from .geometry import _is_tag
 from .lifecycle import _rip
+from .lifecycle import _rip_field
 from .state import Tagged
 from .state import _name_of
 from .state import _state_of
@@ -277,6 +278,16 @@ class MetaTag(type):
             tag,
             agent: object,
             ) -> None:
+        if isinstance(agent, slice):
+            if agent != slice(None):
+                raise TypeError(
+                        "Tag[:] is the whole Field; positional slices have"
+                        " no meaning for a population"
+                        )
+
+            _rip_field(tag)
+            return
+
         _rip(
                 agent,
                 tag,

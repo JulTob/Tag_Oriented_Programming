@@ -13,11 +13,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
+from types import MappingProxyType
 import atexit
 
 from .declarations import _parameters_of
 from .declarations import _action_chain
 from .declarations import _discard_lazy_result
+from .declarations import STATE
 from .declarations import _Lazy_Rip_Guard
 from .declarations import _lazy_rip_guard
 from .declarations import _takes_underlay
@@ -27,6 +29,7 @@ from .fields import _Member
 from .fields import _field_of
 from .state import _Originals
 from .state import _State
+from .state import _real_namespace_of
 from .state import _state_of
 
 
@@ -72,6 +75,67 @@ def _revoke_membership(
     _field_of(tag)._Remove(agent)
 
     return state, _RipRun(tag, state.rips.pop(tag, ()))
+
+
+def _rip_field(
+        tag: type,
+        ) -> None:
+    """Rip the Field as it stood at entry: revoke all, then clean up FIFO."""
+
+    field = _field_of(tag)
+    pending = []
+
+    for agent in list(field):
+        # Read the real state without asking a host's __dict__ property.
+        namespace = _real_namespace_of(agent)
+        if namespace is None:
+            state = None
+        elif issubclass(type(namespace), dict):
+            # A host may use a dict subclass with a user-defined get().
+            state = dict.get(namespace, STATE)
+        else:
+            # A Pin's native namespace is a mappingproxy.
+            state = MappingProxyType.get(namespace, STATE)
+
+        if state is None:
+            raise TagResolutionError(
+                    f"{tag.__name__} is not active on this Agent"
+                    )
+
+        for index, active in enumerate(state.active):
+            if active is tag:
+                break
+        else:
+            raise TagResolutionError(
+                    f"{tag.__name__} is not active on this Agent"
+                    )
+
+        state.active.pop(index)
+        words = state.words   # do not release a possible last Tag reference yet
+        state.words = None
+        snapshot = state.snapshots.pop(tag, None)
+        field._Remove(agent)
+        run = _RipRun(tag, state.rips.pop(tag, ()))
+        pending.append((agent, state, run, words, snapshot))
+
+    # Arrest and ordered retry belong to STEP-SPEC-32. Until that protocol
+    # is decided, use the existing per-Agent teardown behavior and finish
+    # attempting cleanup for every member before reporting failures.
+    failures: list[Exception] = []
+
+    for agent, state, run, _words, _snapshot in pending:
+        try:
+            _teardown(agent, state, run)
+        except Exception as error:
+            failures.append(error)
+
+    pending.clear()   # release saved views only after every cleanup attempt
+
+    if failures:
+        raise TagCompositionError(
+                f"{tag.__name__} Field teardown failed for"
+                f" {len(failures)} member(s)"
+                ) from failures[0]
 
 
 def _teardown(

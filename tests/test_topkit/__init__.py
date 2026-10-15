@@ -18,6 +18,7 @@ from .test_contract_namespace import ContractNamespaceTests
 from .test_named_failure import NamedFailureTests
 from .test_pin import PinTests
 from .test_rip import RipTests
+from .test_field_rip import FieldRipTests
 from .test_sticky_condition import StickyConditionTests
 from .test_exit_protocol import ExitProtocolTests
 from .test_try_finally import TryFinallyTests
