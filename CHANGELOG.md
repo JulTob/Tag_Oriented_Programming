@@ -19,6 +19,11 @@
 
 ### TopKit
 
+- **Pin Rip signatures:** scheduled cleanup determines whether to pass
+  Originals from the selected Rip declaration's Python signature. An
+  explicit `__signature__` now takes precedence over unrelated
+  `__wrapped__` metadata; composed Underlays keep their own seat.
+
 - **Tagging preparation cost:** ordinary Action/Record declarations reuse
   the existing collision and Underlay checks without constructing a
   disposable Overlay. Tags with deletions, conditions, Secrets, special
