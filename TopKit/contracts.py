@@ -12,6 +12,7 @@ from typing import Any
 from typing import Callable
 from typing import Iterable
 
+from .arrest import _arrest_of
 from .declarations import _MISSING
 from .declarations import _protocol_inputs
 from .declarations import _discard_lazy_result
@@ -342,7 +343,12 @@ def _guarded(
 def _holds(
         agent: object,
         ) -> bool:
-    """True exactly when every visible Postcondition holds."""
+    """True when free and every visible Postcondition holds."""
+
+    # Custody is a separate status. A saved Rip must clear before Posts
+    # can classify this Agent as sound or defective.
+    if _arrest_of(agent) is not None:
+        return False
 
     state = _state_of(agent)
 
@@ -360,7 +366,12 @@ def _holds(
             except Exception:
                 return False
 
-        return True
+            # A Post can itself trigger a failed Rip and catch its error.
+            # Its True answer cannot make a newly arrested Agent valid.
+            if _arrest_of(agent) is not None:
+                return False
+
+        return _arrest_of(agent) is None
     finally:
         state.composing -= 1
         state.checking = False
