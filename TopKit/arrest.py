@@ -20,12 +20,22 @@ class _Arrest:
 _safehouse: dict[int, _Arrest] = {}
 
 
-def _arrest_of(agent: object) -> _Arrest | None:
-    arrest = dict.get(_safehouse, id(agent))
+def _arrest_of(
+        agent: object,
+        _entries: dict[int, _Arrest] = _safehouse,
+        _identify = id,
+        ) -> _Arrest | None:
+    # These defaults also keep late generator finalization independent of
+    # module globals that Python may clear while the interpreter exits.
+    arrest = dict.get(_entries, _identify(agent))
     return arrest if arrest is not None and arrest.agent is agent and arrest.runs else None
 
 
-def _hold_lazy_result(agent: object, source: object) -> None:
+def _hold_lazy_result(
+        agent: object,
+        source: object,
+        _lookup = _arrest_of,
+        ) -> None:
     """Keep a denied lazy source from finalizing before Rip completes.
 
     The Safehouse already retains the Agent. It also retains a suspended
@@ -33,8 +43,11 @@ def _hold_lazy_result(agent: object, source: object) -> None:
     ``finally`` could run outside the only permitted Rip door during GC.
     """
 
-    arrest = _arrest_of(agent)
-    if arrest is not None and not any(held is source for held in arrest.lazy):
+    arrest = _lookup(agent)
+    if arrest is not None:
+        for held in arrest.lazy:
+            if held is source:
+                return
         arrest.lazy.append(source)
 
 

@@ -174,6 +174,21 @@ class SafehouseSubstrateTests(unittest.TestCase):
             self.assertEqual(len(arrest.lazy), 1)
             self.assertIs(arrest.lazy[0], source)
 
+    def test_late_lazy_parking_survives_cleared_module_globals(self) -> None:
+        agent = object()
+        source = object()
+        arrest = _Arrest(agent)
+        arrest.runs.append(SimpleNamespace(tag=object()))
+        lookup = _arrest_of
+        park = _hold_lazy_result
+
+        with patch.dict(_safehouse, {id(agent): arrest}, clear=True):
+            with patch("TopKit.arrest._safehouse", None):
+                with patch("TopKit.arrest._arrest_of", None):
+                    self.assertIs(lookup(agent), arrest)
+                    park(agent, source)
+        self.assertIs(arrest.lazy[0], source)
+
 
 if __name__ == "__main__":
     unittest.main()
