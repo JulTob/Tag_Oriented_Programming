@@ -713,21 +713,28 @@ Community.colour            # "green"
 Community.Greet("Ari")      # "Community:Ari"
 ```
 
-An ordinary Report builder runs once on its declaring Tag, on first read,
-and its value is held on that Tag: one copy for its whole Field. A Shape
-does not acquire a Base's Report or Operation in its own dotted namespace.
+An ordinary one-parameter Report builder runs once on its declaring Tag,
+on first read, and its value is held on that Tag: one copy for its whole
+Field. A Shape does not acquire a Base's Report or Operation in its own
+dotted namespace.
 `Base.report` belongs to Base; `Shape.report` is absent unless Shape
 declares that name itself. Applying Shape still applies Base first, so the
 Agent may reach Base's shared members through `Base[agent]` or publication.
-Like a Record, a Shape's own Report may declare a second parameter; it
-explicitly receives the value a Base gives that name, or `None`, so the
-Shape can calculate its own value using Base's.
+A Shape's own Report may declare a second parameter. That
+parameter explicitly links to the current value a Base gives the same
+name, or `None`. An ordinary linked Report recalculates on every read, so
+replacing or mutating the Base's value is visible on the Shape's next read.
+The Base search follows the Tag's MRO; deleting one Base binding exposes
+the next. This link gives the Shape its own calculation, not the Base's
+Report declaration.
 
-A Constant Report initializes once on its **declaring Tag**, on first
-read there or through a permitted Agent-bound view. Its binding cannot be
-replaced or deleted on that Tag or crushed through a Shape, but the value's
-contents may mutate. A Constant Operation fixes the declaring Tag's
-implementation; its calls receive that Tag. Constant does not give a Shape
+A Constant Report initializes once on its **declaring Tag**, on the first
+successful read there or through a permitted Agent-bound view. A linked
+Constant Report keeps that first calculated value even if the Base later
+changes. Its binding cannot be replaced or deleted on that Tag or crushed
+through a Shape, but the value's contents may mutate. A Constant Operation
+fixes the declaring Tag's implementation; its calls receive that Tag.
+Constant does not give a Shape
 direct access to either member.
 
 Reports and Operations are **not visible on the Agent**. `ari.colour` does

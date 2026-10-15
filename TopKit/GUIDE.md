@@ -734,12 +734,16 @@ except Postcondition.Has_Oath:          # the refusal names what is broken
 ```
 
 Notice the symmetry. A Report is written exactly like a Record, with the
-Tag instead of the Agent as its first input; it runs once on its declaring
-Tag and its value is shared by that Tag's Field. A Shape does not directly
-acquire a Base's Report or Operation. The Shape's own
-`def hit_die(tag, base_value)` can explicitly link to the Base's Report
-when it calculates its own value, as `def spells(agent, stored)` uses
-stored Agent data.
+Tag instead of the Agent as its first input. A one-parameter Report runs
+once on its declaring Tag and its value is shared by that Tag's Field. A
+Shape does not directly acquire a Base's Report or Operation. The Shape's
+own `def hit_die(tag, base_value)` explicitly links to the Base's current
+same-named Report value. Each read recalculates the Shape's own result, so
+a Base change, including a change to a list's contents, appears on the next
+read. If a Pin changes the Base's value, the link reads that value too.
+`@Constant @Report` instead keeps its first successfully calculated result.
+The one-parameter form still runs once. This is a Base Report link, not a
+copy of the Base's declaration into the Shape.
 
 A Constant Report initializes once on its declaring Tag. Applying a Shape
 first applies that Base to the Agent, so the Agent may still reach the
