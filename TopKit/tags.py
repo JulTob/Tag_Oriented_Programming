@@ -59,6 +59,7 @@ from .geometry import _is_tag
 from .lifecycle import _rip
 from .state import Tagged
 from .state import _name_of
+from .state import _report_changed
 from .state import _state_of
 from .transactions import _apply
 
@@ -114,6 +115,8 @@ class MetaTag(type):
 
         _check_constant_shapes(tag, name)
         super().__setattr__(name, value)
+        _report_changed(tag, name)
+        _invalidate_declarations(tag)
 
     def __delattr__(
             tag,
@@ -128,6 +131,16 @@ class MetaTag(type):
                     )
 
         super().__delattr__(name)
+        _report_changed(tag, name, deleted=True)
+
+        pinned = _state_of(tag)
+
+        if pinned is not None and name in pinned.records and name in pinned.published:
+            # A Pin Record published this Tag member as a Report. Deleting
+            # the member must also stop publishing it to future Agents.
+            pinned.records.pop(name)
+            pinned.published.discard(name)
+
         _invalidate_declarations(tag)
 
     def __call__(

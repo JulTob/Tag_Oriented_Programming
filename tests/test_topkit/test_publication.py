@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import gc
 import unittest
+import weakref
 from TopKit import Action
 from TopKit import Imprint
 from TopKit import Operation
+from TopKit import Pin
 from TopKit import Public
 from TopKit import Record
 from TopKit import Report
@@ -13,6 +16,7 @@ from TopKit import Rip
 from TopKit import Secret
 from TopKit import Tag
 from TopKit import TagDeclarationError
+from TopKit.tags import MetaTag
 
 from ._fixtures import Agent
 from ._fixtures import Community
@@ -90,6 +94,7 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(Signal.colour, "green")
         self.assertEqual(agent.colour, "green")
         self.assertEqual(builds, [Signal])
+        view = Signal[agent]
 
         del Signal.colour
 
@@ -98,7 +103,21 @@ class PublicationTests(unittest.TestCase):
             Signal.colour
         with self.assertRaises(AttributeError):
             agent.colour
+        with self.assertRaises(AttributeError):
+            view.colour
+        self.assertFalse("colour" @ view)
         self.assertEqual(builds, [Signal])
+
+        class Later(Tag):
+            @Record
+            def count(agent):
+                return 1
+
+        Later(agent)
+        self.assertIn(agent, Later[:])
+        self.assertEqual(agent.count, 1)
+        with self.assertRaises(AttributeError):
+            Later[agent].colour
 
         later = Agent()
         Signal(later)
@@ -106,6 +125,122 @@ class PublicationTests(unittest.TestCase):
         with self.assertRaises(AttributeError):
             later.colour
         self.assertEqual(builds, [Signal])
+
+        Signal.colour = "plain"
+        with self.assertRaises(AttributeError):
+            agent.colour
+        with self.assertRaises(AttributeError):
+            view.colour
+        self.assertFalse("colour" @ agent)
+        self.assertFalse("colour" @ view)
+
+        newest = Agent()
+        Signal(newest)
+        self.assertFalse("colour" @ newest)
+
+        @Public
+        @Report
+        def colour(tag):
+            return "rebuilt"
+
+        Signal.colour = colour
+        restored = Agent()
+        Signal(restored)
+        self.assertEqual(restored.colour, "rebuilt")
+        self.assertTrue("colour" @ restored)
+        self.assertEqual(Signal.colour, "rebuilt")
+
+    def test_deleting_a_pin_published_report_stops_future_publication(self) -> None:
+        class Source(Tag):
+            pass
+
+        @Pin
+        class Stamp(Tag):
+            @Public
+            @Record
+            def mark(tag):
+                return None
+
+        Stamp(Source)
+        first = Agent()
+        Source(first)
+        view = Source[first]
+        self.assertIsNone(first.mark)
+        self.assertIsNone(view.mark)
+        self.assertTrue("mark" @ first)
+
+        del Source.mark
+        Source.mark = None   # even the same singleton cannot revive the Report
+
+        with self.assertRaises(AttributeError):
+            first.mark
+        with self.assertRaises(AttributeError):
+            view.mark
+        self.assertFalse("mark" @ first)
+        self.assertFalse("mark" @ view)
+
+        second = Agent()
+        Source(second)
+        self.assertFalse("mark" @ second)
+        with self.assertRaises(AttributeError):
+            second.mark
+
+    def test_equal_but_distinct_tags_keep_separate_report_generations(self) -> None:
+        class EqualMeta(MetaTag):
+            def __eq__(left, right):
+                return isinstance(right, EqualMeta)
+
+            def __hash__(tag):
+                return 7
+
+        class First(Tag, metaclass=EqualMeta):
+            @Public
+            @Report
+            def colour(tag):
+                return "red"
+
+        class Second(Tag, metaclass=EqualMeta):
+            @Public
+            @Report
+            def colour(tag):
+                return "blue"
+
+        self.assertIsNot(First, Second)
+        self.assertEqual(First, Second)
+        self.assertEqual(hash(First), hash(Second))
+
+        first, second = Agent(), Agent()
+        First(first)
+        Second(second)
+        self.assertEqual(second.colour, "blue")
+
+        del First.colour
+
+        with self.assertRaises(AttributeError):
+            first.colour
+        self.assertFalse("colour" @ first)
+        self.assertEqual(second.colour, "blue")
+        self.assertTrue("colour" @ second)
+
+    def test_report_generations_do_not_keep_a_tag_alive(self) -> None:
+        def make():
+            class Temporary(Tag):
+                @Report
+                def label(tag):
+                    return "short lived"
+
+            agent = Agent()
+            Temporary(agent)
+            self.assertEqual(Temporary.label, "short lived")
+            return weakref.ref(Temporary), weakref.ref(agent)
+
+        tag_ref, agent_ref = make()
+
+        for _ in range(3):
+            gc.collect()
+
+        self.assertIsNone(agent_ref())
+        self.assertIsNone(tag_ref())
 
     def test_published_operation_is_an_action_with_the_agent_as_second_input(self) -> None:
         ember = Agent()

@@ -32,7 +32,9 @@ from .state import _Snapshot
 from .state import _State
 from .state import _is_composing
 from .state import _name_of
+from .state import _report_epochs
 from .state import _state_of
+from .memo import _class_namespace
 
 
 # ------------------------------------------------------------------
@@ -502,6 +504,23 @@ def _agent_deepcopy(
 # ------------------------------------------------------------------
 
 
+def _snapshot_report_present(
+        snapshot: _Snapshot,
+        name: str,
+        ) -> bool:
+    entry = snapshot.reports.get(name)
+
+    if entry is None:
+        return False
+
+    origin, writes, _value = entry
+
+    return (
+            _report_epochs(origin, name)[0] == writes
+            and name in _class_namespace(origin)
+            )
+
+
 class _Tag_View:
     """The Overlay snapshot captured right after one Tag applied."""
 
@@ -554,8 +573,8 @@ class _Tag_View:
         if name in snapshot.records:
             return snapshot.records[name]
 
-        if name in snapshot.reports:
-            return snapshot.reports[name][1]
+        if _snapshot_report_present(snapshot, name):
+            return snapshot.reports[name][2]
 
         if name in snapshot.operations:
             origin, operation = snapshot.operations[name]
@@ -599,7 +618,7 @@ class _Tag_View:
         return (
                 name in snapshot.actions
                 or name in snapshot.records
-                or name in snapshot.reports
+                or _snapshot_report_present(snapshot, name)
                 or name in snapshot.operations
                 )
 

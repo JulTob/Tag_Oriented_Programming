@@ -48,10 +48,12 @@ from .state import _Snapshot
 from .state import _State
 from .state import _actualize_runtime_type
 from .state import _bind_to
+from .state import _current_report_origin
 from .state import _host_bindings_of
 from .state import _name_of
 from .state import _namespace_of
 from .state import _rebind_all
+from .state import _report_epochs
 from .state import _restore_namespace
 from .state import _restore_host_bindings
 from .state import _runtime_type_for
@@ -568,7 +570,7 @@ def _publish_into(
                 continue
             _refuse_constant(agent_state, name)
         if name in state.records:
-            agent_state.reports[name] = (pinned, None)
+            agent_state.reports[name] = (pinned, None, _report_epochs(pinned, name)[1])
             agent_state.published.add(name)
             if name in state.constants:
                 agent_state.constants[name] = (pinned, "report", None)
@@ -629,10 +631,17 @@ def _snapshot(
         if name in state.secret_values:
             records[name] = state.secret_values[name]
 
-    reports = {
-            name: (origin, getattr(origin, name))
-            for name, (origin, _report) in state.reports.items()
-            }
+    reports = {}
+
+    for name in state.reports:
+        origin = _current_report_origin(state, name)
+
+        if origin is not None:
+            reports[name] = (
+                    origin,
+                    _report_epochs(origin, name)[0],
+                    getattr(origin, name),
+                    )
 
     return _Snapshot(
             actions=dict(state.actions),
