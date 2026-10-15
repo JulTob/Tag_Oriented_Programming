@@ -29,7 +29,10 @@ import weakref
 
 from .arrest import _require_available
 from .arrest import _safehouse
-from .cleanup import _take_entry
+from .cleanup import _aenter
+from .cleanup import _aexit
+from .cleanup import _enter
+from .cleanup import _exit
 from .declarations import STATE
 from .declarations import _MISSING
 from .declarations import _Words
@@ -1289,11 +1292,6 @@ def _context_action(
                 *args: Any,
                 **kwargs: Any,
                 ) -> Any:
-            if name == "__aexit__":
-                # A Host entry may precede a TOP Action overlay of its
-                # exit. Do not leave a stale permission for that old Host
-                # exit handle after this actual exit runs.
-                _take_entry(agent, "async")
             state = _state_of(agent)
             door = _Async_Door(state)
             _async_doors.set(
@@ -1305,11 +1303,17 @@ def _context_action(
                     )
 
             try:
-                return await function(
-                        agent,
-                        *args,
-                        **kwargs,
-                        )
+                def Invoke() -> Any:
+                    return function(agent, *args, **kwargs)
+
+                if name == "__aenter__":
+                    return await _guard_lazy_result(
+                            _aenter(agent, Invoke), agent,
+                            "async context entry", _require_available,
+                            )
+
+                failure = args[1] if len(args) > 1 else None
+                return await _aexit(agent, failure, Invoke)
             finally:
                 door.Close()
                 # A suspended coroutine can be closed in another Context,
@@ -1332,17 +1336,18 @@ def _context_action(
             *args: Any,
             **kwargs: Any,
             ) -> Any:
-        if name == "__exit__":
-            _take_entry(agent, "sync")
         state = _state_of(agent)
         state.composing += 1
 
         try:
-            return function(
-                    agent,
-                    *args,
-                    **kwargs,
-                    )
+            def Invoke() -> Any:
+                return function(agent, *args, **kwargs)
+
+            if name == "__enter__":
+                return _enter(agent, "sync", Invoke)
+
+            failure = args[1] if len(args) > 1 else None
+            return _exit(agent, "sync", failure, Invoke)
         finally:
             state.composing -= 1
 
