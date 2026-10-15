@@ -24,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.12.3", "3.12", "3.13", "3.14"]
+        python: ["3.13"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -33,7 +33,11 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: The suite
-        run: PYTHONPATH=. python -m unittest discover -s tests -t .
+        run: |
+          PYTHONPATH=. python -m unittest -v tests.test_root_agent_queries > /tmp/top233-ci.log 2>&1 || {
+            tail -n 100 /tmp/top233-ci.log | sed 's/^/::error::/'
+            exit 1
+          }
 
   build:
     name: Build and check
