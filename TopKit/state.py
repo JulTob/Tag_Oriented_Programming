@@ -565,7 +565,9 @@ def _frozen_dataclass_setter(
     # finished. Validate the original generated function, not its guard.
     installed = setter
     if type(setter) is FunctionType:
-        setter = setter.__dict__.get("__topkit_host_source__", setter)
+        from .host_guard import _guarded_source
+
+        setter = _guarded_source(setter) or setter
 
     parameters = host_type.__dict__.get("__dataclass_params__")
 

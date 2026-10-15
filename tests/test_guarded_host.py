@@ -3,16 +3,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from gc import collect
 from inspect import signature
 from types import SimpleNamespace
 from typing import Any
 import unittest
 from unittest.mock import patch
+from weakref import ref
 
 from TopKit import GuardedHost
 from TopKit import Rip
 from TopKit import Tag
 from TopKit import TagArrestedAccessError
+from TopKit import TagCompositionError
 from TopKit import TagDeclarationError
 from TopKit.arrest import _Arrest
 from TopKit.arrest import _rip_door
@@ -294,6 +297,27 @@ class GuardedHostTests(unittest.TestCase):
                 def __del__(self):
                     pass
 
+    def test_metaclass_cannot_mask_an_inherited_cleanup_hook(self) -> None:
+        class Mask(type):
+            @property
+            def __dict__(cls):
+                return {}
+
+            @property
+            def __mro__(cls):
+                return (cls,)
+
+        class Base:
+            def __exit__(self, error_type, error, traceback):
+                return False
+
+        class Vault(Base, metaclass=Mask):
+            def read(self):
+                return "value"
+
+        with self.assertRaisesRegex(TagDeclarationError, "__exit__"):
+            GuardedHost(Vault)
+
     def test_async_generator_method_is_refused_before_partial_decoration(self) -> None:
         class Vault:
             def read(self):
@@ -316,6 +340,61 @@ class GuardedHostTests(unittest.TestCase):
         first = Vault.__dict__["read"]
         self.assertIs(GuardedHost(Vault), Vault)
         self.assertIs(Vault.__dict__["read"], first)
+
+    def test_spoofed_function_metadata_cannot_skip_the_mark(self) -> None:
+        def read(self):
+            return "value"
+
+        read.__topkit_host_source__ = read
+
+        class Vault:
+            pass
+
+        Vault.read = read
+        original = Vault.__dict__["read"]
+        GuardedHost(Vault)
+        self.assertIsNot(Vault.__dict__["read"], original)
+        self.assertIs(Vault.__dict__["read"].__wrapped__, original)
+
+    def test_spoofed_frozen_setter_metadata_cannot_skip_host_refusal(self) -> None:
+        @dataclass(frozen=True)
+        class Vault:
+            name: str
+
+        vault = Vault("safe")
+        generated_setter = Vault.__dict__["__setattr__"]
+
+        def refuse(self, name, value):
+            raise RuntimeError("Host refuses the class change")
+
+        refuse.__topkit_host_source__ = generated_setter
+        Vault.__setattr__ = refuse
+        GuardedHost(Vault)
+
+        class Custody(Tag):
+            pass
+
+        with self.assertRaises(TagCompositionError):
+            Custody(vault)
+        self.assertIs(type(vault), Vault)
+
+    def test_wrapper_ledger_does_not_retain_a_local_host_class(self) -> None:
+        class Base:
+            def read(self):
+                return "base"
+
+        def make_host():
+            @GuardedHost
+            class Vault(Base):
+                def read(self):
+                    return super().read()
+
+            self.assertEqual(Vault().read(), "base")
+            return ref(Vault)
+
+        class_reference = make_host()
+        collect()
+        self.assertIsNone(class_reference())
 
 
 if __name__ == "__main__":

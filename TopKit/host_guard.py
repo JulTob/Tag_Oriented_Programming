@@ -11,6 +11,8 @@ from functools import wraps
 from inspect import isasyncgenfunction
 from types import FunctionType
 from typing import Any
+from weakref import WeakKeyDictionary
+from weakref import ref
 
 from .arrest import _require_available
 from .arrest import _safehouse
@@ -30,6 +32,18 @@ _CLASS_HOOKS = frozenset((
         "__new__", "__init_subclass__", "__class_getitem__",
         ))
 
+# The class decorator's own identity ledger. The source value is weak too:
+# a zero-argument super() gives it a __class__ closure, so a strong value
+# could retain the class, its wrapper, and thus its weak key forever.
+_guarded_sources: "WeakKeyDictionary[FunctionType, ref[FunctionType]]" = (
+        WeakKeyDictionary()
+        )
+
+
+def _guarded_source(function: FunctionType) -> FunctionType | None:
+    source = _guarded_sources.get(function)
+    return source() if source is not None else None
+
 
 def _guarded_method(name: str, source: FunctionType) -> FunctionType:
     act = f"Host method {name}"
@@ -48,7 +62,7 @@ def _guarded_method(name: str, source: FunctionType) -> FunctionType:
 
         return _guard_lazy_result(result, receiver, act, _require_available)
 
-    Guarded.__topkit_host_source__ = source
+    _guarded_sources[Guarded] = ref(source)
     return Guarded
 
 
@@ -69,19 +83,22 @@ def GuardedHost(host: type) -> type:
                 "GuardedHost marks a Python Host, not a Tag declaration"
                 )
 
-    namespace = dict(type.__getattribute__(host, "__dict__"))
+    host_name = type.__dict__["__name__"].__get__(host)
+    # A custom metaclass can mask these names with data descriptors.
+    # Read type's kernel descriptors, as TOP does for other Host checks.
+    namespace = dict(type.__dict__["__dict__"].__get__(host))
     blocked = {
             name
-            for owner in type.__getattribute__(host, "__mro__")
+            for owner in type.__dict__["__mro__"].__get__(host)
             if owner is not object
             for name in _CLEANUP_HOOKS.intersection(
-                    type.__getattribute__(owner, "__dict__")
+                    type.__dict__["__dict__"].__get__(owner)
                     )
             }
     if blocked:
         name = sorted(blocked)[0]
         raise TagDeclarationError(
-                f"{host.__name__}.{name} is a Host cleanup hook;"
+                f"{host_name}.{name} is a Host cleanup hook;"
                 " GuardedHost has no entered cleanup door for it yet"
                 )
 
@@ -91,14 +108,14 @@ def GuardedHost(host: type) -> type:
             if (
                     name not in _CLASS_HOOKS
                     and type(source) is FunctionType
-                    and getattr(source, "__topkit_host_source__", None) is None
+                    and _guarded_source(source) is None
                     )
             )
 
     for name, source in selected:
         if isasyncgenfunction(source):
             raise TagDeclarationError(
-                    f"{host.__name__}.{name} is an async generator;"
+                    f"{host_name}.{name} is an async generator;"
                     " its event-loop finalizer cannot yet be guarded"
                     )
 
