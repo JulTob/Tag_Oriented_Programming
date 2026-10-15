@@ -339,10 +339,15 @@ class _Own_Operation(classmethod):
         self._owner_ref = None
 
     def __set_name__(self, owner: type, name: str) -> None:
-        if name not in self._names:
+        first_binding = name not in self._names
+        if first_binding:
             self._names += (name,)
         if self._owner_ref is None:
             self._owner_ref = ref(owner)
+        if first_binding and self._original is not None:
+            callback = getattr(type(self._original), "__set_name__", None)
+            if callback is not None:
+                callback(self._original, owner, name)
 
     def _copy_for_new_owner(self) -> "_Own_Operation":
         return _Own_Operation(self.__func__, self._original)
