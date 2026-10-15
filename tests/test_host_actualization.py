@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+import weakref
 from dataclasses import dataclass
 from dataclasses import FrozenInstanceError
 from dataclasses import replace
@@ -10,7 +11,10 @@ from typing import Callable
 
 from TopKit import Action
 from TopKit import Constant
+from TopKit import Flag
 from TopKit import Imprint
+from TopKit import Pin
+from TopKit import Pre
 from TopKit import Record
 from TopKit import Tag
 from TopKit import TagCompositionError
@@ -62,6 +66,63 @@ class HostActualizationTests(unittest.TestCase):
         error = self.refuse(RestrictiveHost(), RestrictiveHost)
 
         self.assertIsInstance(error.__cause__, RuntimeError)
+
+    def test_string_targets_are_refused_before_a_gate_or_actualization(self) -> None:
+        class Text(str):
+            pass
+
+        visits: list[object] = []
+
+        class Named(Tag):
+            @Pre
+            def Ready(agent) -> bool:
+                visits.append(agent)
+                return True
+
+        for target in ("bare", Text("subclass")):
+            with self.subTest(host_type=type(target)):
+                host_type = type(target)
+                namespace = dict(vars(target)) if type(target) is Text else None
+                if type(target) is Text:
+                    self.assertIs(weakref.ref(target)(), target)
+
+                with self.assertRaisesRegex(TagCompositionError, "string Target"):
+                    Named(target)
+
+                self.assertIs(type(target), host_type)
+                if namespace is not None:
+                    self.assertEqual(vars(target), namespace)
+                self.assertEqual(visits, [])
+                self.assertEqual(Tags(target), ())
+                self.assertNotIn(target, Named[:])
+                self.assertNotIn(target, Named)
+                self.assertNotIsInstance(target, Named)
+
+    def test_string_subclass_remains_a_keyword_probe_on_a_tag(self) -> None:
+        class Text(str):
+            __hash__ = None
+
+        class Named(Tag):
+            pass
+
+        @Pin
+        @Flag("word")
+        class Keyword_Pin(Tag):
+            pass
+
+        Keyword_Pin(Named)
+
+        self.assertIn("word", Named)
+        self.assertIn(Text("word"), Named)
+        self.assertNotIn(Text("other"), Named)
+
+        probe = Text("word")
+        with self.assertRaisesRegex(TagCompositionError, "string Target"):
+            Named(probe)
+
+        self.assertIn(probe, Named)           # still a word, never a member
+        self.assertNotIn(probe, Named[:])
+        self.assertNotIsInstance(probe, Named)
 
     def test_rollback_restores_the_type_before_reading_its_namespace(self) -> None:
         class PoisonType:
