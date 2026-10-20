@@ -29,7 +29,7 @@ from TopKit import (Action, At_Exit, Contract, Delete, Flag, Imprint,
 from TopKit.lifecycle import _teardown_all
 from TopKit.links import _stepper_of
 from TopKit.links import _pair_ends, _pair_form, _pair_tag, _pair_tags_of, _record_of
-from TopKit.state import _state_of
+from TopKit.state import _state_of, _view_subject
 
 
 class Character:
@@ -3994,7 +3994,7 @@ def Doors_Seen(agent, contact):
 def Counters(*things):
     """The composition counter of each: zero when no door of it is open."""
 
-    return tuple(_state_of(thing).composing for thing in things)
+    return tuple(_state_of(_view_subject(thing)).composing for thing in things)
 
 
 @types.coroutine
@@ -4737,7 +4737,7 @@ class Step_Contextvar_Tests(unittest.TestCase):
             dora.Sees.Vault()                             # a secret Operation answers inside its Agent only
         self.assertEqual(Counters(dora, self.ruth), (0, 0))
 
-    def test_an_underlay_chain_of_generator_and_coroutine_actions_steps_every_layer(self):
+    def test_explicit_base_link_generator_and_coroutine_actions_step_each_link(self):
         class Circle(Tag):
             @Secret
             @Record
@@ -4755,14 +4755,13 @@ class Step_Contextvar_Tests(unittest.TestCase):
 
             @Link
             class Trusts(Knows):
-                @Underlay
-                def Count(agent, contact, underlay):
+                def Count(agent, contact):
                     yield ("top", Read_Or_Shut(agent, "ledger"), Read_Or_Shut(contact, "journal"))
-                    yield from underlay()                     # the Layer beneath is stepped too
+                    yield from agent.Knows[contact].Count()  # call the independent Base Link
 
-                @Underlay
-                async def Later(agent, contact, underlay):
-                    return ("top", await underlay(), Read_Or_Shut(agent, "ledger"))
+                async def Later(agent, contact):
+                    return ("top", await agent.Knows[contact].Later(),
+                            Read_Or_Shut(agent, "ledger"))
 
         dora = Character("Dora")
         Circle(dora)
