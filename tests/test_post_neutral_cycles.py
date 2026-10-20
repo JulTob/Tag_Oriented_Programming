@@ -1,6 +1,7 @@
 """A recursive Post reads its own unfinished verdict as neutral True."""
 
 from contextvars import copy_context
+from threading import Thread
 import unittest
 import weakref
 
@@ -215,7 +216,31 @@ class PostNeutralCycleTests(unittest.TestCase):
         self.assertTrue(bool(witness))
         self.assertEqual(reads[0], 1)
 
-    def test_memo_preserves_the_active_post_context(self):
+    def test_bool_query_shares_first_verdict_with_later_sibling_post(self):
+        armed = [False]
+        reads = [0]
+
+        class Sample(Tag):
+            @Post
+            def Pair(agent):
+                return True if not armed[0] else agent.Sensor
+
+            @Post
+            def Sensor(agent):
+                if not armed[0]:
+                    return True
+                reads[0] += 1
+                return reads[0] == 1
+
+        agent = Host()
+        Sample(agent)
+        armed[0] = True
+
+        self.assertTrue(bool(agent))
+        self.assertEqual(reads[0], 1)
+        self.assertFalse(bool(agent))  # a new query sees the new sensor input
+
+    def test_first_completed_verdict_is_shared_across_paths_in_one_query(self):
         seen = []
 
         class Mixed(Tag):
@@ -239,7 +264,7 @@ class PostNeutralCycleTests(unittest.TestCase):
         self.assertEqual(seen[-1], {
                 "Observer": True,
                 "First": False,
-                "Second": False,
+                "Second": True,
                 })
         self.assertFalse(agent.First)
         self.assertFalse(agent.Second)
@@ -356,6 +381,50 @@ class PostNeutralCycleTests(unittest.TestCase):
 
         self.assertFalse(witness.Safe)
 
+    def test_root_truth_does_not_reuse_secret_verdict_after_door_closes(self):
+        armed = [False]
+
+        class Carrier(Tag):
+            @Secret
+            @Record
+            def code(agent):
+                return "private"
+
+            @Action
+            def Read_Promise(agent, subject):
+                return subject.Promise
+
+        carrier = Host()
+        Carrier(carrier)
+
+        class Subject(Tag):
+            @Post
+            def Promise(agent):
+                try:
+                    return carrier.code == "private"
+                except AttributeError:
+                    return False
+
+        subject = Host()
+        with self.assertRaises(TagPostconditionError.Promise):
+            Subject(subject)
+
+        class Witness(Tag):
+            @Post
+            def First(agent):
+                if not armed[0]:
+                    return True
+                return carrier.Read_Promise(subject)
+
+            @Post
+            def Second(agent):
+                return True if not armed[0] else subject.Promise
+
+        witness = Host()
+        Witness(witness)
+        armed[0] = True
+        self.assertFalse(bool(witness))
+
     def test_secret_probe_in_a_copied_context_taints_the_parent_query(self):
         armed = [False]
         reads = [0]
@@ -397,6 +466,122 @@ class PostNeutralCycleTests(unittest.TestCase):
 
         self.assertFalse(bool(witness))
         self.assertEqual(reads[0], 2)
+
+    def test_copied_context_on_another_thread_does_not_reuse_parent_verdict(self):
+        armed = [False]
+        reads = [0]
+
+        class Subject(Tag):
+            @Post
+            def Promise(agent):
+                if not armed[0]:
+                    return True
+                reads[0] += 1
+                return reads[0] == 1
+
+        subject = Host()
+        Subject(subject)
+
+        class Witness(Tag):
+            @Post
+            def Safe(agent):
+                if not armed[0]:
+                    return True
+                self.assertTrue(subject.Promise)
+                result = []
+                context = copy_context()
+                worker = Thread(target=lambda: result.append(
+                        context.run(lambda: subject.Promise),
+                        ))
+                worker.start()
+                worker.join()
+                return result == [False]
+
+        witness = Host()
+        Witness(witness)
+        armed[0] = True
+
+        self.assertTrue(bool(witness))
+        self.assertEqual(reads[0], 2)
+
+    def test_copied_thread_secret_probe_taints_parent_verdict_session(self):
+        armed = [False]
+        reads = [0]
+
+        class Carrier(Tag):
+            @Secret
+            @Record
+            def code(agent):
+                return "private"
+
+        carrier = Host()
+        Carrier(carrier)
+
+        class Subject(Tag):
+            @Post
+            def Promise(agent):
+                if not armed[0]:
+                    return True
+                reads[0] += 1
+                return reads[0] == 1
+
+        subject = Host()
+        Subject(subject)
+
+        class Witness(Tag):
+            @Post
+            def Safe(agent):
+                if not armed[0]:
+                    return True
+                self.assertTrue(subject.Promise)
+
+                def Probe_Secret():
+                    try:
+                        carrier.code
+                    except AttributeError:
+                        pass
+
+                context = copy_context()
+                worker = Thread(target=lambda: context.run(Probe_Secret))
+                worker.start()
+                worker.join()
+                return not subject.Promise
+
+        witness = Host()
+        Witness(witness)
+        armed[0] = True
+
+        self.assertTrue(bool(witness))
+        self.assertEqual(reads[0], 2)
+
+    def test_copied_thread_may_start_its_own_multi_post_truth_query(self):
+        class Subject(Tag):
+            @Post
+            def First(agent):
+                return True
+
+            @Post
+            def Second(agent):
+                return True
+
+        subject = Host()
+        Subject(subject)
+
+        class Witness(Tag):
+            @Post
+            def Safe(agent):
+                answers = []
+                context = copy_context()
+                worker = Thread(target=lambda: answers.append(
+                        context.run(lambda: bool(subject)),
+                        ))
+                worker.start()
+                worker.join()
+                return answers == [True]
+
+        witness = Host()
+        Witness(witness)
+        self.assertTrue(bool(witness))
 
     def test_a_caught_top_change_cannot_be_cached_as_a_passing_post(self):
         seen = []

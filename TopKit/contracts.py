@@ -11,6 +11,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from contextlib import nullcontext
 from contextvars import ContextVar
+from threading import get_ident
 from typing import Any
 from typing import Callable
 from typing import Iterable
@@ -44,12 +45,13 @@ Check = Callable[[object, dict[str, Any]], Any]
 class _Post_Check:
     __slots__ = (
             "identity", "check_identity", "active", "session", "root",
-            "sensitive",
+            "sensitive", "owner_thread",
             )
 
     def __init__(self, agent: object, check: Check) -> None:
         self.identity = id(agent)
         self.check_identity = id(check)
+        self.owner_thread = get_ident()
         self.active = True
         session = _post_session()
         self.root = session is None
@@ -59,7 +61,7 @@ class _Post_Check:
 
 class _Post_Session:
     __slots__ = (
-            "active", "results", "sensitive",
+            "active", "results", "sensitive", "owner_thread",
             )
 
     def __init__(
@@ -67,6 +69,7 @@ class _Post_Session:
             sensitive: bool,
             ) -> None:
         self.active = True
+        self.owner_thread = get_ident()
         self.sensitive = sensitive
         self.results: dict[
                 tuple[int, int, frozenset[tuple[int, int]]],
@@ -89,26 +92,30 @@ _post_query_session: ContextVar[_Post_Session | None] = ContextVar(
 
 
 def _post_session() -> _Post_Session | None:
+    thread = get_ident()
     for check in reversed(_post_checks.get()):
         if check.active:
+            # A copied ContextVar value shares the marker object. A worker
+            # thread must not read or replace the parent's memo session.
+            if check.owner_thread != thread:
+                break
             if check.session is None or not check.session.active:
                 check.session = _Post_Session(
                         check.sensitive or _reading_pre(),
                         )
                 check.root = True
-            return check.session
+            if check.session.owner_thread == thread:
+                return check.session
+            break
     session = _post_query_session.get()
-    return session if session is not None and session.active else None
+    return (session if session is not None and session.active
+            and session.owner_thread == thread else None)
 
 
 def _active_post_context() -> frozenset[tuple[int, int]]:
-    """A cycle's verdict depends on the checks already being evaluated."""
+    """Local design spike: share the first completed verdict across paths."""
 
-    return frozenset(
-            (marker.identity, marker.check_identity)
-            for marker in _post_checks.get()
-            if marker.active
-            )
+    return frozenset()
 
 
 @contextmanager
@@ -611,6 +618,11 @@ def _holds(
 
     if state is None or not state.postconditions:
         return True   # nothing promised
+
+    # A multi-Post truth read is one query, including its sibling Posts.
+    if len(state.postconditions) > 1 and _post_session() is None:
+        with _post_evaluation():
+            return _holds(agent, state)
 
     nested = bool(_post_checks.get() or _post_query_session.get() is not None)
     state.composing += 1
