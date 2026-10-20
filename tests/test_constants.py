@@ -903,7 +903,7 @@ class ConstantTests(unittest.TestCase):
                 with self.assertRaises(TagDeclarationError):
                     type("Shape", (Base,), {"gain": replacement})
 
-    def test_a_constant_post_remains_checked_after_unrelated_tagging(self):
+    def test_a_failed_constant_post_blocks_unrelated_tagging_until_repaired(self):
         class Sworn(Tag):
             @Constant
             @Post
@@ -918,11 +918,17 @@ class ConstantTests(unittest.TestCase):
         agent.ready = True
         Sworn(agent)
         agent.ready = False
-        with self.assertRaises(TagPostconditionError.Ready):
+        with self.assertRaisesRegex(TagCompositionError, "current Posts fail"):
             More(agent)
+        self.assertNotIn(agent, More[:])
+        self.assertFalse("count" @ agent)
         self.assertEqual(Contract.Status(agent), {"Ready": False})
         with self.assertRaises(TagCompositionError):
             Contract.Delete(agent, "Ready")
+
+        agent.ready = True
+        More(agent)
+        self.assertIn(agent, More)
 
 
 if __name__ == "__main__":

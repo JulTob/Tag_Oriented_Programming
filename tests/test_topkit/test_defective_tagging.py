@@ -13,6 +13,7 @@ from TopKit import Precondition
 from TopKit import Tag
 from TopKit import TagContractError
 from TopKit import TagContractWarning
+from TopKit import TagCompositionError
 from TopKit import TagImprintError
 from TopKit import TagPostconditionError
 from TopKit import TagTrainingWarning
@@ -82,7 +83,7 @@ class DefectiveTaggingTests(unittest.TestCase):
         self.assertFalse(~Candidate_Record)        # nobody left to repair
         self.assertIn(bad, Candidate_Record)
 
-    def test_posts_of_earlier_tags_recheck_on_later_tagging(self) -> None:
+    def test_broken_prior_post_refuses_later_tagging_until_repaired(self) -> None:
         ari = Agent()
 
         Validated(ari)
@@ -94,11 +95,17 @@ class DefectiveTaggingTests(unittest.TestCase):
         Validated(bea)
         bea.ready = False
 
-        with self.assertRaises(TagPostconditionError):
+        with self.assertRaisesRegex(TagCompositionError, "current Posts fail"):
             Advanced(bea)
 
         self.assertNotIn(bea, Advanced)
-        self.assertIn(bea, Advanced[:])                # admitted, but defective
+        self.assertNotIn(bea, Advanced[:])
+
+        bea.ready = True
+        Advanced(bea)
+        bea.ready = False
+        self.assertNotIn(bea, Advanced)
+        self.assertIn(bea, Advanced[:])                # later damage keeps admission
         self.assertIn(bea, ~Advanced)
 
     def test_imprint_failure_keeps_effects_and_admits_the_tag(self) -> None:
