@@ -17,6 +17,7 @@ from dataclasses import field
 from dataclasses import FrozenInstanceError
 from functools import wraps
 from inspect import signature
+from threading import RLock
 from types import FunctionType
 from types import GetSetDescriptorType
 from types import MemberDescriptorType
@@ -34,9 +35,91 @@ from .declarations import _is_dunder
 from .declarations import _is_flag
 from .errors import TagCompositionError
 from .memo import _namespace_snapshot
+from .memo import _class_namespace
 
 Function = Callable[..., Any]
 Check = Callable[..., Any]
+
+
+_report_mutations: dict[int, tuple[weakref.ref[type], dict[str, tuple[int, int]]]] = {}
+_report_mutations_lock = RLock()
+
+
+def _forget_report_mutations(
+        expired: weakref.ref[type],
+        key: int,
+        ) -> None:
+    with _report_mutations_lock:
+        current = _report_mutations.get(key)
+
+        if current is not None and current[0] is expired:
+            del _report_mutations[key]
+
+
+def _report_epochs(
+        tag: type,
+        name: str,
+        ) -> tuple[int, int]:
+    """Track writes and deletions of a Tag's Report name outside its class
+    dictionary. The two counters let an ordinary value assignment change
+    a Report's value without reviving a Report after deletion."""
+
+    with _report_mutations_lock:
+        key = id(tag)
+        current = _report_mutations.get(key)
+
+        if current is None or current[0]() is not tag:
+            reference = weakref.ref(
+                    tag,
+                    lambda expired, key=key: _forget_report_mutations(expired, key),
+                    )
+            names = {}
+            _report_mutations[key] = (reference, names)
+        else:
+            names = current[1]
+
+        return names.setdefault(name, (0, 0))
+
+
+def _report_changed(
+        tag: type,
+        name: str,
+        *,
+        deleted: bool = False,
+        ) -> None:
+    with _report_mutations_lock:
+        current = _report_mutations.get(id(tag))
+
+        if current is None or current[0]() is not tag:
+            return
+
+        names = current[1]
+
+        if name not in names:
+            return
+
+        writes, deletions = names[name]
+        names[name] = (writes + 1, deletions + int(deleted))
+
+
+def _current_report_origin(
+        state: "_State",
+        name: str,
+        ) -> type | None:
+    binding = state.reports.get(name)
+
+    if binding is None:
+        return None
+
+    origin, _declaration, recorded_deletions = binding
+
+    if (
+            _report_epochs(origin, name)[1] != recorded_deletions
+            or name not in _class_namespace(origin)
+            ):
+        return None
+
+    return origin
 
 
 # ------------------------------------------------------------------
@@ -48,7 +131,7 @@ Check = Callable[..., Any]
 class _Snapshot:
     actions: dict[str, Function]
     records: dict[str, Any]
-    reports: dict[str, tuple[type, Any]]
+    reports: dict[str, tuple[type, int, Any]]
     operations: dict[str, tuple[type, Function]]
     deleted: frozenset[str]
     secrets: frozenset[str]
@@ -66,7 +149,7 @@ class _State:
     records: dict[str, type] = field(default_factory=dict)
     preconditions: dict[str, Check] = field(default_factory=dict)
     postconditions: dict[str, Check] = field(default_factory=dict)
-    reports: dict[str, tuple[type, Any]] = field(default_factory=dict)
+    reports: dict[str, tuple[type, Any, int]] = field(default_factory=dict)
     operations: dict[str, tuple[type, Function]] = field(default_factory=dict)
     published: set[str] = field(default_factory=set)
     secrets: set[str] = field(default_factory=set)
@@ -222,6 +305,7 @@ class _Class_Namespace:
                 name,
                 value,
                 )
+        _report_changed(namespace._owner, name)
 
     def __contains__(
             namespace,
@@ -249,6 +333,7 @@ class _Class_Namespace:
                 namespace._owner,
                 name,
                 )
+        _report_changed(namespace._owner, name, deleted=True)
 
         return value
 
@@ -1182,7 +1267,11 @@ class _Published:
             return gate
 
         state = _namespace_of(agent)[STATE]
-        origin, _declared = state.reports[gate.name]
+        origin = _current_report_origin(state, gate.name)
+
+        if origin is None:
+            raise AttributeError(gate.name)
+
         _require_membership(
                 agent,
                 origin,

@@ -643,7 +643,7 @@ class TaggingAdmissionTests(unittest.TestCase):
         self.assertTrue("ready" @ clone)
         self.assertIn(clone, Repaired)
 
-    def test_view_closing_failure_keeps_completed_admission(self):
+    def test_report_deleted_during_imprint_does_not_break_admission(self):
         class Finished(Tag):
             @Secret
             @Record
@@ -663,8 +663,7 @@ class TaggingAdmissionTests(unittest.TestCase):
                 del Finished.status
 
         agent = Host()
-        with self.assertRaises(AttributeError):
-            Finished(agent)
+        Finished(agent)
         self.assertIn(agent, Finished[:])
         self.assertTrue(isinstance(agent, Finished))
         self.assertTrue("ready" @ agent)
@@ -672,6 +671,8 @@ class TaggingAdmissionTests(unittest.TestCase):
         self.assertFalse("hidden" @ agent)
         with self.assertRaises(AttributeError):
             agent.hidden
+        with self.assertRaises(AttributeError):
+            Finished[agent].status
 
 
 if __name__ == "__main__":
