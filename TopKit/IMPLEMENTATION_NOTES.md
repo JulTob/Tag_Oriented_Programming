@@ -126,10 +126,12 @@ Receiver binding and ownership are unchanged: a captured Pin Operation
 retains its pinned Tag as existing Operation handles do, while the Pin's
 Field remains weak. Rip, fresh pinning, and a refused pinning preserve
 the same state, so authorized calls still work across those boundaries.
-Inherited public Operations still open their declaring Base's state even
-when their receiver is a Shape; such a call can therefore authorize that
-Base's captured Secret Operation. This receiver/authority question and
-inherited Secret dependencies remain pending (#98). This repair neither
+An Operation landed on a Base is not directly read from its Shape. A Pin
+applied to that Shape lands a separate Operation there; a captured Base
+handle keeps its Base receiver. A Pin Action on a Shape does not take an
+Operation from its Base as Underlay; with no own earlier Action, it receives
+the null Action (STEP-SPEC-44). Secret dependency choices remain pending
+(#98). This repair neither
 introduces private Pin binding deletion nor governs lazy execution (#94).
 
 ### Presence without evaluation
@@ -412,10 +414,12 @@ Tagging sequence or expand its rollback boundary.
   key gates both. The gate reads the Agent's own value first, so it is
   harmless for the stored Layer and it keeps a host property of that name
   hidden. A type rebuilt later for another reason keeps it.
-- **Reports are builders.** `@Report def r(tag[, inherited])` is a
-  descriptor that runs its builder once per Tag on first read and caches
-  the value per Tag (weakly). `Tag.r += 1` replaces the descriptor with a
-  plain value on that class, which is the documented counter pattern.
+- **Reports are builders.** `@Report def r(tag[, base_value])` is a
+  descriptor that runs its builder once on its declaring Tag on first read
+  and caches that Tag's value weakly. A Shape's own Report may explicitly
+  link to a Base Report through that optional second input. `Tag.r += 1`
+  replaces the descriptor with a plain value on that class, which is the
+  documented counter pattern.
   Views snapshot the computed value; a published Report reads live.
 - **Failures name their check.** `TagPreconditionError`,
   `TagImprintError` and `TagPostconditionError` use the `_Named`
@@ -433,14 +437,15 @@ Tagging sequence or expand its rollback boundary.
   Gate, Gainings, Imprints, FieldAdding and view capture use the same
   code path for objects and pinned Tags. The runtime type is a
   `(MetaTag, Tagged)` metaclass from the same cache. A landed Action is a
-  `_Pinned_Operation` descriptor binding to the Tag it is read from (a
-  Shape inherits it as it inherits a classmethod). Its public composing
+  `_Pinned_Operation` descriptor binding to the pinned Tag; direct lookup
+  on a Shape does not inherit it. Its public composing
   handle keeps the original callable as `__func__`, the receiving Tag as
   `__self__`, native bound-method equality/hash, and the corresponding bound
   Python signature. Signature inspection is deferred until requested, so
   optional introspection cannot prevent reading or calling an accepted
-  callable. A landed Record is a plain class attribute, which is exactly
-  a Report's value. `_scan` skips
+  callable. A landed Record is held by a small descriptor in the pinned
+  Tag's class dictionary: it returns the stored value on that Tag and
+  refuses a Shape read of that Base-owned value. `_scan` skips
   names the class state manages, so a pinned Tag never projects them onto
   its Agents. The Tag's own Operations and Reports are host members to a
   Pin (`_pinned_host_function`, `_pinned_stored`); its Agent-scope names
