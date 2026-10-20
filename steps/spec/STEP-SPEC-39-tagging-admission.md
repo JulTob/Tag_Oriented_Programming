@@ -113,3 +113,70 @@ The independent oracle must model these outcomes, including Field join order.
 > a Rogue with Gains outside the Agency. The Director also specified that
 > Gains arrive in Tag declaration order, top to bottom, and are visible to
 > subsequent Gains. Implementation is submitted in successive reviewable PRs.
+
+### Amendment proposed for review — Target validation and best-effort training (2026-10-20)
+
+The Director distinguished a Target's ability to hold Records from the
+calculation of their initial values. The original Gate → Gainings → Imprints
+→ FieldAdding → Posts sequence remains, but the boundary for failed
+`@Record` and `@Imprint` protocols changes as follows. This amendment
+depends on the separately cleared per-Tag Post timing in #318: each newly
+admitted Tag is judged before the next Tag's Gate. It is **not yet Deployed**.
+
+1. Before a new Tag turn starts, the Agent's current visible Posts must
+   hold. This applies to independent Tags as well as to a Shape's next
+   turn; layering does not implicitly repair another Tag's contract. An
+   untouched Host has no TOP Posts to fail. Applying an already active Tag
+   remains a no-op.
+2. Before any Gain of this Tag, TOP validates **all Record spaces** the
+   Target needs. This is retractable, zero-step structural preparation,
+   not an `@Record` value calculation. If it fails, TOP restores this
+   attempt's provisional Target representation and bindings, raises public
+   `TagTargetError` (a subtype of `TagCompositionError`), and acquires no
+   Gains or Field membership for this Tag. Earlier completed Taggings stay.
+3. Gainings still take effect in declaration order, top to bottom. An
+   `@Record` initializer calculates a value at its own declaration
+   position. If that calculation fails, it acquires no new value, Constant
+   binding or Tool binding for that declaration. Any prior value remains
+   available at its existing layer. Later Gainings continue and see every
+   successful earlier Gain; Imprints then run in their declaration order.
+4. If an Imprint fails ordinarily, later Imprints still run. Each ordinary
+   `@Record` or `@Imprint` failure is reported by its own warning,
+   identifying the declared protocol. Reporting must not stop the remaining
+   training or prevent Field admission. A failed protocol does not erase
+   earlier Gains or by itself mark the Agent permanently broken.
+5. After these training attempts, FieldAdding admits the Agent, including
+   when one or more declared calculations or Imprints failed. Its gained
+   Posts stay recorded in the current contract; Tag publications become
+   available through the admitted Agent. The Agent is then judged by its
+   **current visible Posts**. A non-Constant Post may have been deliberately
+   ended; `@Constant` is the way to protect a required Post from replacement
+   or deletion. There is no separate requirement that every declaration
+   still be present.
+6. If the current Posts all hold, Tagging returns the sound Agent after any
+   warnings. If they fail, Tagging raises **one final `TaggingFailure`** and
+   leaves the Agent in the Field as broken. The failure reports the final
+   Post verdict after all ordinary training attempts. Past protocol errors
+   alone do not determine membership or soundness.
+7. `KeyboardInterrupt` and `SystemExit` during an `@Record` initializer or
+   Imprint stop later training. TOP still performs Field admission and Post
+   inspection, then preserves and propagates the original interruption;
+   a Post failure does not replace it.
+
+This amendment would supersede rule 4's successful-Imprint requirement,
+rule 6's failure boundary for declared calculations and Imprints, rule 7's
+fresh retry after those failures, rule 9's never-member conclusion for them,
+and related compatibility and acceptance text above. A structural Target
+failure is different: it is zero-step and does not admit this Tag. The
+historical cleared decision remains above for traceability. STEP-SPEC-22's
+Link Pair and Contact admission, the Specification, guides, tests and oracle
+need coordinated updates. A Pair cannot be admitted while its Contact is
+silently left outside that Link.
+
+Recovery of a broken or arrested Agent is Tag-owned, but the proposed
+`@Fix` declaration, call route and Safehouse permissions belong to a
+separate STEP. This amendment does not authorize an unrelated Tag to repair
+another Tag implicitly, or release an Agent whose saved Rip is unfinished.
+It also does not decide whether non-Record Gaining failures continue through
+later declarations; structural Target refusal and declared `@Record` failure
+are the two boundaries decided here.
