@@ -40,8 +40,7 @@ def Run() -> None:
     except TagPreconditionError: pass
     assert ari in Territory and ari not in Citadel and ari.banner == "raised"
 
-    # 0.6 unfinished production leaves Gains; a completed broken product
-    # belongs to its Tag and is judged by its Posts.
+    # 0.6 failed training still admits the product; Posts judge its quality.
     class Assembled(Territory):
         @Record
         def attempt(agent, stored): return (stored or 0) + 1
@@ -51,16 +50,19 @@ def Run() -> None:
         def Assemble(agent):
             if not agent.complete: raise ValueError("unfinished")
     car = Character(); car.complete = False; car.wheels = False
-    try: Assembled(car); raise SystemExit("expected unfinished training")
-    except TagImprintError.Assemble: pass
-    assert car in Territory[:] and car not in Assembled and car.attempt == 1
-    assert not isinstance(car, Assembled) and list(Assembled[:]) == []
+    with warnings.catch_warnings(record=True) as issues:
+        warnings.simplefilter("always", TagTrainingWarning)
+        try: Assembled(car); raise SystemExit("expected deficient product")
+        except TagPostconditionError.Has_Wheels: pass
+    assert len(issues) == 1 and issues[0].message.name == "Assemble"
+    assert car in Territory[:] and car in Assembled[:] and car.attempt == 1
+    assert isinstance(car, Assembled) and car in ~Assembled
     assert car.Has_Wheels is False and not bool(car)
-    car.complete = True
-    try: Assembled(car); raise SystemExit("expected deficient product")
-    except TagPostconditionError.Has_Wheels: pass
-    assert car in Assembled[:] and car in ~Assembled and car.attempt == 2
     car.wheels = True; assert car in list(Assembled)
+    car.complete = True
+    del Assembled[car]
+    Assembled(car)
+    assert car in Assembled and car.attempt == 2
 
     # 0.7 / 3.1 MI6
     class MI6(Tag):

@@ -120,17 +120,61 @@ class TagPreconditionError(TagError, metaclass=_Named):
 
 
 class TagImprintError(TagError, metaclass=_Named):
-    """An Imprint failed before this Tag's Field admission.
+    """The named failure of one Imprint during training.
 
-    Gains already acquired during this application remain on the Agent.
+    An ordinary failure is reported by a ``TrainingWarning.Name`` after
+    Field admission; this error supplies its TOP-specific detail. Gains
+    already acquired during this application remain on the Agent.
 
-    ``TagImprintError.Name`` is the subclass raised for the Imprint
+    ``TagImprintError.Name`` is the subclass for the Imprint
     declared as ``Name``; ``error.name`` is that name.
     """
 
     _kind = "Imprint"
     _names: dict[str, type] = {}
     name: str | None = None
+
+
+class TagTrainingWarning(UserWarning, metaclass=_Named):
+    """One declared training step failed, but Tagging continued.
+
+    ``failure`` keeps the named TOP failure. The original exception is
+    represented by type, text and source coordinates so an ignored warning
+    cannot retain its Agent through traceback frames.
+    """
+
+    _kind = "training step"
+    _names: dict[str, type] = {}
+    name: str | None = None
+
+    def __init__(
+            self,
+            kind: str,
+            tag: type,
+            name: str,
+            failure: TagError,
+            *,
+            cause_type: str | None = None,
+            cause_text: str | None = None,
+            traceback_summary: tuple[tuple[str, int, str], ...] = (),
+            ) -> None:
+        tag_name = str.__str__(type.__dict__["__name__"].__get__(tag))
+        declared_name = str.__str__(name)
+        self.kind = kind
+        self.tag_name = tag_name
+        self.name = declared_name
+        self.failure = failure
+        self.cause_type = cause_type
+        self.cause_text = cause_text
+        self.traceback_summary = traceback_summary
+        self.origin = (
+                traceback_summary[-1][:2]
+                if traceback_summary else None
+                )
+        super().__init__(f"{tag_name}.{declared_name}: {failure}")
+
+
+TrainingWarning = TagTrainingWarning
 
 
 class TagPostconditionError(TagError, metaclass=_Named):
@@ -143,6 +187,26 @@ class TagPostconditionError(TagError, metaclass=_Named):
     _kind = "Postcondition"
     _names: dict[str, type] = {}
     name: str | None = None
+
+
+class TaggingFailure(TagPostconditionError):
+    """Several visible Posts failed at one Tagging boundary.
+
+    ``failed_posts`` names every failed Post in evaluation order.
+    ``failure_texts`` gives each TOP diagnostic without retaining the
+    caught exceptions and their Agent-bearing traceback frames.
+    A single failed Post still raises ``TagPostconditionError.Name``.
+    """
+
+    def __init__(
+            self,
+            failed_posts: tuple[str, ...],
+            failure_texts: tuple[str, ...],
+            ) -> None:
+        self.failed_posts = failed_posts
+        self.failure_texts = failure_texts
+        spelled = ", ".join(repr(str.__str__(name)) for name in failed_posts)
+        super().__init__(f"Postconditions {spelled} failed after Tagging")
 
 
 class TagContractError(TagError):

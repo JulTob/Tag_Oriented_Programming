@@ -6,7 +6,7 @@ Base-first Forms, independent membership after admission, Rip of one Tag
 without cascading into its Shapes, a block that holds Tags (tag before
 try, Rip in finally), the call boundary (each Tag gates at its own turn, acquired
 Gains precede admission, a broken promise keeps membership, and a failed
-Imprint leaves Gains without admission), sticky conditions ended by
+Imprint warns before Post inspection of its admitted member), sticky conditions ended by
 the author, published members answering sound members only, condition
 members read as booleans, Field algebra, Pins with a Tag in the
 Agent's seat, and keywords: a Flag answers to its name and its words,
@@ -33,6 +33,7 @@ import argparse
 import gc
 import random
 import time
+import warnings
 import weakref
 
 from TopKit import Apply
@@ -50,7 +51,7 @@ from TopKit import Report
 from TopKit import Rip
 from TopKit import Tag
 from TopKit import TagCompositionError
-from TopKit import TagImprintError
+from TopKit import TagTrainingWarning
 from TopKit import TagPostconditionError
 from TopKit import TagPreconditionError
 from TopKit import TagResolutionError
@@ -381,7 +382,7 @@ class Carrying(Tag):
 
 
 class Slipping(Guild):
-    """Retryable training: failed production keeps Gains, not membership."""
+    """Failed training admits; Rip permits a fresh attempt."""
 
     @Pre
     def Can_Slip(agent) -> bool:
@@ -853,9 +854,9 @@ def Exercise_Transactions(
         model: Model,
         context: str,
         ) -> None:
-    """Failed admission, refused retry and fresh training keep actual Gains."""
+    """Failed training admits; Rip permits a fresh Gate and Imprint."""
 
-    if not model.Sound():
+    if not model.Sound() or not model.ok:
         return
 
     events_before = list(target.events)
@@ -902,33 +903,34 @@ def Exercise_Transactions(
         model.slipping_allowed = True
         clock_before = CLOCK[0]
         had_guild = Guild in model.active
-        try:
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", TagTrainingWarning)
             Slipping(target)
-        except TagImprintError:
-            pass
-        else:
-            raise AssertionError((context, "failed Imprint did not report"))
+        assert len(caught) == 1 and caught[0].message.name == "Slip", (
+                context, "failed Imprint did not warn once")
 
         Model_Apply(model, Guild)   # the Base completes independently
-        Model_Gain(model, Slipping)
-        assert target not in Slipping, (context, "failed training entered the Agency")
-        assert target not in Slipping[:], (context, "failed training entered the Field")
-        assert isinstance(target, Slipping) is (Slipping in model.ever), (context, "failed training changed history")
-        try:
-            Slipping[target]
-        except TagResolutionError:
-            pass
-        else:
-            raise AssertionError((context, "unfinished training obtained a view"))
+        Model_Enter(model, Slipping)
+        assert target in Slipping, (context, "failed training did not enter sound Agency")
+        assert target in Slipping[:], (context, "failed training did not enter Field")
+        assert isinstance(target, Slipping), (context, "failed training did not record history")
+        assert Slipping[target].Read_Slip() == model.slipping_round, (
+                context, "admitted training has no view")
         assert target.events[-1] == "slipped", (context, "Imprint did not run")
-        assert CLOCK[0] == clock_before + (not had_guild), (context, "failed training advanced join order")
+        assert CLOCK[0] == clock_before + (not had_guild) + 1, (
+                context, "failed training did not advance join order")
         Assert_Contract(target, model, context + " failed training")
 
-        # A new refusal must not remove the Gains from the prior attempt.
+        # Active reapplication does not retrain. Rip permits a fresh Gate;
+        # its refusal must not remove the Gains from the prior attempt.
+        events_before_retry = list(target.events)
+        Slipping(target)
+        assert target.events == events_before_retry, (context, "active Tag retrained")
+        del Slipping[target]
+        Model_Rip(model, Slipping)
         target.slipping_allowed = False
         model.slipping_allowed = False
         round_before = model.slipping_round
-        events_before_retry = list(target.events)
         try:
             Slipping(target)
         except TagPreconditionError.Can_Slip:

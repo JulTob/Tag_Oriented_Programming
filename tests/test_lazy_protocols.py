@@ -20,7 +20,7 @@ from TopKit import Tag
 from TopKit import TagCompositionError
 from TopKit import TagContractError
 from TopKit import TagImprintError
-from TopKit import TagResolutionError
+from TopKit import TagTrainingWarning
 from TopKit import Underlay
 
 
@@ -249,7 +249,7 @@ class LazyProtocolTests(unittest.TestCase):
         self.assertIsInstance(failure.exception.__cause__, RuntimeError)
         self.assertNotIn(target, Gated)
 
-    def test_lazy_imprints_fail_before_membership_without_starting(self) -> None:
+    def test_lazy_imprints_warn_and_admit_without_starting(self) -> None:
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
 
@@ -272,16 +272,21 @@ class LazyProtocolTests(unittest.TestCase):
                             kind=kind,
                             target="Pin" if pinned else "Agent",
                             ):
-                        with self.assertRaises(TagImprintError.Lazy) as failure:
-                            tag(target)
-
-                        self.assertIn(kind, str(failure.exception))
+                        before = len(caught)
+                        self.assertIs(tag(target), target)
+                        diagnostics = [
+                                item.message for item in caught[before:]
+                                if isinstance(item.message, TagTrainingWarning)
+                                ]
+                        self.assertEqual(len(diagnostics), 1)
+                        failure = diagnostics[0].failure
+                        self.assertIsInstance(failure, TagImprintError.Lazy)
+                        self.assertIn(kind, str(failure))
                         self.assertFalse(hasattr(target, marker))
-                        self.assertNotIn(target, tag)
-                        self.assertNotIn(target, tag[:])
-                        self.assertFalse(isinstance(target, tag))
-                        with self.assertRaises(TagResolutionError):
-                            tag[target]
+                        self.assertIn(target, tag)
+                        self.assertIn(target, tag[:])
+                        self.assertTrue(isinstance(target, tag))
+                        self.assertIsNotNone(tag[target])
 
             gc.collect()
 

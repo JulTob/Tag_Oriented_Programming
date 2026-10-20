@@ -6,7 +6,8 @@ import unittest
 import warnings
 
 from TopKit import (Imprint, Pin, Post, Pre, Rip, Tag, TagCompositionError,
-                    TagContractError, Underlay)
+                    TagContractError, TagImprintError, TagTrainingWarning,
+                    Underlay)
 
 
 class Host:
@@ -281,12 +282,18 @@ class LazyProtocolBoundaryTests(unittest.TestCase):
                 role = type("Role", (Tag,), {"Complete": mark(Complete)})
                 target = Host()
                 if mark is Imprint:
-                    from TopKit import TagImprintError
-                    with self.assertRaises(TagImprintError.Complete):
-                        role(target)
-                    self.assertNotIn(target, role)
-                    self.assertNotIn(target, role[:])
-                    self.assertFalse(isinstance(target, role))
+                    with warnings.catch_warnings(record=True) as recorded:
+                        warnings.simplefilter("always", TagTrainingWarning)
+                        self.assertIs(role(target), target)
+                    self.assertEqual(len(recorded), 1)
+                    self.assertIsInstance(recorded[0].message, TagTrainingWarning)
+                    self.assertIsInstance(
+                            recorded[0].message.failure,
+                            TagImprintError.Complete,
+                            )
+                    self.assertIn(target, role)
+                    self.assertIn(target, role[:])
+                    self.assertTrue(isinstance(target, role))
                 else:
                     role(target)
                     with self.assertRaises(TagCompositionError):
