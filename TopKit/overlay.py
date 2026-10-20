@@ -658,7 +658,7 @@ def _gainings(
 
         if kind == "link":
             from .links import _grant
-            _grant(agent, state, one, inputs)
+            _grant(agent, state, tag, one, inputs)
 
         if state.pinned is not None:
             from .declarations import _invalidate_declarations
@@ -1174,16 +1174,17 @@ def _install_link(
         name: str,
         relation: type,
         ) -> None:
-    """Record the Relation an Agent's Link at ``name`` is made from.
+    """Give this declaring Tag its own Link; select it as the visible Overlay.
 
-    A new name is refused when anything already holds it (rule 4.4). A
-    held Link gains a Relation that extends one of its own as a new
-    Layer (rule 2.6); reapplying a Relation it already has is a no-op.
-    The Link itself is built, or extended, at Parts (links._grant)."""
+    Another Tag's Link of the same name keeps its own Field and Pair.
+    Reapplying this Tag selects its existing Link again. A non-Link Agent
+    name still prevents the Link from arriving.
+    """
 
-    slot = state.links.get(name)
+    owned = state.owned_links.get(tag, {})
+    slot = owned.get(name)
 
-    if slot is None:
+    if slot is None and name not in state.links:
         taken = None
 
         if name in state.actions:
@@ -1207,38 +1208,24 @@ def _install_link(
                     " own"
                     )
 
-        state.links[name] = (
-                None,
-                (relation,),
-                )
-        return
+    if slot is None:
+        slot = (None, (relation,))
+    elif relation not in slot[1]:
+        link, layers = slot
+        relation_bases = [
+                base
+                for base in relation.__bases__
+                if _is_relation(base)
+                ]
+        if not relation_bases or not all(base in layers for base in relation_bases):
+            raise TagCompositionError(
+                    f"{tag.__name__}.{name} cannot replace its own Link"
+                    " with an unrelated Relation"
+                    )
+        slot = (link, layers + (relation,))
 
-    link, layers = slot
-
-    if relation in layers:
-        return   # reapplied: the Link keeps its identity, its Field and its Pairs
-
-    relation_bases = [
-            base
-            for base in relation.__bases__
-            if _is_relation(base)
-            ]
-
-    if not relation_bases or not all(
-            base in layers
-            for base in relation_bases
-            ):
-        raise TagCompositionError(
-                f"{tag.__name__}.{name} is a Link, but this Agent already"
-                f" holds the Link {name} from {layers[0].__qualname__}; a"
-                " Relation of the same name extends it by naming it as a"
-                f" Base, class {name}({layers[0].__qualname__})"
-                )
-
-    state.links[name] = (
-            link,
-            layers + (relation,),
-            )
+    state.Own_Link(tag, name, slot)
+    state.links[name] = slot
 
 
 def _refuse_action(

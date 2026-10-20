@@ -25,7 +25,10 @@ def a_state_with_every_seat_filled():
         elif isinstance(current, dict):
             current["name"] = SENTINEL
         elif isinstance(current, _Tag_Identity_Map):
-            current[Host] = SENTINEL
+            current[Host] = (
+                    {"Knows": (None, (Host,))}
+                    if seat.name == "owned_links" else SENTINEL
+                    )
     state.pinned = Host
     state.restored = frozenset({"restored"})
     state.composing = 3
@@ -68,6 +71,14 @@ class StateCopyTests(unittest.TestCase):
         for seat in dataclasses.fields(_State):
             with self.subTest(seat=seat.name):
                 self.assertEqual(_snapshot(getattr(state, seat.name)), before[seat.name])
+
+    def test_owned_link_slots_are_copied_beneath_the_tag_identity_map(self):
+        state = a_state_with_every_seat_filled()
+        copy = state.Copy()
+
+        self.assertIsNot(copy.owned_links[Host], state.owned_links[Host])
+        copy.owned_links[Host]["Other"] = (None, (Host,))
+        self.assertNotIn("Other", state.owned_links[Host])
 
 
 def _snapshot(held):

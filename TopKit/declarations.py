@@ -1257,61 +1257,10 @@ def _check_link_declarations(
                         " Bases, so every Agent already holds them"
                         )
 
-        _check_extension(
-                tag,
-                name,
-                member,
-                forms,
-                )
-
     _record_homes(
             tag,
             seen,
             )
-
-
-def _check_extension(
-        tag: type,
-        name: str,
-        member: type,
-        forms: list[type],
-        ) -> None:
-    """A Relation named like one a Base of the declaring Tag declares
-    extends that one (rule 2.6): it names it as its only Relation Base.
-    A Shape of it (``Knows(Social.Trusts)``) or a second Relation Base
-    (``Knows(Social.Knows, Social.Likes)``) would bring Layers of other
-    Links into this Link's Pairs."""
-
-    for owner in forms:
-        inherited = vars(owner).get(name)
-
-        if not _is_relation(inherited):
-            continue   # the nearest Base that declares the name decides
-
-        relation_bases = [
-                base
-                for base in member.__bases__
-                if _is_relation(base)
-                ]
-
-        if relation_bases != [inherited]:
-            raise TagDeclarationError(
-                    f"{tag.__name__}.{name}: {owner.__name__} already"
-                    f" declares the Relation {name}; a Relation of the"
-                    " same name extends it by naming it as its only Base:"
-                    f" class {name}({owner.__name__}.{name})"
-                    )
-
-        from .links import _refuse_a_name_both_ways   # here, not above: links imports this module
-
-        _refuse_a_name_both_ways(
-                tag,
-                name,
-                member,
-                inherited,
-                )
-
-        return
 
 
 _NAMED_FAILURES: dict[str, type] = {
