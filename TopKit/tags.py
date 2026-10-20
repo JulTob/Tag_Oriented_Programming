@@ -45,10 +45,12 @@ from .declarations import _constant_owner
 from .declarations import _is_dunder
 from .declarations import _is_pin
 from .declarations import _is_pin_locked
+from .declarations import _is_pin_physical
 from .declarations import _kind_of
 from .declarations import _name_checks
 from .declarations import _note_tag_kinds
 from .declarations import _pin_publication
+from .declarations import _publish_tool_kinds
 from .declarations import _refuse_condition_dunder
 from .declarations import _refuse_truth_gain
 from .declarations import _tool_tag_kinds
@@ -69,6 +71,7 @@ from .memo import _metaclass_data_descriptor
 from .memo import _namespace_has_callback_keys
 from .memo import _physical_namespace_get
 from .memo import _type_mro
+from .memo import _type_name
 from .observation import _refuse_observed_mutation
 from .state import Tagged
 from .state import _name_of
@@ -144,7 +147,22 @@ class MetaTag(type):
                 )
         _check_pin_bases(tag)
         _check_constant_declarations(tag, namespace)
-        _check_tool_declarations(tag, namespace)
+        tools = _check_tool_declarations(tag, namespace)
+
+        # ``type.__new__`` publishes the Shape before declaration checks.
+        # A concurrent late Pin may have checked for Shapes just before that
+        # publication, so decide the completed class against current Base
+        # marks under the same lock that publishes Pin marks.  No program
+        # metadata is read inside this final critical section.
+        with _pin_publication():
+            _check_pin_bases(tag, physical=True)
+            if tools and _is_pin_physical(tag):
+                raise TagDeclarationError(
+                        f"{_type_name.__get__(tag)}.{tools[0][0]}: a Pin's"
+                        " Records land as Reports of the pinned Tag;"
+                        " a shared tool is a Report (§1.9)"
+                        )
+            _publish_tool_kinds(tag, tools)
 
         return tag
 

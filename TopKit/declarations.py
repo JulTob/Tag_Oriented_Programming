@@ -681,9 +681,21 @@ def _is_pin_locked(tag: type) -> bool:
                     f"{_type_name.__get__(layer)} has a class namespace key"
                     " with custom hash or equality"
                     )
-        if _physical_namespace_get(_class_namespace(layer), _PIN) is True:
-            return True
-    return False
+    return _is_pin_physical(tag)
+
+
+def _is_pin_physical(tag: type) -> bool:
+    """Read Pin marks under the publication lock without class-key callbacks.
+
+    Class creation must recheck its Bases against a concurrent late Pin mark.
+    It may do so even when a Base has an unrelated custom namespace key:
+    that key is not a Pin mark and must not change the Shape's validity.
+    """
+
+    return any(
+            _physical_namespace_get(_class_namespace(layer), _PIN) is True
+            for layer in _type_mro.__get__(tag)
+            )
 
 
 def _is_tag_base(
@@ -702,6 +714,7 @@ def _check_pin_bases(
         tag: type,
         *,
         locked: bool = False,
+        physical: bool = False,
         ) -> None:
     """One Form is all Pins or no Pins."""
 
@@ -710,7 +723,7 @@ def _check_pin_bases(
             for base in _type_bases.__get__(tag)
             if _is_tag_base(base)
             )
-    check = _is_pin_locked if locked else _is_pin
+    check = _is_pin_physical if physical else (_is_pin_locked if locked else _is_pin)
     pins = [
             base
             for base in bases
@@ -719,7 +732,7 @@ def _check_pin_bases(
     namespace = _class_namespace(tag)
     marked = (
             _physical_namespace_get(namespace, _PIN)
-            if locked else namespace.get(_PIN)
+            if locked or physical else namespace.get(_PIN)
             ) is True
 
     if not bases or len(pins) == len(bases):
@@ -1260,10 +1273,22 @@ def _refuse_pin_tool_kinds(
                     )
 
 
+def _publish_tool_kinds(
+        tag: type,
+        tools: tuple[tuple[str, tuple[type, ...]], ...],
+        ) -> None:
+    """Check and register prepared Tool kinds under Pin publication."""
+
+    for name, kinds in tools:
+        _refuse_pin_tool_kinds(tag, name, kinds)
+    for _name, kinds in tools:
+        _note_tag_kinds(tag, kinds)
+
+
 def _check_tool_declarations(
         tag: type,
         namespace: dict[str, Any],
-        ) -> None:
+        ) -> tuple[tuple[str, tuple[type, ...]], ...]:
     """Inspect user declaration metadata before locking Pin publication.
 
     Only the final kind check and registry update need the shared lock.
@@ -1305,12 +1330,7 @@ def _check_tool_declarations(
             if (kind := _tool_kind_of(member)) is not None
             ]
 
-    with _pin_publication():
-        for name, tags in tools:
-            _refuse_pin_tool_kinds(tag, name, tags)
-
-        for _name, tags in tools:
-            _note_tag_kinds(tag, tags)
+    return tuple(tools)
 
 
 _NAMED_FAILURES: dict[str, type] = {

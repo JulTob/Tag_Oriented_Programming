@@ -1351,6 +1351,148 @@ class Host_Tests(unittest.TestCase):
 
 
 class Late_Pin_Tests(unittest.TestCase):
+    def test_shape_creation_rechecks_pin_bases_after_a_concurrent_mark(self):
+        import TopKit.declarations as declarations
+        import TopKit.tags as tags
+
+        class Base(Tag):
+            pass
+
+        class Ordinary(Tag):
+            pass
+
+        mark_checked = Event()
+        shape_checked = Event()
+        release_mark = Event()
+        outcomes = []
+        original_refuse = declarations._refuse_late_pin
+        original_check = tags._check_pin_bases
+
+        def pause_mark(tag):
+            original_refuse(tag)
+            if tag is Base:
+                mark_checked.set()
+                if not release_mark.wait(2):
+                    raise TimeoutError("Shape did not reach its Base check")
+
+        def note_shape(tag, **kwargs):
+            result = original_check(tag, **kwargs)
+            if tag.__name__ == "Mixed" and not kwargs.get("physical"):
+                shape_checked.set()
+            return result
+
+        def mark():
+            try:
+                Pin(Base)
+            except BaseException as error:
+                outcomes.append(error)
+            else:
+                outcomes.append("marked")
+
+        def make_shape():
+            try:
+                class Mixed(Base, Ordinary):
+                    pass
+            except TagDeclarationError as error:
+                outcomes.append(str(error))
+            except BaseException as error:
+                outcomes.append(error)
+            else:
+                outcomes.append(Mixed)
+
+        with (patch.object(declarations, "_refuse_late_pin", pause_mark),
+              patch.object(tags, "_check_pin_bases", note_shape)):
+            marker = Thread(target=mark)
+            builder = Thread(target=make_shape)
+            marker.start()
+            try:
+                self.assertTrue(mark_checked.wait(2))
+                builder.start()
+                self.assertTrue(shape_checked.wait(2))
+            finally:
+                release_mark.set()
+                marker.join(2)
+                if builder.ident is not None:
+                    builder.join(2)
+
+        self.assertFalse(marker.is_alive())
+        self.assertFalse(builder.is_alive())
+        self.assertEqual(outcomes[0], "marked")
+        self.assertIn("mixes Pins and Tags", outcomes[1])
+
+    def test_shape_tool_rechecks_base_after_a_concurrent_pin_mark(self):
+        import TopKit.declarations as declarations
+        import TopKit.tags as tags
+
+        class Base(Tag):
+            pass
+
+        class Kind(Tag):
+            pass
+
+        @Tool(Kind)
+        def prize(agent):
+            return None
+
+        mark_checked = Event()
+        shape_checked = Event()
+        release_mark = Event()
+        outcomes = []
+        original_refuse = declarations._refuse_late_pin
+        original_check = tags._check_pin_bases
+
+        def pause_mark(tag):
+            original_refuse(tag)
+            if tag is Base:
+                mark_checked.set()
+                if not release_mark.wait(2):
+                    raise TimeoutError("Shape did not reach its Base check")
+
+        def note_shape(tag, **kwargs):
+            result = original_check(tag, **kwargs)
+            if tag.__name__ == "Shape" and not kwargs.get("physical"):
+                shape_checked.set()
+            return result
+
+        def mark():
+            try:
+                Pin(Base)
+            except BaseException as error:
+                outcomes.append(error)
+            else:
+                outcomes.append("marked")
+
+        def make_shape():
+            try:
+                class Shape(Base):
+                    held = prize
+            except TagDeclarationError as error:
+                outcomes.append(str(error))
+            except BaseException as error:
+                outcomes.append(error)
+            else:
+                outcomes.append(Shape)
+
+        with (patch.object(declarations, "_refuse_late_pin", pause_mark),
+              patch.object(tags, "_check_pin_bases", note_shape)):
+            marker = Thread(target=mark)
+            builder = Thread(target=make_shape)
+            marker.start()
+            try:
+                self.assertTrue(mark_checked.wait(2))
+                builder.start()
+                self.assertTrue(shape_checked.wait(2))
+            finally:
+                release_mark.set()
+                marker.join(2)
+                if builder.ident is not None:
+                    builder.join(2)
+
+        self.assertFalse(marker.is_alive())
+        self.assertFalse(builder.is_alive())
+        self.assertEqual(outcomes[0], "marked")
+        self.assertIn("shared tool is a Report", outcomes[1])
+
     def test_late_pin_refuses_a_replaced_private_field_without_iterating_it(self):
         class Candidate(Tag):
             pass
