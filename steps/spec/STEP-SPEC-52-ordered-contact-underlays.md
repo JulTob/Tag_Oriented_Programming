@@ -89,12 +89,12 @@ separate Gates, Posts, Rip protocols, and memberships that TOP gives Tags.
    ordinary Tagging and recovery rules. This Brief does not decide the open
    best-effort Imprint and Fix details of those rules.
 
-**Open extension boundary.** An ordinary repeated call to an already admitted
-Tag is a no-op. This Brief therefore recommends that a repeated
-`owner.Trusts(contact)` does not apply newly changed underlays as a side
-effect. It does not yet decide how a later Relation layer with additional
-underlays trains Contacts already admitted to the Link. That extension turn
-must be decided before clearance.
+**Repeated calls and later declarations.** An ordinary repeated call to an
+already admitted Tag is a no-op. A repeated `owner.Trusts(contact)` therefore
+does not apply underlays added by a later Relation declaration as a side
+effect. The existing Contact keeps its completed Link application. Rip that
+Contact from the actual Link and link it again to run the current ordered
+underlays and selected-Link training afresh.
 
 For example, `Agent.Knows` redirects through whichever Social Agent calls
 Trusts, while `server.Registre` redirects through one particular Agent:
@@ -207,8 +207,9 @@ shared family membership or Python class bases need focused review.
   another membership.
 - A missing owner Link fails clearly before the selected Pair's training;
   completed earlier Tagging turns remain as ordinary TOP Taggings.
-- The Director has chosen `Agent` as the owner-relative word. The
-  later-Relation-extension boundary remains open before clearance.
+- `Agent` is the owner-relative word. An already-admitted Contact is a no-op
+  on a repeated call even if the Relation later gained another underlay; Rip
+  and link again performs the current declaration.
 - No reciprocal Contact Link appears unless an Imprint or other explicit
   program act requests it.
 - STEP-SPEC-22, tests, the Specification, and Link guides agree on the
@@ -219,5 +220,5 @@ shared family membership or Python class bases need focused review.
 ### Decision *(filled by the Director)*
 
 > **Brief.** The Director chose `Agent.Knows` as the owner-relative actual-Link
-> selector on 2026-10-20. Later-Relation extension remains open, and this STEP
-> changes no runtime by itself.
+> selector on 2026-10-20 and kept ordinary active-Tag no-op behavior for later
+> Relation changes on 2026-10-21. This STEP changes no runtime by itself.
