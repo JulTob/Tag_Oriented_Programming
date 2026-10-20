@@ -123,7 +123,7 @@ calculation of their initial values. The original Gate → Gainings → Imprints
 depends on the separately cleared per-Tag Post timing in #318: each newly
 admitted Tag is judged before the next Tag's Gate. It is **not yet Deployed**.
 
-1. Before applying an unrelated new Tag, the Agent's current visible
+1. Before starting any new Tagging turn, the Agent's current visible
    Posts must hold. This applies to independent Tags as well as to a
    Shape's next turn; layering does not implicitly repair another Tag's
    contract. An untouched Host has no TOP Posts to fail. Applying an
