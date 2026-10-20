@@ -149,6 +149,33 @@ class GuardedHostTests(unittest.TestCase):
             with _rip_door(vault):
                 self.assertEqual(next(steps), "second")
 
+    def test_captured_lazy_method_cannot_yield_after_self_arrest(self) -> None:
+        @GuardedHost
+        class Vault:
+            def steps(self):
+                arrest = _Arrest(self)
+                arrest.runs.append(SimpleNamespace(tag=Custody))
+                _safehouse[id(self)] = arrest
+                yield "must not escape"
+                yield "repair"
+
+        class Custody(Tag):
+            @Rip
+            def Leave(agent):
+                pass
+
+        vault = Vault()
+        steps = vault.steps()   # captured before TOP actualizes this Host
+        Custody(vault)
+
+        with patch.dict(_safehouse, {}, clear=True):
+            with self.assertRaises(TagArrestedAccessError):
+                next(steps)
+            self.assertEqual(len(_safehouse[id(vault)].lazy), 1)
+            with _rip_door(vault):
+                self.assertEqual(next(steps), "repair")
+                steps.close()
+
     def test_coroutine_returned_before_tagging_checks_its_first_resume(self) -> None:
         @GuardedHost
         class Vault:
