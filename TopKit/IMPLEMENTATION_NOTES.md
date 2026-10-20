@@ -164,9 +164,10 @@ Python's priority for a right operand whose type is a subtype. A
 pinned Tag supports the query as an Agent; an unpinned Tag gains no TOP
 operator from this feature.
 
-Measured on Python 3.11 (`benchmarks/bench.py`), nanoseconds per
-operation: plain attribute read 42, Agent host-attribute read 65, Record
-read 64, plain method call 86, Action call 295, `agent in Tag` 291,
+Historical raw-membership measurements on Python 3.11
+(`benchmarks/bench.py`), nanoseconds per operation: plain attribute read 42,
+Agent host-attribute read 65, Record read 64, plain method call 86,
+Action call 295, `agent in Tag` 291 (before sound membership),
 `bool(agent)` with one Post about 1900. Tagging a Record-plus-Post Shape
 over a Base costs about 60 µs per Agent; an empty Tag about 22 µs. Peak
 memory about 6 KB per Agent with two Tags.
@@ -309,7 +310,8 @@ Tagging sequence or expand its rollback boundary.
 
 ## Judgment calls
 
-- **`in` vs `isinstance`.** `agent in Tag` is the is-now check; `isinstance`
+- **`in` vs `isinstance`.** `agent in Tag` is the sound is-now check;
+  `agent in Tag[:]` checks raw Field admission. `isinstance`
   is the has-been check and stays true after Rip. History is established at
   FieldAdding. A failed never-member may retain Gains while both checks are
   false; a Rogue who previously entered the Tag retains its has-been history.
