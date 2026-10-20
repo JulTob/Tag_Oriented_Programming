@@ -699,9 +699,12 @@ class Base_Tests(unittest.TestCase):
         charlie, bob = People("Charlie", "Bob")
         Social(charlie)
         Social(bob)
-        self.assertTrue(issubclass(charlie.Trusts, charlie.Knows))
-        self.assertFalse(issubclass(charlie.Trusts, bob.Knows))
-        self.assertFalse(issubclass(charlie.Trusts, Social.Knows))
+        ruth = Character("Ruth")
+        charlie.Trusts(ruth)
+        self.assertIn(ruth, charlie.Knows)
+        self.assertIn(ruth, charlie.Trusts)
+        self.assertNotIn(ruth, bob.Knows[:])
+        self.assertIsNot(charlie.Trusts, charlie.Knows)
 
     def test_linking_through_a_shape_link_links_its_bases_first(self):
         charlie, ruth = People("Charlie", "Ruth")
@@ -710,19 +713,20 @@ class Base_Tests(unittest.TestCase):
         self.assertIn(ruth, charlie.Knows)
         self.assertIn(ruth, charlie.Trusts)
 
-    def test_unlinking_a_base_keeps_the_shape_and_shared_pair(self):
+    def test_unlinking_a_base_keeps_the_shape_and_its_own_pair(self):
         charlie, ruth = People("Charlie", "Ruth")
         Social(charlie)
         charlie.Trusts(ruth, since=2015)
-        pair = charlie.Trusts[ruth]
+        pair_view = charlie.Trusts[ruth]
+        pair = _record_of(charlie.Trusts).family.Pair_Of(ruth)
 
         del charlie.Knows[ruth]
         self.assertNotIn(ruth, charlie.Knows)
         self.assertIn(ruth, charlie.Trusts)
-        self.assertIs(charlie.Trusts[ruth], pair)
-        self.assertIs(charlie.Knows[ruth], pair)
-        self.assertEqual(pair.since, 2015)
-        self.assertEqual(pair.Confide("a secret"), "Charlie tells Ruth: a secret")
+        with self.assertRaises(TagResolutionError):
+            charlie.Knows[ruth]
+        self.assertFalse("since" @ pair_view)
+        self.assertEqual(pair_view.Confide("a secret"), "Charlie tells Ruth: a secret")
 
         charlie.Trusts(ruth)  # an admitted Shape does not reapply its Base
         self.assertNotIn(ruth, charlie.Knows)
@@ -730,7 +734,7 @@ class Base_Tests(unittest.TestCase):
         del charlie.Trusts[ruth]
         self.assertTrue(_pair_ends(pair).ended)
         with self.assertRaises(TagResolutionError):
-            charlie.Trusts[ruth]
+            pair_view.Confide("a secret")
 
     def test_a_shape_post_can_explicitly_require_its_base_link(self):
         gained = []
@@ -764,7 +768,7 @@ class Base_Tests(unittest.TestCase):
         self.assertNotIn(ruth, charlie.Candidate)
         self.assertIn(ruth, charlie.CIA[:])
         self.assertNotIn(ruth, charlie.CIA)
-        self.assertEqual(pair.badge, "trained")
+        self.assertFalse("badge" @ pair)
         self.assertFalse(pair.Needs_Candidate)
         self.assertFalse(bool(pair))
         self.assertEqual(len(charlie.CIA[:]), 1)
@@ -777,7 +781,9 @@ class Base_Tests(unittest.TestCase):
         self.assertEqual(gained, ["Candidate"])
 
         charlie.Candidate(ruth)  # explicit reapplication trains the Base again
-        self.assertIs(charlie.Candidate[ruth], pair)
+        self.assertEqual(charlie.Candidate[ruth].badge, "trained")
+        self.assertIsNot(_record_of(charlie.Candidate).family.Pair_Of(ruth),
+                         _record_of(charlie.CIA).family.Pair_Of(ruth))
         self.assertIn(ruth, charlie.Candidate)
         self.assertIn(ruth, charlie.CIA)
         self.assertEqual(gained, ["Candidate", "Candidate"])
@@ -808,8 +814,9 @@ class Base_Tests(unittest.TestCase):
         Stages(charlie)
         charlie.CIA(ruth)
         charlie.Candidate(sam)
-        ruth_pair = charlie.CIA[ruth]
-        sam_pair = charlie.Candidate[sam]
+        ruth_pair = _record_of(charlie.CIA).family.Pair_Of(ruth)
+        ruth_candidate_pair = _record_of(charlie.Candidate).family.Pair_Of(ruth)
+        sam_pair = _record_of(charlie.Candidate).family.Pair_Of(sam)
 
         with self.assertRaises(TagCompositionError):
             del Stages.Candidate[:]  # the Relation is a blueprint, not Charlie's Link
@@ -825,15 +832,15 @@ class Base_Tests(unittest.TestCase):
         self.assertIn(ruth, charlie.Candidate[...])
         self.assertIn(sam, charlie.Candidate[...])
         self.assertEqual(list(charlie.CIA[:]), [ruth])
-        self.assertIs(charlie.CIA[ruth], ruth_pair)
-        self.assertFalse(_pair_ends(ruth_pair).ended)
+        self.assertIs(_record_of(charlie.CIA).family.Pair_Of(ruth), ruth_pair)
+        self.assertFalse(_pair_ends(_record_of(charlie.CIA).family.Pair_Of(ruth)).ended)
         self.assertIs(_record_of(charlie.Candidate).family.Pair_Of(sam), sam_pair)
         self.assertFalse(_pair_ends(sam_pair).ended)
 
         # The failed Pair and its Contact both keep their saved Rip; the
         # later Contact is held without starting its teardown yet.
         from TopKit.arrest import _arrest_of
-        failed_pair = ruth_pair if failed is ruth else sam_pair
+        failed_pair = ruth_candidate_pair if failed is ruth else sam_pair
         self.assertIsNotNone(_arrest_of(failed_pair))
         self.assertIsNotNone(_arrest_of(failed))
         self.assertIsNotNone(_arrest_of(later))
@@ -850,7 +857,7 @@ class Base_Tests(unittest.TestCase):
         self.assertIsNone(_arrest_of(failed_pair))
         self.assertEqual(list(charlie.Candidate[:]), [])
 
-    def test_pair_teardown_stops_before_the_next_layer(self):
+    def test_pair_teardown_stops_before_the_next_rip(self):
         torn = []
         blocked = True
 
@@ -858,32 +865,28 @@ class Base_Tests(unittest.TestCase):
             @Link
             class Knows(Tag):
                 @Rip
-                def Base_Leave(agent, contact):
-                    torn.append("base")
-
-        class Extended(Circle):
-            @Link
-            class Knows(Circle.Knows):
-                @Rip
-                def Added_Leave(agent, contact):
+                def First_Leave(agent, contact):
                     nonlocal blocked
-                    torn.append("added")
+                    torn.append("first")
                     if blocked:
                         blocked = False
-                        raise ValueError("the newer Pair Layer failed")
+                        raise ValueError("the first Pair teardown failed")
+
+                @Rip
+                def Second_Leave(agent, contact):
+                    torn.append("second")
 
         charlie, ruth = People("Charlie", "Ruth")
         Circle(charlie)
         charlie.Knows(ruth)
-        Extended(charlie)   # adds a later Layer to the held Link's Pair
 
         with self.assertRaises(TagCompositionError):
             del charlie.Knows[ruth]
 
-        self.assertEqual(torn, ["added"])
+        self.assertEqual(torn, ["first"])
         self.assertIn(ruth, charlie.Knows[...])
         del charlie.Knows[ruth]
-        self.assertEqual(torn, ["added", "added", "base"])
+        self.assertEqual(torn, ["first", "first", "second"])
         self.assertNotIn(ruth, charlie.Knows[...])
 
     def test_a_base_relation_from_a_base_of_the_declaring_tag(self):
@@ -896,7 +899,9 @@ class Base_Tests(unittest.TestCase):
         Close(charlie)
         charlie.Intimate(ruth)
         self.assertIn(ruth, charlie.Knows)
-        self.assertIs(charlie.Knows[ruth], charlie.Intimate[ruth])
+        self.assertIn(ruth, charlie.Intimate)
+        self.assertIsNot(_record_of(charlie.Knows).family.Pair_Of(ruth),
+                         _record_of(charlie.Intimate).family.Pair_Of(ruth))
 
     def test_an_ordinary_tag_as_a_base_of_a_relation_is_refused(self):
         class Vetted(Tag):
