@@ -123,17 +123,21 @@ calculation of their initial values. The original Gate → Gainings → Imprints
 depends on the separately cleared per-Tag Post timing in #318: each newly
 admitted Tag is judged before the next Tag's Gate. It is **not yet Deployed**.
 
-1. Before a new Tag turn starts, the Agent's current visible Posts must
-   hold. This applies to independent Tags as well as to a Shape's next
-   turn; layering does not implicitly repair another Tag's contract. An
-   untouched Host has no TOP Posts to fail. Applying an already active Tag
-   remains a no-op.
+1. Before applying an unrelated new Tag, the Agent's current visible
+   Posts must hold. This applies to independent Tags as well as to a
+   Shape's next turn; layering does not implicitly repair another Tag's
+   contract. An untouched Host has no TOP Posts to fail. Applying an
+   already active Tag remains a no-op. Whether this soundness gate also
+   bars reapplying a previously Ripped Tag while its old Post remains
+   sticky is open pending the separate Post-after-Rip decision.
 2. Before any Gain of this Tag, TOP validates **all Record spaces** the
    Target needs. This is retractable, zero-step structural preparation,
    not an `@Record` value calculation. If it fails, TOP restores this
    attempt's provisional Target representation and bindings, raises public
    `TagTargetError` (a subtype of `TagCompositionError`), and acquires no
    Gains or Field membership for this Tag. Earlier completed Taggings stay.
+   The name is for this Record-space refusal; other structural Host
+   actualization failures remain Composition Failures under STEP-SPEC-37.
 3. Gainings still take effect in declaration order, top to bottom. An
    `@Record` initializer calculates a value at its own declaration
    position. If that calculation fails, it acquires no new value, Constant
@@ -141,10 +145,12 @@ admitted Tag is judged before the next Tag's Gate. It is **not yet Deployed**.
    available at its existing layer. Later Gainings continue and see every
    successful earlier Gain; Imprints then run in their declaration order.
 4. If an Imprint fails ordinarily, later Imprints still run. Each ordinary
-   `@Record` or `@Imprint` failure is reported by its own warning,
-   identifying the declared protocol. Reporting must not stop the remaining
-   training or prevent Field admission. A failed protocol does not erase
-   earlier Gains or by itself mark the Agent permanently broken.
+   `@Record` or `@Imprint` failure is reported by its own **named training
+   warning**, in declaration order. The proposed spelling is
+   `TrainingWarning.Name`, where `Name` is that protocol's declared name.
+   Reporting must not stop the remaining training or prevent Field
+   admission. A failed protocol does not erase earlier Gains or by itself
+   mark the Agent permanently broken.
 5. After these training attempts, FieldAdding admits the Agent, including
    when one or more declared calculations or Imprints failed. Its gained
    Posts stay recorded in the current contract; Tag publications become
@@ -154,10 +160,13 @@ admitted Tag is judged before the next Tag's Gate. It is **not yet Deployed**.
    or deletion. There is no separate requirement that every declaration
    still be present.
 6. If the current Posts all hold, Tagging returns the sound Agent after any
-   warnings. If they fail, Tagging raises **one final `TaggingFailure`** and
-   leaves the Agent in the Field as broken. The failure reports the final
-   Post verdict after all ordinary training attempts. Past protocol errors
-   alone do not determine membership or soundness.
+   warnings. If exactly one visible Post fails, the existing named
+   `TagPostconditionError.Name` (also `Postcondition.Name`) remains the
+   final error. If several visible Posts fail, Tagging raises **one final
+   aggregate `TaggingFailure`** naming all of them in Post evaluation order.
+   In either case the Agent stays in the Field as broken. The verdict is
+   taken after all ordinary training attempts; past protocol errors alone
+   do not determine membership or soundness.
 7. `KeyboardInterrupt` and `SystemExit` during an `@Record` initializer or
    Imprint stop later training. TOP still performs Field admission and Post
    inspection, then preserves and propagates the original interruption;
@@ -172,6 +181,12 @@ historical cleared decision remains above for traceability. STEP-SPEC-22's
 Link Pair and Contact admission, the Specification, guides, tests and oracle
 need coordinated updates. A Pair cannot be admitted while its Contact is
 silently left outside that Link.
+
+STEP-SPEC-8's named `TagImprintError.Name` exception on the Tagging call is
+superseded for ordinary Imprint failures: the call continues and reports
+named training warnings. STEP-SPEC-8's named Precondition failures and its
+single named Postcondition failure remain. Several failed Posts are one
+aggregate outcome rather than several named exceptions.
 
 Recovery of a broken or arrested Agent is Tag-owned, but the proposed
 `@Fix` declaration, call route and Safehouse permissions belong to a
