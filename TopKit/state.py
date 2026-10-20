@@ -165,6 +165,12 @@ def _is_composing(
         ) -> bool:
     """Whether this execution, rather than merely this Agent, has a door."""
 
+    # A Secret permission probe changes what a Post may read. Taint the
+    # shared session directly, including when this runs in a copied context.
+    from .contracts import _taint_post_memo
+
+    _taint_post_memo()
+
     if state.composing:
         return True
 

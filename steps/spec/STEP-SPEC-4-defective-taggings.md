@@ -29,6 +29,13 @@
 > defective member record the superseded law; the Field and its sound and
 > defective partitions remain as described.
 
+> **Post-cycle amendment, 2026-10-20:** The Director replaced the
+> self-referential soundness refusal below. A Post already being evaluated
+> contributes neutral True when reached again through a validity query.
+> Every other Post is still evaluated, including through `bool(agent)`,
+> sound Field membership, and `Contract.Status(agent)`. The old refusal
+> paragraph remains below as history, not current law.
+
 ## Amendment: a sound membership query (2026-10-15)
 
 The Director clarified: a broken Agent is not a valid Agent in any Field.
@@ -41,10 +48,10 @@ Rationale below. It does not change `bool(Tag)`, which checks the Tag's
 own Posts under STEP-SPEC-40. The proposed arrest and Safehouse behavior
 in STEP-SPEC-32 needs its own implementation decision.
 
-While a Post judges an Agent, a sound-population query that reaches that
-same Agent raises a Contract Failure rather than assuming the unfinished
-promise holds. An author who needs Field admission in that Post writes
-`agent in Tag[:]`. Queries about other Agents remain available.
+Under the superseded 2026-10-15 ruling, a sound-population query that
+reached a Post currently judging the same Agent raised a Contract Failure.
+The 2026-10-20 amendment above instead uses neutral True at that exact
+recursive Post. `agent in Tag[:]` still asks raw Field admission.
 
 ## Summary
 
