@@ -111,3 +111,16 @@ limited to these bindings; it does not promise deep rollback of arbitrary
 user code. Failed Gainings and Imprints retain acquired Gains under
 STEP-SPEC-39's separate admission sequence. This STEP is not Deployed until
 its implementation is merged and validated on `main`.
+
+### Integration note — 2026-10-20
+
+Rule 3 describes a failed first preparation before another Tagging has
+acquired work on the same Target. A Host hook may re-enter TOP during that
+preparation. If the nested Tagging acquires Gains, begins an Imprint, or
+enters a Field, STEP-SPEC-39 keeps that work even when the outer Host
+transition then fails. Restoring the earlier class and bindings would erase
+the nested work, so the runtime must instead reflect the Agent's current
+TOP state. The refused outer Tag has no Field entry. If the nested Gate
+refuses before acquiring any work, rule 3 still restores the original
+class and physical bindings. This does not promise restoration of arbitrary
+Host effects.
