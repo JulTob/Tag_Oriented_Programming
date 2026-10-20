@@ -66,20 +66,26 @@ question.
    normally until it too encounters an active check. This rule also
    applies to a future Tag-owned Post when its Tag is the checked receiver.
 4. **Bounded recursion and one-query reuse.** TOP must stop recursion at
-   the active check. Within one outer validity query, it reuses a completed
-   Post verdict when the same receiver and exact Post are reached under the
-   same active-Post context. It does not use a verdict calculated under a
-   different active-Post context: the recursive edge, and therefore the
-   answer, can differ. A sensor may change while this one query runs; the
-   first completed verdict for that context remains the query's answer.
-   Each separate validity query starts fresh. A Secret permission probe or
-   a Precondition evaluation makes a query's existing verdicts unsafe to
-   reuse, so TOP discards them and runs subsequent reads afresh. This
-   conservative boundary also prevents a verdict calculated inside a
-   Secret door from being reused after the door closes. An interruption or
-   raised check failure retains its existing diagnostic and cause rather
-   than becoming neutral. This does not grant permission for Posts to
-   mutate TOP state; the observational-Post rule is proposed separately in
+   the active check. Within one outer validity query, the first completed
+   verdict for the same receiver and exact Post becomes that query's answer
+   wherever the Post is reached again. It is reused even when another path
+   reaches it beneath a different active Post. A contradictory cycle can
+   therefore depend on which check the query reaches first; that is the
+   declared operational answer, not an attempt to solve a fixed point. A
+   sensor may change while the query runs; a separate validity query starts
+   fresh and sees the later value.
+
+   Reuse never crosses a permission boundary that can change what the
+   calculation may see. Opening or closing a Secret door invalidates the
+   query's reusable verdicts; if the query later reaches that Post again, it
+   calculates a fresh verdict under the current door. An interruption or
+   raised check failure retains its existing diagnostic and cause rather than
+   becoming neutral. The broader rule for checking a published Service both
+   before protected work and before releasing its result is recorded
+   separately in [issue #389](https://github.com/JulTob/Tag_Oriented_Programming/issues/389);
+   it is not implemented by this Post memo.
+   This does not grant permission for Posts to mutate TOP state; the
+   observational-Post rule is proposed separately in
    [#346](https://github.com/JulTob/Tag_Oriented_Programming/pull/346)
    (STEP-SPEC-49).
 5. **Operational truth.** Neutral `True` is a rule for an encountered
@@ -117,15 +123,19 @@ lower check without being mistaken for a self-reference.
 Cutting a recursive edge guarantees termination for a finite, stable set
 of checks, but it need not make a dense collective predicate cheap. An
 eight-member Field whose Posts each ask for the Field's sound size can
-execute a Post over 100,000 times in one query. The Director chose reuse
-of a completed Post verdict within one validity query, even if a sensor or
-another thread changes its input before the query finishes. The active-Post
-context belongs in the memo key because a Post reached beneath one other
-check may meet a different recursive edge beneath another. Precondition
-evaluation and Secret permission checks can change what a read is allowed
-to reveal; invalidating the query's memo at either boundary preserves those
-rules. STEP-SPEC-49 blocks explicit TOP mutations inside a Post, but it
-does not make arbitrary reads pure or authorize reuse between queries.
+execute a Post over 100,000 times in one query. The Director chose the first
+completed verdict as the answer for that exact Post throughout one query,
+including the deliberately pathological case in which a different path
+would meet a different recursive edge. This keeps finite collective checks
+tractable without pretending to solve a contradictory contract.
+
+Permission is a separate dimension. A Secret door can change what a check
+is allowed to observe, so a reusable verdict cannot cross the door's opening
+or closing. This STEP conservatively invalidates that query's Post memo; it
+does not claim an Agent-state epoch can prove arbitrary Python inputs stable.
+STEP-SPEC-49 blocks explicit TOP mutations inside a Post, but it does not
+make arbitrary reads pure or authorize reuse between separate queries.
+Service entry/release authorization belongs to issue #389.
 
 ## Backwards compatibility
 
@@ -156,8 +166,8 @@ writes remain the author's responsibility.
 | Return `True` for the whole Agent whenever one Post is active | This can hide an independent broken Post in the nested answer. |
 | Re-run the active check until it returns or Python stops it | It may never terminate and lets diagnostics repeat arbitrary check code. |
 | Re-run every completed Post within one query | Dense collective cycles terminate but repeat the same work an exponential number of times; the Director chose a stable verdict for one query. |
-| Cache by Post name or across separate queries | Same-name layers and active contexts can differ, and later queries must see current values. |
-| Reuse a verdict across a Pre or Secret permission probe | The read may have been allowed only inside an earlier door or Gate context. |
+| Cache by Post name or across separate queries | Same-name layers are distinct checks, and later queries must see current values. |
+| Reuse a verdict after Secret/access state changes | The read may have been allowed only inside the earlier door; invalidate and check again. |
 
 Pure Precondition cycles and mixed Pre/Post cycles require a separate
 decision. This STEP defines Post validity recursion and does not change a
@@ -170,19 +180,15 @@ Precondition's Gate result.
   neutral answer is False.
 - An unrelated failing Post still makes the whole Agent false during a
   recursive query, while raw Field membership remains readable.
-- Layered same-name Posts distinguish their exact calculations, and results
-  reached under different active-check contexts are not incorrectly shared.
-- Repeated reads of the same Post under the same active-Post context in one
-  validity query reuse the first completed verdict. Reads under different
-  active contexts are evaluated separately, and a separate outer query sees
-  changed Records or outside inputs.
-- Precondition evaluation or a Secret permission probe discards the query's
-  completed-verdict memo and disables further reuse for that query; a result
-  read under one door state cannot leak through a later read.
-- A finite collective Field query terminates, and each repeated Post context
-  is evaluated at most once while reuse remains safe. Distinct active-Post
-  contexts may still be numerous; a separate performance test must measure
-  dense collective checks before this rule is deployed.
+- Layered same-name Posts distinguish their exact calculations. Repeated
+  reads of the same exact Post in one validity query reuse its first completed
+  verdict even when reached through a different active-Post path. A separate
+  outer query sees changed Records or outside inputs.
+- Opening or closing a Secret door invalidates completed verdicts in that
+  query. A later path recomputes rather than leaking an inside-door answer.
+- A finite collective Field query terminates, and each repeated exact Post
+  is evaluated at most once while reuse remains safe. A separate performance
+  test must measure dense collective checks before this rule is deployed.
 
 ---
 
