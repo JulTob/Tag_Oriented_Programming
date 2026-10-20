@@ -86,11 +86,12 @@ spelling; it was never Director-cleared behavior.
    A zero-parameter Imprint can therefore use `agent` and `contact` as the
    current Link's runtime Agents.
 2. **The class header is the ordered Form.** Entries are resolved and applied
-   from left to right. Every resolved entry is applied to the current
-   `contact`; the expression selects the Tag, not its Target. The selected
-   actual Link runs after the header completes. The header is TOP syntax and
-   must not grant Python MRO lookup, copy members, create `issubclass`
-   promises, or join Link families.
+   from left to right. Each dynamic expression is resolved only when its
+   declared turn arrives, after every earlier Tagging has completed. Every
+   resolved entry is applied to the current `contact`; the expression selects
+   the Tag, not its Target. The selected actual Link runs after the header
+   completes. The header is TOP syntax and must not grant Python MRO lookup,
+   copy members, create `issubclass` promises, or join Link families.
 3. **Ordinary Tag.** An ordinary Tag such as `Network` applies to the Contact:
    `Network(contact)`.
 4. **Agent-seat Link.** `agent.Knows` resolves the actual Knows Link through
@@ -203,11 +204,12 @@ Resolution of the owner and application of the Target are separate steps.
 All four header expressions above produce Tags for Ruth: the `agent`,
 `contact`, or `server` prefix decides where a Link-Tag is found, while the
 ordered Form always calls that resolved Tag with `contact`. The turns execute
-left to right, and completed earlier Taggings remain visible under ordinary
-Tagging law. Whether an implementation resolves all soft expressions before
-the first turn or resolves each as its turn arrives remains an open runtime
-design choice; it must be settled before deployment because an earlier turn
-could change a later coordinate.
+left to right, and completed earlier Taggings are visible before the next
+expression is resolved. If Ruth has no `Knows` before the call but
+`Network(ruth)` gives her that Link, the later `contact.Knows` expression finds
+the newly established `ruth.Knows` and calls `ruth.Knows(ruth)`. Pre-resolving
+all header expressions before the first Tagging would wrongly refuse that
+valid ordered Form.
 
 A concrete expression such as `server.Registre` also resolves live. The
 Relation remembers `server` weakly and the coordinate `Registre`. If either
@@ -282,6 +284,8 @@ words. No deployed user program relies on the draft spelling.
 - Header entries and the selected Link have independent Fields, Pairs, Gains,
   Services, Gates, Contracts and Rip state.
 - A failed turn stops later turns without undoing completed earlier Taggings.
+- A dynamic base that does not exist before the Form but is established by an
+  earlier base resolves successfully when its own turn arrives.
 - Bare Relations are refused because they have no actual Field.
 - Repeating an admitted Link is a no-op; Rip and link again runs the current
   ordered Form.
@@ -307,5 +311,7 @@ words. No deployed user program relies on the draft spelling.
 > prefix selects the actual Link-Tag but never changes that Target. Therefore
 > `contact.Knows` in `ari.Trusts(ruth)` means `ruth.Knows(ruth)`. A reciprocal
 > `ruth.Knows(ari)` must be written explicitly as `contact.Knows(agent)` in a
-> protocol such as the Trusts Imprint. Every Relation declares its seats
-> explicitly. This STEP changes no runtime by itself.
+> protocol such as the Trusts Imprint. Dynamic bases resolve at their declared
+> turn, so an earlier base may establish the Link a later expression selects.
+> Every Relation declares its seats explicitly. This STEP changes no runtime
+> by itself.
