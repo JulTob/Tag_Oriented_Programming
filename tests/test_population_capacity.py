@@ -142,7 +142,7 @@ class PopulationCapacityTests(unittest.TestCase):
 
         self.assertEqual(trace(_Combined), trace(Recursive))
 
-    def test_postcondition_evaluation_counts_and_mutation_match_reference(self):
+    def test_postcondition_evaluation_counts_match_reference(self):
         def trace(kind):
             events = []
 
@@ -153,8 +153,6 @@ class PopulationCapacityTests(unittest.TestCase):
                 @Post
                 def Ready(agent):
                     events.append(agent.name)
-                    if agent.name == "b" and agent in Left[:]:
-                        del Left[agent]
                     return agent.name != "c"
 
             agents = [Agent(name) for name in "abc"]

@@ -1,8 +1,12 @@
 """TOP Tagging and Rip acts are refused while Posts inspect state."""
 
+from contextvars import copy_context
 import unittest
 
+from TopKit import At_Exit
 from TopKit import Contract
+from TopKit import Flag
+from TopKit import Pin
 from TopKit import Post
 from TopKit import Record
 from TopKit import Tag
@@ -15,6 +19,43 @@ class Host:
 
 
 class ObservationalPostTests(unittest.TestCase):
+    def test_caught_top_mutations_fail_post_without_changing_state(self):
+        class Existing(Tag):
+            label = "original"
+
+            @Post
+            def Ready(agent):
+                return True
+
+        class Checked(Tag):
+            @Post
+            def Sound(agent):
+                if agent.try_changes:
+                    for change in (
+                            lambda: Contract.Delete(agent, "Ready"),
+                            lambda: setattr(Existing, "label", "changed"),
+                            lambda: Flag(Existing),
+                            lambda: Pin(Existing),
+                            lambda: At_Exit(agent),
+                            ):
+                        try:
+                            change()
+                        except TagCompositionError:
+                            pass
+                return True
+
+        agent = Host()
+        agent.try_changes = False
+        Existing(agent)
+        Checked(agent)
+        agent.try_changes = True
+
+        self.assertFalse(agent.Sound)
+        self.assertEqual(Contract.Status(agent), {"Ready": True, "Sound": False})
+        self.assertEqual(Existing.label, "original")
+        self.assertTrue(agent.Ready)
+        self.assertIn(agent, Checked[:])
+
     def test_caught_rip_still_fails_each_post_query_without_removing_member(self):
         class Existing(Tag):
             @Post
@@ -85,6 +126,10 @@ class ObservationalPostTests(unittest.TestCase):
         class Interrupted(Tag):
             @Post
             def Ready(agent):
+                try:
+                    del Interrupted[agent]
+                except TagCompositionError:
+                    pass
                 raise original
 
         agent = Host()
@@ -93,6 +138,23 @@ class ObservationalPostTests(unittest.TestCase):
 
         self.assertIs(caught.exception, original)
         self.assertIn(agent, Interrupted[:])
+
+    def test_copied_post_observation_expires_when_check_ends(self):
+        copied = []
+
+        class Checked(Tag):
+            @Post
+            def Ready(agent):
+                copied.append(copy_context())
+                return True
+
+        class Independent(Tag):
+            pass
+
+        Checked(Host())
+        other = Host()
+        copied[-1].run(Independent, other)
+        self.assertIn(other, Independent[:])
 
 
 if __name__ == "__main__":
