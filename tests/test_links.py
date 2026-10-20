@@ -17,6 +17,7 @@ import types
 import unittest
 import warnings
 import weakref
+from collections.abc import Coroutine, Generator
 
 from TopKit import (Action, At_Exit, Contract, Delete, Flag, Imprint,
                     Keyword, Link, Operation, Outline, Pin, Post, Pre, Public, Record,
@@ -4073,9 +4074,10 @@ class Step_Contextvar_Tests(unittest.TestCase):
         self.assertEqual(stopped.exception.value, "finished")
         self.assertEqual(self.counters(), (0, 0, 0))
 
-    def test_a_generator_is_a_generator_and_keeps_its_name(self):
+    def test_a_generator_keeps_its_protocol_and_name_behind_the_guard(self):
         steps = self.pair.Stream()
-        self.assertTrue(inspect.isgenerator(steps))
+        self.assertIsInstance(steps, Generator)
+        self.assertFalse(inspect.isgenerator(steps))
         self.assertEqual(steps.__name__, "Stream")
         self.assertIn("Sees.Stream", steps.__qualname__)
         self.assertEqual(list(self.pair.Stream()), [OPEN_DOORS, OPEN_DOORS])
@@ -4257,7 +4259,8 @@ class Step_Contextvar_Tests(unittest.TestCase):
         del self.charlie, self.ruth
         gc.collect()
         self.assertEqual([reference() for reference in references], [None, None])
-        self.assertEqual(next(forgetful), 2)              # the next step finds nobody to open or shut
+        with self.assertRaisesRegex(ReferenceError, "receiver of this lazy TOP act"):
+            next(forgetful)                               # no receiver remains to authorize another step
 
     # -- coroutines --------------------------------------------------
 
@@ -4267,9 +4270,10 @@ class Step_Contextvar_Tests(unittest.TestCase):
         self.assertEqual(after, OPEN_DOORS)               # after an await, in a later step
         self.assertEqual(self.counters(), (0, 0, 0))
 
-    def test_a_coroutine_is_a_coroutine_and_keeps_its_name(self):
+    def test_a_coroutine_keeps_its_protocol_and_name_behind_the_guard(self):
         coroutine = self.pair.Fetch()
-        self.assertTrue(inspect.iscoroutine(coroutine))
+        self.assertIsInstance(coroutine, Coroutine)
+        self.assertFalse(inspect.iscoroutine(coroutine))
         self.assertTrue(asyncio.iscoroutine(coroutine))
         self.assertEqual(coroutine.__name__, "Fetch")
         self.assertIn("Sees.Fetch", coroutine.__qualname__)
@@ -4560,6 +4564,8 @@ class Step_Contextvar_Tests(unittest.TestCase):
         self.assertEqual(sam.Run_Late(), "shut")
 
     def test_a_coroutine_never_keeps_its_agent_or_contact_alive(self):
+        collected = []
+
         async def main():
             task = asyncio.ensure_future(self.pair.Forgets_Later())
             await asyncio.sleep(0)                        # the body let go of both, and waits
@@ -4567,10 +4573,12 @@ class Step_Contextvar_Tests(unittest.TestCase):
             self.pair = None
             del self.charlie, self.ruth
             gc.collect()
-            gone = [reference() for reference in references]
-            return gone, await task
+            collected.extend(reference() for reference in references)
+            return await task
 
-        self.assertEqual(asyncio.run(main()), ([None, None], "done"))
+        with self.assertRaisesRegex(ReferenceError, "receiver of this lazy TOP act"):
+            asyncio.run(main())
+        self.assertEqual(collected, [None, None])
 
     # -- Operations and class methods --------------------------------
 
