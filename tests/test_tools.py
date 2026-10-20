@@ -1376,6 +1376,23 @@ class Late_Pin_Tests(unittest.TestCase):
         self.assertIn("already has Agents", str(refusal.exception))
         self.assertIn(charlie, Noted)
 
+    def test_a_tag_with_an_empty_field_may_be_marked_after_its_agents_leave(self):
+        class Noted(Tag):
+            pass
+
+        class RecordOf(Tag):
+            pass
+
+        charlie = Character("Charlie")
+        Noted(charlie)
+        del Noted[charlie]
+        self.assertNotIn(charlie, Noted[:])
+
+        self.assertIs(Pin(Noted), Noted)
+        Noted(RecordOf)
+        self.assertIn(RecordOf, Noted[:])
+        self.assertNotIn(charlie, Noted[:])
+
     def test_a_tag_named_as_a_tool_kind_is_not_marked_a_pin_later(self):
         class Prize(Tag):
             pass
