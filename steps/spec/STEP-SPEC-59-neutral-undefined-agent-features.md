@@ -7,7 +7,7 @@
 - **Status:** Redacted
 - **Created:** 2026-10-20
 - **Issue:** [#386](https://github.com/JulTob/Tag_Oriented_Programming/issues/386)
-- **Related:** [STEP-SPEC-58](STEP-SPEC-58-agent-feature-deletion.md), Agent Feature deletion and Service Grants
+- **Related proposal:** [STEP-SPEC-58 / PR #390](https://github.com/JulTob/Tag_Oriented_Programming/pull/390), Agent Feature deletion and Service Grants
 
 > One STEP, one topic. This Brief evaluates the neutral result of asking an
 > Agent for an undefined Feature. It does not define Feature deletion,
