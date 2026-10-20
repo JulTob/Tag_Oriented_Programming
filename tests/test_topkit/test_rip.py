@@ -144,7 +144,8 @@ class RipTests(unittest.TestCase):
 
         del Agency[ari]
 
-        self.assertIn(ari, Operative)
+        self.assertNotIn(ari, Operative)               # broken Post excludes it from the sound population
+        self.assertIn(ari, Operative[:])               # the Shape remains admitted
         self.assertFalse(bool(ari))
         self.assertEqual(list(Operative), [])
         self.assertEqual(list(~Operative), [ari])

@@ -53,13 +53,13 @@ def Run() -> None:
     car = Character(); car.complete = False; car.wheels = False
     try: Assembled(car); raise SystemExit("expected unfinished training")
     except TagImprintError.Assemble: pass
-    assert car in Territory and car not in Assembled and car.attempt == 1
+    assert car in Territory[:] and car not in Assembled and car.attempt == 1
     assert not isinstance(car, Assembled) and list(Assembled[:]) == []
     assert car.Has_Wheels is False and not bool(car)
     car.complete = True
     try: Assembled(car); raise SystemExit("expected deficient product")
     except TagPostconditionError.Has_Wheels: pass
-    assert car in Assembled and car in ~Assembled and car.attempt == 2
+    assert car in Assembled[:] and car in ~Assembled and car.attempt == 2
     car.wheels = True; assert car in list(Assembled)
 
     # 0.7 / 3.1 MI6
@@ -288,11 +288,11 @@ def Run() -> None:
     class Weapon(Tag): pass
     class Fighter(Tag):
         @Tool(Weapon)
-        def weapon(agent):
-            sword = Sword(f"{agent.name}'s sword")
-            Weapon(sword)
-            return sword
-    fay = Character("Fay"); Fighter(fay)
+        def weapon(agent, *, weapon): return weapon
+    fay = Character("Fay")
+    sword = Sword("Fay's sword")
+    Weapon(sword)
+    Fighter(fay, weapon=sword)
     assert fay.weapon in Weapon[:] and fay not in Weapon[:]
     held = fay.weapon
     for misfit in (Sword("a stick"), None, fay):

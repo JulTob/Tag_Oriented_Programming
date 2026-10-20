@@ -298,7 +298,7 @@ class _Check_Mark:
 Imprint = _Check_Mark(
         "imprint",
         TagImprintError,
-        "Work performed after the Tag has applied.",
+        "Training performed after Gainings and before Field admission.",
         )
 
 
@@ -419,6 +419,9 @@ def _mark_flag(
         tag: type,
         aliases: frozenset[str],
         ) -> type:
+    from .observation import _refuse_observed_mutation
+
+    _refuse_observed_mutation("mark an existing Tag as a Flag")
     if not _is_tag_class(tag):
         raise TagDeclarationError(
                 "@Flag marks a Tag class"
@@ -506,6 +509,9 @@ def Pin(
     nothing else, and its Bases must be Pins.
     """
 
+    from .observation import _refuse_observed_mutation
+
+    _refuse_observed_mutation("mark an existing Tag as a Pin")
     if not _is_tag_class(tag):
         raise TagDeclarationError(
                 "@Pin marks a Tag class"
