@@ -260,24 +260,31 @@ effects or later training. Acquired Gains follow STEP-SPEC-39.
 
 FieldAdding establishes active membership, history and the Field together,
 then captures the admitted Tag's view. `_inspect` runs visible Posts after
-each Field entry, before the next Tag's Gate. A Gainings or Imprint failure
-leaves actually acquired Gains and completed Tags in place without admitting
-the unfinished Tag. A Post failure preserves membership; current Posts
-determine soundness, not a permanent failure marker. Retry passes a fresh
-Gate, overlays ordinary Gains and restarts Imprints, retaining established
-Constants. Acquired conditions, including Posts and Constant Posts, remain
-even after unfinished training. They participate in contract queries and
+each Field entry, before the next Tag's Gate. A Gaining failure before
+FieldAdding leaves actually acquired Gains and completed Tags in place
+without admitting the unfinished Tag. Retry passes a fresh Gate, overlays
+ordinary Gains and restarts Imprints, retaining established Constants.
+`_imprint` instead collects each ordinary failure as a named Training Warning
+and continues later Imprints. FieldAdding admits the Agent after those
+attempts; `_inspect` checks every visible Post and raises the named failure
+for one false verdict or `TaggingFailure` naming all false Posts. A Post
+failure preserves membership; current Posts determine soundness, not a
+permanent failure marker. An interruption stops later Imprints, but still
+admits and inspects the Agent before the original interruption propagates.
+Acquired conditions, including Posts and Constant Posts, remain even after
+a pre-Field failure. They participate in contract queries and
 published-member guards; ordinary Actions are not automatically wrapped in
 Post checks.
 
-`_enter_field` admits only after training. For a Pin, `_publication_plans`
+`_enter_field` admits after Imprint attempts. For a Pin, `_publication_plans`
 preflights every current Field recipient before admission; `_publish_to_field`
 then applies the admitted publication. The old whole-call rollback path is
 removed: completed independent Tags and acquired Gains are not restored away.
 
 An in-progress Tagging is tracked separately from membership so applying the
-same Tag to the same Agent during its Imprint is a no-op. There is no automatic
-Rip for an unfinished never-member and no automatic rollback of training
+same Tag to the same Agent during its Imprint is a no-op. An admitted Tag also
+does not retrain on reapplication; Rip it first. There is no automatic Rip
+for an unfinished never-member and no automatic rollback of training
 effects. Preconditions and Record builders are observational authoring
 contracts, not sandboxes for arbitrary Python effects.
 
@@ -304,10 +311,13 @@ failures are collected after remaining teardowns run; Python interruptions
 keep their propagation behavior. Best-effort deletion uses the same checks.
 
 Record and Imprint failures, and invalid Underlay declarations, use their
-Contribution names instead of requiring callable naming metadata. Private
-helpers retain ordinary exception detail and fall back when formatting it
-fails, preserving the original cause. These diagnostics do not alter the
-Tagging sequence or expand its rollback boundary.
+Contribution names instead of requiring callable naming metadata. A Record
+failure still follows the pre-Field Gaining boundary and keeps its original
+cause. An ordinary Imprint failure becomes a `TrainingWarning.Name` after
+admission; its `.failure` is `TagImprintError.Name`. The original error is
+copied as type, text and source coordinates without retaining traceback
+frames or the Agent. Warning reporting cannot mask a failed Post or a Python
+interruption. These diagnostics do not expand the rollback boundary.
 
 ## Judgment calls
 
@@ -428,10 +438,13 @@ Tagging sequence or expand its rollback boundary.
   plain value on that class, which is the documented counter pattern.
   Views snapshot the computed value; a published Report reads live.
 - **Failures name their check.** `TagPreconditionError`,
-  `TagImprintError` and `TagPostconditionError` use the `_Named`
+  `TagImprintError`, `TagTrainingWarning` and `TagPostconditionError` use the `_Named`
   metaclass: `Failure.Named("X")` makes, once, the subclass
   `Failure.X` with `name = "X"`, and attribute access answers only names
-  that were declared. Names are registered in `MetaTag.__new__`
+  that were declared. Imprint `X` reports an ordinary failure as
+  `TrainingWarning.X`, with the named Imprint error in `.failure`; several
+  failed Posts at one Field entry raise one `TaggingFailure`. Names are
+  registered in `MetaTag.__new__`
   (`_name_checks`) so the handler is valid as soon as the Tag class
   exists. `Precondition`, `Postcondition` and `Imprint` are `_Check_Mark`
   objects: called, they mark; read, they forward to their failure class.

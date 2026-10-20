@@ -106,25 +106,30 @@ sandbox for arbitrary Python effects.
 
 After the Gate, Actions, Records, condition definitions and deletions take
 effect in declaration order, top to bottom, with each acquired Gain or
-condition visible to subsequent declarations. Then Imprints
-train the Agent; only after they finish does it enter the Field. If Gainings
-or Imprints fail, actual Gains and earlier completed Tags remain, but this
-Tag is absent: the Agent is Rogue with respect to it. Calling `Tag(agent)`
-again passes a fresh Gate, overlays ordinary Gains and restarts Imprints.
-Established Constants remain protected; retry does not resume an instruction.
+condition visible to subsequent declarations. Then Imprints train the Agent.
+An ordinary Imprint failure gives a named Training Warning; later Imprints
+still run, and the Agent enters the Field. Every visible Post is then
+inspected. A Gaining failure before FieldAdding instead retains actual
+Gains and earlier completed Tags without admitting this Tag: the Agent is
+Rogue with respect to it. Calling `Tag(agent)` again passes a fresh Gate,
+overlays ordinary Gains and restarts Imprints. An admitted Agent must Rip
+that Tag before a fresh training attempt. Established Constants remain
+protected; retry does not resume an instruction.
 
 Acquired conditions, including Posts and Constant Posts, also remain after
-failed training. They govern the Rogue's current contract status and guards
-on published members of its active Tags. Put a safety Post before the Action
+a pre-Field Gaining failure. They govern the Rogue's current contract status
+and guards on published members of its active Tags. Put a safety Post before
+the Action
 that needs it. An ordinary Action can read the named condition before effects,
 such as `if not agent.Insulated: raise PermissionError(...)`; a Post definition
 does not automatically wrap ordinary Action calls. Ordinary Posts still follow
 the existing composition rules, while Constant Posts remain protected.
 
 During training, the Tag's published Reports and Operations and its
-Agent-bound view are unavailable through the Agent. Unfinished training
-does not trigger Rip and lies outside `Tag[:]`; the program owns cleanup of
-resources acquired in that attempt.
+Agent-bound view are unavailable through the Agent. A Gaining failure
+before FieldAdding does not trigger Rip and lies outside `Tag[:]`; the
+program owns cleanup of resources acquired in that attempt. An Imprint
+failure still leads to FieldAdding and ordinary Rip remains available.
 
 ---
 
