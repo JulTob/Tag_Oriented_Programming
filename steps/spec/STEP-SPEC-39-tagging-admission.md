@@ -127,9 +127,11 @@ admitted Tag is judged before the next Tag's Gate. It is **not yet Deployed**.
    Posts must hold. This applies to independent Tags as well as to a
    Shape's next turn; layering does not implicitly repair another Tag's
    contract. An untouched Host has no TOP Posts to fail. Applying an
-   already active Tag remains a no-op. Whether this soundness gate also
-   bars reapplying a previously Ripped Tag while its old Post remains
-   sticky is open pending the separate Post-after-Rip decision.
+   already active Tag remains a no-op. After Rip, a retained false
+   Constant Post must be repaired before **any** new Tagging, including
+   reapplying the Tag that was Ripped. The wider Post-after-Rip rule,
+   including which ordinary Post layer ends and which lower layer becomes
+   visible, belongs to a separate STEP or issue.
 2. Before any Gain of this Tag, TOP validates **all Record spaces** the
    Target needs. This is retractable, zero-step structural preparation,
    not an `@Record` value calculation. If it fails, TOP restores this
@@ -179,10 +181,12 @@ admitted Tag is judged before the next Tag's Gate. It is **not yet Deployed**.
 
 This amendment would supersede rule 4's successful-Imprint requirement,
 rule 6's failure boundary for declared calculations and Imprints, rule 7's
-fresh retry after those failures, rule 9's never-member conclusion for them,
-and related compatibility and acceptance text above. A structural Target
-failure is different: it is zero-step and does not admit this Tag. The
-historical cleared decision remains above for traceability. STEP-SPEC-22's
+fresh retry of a never-member after those failures, rule 9's never-member
+conclusion for them, and related compatibility and acceptance text above.
+A structural Target failure is different: it is zero-step and does not admit
+this Tag; a fresh attempt after repairing that Target remains possible,
+subject to the source soundness rule. The historical cleared decision
+remains above for traceability. STEP-SPEC-22's
 Link Pair and Contact admission, the Specification, guides, tests and oracle
 need coordinated updates. A Pair cannot be admitted while its Contact is
 silently left outside that Link.
