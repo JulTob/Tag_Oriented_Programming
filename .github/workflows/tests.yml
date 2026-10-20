@@ -33,29 +33,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: The suite
-        run: |
-          PYTHONPATH=. python - <<'PY'
-          import unittest
-
-          original_failure = unittest.result.TestResult.addFailure
-          original_error = unittest.result.TestResult.addError
-
-          def report(kind, test, err):
-              name = test.id().replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
-              print(f'::error title=unittest {kind}::{name} ({err[0].__name__})', flush=True)
-
-          def add_failure(self, test, err):
-              report('failure', test, err)
-              return original_failure(self, test, err)
-
-          def add_error(self, test, err):
-              report('error', test, err)
-              return original_error(self, test, err)
-
-          unittest.result.TestResult.addFailure = add_failure
-          unittest.result.TestResult.addError = add_error
-          unittest.main(module=None, argv=['unittest', 'discover', '-s', 'tests', '-t', '.'])
-          PY
+        run: PYTHONPATH=. python -m unittest discover -s tests -t .
 
   performance-observation:
     name: Performance ratios (observation only)
