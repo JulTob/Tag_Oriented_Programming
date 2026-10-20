@@ -48,9 +48,10 @@
   without removing completed Bases when a later Tag refuses or collides.
 - **Admission follows Imprint attempts (STEP-SPEC-39, amended):** each Tag passes
   its Gate, acquires Gains in declaration order, attempts its Imprints, then
-  enters the Field. A failed Gaining retains acquired Gains and Posts without
-  admitting that Tag; retry starts a fresh attempt. An ordinary Imprint
-  failure emits a named Training Warning, lets later Imprints run, and still
+  enters the Field. A structural Gaining refusal retains acquired Gains and
+  Posts without admitting that Tag; retry starts a fresh attempt once current
+  Posts hold. An ordinary Imprint failure emits a named Training Warning,
+  lets later Imprints run, and still
   admits the Agent. Earlier completed Tags stay. Every visible Post is
   checked after each Tag's Field entry, before the next Tag's Gate; a failed
   Post preserves this membership and stops the remaining Form. Several
@@ -58,6 +59,16 @@
   hold before its Shape starts. Tool gains use the same order:
   their proposed kind is checked before replacing the prior binding or rule,
   and an acquired Tool remains guarded on a Rogue.
+
+- **Record initialization is best-effort training (STEP-SPEC-39 amendment):**
+  Record space is checked before a Tag's Gains; an incompatible Target gets
+  `TagTargetError` (#325). An ordinary Record builder, Tool-kind, or value
+  application failure emits `TrainingWarning.Name`, leaves this Record's
+  prior binding intact, and lets later Gainings and Imprints run. The Agent
+  enters the Field and its current Posts determine soundness. A Python
+  interruption stops later training but preserves Field admission and the
+  original interruption. Record builders remain observational; preparing
+  other objects belongs in an earlier Imprint.
 
 - **Invalid Rip declarations fail at declaration:** `@Rip` marks an Action,
   because a teardown remains an ordinary callable Action. Stacking it on
