@@ -28,18 +28,21 @@ Report, within the Tag scope settled separately in #230.
 1. A Shape that declares `@Report def name(tag, base_value)` owns `name`.
    Its second input is a **Base Report link**: the current value of the
    eligible same-named Base binding found in TOP's existing Base search
-   order. The declaration does not place a Report on another Tag. A Shape
-   with no own `name` has no direct `Shape.name` Report merely because a
-   Base declares one.
+   order. An eligible binding is a Base's current Report, including a Pin
+   Record or an ordinary value written over that Report. A same-named
+   Action or Operation is not a Report: if it replaces the nearer Base's
+   Report, the link searches for the next eligible Base Report. It never
+   passes the Action or Operation object to the builder. The declaration
+   does not place a Report on another Tag. A Shape with no own `name` has
+   no direct `Shape.name` Report merely because a Base declares one.
 2. On each permitted read of an ordinary linked Report, TOP resolves the
    current Base binding, reads its value, and calls the Shape's builder
    again. Rebinding the Base Report and mutating an object held by it are
    both visible to the next Shape read. A Pin-supplied Report contributes
    its current value, never its Python descriptor object.
 3. If the chosen Base binding is deleted, the next eligible current Base
-   binding in that same search order supplies the value. If none exists,
-   the builder receives `None`. Deletion and Pinning do not reorder the
-   Agent's Tagging Overlay.
+   binding in that same search order supplies the value. Deletion and
+   Pinning do not reorder the Agent's Tagging Overlay.
 4. A Shape-owned `@Constant @Report` with a Base Report link calculates
    once, on its first permitted read, and keeps that resulting binding
    fixed when the Base later changes. As with other Constant values,
@@ -73,6 +76,17 @@ Inventory.supplies.append("rope")
 assert Packed.supplies == 1       # the Base Report link recalculates
 assert FixedCount.supplies == 0   # Constant keeps its first result
 ```
+
+If a nearer Base's `signal` Report is replaced by an Operation named
+`signal`, a Shape's explicit `signal` link reads a deeper Base's current
+`signal` Report, when one exists. It must not receive the Operation object.
+
+## Open question
+
+If no eligible Base Report remains, should the builder receive `None`, as
+today's calculation does, or should the read fail? A real Report may itself
+hold `None`, so the answer cannot be inferred from that value. This Brief
+does not settle the missing-link behavior.
 
 ## Rationale
 
