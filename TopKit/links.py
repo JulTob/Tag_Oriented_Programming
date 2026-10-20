@@ -98,6 +98,7 @@ from .state import _State
 from .state import _async_doors
 from .state import _is_composing
 from .state import _namespace_of
+from .state import _register_view_subject
 from .state import _reopen_async_doors
 from .state import _shut_async_doors
 from .state import _state_of
@@ -2279,6 +2280,66 @@ def _leaving(
 # ------------------------------------------------------------------
 # The Pair, read through the Link (rule 7.1)
 # ------------------------------------------------------------------
+
+
+class _Pair_View:
+    """A live reference to one actual Link and one Contact.
+
+    The Pair can end and a later Tagging can make another Pair. Resolve at
+    every use, so a saved view follows that new Pair without following a
+    different same-name Link in the Agent's Overlay.
+    """
+
+    __slots__ = ("__link", "__contact", "__name")
+
+    def __init__(view, link: type, contact: object) -> None:
+        object.__setattr__(view, "_Pair_View__link", weakref.ref(link))
+        object.__setattr__(view, "_Pair_View__contact", weakref.ref(contact))
+        object.__setattr__(view, "_Pair_View__name", link.__name__)
+
+    def __current(view) -> Pair:
+        link = object.__getattribute__(view, "_Pair_View__link")()
+        contact = object.__getattribute__(view, "_Pair_View__contact")()
+
+        if link is None or contact is None:
+            name = object.__getattribute__(view, "_Pair_View__name")
+            raise TagResolutionError(
+                    f"this {name} Pair view's Link or Contact no longer exists"
+                    )
+
+        return _pair_of(link, contact)
+
+    def __getattr__(view, name: str) -> Any:
+        return getattr(view.__current(), name)
+
+    def __setattr__(view, name: str, value: Any) -> None:
+        setattr(view.__current(), name, value)
+
+    def __delattr__(view, name: str) -> None:
+        delattr(view.__current(), name)
+
+    def __bool__(view) -> bool:
+        return bool(view.__current())
+
+    def __contains__(view, name: object) -> bool:
+        return name in view.__current()
+
+    def __rmatmul__(view, name: object) -> Any:
+        return name @ view.__current()
+
+    def __repr__(view) -> str:
+        name = object.__getattribute__(view, "_Pair_View__name")
+        return f"<{name} Pair view>"
+
+
+def _pair_view_of(link: type, contact: object) -> _Pair_View:
+    """A normal read still needs an available Pair at the time of capture."""
+
+    _pair_of(link, contact)
+    return _Pair_View(link, contact)
+
+
+_register_view_subject(_Pair_View, _Pair_View._Pair_View__current)
 
 
 def _pair_of(
