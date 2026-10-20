@@ -27,7 +27,6 @@ for tag in Rare, Rare[Wizard], del Rare[Wizard], f"{Wizard:pins}".
 
 from __future__ import annotations
 
-from contextlib import nullcontext
 from typing import Any
 from typing import Iterator
 
@@ -45,16 +44,19 @@ from .declarations import _check_tool_declarations
 from .declarations import _constant_owner
 from .declarations import _is_dunder
 from .declarations import _is_pin
+from .declarations import _is_pin_locked
+from .declarations import _is_pin_physical
 from .declarations import _kind_of
 from .declarations import _name_checks
-from .declarations import _note_kinds
-from .declarations import _pin_mark_lock
+from .declarations import _note_tag_kinds
+from .declarations import _pin_publication
+from .declarations import _publish_tool_kinds
 from .declarations import _refuse_condition_dunder
-from .declarations import _refuse_pin_tool_kind
-from .declarations import _refuse_tools_on_a_pin
 from .declarations import _refuse_truth_gain
+from .declarations import _tool_tag_kinds
 from .declarations import _tool_kind_of_static
 from .errors import TagCompositionError
+from .errors import TagDeclarationError
 from .fields import FIELD_SEAT
 from .fields import _Field
 from .fields import _Partition
@@ -65,11 +67,55 @@ from .geometry import _form_of
 from .geometry import _is_tag
 from .lifecycle import _rip
 from .memo import _class_namespace
+from .memo import _metaclass_data_descriptor
+from .memo import _namespace_has_callback_keys
+from .memo import _physical_namespace_get
+from .memo import _type_mro
+from .memo import _type_name
 from .observation import _refuse_observed_mutation
 from .state import Tagged
 from .state import _name_of
 from .state import _state_of
 from .transactions import _apply
+
+
+def _check_late_binding(tag: type, name: str, value: Any) -> None:
+    """Run declaration and Constant checks without holding the Pin lock."""
+
+    _refuse_truth_gain(tag.__name__, name, value)
+    if _is_dunder(name):
+        _refuse_condition_dunder(tag.__name__, name, _kind_of(value))
+    owner = _constant_owner(tag, name)
+
+    if owner is not None:
+        raise TagCompositionError(
+                f"{tag.__name__}.{name} is Constant from"
+                f" {owner.__name__}; it cannot be overwritten"
+                )
+
+    _check_constant_shapes(tag, name)
+
+
+def _metaclass_setattr_tail(tag: type) -> bool:
+    """Whether ``super()`` after MetaTag would run a program's setter.
+
+    A late Tool cannot call that setter while Pin publication is locked.
+    Refuse the declaration rather than silently bypassing the hook.
+    """
+
+    after_meta_tag = False
+    for meta in _type_mro.__get__(type(tag)):
+        if meta is MetaTag:
+            after_meta_tag = True
+            continue
+        if not after_meta_tag:
+            continue
+        member = _physical_namespace_get(
+                _class_namespace(meta), "__setattr__", _MISSING,
+                )
+        if member is not _MISSING:
+            return member is not type.__setattr__
+    return False
 
 
 class MetaTag(type):
@@ -101,8 +147,22 @@ class MetaTag(type):
                 )
         _check_pin_bases(tag)
         _check_constant_declarations(tag, namespace)
-        with _pin_mark_lock:
-            _check_tool_declarations(tag, namespace)
+        tools = _check_tool_declarations(tag, namespace)
+
+        # ``type.__new__`` publishes the Shape before declaration checks.
+        # A concurrent late Pin may have checked for Shapes just before that
+        # publication, so decide the completed class against current Base
+        # marks under the same lock that publishes Pin marks.  No program
+        # metadata is read inside this final critical section.
+        with _pin_publication():
+            _check_pin_bases(tag, physical=True)
+            if tools and _is_pin_physical(tag):
+                raise TagDeclarationError(
+                        f"{_type_name.__get__(tag)}.{tools[0][0]}: a Pin's"
+                        " Records land as Reports of the pinned Tag;"
+                        " a shared tool is a Report (§1.9)"
+                        )
+            _publish_tool_kinds(tag, tools)
 
         return tag
 
@@ -111,31 +171,83 @@ class MetaTag(type):
             name: str,
             value: Any,
             ) -> None:
+        # ``setattr`` also accepts str subclasses. Their comparison and hash
+        # hooks must not run while Pin publication owns its shared lock.
+        if type(name) is not str:
+            name = str.__str__(name)
         _refuse_observed_mutation("change an existing Tag class")
         tool_kind = _tool_kind_of_static(value)
 
-        with (_pin_mark_lock if tool_kind is not None else nullcontext()):
-            if tool_kind is not None:
-                if _is_pin(tag):
-                    _refuse_tools_on_a_pin(tag, {name: value})
-                _refuse_pin_tool_kind(tag, name, tool_kind)
-
-            _refuse_truth_gain(tag.__name__, name, value)
-            if _is_dunder(name):
-                _refuse_condition_dunder(tag.__name__, name, _kind_of(value))
-            owner = _constant_owner(tag, name)
-
-            if owner is not None:
-                raise TagCompositionError(
-                        f"{tag.__name__}.{name} is Constant from"
-                        f" {owner.__name__}; it cannot be overwritten"
-                        )
-
-            _check_constant_shapes(tag, name)
+        if tool_kind is None:
+            _check_late_binding(tag, name, value)
             super().__setattr__(name, value)
+            return
 
-            if tool_kind is not None and _class_namespace(tag).get(name) is value:
-                _note_kinds(tag, tool_kind)
+        tool_tags = _tool_tag_kinds(tool_kind)
+        while True:
+            # Hold the old binding strongly: replacing the class slot must
+            # not run its finalizer while the shared Pin lock is held.
+            old = _physical_namespace_get(_class_namespace(tag), name, _MISSING)
+            _check_late_binding(tag, name, value)
+
+            with _pin_publication():
+                if _physical_namespace_get(
+                        _class_namespace(tag), name, _MISSING,
+                        ) is not old:
+                    continue
+
+                if _namespace_has_callback_keys(tag):
+                    refusal = "namespace"
+                elif _metaclass_data_descriptor(tag, name):
+                    refusal = "descriptor"
+                elif _metaclass_setattr_tail(tag):
+                    refusal = "metaclass"
+                elif _is_pin_locked(tag):
+                    refusal = "pin"
+                else:
+                    pinned_kind = next(
+                            (kind for kind in tool_tags if _is_pin_locked(kind)),
+                            None,
+                            )
+                    if pinned_kind is not None:
+                        refusal = "kind"
+                    else:
+                        # A plain class-dictionary slot publishes together
+                        # with its Tool-kind registration. Descriptor slots
+                        # were refused above because they can run user code.
+                        type.__setattr__(tag, name, value)
+                        if _physical_namespace_get(
+                                _class_namespace(tag), name,
+                                ) is value:
+                            _note_tag_kinds(tag, tool_tags)
+                        return
+
+            if refusal == "namespace":
+                raise TagDeclarationError(
+                        f"{tag.__name__}.{name}: a late @Tool cannot publish"
+                        " into a class namespace with custom key methods"
+                        )
+            if refusal == "descriptor":
+                raise TagDeclarationError(
+                        f"{tag.__name__}.{name}: a late @Tool cannot replace"
+                        " a metaclass data descriptor"
+                        )
+            if refusal == "metaclass":
+                raise TagDeclarationError(
+                        f"{tag.__name__}.{name}: a late @Tool cannot use"
+                        " a cooperative metaclass __setattr__ while Pin"
+                        " publication is locked"
+                        )
+            if refusal == "pin":
+                raise TagDeclarationError(
+                        f"{tag.__name__}.{name}: a Pin's Records land as"
+                        " Reports of the pinned Tag; a shared tool is a"
+                        " Report (§1.9)"
+                        )
+            raise TagDeclarationError(
+                    f"{tag.__name__}.{name}: @Tool cannot name"
+                    f" {pinned_kind.__name__}, now a Pin (§1.3)"
+                    )
 
     def __delattr__(
             tag,
