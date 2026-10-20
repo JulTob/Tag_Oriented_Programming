@@ -10,6 +10,7 @@ import unittest
 import warnings
 from typing import Any
 from typing import Callable
+from unittest.mock import patch
 
 from TopKit import Imprint
 from TopKit import Pin
@@ -22,6 +23,7 @@ from TopKit import TagContractError
 from TopKit import TagImprintError
 from TopKit import TagResolutionError
 from TopKit import Underlay
+from TopKit.arrest import _safehouse
 
 
 class Agent:
@@ -85,6 +87,19 @@ def _target(
 
 
 class LazyProtocolTests(unittest.TestCase):
+    def setUp(self) -> None:
+        empty_ledger = patch.dict(_safehouse, clear=True)
+        empty_ledger.start()
+        self.addCleanup(empty_ledger.stop)
+
+    @staticmethod
+    def _raw_marker_absent(target: object, marker: str) -> bool:
+        if isinstance(target, type):
+            namespace = type.__getattribute__(target, "__dict__")
+        else:
+            namespace = object.__getattribute__(target, "__dict__")
+        return marker not in namespace
+
     kinds = (
             "coroutine",
             "generator",
@@ -309,7 +324,7 @@ class LazyProtocolTests(unittest.TestCase):
                                 kind,
                                 str(failure.exception.__cause__),
                                 )
-                        self.assertFalse(hasattr(target, marker))
+                        self.assertTrue(self._raw_marker_absent(target, marker))
                         self.assertNotIn(target, tag)
 
             gc.collect()
@@ -369,9 +384,10 @@ class LazyProtocolTests(unittest.TestCase):
                                 kind,
                                 str(failure.exception.__cause__),
                                 )
-                        self.assertFalse(hasattr(target, marker))
+                        self.assertTrue(self._raw_marker_absent(target, marker))
                         self.assertNotIn(target, shape)
-                        self.assertIn(target, base)
+                        self.assertIn(target, base[:])
+                        self.assertNotIn(target, base)
 
             gc.collect()
 
@@ -405,7 +421,7 @@ class LazyProtocolTests(unittest.TestCase):
 
             gc.collect()
 
-        self.assertFalse(hasattr(target, "started"))
+        self.assertTrue(self._raw_marker_absent(target, "started"))
         self.assertNotIn(target, Top)
         self.assert_no_unawaited(caught)
 

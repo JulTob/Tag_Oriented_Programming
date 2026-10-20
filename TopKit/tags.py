@@ -34,6 +34,7 @@ from .access import _keyword
 from .access import _refuse_host_truth
 from .access import _view_of
 from .arrest import _arrest_of
+from .arrest import _require_available
 from .contracts import _holds
 from .contracts import _holds_for_population
 from .declarations import _MISSING
@@ -60,6 +61,7 @@ from .fields import _sound_of
 from .geometry import _form_of
 from .geometry import _is_tag
 from .lifecycle import _rip
+from .lifecycle import _retry_arrested
 from .state import Tagged
 from .state import _name_of
 from .state import _state_of
@@ -287,6 +289,15 @@ class MetaTag(type):
             tag,
             agent: object,
             ) -> None:
+        if _arrest_of(tag) is not None:
+            _require_available(tag, "Rip")
+
+        if tag is Tag:
+            # Root Tag[...] sees every arrest, but root deletion handles only
+            # teardowns orphaned by an ended Tag, never a live Tag's work.
+            _retry_arrested(agent, orphaned_only=True)
+            return
+
         _rip(
                 agent,
                 tag,
