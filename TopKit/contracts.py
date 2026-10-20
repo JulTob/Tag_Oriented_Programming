@@ -262,17 +262,20 @@ def _bind_condition(
         prior: Check | None,
         with_inputs: bool,
         name: str,
+        *,
+        neutral_underlay: bool = False,
         ) -> Check:
     """Bind one condition, giving it its Underlay when marked.
 
     The Underlay is a callable reporting whether the prior condition of the
     same name holds (True / False), so ``assert base()`` and
-    ``return base() and ...`` both compose.
+    ``return base() and ...`` both compose. A first Post starts with the
+    neutral callable True; a Pre still requires a prior condition.
     """
 
     uses_underlay = _takes_underlay(function, name)
 
-    if uses_underlay and prior is None:
+    if uses_underlay and prior is None and not neutral_underlay:
         from .errors import TagResolutionError
 
         raise TagResolutionError(
@@ -311,6 +314,9 @@ def _bind_condition(
                     )
 
         def base() -> bool:
+            if prior is None:
+                return True   # a Post with no lower Post has the neutral Underlay
+
             try:
                 result = prior(agent, inputs)
             except TagContractError:
@@ -341,25 +347,26 @@ def _evaluate(
     """Run conditions; raise ``failure`` naming the first that does not hold."""
 
     for name, check in checks:
+        label = f"{phase} {str.__repr__(name)}"
         with _checking_post(agent) if post else nullcontext():
             try:
                 result = check(agent, inputs)
             except _Recursive_Soundness as error:
                 raise _Recursive_Soundness(
-                        f"{phase} {name!r} failed: {_exception_text(error)}"
+                        f"{label} failed: {_exception_text(error)}"
                         ) from error
             except TagContractError as error:
                 raise TagContractError(
-                        f"{phase} {name!r} failed: {_exception_text(error)}"
+                        f"{label} failed: {_exception_text(error)}"
                         ) from error
             except Exception as error:
                 raise failure.Named(name)(
-                        f"{phase} {name!r} raised {_type_name(error)}: {_exception_text(error)}"
+                        f"{label} raised {_type_name(error)}: {_exception_text(error)}"
                         ) from error
 
-            if not _verdict(result, f"{phase} {name!r}"):
+            if not _verdict(result, label):
                 raise failure.Named(name)(
-                        f"{phase} {name!r} failed"
+                        f"{label} failed"
                         )
 
 

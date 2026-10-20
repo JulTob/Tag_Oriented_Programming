@@ -94,7 +94,9 @@ class UnderlayDiagnosticTests(unittest.TestCase):
         return role, target, events, previous, member
 
     def test_validation_families_names_and_timing_match_function_controls(self):
-        cases = [(mark, seats, False, TagResolutionError if seats == 2 else TagDeclarationError)
+        cases = [(mark, seats, False,
+                  None if mark is Post and seats == 2 else
+                  TagResolutionError if seats == 2 else TagDeclarationError)
                  for mark in (Action, Pre, Post) for seats in (1, 2)]
         cases += [(Action, 1, True, TagDeclarationError),
                   (Post, 1, True, TagDeclarationError),
@@ -111,8 +113,15 @@ class UnderlayDiagnosticTests(unittest.TestCase):
                                 mark, seats, mode, pinned, prior)
                         with warnings.catch_warnings():
                             warnings.simplefilter("error")
-                            with self.assertRaises(failure) as caught:
+                            if failure is None:
                                 role(target, **({"stored": 42} if mark is Record else {}))
+                            else:
+                                with self.assertRaises(failure) as caught:
+                                    role(target, **({"stored": 42} if mark is Record else {}))
+                        if failure is None:
+                            self.assertEqual(events, ["Work"])
+                            self.assertIn(target, role[:])
+                            continue
                         self.assertIn("Work", str(caught.exception))
                         self.assertNotIn("Implementation", str(caught.exception))
                         self.assertIsNone(caught.exception.__cause__)
@@ -141,10 +150,14 @@ class UnderlayDiagnosticTests(unittest.TestCase):
                                 Post: "postconditions", Record: "records",
                                 }[mark])
                         self.assertIs(contributions[0][0], name)
-                        failure = TagDeclarationError if mark is Record or seats == 1 else TagResolutionError
-                        with self.assertRaises(failure) as caught:
-                            role(target, **({"stored": 42} if mark is Record else {}))
-                        self.assertIn("Work", str(caught.exception))
+                        if mark is Post and seats == 2:
+                            role(target)
+                            self.assertIn(target, role[:])
+                        else:
+                            failure = TagDeclarationError if mark is Record or seats == 1 else TagResolutionError
+                            with self.assertRaises(failure) as caught:
+                                role(target, **({"stored": 42} if mark is Record else {}))
+                            self.assertIn("Work", str(caught.exception))
 
     def test_stored_seat_formatters_do_not_run(self):
         for pinned in (False, True):
