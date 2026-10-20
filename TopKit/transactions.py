@@ -333,6 +333,7 @@ def _apply_one(
                     state.snapshots[tag] = _snapshot(
                             agent,
                             state,
+                            tag,
                             )
                 except BaseException as closing_error:
                     if primary_failure is None:
@@ -699,6 +700,7 @@ _NONE: frozenset[str] = frozenset()   # one empty set for every snapshot that ne
 def _snapshot(
         agent: object,
         state: _State,
+        tag: type,
         ) -> _Snapshot:
     namespace = _namespace_of(agent)
     records = {
@@ -727,6 +729,11 @@ def _snapshot(
             for name, (link, _layers) in state.links.items()
             if link is not None
             }
+    links.update(
+            (name, link)
+            for name, (link, _layers) in state.owned_links.get(tag, {}).items()
+            if link is not None
+            )   # this Tag's own Link outranks a nested later Tag's same-name Overlay
 
     return _Snapshot(
             actions=dict(state.actions),

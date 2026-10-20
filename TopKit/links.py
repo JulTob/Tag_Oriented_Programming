@@ -76,7 +76,6 @@ from .declarations import _is_dunder
 from .declarations import _is_pin
 from .declarations import _is_private
 from .declarations import _is_relation
-from .declarations import _relation_homes
 from .declarations import _kind_of
 from .declarations import _mark_flag
 from .declarations import _parameters_of
@@ -1458,6 +1457,7 @@ def _record_of(
 def _grant(
         agent: object,
         state: _State,
+        owner: type,
         declarations: Any,
         inputs: dict[str, Any],
         ) -> None:
@@ -1468,7 +1468,8 @@ def _grant(
     namespace = _namespace_of(agent)
 
     for name, relation in declarations.links:
-        link, layers = state.links[name]
+        slot = state.owned_links[owner][name]
+        link, layers = slot
 
         if link is None:
             link = _new_link(
@@ -1477,10 +1478,13 @@ def _grant(
                     name,
                     layers,
                     )
-            state.links[name] = (
+            gained = (
                     link,
                     layers,
                     )
+            state.Own_Link(owner, name, gained)
+            if state.links.get(name) is slot:
+                state.links[name] = gained
         else:
             record = _record_of(link)
             added = [
@@ -1499,7 +1503,9 @@ def _grant(
                     inputs,
                     )
 
-        namespace[name] = link
+        visible = state.links.get(name)
+        if visible is not None and visible[0] is not None:
+            namespace[name] = visible[0]
 
 
 def _new_link(
@@ -1596,9 +1602,10 @@ def _link_holding(
         state: _State,
         relation: type,
         ) -> type | None:
-    for link, layers in state.links.values():
-        if link is not None and relation in layers:
-            return link
+    for _owner, slots in reversed(list(state.owned_links.items())):
+        for link, layers in reversed(list(slots.values())):
+            if link is not None and relation in layers:
+                return link
 
     return None
 
@@ -1673,56 +1680,6 @@ def _layer_names(
     return (
             lines,
             members,
-            )
-
-
-def _extension_chain(
-        inherited: type,
-        name: str,
-        ) -> list[type]:
-    """The Layers of one Link an extension joins: the Relation it extends,
-    and the Relations that one extends in turn under the same name. A
-    Relation Base under another name is a Shape Relation's Base: another
-    Link, whose lines stay on its own class."""
-
-    chain: list[type] = []
-    layer: type | None = inherited
-
-    while layer is not None:
-        chain.append(layer)
-        relation_bases = [
-                base
-                for base in layer.__bases__
-                if _is_relation(base)
-                ]
-        layer = None
-
-        if len(relation_bases) == 1:
-            home = _relation_homes.get(relation_bases[0])
-
-            if home is not None and home[1] == name:
-                layer = relation_bases[0]
-
-    return chain
-
-
-def _refuse_a_name_both_ways(
-        tag: type,
-        name: str,
-        extension: type,
-        inherited: type,
-        ) -> None:
-    """One Link holds the lines and the Tag-scope members of all its Layers
-    in one class. So across a Relation and its extensions, a name is a line
-    or a Tag-scope member, never both: one would silently replace the
-    other on every Agent's Link. Checked when the extending Shape is made;
-    extensions declared side by side meet only on an Agent, and are
-    checked there (``_refuse_mixed_layers``)."""
-
-    _refuse_mixed_layers(
-            [*reversed(_extension_chain(inherited, name)), extension],
-            f"{tag.__name__}.{name}",
-            TagDeclarationError,
             )
 
 
@@ -2486,22 +2443,30 @@ def _still_held(
 def _own_records(
         state: _State,
         ) -> list[_Link_Record]:
-    """The records of the Agent's own Links, Shape Links first."""
+    """The records of every owned Link, latest declaring Tag first."""
 
     records = []
 
-    for name in reversed(list(state.links)):
-        link = state.links[name][0]
-
-        if link is None:
-            continue
-
+    for link in _own_links(state):
         record = link.__dict__.get(_RECORD)
 
         if record is not None and not record.ended:
             records.append(record)
 
     return records
+
+
+def _own_links(
+        state: _State,
+        ) -> list[type]:
+    """Every granted Link, including earlier same-name Overlay layers."""
+
+    return [
+            link
+            for _owner, slots in reversed(list(state.owned_links.items()))
+            for link, _layers in reversed(list(slots.values()))
+            if link is not None
+            ]
 
 
 def _begin_ending(
@@ -2537,10 +2502,8 @@ def _end_links(
             record.family.dying = agent
             record.ending = True
 
-        for name in reversed(list(state.links)):
-            link = state.links[name][0]
-
-            if link is None or link.__dict__.get(_RECORD) not in records:
+        for link in _own_links(state):
+            if link.__dict__.get(_RECORD) not in records:
                 continue
 
             for contact in list(link.__dict__["_topkit_field"]):

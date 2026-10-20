@@ -43,6 +43,7 @@ from .memo import _namespace_snapshot
 Function = Callable[..., Any]
 Check = Callable[..., Any]
 _Value = TypeVar("_Value")
+_Link_Slot = tuple[type | None, tuple[type, ...]]
 
 
 # ------------------------------------------------------------------
@@ -162,12 +163,24 @@ class _State:
     originals: dict[str, Any] = field(default_factory=dict)       # what a Pin patched, as declared
     constants: dict[str, tuple[type, str, Any]] = field(default_factory=dict)  # origin, kind, declaration
     tools: dict[str, tuple[type, Any]] = field(default_factory=dict)   # origin, kind: a Tool slot admits only its kind
-    links: dict[str, tuple[type | None, tuple[type, ...]]] = field(default_factory=dict)   # the Link (once built), its Relations
+    links: dict[str, _Link_Slot] = field(default_factory=dict)   # visible Link Overlay by Agent name
+    owned_links: _Tag_Identity_Map[dict[str, _Link_Slot]] = field(default_factory=_Tag_Identity_Map)   # each declaring Tag's own Links
     links_ending: bool = False
     composing: int = 0
     checking: bool = False
     arrestable: bool = False   # a gained Rip keeps the Host read gate after re-Tagging
     words: _Words | None = None   # what its Flags answer to; None after its Tags change
+
+    def Own_Link(
+            state,
+            tag: type,
+            name: str,
+            slot: _Link_Slot,
+            ) -> None:
+        """Replace one owned slot without mutating a preflight copy's map."""
+
+        owned = state.owned_links.get(tag, {})
+        state.owned_links[tag] = {**owned, name: slot}
 
     def Restore(
             state,
@@ -215,6 +228,9 @@ class _State:
         copied.constants = state.constants.copy()
         copied.tools = state.tools.copy()
         copied.links = state.links.copy()
+        copied.owned_links = _Tag_Identity_Map()
+        for tag, slots in state.owned_links.items():
+            copied.owned_links[tag] = slots.copy()
         copied.links_ending = state.links_ending
         copied.composing = state.composing
         copied.checking = state.checking
