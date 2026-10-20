@@ -18,8 +18,8 @@ the object. These are membership queries, not global Agent populations.
 
 Every ordinary Tag has a Field, so `agent in Fighter`, `agent in ~Fighter`
 and `agent in Fighter[:]` answer three useful questions. Root `Tag` has no
-Field. Still, a Rogue may have Gains without entering the failed Tag; an
-Agent may leave its last Field; and an arrested Agent has a distinct
+Field. Still, an actualized Agent may lack membership in a particular
+Tag, may leave its last Field, or may have a distinct arrested
 Safehouse status. The program needs the same questions about one known
 object without keeping every Agent in a global root Field.
 
@@ -34,19 +34,19 @@ object without keeping every Agent in a global root Field.
    calling root `Tag(host)` can actualize a host without Field admission
    remains open under STEP-SPEC-32; this Brief does not define that call.
 2. `agent in Tag[:]` asks whether that object has been successfully
-   actualized. It includes a Rogue whose Gains or Imprint failed after
-   actualization, an Agent after its last ordinary Rip, and an arrested
-   Agent. It excludes an untouched host and a host whose first Gate was
-   refused before actualization. Root `Tag[:]` is a query over an object,
-   **not** a Field containing or retaining every Agent.
+   actualized. It includes an actualized Agent without Field admission,
+   an Agent after its last ordinary Rip, and an arrested Agent. It excludes
+   an untouched host and a host whose first Gate was refused before
+   actualization. Root `Tag[:]` is a query over an object, **not** a Field
+   containing or retaining every Agent.
 3. `agent in Tag` asks whether it is actualized, free of pending Rip work,
    and sound under its current visible Posts. `agent in ~Tag` asks whether
    it is actualized and free, but those Posts are defective. An arrested
    Agent is in neither root sound nor root defective query, while still
    answering true to `agent in Tag[:]`. Root `Tag[...]` separately shows
    Agents with saved Rip work in the Safehouse; it does not become a Field.
-   A sound Rogue can therefore answer true to `agent in Tag` without
-   belonging to the Tag whose training failed.
+   Root soundness therefore does not imply membership in any particular
+   ordinary Tag.
 4. `isinstance(agent, Tag)` means that the object has **ever** become an
    Agent through successful actualization. It remains true after Rip and
    during arrest. A provisional State left by a refused initial Gate does
@@ -124,6 +124,12 @@ predicate this root query should follow. The Safehouse implementation of
 STEP-SPEC-32 supplies the arrest distinction and `Tag[...]`. The
 first-successful-actualization marker must be set only after actualization
 succeeds. #233 tracks the focused implementation and regressions.
+
+Under the current Cleared STEP-SPEC-39, a failed Imprint can leave an
+actualized Rogue outside that Tag's Field. Draft STEP-SPEC-54 (#372)
+proposes admitting the Agent after an ordinary Imprint failure instead.
+This Brief's root actualization query covers the Agent in either case;
+it does not settle the Imprint failure boundary.
 
 ## Alternatives considered
 
