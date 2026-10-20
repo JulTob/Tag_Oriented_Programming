@@ -276,8 +276,9 @@ Base linking stays. A **promise** is a rule written as a `@Post`: a link
 that breaks its promise after admission stays, and it is marked defective
 until it is repaired.
 
-Linking follows ordinary Tagging: **Gate → Gainings → Imprints → Field →
-Posts**. Gains arrive in declaration order. If a Record builder or Imprint
+Each Link in a Shape's Form follows ordinary Tagging: **Gate → Gainings →
+Imprints → Field → Posts**. The completed Link's Posts are checked before
+the next Shape Link's Gate. Gains arrive in declaration order. If a Record builder or Imprint
 fails, the unfinished Link has no membership for that Contact, but the
 Pair keeps its actual Gains and Posts. Linking again retries the unfinished
 training. It does not undo a Base linking or independent Tagging that

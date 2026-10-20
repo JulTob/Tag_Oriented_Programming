@@ -2,7 +2,8 @@
 import unittest
 from TopKit import (Imprint, Link, Post, Pre, Public, Record, Tag,
                     TagImprintError, TagPostconditionError)
-from TopKit.links import _record_of
+from TopKit.links import _pair_tag, _record_of
+from TopKit.state import _state_of
 
 class Host:
     pass
@@ -75,6 +76,40 @@ class LinkTrainingTests(unittest.TestCase):
         self.assertIn(contact, ~owner.Knows)
         owner.Knows(contact)
         self.assertEqual(trained, [contact])
+
+    def test_base_post_stops_before_shape_gate_after_base_admission(self):
+        seen = []
+
+        class Social(Tag):
+            @Link
+            class Base(Tag):
+                @Post
+                def Ready(owner, contact):
+                    seen.append(("Base Post", contact in owner.Base[:]))
+                    return False
+
+            @Link
+            class Shape(Base):
+                @Pre
+                def Gate(owner, contact):
+                    seen.append("Shape Gate")
+                    return True
+
+        owner, contact = Host(), Host()
+        Social(owner)
+
+        with self.assertRaises(TagPostconditionError):
+            owner.Shape(contact)
+
+        self.assertEqual(seen, [("Base Post", True)])
+        self.assertIn(contact, owner.Base[:])
+        self.assertNotIn(contact, owner.Base)
+        self.assertNotIn(contact, owner.Shape[:])
+
+        pair = _record_of(owner.Base).family.Pair_Of(contact)
+        pair_state = _state_of(pair)
+        self.assertIn(_pair_tag(Social.Base), pair_state.active)
+        self.assertNotIn(_pair_tag(Social.Shape), pair_state.active)
 
     def test_reentering_the_same_link_during_training_is_a_noop(self):
         seen = []
