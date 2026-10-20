@@ -72,7 +72,12 @@ def _teardown(
         tag: type,
         teardowns: tuple[tuple[str, Any], ...],
         ) -> None:
-    """Run every @Rip teardown of ``tag`` once, then report failures."""
+    """Run every @Rip teardown of ``tag`` once, then report failures.
+
+    ``teardowns`` is the chain ``_revoke_membership`` took out of the
+    state: the caller owns it, and passing the same tuple twice would
+    run the teardowns twice.
+    """
 
     failures: list[tuple[str, Exception]] = []
     state.composing += 1
