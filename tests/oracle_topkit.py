@@ -354,9 +354,7 @@ class Armed(Tag):
     sight; the slot admits only a Gear, never None, never the bearer."""
 
     @Tool(Gear)
-    def gear(agent) -> object:
-        gear = Agent(f"{agent.name}'s gear")
-        Gear(gear)
+    def gear(agent, *, gear) -> object:
         return gear
 
 
@@ -955,7 +953,9 @@ def Exercise_Tools(
     if not model.Sound() or Armed in model.active:
         return
 
-    Armed(target)
+    prepared = Agent(f"{target.name}'s gear")
+    Gear(prepared)
+    Armed(target, gear=prepared)
     Model_Apply(model, Armed)
     gear = target.gear
 

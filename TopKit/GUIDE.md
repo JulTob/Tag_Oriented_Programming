@@ -403,9 +403,13 @@ Preconditions read and query; they do not prepare the Agent or change the
 world. Record builders likewise read and query to calculate an initial
 value. Applying or Ripping Tags is an Imprint's work. These are authoring
 rules, not a claim that TOP sandboxes arbitrary Python code. During a
-Precondition, TOP refuses its own Tagging, Rip, condition deletion, exit
-registration and changes to existing Tags, even through a called Action.
-Python objects and outside effects remain the author's responsibility.
+Precondition or Record builder, TOP refuses its own Tagging, Rip, condition
+deletion, exit registration and changes to existing Tags, even through a
+called Action. A caught refusal still fails that check or calculation. TOP
+stores a calculated Record after its builder returns. Python objects and
+outside effects remain the author's responsibility. A generator or coroutine
+returned as a Record value runs later, outside this observation interval
+(see #86).
 
 Each missing Tag passes its own Gate. A Shape cannot waive a missing Base's
 Gate by overriding a same-named Precondition: the Base must enter first. If

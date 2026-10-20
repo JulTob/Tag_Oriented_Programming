@@ -624,9 +624,9 @@ class Contract:
         """
 
         from .errors import TagResolutionError
-        from .observation import _refuse_pre_mutation
+        from .observation import _refuse_observed_mutation
 
-        _refuse_pre_mutation("delete a condition")
+        _refuse_observed_mutation("delete a condition")
 
         state = _state_of(agent)
 

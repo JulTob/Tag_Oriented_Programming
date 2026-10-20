@@ -30,6 +30,11 @@
   distinct Hosts with custom equality cannot share the wrong runtime type,
   and equivalent Agents of one Host still share their runtime type.
 
+- Record builders now refuse explicit TOP state changes while calculating
+  their initial values, even if their code catches the immediate error.
+  Read-only calculations and query Actions remain allowed; TOP stores the
+  returned value after this interval.
+
 - **Tagging preparation cost:** ordinary Action/Record declarations reuse
   the existing collision and Underlay checks without constructing a
   disposable Overlay. Tags with deletions, conditions, Secrets, special

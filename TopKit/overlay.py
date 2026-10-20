@@ -23,6 +23,7 @@ from .access import _host_in_seat
 from .contracts import _bind_condition
 from .contracts import _guarded
 from .observation import _observe_pre
+from .observation import _observing
 from .constants import _constant_overlay
 from .constants import _refuse_constant
 from .declarations import _Declarations
@@ -1305,31 +1306,32 @@ def _record_value(
             ):
         stored = None
 
-    takes_stored = _takes_stored(builder)
+    tag_name = str.__str__(type.__dict__["__name__"].__get__(tag))
+    record_name = str.__str__(name)
+    with _observing(f"Record {tag_name}.{record_name} builder"):
+        takes_stored = _takes_stored(builder)
 
-    if takes_stored:
-        _refuse_stored_input_collision(builder, inputs, name)
-
-    named = _protocol_inputs(
-            builder,
-            inputs,
-            2 if takes_stored else 1,
-            )
-
-    try:
         if takes_stored:
-            value = builder(agent, stored, **named)
-        else:
-            value = builder(agent, **named)
-    except TagError:
-        raise
-    except Exception as error:
-        tag_name = str.__str__(type.__dict__["__name__"].__get__(tag))
-        record_name = str.__str__(name)
-        raise TagCompositionError(
-                f"Record {tag_name}.{record_name} could not be"
-                f" materialized: {_type_name(error)}: {_exception_text(error)}"
-                ) from error
+            _refuse_stored_input_collision(builder, inputs, name)
+
+        named = _protocol_inputs(
+                builder,
+                inputs,
+                2 if takes_stored else 1,
+                )
+
+        try:
+            if takes_stored:
+                value = builder(agent, stored, **named)
+            else:
+                value = builder(agent, **named)
+        except TagError:
+            raise
+        except Exception as error:
+            raise TagCompositionError(
+                    f"Record {tag_name}.{record_name} could not be"
+                    f" materialized: {_type_name(error)}: {_exception_text(error)}"
+                    ) from error
 
     return value
 

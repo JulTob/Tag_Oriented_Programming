@@ -288,11 +288,11 @@ def Run() -> None:
     class Weapon(Tag): pass
     class Fighter(Tag):
         @Tool(Weapon)
-        def weapon(agent):
-            sword = Sword(f"{agent.name}'s sword")
-            Weapon(sword)
-            return sword
-    fay = Character("Fay"); Fighter(fay)
+        def weapon(agent, *, weapon): return weapon
+    fay = Character("Fay")
+    sword = Sword("Fay's sword")
+    Weapon(sword)
+    Fighter(fay, weapon=sword)
     assert fay.weapon in Weapon[:] and fay not in Weapon[:]
     held = fay.weapon
     for misfit in (Sword("a stick"), None, fay):
