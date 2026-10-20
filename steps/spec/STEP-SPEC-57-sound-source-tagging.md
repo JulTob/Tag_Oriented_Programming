@@ -1,6 +1,6 @@
-# STEP-SPEC-55: Sound Source for a New Tagging
+# STEP-SPEC-57: Sound Source for a New Tagging
 
-- **STEP:** SPEC-55
+- **STEP:** SPEC-57
 - **Desk:** spec
 - **Title:** Sound Source for a New Tagging
 - **Author:** Codex, recording the Director's 2026-10-20 ruling
@@ -36,8 +36,8 @@ Tagging deliberately.
    No completed earlier Tag turn is rolled back.
 2. A Host never actualized by TOP has no TOP Posts to fail. Its ordinary
    Python `bool()` is not a substitute for this check. An actualized Agent
-   with no failing visible Posts may start the new Tag turn, even if it has
-   left every ordinary Field.
+   with no failing visible Posts may start the new Tag turn while free, even
+   if it has left every ordinary Field.
 3. Check at the boundary again even if a Base in the Form is already active.
    Its Posts may have changed since admission. Thus a broken active Base
    blocks a new Shape before the Shape's Gate. When a newly applied Base
@@ -60,6 +60,9 @@ Tagging deliberately.
    a new Tagging around arrest. Posts used for this source check follow the
    observational Post rule: TOP acts inside a Post are refused; ordinary
    Python writes remain the author's responsibility.
+7. A Tag that is already an Agent of a Pin follows the same source rule
+   before it receives a new Pin. Its own currently visible Posts decide
+   soundness; the size of its Field is a separate population query.
 
 ## Example of the proposed boundary
 
