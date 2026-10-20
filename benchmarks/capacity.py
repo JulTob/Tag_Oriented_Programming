@@ -54,7 +54,7 @@ def _rip_form(
         agent: Agent,
         tag: type[Tag],
         ) -> None:
-    """Deform one active Form from Shape to Bases, as Rip requires."""
+    """Deform one active Form in reverse Tagging order for this benchmark."""
 
     for member in reversed(Form(tag)):
         if agent in member:
