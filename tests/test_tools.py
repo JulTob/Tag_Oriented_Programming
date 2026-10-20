@@ -1648,6 +1648,30 @@ class Late_Pin_Tests(unittest.TestCase):
         self.assertIn("already has Agents", str(refusal.exception))
         self.assertIn(charlie, Noted)
 
+    def test_a_tag_whose_last_agent_was_ripped_can_be_marked_a_pin(self):
+        class Former(Tag):
+            @Record
+            def note(agent):
+                return "training remains"
+
+        bob = Character("Bob")
+        Former(bob)
+        del Former[bob]
+
+        self.assertNotIn(bob, Former[:])
+        self.assertTrue(isinstance(bob, Former))          # history remains
+        self.assertEqual(bob.note, "training remains")    # Rip does not undo Gains
+        self.assertIs(Pin(Former), Former)                # the empty Field is still a Tag
+
+        class Prize(Tag):
+            pass
+
+        Former(Prize)
+        self.assertIn(Prize, Former[:])                   # its new members are Tags
+        self.assertEqual(Prize.note, "training remains")  # now a Pin Report
+        self.assertNotIn(bob, Former[:])
+        self.assertEqual(bob.note, "training remains")
+
     def test_a_tag_named_as_a_tool_kind_is_not_marked_a_pin_later(self):
         class Prize(Tag):
             pass
