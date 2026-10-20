@@ -46,6 +46,8 @@ from .state import _state_of
 def _rip(
         agent: object,
         tag: type,
+        *,
+        retry_older: bool = True,
         ) -> object:
     """End this Tag's application, then finish older arrested work.
 
@@ -60,7 +62,7 @@ def _rip(
 
     if pending is not None:
         _run_one(agent, state, pending)
-        if _arrest_of(agent) is not None and not _may_act(agent):
+        if retry_older and _arrest_of(agent) is not None and not _may_act(agent):
             _retry_arrested(agent)
         return agent
 
@@ -91,7 +93,8 @@ def _rip(
     # An explicit other-Tag Rip runs its own protocol first. After it
     # succeeds, any older arrested work must clear before the Agent is free.
     if (
-            (teardowns or arrest is not None)
+            retry_older
+            and (teardowns or arrest is not None)
             and _arrest_of(agent) is not None
             and not _may_act(agent)
             ):
@@ -335,6 +338,19 @@ def _teardown_all(
         for tag in reversed(list(state.active)):
             if interrupted is not None and not _is_link(tag):
                 continue   # after an interruption only its exits from Links still run (STEP-SPEC-22 rule 8.4)
+
+            if _is_link(tag):
+                # A Contact's finalizer may be its last caller. Use the
+                # ordinary saved Rip so a failed Pair teardown leaves the
+                # Contact in its Link's Safehouse for later retry.
+                try:
+                    _rip(agent, tag, retry_older=False)
+                except Exception:
+                    pass
+                except BaseException as error:
+                    if interrupted is None:
+                        interrupted = error
+                continue
 
             for name, teardown in state.rips.pop(tag, ()):
                 try:

@@ -527,8 +527,10 @@ A Link is a Tag. Every Ring 0 act works on it:
 3. **A Link never names its Agent.** Nothing public on a
    Link, or on a Pair, leads to that Agent. The kit keeps that Agent only
    where it must run the Link's functions (rules 3.6 and 8.4), weakly and
-   out of public reach, so a Link never keeps its Agent
-   alive (finding 1). A
+   out of public reach. Ordinary Link membership therefore never keeps
+   its Agent alive (finding 1). A failed Rip is temporarily held by the
+   Safehouse with the Agent and Contact seats needed for retry; those
+   seats are released when cleanup finishes. A
    Pair's functions receive the Agent in their first seat, and that is
    the Link's own code.
 4. **Two ways is written, never assumed.** A Link that should answer back

@@ -852,6 +852,7 @@ class Base_Tests(unittest.TestCase):
 
     def test_pair_teardown_stops_before_the_next_layer(self):
         torn = []
+        blocked = True
 
         class Circle(Tag):
             @Link
@@ -865,8 +866,11 @@ class Base_Tests(unittest.TestCase):
             class Knows(Circle.Knows):
                 @Rip
                 def Added_Leave(agent, contact):
+                    nonlocal blocked
                     torn.append("added")
-                    raise ValueError("the newer Pair Layer failed")
+                    if blocked:
+                        blocked = False
+                        raise ValueError("the newer Pair Layer failed")
 
         charlie, ruth = People("Charlie", "Ruth")
         Circle(charlie)
@@ -877,6 +881,10 @@ class Base_Tests(unittest.TestCase):
             del charlie.Knows[ruth]
 
         self.assertEqual(torn, ["added"])
+        self.assertIn(ruth, charlie.Knows[...])
+        del charlie.Knows[ruth]
+        self.assertEqual(torn, ["added", "added", "base"])
+        self.assertNotIn(ruth, charlie.Knows[...])
 
     def test_a_base_relation_from_a_base_of_the_declaring_tag(self):
         class Close(Social):
@@ -1491,12 +1499,17 @@ class Ending_Tests(unittest.TestCase):
         self.assertEqual(Net.log, [("Bob", "Charlie"), ("Charlie", "Ruth")])
 
     def test_a_teardown_failure_is_reported_and_the_contact_still_leaves(self):
+        blocked = True
+
         class Failing(Tag):
             @Link
             class Knows(Tag):
                 @Rip
                 def Forget(agent, contact):
-                    raise ValueError("no")
+                    nonlocal blocked
+                    if blocked:
+                        blocked = False
+                        raise ValueError("no")
 
         charlie, ruth = People("Charlie", "Ruth")
         Failing(charlie)
@@ -1504,6 +1517,9 @@ class Ending_Tests(unittest.TestCase):
         with self.assertRaises(TagCompositionError):
             del charlie.Knows[ruth]
         self.assertNotIn(ruth, charlie.Knows)
+        self.assertIn(ruth, charlie.Knows[...])
+        del charlie.Knows[ruth]
+        self.assertNotIn(ruth, charlie.Knows[...])
 
 
 # ------------------------------------------------------------------
@@ -2324,14 +2340,17 @@ class Lifetime_Review_Tests(unittest.TestCase):
 
     def test_an_interrupted_teardown_at_deletion_still_unlinks_every_contact(self):
         ran = []
+        interrupted = True
 
         class Touchy(Tag):
             @Link
             class Knows(Tag):
                 @Rip
                 def Forget(agent, contact):
+                    nonlocal interrupted
                     ran.append(contact.name)
-                    if contact.name == "R1":
+                    if contact.name == "R1" and interrupted:
+                        interrupted = False
                         raise KeyboardInterrupt
 
         charlie = Character("Charlie")
@@ -2344,6 +2363,9 @@ class Lifetime_Review_Tests(unittest.TestCase):
             _teardown_all(charlie)                        # what the finalizer runs
         self.assertEqual(ran, ["R1", "R2", "R3"])
         self.assertEqual(list(held[:]), [])
+        self.assertIn(contacts[0], held[...])
+        del held[contacts[0]]
+        self.assertNotIn(contacts[0], held[...])
 
     def test_an_interrupted_unlink_keeps_her_pair_for_retry(self):
         interrupted = True
@@ -3035,6 +3057,7 @@ class Variant_Tests(unittest.TestCase):
 
         torn = []
         unraisable = []
+        interrupted = True
 
         class Payload:
             pass
@@ -3048,8 +3071,10 @@ class Variant_Tests(unittest.TestCase):
 
                 @Rip
                 def Forget(agent, contact):
+                    nonlocal interrupted
                     torn.append(agent.name)
-                    if agent.name == "Bob":
+                    if agent.name == "Bob" and interrupted:
+                        interrupted = False
                         raise KeyboardInterrupt
 
         charlie, bob, ruth = People("Charlie", "Bob", "Ruth")
@@ -3072,6 +3097,11 @@ class Variant_Tests(unittest.TestCase):
         self.assertEqual(len(charlie.Knows[:]), 0)
         self.assertEqual(len(bob.Knows[:]), 0)
         self.assertIsNone(payload_reference())            # no living Agent's family keeps her Pair
+        arrested = list(bob.Knows[...])
+        self.assertEqual(len(arrested), 1)
+        del bob.Knows[arrested[0]]
+        self.assertEqual(list(bob.Knows[...]), [])
+        del arrested
 
     def test_a_layer_that_reaches_a_held_pair_goes_on_top_with_a_warning(self):
         class Circle(Tag):
@@ -3543,6 +3573,7 @@ class Third_Round_Tests(unittest.TestCase):
             pass
 
         log = []
+        second_interrupted = True
 
         class Guard(Tag):
             @Rip
@@ -3555,8 +3586,10 @@ class Third_Round_Tests(unittest.TestCase):
             class Knows(Tag):
                 @Rip
                 def Forget(agent, contact):
+                    nonlocal second_interrupted
                     log.append(contact.name)
-                    if contact.name == "Ruth":
+                    if contact.name == "Ruth" and second_interrupted:
+                        second_interrupted = False
                         raise Second("a Link's exit")
 
         charlie, ruth, sam = People("Charlie", "Ruth", "Sam")
@@ -3572,6 +3605,9 @@ class Third_Round_Tests(unittest.TestCase):
         self.assertIs(raised, First)
         self.assertEqual(log[0], "guard")
         self.assertEqual(sorted(log[1:]), ["Ruth", "Sam"])   # every Link exit still runs
+        self.assertIn(ruth, charlie.Knows[...])
+        del charlie.Knows[ruth]
+        self.assertNotIn(ruth, charlie.Knows[...])
 
     def test_extending_a_shape_relation_checks_its_own_link_only(self):
         class Circle(Tag):

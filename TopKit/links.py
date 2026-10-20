@@ -2522,16 +2522,19 @@ def _leave(
         return
 
     state = _state_of(contact)
+    ends: _Ends = object.__getattribute__(pair, "__dict__")[_PAIR_ENDS]
     agent = record.agent()
 
     if agent is None:
         agent = family.dying
 
+    if agent is None and ends.held is not None:
+        agent = ends.held[0]   # saved failed work keeps its original Agent seat
+
     if agent is None:
         family.End(contact)
         return
 
-    ends: _Ends = object.__getattribute__(pair, "__dict__")[_PAIR_ENDS]
     pair_state = _state_of(pair)
     first: BaseException | None = None
     completed = False
@@ -2576,14 +2579,15 @@ def _leave(
                 break   # do not start later Pair Layers after this failure
         completed = first is None
     finally:
-        ends.held = None
         state.composing = opened
 
-        if completed and _arrest_of(pair) is None and not ends.flights and not _still_held(
-                family,
-                state,
-                ):
-            family.End(contact)   # asked after the teardowns, even an interrupted one: one may have linked her again (rule 5.7)
+        pending = _arrest_of(pair) is not None or not completed
+        if not pending:
+            try:
+                if not ends.flights and not _still_held(family, state):
+                    family.End(contact)   # a teardown may have linked her again (rule 5.7)
+            finally:
+                ends.held = None
 
     try:
         if first is not None:
@@ -2685,14 +2689,22 @@ def _end_links(
                     )   # newly granted Links could not link, and end empty with their Agent
 
             # Failed training can retain a Pair before its Contact ever
-            # enters a Field. Ending the owner ends those Pairs too; no
-            # admission means there is no Link Rip to replay for them.
+            # enters a Field. Ending the owner ends those Pairs too. A
+            # failed Rip is different: the Pair and its original seats
+            # remain in Safehouse custody until its saved work succeeds.
             families = {id(record.family): record.family for record in records}
             for family in families.values():
-                remaining = list(family.pairs.values())
-                family.pairs.clear()
-                for pair in remaining:
-                    _pair_ends(pair).ended = True
+                for key, pair in list(family.pairs.items()):
+                    ends = _pair_ends(pair)
+                    held = ends.held
+                    if _arrest_of(pair) is not None or (
+                            held is not None
+                            and _arrest_of(held[1]) is not None
+                            ):
+                        continue
+
+                    del family.pairs[key]
+                    ends.ended = True
                     pair_state = _state_of(pair)
                     if pair_state is not None:
                         pair_state.rips.clear()

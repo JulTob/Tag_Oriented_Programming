@@ -63,13 +63,17 @@ class LinkCallableTests(unittest.TestCase):
                 del owner.Knows[contact]
                 self.assertEqual(events, [(owner, contact)])
 
-    def test_callable_rip_failure_uses_declared_name_and_runs_later_cleanup(self):
+    def test_callable_rip_failure_names_the_step_and_saves_later_cleanup(self):
         events = []
         cause = ValueError("cannot close")
+        blocked = True
 
         def fail(agent, contact):
+            nonlocal blocked
             events.append("first")
-            raise cause
+            if blocked:
+                blocked = False
+                raise cause
 
         class Social(Tag):
             @Link
@@ -87,8 +91,13 @@ class LinkCallableTests(unittest.TestCase):
             del owner.Knows[contact]
         self.assertIn("Close", str(failure.exception.__cause__))
         self.assertIs(failure.exception.__cause__.__cause__, cause)
-        self.assertEqual(events, ["first", "later"])
+        self.assertEqual(events, ["first"])
         self.assertNotIn(contact, owner.Knows)
+        self.assertIn(contact, owner.Knows[...])
+
+        del owner.Knows[contact]
+        self.assertEqual(events, ["first", "first", "later"])
+        self.assertNotIn(contact, owner.Knows[...])
 
     def test_slotted_callable_marks_survive_adaptation(self):
         class Value:

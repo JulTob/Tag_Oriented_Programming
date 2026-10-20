@@ -15,6 +15,51 @@ class Host:
 
 
 class LinkEndingTests(unittest.TestCase):
+    def test_failed_contact_finalizer_rip_keeps_retry_seats_then_releases_them(self):
+        calls = []
+
+        class Social(Tag):
+            @Link
+            class Knows(Tag):
+                @Rip
+                def Forget(owner, contact):
+                    calls.append("run")
+                    if len(calls) == 1:
+                        raise ValueError("retry this Pair teardown")
+
+        owner, contact = Host(), Host()
+        Social(owner)
+        held = owner.Knows
+        held(contact)
+        pair = _record_of(held).family.Pair_Of(contact)
+        owner_ref = weakref.ref(owner)
+        contact_ref = weakref.ref(contact)
+        pair_ref = weakref.ref(pair)
+
+        del pair, contact
+        gc.collect()
+
+        self.assertEqual(calls, ["run"])
+        self.assertEqual(list(held[:]), [])
+        self.assertIsNotNone(contact_ref())
+        self.assertIsNotNone(pair_ref())
+        self.assertEqual(list(held[...]), [contact_ref()])
+
+        del owner
+        gc.collect()
+        self.assertIsNotNone(owner_ref())  # the saved Pair keeps its Agent seat
+
+        arrested = list(held[...])
+        del held[arrested[0]]
+        self.assertEqual(calls, ["run", "run"])
+        self.assertEqual(list(held[...]), [])
+
+        del arrested
+        gc.collect()
+        self.assertIsNone(owner_ref())
+        self.assertIsNone(contact_ref())
+        self.assertIsNone(pair_ref())
+
     def test_an_interrupt_stops_later_teardowns_of_the_same_ordinary_tag(self):
         for failure in (KeyboardInterrupt, SystemExit, GeneratorExit):
             with self.subTest(failure=failure.__name__):
@@ -141,9 +186,14 @@ class LinkEndingTests(unittest.TestCase):
         del agent.Knows[contact]
         self.assertEqual(cleanup, ["extension", "shape", "base"])
 
-    def test_retained_tag_teardown_failure_does_not_skip_its_completed_bases(self):
+    def test_retained_tag_teardown_failure_stops_before_its_completed_bases(self):
+        blocked = True
+
         def fail(agent, contact):
-            raise ValueError("extension teardown failed")
+            nonlocal blocked
+            if blocked:
+                blocked = False
+                raise ValueError("extension teardown failed")
 
         cleanup = []
         agent, contact = self._refused_shape_after_nested_extension(cleanup, fail)
@@ -151,8 +201,11 @@ class LinkEndingTests(unittest.TestCase):
         with self.assertRaises(TagCompositionError):
             del agent.Knows[contact]
 
-        self.assertEqual(cleanup, ["extension", "shape", "base"])
-        self.assertIsNone(_record_of(agent.Knows).family.Pair_Of(contact))
+        self.assertEqual(cleanup, ["extension"])
+        self.assertIn(contact, agent.Knows[...])
+        del agent.Knows[contact]
+        self.assertEqual(cleanup, ["extension", "extension", "shape", "base"])
+        self.assertNotIn(contact, agent.Knows[...])
 
     def test_failed_shape_training_keeps_a_completed_base_extensions_teardown(self):
         cleanup = []

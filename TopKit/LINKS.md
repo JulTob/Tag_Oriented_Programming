@@ -580,7 +580,9 @@ natural owner of that fact.
 A quick test: if you find yourself writing a dictionary keyed by a pair
 of Agents, `facts[(alicante, marbella)]`, that dictionary is a Link
 waiting to be written. A Link keeps it weakly, ends it when either side
-goes, and checks its rules at every change.
+goes, and checks its rules at every change. If a Rip fails, Safehouse
+custody temporarily keeps the Agent, Contact and Pair available for
+retry, then releases them after cleanup.
 
 ---
 
