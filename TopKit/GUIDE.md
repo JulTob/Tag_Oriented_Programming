@@ -457,7 +457,8 @@ Operations; a Record may also store such an object as its value.
 ### Pattern 6 · Promise, then repair
 
 **When you want** a Tag to guarantee something about the finished Agent.
-Postconditions inspect the product after everything applied.
+Every visible Post inspects the Agent after this Tag's Field entry, before
+the next Tag in a Form begins.
 
 ```python
 class Wizard(Tag):
