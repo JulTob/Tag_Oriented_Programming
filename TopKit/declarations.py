@@ -22,6 +22,7 @@ from functools import wraps
 from inspect import Parameter
 from inspect import getattr_static
 from inspect import signature
+from sys import version_info
 from types import AsyncGeneratorType
 from types import CoroutineType
 from types import GeneratorType
@@ -353,6 +354,9 @@ class _Callable_Operation(classmethod):
         # The native descriptor can still be used directly; its safe wrapper
         # also keeps __wrapped__ linked to the author's original callable.
         super().__init__(Call)
+        documentation = getattr_static(function, "__doc__", None)
+        if type(documentation) is str:
+            operation.__doc__ = documentation
 
     def __set_name__(
             operation,
@@ -366,13 +370,26 @@ class _Callable_Operation(classmethod):
     def __func__(operation) -> Function:
         return operation._function
 
+    @property
+    def __wrapped__(operation) -> Function:
+        return operation._function
+
     def __get__(
             operation,
             instance: object,
             owner: type | None = None,
-            ) -> MethodType:
+            ) -> Any:
         if owner is None:
+            if instance is None:
+                raise TypeError("both arguments to __get__ are None")
             owner = type(instance)
+
+        # Python 3.12 classmethod delegates to another descriptor's __get__.
+        # Python 3.13+ removed that delegation. Match the host interpreter.
+        if version_info < (3, 13):
+            getter = getattr_static(type(operation._function), "__get__", None)
+            if getter is not None:
+                return getter(operation._function, owner, owner)
 
         return MethodType(operation._function, owner)
 
