@@ -8,6 +8,7 @@ import unittest
 from TopKit import At_Exit
 from TopKit import Contract
 from TopKit import Flag
+from TopKit import Form
 from TopKit import Imprint
 from TopKit import Pin
 from TopKit import Post
@@ -16,7 +17,7 @@ from TopKit import Precondition
 from TopKit import Tag
 from TopKit import TagCompositionError
 from TopKit import Underlay
-from TopKit.lifecycle import _exit_registry
+from TopKit import lifecycle
 
 
 class Host:
@@ -84,6 +85,37 @@ class ObservationalPreconditionTests(unittest.TestCase):
         self.assertNotIn(other, Changed[:])
         self.assertNotIn(agent, Forbidden[:])
 
+    def test_cold_top_queries_and_nested_contract_query_stay_legal(self):
+        class Known(Tag):
+            @Pre
+            def Ready(agent):
+                return True
+
+            def Look(agent):
+                return "value"
+
+        other = Host()
+        Known(other)
+
+        class Unused(Tag):
+            pass
+
+        class Query(Tag):
+            @Pre
+            def Gate(agent):
+                return (
+                        Form(Unused) == (Unused,)
+                        and len(Unused[:]) == 0
+                        and other in Known[:]
+                        and isinstance(other, Known)
+                        and "Look" @ other
+                        and Contract.Status(other) == {"Ready": True}
+                        )
+
+        agent = Host()
+        Query(agent)
+        self.assertIn(agent, Query[:])
+
     def test_named_contract_paths_guard_at_exit_registration(self):
         armed = False
 
@@ -100,14 +132,14 @@ class ObservationalPreconditionTests(unittest.TestCase):
         agent = Host()
         Guarded(agent)
         armed = True
-        original = set(_exit_registry)
+        original = lifecycle._exit_count
 
         with self.assertRaises(Precondition.Ready):
             Contract.Preconditions(agent)
         self.assertIs(agent.Ready, False)
         self.assertEqual(Contract.Status(agent), {"Ready": False})
         self.assertIn("Ready", Contract.Display(agent))
-        self.assertEqual(set(_exit_registry), original)
+        self.assertEqual(lifecycle._exit_count, original)
 
     def test_contract_delete_tag_class_writes_and_marks_leave_no_effect(self):
         class Existing(Tag):
