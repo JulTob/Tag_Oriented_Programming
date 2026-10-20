@@ -1461,6 +1461,23 @@ class Late_Pin_Tests(unittest.TestCase):
         self.assertIn("already has Agents", str(refusal.exception))
         self.assertIn(charlie, Noted)
 
+    def test_a_tag_with_an_empty_field_may_be_marked_after_its_agents_leave(self):
+        class Noted(Tag):
+            pass
+
+        class RecordOf(Tag):
+            pass
+
+        charlie = Character("Charlie")
+        Noted(charlie)
+        del Noted[charlie]
+        self.assertNotIn(charlie, Noted[:])
+
+        self.assertIs(Pin(Noted), Noted)
+        Noted(RecordOf)
+        self.assertIn(RecordOf, Noted[:])
+        self.assertNotIn(charlie, Noted[:])
+
     def test_a_tag_named_as_a_tool_kind_is_not_marked_a_pin_later(self):
         class Prize(Tag):
             pass
@@ -1599,6 +1616,28 @@ class Late_Pin_Tests(unittest.TestCase):
         with self.assertRaises(TagDeclarationError):
             Rare.prize = prize
         self.assertNotIn("prize", Rare.__dict__)
+
+    def test_a_metaclass_interception_does_not_register_a_tool_owner(self):
+        class Absorb:
+            def __set__(self, owner, value):
+                pass
+
+        class Meta(MetaTag):
+            prize = Absorb()
+
+        class Prize(Tag):
+            pass
+
+        class Collector(Tag, metaclass=Meta):
+            pass
+
+        @Tool(Prize)
+        def prize(agent):
+            return None
+
+        Collector.prize = prize
+        self.assertNotIn("prize", Collector.__dict__)
+        self.assertIs(Pin(Prize), Prize)
 
     def test_a_concurrent_pin_cannot_pass_while_a_tool_owner_is_registering(self):
         import TopKit.declarations as declarations

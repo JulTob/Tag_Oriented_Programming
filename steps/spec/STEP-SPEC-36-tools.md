@@ -418,7 +418,8 @@ for review without representing that formal decision as already made.
 3. **Capacity evidence** (done): the oracle's `Exercise_Tools` checks a
    Tag kind and a class kind on every seed; the opt-in budgets pass; the
    runtime type is shared across Agents whose slots differ only in kind.
-   Retained Gains under STEP-SPEC-39 are re-checked when PR #78 lands.
+   Retained Gains follow STEP-SPEC-39's ordered Tagging, on main since
+   [PR #174](https://github.com/JulTob/Tag_Oriented_Programming/pull/174).
 
 Runtime descriptors must obtain the effective policy from Agent state,
 not capture bearers or values in shared classes or cache keys. Presence
