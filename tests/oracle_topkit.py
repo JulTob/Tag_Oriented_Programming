@@ -189,11 +189,18 @@ def Model_Apply(
 
     for current in Form(tag):
         if current not in model.active:
-            Model_Gain(model, current)
-            model.active.append(current)
-            model.ever.add(current)
-            CLOCK[0] += 1
-            model.joined[current] = CLOCK[0]
+            Model_Enter(model, current)
+
+
+def Model_Enter(
+        model: Model,
+        tag: type,
+        ) -> None:
+    Model_Gain(model, tag)
+    model.active.append(tag)
+    model.ever.add(tag)
+    CLOCK[0] += 1
+    model.joined[tag] = CLOCK[0]
 
 
 def Model_Tagging(
@@ -201,17 +208,21 @@ def Model_Tagging(
         tag: type,
         ) -> bool:
     """Apply ``tag`` to the model. True when completed training reports a
-    failed Post before the surrounding try begins: something joined, and
-    the Agent is deficient. Active reapplication joins nothing and
-    rechecks nothing (§0.7)."""
+    failed Post before the surrounding try begins: that Tag joined, but
+    later Form members did not start. Active reapplication joins nothing
+    and rechecks nothing (§0.7)."""
 
     if tag in model.active:
         return False
 
-    pending = [member for member in Form(tag) if member not in model.active]
-    Model_Apply(model, tag)
+    for member in Form(tag):
+        if member in model.active:
+            continue
+        Model_Enter(model, member)
+        if not model.Sound():
+            return True
 
-    return bool(pending) and not model.Sound()
+    return False
 
 
 def Rip_Failure(
@@ -734,7 +745,7 @@ def Run_Seed(
             else:
                 raise AssertionError((context, "invalid Apply succeeded"))
 
-            Model_Apply(model, first)                                 # Apply is a plain loop: the first landed
+            Model_Tagging(model, first)                               # Apply stops at the first Tag's failed Post
 
         Assert_Target(target, model, family, context)
 

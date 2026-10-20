@@ -168,12 +168,25 @@ class LazyProtocolTests(unittest.TestCase):
                             kind,
                             marker,
                             )
-                    prior.__name__ = "Gate"
+                    if phase == "Postcondition":
+                        checks = [0]
+
+                        def Base_Gate(target: object) -> Any:
+                            checks[0] += 1
+                            if checks[0] == 1:
+                                return True   # Base must pass before Shape starts
+                            return prior(target)
+
+                        base_gate = Base_Gate
+                    else:
+                        base_gate = prior
+
+                    base_gate.__name__ = "Gate"
                     base = type(
                             f"Lazy_{phase}_{kind.replace(' ', '_')}_Base",
                             (Tag,),
                             {
-                                "Gate": mark(prior),
+                                "Gate": mark(base_gate),
                                 },
                             )
 
@@ -205,6 +218,7 @@ class LazyProtocolTests(unittest.TestCase):
                         self.assertIn(kind, str(failure.exception))
                         self.assertFalse(hasattr(target, marker))
                         self.assertEqual(target in shape[:], keeps_tag)
+                        self.assertEqual(target in base[:], keeps_tag)
 
             gc.collect()
 

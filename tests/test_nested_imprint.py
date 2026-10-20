@@ -281,6 +281,34 @@ class NestedImprintTests(unittest.TestCase):
         self.assertIn(agent, ~Inner)
         self.assertFalse("item" @ agent)
 
+    def test_nested_form_stops_at_base_post_before_shape_imprint(self):
+        events = []
+
+        class Base(Tag):
+            @Post
+            def Ready(agent):
+                events.append("base post")
+                return False
+
+        class Shape(Base):
+            @Imprint
+            def Train(agent):
+                events.append("shape imprint")
+
+        class Outer(Tag):
+            @Imprint
+            def Join(agent):
+                Shape(agent)
+
+        agent = Host()
+        with self.assertRaises(TagImprintError.Join) as caught:
+            Outer(agent)
+        self.assertIsInstance(caught.exception.__cause__, TagPostconditionError.Ready)
+        self.assertEqual(events, ["base post"])
+        self.assertIn(agent, Base[:])
+        self.assertNotIn(agent, Shape[:])
+        self.assertNotIn(agent, Outer[:])
+
     def test_later_record_failure_preserves_the_completed_form_prefix(self):
         events = []
 

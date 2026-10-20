@@ -8,10 +8,7 @@ For each Tag in the Form (Bases first), in order:
        order. Each builder can read or call what is already acquired.
     3. Its Imprints run, with acquired Gains but no membership yet.
     4. Field entry establishes membership and published services.
-
-Once for the whole call:
-
-    5. Every visible Postcondition is checked.
+    5. Every visible Postcondition is checked before the next Tag's Gate.
 
 A refusal in 1 leaves completed Tags and existing Gains in place. A
 failure in 2 or 3 retains acquired Gains and Posts, but never admits the
@@ -106,8 +103,7 @@ def _apply(
 
             _gate(agent, state, member, inputs)
             _apply_one(agent, state, member, inputs)
-
-        _inspect(agent)   # Posts judge the completed Form, once.
+            _inspect(agent)   # a failed Post keeps this membership, but stops the Form
     except BaseException:
         if (
                 entry_state is None
@@ -351,7 +347,7 @@ def _refuse_conditions_shadowed_by_the_agent(
 def _inspect(
         agent: object,
         ) -> None:
-    """Quality check of the finished product: every visible Postcondition."""
+    """Judge every visible Post after this Tag enters its Field."""
 
     state = _state_of(agent)
 
