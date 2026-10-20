@@ -1,0 +1,128 @@
+"""Opt-in custody checks on ordinary Python Host instance methods.
+
+The mark is placed on the Host class before an instance method can be
+captured. It keeps the same class object and Python MRO. A method captured
+before the first Tagging then remains capable of checking a later arrest.
+Native async generators returned by guarded methods are refused even before
+Tagging: their later event-loop cleanup cannot yet pass the custody check.
+"""
+
+from __future__ import annotations
+
+from functools import wraps
+from inspect import isasyncgenfunction
+from types import FunctionType
+from typing import Any
+from weakref import WeakKeyDictionary
+from weakref import ref
+
+from .arrest import _require_available
+from .arrest import _safehouse
+from .errors import TagDeclarationError
+from .geometry import _is_tag_class
+from .lazy_guard import _guard_lazy_result
+
+
+_CLEANUP_HOOKS = frozenset((
+        "__enter__", "__exit__", "__aenter__", "__aexit__",
+        "__buffer__", "__getbuffer__", "__release_buffer__", "__del__",
+        ))
+
+# These are class creation hooks, not ordinary instance acts.
+_CLASS_HOOKS = frozenset((
+        "__new__", "__init_subclass__", "__class_getitem__",
+        ))
+
+# The class decorator's own identity ledger. The source value is weak too:
+# a zero-argument super() gives it a __class__ closure, so a strong value
+# could retain the class, its wrapper, and thus its weak key forever.
+_guarded_sources: "WeakKeyDictionary[FunctionType, ref[FunctionType]]" = (
+        WeakKeyDictionary()
+        )
+
+
+def _guarded_source(function: FunctionType) -> FunctionType | None:
+    source = _guarded_sources.get(function)
+    return source() if source is not None else None
+
+
+def _guarded_method(name: str, source: FunctionType) -> FunctionType:
+    act = f"Host method {name}"
+
+    @wraps(source)
+    def Guarded(receiver: object, *args: Any, **kwargs: Any) -> Any:
+        if _safehouse:
+            _require_available(receiver, act)
+
+        result = source(receiver, *args, **kwargs)
+
+        # A Host method can catch its own failing Rip and try to return a
+        # value. Its result must pass the same custody check as its entry.
+        if _safehouse:
+            _require_available(receiver, act)
+
+        return _guard_lazy_result(result, receiver, act, _require_available)
+
+    _guarded_sources[Guarded] = ref(source)
+    return Guarded
+
+
+def GuardedHost(host: type) -> type:
+    """Mark a Host whose own instance functions must respect Rip custody.
+
+    Decorate the completed class, outermost to ``@dataclass`` and similar
+    class decorators. A class with context, buffer, or finalization hooks
+    is refused until its cleanup boundary is designed.
+    Python descriptors, class/static methods and methods declared on other
+    unmarked Python classes are outside this first, narrow profile.
+    A guarded ordinary method returning a native async generator is refused
+    on that call, including when its receiver has never been Tagged.
+    """
+
+    if not isinstance(host, type):
+        raise TagDeclarationError("GuardedHost needs a Python Host class")
+    if _is_tag_class(host):
+        raise TagDeclarationError(
+                "GuardedHost marks a Python Host, not a Tag declaration"
+                )
+
+    host_name = type.__dict__["__name__"].__get__(host)
+    # A custom metaclass can mask these names with data descriptors.
+    # Read type's kernel descriptors, as TOP does for other Host checks.
+    namespace = dict(type.__dict__["__dict__"].__get__(host))
+    blocked = {
+            name
+            for owner in type.__dict__["__mro__"].__get__(host)
+            if owner is not object
+            for name in _CLEANUP_HOOKS.intersection(
+                    type.__dict__["__dict__"].__get__(owner)
+                    )
+            }
+    if blocked:
+        name = sorted(blocked)[0]
+        raise TagDeclarationError(
+                f"{host_name}.{name} is a Host cleanup hook;"
+                " GuardedHost has no entered cleanup door for it yet"
+                )
+
+    selected = tuple(
+            (name, source)
+            for name, source in namespace.items()
+            if (
+                    name not in _CLASS_HOOKS
+                    and type(source) is FunctionType
+                    and _guarded_source(source) is None
+                    )
+            )
+
+    for name, source in selected:
+        if isasyncgenfunction(source):
+            raise TagDeclarationError(
+                    f"{host_name}.{name} is an async generator;"
+                    " its event-loop finalizer cannot yet be guarded"
+                    )
+
+    for name, source in selected:
+        type.__setattr__(host, name, _guarded_method(name, source))
+
+    return host
