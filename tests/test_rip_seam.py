@@ -1,7 +1,7 @@
-"""The Rip seam: revocation hands over the saved chain, teardown only runs it.
+"""The Rip seam: revocation hands over one saved run, teardown only runs it.
 
 `_revoke_membership` ends one membership now and takes the saved `@Rip`
-chain out of the Agent's state. `_teardown` runs exactly the tuple it is
+chain out of the Agent's state. `_teardown` runs exactly the saved run it is
 given. These tests pin that contract, because `del Tag[:]` will rely on
 it: revoke every member first, run the saved chains after, and keep each
 old chain apart from any fresh Tagging a teardown starts.
@@ -35,7 +35,7 @@ class RipSeamTests(unittest.TestCase):
         agent = Host()
         Guarded(agent)
 
-        state, chain = _revoke_membership(agent, Guarded)
+        state, run = _revoke_membership(agent, Guarded)
 
         self.assertNotIn(agent, Guarded[:])
         self.assertNotIn(
@@ -44,9 +44,10 @@ class RipSeamTests(unittest.TestCase):
                 "the saved chain must leave the state at revocation",
                 )
         self.assertEqual(ran, [], "revocation alone runs no teardown")
-        self.assertEqual(len(chain), 1, "the chain is handed to the caller")
+        self.assertIs(run.tag, Guarded)
+        self.assertEqual(len(run.teardowns), 1, "the chain is handed to the caller")
 
-        _teardown(agent, state, Guarded, chain)
+        _teardown(agent, state, run)
 
         self.assertEqual(ran, ["released"])
 
@@ -65,12 +66,12 @@ class RipSeamTests(unittest.TestCase):
         Guarded(first)
         Guarded(second)
 
-        state_first, chain_first = _revoke_membership(first, Guarded)
-        state_second, chain_second = _revoke_membership(second, Guarded)
+        state_first, run_first = _revoke_membership(first, Guarded)
+        state_second, run_second = _revoke_membership(second, Guarded)
         self.assertNotIn(first, Guarded[:])
         self.assertNotIn(second, Guarded[:])
 
-        _teardown(first, state_first, Guarded, chain_first)
+        _teardown(first, state_first, run_first)
 
         self.assertIn(second, Guarded[:], "the fresh Tagging readmitted it")
         self.assertIn(
@@ -79,7 +80,7 @@ class RipSeamTests(unittest.TestCase):
                 "the fresh Tagging saved a fresh chain of its own",
                 )
 
-        _teardown(second, state_second, Guarded, chain_second)
+        _teardown(second, state_second, run_second)
 
         self.assertEqual(log, ["old:first", "old:second"])
         self.assertIn(
