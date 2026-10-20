@@ -28,6 +28,13 @@ IDs are issued monotonically and are never recycled: exhaustion raises the
 experimental `Identity_Exhausted` exception instead of wrapping. Failed
 allocation can consume an ID without assigning it to a Target.
 
+An `Identity_Handle` cannot be streamed. All four Ada stream attributes
+(`Read`, `Write`, `Input`, `Output`) raise `Program_Error` before touching the
+stream or a handle's reference accounting. Default streaming would copy its
+private access value without retaining it, leaving a dangling handle. A
+portable serialized identity format would need a separate design; an ID alone
+cannot make a Target live again in another process.
+
 Handle adjustment clears its raw copied pointer before retaining metadata,
 so a failed retain cannot release an ownership reference it did not acquire.
 Token and handle finalization clear their pointers before releasing them;
@@ -41,6 +48,8 @@ normal scope end and explicit
 deallocation; host initialization failure; finalizer overrides that omit the
 ancestor; automatic finalizer failure at a normal master end; repeated
 explicit host/ancestor hook calls; and handle cleanup during an exception.
+The stream-attribute test checks explicit refusal without changing a live
+handle or reading or writing the caller's stream.
 Three paired compilation controls refuse ordinary limited Target assignment,
 client access to the private token, and client calls to the identity handle's
 private finalizer. Hiding the handle's controlled ancestry prevents clients
