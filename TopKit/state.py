@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from dataclasses import field
 from dataclasses import FrozenInstanceError
 from functools import wraps
+from inspect import getattr_static
 from inspect import signature
 from threading import RLock
 from types import FunctionType
@@ -29,6 +30,8 @@ from weakref import WeakValueDictionary
 import weakref
 
 from .declarations import STATE
+from .declarations import Report
+from .declarations import _KIND
 from .declarations import _MISSING
 from .declarations import _Words
 from .declarations import _is_dunder
@@ -102,24 +105,98 @@ def _report_changed(
         names[name] = (writes + 1, deletions + int(deleted))
 
 
+@dataclass(frozen=True, slots=True)
+class _Report_Binding:
+    origin: type
+    declaration: Any | None   # None for a Pin-published Record
+    deletions: int
+    public: bool
+
+
+def _remember_report(
+        state: "_State",
+        name: str,
+        origin: type,
+        declaration: Any | None,
+        public: bool,
+        ) -> None:
+    """Lay a Report over earlier Reports without mutating a scratch copy."""
+
+    earlier = state.reports.get(name, ())
+    state.reports[name] = (
+            *(binding for binding in earlier if binding.origin is not origin),
+            _Report_Binding(
+                    origin,
+                    declaration,
+                    _report_epochs(origin, name)[1],
+                    public,
+                    ),
+            )
+
+
+def _live_report_binding(
+        name: str,
+        binding: _Report_Binding,
+        ) -> _Report_Binding | None:
+    """Check a recorded Report without reading or building its value."""
+
+    origin = binding.origin
+
+    if _report_epochs(origin, name)[1] != binding.deletions:
+        return None
+
+    member = _class_namespace(origin).get(name, _MISSING)
+
+    if member is _MISSING:
+        return None
+
+    if isinstance(member, Report):
+        # A fresh Report declaration keeps the binding's Overlay rank,
+        # while its current @Public mark governs direct Agent access.
+        if member.public != binding.public:
+            return _Report_Binding(
+                    binding.origin,
+                    binding.declaration,
+                    binding.deletions,
+                    member.public,
+                    )
+    elif binding.declaration is None:
+        pinned = _state_of(origin)
+
+        if (
+                pinned is None
+                or name not in pinned.records
+                or name not in pinned.published
+                ):
+            return None
+    else:
+        if isinstance(member, (classmethod, property, staticmethod)):
+            return None
+        if getattr_static(member, _KIND, None) is not None:
+            return None
+
+    return binding
+
+
+def _current_report_binding(
+        state: "_State",
+        name: str,
+        ) -> _Report_Binding | None:
+    for binding in reversed(state.reports.get(name, ())):
+        live = _live_report_binding(name, binding)
+
+        if live is not None:
+            return live
+
+    return None
+
+
 def _current_report_origin(
         state: "_State",
         name: str,
         ) -> type | None:
-    binding = state.reports.get(name)
-
-    if binding is None:
-        return None
-
-    origin, _declaration, recorded_deletions = binding
-
-    if (
-            _report_epochs(origin, name)[1] != recorded_deletions
-            or name not in _class_namespace(origin)
-            ):
-        return None
-
-    return origin
+    binding = _current_report_binding(state, name)
+    return None if binding is None else binding.origin
 
 
 # ------------------------------------------------------------------
@@ -131,7 +208,7 @@ def _current_report_origin(
 class _Snapshot:
     actions: dict[str, Function]
     records: dict[str, Any]
-    reports: dict[str, tuple[type, int]]
+    reports: dict[str, tuple[_Report_Binding, ...]]
     operations: dict[str, tuple[type, Function]]
     deleted: frozenset[str]
     secrets: frozenset[str]
@@ -149,7 +226,7 @@ class _State:
     records: dict[str, type] = field(default_factory=dict)
     preconditions: dict[str, Check] = field(default_factory=dict)
     postconditions: dict[str, Check] = field(default_factory=dict)
-    reports: dict[str, tuple[type, Any, int]] = field(default_factory=dict)
+    reports: dict[str, tuple[_Report_Binding, ...]] = field(default_factory=dict)
     operations: dict[str, tuple[type, Function]] = field(default_factory=dict)
     published: set[str] = field(default_factory=set)
     secrets: set[str] = field(default_factory=set)
@@ -1267,20 +1344,20 @@ class _Published:
             return gate
 
         state = _namespace_of(agent)[STATE]
-        origin = _current_report_origin(state, gate.name)
+        binding = _current_report_binding(state, gate.name)
 
-        if origin is None:
+        if binding is None or not binding.public:
             raise AttributeError(gate.name)
 
         _require_membership(
                 agent,
-                origin,
+                binding.origin,
                 gate.name,
                 "Report",
                 )
 
         return getattr(
-                origin,
+                binding.origin,
                 gate.name,
                 )
 

@@ -19,6 +19,14 @@
 
 ### TopKit
 
+- **Report view capture leaves builders lazy:** closing a Tagging records
+  Report positions without reading their values. An optional Report that
+  fails on read cannot interrupt an unrelated Tagging, and a Report still
+  initializes on its first actual read.
+- **Tag views resolve Reports at their Tagging point:** an own Report wins;
+  otherwise the view reads the latest still-visible Report in its recorded
+  Agent Overlay. Deleting or Ripping that source can reveal an earlier layer.
+
 - **Sound membership:** `agent in Tag` now asks whether the Agent is still
   in that Field and its visible Posts hold, matching `for agent in Tag`.
   `agent in Tag[:]` asks for raw Field membership, including defective
@@ -29,11 +37,6 @@
   than a strong Host reference. Transient Host/Agent cycles can collect,
   distinct Hosts with custom equality cannot share the wrong runtime type,
   and equivalent Agents of one Host still share their runtime type.
-
-- **Report view capture leaves builders lazy:** closing a Tagging records
-  Report positions without reading their values. An optional Report that
-  fails on read cannot interrupt an unrelated Tagging, and a Report still
-  initializes on its first actual read.
 
 - **Tagging preparation cost:** ordinary Action/Record declarations reuse
   the existing collision and Underlay checks without constructing a

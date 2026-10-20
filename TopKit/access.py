@@ -32,8 +32,8 @@ from .state import _Secret_Bound
 from .state import _Snapshot
 from .state import _State
 from .state import _is_composing
+from .state import _live_report_binding
 from .state import _name_of
-from .state import _report_epochs
 from .state import _state_of
 from .memo import _class_namespace
 
@@ -505,57 +505,78 @@ def _agent_deepcopy(
 # ------------------------------------------------------------------
 
 
-def _view_report_present(
+def _view_report_source(
         view: "_Tag_View",
         name: str,
         snapshot: _Snapshot,
-        ) -> bool:
-    """A Report belongs to the Tag being searched, at its current value.
-
-    A new Report declaration or Pin Record can appear after Tagging;
-    neither changes that Tagging's Action and Record snapshot.
-    """
+        ) -> type | None:
+    """Read the Tag's own Report, then its recorded Overlay prefix."""
 
     tag = view._tag
+    state = _state_of(view._agent)
+
+    if state is None:
+        return None
+
+    view_position = next(
+            (index for index, active in enumerate(state.active) if active is tag),
+            None,
+            )
+
+    if view_position is None:
+        return None
+
     pinned = _state_of(tag)
 
     if pinned is not None and name in pinned.records and name in pinned.secrets:
         # A Secret Pin Record lives in the Tag's private state, not its
         # physical namespace. It remains a Report behind the Pin door.
-        return name in pinned.secret_values and _is_composing(pinned)
+        return tag if name in pinned.secret_values and _is_composing(pinned) else None
 
     member = _class_namespace(tag).get(name, _MISSING)
 
-    if member is _MISSING:
-        return False
+    if member is not _MISSING:
+        # A current own declaration has priority. A plain value remains a
+        # Report only if it replaced a Report binding at this view point.
+        if isinstance(member, declarations.Report):
+            return tag
 
-    entry = snapshot.reports.get(name)
-    existing = (
-            entry is not None
-            and entry[0] is tag
-            and _report_epochs(tag, name)[1] == entry[1]
-            )
+        if isinstance(member, (classmethod, property, staticmethod)):
+            return None
 
-    if isinstance(member, declarations.Report):
-        return True
+        if pinned is not None:
+            if name in pinned.records:
+                # Unmarked Pin Records are Tag Reports in a Tag view.
+                return tag
 
-    if isinstance(member, (classmethod, property, staticmethod)):
-        return False
+            if name in pinned.actions:
+                return None
 
-    if pinned is not None:
-        if name in pinned.records:
-            # A Pin Record belongs to the pinned Tag as a Report even when
-            # it was not published on the Agent.
-            return True
+        if getattr_static(member, declarations._KIND, None) is not None:
+            return None
 
-        if name in pinned.actions:
-            return False
+        for binding in reversed(snapshot.reports.get(name, ())):
+            if binding.origin is tag:
+                return tag if _live_report_binding(name, binding) is not None else None
 
-    if getattr_static(member, declarations._KIND, None) is not None:
-        return False
+        return None
 
-    # Only a plain value write keeps the earlier Report binding.
-    return existing
+    # This Tag declares no Report now. Read the first still-live Report
+    # below it in the Overlay captured when this Tag last entered its Field.
+    # Later Tags never enter that prefix. A source Ripped and reTagged after
+    # this Tag has a new position and cannot regain the old view's access.
+    earlier = state.active[:view_position]
+
+    for binding in reversed(snapshot.reports.get(name, ())):
+        origin = binding.origin
+
+        if origin is tag or not any(active is origin for active in earlier):
+            continue
+
+        if _live_report_binding(name, binding) is not None:
+            return origin
+
+    return None
 
 
 def _view_snapshot(
@@ -606,8 +627,9 @@ class _Tag_View:
         snapshot: _Snapshot = view._snapshot
         agent = view._agent
 
-        if _view_report_present(view, name, snapshot):
-            return getattr(view._tag, name)
+        report_source = _view_report_source(view, name, snapshot)
+        if report_source is not None:
+            return getattr(report_source, name)
 
         if name in snapshot.deleted:
             raise AttributeError(
@@ -668,7 +690,7 @@ class _Tag_View:
         name = str.__str__(name)
         snapshot = view._snapshot
 
-        if _view_report_present(view, name, snapshot):
+        if _view_report_source(view, name, snapshot) is not None:
             return True
 
         if name in snapshot.deleted:
