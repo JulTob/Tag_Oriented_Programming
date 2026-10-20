@@ -92,6 +92,59 @@ def _rip(
     return agent
 
 
+def _revoke_membership(
+        agent: object,
+        tag: type,
+        ) -> tuple[_State, tuple[tuple[str, Any], ...]]:
+    """End one membership and hand its saved Rip chain to the caller.
+
+    The Safehouse path uses ``_revoke`` so it can recognize an old
+    application's Rip tuple after a fresh Tagging. This simpler seam
+    remains available to callers that own an ordinary active membership.
+    """
+
+    state = _state_of(agent)
+
+    if state is None or tag not in state.active:
+        raise TagResolutionError(
+                f"{tag.__name__} is not active on this Agent"
+                )
+
+    state.active.remove(tag)
+    state.words = None
+    state.snapshots.pop(tag, None)
+    _field_of(tag)._Remove(agent)
+
+    return state, state.rips.pop(tag, ())
+
+
+def _teardown(
+        agent: object,
+        state: _State,
+        tag: type,
+        teardowns: tuple[tuple[str, Any], ...],
+        ) -> None:
+    """Run the handed-over Rip chain without reading a fresh Tagging's state."""
+
+    failures: list[tuple[str, Exception]] = []
+    state.composing += 1
+
+    try:
+        for name, teardown in teardowns:
+            try:
+                _call_teardown(name, teardown, agent, state)
+            except Exception as error:
+                failures.append((name, error))
+    finally:
+        state.composing -= 1
+
+    if failures:
+        names = ", ".join(name for name, _error in failures)
+        raise TagCompositionError(
+                f"{tag.__name__} teardown failed in: {names}"
+                ) from failures[0][1]
+
+
 def _retry_arrested(
         agent: object,
         *,
