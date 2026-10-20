@@ -17,6 +17,7 @@ from TopKit import Rip
 from TopKit import Secret
 from TopKit import Tag
 from TopKit import TagDeclarationError
+from TopKit import TagResolutionError
 from TopKit.tags import MetaTag
 
 from ._fixtures import Agent
@@ -413,9 +414,10 @@ class PublicationTests(unittest.TestCase):
             return "new"
 
         Source.mark = mark
-        with self.assertRaises(AttributeError):
+        with self.assertRaises(TagResolutionError):
             captured.mark
-        self.assertFalse("mark" @ captured)
+        with self.assertRaises(TagResolutionError):
+            "mark" @ captured
 
     def test_a_ripped_agent_loses_report_view_until_retagging(self) -> None:
         class Source(Tag):
@@ -430,9 +432,10 @@ class PublicationTests(unittest.TestCase):
         del Source[agent]
         Source.mark = "current"
 
-        with self.assertRaises(AttributeError):
+        with self.assertRaises(TagResolutionError):
             captured.mark
-        self.assertFalse("mark" @ captured)
+        with self.assertRaises(TagResolutionError):
+            "mark" @ captured
 
         Source(agent)
         self.assertEqual(captured.mark, "current")

@@ -3,7 +3,7 @@
 import unittest
 
 from TopKit import (Operation, Post, Postcondition, Public, Tag,
-                    TagRogueAccessError)
+                    TagResolutionError, TagRogueAccessError)
 
 
 class Host:
@@ -89,7 +89,9 @@ class PublicOperationMetadataTests(unittest.TestCase):
 
         self.assertNotIn(agent, Agency[:])
         self.assertIsInstance(agent, Agency)
-        for call in (agent.Work, view.Work, captured, captured_view):
+        with self.assertRaises(TagResolutionError):
+            view.Work
+        for call in (agent.Work, captured, captured_view):
             with self.assertRaises(TagRogueAccessError):
                 call()
         self.assertEqual(Agency.Work(), (Agency, None, 0))
@@ -97,6 +99,7 @@ class PublicOperationMetadataTests(unittest.TestCase):
         Agency(agent)
         self.assertIn(agent, Agency[:])
         self.assertEqual(captured(3), (Agency, agent, 3))
+        self.assertEqual(view.Work(3), (Agency, agent, 3))
 
     def test_missing_documentation_does_not_bypass_postconditions(self):
         Agency = self.agency(CallableOperation(AttributeError("__doc__")))

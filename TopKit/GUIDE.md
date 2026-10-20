@@ -106,9 +106,11 @@ assert ari.Attack() == "Ari cuts with a blade."       # Fighter came last
 assert ari.Wizard.Attack() == "Ari casts a spell"   # the view after Wizard
 ```
 
-`ari.Wizard` is a **view**: the sheet as it was right after Wizard applied.
-It never changes, whatever comes later. `Wizard[ari]` is the same view by
-class, exact even if two Tags share a name.
+`ari.Wizard` is a **view** of Wizard's latest Tagging of Ari. A later Tag
+does not change Wizard's recorded position. If you save `view = Wizard[ari]`,
+each later `view.Attack` behaves like a fresh `Wizard[ari].Attack`: Rip
+removes access, and reTagging Wizard selects its new position. `Wizard[ari]`
+selects by class, exact even if two Tags share a name.
 
 ### Ask whether a named Contribution is present
 
@@ -144,7 +146,7 @@ from Action to Record or back and still be present.
 On the actual Agent, shared names count through publication. A published
 Report requires an active publishing Tag; a published Operation's Action
 can remain present after Rip, with its use still checked separately. A
-Tag-bound view checks its captured shared contributions. Secret names
+Tag-bound view checks the shared contributions at its latest Tagging. Secret names
 obey the Agent's composition door. The query
 takes a string name; other left operands keep their ordinary `@`
 behaviour. A pinned Tag can be queried as an Agent, but a bare, unpinned

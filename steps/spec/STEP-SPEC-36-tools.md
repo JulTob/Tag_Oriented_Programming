@@ -329,8 +329,9 @@ atomic move. Sharing is allowed and implies no exclusivity. The object's
 Tags travel with its identity. Its Rip affects membership, not the
 binding; ending a bearer does not automatically Rip the held object.
 
-An Agent-bound Tag view keeps the Record reference recorded at admission,
-as existing views do. It is not a cloned Tool or an ownership claim.
+An Agent-bound Tag view reads the Record reference recorded at that Tag's
+latest admission, as current views do. A saved view resolves that latest
+position again after reTagging. It is not a cloned Tool or an ownership claim.
 Later mutation of that object remains visible through the reference.
 
 A shared object can already be returned by a Report. Prepare it outside

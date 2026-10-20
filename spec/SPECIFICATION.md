@@ -451,8 +451,10 @@ bindings. Tag-scope names count there through publication. A published
 Report requires its active publishing Tag; a lazy Report need not have
 been read to be present. A published Operation's sticky Action can remain
 present after Rip even though its use is refused (§1.5).
-`"name" @ Wizard[agent]` instead checks that Agent-bound view's captured
-contributions, including its captured shared contributions. Both forms
+`"name" @ Wizard[agent]` instead checks Wizard's current Tag-bound view
+of that Agent, including shared contributions. A saved `Wizard[agent]`
+resolves the same view again on each query: Rip removes access and a new
+Tagging selects its new layers. Both forms
 respect the receiver Agent's composition door for Secret names (§1.5).
 Presence does not evaluate soundness.
 
@@ -912,10 +914,12 @@ agent.Attack()
 agent.weapon
 ```
 
-**Agent-bound Tag access**: the Overlay **as it was immediately after that
-Tag applied** to this Agent, including prior independent Tags. It does not
-change when a later Tag actualizes the same name. It is a snapshot: read
-only. Two spellings:
+**Agent-bound Tag access**: the Overlay recorded **when that Tag most
+recently applied** to this Agent, including prior independent Tags. A
+later Tag does not change that Tag's recorded position. A saved view is a
+read-only reference to this lookup: every read behaves like a fresh
+`Tag[agent]`, so Rip ends access and reTagging selects the new position.
+Two spellings:
 
 ```python
 agent.Paladin.Attack()       # by name: the last active Tag called Paladin
@@ -923,8 +927,9 @@ Paladin[agent].Attack()      # by class: exact, even when names collide
 ```
 
 Agent-bound access requires **active** membership; a Rogue Agent keeps its
-sticky members but loses the view. Secret members obey the same door in a
-view.
+sticky members but loses the view, including any saved reference to it.
+Secret members obey the same door in a view. A bound Action or Operation
+obtained earlier is a separate Python value with its own access checks.
 
 **Direct Tag access**: the Tag itself.
 

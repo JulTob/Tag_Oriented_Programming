@@ -3,7 +3,7 @@
 Three access forms, three meanings:
 
     agent.name          the current visible Overlay (Agent scope)
-    agent.Wizard.name   captured Actions/Records, current Wizard Reports
+    agent.Wizard.name   Wizard's current Tag-bound view of this Agent
     Wizard.name         the Tag itself (Tag scope)
 """
 
@@ -508,20 +508,15 @@ def _agent_deepcopy(
 def _view_report_present(
         view: "_Tag_View",
         name: str,
+        snapshot: _Snapshot,
         ) -> bool:
     """A Report belongs to the Tag being searched, at its current value.
 
-    The Agent must still belong to the Tag. A new Report declaration or
-    Pin Record can appear after the view was captured; neither changes
-    its captured Action and Record stack.
+    A new Report declaration or Pin Record can appear after Tagging;
+    neither changes that Tagging's Action and Record snapshot.
     """
 
     tag = view._tag
-    state = _state_of(view._agent)
-
-    if state is None or not any(active is tag for active in state.active):
-        return False
-
     pinned = _state_of(tag)
 
     if pinned is not None and name in pinned.records and name in pinned.secrets:
@@ -534,7 +529,7 @@ def _view_report_present(
     if member is _MISSING:
         return False
 
-    entry = view._snapshot.reports.get(name)
+    entry = snapshot.reports.get(name)
     existing = (
             entry is not None
             and entry[0] is tag
@@ -563,24 +558,46 @@ def _view_report_present(
     return existing
 
 
+def _view_snapshot(
+        agent: object,
+        tag: type,
+        state: _State | None = None,
+        ) -> _Snapshot:
+    if state is None:
+        state = _state_of(agent)
+
+    if state is None or not any(active is tag for active in state.active):
+        raise TagResolutionError(
+                f"{tag.__name__} is not active on this Agent"
+                )
+
+    try:
+        return state.snapshots[tag]
+    except KeyError as error:
+        raise TagResolutionError(
+                f"{tag.__name__} has no completed view of this Agent"
+                ) from error
+
+
 class _Tag_View:
-    """The captured Agent Overlay, with current Reports of this Tag."""
+    """A live reference to this Tag's current view of the Agent."""
 
     __slots__ = (
             "_agent",
             "_tag",
-            "_snapshot",
             )
 
     def __init__(
             view,
             agent: object,
             tag: type,
-            snapshot: _Snapshot,
             ) -> None:
         object.__setattr__(view, "_agent", agent)
         object.__setattr__(view, "_tag", tag)
-        object.__setattr__(view, "_snapshot", snapshot)
+
+    @property
+    def _snapshot(view) -> _Snapshot:
+        return _view_snapshot(view._agent, view._tag)
 
     def __getattr__(
             view,
@@ -589,7 +606,7 @@ class _Tag_View:
         snapshot: _Snapshot = view._snapshot
         agent = view._agent
 
-        if _view_report_present(view, name):
+        if _view_report_present(view, name, snapshot):
             return getattr(view._tag, name)
 
         if name in snapshot.deleted:
@@ -641,7 +658,7 @@ class _Tag_View:
             view,
             name: object,
             ) -> bool:
-        """Ask about Contributions at this view's captured position."""
+        """Ask about Contributions at this Tag's current view position."""
 
         if not issubclass(type(name), str):
             return NotImplemented
@@ -651,7 +668,7 @@ class _Tag_View:
         name = str.__str__(name)
         snapshot = view._snapshot
 
-        if _view_report_present(view, name):
+        if _view_report_present(view, name, snapshot):
             return True
 
         if name in snapshot.deleted:
@@ -677,16 +694,9 @@ def _view_of(
         tag: type,
         state: _State | None = None,
         ) -> _Tag_View:
-    if state is None:
-        state = _state_of(agent)
-
-    if state is None or tag not in state.active:
-        raise TagResolutionError(
-                f"{tag.__name__} is not active on this Agent"
-                )
+    _view_snapshot(agent, tag, state)
 
     return _Tag_View(
             agent,
             tag,
-            state.snapshots[tag],
             )

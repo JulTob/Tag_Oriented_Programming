@@ -32,6 +32,12 @@ They are not cleared or implemented by this STEP's status. The historical
 comparison to [Rip on main at extraction](https://github.com/JulTob/Tag_Oriented_Programming/blob/fcea45fd2535594fd82f54aee2af7e815e98e0ca/TopKit/lifecycle.py)
 describes the old refusal, not current law.
 
+The historical table below calls a Tag view a snapshot. The later
+2026-10-15 saved-view ruling means `view = Tag[agent]` resolves the Tag's
+latest recorded position on each read, just as a fresh `Tag[agent]` does.
+That distinction matters after Rip and reTagging; it does not change this
+STEP's independent-membership decision.
+
 This decision amends Specification §0.7 and supersedes the active-Shape
 refusal in **Deployed [STEP-SPEC-6](STEP-SPEC-6-kernel-corrections.md), rule 1**.
 The separate rule that Rip never cascades remains.
