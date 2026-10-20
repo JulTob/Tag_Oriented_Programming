@@ -1680,6 +1680,94 @@ class Late_Pin_Tests(unittest.TestCase):
                 for name in Collector.__dict__
                 ))
 
+    def test_fake_pin_key_cannot_count_as_a_physical_mark(self):
+        from TopKit.declarations import _is_pin
+
+        class Distinct(str):
+            def __hash__(self):
+                return 1
+
+            def __eq__(self, other):
+                return False
+
+        fake = Distinct("__topkit_pin__")
+        Base = MetaTag(
+                "Base", (Tag,), {"__module__": __name__, fake: True},
+                )
+        Child = MetaTag("Child", (Base,), {"__module__": __name__})
+
+        self.assertFalse(_is_pin(Base))
+        self.assertIsNone(Base.__dict__.get("__topkit_pin__"))
+        with self.assertRaisesRegex(TagDeclarationError, "custom hash or equality"):
+            Pin(Base)
+        with self.assertRaisesRegex(TagDeclarationError, "custom hash or equality"):
+            Pin(Child)
+        self.assertFalse(_is_pin(Child))
+
+    def test_physical_namespace_read_uses_a_stable_copy(self):
+        from TopKit.memo import _physical_namespace_get
+
+        class ChangingNamespace(dict):
+            def items(self):
+                iterator = super().items()
+                yield next(iterator)
+                self["dynamic"] = 1
+                yield from iterator
+
+        namespace = ChangingNamespace(first=1, prize=2)
+        self.assertEqual(_physical_namespace_get(namespace, "prize"), 2)
+        self.assertNotIn("dynamic", namespace)
+
+    def test_pin_refuses_descriptor_with_custom_special_method_key(self):
+        import TopKit.declarations as declarations
+
+        class E(str):
+            __hash__ = str.__hash__
+
+            def __eq__(self, other):
+                return str.__eq__(self, other)
+
+        class Peer(Tag):
+            pass
+
+        setter_entered = Event()
+        peer_done = Event()
+        failures = []
+        peers = []
+
+        def mark_peer():
+            try:
+                Pin(Peer)
+            except BaseException as error:
+                failures.append(error)
+            finally:
+                peer_done.set()
+
+        def set_hook(self, owner, value):
+            setter_entered.set()
+            if declarations._pin_mark_lock._is_owned():
+                peer = Thread(target=mark_peer)
+                peers.append(peer)
+                peer.start()
+                if not peer_done.wait(0.5):
+                    failures.append(AssertionError("peer Pin blocked by descriptor"))
+
+        Descriptor = type("Descriptor", (), {E("__set__"): set_hook})
+
+        class Meta(MetaTag):
+            __topkit_pin__ = Descriptor()
+
+        class Candidate(Tag, metaclass=Meta):
+            pass
+
+        with self.assertRaisesRegex(TagDeclarationError, "data descriptor"):
+            Pin(Candidate)
+        for peer in peers:
+            peer.join(2)
+        self.assertFalse(setter_entered.is_set())
+        self.assertEqual(failures, [])
+        self.assertNotIn("__topkit_pin__", Candidate.__dict__)
+
     def test_late_tool_checks_old_binding_outside_pin_lock(self):
         class Kind(Tag):
             pass

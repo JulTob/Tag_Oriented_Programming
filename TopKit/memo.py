@@ -6,7 +6,9 @@ User declaration inspection runs outside the lock, over a copied namespace.
 """
 
 from dataclasses import dataclass
+from contextlib import contextmanager
 from threading import RLock
+from threading import local
 from typing import Any
 
 
@@ -16,6 +18,7 @@ _type_mro = type.__dict__["__mro__"]
 _type_bases = type.__dict__["__bases__"]
 _type_name = type.__dict__["__name__"]
 _ABSENT = object()
+_held_physical_snapshots = local()
 
 
 @dataclass(slots=True)
@@ -39,6 +42,40 @@ def _class_namespace(tag: type) -> Any:
     return _type_namespace.__get__(tag)
 
 
+def _physical_snapshot(namespace: Any) -> dict[Any, Any]:
+    """Copy a class namespace atomically and retain it through Pin locking."""
+
+    snapshot = namespace.copy()
+    held = getattr(_held_physical_snapshots, "copies", None)
+    if held is not None:
+        held.append(snapshot)
+    return snapshot
+
+
+@contextmanager
+def _keep_physical_snapshots():
+    """Release copied class values only after the surrounding lock exits."""
+
+    if getattr(_held_physical_snapshots, "copies", None) is not None:
+        yield
+        return
+
+    copies = []
+    _held_physical_snapshots.copies = copies
+    try:
+        yield
+    finally:
+        del _held_physical_snapshots.copies
+        copies.clear()
+
+
+def _retain_physical_snapshot(snapshot: dict[Any, Any]) -> dict[Any, Any]:
+    held = getattr(_held_physical_snapshots, "copies", None)
+    if held is not None:
+        held.append(snapshot)
+    return snapshot
+
+
 def _physical_namespace_get(namespace: Any, name: str, default: Any = None) -> Any:
     """Read a physical class slot without calling a stored key's methods.
 
@@ -50,10 +87,12 @@ def _physical_namespace_get(namespace: Any, name: str, default: Any = None) -> A
     if type(name) is not str:
         name = str.__str__(name)
 
-    for key, value in namespace.items():
+    for key, value in _physical_snapshot(namespace).items():
         if type(key) is str:
             actual = key
-        elif issubclass(type(key), str):
+        elif (issubclass(type(key), str)
+                and _special_slot(type(key), "__hash__") is str.__hash__
+                and _special_slot(type(key), "__eq__") is str.__eq__):
             actual = str.__str__(key)
         else:
             continue
@@ -71,7 +110,7 @@ def _namespace_has_callback_keys(tag: type) -> bool:
     """
 
     for layer in (tag, *_type_mro.__get__(type(tag))):
-        for key in _class_namespace(layer):
+        for key in _physical_snapshot(_class_namespace(layer)):
             kind = type(key)
             if kind is str:
                 continue
@@ -87,9 +126,12 @@ def _special_slot(kind: type, name: str) -> Any:
     """Find a Python protocol slot through physical class dictionaries."""
 
     for base in _type_mro.__get__(kind):
-        member = _physical_namespace_get(_class_namespace(base), name, _ABSENT)
-        if member is not _ABSENT:
-            return member
+        namespace = _physical_snapshot(_class_namespace(base))
+        if any(type(key) is not str for key in namespace):
+            return _ABSENT
+        for key, member in namespace.items():
+            if key == name:
+                return member
     return _ABSENT
 
 
@@ -101,6 +143,14 @@ def _metaclass_data_descriptor(tag: type, name: str) -> bool:
         member = _physical_namespace_get(namespace, name, _ABSENT)
         if member is _ABSENT:
             continue
+        # Python may resolve a descriptor's special methods through class
+        # keys whose custom comparison is invisible to the safe reader.
+        # Such a descriptor cannot be published through while Pin is locked.
+        if any(
+                _namespace_has_callback_keys(base)
+                for base in _type_mro.__get__(type(member))
+                ):
+            return True
         return any(
                 _physical_namespace_get(
                         _class_namespace(base), "__set__", _ABSENT,

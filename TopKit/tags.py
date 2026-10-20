@@ -48,7 +48,7 @@ from .declarations import _is_pin_locked
 from .declarations import _kind_of
 from .declarations import _name_checks
 from .declarations import _note_tag_kinds
-from .declarations import _pin_mark_lock
+from .declarations import _pin_publication
 from .declarations import _refuse_condition_dunder
 from .declarations import _refuse_truth_gain
 from .declarations import _tool_tag_kinds
@@ -172,7 +172,7 @@ class MetaTag(type):
             old = _physical_namespace_get(_class_namespace(tag), name, _MISSING)
             _check_late_binding(tag, name, value)
 
-            with _pin_mark_lock:
+            with _pin_publication():
                 if _physical_namespace_get(
                         _class_namespace(tag), name, _MISSING,
                         ) is not old:

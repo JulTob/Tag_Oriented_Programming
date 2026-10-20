@@ -12,6 +12,7 @@ A Tag class is scanned once; the result is cached per class.
 from __future__ import annotations
 
 from contextvars import ContextVar
+from contextlib import contextmanager
 from dataclasses import dataclass
 from dataclasses import field
 from dataclasses import replace
@@ -47,6 +48,8 @@ from .memo import _memo_of
 from .memo import _namespace_snapshot
 from .memo import _namespace_has_callback_keys
 from .memo import _physical_namespace_get
+from .memo import _keep_physical_snapshots
+from .memo import _retain_physical_snapshot
 from .memo import _remember_memo
 from .memo import _type_bases
 from .memo import _type_mro
@@ -525,7 +528,12 @@ def Pin(
                 "@Pin marks a Tag class"
                 )
 
-    with _pin_mark_lock:
+    with _pin_publication():
+        if _namespace_has_callback_keys(tag):
+            raise TagDeclarationError(
+                    f"@Pin cannot mark {_type_name.__get__(tag)}:"
+                    " a class namespace key has custom hash or equality"
+                    )
         if _physical_namespace_get(_class_namespace(tag), _PIN) is True:
             return tag
 
@@ -536,13 +544,14 @@ def Pin(
         _refuse_tools_on_a_pin(tag, namespace)
         _validate_pin(tag, _declarations_of(tag))
 
-        with _pin_mark_lock:
+        with _pin_publication():
             if _physical_namespace_get(_class_namespace(tag), _PIN) is True:
                 return tag   # restating the mark changes nothing
 
             # A Tool assignment can land while the unlocked scan runs. The
             # setter uses this same lock; retry on its new namespace.
-            if _pin_namespace_changed(namespace, _namespace_snapshot(tag)):
+            current = _retain_physical_snapshot(_namespace_snapshot(tag))
+            if _pin_namespace_changed(namespace, current):
                 continue
 
             if _namespace_has_callback_keys(tag):
@@ -659,10 +668,15 @@ def _is_pin(
 def _is_pin_locked(tag: type) -> bool:
     """The same check while Pin publication owns its shared lock."""
 
-    return any(
-            _physical_namespace_get(_class_namespace(layer), _PIN) is True
-            for layer in _type_mro.__get__(tag)
-            )
+    for layer in _type_mro.__get__(tag):
+        if _namespace_has_callback_keys(layer):
+            raise TagDeclarationError(
+                    f"{_type_name.__get__(layer)} has a class namespace key"
+                    " with custom hash or equality"
+                    )
+        if _physical_namespace_get(_class_namespace(layer), _PIN) is True:
+            return True
+    return False
 
 
 def _is_tag_base(
@@ -1170,6 +1184,15 @@ _pin_mark_lock = RLock()
 _kinds_named: dict[int, tuple[ref[type], WeakValueDictionary[int, type]]] = {}
 
 
+@contextmanager
+def _pin_publication():
+    """Keep class snapshots alive until after Pin's shared lock exits."""
+
+    with _keep_physical_snapshots():
+        with _pin_mark_lock:
+            yield
+
+
 def _tool_owner_naming(tag: type) -> type | None:
     """A live Tool-owning Tag can veto a late Pin mark. Acquired Tool rules
     can outlive a declaration edit; dead owners leave no such rule. The
@@ -1200,7 +1223,7 @@ def _note_tag_kinds(owner: type, tags: tuple[type, ...]) -> None:
             continue
 
         def Forget(expired: ref[type], key: int = key) -> None:
-            with _pin_mark_lock:
+            with _pin_publication():
                 entry = _kinds_named.get(key)
                 if entry is not None and entry[0] is expired:
                     del _kinds_named[key]
@@ -1271,7 +1294,7 @@ def _check_tool_declarations(
             if (kind := _tool_kind_of(member)) is not None
             ]
 
-    with _pin_mark_lock:
+    with _pin_publication():
         for name, tags in tools:
             _refuse_pin_tool_kinds(tag, name, tags)
 
