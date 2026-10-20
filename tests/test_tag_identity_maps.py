@@ -55,6 +55,12 @@ class TagIdentityMapTests(unittest.TestCase):
         self.assertIs(state.snapshots[First], first_view)
         self.assertIs(state.rips[Second], second_rips)
 
+        retained = state.Copy()
+        state.rips.clear()
+        self.assertEqual(len(state.rips), 0)
+        self.assertEqual(len(retained.rips), 2)
+        self.assertEqual(len(state.snapshots), 2)
+
     def test_ordinary_rip_and_best_effort_teardown_do_not_hash_tag_state(self) -> None:
         hashes = []
         teardowns = []

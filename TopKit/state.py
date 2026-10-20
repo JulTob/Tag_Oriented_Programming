@@ -124,6 +124,9 @@ class _Tag_Identity_Map(Generic[_Value]):
     def items(self) -> Iterator[tuple[type, _Value]]:
         return iter(self._entries.values())
 
+    def clear(self) -> None:
+        self._entries.clear()
+
     def copy(self) -> "_Tag_Identity_Map[_Value]":
         copied = _Tag_Identity_Map()
         copied._entries = self._entries.copy()
