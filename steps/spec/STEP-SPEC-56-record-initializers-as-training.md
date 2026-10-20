@@ -8,7 +8,7 @@
 - **Created:** 2026-10-20
 - **Issue:** [#375](https://github.com/JulTob/Tag_Oriented_Programming/issues/375)
 - **Historical bundled draft:** [#324](https://github.com/JulTob/Tag_Oriented_Programming/pull/324)
-- **Amends, if cleared:** [STEP-SPEC-39](STEP-SPEC-39-tagging-admission.md), the Record failure boundary
+- **Amends, if cleared:** [STEP-SPEC-39](STEP-SPEC-39-tagging-admission.md), the Record failure boundary; [STEP-SPEC-36](STEP-SPEC-36-tools.md), the *initial* Tool-value failure boundary
 
 ## Summary
 
@@ -45,6 +45,12 @@ sound. Structural preparation is the separate proposal in
    The previously available value or Contribution at that name stays at its
    earlier layer; if none existed, the failed Record is absent. A returned
    `None` is a value, not an exception, subject to any declared Tool rule.
+   For an `@Tool` Record, validating the initializer's returned kind belongs
+   to this training step. An invalid initial kind leaves the earlier binding
+   in place, warns under this Record's name, and allows later training.
+   Assignment to an already gained Tool retains STEP-SPEC-36's existing
+   Composition Failure rule. Malformed declarations retain their Declaration
+   Failure rule; this proposal does not turn every TOP error into a warning.
 3. Keep successful earlier Gains. Continue the later Gainings in declaration
    order and then the Imprints. Later declarations see all successful earlier
    Gains and do not see the failed Record's unestablished value. No failed
@@ -83,6 +89,10 @@ and using `TagTargetError` for structural refusal. It is not a Record
 initializer warning. That boundary must be settled before this behavior can
 be deployed. The Imprint continuation and warning delivery are separately
 proposed in [#368](https://github.com/JulTob/Tag_Oriented_Programming/issues/368).
+STEP-SPEC-36 currently calls an invalid initial Tool value a Composition
+Failure and leaves the Tag outside its Field. This Brief proposes changing
+that *initial* check to a training warning while leaving subsequent Tool
+assignment refusal intact; STEP-SPEC-36 must be amended if this is cleared.
 Checking Posts at each admitted Tag turn before the next Shape's Gate is the
 separate [#369](https://github.com/JulTob/Tag_Oriented_Programming/issues/369)
 decision, not a new timing rule in this STEP.
@@ -112,7 +122,8 @@ layer visible, so an author can make its presence a requirement with a Post.
 Cover earlier Action and Record visibility, prior value preservation,
 continuation through later Gainings and Imprints, named warnings in training
 order, and Field admission followed by Post judgment. Cover failed
-`@Constant @Record` and `@Tool` initializers, a value write that raises after
+`@Constant @Record` and `@Tool` initializers, an invalid initial Tool kind
+versus a later Tool assignment, a value write that raises after
 a provisional binding, nested Taggings, interruption identity, and an
 independent Tagging oracle. A diagnostic captured by a warning handler must
 not keep an otherwise collectible Agent alive solely through traceback
