@@ -1,4 +1,5 @@
 with Ada.Finalization;
+with Ada.Streams;
 
 --  Experimental identity groundwork: no Tagging or Field API is defined here.
 package Top_Targets is
@@ -36,4 +37,23 @@ private
    end record;
    overriding procedure Adjust (Object : in out Identity_Handle);
    overriding procedure Finalize (Object : in out Identity_Handle);
+
+   --  Default streaming would copy the private State access value without
+   --  retaining it. A handle has no persistent or cross-process meaning.
+   procedure Refuse_Read
+     (Stream : not null access Ada.Streams.Root_Stream_Type'Class;
+      Item : out Identity_Handle);
+   procedure Refuse_Write
+     (Stream : not null access Ada.Streams.Root_Stream_Type'Class;
+      Item : Identity_Handle);
+   function Refuse_Input
+     (Stream : not null access Ada.Streams.Root_Stream_Type'Class)
+      return Identity_Handle;
+   procedure Refuse_Output
+     (Stream : not null access Ada.Streams.Root_Stream_Type'Class;
+      Item : Identity_Handle);
+   for Identity_Handle'Read use Refuse_Read;
+   for Identity_Handle'Write use Refuse_Write;
+   for Identity_Handle'Input use Refuse_Input;
+   for Identity_Handle'Output use Refuse_Output;
 end Top_Targets;
