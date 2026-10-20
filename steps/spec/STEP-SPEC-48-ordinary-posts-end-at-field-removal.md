@@ -86,7 +86,7 @@ Tag applications are independent layers.
 Under this proposal, the visible layer changes at each Rip:
 
 ```python
-from TopKit import Post, Tag
+from TopKit import Contract, Post, Tag
 
 class Host:
     pass
@@ -109,7 +109,7 @@ ari.ready = False
 del Later[ari]
 assert not ari.Ready             # Base's check is visible again
 del Base[ari]
-assert not ("Ready" @ ari)       # no ordinary Ready layer remains
+assert "Ready" not in Contract.Status(ari)  # no ordinary Ready layer remains
 ```
 
 ## Rationale
