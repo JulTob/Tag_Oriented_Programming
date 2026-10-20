@@ -26,7 +26,6 @@ from types import GeneratorType
 from typing import Any
 from typing import Callable
 from typing import NamedTuple
-from weakref import WeakKeyDictionary
 from weakref import ref
 
 from .errors import TagDeclarationError
@@ -36,10 +35,14 @@ from .errors import TagPostconditionError
 from .errors import TagPreconditionError
 from .geometry import _is_tag_class
 from .memo import _forget_memo
+from .memo import _class_namespace
+from .memo import _metaclass_binding
 from .memo import _memo_key
 from .memo import _memo_of
 from .memo import _namespace_snapshot
+from .memo import _publication
 from .memo import _remember_memo
+from .memo import _type_mro
 
 
 _KIND = "__topkit_kind__"
@@ -579,6 +582,15 @@ def _check_pin_bases(
                 )
 
 
+@dataclass(slots=True)
+class _Report_Value:
+    """A Report value owned by the receiving Tag, including a real None."""
+
+    owner: type
+    report: "Report | None"
+    payload: tuple[Any, ...]
+
+
 class Report:
     """Shared data belonging to a Tag, written like a Record::
 
@@ -608,7 +620,11 @@ class Report:
         report.__doc__ = builder.__doc__
         report._name = builder.__name__
         report._owner_ref = None
-        report._values: "WeakKeyDictionary[type, Any]" = WeakKeyDictionary()
+        # Only weak owner references and slot names live on the declaring
+        # Report. A value may refer back to its receiving Tag; keeping it on
+        # that Tag makes the cycle collectible with the Tag.
+        report._slots: dict[int, tuple[Any, str]] = {}
+        report._generation = 0
 
     def __set_name__(
             report,
@@ -634,15 +650,136 @@ class Report:
             if declaring is not None:
                 owner = declaring
 
-        try:
-            return report._values[owner]
-        except KeyError:
-            pass
+        cached = report._cached(owner)
+        if cached is not None:
+            payload = cached.payload
+            if payload:
+                return payload[0]
+        generation = report._generation
 
         value = report._build(owner)
-        report._values[owner] = value
+        return report._remember(owner, value, generation)
 
-        return value
+    def _cached(report, owner: type) -> _Report_Value | None:
+        entry = report._slots.get(id(owner))
+        if entry is None or entry[0]() is not owner:
+            return None
+
+        cached = _class_namespace(owner).get(entry[1])
+        if (type(cached) is _Report_Value
+                and cached.owner is owner
+                and cached.report is report):
+            return cached
+        return None
+
+    def _attached(report, owner: type) -> bool:
+        """The receiving Tag still has this declaration in its class line.
+        Scan by identity: assigning a Report after class creation does not
+        call ``__set_name__`` and may use another name than its builder.
+        """
+
+        return any(
+                member is report
+                for base in _type_mro.__get__(owner)
+                for member in _namespace_snapshot(base).values()
+                )
+
+    def _track(report, owner: type, name: str) -> None:
+        key = id(owner)
+        entry = report._slots.get(key)
+        if entry is not None and entry[0]() is owner:
+            report._slots[key] = entry[0], name
+            return
+
+        slots = report._slots
+
+        def expired(reference: Any) -> None:
+            with _publication:
+                current = slots.get(key)
+                if current is not None and current[0] is reference:
+                    slots.pop(key, None)
+
+        report._slots[key] = ref(owner, expired), name
+
+    def _remember(report, owner: type, value: Any, generation: int) -> Any:
+        with _publication:
+            # A builder may itself remove its Report. The current read can
+            # return, but its old declaration must not leave a new value.
+            if (generation != report._generation
+                    or not report._attached(owner)):
+                return value
+
+            cached = report._cached(owner)
+            if cached is not None and cached.payload:
+                return cached.payload[0]   # another reader initialized it first
+
+            root = _memo_key(owner, f"REPORT_{id(report):#x}")
+            number = 0
+            while True:
+                name = root if number == 0 else f"{root}_{number}"
+                number += 1
+                if (_metaclass_binding(owner, name)
+                        or any(name in _class_namespace(base)
+                               for base in _type_mro.__get__(owner)[1:])):
+                    continue
+
+                existing = _class_namespace(owner).get(name, _MISSING)
+                if (type(existing) is _Report_Value
+                        and existing.owner is owner
+                        and existing.report is report):
+                    if existing.payload:
+                        report._track(owner, name)
+                        return existing.payload[0]
+                    existing.payload = (value,)
+                    report._track(owner, name)
+                    return value
+                if existing is not _MISSING:
+                    continue
+
+                type.__setattr__(owner, name, _Report_Value(owner, report, (value,)))
+                report._track(owner, name)
+                return value
+
+    def _retire_unbound(report) -> None:
+        """Release values after a direct declaration edit removes this
+        Report from a receiving Tag's class line. A Pin's mechanical Overlay
+        does not call this: its saved original may be restored after Rip.
+        """
+
+        retired: list[Any] = []
+        with _publication:
+            report._generation += 1
+            for key, (reference, name) in tuple(report._slots.items()):
+                owner = reference()
+                if owner is None:
+                    if report._slots.get(key, (None,))[0] is reference:
+                        report._slots.pop(key, None)
+                    continue
+
+                if report._attached(owner):
+                    continue
+
+                cached = report._cached(owner)
+                if cached is not None:
+                    if cached.payload:
+                        retired.append(cached.payload[0])
+                    cached.payload = ()
+                    if (not _metaclass_binding(owner, name)
+                            and _class_namespace(owner).get(name) is cached):
+                        try:
+                            type.__delattr__(owner, name)
+                        except (AttributeError, TypeError):
+                            # A concurrent metaclass binding can refuse
+                            # deletion. The retired wrapper must still let
+                            # go of the removed declaration.
+                            cached.report = None
+                    else:
+                        cached.report = None
+                if report._slots.get(key, (None,))[0] is reference:
+                    report._slots.pop(key, None)
+        # Releasing a value can run user finalizers. Do that outside the
+        # namespace lock, after every affected owner has been retired.
+        retired.clear()
 
     def _build(
             report,
