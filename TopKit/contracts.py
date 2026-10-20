@@ -39,7 +39,7 @@ Check = Callable[[object, dict[str, Any]], Any]
 
 
 class _Recursive_Soundness(TagContractError):
-    """A Post asked the sound population to judge its own Agent."""
+    """A Post asked a query to judge that same unfinished Post."""
 
 
 class _Post_Check:
@@ -80,6 +80,16 @@ def _is_checking_post(agent: object) -> bool:
             return True
 
     return False
+
+
+def _refuse_recursive_diagnostic(agent: object, name: str) -> None:
+    """A whole-contract diagnostic necessarily includes the running Post."""
+
+    if _is_checking_post(agent):
+        raise _Recursive_Soundness(
+                f"a Post cannot ask Contract.{name} for its own Agent"
+                " while that Post is unfinished"
+                )
 
 
 def _holds_for_population(agent: object) -> bool:
@@ -637,7 +647,9 @@ class Contract:
             agent: object,
             ) -> dict[str, bool]:
         """Verdicts for visible conditions. Ordinary check errors become
-        False; a self-referential soundness query raises Contract Failure."""
+        False; a self-referential query raises Contract Failure."""
+
+        _refuse_recursive_diagnostic(agent, "Status")
 
         return {
                 **_status_of(agent, "preconditions"),
@@ -648,6 +660,8 @@ class Contract:
     def Display(
             agent: object,
             ) -> str:
+        _refuse_recursive_diagnostic(agent, "Display")
+
         title = _title_of(agent)
         pre = _status_of(agent, "preconditions")
         post = _status_of(agent, "postconditions")

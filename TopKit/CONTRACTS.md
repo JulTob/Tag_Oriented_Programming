@@ -564,6 +564,10 @@ lives. There is no automatic law: a condition stays until you end it.
 in the middle of an `if`. Every condition is readable on the Agent by its
 own name, as a plain `True` or `False` computed on read: nothing is
 stored, nothing is a proxy, and the member and the status always agree.
+An unfinished Post cannot ask `Contract.Status` or `Contract.Display` about
+its own Agent: the answer would have to run that same Post again. It may
+ask about another Agent; `Tag[:]` asks only whether its own Agent has
+entered that Field.
 
 ```python
 worf.infected = True                    # Healthy's promise breaks
