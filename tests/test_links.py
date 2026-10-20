@@ -289,7 +289,8 @@ class Linking_Tests(unittest.TestCase):
         Social(charlie)
         with self.assertRaises(TagPostconditionError):
             charlie.Trusts(ruth)
-        self.assertIn(ruth, charlie.Trusts)
+        self.assertIn(ruth, charlie.Trusts[:])
+        self.assertNotIn(ruth, charlie.Trusts)
         self.assertIn(ruth, ~charlie.Trusts)
 
     def test_the_contacts_own_promises_are_rechecked_at_linking(self):
@@ -304,7 +305,8 @@ class Linking_Tests(unittest.TestCase):
         ruth.honest = False
         with self.assertRaises(TagPostconditionError):
             charlie.Knows(ruth)
-        self.assertIn(ruth, charlie.Knows)                # a broken one raises, and the linking stays
+        self.assertIn(ruth, charlie.Knows[:])             # the linking stays, but is unsound
+        self.assertNotIn(ruth, charlie.Knows)
 
     def test_reapplying_is_a_noop_so_a_link_back_ends_after_one_echo(self):
         class Friendly(Tag):
@@ -756,7 +758,8 @@ class Base_Tests(unittest.TestCase):
         del charlie.Candidate[ruth]
         self.assertEqual(left, ["Candidate"])
         self.assertNotIn(ruth, charlie.Candidate)
-        self.assertIn(ruth, charlie.CIA)
+        self.assertIn(ruth, charlie.CIA[:])
+        self.assertNotIn(ruth, charlie.CIA)
         self.assertEqual(pair.badge, "trained")
         self.assertFalse(pair.Needs_Candidate)
         self.assertFalse(bool(pair))
@@ -989,7 +992,8 @@ class Extension_Tests(unittest.TestCase):
         self.assertEqual(seen, ["Ruth", "Sam"])
         self.assertNotIn(charlie, Audited)                # the owner's Link Gaining did not finish
         self.assertIn(ruth, charlie.Knows)
-        self.assertIn(sam, charlie.Knows)                  # existing Contact memberships remain
+        self.assertIn(sam, charlie.Knows[:])               # admitted but unsound
+        self.assertNotIn(sam, charlie.Knows)
         self.assertEqual(list(~charlie.Knows), [sam])
 
     def test_a_same_name_relation_that_does_not_extend_is_refused(self):
@@ -5496,7 +5500,8 @@ class Ext_Nested_Tests(unittest.TestCase):
 
                 self.assertNotIn(charlie, Popular)  # a held Pair failed while the Link was being gained
                 self.assertNotIn(tom, charlie.Trusts)
-                self.assertIn(tom, charlie.Knows)
+                self.assertIn(tom, charlie.Knows[:])
+                self.assertNotIn(tom, charlie.Knows)
                 self.assertEqual(list(~charlie.Knows), [tom])   # her Pair holds the promise and breaks it
                 self.assertEqual(list(charlie.Knows), [ruth])
                 self.assertFalse(bool(charlie.Knows[tom]))

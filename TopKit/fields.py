@@ -24,7 +24,7 @@ from typing import Callable
 from typing import Iterator
 import weakref
 
-from .contracts import _holds
+from .contracts import _holds_for_population
 from .errors import TagCompositionError
 from .geometry import _is_tag_class
 from .memo import _class_namespace
@@ -54,7 +54,7 @@ def _sound_of(
         from .tags import _refuse_relation
         _refuse_relation(tag)
 
-    holds = _holds
+    holds = _holds_for_population
     if kind == "link":
         from .tags import _links
         holds = _links()._contact_holds(tag)
