@@ -622,10 +622,11 @@ class Report:
         def hit_die(tag):
             return 8
 
-    The builder receives its declaring Tag and runs once, on first read. A
-    second positional parameter explicitly receives the value a Base Tag
-    gives that name, or None, so a Shape's own Report can extend it. With
-    @Constant, the same declaring-Tag value is locked against replacement.
+    The builder receives its declaring Tag. A one-parameter Report runs
+    once, on first read. A Shape's own two-parameter Report explicitly
+    links to the current value a Base Tag gives that name, or None, and
+    recalculates on every read. With @Constant, the first successful value
+    is fixed even for a linked Report.
     """
 
     def __init__(
@@ -681,11 +682,23 @@ class Report:
         if not any(namespace.get(name) is report for name in report._names):
             raise AttributeError(f"{owner.__name__} has no own Report {report._name!r}")
 
-        if _is_constant(report) and report._owner_ref is not None:
+        constant = _is_constant(report)
+
+        if constant and report._owner_ref is not None:
             declaring = report._owner_ref()
 
             if declaring is not None:
                 owner = declaring
+
+        # A Shape's explicit Base Report link is live: the Base may have
+        # changed its value in place, been replaced by a Pin, or lost its
+        # binding since the previous read. A standalone two-parameter
+        # Report receives None but keeps its ordinary once-per-Tag value.
+        # Constant Reports keep their first successful calculation.
+        if (not constant
+                and _parameters_of(report.builder).positional >= 2
+                and any(_is_tag_base(base) for base in owner.__bases__)):
+            return report._build(owner)
 
         try:
             return report._values[owner]
@@ -713,23 +726,23 @@ class Report:
             report,
             owner: type,
             ) -> Any:
-        """The value a Base owns under this name, or None: the first member
-        declared after this Report's own class in the MRO."""
+        """The next Base Report value under this name, or None."""
 
         # State imports declarations, so the Pin carrier is read here only
         # when a Shape explicitly asks for its Base Report's value.
+        from .state import _Pinned_Operation
         from .state import _Pinned_Value
 
         passed_own_class = False
 
         for klass in owner.__mro__:
-            member = klass.__dict__.get(report._name)
+            member = klass.__dict__.get(report._name, _MISSING)
 
             if member is report:
                 passed_own_class = True
                 continue
 
-            if not passed_own_class or member is None:
+            if not passed_own_class or member is _MISSING:
                 continue
 
             if isinstance(member, Report):
@@ -740,6 +753,19 @@ class Report:
 
             if isinstance(member, _Pinned_Value):
                 return member.value
+
+            # A nearer Base may have replaced its Report with another
+            # Contribution. That declaration is not a Report value; keep
+            # searching for a lower Base Report rather than passing its
+            # Python descriptor or Action function to this builder.
+            if isinstance(
+                    member,
+                    (classmethod, staticmethod, property, _Pinned_Operation),
+                    ):
+                continue
+            kind = getattr_static(member, _KIND, None)
+            if type(kind) is str and kind != "report":
+                continue
 
             return member
 

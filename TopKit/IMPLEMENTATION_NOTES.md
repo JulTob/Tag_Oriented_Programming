@@ -414,12 +414,14 @@ Tagging sequence or expand its rollback boundary.
   key gates both. The gate reads the Agent's own value first, so it is
   harmless for the stored Layer and it keeps a host property of that name
   hidden. A type rebuilt later for another reason keeps it.
-- **Reports are builders.** `@Report def r(tag[, base_value])` is a
+- **Reports are builders.** A one-parameter `@Report def r(tag)` is a
   descriptor that runs its builder once on its declaring Tag on first read
-  and caches that Tag's value weakly. A Shape's own Report may explicitly
-  link to a Base Report through that optional second input. `Tag.r += 1`
-  replaces the descriptor with a plain value on that class, which is the
-  documented counter pattern.
+  and caches that Tag's value weakly. A Shape's own two-parameter
+  `@Report def r(tag, base_value)` explicitly links to the current same-name
+  Base value and recalculates on every read. A linked `@Constant @Report`
+  caches its first successful calculation instead. `Tag.r += 1` replaces
+  the descriptor with a plain value on that class, which is the documented
+  counter pattern.
   Views snapshot the computed value; a published Report reads live.
 - **Failures name their check.** `TagPreconditionError`,
   `TagImprintError` and `TagPostconditionError` use the `_Named`
