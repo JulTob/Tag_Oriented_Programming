@@ -257,8 +257,12 @@ def _apply_one(
 
         # A nested Imprint may lay another Action over a Rip name. Remember
         # this Tag's acquired layer before training can change the Overlay.
+        rip_declarations = dict(declarations.actions) if declarations.rips else {}
         rip_actions = (
-                tuple((name, state.actions[name]) for name in declarations.rips)
+                tuple(
+                    (name, state.actions[name], rip_declarations[name])
+                    for name in declarations.rips
+                    )
                 if declarations.rips else ()
                 )
 

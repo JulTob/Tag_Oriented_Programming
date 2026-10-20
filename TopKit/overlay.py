@@ -177,6 +177,8 @@ def _compose(
     if chain is None:
         chain = object()
 
+    rip_guard = _lazy_rip_guard   # keep the ContextVar alive during late __del__
+
     @wraps(function)
     def Call(
             agent: object,
@@ -233,12 +235,17 @@ def _compose(
 
             return result
 
-        return function(
-                agent,
-                prior,
-                *args,
-                **kwargs,
-                )
+        guard = rip_guard.get()
+        if (
+                guard is not None
+                and guard.active
+                and guard.selected is Call
+                and guard.inject
+                ):
+            guard.inject = False
+            return function(agent, prior, guard.originals, *args, **kwargs)
+
+        return function(agent, prior, *args, **kwargs)
 
     setattr(
             Call,
@@ -476,8 +483,9 @@ def _install(
         state.published.update(declarations.published)
 
     if declarations.rips:
+        rip_declarations = dict(declarations.actions)
         state.rips[tag] = tuple(
-                (name, state.actions[name])
+                (name, state.actions[name], rip_declarations[name])
                 for name in declarations.rips
                 )
 

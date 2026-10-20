@@ -19,6 +19,10 @@
 
 ### TopKit
 
+- **Pin Rip signatures:** scheduled cleanup determines whether to pass
+  Originals from the selected Rip declaration's Python signature. An
+  explicit `__signature__` now takes precedence over unrelated
+  `__wrapped__` metadata; composed Underlays keep their own seat.
 - **Sound membership:** `agent in Tag` now asks whether the Agent is still
   in that Field and its visible Posts hold, matching `for agent in Tag`.
   `agent in Tag[:]` asks for raw Field membership, including defective
