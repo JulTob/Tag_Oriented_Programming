@@ -92,7 +92,7 @@ class TagCompositionError(TagError):
 
 
 class TagTargetError(TagCompositionError):
-    """The Target has no usable space for a declared Record."""
+    """The Target cannot carry TOP state, its runtime, or a declared Record."""
 
 
 class TagResolutionError(TagError):
