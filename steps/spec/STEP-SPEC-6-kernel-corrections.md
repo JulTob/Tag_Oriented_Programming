@@ -45,6 +45,18 @@ normative text.
 > remains, but the guaranteed tier is now written directly by the program:
 > tag before `try`, then Rip in `finally`.
 
+> **Later Director ruling on rule 1:** The automatic refusal to Rip a Base
+> while an active Shape remains is superseded. Applying a Shape still adds
+> its missing Bases first, but each completed membership then stands alone.
+> Ripping a Base leaves the Shape active and does not cascade; a Shape that
+> needs continuing Base membership states that need in a Postcondition.
+> Applying an already active Shape stays a no-op, while explicitly applying
+> the Ripped Base starts fresh Tagging. See Specification §§0.3, 0.5, 0.7
+> and [STEP-SPEC-26](STEP-SPEC-26-a-shape-keeps-no-base-hostage.md)
+> ([issue #184](https://github.com/JulTob/Tag_Oriented_Programming/issues/184)).
+> This note changes only the later law; the 2026-09-05 decision below is
+> retained as history.
+
 ## Rationale
 
 Each choice picks the option that keeps TOP explicit: no hidden protocols

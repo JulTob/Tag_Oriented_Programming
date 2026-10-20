@@ -13,7 +13,12 @@ from __future__ import annotations
 
 from contextvars import ContextVar
 from dataclasses import dataclass
+from dataclasses import field
+from dataclasses import replace
+from functools import cached_property
+from functools import partialmethod
 from inspect import Parameter
+from inspect import getattr_static
 from inspect import signature
 from types import AsyncGeneratorType
 from types import CoroutineType
@@ -29,6 +34,7 @@ from .errors import TagCompositionError
 from .errors import TagImprintError
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
+from .geometry import _is_tag_class
 from .memo import _forget_memo
 from .memo import _memo_key
 from .memo import _memo_of
@@ -225,10 +231,16 @@ def Constant(
 
 
 def Rip(
-        function: Function,
-        ) -> Function:
+        function: Any,
+        ) -> Any:
     """Teardown. Runs when the Agent leaves the Tag's Field. It is also a
     normally callable Action."""
+
+    if isinstance(function, property):
+        raise TagDeclarationError(
+                "@Rip cannot mark a property; @Rip marks an Action because"
+                " a teardown is also callable as an Action"
+                )
 
     return _flag(
             function,
@@ -283,7 +295,7 @@ class _Check_Mark:
 Imprint = _Check_Mark(
         "imprint",
         TagImprintError,
-        "Work performed after the Tag has applied.",
+        "Training performed after Gainings and before Field admission.",
         )
 
 
@@ -404,7 +416,7 @@ def _mark_flag(
         tag: type,
         aliases: frozenset[str],
         ) -> type:
-    if not isinstance(tag, type) or not hasattr(tag, "_topkit_field"):
+    if not _is_tag_class(tag):
         raise TagDeclarationError(
                 "@Flag marks a Tag class"
                 )
@@ -491,7 +503,7 @@ def Pin(
     nothing else, and its Bases must be Pins.
     """
 
-    if not isinstance(tag, type) or not hasattr(tag, "_topkit_field"):
+    if not _is_tag_class(tag):
         raise TagDeclarationError(
                 "@Pin marks a Tag class"
                 )
@@ -532,8 +544,8 @@ def _is_tag_base(
     """A Tag class other than the root ``Tag`` (the root is the only Tag
     with no Tag among its own bases)."""
 
-    return hasattr(base, "_topkit_field") and any(
-            hasattr(deeper, "_topkit_field")
+    return _is_tag_class(base) and any(
+            _is_tag_class(deeper)
             for deeper in base.__bases__
             )
 
@@ -688,6 +700,7 @@ class Report:
 class _Declarations:
     actions: tuple[tuple[str, Function], ...]
     records: tuple[tuple[str, Function], ...]
+    gain_order: tuple[str, ...]   # Agent declarations, including conditions and deletions
     secrets: frozenset[str]
     imprints: tuple[tuple[str, Function], ...]
     preconditions: tuple[tuple[str, Function], ...]
@@ -699,6 +712,11 @@ class _Declarations:
     dunders: frozenset[str]
     published: frozenset[str]   # Agent-scope members marked @Public (Pins)
     constants: frozenset[str]
+    runtime: bool = field(default=False, compare=False, repr=False)
+    header: _Declarations | None = field(default=None, compare=False, repr=False)
+    gaining_steps: tuple[tuple[str, _Declarations], ...] = field(
+            default=(), compare=False, repr=False,
+            )
     tools: frozenset[str] = frozenset()   # Records marked @Tool: their slots admit only their kind
 
 
@@ -1041,11 +1059,26 @@ def _name_checks(
             failure.Named(name)
 
 
+def _check_rip_declarations(
+        owner: str,
+        namespace: dict[str, Any],
+        ) -> None:
+    """Reject a Rip mark which class creation would otherwise ignore."""
+
+    for name, attribute in namespace.items():
+        _check_rip_declaration(
+                owner,
+                name,
+                attribute,
+                )
+
+
 def _scan(
         tag: type,
         ) -> _Declarations:
     actions: list[tuple[str, Function]] = []
     records: list[tuple[str, Function]] = []
+    gain_order: list[str] = []
     secrets: set[str] = set()
     imprints: list[tuple[str, Function]] = []
     preconditions: list[tuple[str, Function]] = []
@@ -1073,14 +1106,20 @@ def _scan(
                 )
 
     for name, attribute in namespace.items():
-        if _is_private(name):
-            continue
-
         _refuse_truth_gain(tag.__name__, name, attribute)
         if managed is not None and (
                 name in managed.actions
                 or name in managed.records
                 ):
+            continue
+
+        _check_rip_declaration(
+                tag,
+                name,
+                attribute,
+                )
+
+        if _is_private(name):
             continue
 
         if _is_constant(attribute):
@@ -1138,6 +1177,7 @@ def _scan(
                         attribute,
                         )
                     )
+            gain_order.append(name)
 
             if secret:
                 secrets.add(name)
@@ -1173,10 +1213,12 @@ def _scan(
                     )
 
         if kind in _CONDITION_KINDS:
+            gain_order.append(name)
             continue
 
         if kind == "delete":
             deletions.append(name)
+            gain_order.append(name)
             continue
 
         # Anything else callable is an Action (kind "action" or unmarked).
@@ -1187,6 +1229,7 @@ def _scan(
                     attribute,
                     )
                 )
+        gain_order.append(name)
 
         if secret:
             secrets.add(name)
@@ -1197,16 +1240,10 @@ def _scan(
         if _is_dunder(name):
             dunders.add(name)
 
-    if "__del__" in rips:
-        raise TagDeclarationError(
-                f"{tag.__name__}.__del__ is marked @Rip, but a __del__ Layer"
-                " already runs when the Agent is deleted, after its"
-                " teardowns; give the teardown a name of its own"
-                )
-
     declarations = _Declarations(
             actions=tuple(actions),
             records=tuple(records),
+            gain_order=tuple(gain_order),
             secrets=frozenset(secrets),
             imprints=tuple(imprints),
             preconditions=tuple(preconditions),
@@ -1227,7 +1264,166 @@ def _scan(
                 declarations,
                 )
 
-    return declarations
+    return _prepare_declarations(declarations)
+
+
+def _prepare_declarations(
+        declarations: _Declarations,
+        ) -> _Declarations:
+    """Prepare immutable phase slices once, alongside the Tag's scan."""
+
+    names = frozenset(declarations.gain_order)
+    header = replace(
+            declarations,
+            actions=(),
+            records=(),
+            preconditions=(),
+            postconditions=(),
+            deletions=(),
+            gain_order=(),
+            secrets=declarations.secrets - names,
+            constants=declarations.constants - names,
+            published=declarations.published - names,
+            dunders=declarations.dunders - names,
+            tools=declarations.tools - names,
+            rips=(),
+            )
+    header = replace(header, runtime=_runtime_facts(header))
+    actions = dict(declarations.actions)
+    records = dict(declarations.records)
+    preconditions = dict(declarations.preconditions)
+    postconditions = dict(declarations.postconditions)
+    steps = []
+
+    for name in declarations.gain_order:
+        kind = (
+                "action" if name in actions
+                else "record" if name in records
+                else "condition" if name in preconditions or name in postconditions
+                else "delete"
+                )
+        selected = frozenset((name,))
+        one = _Declarations(
+                actions=((name, actions[name]),) if name in actions else (),
+                records=((name, records[name]),) if name in records else (),
+                gain_order=(name,),
+                preconditions=((name, preconditions[name]),) if name in preconditions else (),
+                postconditions=((name, postconditions[name]),) if name in postconditions else (),
+                deletions=(name,) if kind == "delete" else (),
+                secrets=declarations.secrets & selected,
+                dunders=declarations.dunders & selected,
+                published=declarations.published & selected,
+                constants=declarations.constants & selected,
+                tools=declarations.tools & selected,
+                reports=(),
+                operations=(),
+                imprints=(),
+                rips=(),
+                )
+        one = replace(one, runtime=_runtime_facts(one))
+        steps.append((kind, one))
+
+    return replace(declarations, header=header, gaining_steps=tuple(steps), runtime=_runtime_facts(declarations))
+
+
+def _runtime_facts(declarations: _Declarations) -> bool:
+    return bool(
+            declarations.deletions
+            or declarations.secrets
+            or declarations.dunders
+            or declarations.published
+            or declarations.constants
+            or declarations.preconditions
+            or declarations.postconditions
+            or declarations.tools
+            or any(public for _name, _report, public in declarations.reports)
+            )
+
+
+def _has_rip_declaration(
+        attribute: Any,
+        ) -> bool:
+    """Find Rip marks inside known wrappers without binding descriptors."""
+
+    pending = [attribute]
+    seen: set[int] = set()
+
+    while pending:
+        member = pending.pop()
+
+        if id(member) in seen:
+            continue
+
+        seen.add(id(member))
+
+        if isinstance(member, (cached_property, partialmethod)):
+            if getattr_static(member, _RIP, False) is True:
+                return True
+
+            pending.append(getattr_static(member, "func", None))
+        elif isinstance(member, property):
+            pending.extend(
+                    accessor.__get__(member)
+                    for accessor in (property.fget, property.fset, property.fdel)
+                    )
+        elif isinstance(member, Report):
+            pending.append(getattr_static(member, "builder", None))
+        elif isinstance(member, classmethod):
+            pending.append(classmethod.__func__.__get__(member))
+        elif isinstance(member, staticmethod):
+            pending.append(staticmethod.__func__.__get__(member))
+        elif _has_flag(member, _RIP):
+            return True
+
+    return False
+
+
+def _check_rip_declaration(
+        owner: type | str,
+        name: str,
+        attribute: Any,
+        ) -> None:
+    """A Rip protocol is an Action too; never ignore the mark on another
+    declaration kind or on a name which cannot become a Contribution."""
+
+    if not _has_rip_declaration(attribute):
+        return
+
+    kind = _kind_of(attribute)
+
+    if _is_constant(attribute):
+        reason = "@Constant cannot mark a Rip protocol"
+    elif name == "__del__":
+        reason = (
+                "a __del__ Layer already runs when the Agent is deleted,"
+                " after its teardowns; give the teardown a name of its own"
+                )
+    elif (
+            not _is_private(name)
+            and not isinstance(attribute, (
+                    Report, property, classmethod, staticmethod,
+                    cached_property, partialmethod,
+                    ))
+            and callable(attribute)
+            and kind in (None, "action")
+            ):
+        return
+    elif _is_private(name):
+        reason = "private names are not Contributions"
+    elif isinstance(attribute, Report):
+        reason = "it is a Report"
+    elif kind is not None:
+        reason = f"its declaration kind is {kind.replace('_', ' ')}"
+    else:
+        reason = f"it is a {type(attribute).__name__}"
+
+    owner_name = owner if isinstance(owner, str) else owner.__name__
+
+    raise TagDeclarationError(
+            f"{owner_name}.{name} is marked @Rip, but {reason};"
+            " @Rip marks an Action because a teardown is also callable"
+            " as an Action"
+            )
 
 
 def _emit_published_pins(

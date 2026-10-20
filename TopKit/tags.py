@@ -4,7 +4,8 @@ TOP borrows the language's own syntax for Tag-level acts and leaves the
 Tag's dotted namespace to the program:
 
     Wizard(charlie)               apply (Bases first)
-    charlie in Wizard             active membership, sound or defective
+    charlie in Wizard             sound membership, as in the plain loop
+    charlie in Wizard[:]          active membership, sound or defective
     "Deprecated" in Wizard        a keyword: the Tag carries the Flag Pin Deprecated
     Wizard in charlie             the same, from the Agent's side
     "Wizard" in charlie           the same, by name
@@ -33,10 +34,12 @@ from .access import _keyword
 from .access import _refuse_host_truth
 from .access import _view_of
 from .contracts import _holds
+from .contracts import _holds_for_population
 from .declarations import _MISSING
 from .declarations import _check_constant_declarations
 from .declarations import _check_constant_shapes
 from .declarations import _check_pin_bases
+from .declarations import _check_rip_declarations
 from .declarations import _check_tool_declarations
 from .declarations import _constant_owner
 from .declarations import _is_dunder
@@ -46,9 +49,12 @@ from .declarations import _name_checks
 from .declarations import _refuse_condition_dunder
 from .declarations import _refuse_truth_gain
 from .errors import TagCompositionError
+from .fields import FIELD_SEAT
 from .fields import _Field
 from .fields import _Partition
+from .fields import _field_of
 from .fields import _population_of
+from .fields import _sound_of
 from .geometry import _form_of
 from .geometry import _is_tag
 from .lifecycle import _rip
@@ -56,18 +62,6 @@ from .state import Tagged
 from .state import _name_of
 from .state import _state_of
 from .transactions import _apply
-
-
-def _sound_of(
-        tag: type,
-        ) -> _Partition:
-    """The Tag's sound population, outside its programmer-owned namespace."""
-
-    return _Partition(
-            tag.__dict__["_topkit_field"],
-            _holds,
-            "sound",
-            )
 
 
 class MetaTag(type):
@@ -81,8 +75,12 @@ class MetaTag(type):
             **kwargs: Any,
             ) -> "MetaTag":
         namespace.setdefault(
-                "_topkit_field",
+                FIELD_SEAT,
                 _Field(),
+                )
+        _check_rip_declarations(
+                name,
+                namespace,
                 )
         _name_checks(namespace, name)
 
@@ -166,8 +164,9 @@ class MetaTag(type):
             tag,
             candidate: object,
             ) -> bool:
-        """``agent in Wizard``: membership. ``"Deprecated" in Wizard``: a
-        keyword among the Tag's Flag Pins; a string is never a member."""
+        """``agent in Wizard``: sound membership, as in the plain loop.
+        ``agent in Wizard[:]`` is raw membership. A string asks for a
+        keyword among the Tag's Flag Pins, never Agent membership."""
 
         if isinstance(candidate, str):
             return _keyword(
@@ -175,11 +174,11 @@ class MetaTag(type):
                     candidate,
                     )
 
-        state = _state_of(candidate)
-
+        field = _field_of(tag)
         return (
-                state is not None
-                and tag in state.active
+                candidate in field
+                and _holds_for_population(candidate)
+                and candidate in field
                 )
 
     def __instancecheck__(
@@ -270,7 +269,7 @@ class MetaTag(type):
                         " no meaning for a population"
                         )
 
-            return tag._topkit_field
+            return _field_of(tag)
 
         return _view_of(
                 key,

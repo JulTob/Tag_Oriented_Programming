@@ -51,7 +51,19 @@ Actions; Agents are built once and play for a long time. So:
   `isinstance` is answered by the metaclass from the Agent's ever-set.
 - **Runtime types are shared** across every Agent whose host and
   type-level facts match, whatever Tags they carry. Ten thousand Agents of
-  one host normally share one type.
+  one host normally share one type. The cache has weak values and keys use
+  the Host's identity number, not the Host itself. A live runtime type owns
+  its Host through its bases, so that identity cannot be reused while the
+  entry is live. The cache cannot root a cycle from a transient Host's
+  methods or metaclass back to an Agent; Hosts with custom equality or
+  hashing still have independent identity-based entries. An Action body
+  that deliberately captures its Agent remains a strong owner: the weak
+  receiver binding does not undo references inside the function.
+- **Actualization is verified before Field entry.** The Target must retain
+  its state and accept the exact runtime type the kit requested. Host
+  `__setattr__` and `__init_subclass__` refusals, and metaclasses that
+  substitute another type, become Composition Failures. Rollback restores
+  the host type through the kernel path, not through the refusing hook.
 - **The composition door** uses a counter on the Agent's state for
   synchronous protocols. Agent-authored context Actions use that door;
   host-authored context hooks keep ordinary host behavior. Entry closes
@@ -152,9 +164,10 @@ Python's priority for a right operand whose type is a subtype. A
 pinned Tag supports the query as an Agent; an unpinned Tag gains no TOP
 operator from this feature.
 
-Measured on Python 3.11 (`benchmarks/bench.py`), nanoseconds per
-operation: plain attribute read 42, Agent host-attribute read 65, Record
-read 64, plain method call 86, Action call 295, `agent in Tag` 291,
+Historical raw-membership measurements on Python 3.11
+(`benchmarks/bench.py`), nanoseconds per operation: plain attribute read 42,
+Agent host-attribute read 65, Record read 64, plain method call 86,
+Action call 295, `agent in Tag` 291 (before sound membership),
 `bool(agent)` with one Post about 1900. Tagging a Record-plus-Post Shape
 over a Base costs about 60 µs per Agent; an empty Tag about 22 µs. Peak
 memory about 6 KB per Agent with two Tags.
@@ -211,20 +224,61 @@ order, iterative traversal and lazy caching are unchanged; mutation of
 
 ## The tagging sequence
 
-`transactions._apply` is the call boundary: it snapshots the instance
-dictionary, the state, and the class on entry. `_gate` lays every pending
-Tag of the Form over a scratch copy and runs the composed Preconditions
-once, so a Shape's gate overrides its Base's and declaration errors
-surface before anything changes. `_apply_one` then lays each Tag over the
-**live** state (no second copy) in the order parts, commit, write; finally
-`_inspect` runs every visible Postcondition once. A `TagPreconditionError`, `TagCompositionError`,
-`TagResolutionError` or `TagContractError` rolls the call back to the entry
-snapshot, including Fields. `TagImprintError` and `TagPostconditionError`
-propagate with everything left in place.
+`transactions._apply` walks the missing Tags in Base-first Form order.
+Before each turn, `_gate` checks only that Tag against the current Overlay.
+When a Tag can use the shortcut, `overlay._preflight_ordinary_gains` checks
+its ordinary Action and Record names against the live State one by one,
+without copying it. An internal Report or Operation does not by itself
+require a scratch copy; a public one does. Tags needing full composition
+are laid over a scratch copy of the current Overlay. Their composed
+Preconditions judge the live Agent. A refusal does not remove Tags whose
+turns already finished.
+Gainings apply Actions, Records, condition definitions and deletions
+incrementally in declaration order, top to bottom,
+establishing each before the next declaration runs. The Gate has already
+evaluated this Tag's own Preconditions. Imprints run after Gainings and
+before FieldAdding. The Tag's published members remain guarded by membership
+during this training interval.
 
-Laying over the live state is safe because nothing reads the new Overlay
-before commit binds it on the Agent, and the entry snapshot is the only
-rollback target.
+`overlay._gainings` walks the scan's ordered declarations. `_record_value`
+calculates a Record's returned value before installing its declaration or
+Constant lock; a failed builder leaves the previous binding available.
+`transactions._actualize` prepares the acquired runtime behaviour independently
+of membership. Tag-scope published services are prepared after Imprints.
+
+A Gain needing runtime protection is acquired only when its representation
+can be installed. If a Secret or Constant guard cannot be prepared, that
+candidate Gain does not stick; the previous binding and earlier acquired
+Gains remain. Admission-time shared services are also prepared separately:
+if their representation fails before entry, they do not replace services of
+an already active Agency. Acquired Gains and completed Imprint effects remain.
+The initial host boundary follows Cleared
+[STEP-SPEC-37](../steps/spec/STEP-SPEC-37-host-actualization.md): failed
+preparation restores the original class, physical dictionary and declared
+Python slot bindings. It does not undo mutable value contents, external
+effects or later training. Acquired Gains follow STEP-SPEC-39.
+
+FieldAdding establishes active membership, history and the Field together,
+then captures the admitted Tag's view. `_inspect` runs visible Posts once
+after the completed Form. A Gainings or Imprint failure leaves actually
+acquired Gains and completed Tags in place without admitting the unfinished
+Tag. A Post failure preserves membership; current Posts determine soundness,
+not a permanent failure marker. Retry passes a fresh Gate, overlays ordinary
+Gains and restarts Imprints, retaining established Constants. Acquired
+conditions, including Posts and Constant Posts, remain even after unfinished
+training. They participate in contract queries and published-member guards;
+ordinary Actions are not automatically wrapped in Post checks.
+
+`_enter_field` admits only after training. For a Pin, `_publication_plans`
+preflights every current Field recipient before admission; `_publish_to_field`
+then applies the admitted publication. The old whole-call rollback path is
+removed: completed independent Tags and acquired Gains are not restored away.
+
+An in-progress Tagging is tracked separately from membership so applying the
+same Tag to the same Agent during its Imprint is a no-op. There is no automatic
+Rip for an unfinished never-member and no automatic rollback of training
+effects. Preconditions and Record builders are observational authoring
+contracts, not sandboxes for arbitrary Python effects.
 
 ## Synchronous protocol results
 
@@ -256,10 +310,11 @@ Tagging sequence or expand its rollback boundary.
 
 ## Judgment calls
 
-- **`in` vs `isinstance`.** `agent in Tag` is the is-now check; `isinstance`
-  is the has-been check and stays true after Rip. Kept because it is a
-  dependable signal for spotting Rogue Agents. A rolled-back call also
-  rolls the ever-set back.
+- **`in` vs `isinstance`.** `agent in Tag` is the sound is-now check;
+  `agent in Tag[:]` checks raw Field admission. `isinstance`
+  is the has-been check and stays true after Rip. History is established at
+  FieldAdding. A failed never-member may retain Gains while both checks are
+  false; a Rogue who previously entered the Tag retains its has-been history.
 - **Records over host descriptors** are refused with a Composition Failure
   rather than silently bypassing a property.
 - **The Tag's dotted namespace is the program's.** Every Tag-level act is
@@ -303,9 +358,8 @@ Tagging sequence or expand its rollback boundary.
   it, so they cannot disagree. The same check refuses a Flag while a
   Tag's `__contains__`/`__iter__` Action (a published Operation included)
   is visible, and such an Action while a Flag is active; `@Flag` refuses
-  a Tag that declares one. A Form of several Tags is checked as a whole
-  before any of it applies (`_refuse_in_collisions_of_the_form`), so a
-  Flag Base's Imprint never runs for a Shape that is then refused. No
+  a Tag that declares one. The candidate Overlay check runs at each Tag's
+  own turn, so a later collision leaves completed Base Tags in place. No
   type-level gate (`@Delete`, `@Secret`, `@Public` of the same name) can
   overwrite the Flag's hook. Pins are exempt: on a Tag, TOP owns `in`.
 - **Deletion in Layers** (STEP-SPEC-18). The runtime type's `__del__` is
@@ -328,11 +382,8 @@ Tagging sequence or expand its rollback boundary.
   through the host's own. An object without TOP state whose class is a
   runtime type is reset to its host class when its state is attached;
   if it is never tagged, the finalizer runs its host's `__del__`.
-- **A rollback restores the state in place** (`_State.Restore`), keeping
-  `composing` and `checking`: a door or a check opened before the call
-  that is rolled back closes on the same object. (A copy put in its place
-  used to leave the door open for good.) Known limit: in a reference cycle,
-  Python clears weak references before finalizers run, so a finalizer's
+- **Weak finalization limit.** In a reference cycle, Python clears weak
+  references before finalizers run, so a finalizer's
   Tag code cannot call the Agent's bound Actions there (`ReferenceError`).
 - **What the kit keeps, and for how long.** Each Tag owns its Form and
   declaration memos through one internal helper, never a global root or
@@ -388,8 +439,8 @@ Tagging sequence or expand its rollback boundary.
 - **Pins reuse the whole sequence.** A pinned Tag is an Agent whose
   namespace is its class dictionary. `_namespace_of` hands the kernel a
   `_Class_Namespace` adapter (get, set, pop, keys) over the proxy, so
-  `_apply`, `_materialize`, `_commit`, `_snapshot` and `_rollback` are one
-  code path; the class case restores key by key. The runtime type is a
+  Gate, Gainings, Imprints, FieldAdding and view capture use the same
+  code path for objects and pinned Tags. The runtime type is a
   `(MetaTag, Tagged)` metaclass from the same cache. A landed Action is a
   `_Pinned_Operation` descriptor binding to the Tag it is read from (a
   Shape inherits it as it inherits a classmethod). Its public composing
@@ -408,7 +459,7 @@ Tagging sequence or expand its rollback boundary.
   class-attribute writes the kernel makes): a pinned Tag's `@Secret`
   members live in `state.secret_values` and answer on the miss path
   while `composing` is open; `@Public` pinned members are pushed to the
-  Field at commit (`_publish_to_field`, dry run on copies first) and
+  Field at Field entry (`_publish_to_field`, dry run on copies first) and
   emitted by the Tag's scan for future Agents, so the scan cache is
   dropped at pinning. `_state_of` reads the dictionary directly, which
   is why `agent in Tag` got faster rather than slower.
@@ -476,7 +527,8 @@ Tagging sequence or expand its rollback boundary.
   the Constant or Secret gate when there is one. Every write to the name
   passes `_refuse_misfit` first, `object.__setattr__` included, exactly
   where `_Binding_Write` already intercepts a host's own `__setattr__`;
-  `_materialize` asks the same question of what the builder returned.
+  `_gainings` validates the builder's proposed result through
+  `_refuse_tool_value` before installing its binding or rule.
   A kind is terms, all holding, each a tuple of alternatives: a Tag asks
   `tag in state.active` (membership now, never soundness, never
   `isinstance`), a class asks `isinstance`, with a raising instance test

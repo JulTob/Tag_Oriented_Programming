@@ -164,6 +164,17 @@ That last line surprises people. TOP calls this a **Rogue Agent**: it has
 what it learned, but no active membership. If a Tag must clean up after
 itself, it says so with `@Rip` (pattern 9).
 
+Unfinished Tagging can also produce a Rogue: Gainings or Imprints failed
+before the Agent entered the Field, leaving its actual Gains without
+membership. Calling `Tag(agent)` again starts a fresh attempt. The Gate
+judges the Agent as it is now, ordinary Gains overlay it, and Imprints
+restart. Successfully established Constants stay protected. A failed
+attempt does not count as having been in the Tag for `isinstance`.
+
+Acquired conditions remain too, including Posts and Constant Posts. They
+continue to judge the Rogue's current state, just as contracts stay after
+Rip. Constant Posts keep their protection against replacement and deletion.
+
 That is the whole kernel. The rest of this guide is patterns.
 
 ---
@@ -375,8 +386,10 @@ War_Caster(bruk)                        # now it takes
 
 Three things to notice.
 
-- **A refused Agent is untouched.** When a Precondition says no, the
-  tagging stops before anything is written. Bruk is exactly as he was.
+- **A refused Tag never begins.** Its Records, Actions, Field membership
+  and Imprints do not appear. When a Shape brings missing Bases, each Base
+  takes its own turn first; those completed Taggings stay if the Shape's
+  Gate later refuses.
 - **The error carries the name you wrote.** `except Precondition.Is_A_Caster`
   catches that one refusal and nothing else. `except TagPreconditionError`
   catches every refusal. Both work; the named one reads better. A name
@@ -385,6 +398,16 @@ Three things to notice.
 - **A gate can ask about other Tags.** `agent in Wizard` is an ordinary
   check, so a Tag can require another Tag. That is how synergies are
   written: the second Tag needs the first.
+
+Preconditions read and query; they do not prepare the Agent or change the
+world. Record builders likewise read and query to calculate an initial
+value. Applying or Ripping Tags is an Imprint's work. These are authoring
+rules, not a claim that TOP sandboxes arbitrary Python code.
+
+Each missing Tag passes its own Gate. A Shape cannot waive a missing Base's
+Gate by overriding a same-named Precondition: the Base must enter first. If
+the Base is already active, its Gate is not asked again; only the Shape's
+turn runs.
 
 **Inputs travel with the tagging.** Sometimes the gate needs information
 that is not on the Agent yet, like a code number. You give it at the call:
@@ -452,7 +475,7 @@ try:
 except Postcondition.Has_Spellbook:
     pass                                # the Tag stays; Newt is defective
 
-assert newt in Wizard                   # a member
+assert newt in Wizard[:]                # a member
 assert not newt                         # whose promise is broken
 assert newt in ~Wizard                  # waiting in the repair queue
 
@@ -677,7 +700,8 @@ Both are modifiers: they stack on `@Record`, `@Action`, `@Report` or
 `@Operation` in either order.
 
 A published member **answers members only, and only sound ones**. A Rogue
-Agent (he left) keeps what he became, his own Actions and Records, and
+Agent (he left or never completed admission) keeps his acquired Actions and
+Records, and
 loses what the Agency lent him: `TagRogueAccessError`. A defective Agent
 (a promise broke, any promise, whoever made it) is turned away until
 repaired, and the refusal names the broken promise. You never write
@@ -749,8 +773,28 @@ assert not guard.on_duty
 assert guard not in Sentry
 ```
 
-`@Imprint` runs after the Tag applies; `@Rip` runs after it leaves. They
-are constructor and destructor.
+Tagging proceeds **Gate → Gainings → Imprints → FieldAdding → Posts**.
+Actions, Records, condition definitions and deletions take effect top to
+bottom in declaration order, each visible to subsequent declarations. The
+Gate has already evaluated this Tag's own Preconditions. Imprints then train
+with acquired Gains, before entry in
+the Field. The Tag's published Reports and Operations and its Agent-bound
+view become available through the Agent after FieldAdding. Posts judge
+the finished Agent once after the whole Form: a broken promise leaves a
+defective member, rather than undoing membership.
+
+`@Rip` runs after an admitted Agent leaves. A failed training attempt never
+joined the Field, so it triggers no automatic Rip and is outside `Tag[:]`.
+The program handles cleanup of that attempt's resources with ordinary
+Python error handling.
+
+Declare a safety Post before the Action that needs it. An Action can read
+its named condition before effects, such as
+`if not agent.Insulated: raise PermissionError(...)`. A Post definition does
+not automatically guard an ordinary Action call. `if agent:` asks current
+truthiness across all visible Posts. `agent in Tag` asks whether the Agent
+is a sound member of that Tag; `agent in Tag[:]` asks whether it remains
+in its Field, including when defective.
 
 A role for a block is two acts you already know, the tagging and the Rip,
 joined by Python's own `try` and `finally`. The rule is the one Python
@@ -758,12 +802,13 @@ teaches for a lock: **tag before `try`, Rip in `finally`.** A `finally`
 always runs when its `try` ends, whether the block finished or raised.
 
 Tag *before* the `try`, not inside it. A Gate refusal then raises before
-the block starts and leaves no Tag. An Imprint failure or broken Post is
-also reported at the Tagging statement, before the `try`, but that Tag has
-landed and stays. In either case the `finally` never begins. Inside the
-`try`, a refused Tagging would send the `finally` to Rip a Tag that never
-landed. The caller would get "Sentry is not active on this Agent", and the
-refusal would only be kept inside it.
+the block starts and leaves this Tag unstarted. Failed Gainings or Imprints
+leave actual Gains outside this Tag; a broken Post leaves it admitted.
+All are reported at the Tagging statement, before this `try`, so its
+`finally` never begins. An unconditional Rip in a `finally` covering failed
+Tagging could try to expel a never-member and obscure the original failure.
+Handle unfinished training effects separately with ordinary Python error
+handling.
 
 If the Agent may carry the Tag already, take away only what the block
 gave:
@@ -787,6 +832,33 @@ Write `Sentry[:]`, with the brackets: it asks the whole Field, sound or
 broken, so a veteran who is a broken Sentry keeps the Tag too. With
 several Tags, tag them all before the `try`, and Rip them in the
 `finally` in reverse order.
+
+That reverse order is a cleanup pattern, not a restriction on Rip. Each
+completed Tag has its own membership: an Agent can leave a Base and remain
+in its Shape. For example, graduating can end the Candidate role without
+ending the Officer role:
+
+```python
+class Candidate(Tag): pass
+class Officer(Candidate): pass
+
+ari = Character("Ari")
+Officer(ari)                      # Candidate enters first, then Officer
+del Candidate[ari]               # only Candidate leaves; Officer stays
+
+assert ari in Officer
+assert ari not in Candidate
+Officer(ari)                      # already active: no new Tagging
+Candidate(ari)                    # explicit return: fresh Tagging
+assert ari in Candidate
+```
+
+The Gains and Posts already acquired stay after a Rip. If an Officer
+really must remain a Candidate, the author can declare a Post on Officer
+that checks `agent in Candidate[:]`. Ripping Candidate then leaves Officer
+in its Field but defective while that Post fails. Guard the Post with
+`agent in Officer[:]` if the promise should stop mattering after Officer
+is also Ripped.
 
 This frees `with` for ordinary Python context protocols. A host or an
 Agent may still define `__enter__` and `__exit__` (or the asynchronous
@@ -832,7 +904,7 @@ assert lance.Salute() == "Lance salutes"   # what he became: stays
 assert lance                               # what the role required: ended by you
 ```
 
-The other way is a guard inside the promise, `if agent not in Knight:
+The other way is a guard inside the promise, `if agent not in Knight[:]:
 return True`, which lets the promise follow any membership you like; the
 Contracts Guide shows both.
 
@@ -1072,7 +1144,8 @@ the architecture, with a Field to walk and a history that stays.
 
 | Question | Spelling |
 | --- | --- |
-| Is it a Wizard now? | `agent in Wizard` |
+| Is it a sound Wizard now? | `agent in Wizard` |
+| Is it in Wizard's Field, even if defective? | `agent in Wizard[:]` |
 | Was it ever? | `isinstance(agent, Wizard)` |
 | Does it carry the keyword? | `"Undead" in agent`, `Keyword(agent, "Undead")`, a Flag's words too |
 | Does it currently provide this name? | `"Attack" @ agent` |
@@ -1125,7 +1198,7 @@ your Reports and Operations there.
 | Expect a Rogue Agent to keep its own Actions and lose the Agency's published ones. | Check membership by hand inside every published Operation. |
 | Catch the named promise, repair what it names, retry. | Catch every failure in one handler and guess. |
 | Keep shared data in a `Report`, one copy. | Copy shared data into every Agent's Record. |
-| Ask `agent in Wizard`. | Ask `type(agent) is Character`; the type is wrapped. |
+| Ask `agent in Wizard` for sound membership, or `agent in Wizard[:]` for the whole Field. | Ask `type(agent) is Character`; the type is wrapped. |
 
 ---
 

@@ -190,7 +190,8 @@ class Tag_Kind_Tests(unittest.TestCase):
         self.assertIn("Tag it in the builder", str(refusal.exception))
         self.assertNotIn(charlie, Careless)
         self.assertFalse(hasattr(charlie, "weapon"))
-        self.assertIs(type(charlie), Character)          # the whole call rolled back
+        self.assertIsInstance(charlie, Character)       # actualized, without the failed Gain
+        self.assertFalse("weapon" @ charlie)
 
     def test_the_bearer_is_admitted_only_when_it_is_of_the_kind(self):
         charlie = Character("Charlie")
@@ -1175,7 +1176,10 @@ class Host_Tests(unittest.TestCase):
                     return
 
                 writes.append(name)
-                agent.__dict__[name] = value
+                if name == "__class__":
+                    object.__setattr__(agent, name, value)
+                else:
+                    agent.__dict__[name] = value
 
         lou = Logging_Host("Lou")
         Fighter(lou)
