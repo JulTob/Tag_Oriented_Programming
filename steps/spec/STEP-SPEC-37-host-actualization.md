@@ -124,3 +124,7 @@ TOP state. The refused outer Tag has no Field entry. If the nested Gate
 refuses before acquiring any work, rule 3 still restores the original
 class and physical bindings. This does not promise restoration of arbitrary
 Host effects.
+
+If the outer Host transition succeeds after nested Tagging, its final runtime
+must likewise reflect the Agent's current Gains and condition gates rather
+than the runtime calculated before the nested turn.

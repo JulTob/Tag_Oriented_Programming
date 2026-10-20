@@ -25,6 +25,11 @@
   has any Gains, Imprint effects or Field entry still restores the Host's
   original bindings (#241).
 
+- **Successful Host subclass preparation:** if a Host's `__init_subclass__`
+  completes a nested Tagging while the outer Agent runtime is built, the
+  finished outer transition composes that Agent's current Post guards rather
+  than installing the earlier runtime (#282).
+
 - **Sound membership:** `agent in Tag` now asks whether the Agent is still
   in that Field and its visible Posts hold, matching `for agent in Tag`.
   `agent in Tag[:]` asks for raw Field membership, including defective

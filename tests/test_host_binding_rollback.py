@@ -424,6 +424,37 @@ class HostBindingRollbackTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             "outer" in host
 
+    def test_completed_nested_tagging_keeps_its_post_when_outer_runtime_succeeds(self):
+        class Inner(Tag):
+            @Record
+            def value(agent):
+                return 3
+
+            @Post
+            def Ready(agent):
+                return agent.value == 3
+
+        class Outer(Tag):
+            pass
+
+        turn = {"host": None, "fired": False}
+
+        class Host:
+            def __init_subclass__(cls, **kwargs):
+                if not turn["fired"]:
+                    turn["fired"] = True
+                    Inner(turn["host"])
+
+        host = turn["host"] = Host()
+        Outer(host)
+
+        self.assertEqual(Tags(host), (Inner, Outer))
+        self.assertTrue(host.Ready)
+        self.assertTrue(bool(host))
+        with self.assertRaises(TagCompositionError):
+            host.Ready = False
+        self.assertTrue(host.Ready)
+
 
 if __name__ == "__main__":
     unittest.main()

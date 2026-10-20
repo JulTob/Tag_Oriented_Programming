@@ -467,13 +467,21 @@ def _actualize(
         else:
             return
 
-    next_type = _runtime_type_for(state)
+    while True:
+        effects_before = state.effect_serial
+        next_type = _runtime_type_for(state)
 
-    if type(agent) is not next_type:
-        if type(agent) is state.host_type:
-            _actualize_runtime_type(agent, next_type, state)
-        else:
-            _set_runtime_type(agent, next_type)
+        if type(agent) is not next_type:
+            if type(agent) is state.host_type:
+                _actualize_runtime_type(agent, next_type, state)
+            else:
+                _set_runtime_type(agent, next_type)
+
+        if state.effect_serial == effects_before:
+            return
+        # Building a runtime invokes the Host's __init_subclass__. That hook
+        # can complete another Tagging before this runtime is installed, so
+        # compose again from the Agent's current Gains and contract.
 
 
 def _enter_field(
