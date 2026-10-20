@@ -36,9 +36,10 @@ a result prepared under old credentials from escaping after those credentials
 have gone away.
 
 This Brief uses **Service** for a Tag-owned Report or Operation and **Grant**
-for one Agent's publication route, following STEP-SPEC-58's proposed
-vocabulary. The rule still applies under the current Report/Operation names if
-that vocabulary has not yet landed.
+for one Agent's publication route, following the vocabulary proposal in
+[issue #385](https://github.com/JulTob/Tag_Oriented_Programming/issues/385).
+The rule still applies under the current Report/Operation names if that
+vocabulary has not yet landed.
 
 ## Independently verified problem
 
@@ -71,10 +72,12 @@ already asks:
 - once Agent-level Service revocation exists, does this Agent still hold the
   Grant?
 
-The check retains the existing specific failure. Membership loss, a Void
-Contract, Grant revocation, and Safehouse arrest do not collapse into one
-generic exception. An arrest check follows STEP-SPEC-32's retry rule rather
-than assuming arrest is a permanent refusal.
+The check retains the existing specific failure. Safehouse status is resolved
+first: an arrested Agent retries its saved Rip work under STEP-SPEC-32. A
+failed retry raises Arrested Access Failure and stops before the other checks;
+a successful retry frees the Agent, after which membership, Contract, and
+Grant are checked live. Membership loss, a Void Contract, Grant revocation,
+and arrest therefore do not collapse into one generic exception.
 
 A published Service is public, not Secret. Its Agent-facing Action may open
 the composition door for the Service body so that body can use internal
@@ -103,8 +106,9 @@ not proof that arbitrary user code preserved authority.
 A body exception can itself carry protected text or objects. The Director's
 entry/result ruling does not yet decide whether it may cross a now-closed
 authority boundary. The recommended fail-closed rule makes the live authority
-failure public and retains the body exception only in a protected diagnostic,
-not as an exposed `__cause__`. Keeping the body exception primary is the
+failure public and stores the body exception only in a private diagnostic
+ledger, or discards it. It must not remain reachable through public
+`__cause__` or `__context__`. Keeping the body exception primary is the
 compatibility alternative and remains an explicit choice below.
 
 ### 3. Reports
@@ -143,10 +147,13 @@ validity query.
 Cleanup is a different continuation. Following TOP's existing rule that an
 entered Host context may run exit cleanup after arrest, the recommended
 profile permits `close`, `aclose`, cancellation, `GeneratorExit`, and
-`finally` cleanup through a restricted body door after authority loss, while
-releasing no yielded value or return object. `send`, ordinary resume, and
-`throw` that can produce a value stay guarded. Parking cleanup until Safehouse
-recovery is the alternative; the Director must choose before deployment.
+`finally` cleanup through the Operation body's ordinary composition door after
+authority loss, while releasing no yielded value or return object. That door
+does not currently restrict which Secret Features cleanup can call, so its
+exact capabilities and side-effect boundary are part of the open choice.
+`send`, ordinary resume, and `throw` that can produce a value stay guarded.
+Parking cleanup until Safehouse recovery is the alternative; the Director
+must choose before deployment.
 
 The implementation may generalize the Safehouse lazy-result guard rather than
 create a second proxy. That guard must evaluate this Service authority
@@ -158,11 +165,12 @@ Native async-generator support remains a profile boundary until `async for`,
 `asend`, `athrow`, and `aclose` are all guarded. A profile must either support
 every async continuation or refuse the published shape clearly.
 
-The first profile covers native callable forms TOP can classify at
-declaration. A synchronous function can return a custom awaitable, iterator,
-or stream whose later work TOP cannot identify safely. The profile must refuse
-such deferred results, require an explicit supported adapter, or document them
-as outside the protected Service-result model; it cannot call them guarded.
+The first profile classifies the returned object's exact native type. A native
+generator or coroutine is guarded even when a synchronous callable returned
+it. A custom awaitable, iterator, or stream whose later work TOP cannot
+identify safely remains outside that set. The profile must refuse such
+deferred results, require an explicit supported adapter, or document them as
+outside the protected Service-result model; it cannot call them guarded.
 
 ### 5. Saved handles and live views
 
@@ -275,8 +283,9 @@ user code.
    complete guarded async-generator protocol now?
 4. What public introspection should identify the original callable shape once
    a lazy result is proxied?
-5. May restricted cleanup run after authority loss, as recommended, or must it
-   park in the Safehouse until recovery?
+5. May cleanup run with the body's ordinary composition door after authority
+   loss, releasing no value, or must it park in the Safehouse until recovery?
+   If it runs, should cleanup receive a narrower Secret/side-effect profile?
 6. If the body raises after authority disappears, does the authority failure
    replace the body exception without exposing its protected payload, as
    recommended, or does compatibility keep the body exception primary?
