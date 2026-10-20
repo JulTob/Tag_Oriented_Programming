@@ -1640,6 +1640,95 @@ class Late_Pin_Tests(unittest.TestCase):
         self.assertNotIn("__topkit_pin__", Kind.__dict__)
         self.assertIs(Collector.__dict__["prize"], builder)
 
+    def test_physical_tool_mark_still_guards_gaining_after_getter_hides_it(self):
+        class Kind(Tag):
+            pass
+
+        class Builder:
+            hidden = False
+            value = None
+
+            def __call__(self, agent):
+                return self.value
+
+            def __getattribute__(self, name):
+                if name == "__topkit_tool__" and object.__getattribute__(self, "hidden"):
+                    return None
+                return object.__getattribute__(self, name)
+
+        builder = Tool(Kind)(Builder())
+
+        class Owner(Tag):
+            prize = builder
+
+        builder.hidden = True
+        builder.value = object()
+        with self.assertRaises(TagCompositionError):
+            Owner(Character())
+
+        tool = Character()
+        Kind(tool)
+        builder.value = tool
+        agent = Character()
+        Owner(agent)
+        self.assertIs(agent.prize, tool)
+        with self.assertRaises(TagCompositionError):
+            agent.prize = object()
+
+    def test_dynamic_only_tool_metadata_still_guards_gaining(self):
+        class Kind(Tag):
+            pass
+
+        class Builder:
+            dynamic_kind = None
+
+            def __call__(self, agent):
+                return object()
+
+            def __getattribute__(self, name):
+                if name == "__topkit_tool__":
+                    return object.__getattribute__(self, "dynamic_kind")
+                return object.__getattribute__(self, name)
+
+        builder = Tool(Kind)(Builder())
+        builder.dynamic_kind = builder.__dict__.pop("__topkit_tool__")
+
+        class Owner(Tag):
+            prize = builder
+
+        with self.assertRaises(TagCompositionError):
+            Owner(Character())
+
+    def test_slotted_physical_tool_mark_still_guards_gaining(self):
+        class Kind(Tag):
+            pass
+
+        class Builder:
+            __slots__ = ("hidden", "__topkit_kind__", "__topkit_tool__")
+
+            def __init__(self):
+                self.hidden = False
+
+            def __call__(self, agent):
+                return object()
+
+            def __getattribute__(self, name):
+                if name == "__topkit_tool__" and object.__getattribute__(self, "hidden"):
+                    return None
+                return object.__getattribute__(self, name)
+
+        builder = Tool(Kind)(Builder())
+
+        class Owner(Tag):
+            prize = builder
+
+        builder.hidden = True
+        with self.assertRaises(TagCompositionError):
+            Owner(Character())
+
+        with self.assertRaises(TagDeclarationError):
+            Pin(Kind)
+
     def test_forged_tool_kind_cannot_call_getter_under_pin_lock(self):
         class Kind(Tag):
             pass
