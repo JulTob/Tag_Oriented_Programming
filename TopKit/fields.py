@@ -4,7 +4,9 @@ A Field never keeps an Agent alive. Membership is indexed by identity so
 registration and removal are constant-time. Iterating a Tag gives the
 sound population (every visible Postcondition holds), ``~Tag`` the
 defective one, ``Tag[:]`` everyone. ``~`` means broken, and broken twice
-is still broken: ``~~Tag`` is ``~Tag``.
+is still broken: ``~~Tag`` is ``~Tag``. An arrested Agent remains in the
+raw Field and the owning Tag's Safehouse, but is in neither the sound nor
+defective population until its saved Rip work clears.
 
 Populations combine (STEP-SPEC-13): ``Wizard[:] | Fighter[:]`` is everyone
 who is either, ``Wizard - Sworn`` the sound Wizards who have not sworn,
@@ -159,9 +161,9 @@ class _Population:
 class _Safehouse(_Population):
     """Private live population of arrested Agents, by original Tag identity.
 
-    ``origin=None`` selects all saved work. A new class with the same name
-    cannot see or inherit an earlier class's unfinished cleanup. No public
-    Tag syntax routes here until the Rip protocol and its guards are ready.
+    ``origin=None`` selects all saved work through root ``Tag[...]``. A new
+    class with the same name cannot see an earlier class's unfinished cleanup.
+    This query is available before public Rip routing uses the saved ledger.
     """
 
     __slots__ = ("_origin",)
@@ -525,7 +527,10 @@ class _Partition(_Population):
         return (
                 agent
                 for agent in field
-                if partition._holds(agent) and agent in field
+                if _arrest_of(agent) is None
+                and partition._holds(agent)
+                and _arrest_of(agent) is None
+                and agent in field
                 )
 
     def __contains__(
@@ -536,7 +541,9 @@ class _Partition(_Population):
 
         return (
                 agent in field
+                and _arrest_of(agent) is None
                 and partition._holds(agent)
+                and _arrest_of(agent) is None
                 and agent in field
                 )
 
@@ -564,6 +571,6 @@ class _Partition(_Population):
 
         return _Partition(
                 partition._field,
-                lambda agent: not holds(agent),
+                lambda agent: _arrest_of(agent) is None and not holds(agent),
                 "defective",
                 )

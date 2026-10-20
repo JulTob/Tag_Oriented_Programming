@@ -40,8 +40,11 @@ class SafehouseSubstrateTests(unittest.TestCase):
         with patch.dict(_safehouse, {id(agent): arrest}, clear=True):
             self.assertIn(agent, _Safehouse(Checking))
             self.assertIn(agent, Checking[:])
-            with self.assertRaises(TagContractError):
-                list(Checking)
+            self.assertEqual(list(Checking), [])
+            self.assertNotIn(agent, ~Checking)
+
+        with self.assertRaises(TagContractError):
+            list(Checking)
 
     def test_error_is_a_resolution_failure(self) -> None:
         self.assertTrue(issubclass(TagArrestedAccessError, TagResolutionError))

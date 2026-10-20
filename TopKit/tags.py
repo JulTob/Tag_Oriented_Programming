@@ -33,6 +33,7 @@ from typing import Iterator
 from .access import _keyword
 from .access import _refuse_host_truth
 from .access import _view_of
+from .arrest import _arrest_of
 from .contracts import _holds
 from .contracts import _holds_for_population
 from .declarations import _MISSING
@@ -52,6 +53,7 @@ from .errors import TagCompositionError
 from .fields import FIELD_SEAT
 from .fields import _Field
 from .fields import _Partition
+from .fields import _Safehouse
 from .fields import _field_of
 from .fields import _population_of
 from .fields import _sound_of
@@ -177,7 +179,9 @@ class MetaTag(type):
         field = _field_of(tag)
         return (
                 candidate in field
+                and _arrest_of(candidate) is None
                 and _holds_for_population(candidate)
+                and _arrest_of(candidate) is None
                 and candidate in field
                 )
 
@@ -262,6 +266,9 @@ class MetaTag(type):
             tag,
             key: Any,
             ) -> Any:
+        if key is Ellipsis:
+            return _Safehouse(None if tag is Tag else tag)
+
         if isinstance(key, slice):
             if key != slice(None):
                 raise TypeError(
