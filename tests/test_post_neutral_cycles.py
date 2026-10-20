@@ -143,6 +143,38 @@ class PostNeutralCycleTests(unittest.TestCase):
         self.assertEqual(seen, [(False, False)])
         self.assertEqual(calls[0], 2)
 
+    def test_failed_post_diagnostic_keeps_a_hostile_name_inside_observation(self):
+        class Mutated(Tag):
+            pass
+
+        other = Host()
+
+        class Name(str):
+            armed = False
+            calls = 0
+
+            def __repr__(self):
+                if type(self).armed:
+                    type(self).calls += 1
+                    if type(self).calls >= 2:
+                        try:
+                            Mutated(other)
+                        except TagCompositionError:
+                            pass
+                return str.__repr__(self)
+
+        name = Name("Ready")
+        Broken = type(
+                "Broken", (Tag,), {name: Post(lambda agent: False)},
+                )
+        Name.armed = True
+
+        with self.assertRaises(TagPostconditionError.Ready):
+            Broken(Host())
+
+        self.assertGreaterEqual(Name.calls, 2)
+        self.assertNotIn(other, Mutated[:])
+
 
 if __name__ == "__main__":
     unittest.main()

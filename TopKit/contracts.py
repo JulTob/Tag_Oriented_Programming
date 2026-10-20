@@ -356,6 +356,10 @@ def _evaluate(
                             ) from error
 
                 verdict = _verdict(result, f"{phase} {name!r}")
+                if not verdict:
+                    raise failure.Named(name)(
+                            f"{phase} {name!r} failed"
+                            )
         except TagCompositionError as error:
             if flow is None or error is not flow.violation:
                 raise
@@ -367,11 +371,6 @@ def _evaluate(
             raise failure.Named(plain_name)(
                     f"{phase} {plain_name!r} raised {_type_name(error)}: {_exception_text(error)}"
                     ) from error
-
-        if not verdict:
-            raise failure.Named(name)(
-                    f"{phase} {name!r} failed"
-                    )
 
 
 def _guarded(
