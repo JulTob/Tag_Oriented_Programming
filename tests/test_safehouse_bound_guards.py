@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import gc
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -17,6 +19,13 @@ from TopKit.arrest import _safehouse
 
 class Host:
     pass
+
+
+def _arrest(agent: object, tag: type) -> _Arrest:
+    arrest = _Arrest(agent)
+    arrest.runs.append(SimpleNamespace(tag=tag))
+    _safehouse[id(agent)] = arrest
+    return arrest
 
 
 class SafehouseBoundGuardTests(unittest.TestCase):
@@ -54,6 +63,108 @@ class SafehouseBoundGuardTests(unittest.TestCase):
         with patch.dict(_safehouse, {}, clear=True):
             with self.assertRaises(TagArrestedAccessError):
                 agent.Train()
+
+    def test_started_action_generator_is_held_when_its_return_is_denied(self) -> None:
+        events = []
+
+        class Fighter(Tag):
+            def Train(agent):
+                def Steps():
+                    try:
+                        yield "started"
+                    finally:
+                        events.append("finalized")
+
+                source = Steps()
+                next(source)
+                arrest = _Arrest(agent)
+                arrest.runs.append(SimpleNamespace(tag=Fighter))
+                _safehouse[id(agent)] = arrest
+                return source
+
+        agent = Host()
+        Fighter(agent)
+        with patch.dict(_safehouse, {}, clear=True):
+            with self.assertRaises(TagArrestedAccessError):
+                agent.Train()
+            gc.collect()
+            self.assertEqual(events, [])
+            arrest = _safehouse[id(agent)]
+            self.assertEqual(len(arrest.lazy), 1)
+            source = arrest.lazy[0]
+
+        source.close()
+        self.assertEqual(events, ["finalized"])
+
+    def test_started_pin_coroutine_is_held_when_its_return_is_denied(self) -> None:
+        events = []
+
+        class Fighter(Tag):
+            pass
+
+        @Pin
+        class Trained(Tag):
+            @Action
+            def Work(tag):
+                async def Steps():
+                    try:
+                        await asyncio.sleep(0)
+                    finally:
+                        events.append("finalized")
+
+                source = Steps()
+                source.send(None)
+                arrest = _Arrest(tag)
+                arrest.runs.append(SimpleNamespace(tag=Trained))
+                _safehouse[id(tag)] = arrest
+                return source
+
+        Trained(Fighter)
+        with patch.dict(_safehouse, {}, clear=True):
+            with self.assertRaises(TagArrestedAccessError):
+                Fighter.Work()
+            gc.collect()
+            self.assertEqual(events, [])
+            arrest = _safehouse[id(Fighter)]
+            self.assertEqual(len(arrest.lazy), 1)
+            source = arrest.lazy[0]
+
+        source.close()
+        self.assertEqual(events, ["finalized"])
+
+    def test_started_action_async_generator_is_held_on_agent_arrest(self) -> None:
+        events = []
+
+        class Fighter(Tag):
+            def Work(agent):
+                async def Steps():
+                    try:
+                        yield "started"
+                    finally:
+                        events.append("finalized")
+
+                source = Steps()
+                step = source.__anext__()
+                with self.assertRaises(StopIteration):
+                    step.send(None)
+                arrest = _Arrest(agent)
+                arrest.runs.append(SimpleNamespace(tag=Fighter))
+                _safehouse[id(agent)] = arrest
+                return source
+
+        agent = Host()
+        Fighter(agent)
+        with patch.dict(_safehouse, {}, clear=True):
+            with self.assertRaises(TagArrestedAccessError):
+                agent.Work()
+            gc.collect()
+            self.assertEqual(events, [])
+            arrest = _safehouse[id(agent)]
+            self.assertEqual(len(arrest.lazy), 1)
+            source = arrest.lazy[0]
+
+        asyncio.run(source.aclose())
+        self.assertEqual(events, ["finalized"])
 
     def test_captured_pin_operation_checks_its_tag_receiver(self) -> None:
         class Fighter(Tag):
@@ -110,6 +221,103 @@ class SafehouseBoundGuardTests(unittest.TestCase):
 
         result.close()
         self.assertEqual(events, ["first", "second", "finally"])
+
+    def test_generator_cannot_yield_after_arresting_its_agent(self) -> None:
+        events = []
+
+        class Fighter(Tag):
+            def Steps(agent):
+                try:
+                    _arrest(agent, Fighter)
+                    yield "must not escape"
+                    yield "repair step"
+                finally:
+                    events.append("finalized")
+
+        agent = Host()
+        Fighter(agent)
+        with patch.dict(_safehouse, {}, clear=True):
+            result = agent.Steps()
+            with self.assertRaises(TagArrestedAccessError):
+                next(result)
+            self.assertEqual(len(_safehouse[id(agent)].lazy), 1)
+            self.assertEqual(events, [])
+
+            with _rip_door(agent):
+                self.assertEqual(next(result), "repair step")
+                result.close()
+            self.assertEqual(events, ["finalized"])
+
+    def test_generator_throw_cannot_yield_after_arrest(self) -> None:
+        class Fighter(Tag):
+            def Steps(agent):
+                try:
+                    yield "first"
+                except ValueError:
+                    _arrest(agent, Fighter)
+                    yield "must not escape"
+
+        agent = Host()
+        Fighter(agent)
+        with patch.dict(_safehouse, {}, clear=True):
+            result = agent.Steps()
+            self.assertEqual(next(result), "first")
+            with self.assertRaises(TagArrestedAccessError):
+                result.throw(ValueError("continue"))
+            self.assertEqual(len(_safehouse[id(agent)].lazy), 1)
+            with _rip_door(agent):
+                result.close()
+
+    def test_generator_return_value_stays_in_custody(self) -> None:
+        class Fighter(Tag):
+            def Finish(agent):
+                if False:
+                    yield None
+                _arrest(agent, Fighter)
+                return "must not escape"
+
+        agent = Host()
+        Fighter(agent)
+        with patch.dict(_safehouse, {}, clear=True):
+            result = agent.Finish()
+            with self.assertRaises(TagArrestedAccessError):
+                next(result)
+            self.assertEqual(len(_safehouse[id(agent)].lazy), 1)
+
+    def test_coroutine_return_value_stays_in_custody(self) -> None:
+        class Fighter(Tag):
+            async def Finish(agent):
+                _arrest(agent, Fighter)
+                return "must not escape"
+
+        agent = Host()
+        Fighter(agent)
+        with patch.dict(_safehouse, {}, clear=True):
+            result = agent.Finish()
+            with self.assertRaises(TagArrestedAccessError):
+                result.send(None)
+            self.assertEqual(len(_safehouse[id(agent)].lazy), 1)
+
+    def test_coroutine_throw_cannot_yield_after_arrest(self) -> None:
+        class Fighter(Tag):
+            async def Steps(agent):
+                try:
+                    await asyncio.sleep(0)
+                except ValueError:
+                    _arrest(agent, Fighter)
+                    await asyncio.sleep(0)
+                return "finished"
+
+        agent = Host()
+        Fighter(agent)
+        with patch.dict(_safehouse, {}, clear=True):
+            result = agent.Steps()
+            self.assertIsNone(result.send(None))
+            with self.assertRaises(TagArrestedAccessError):
+                result.throw(ValueError("continue"))
+            self.assertEqual(len(_safehouse[id(agent)].lazy), 1)
+            with _rip_door(agent):
+                result.close()
 
     def test_native_async_generator_action_result_is_explicitly_refused(self) -> None:
         class Fighter(Tag):
