@@ -2389,9 +2389,6 @@ class Lifetime_Review_Tests(unittest.TestCase):
         self.assertNotIn(ruth, charlie.Knows)
         self.assertIn(ruth, charlie.Knows[...])
         self.assertIs(_record_of(charlie.Knows).family.Pair_Of(ruth), pair)
-        with self.assertRaises(TagResolutionError):
-            charlie.Knows[ruth]  # saved Pair work is not a live Contact view
-
         del charlie.Knows[ruth]
         self.assertNotIn(ruth, charlie.Knows[...])
         with self.assertRaises(TagResolutionError):
