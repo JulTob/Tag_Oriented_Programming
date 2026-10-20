@@ -1,4 +1,4 @@
-"""A Post cannot use a sound population to judge its own Agent."""
+"""Recursive Post validity reads use a neutral True at the cycle edge."""
 
 from contextvars import copy_context
 import gc
@@ -6,7 +6,7 @@ import unittest
 from weakref import ref
 
 from TopKit import Contract, Post, Pre, Tag
-from TopKit import TagContractError, TagPostconditionError, TagPreconditionError
+from TopKit import TagPostconditionError, TagPreconditionError
 
 
 class Host:
@@ -14,7 +14,7 @@ class Host:
 
 
 class PostPopulationRecursionTests(unittest.TestCase):
-    def test_same_agent_sound_membership_fails_during_post_and_named_reads(self):
+    def test_same_agent_sound_membership_uses_a_neutral_cycle_edge(self):
         class Existing(Tag):
             pass
 
@@ -26,19 +26,14 @@ class PostPopulationRecursionTests(unittest.TestCase):
         agent = Host()
         Existing(agent)
 
-        with self.assertRaisesRegex(TagContractError, "Standing.*Tag\\[:\\]"):
-            Checking(agent)
+        Checking(agent)
 
-        # Admission happened before the failed Post, and raw Field questions
-        # remain available for repair and inspection.
         self.assertIn(agent, Existing[:])
         self.assertIn(agent, Checking[:])
-        with self.assertRaisesRegex(TagContractError, "Tag\\[:\\]"):
-            agent.Standing
-        with self.assertRaisesRegex(TagContractError, "Tag\\[:\\]"):
-            Contract.Status(agent)
+        self.assertTrue(agent.Standing)
+        self.assertEqual(Contract.Status(agent), {"Standing": True})
 
-    def test_all_sound_population_spellings_reject_the_same_post_cycle(self):
+    def test_all_sound_population_spellings_use_neutral_cycle_edges(self):
         class Existing(Tag):
             pass
 
@@ -61,8 +56,8 @@ class PostPopulationRecursionTests(unittest.TestCase):
                 agent = Host()
                 Existing(agent)
 
-                with self.assertRaises(TagContractError):
-                    Checking(agent)
+                Checking(agent)
+                self.assertTrue(agent.Standing)
 
     def test_raw_field_and_other_agents_soundness_can_be_read_from_a_post(self):
         class Existing(Tag):
@@ -83,7 +78,7 @@ class PostPopulationRecursionTests(unittest.TestCase):
         Checking(agent)
         self.assertTrue(agent.Standing)
 
-    def test_indirect_post_pre_soundness_cycle_is_not_reported_as_false(self):
+    def test_indirect_post_pre_soundness_cycle_uses_neutral_true(self):
         class Base(Tag):
             pass
 
@@ -101,14 +96,11 @@ class PostPopulationRecursionTests(unittest.TestCase):
         Base(agent)
         Checking(agent)
 
-        with self.assertRaisesRegex(TagContractError, "Guard.*Existing.*Tag\\[:\\]"):
-            Witness(agent)
+        Witness(agent)
 
         self.assertIn(agent, Witness[:])
-        with self.assertRaises(TagContractError):
-            agent.Guard
-        with self.assertRaises(TagContractError):
-            _ = agent in Base
+        self.assertTrue(agent.Guard)
+        self.assertIn(agent, Base)
 
     def test_named_pre_queries_existing_posts_without_the_post_cycle_guard(self):
         class Existing(Tag):

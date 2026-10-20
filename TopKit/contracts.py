@@ -40,15 +40,12 @@ from .state import _state_of
 Check = Callable[[object, dict[str, Any]], Any]
 
 
-class _Recursive_Soundness(TagContractError):
-    """A Post asked the sound population to judge its own Agent."""
-
-
 class _Post_Check:
-    __slots__ = ("identity", "active")
+    __slots__ = ("identity", "check_identity", "active")
 
-    def __init__(self, agent: object) -> None:
+    def __init__(self, agent: object, check: Check) -> None:
         self.identity = id(agent)
+        self.check_identity = id(check)
         self.active = True
 
 
@@ -58,46 +55,36 @@ _post_checks: ContextVar[tuple[_Post_Check, ...]] = ContextVar(
 
 
 @contextmanager
-def _checking_post(agent: object) -> Iterator[Any]:
-    """Mark and observe a Post's actual execution, independently of Pre reads.
+def _checking_post(agent: object, check: Check) -> Iterator[Any]:
+    """Observe one Post; its exact check is neutral on recursive reads."""
 
-    The marker is execution-local, holds only the Agent's identity, and is
-    revoked on exit. A copied context cannot keep an Agent alive or inherit
-    an *active* check after the Post finishes.
-    """
-
-    check = _Post_Check(agent)
-    token = _post_checks.set((*_post_checks.get(), check))
+    marker = _Post_Check(agent, check)
+    token = _post_checks.set((*_post_checks.get(), marker))
 
     try:
         with _observing("a Postcondition") as flow:
             yield flow
     finally:
-        check.active = False
+        marker.active = False
         _post_checks.reset(token)
 
 
-def _is_checking_post(agent: object) -> bool:
-    for check in _post_checks.get():
-        if check.active and check.identity == id(agent):
+def _is_checking_post(agent: object, check: Check) -> bool:
+    for marker in _post_checks.get():
+        if (marker.active and marker.identity == id(agent)
+                and marker.check_identity == id(check)):
             return True
 
     return False
 
 
 def _holds_for_population(agent: object) -> bool:
-    """Soundness may not depend on a Post that is still judging this Agent."""
+    """A recursive Post contributes neutral True to this Agent's verdict."""
 
     state = _state_of(agent)
 
     if state is None or not state.postconditions:
         return True
-
-    if _is_checking_post(agent):
-        raise _Recursive_Soundness(
-                "a Post cannot ask whether its own Agent is sound in a"
-                " Tag population; use Tag[:] to ask about Field membership"
-                )
 
     return _holds(agent, state)
 
@@ -344,9 +331,12 @@ def _evaluate(
     """Run conditions; raise ``failure`` naming the first that does not hold."""
 
     for name, check in checks:
+        if post and _is_checking_post(agent, check):
+            continue
+
         flow = None
         if post:
-            observation = _checking_post(agent)
+            observation = _checking_post(agent, check)
         elif phase == "Precondition":
             observation = _pre_observation()
         else:
@@ -356,10 +346,6 @@ def _evaluate(
             with observation as flow:
                 try:
                     result = check(agent, inputs)
-                except _Recursive_Soundness as error:
-                    raise _Recursive_Soundness(
-                            f"{phase} {name!r} failed: {_exception_text(error)}"
-                            ) from error
                 except TagContractError as error:
                     raise TagContractError(
                             f"{phase} {name!r} failed: {_exception_text(error)}"
@@ -369,10 +355,7 @@ def _evaluate(
                             f"{phase} {name!r} raised {_type_name(error)}: {_exception_text(error)}"
                             ) from error
 
-                if not _verdict(result, f"{phase} {name!r}"):
-                    raise failure.Named(name)(
-                            f"{phase} {name!r} failed"
-                            )
+                verdict = _verdict(result, f"{phase} {name!r}")
         except TagCompositionError as error:
             if flow is None or error is not flow.violation:
                 raise
@@ -385,6 +368,11 @@ def _evaluate(
                     f"{phase} {plain_name!r} raised {_type_name(error)}: {_exception_text(error)}"
                     ) from error
 
+        if not verdict:
+            raise failure.Named(name)(
+                    f"{phase} {name!r} failed"
+                    )
+
 
 def _guarded(
         agent: object,
@@ -395,15 +383,12 @@ def _guarded(
         ) -> bool:
     """Run one scope of the Agent's visible conditions on demand.
 
-    Re-entering this named diagnostic remains a shortcut. The Post marker
-    used by sound population queries is separate from that shortcut.
+    A recursive Post contributes neutral True; other Posts are still judged.
     """
 
     state = _state_of(agent)
 
-    if state is None or state.checking or (
-            scope == "postconditions" and _is_checking_post(agent)
-            ):
+    if state is None or (scope == "preconditions" and state.checking):
         return True
 
     reentrant = state.checking
@@ -427,8 +412,11 @@ def _guarded(
             return True
 
         for name, check in checks:
+            if scope == "postconditions" and _is_checking_post(agent, check):
+                continue
+
             if scope == "postconditions":
-                observation = _checking_post(agent)
+                observation = _checking_post(agent, check)
             elif scope == "preconditions":
                 observation = _pre_observation()
             else:
@@ -436,10 +424,9 @@ def _guarded(
 
             try:
                 with observation:
-                    if not _verdict(check(agent, {}), name):
-                        return False
-            except _Recursive_Soundness:
-                raise
+                    verdict = _verdict(check(agent, {}), name)
+                if not verdict:
+                    return False
             except Exception:
                 return False
 
@@ -458,19 +445,21 @@ def _holds(
     if state is None:
         state = _state_of(agent)
 
-    if state is None or not state.postconditions or _is_checking_post(agent):
-        return True   # nothing promised, or asked from inside its own Post
+    if state is None or not state.postconditions:
+        return True   # nothing promised
 
     state.composing += 1
 
     try:
         for name, check in state.postconditions.items():
+            if _is_checking_post(agent, check):
+                continue
+
             try:
-                with _checking_post(agent):
-                    if not _verdict(check(agent, {}), name):
-                        return False
-            except _Recursive_Soundness:
-                raise
+                with _checking_post(agent, check):
+                    verdict = _verdict(check(agent, {}), name)
+                if not verdict:
+                    return False
             except Exception:
                 return False
 
@@ -497,6 +486,9 @@ def _condition_member(
     if check is None:
         return None
 
+    if post and _is_checking_post(agent, check):
+        return True
+
     reentrant = state.checking
     if not post:
         state.checking = True
@@ -504,15 +496,17 @@ def _condition_member(
 
     try:
         try:
-            with _checking_post(agent) if post else _pre_observation():
-                return _verdict(
+            with _checking_post(agent, check) if post else _pre_observation():
+                verdict = _verdict(
                         check(agent, {}),
                         name,
                         )
+            return verdict
         except TagContractError:
             raise
         except Exception:
             return False
+
     finally:
         state.composing -= 1
         state.checking = reentrant
@@ -539,19 +533,19 @@ def _status_of(
             # dictionary is also written on the fallback path, after the
             # observation has ended, so store only inert plain strings.
             result_name = str.__str__(name)
+            if scope == "postconditions" and _is_checking_post(agent, check):
+                status[result_name] = True
+                continue
+
             try:
                 observation = (
-                        _checking_post(agent)
+                        _checking_post(agent, check)
                         if scope == "postconditions"
                         else _pre_observation()
                         )
                 with observation:
-                    status[result_name] = _verdict(
-                            check(agent, {}),
-                            name,
-                            )
-            except _Recursive_Soundness:
-                raise
+                    verdict = _verdict(check(agent, {}), name)
+                status[result_name] = verdict
             except Exception:
                 status[result_name] = False
     finally:
@@ -679,7 +673,8 @@ class Contract:
             agent: object,
             ) -> dict[str, bool]:
         """Verdicts for visible conditions. Ordinary check errors become
-        False; a self-referential soundness query raises Contract Failure."""
+        False; a recursive Post contributes neutral True at its exact
+        revisited check while other conditions are still evaluated."""
 
         return {
                 **_status_of(agent, "preconditions"),
