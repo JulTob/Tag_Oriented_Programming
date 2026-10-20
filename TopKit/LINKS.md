@@ -10,7 +10,7 @@ those facts. This guide shows the main things you will use Links for,
 one small section each. Every block below runs, in order, with nothing
 installed but TopKit.
 
-The [wiki page on Links](../wiki/1.5-TopKit-Links.md) teaches how they
+The [wiki page on Links](../wiki/1.6-TopKit-Links.md) teaches how they
 work. This guide is about what they are good for.
 
 Five words, so you never have to guess:
@@ -575,7 +575,7 @@ natural owner of that fact.
 | One value that belongs to one Agent | a **Record** | `ari.hp` |
 | One thing the Agent *has*, held | a **Tool** | `ari.sword` |
 | One thing true of **two** Agents, with facts of its own | a **Link** | `alicante.Road[marbella].travel_time` |
-| A relation where neither holds the other: a duel, a marriage | **Peers**, one Tag whose gate keeps its Field at two | see the [wiki page](../wiki/1.5-TopKit-Links.md) |
+| A relation where neither holds the other: a duel, a marriage | **Peers**, one Tag whose gate keeps its Field at two | see the [wiki page](../wiki/1.6-TopKit-Links.md) |
 
 A quick test: if you find yourself writing a dictionary keyed by a pair
 of Agents, `facts[(alicante, marbella)]`, that dictionary is a Link
@@ -605,7 +605,7 @@ retry, then releases them after cleanup.
 
 ## Where next
 
-- [The wiki page on Links](../wiki/1.5-TopKit-Links.md): how Links work,
+- [The wiki page on Links](../wiki/1.6-TopKit-Links.md): how Links work,
   with the rules of every example above.
 - [The Guide](GUIDE.md): Tags, Records, Actions, and the patterns that
   Links are built on.
