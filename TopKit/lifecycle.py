@@ -79,10 +79,11 @@ def _teardown(
         state: _State,
         run: _RipRun,
         ) -> None:
-    """Run this application's saved @Rip chain once, then report failures.
+    """Run this application's saved @Rip chain, then report failures.
 
     The run owns the chain removed from the Agent at revocation. A fresh
-    Tagging during teardown gets its own chain and is unaffected.
+    Tagging during teardown gets its own chain and is unaffected. The caller
+    must invoke each run once; passing the same run twice repeats its Rips.
     """
 
     failures: list[tuple[str, Exception]] = []
