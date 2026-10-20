@@ -37,6 +37,7 @@ How the kit builds it, from parts it already has:
 
 from __future__ import annotations
 
+from contextvars import ContextVar
 from functools import partial
 from inspect import CO_ITERABLE_COROUTINE
 from inspect import isasyncgenfunction
@@ -113,6 +114,38 @@ Function = Callable[..., Any]
 
 _PAIR_ENDS = "_TOPKIT_PAIR"   # in a Pair's dictionary: who it joins, out of public reach
 _LATER = "_topkit_later"      # on a Relation's function that runs later: "generator" or "coroutine"
+
+
+class _Pair_Access:
+    """A revocable, context-local read of an in-flight Pair.
+
+    A Link never publishes an unadmitted Pair to an ordinary caller. Its
+    own training and teardown still need to read the Pair while the Link
+    has not yet entered, or has just left, the Contact's Field.
+    """
+
+    __slots__ = ("pair", "link", "active")
+
+    def __init__(access, pair: "Pair", link: type | None) -> None:
+        access.pair = weakref.ref(pair)
+        access.link = None if link is None else weakref.ref(link)
+        access.active = True
+
+    def Allows(access, pair: "Pair", link: type) -> bool:
+        if not access.active or access.pair() is not pair:
+            return False
+
+        if access.link is not None:
+            return access.link() is link
+
+        # A final teardown can read the Pair through any Link of its
+        # family, including a Base whose Field entry has just left.
+        return _record_of(link).family is _pair_ends(pair).family
+
+
+_pair_access: ContextVar[_Pair_Access | None] = ContextVar(
+        "topkit_link_pair_access", default=None,
+        )
 
 _CLASS_MACHINERY = frozenset((
         "__module__",
@@ -2246,7 +2279,13 @@ def _link(
                 while True:
                     pair_form = _pair_form(member)
                     _refuse_inputs_in_seats(pair_form, inputs)
-                    _train_pair_layers(pair, pair_form, inputs, admitted)
+                    access = _Pair_Access(pair, member)
+                    token = _pair_access.set(access)
+                    try:
+                        _train_pair_layers(pair, pair_form, inputs, admitted)
+                    finally:
+                        access.active = False
+                        _pair_access.reset(token)
                     if pair_form is _pair_form(member):
                         break
 
@@ -2455,16 +2494,26 @@ def _pair_of(
         link: type,
         contact: object,
         ) -> Pair:
-    """``charlie.Knows[ruth]``: the Pair, live. It needs a linking, not
-    active membership: it lives until the Link's teardowns have run."""
+    """``charlie.Knows[ruth]``: the Pair of an admitted Contact.
+
+    Training and teardown can still read their own in-flight Pair. An
+    earlier failed attempt keeps its Gains privately for a later retry,
+    without publishing the Contact through this Link view.
+    """
 
     record = link.__dict__.get(_RECORD)
     pair = None if record is None else record.family.Pair_Of(contact)
+    state = _state_of(contact)
+    reachable = state is not None and link in state.active
 
-    if pair is None:
+    if pair is not None and not reachable:
+        access = _pair_access.get()
+        reachable = access is not None and access.Allows(pair, link)
+
+    if pair is None or not reachable:
         raise TagResolutionError(
-                f"{type(contact).__name__} is not a Contact of this"
-                f" {link.__name__}; it holds no Pair of hers"
+                f"{type(contact).__name__} is not admitted to this"
+                f" {link.__name__}; it has no reachable Pair through it"
                 )
 
     return pair
@@ -2544,6 +2593,8 @@ def _leave(
             )
     opened = state.composing
     state.composing = 0   # her door stays shut, even inside her own finalizer (rule 3.6)
+    access = _Pair_Access(pair, link)
+    token = _pair_access.set(access)
 
     try:
         ending_pair = not ends.flights and not _still_held(family, state)
@@ -2579,6 +2630,8 @@ def _leave(
                 break   # do not start later Pair Layers after this failure
         completed = first is None
     finally:
+        access.active = False
+        _pair_access.reset(token)
         state.composing = opened
 
         pending = _arrest_of(pair) is not None or not completed

@@ -281,7 +281,10 @@ Posts**. Gains arrive in declaration order. If a Record builder or Imprint
 fails, the unfinished Link has no membership for that Contact, but the
 Pair keeps its actual Gains and Posts. Linking again retries the unfinished
 training. It does not undo a Base linking or independent Tagging that
-already completed.
+already completed. Until that Contact enters the Link's Field,
+`agent.Link[contact]` raises a Resolution Failure; the Link's own training
+can still read its in-flight Pair. If a Base Link is Ripped while a Shape
+Link retains the Contact, read the shared Pair through the Shape Link.
 
 ```python
 class Sea(Tag):

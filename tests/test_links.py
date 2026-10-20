@@ -419,7 +419,8 @@ class Linking_Tests(unittest.TestCase):
         self.assertEqual(list(charlie.Knows[:]), [])
         self.assertEqual(list(charlie.Trusts[:]), [ruth])
         self.assertIs(charlie.Trusts[ruth], ruth_pair)
-        self.assertIs(charlie.Knows[ruth], ruth_pair)  # Pair belongs to the family
+        with self.assertRaises(TagResolutionError):
+            charlie.Knows[ruth]                       # this Link no longer admits Ruth
         self.assertEqual(ruth_pair.since, 2015)      # the Base's Gain is sticky
         self.assertFalse(_pair_ends(ruth_pair).ended)
         self.assertTrue(_pair_ends(sam_pair).ended)  # no Link still holds Sam
@@ -720,7 +721,8 @@ class Base_Tests(unittest.TestCase):
         self.assertNotIn(ruth, charlie.Knows)
         self.assertIn(ruth, charlie.Trusts)
         self.assertIs(charlie.Trusts[ruth], pair)
-        self.assertIs(charlie.Knows[ruth], pair)
+        with self.assertRaises(TagResolutionError):
+            charlie.Knows[ruth]
         self.assertEqual(pair.since, 2015)
         self.assertEqual(pair.Confide("a secret"), "Charlie tells Ruth: a secret")
 
@@ -5089,7 +5091,9 @@ class Ext_Nested_Tests(unittest.TestCase):
         self.assertNotIn(charlie, Popular)
         for contact in (ruth, sam):
             self.assertTrue(charlie.Knows[contact].vip)
-        self.assertEqual(_pair_ends(charlie.Knows[tom]).flights, [])
+        with self.assertRaises(TagResolutionError):
+            charlie.Knows[tom]
+        self.assertEqual(_pair_ends(_record_of(charlie.Knows).family.Pair_Of(tom)).flights, [])
         plan["promote_at"] = None
         charlie.Knows(tom)
         Popular(charlie)
@@ -5106,7 +5110,9 @@ class Ext_Nested_Tests(unittest.TestCase):
         self.assertNotIn(charlie, Popular)
         for contact in (ruth, sam):
             self.assertTrue(charlie.Knows[contact].vip)
-        self.assertEqual(_pair_ends(charlie.Knows[tom]).flights, [])
+        with self.assertRaises(TagResolutionError):
+            charlie.Knows[tom]
+        self.assertEqual(_pair_ends(_record_of(charlie.Knows).family.Pair_Of(tom)).flights, [])
         plan["promote_at"] = None
         charlie.Knows(tom)
         Popular(charlie)
@@ -5191,7 +5197,9 @@ class Ext_Nested_Tests(unittest.TestCase):
         self.assertNotIn(charlie, Popular)
         self.assertTrue(charlie.Knows[ruth].vip)
         self.assertTrue(charlie.Knows[sam].vip)
-        self.assertFalse(hasattr(charlie.Knows[tom], "vip"))
+        with self.assertRaises(TagResolutionError):
+            charlie.Knows[tom]
+        self.assertFalse(hasattr(_record_of(charlie.Knows).family.Pair_Of(tom), "vip"))
         plan["promote_at"] = None
         charlie.Knows(tom)
         Popular(charlie)
@@ -5565,7 +5573,10 @@ class Ext_Nested_Tests(unittest.TestCase):
         self.assertIn(charlie, Strict)
         self.assertTrue(charlie.Knows[ruth].vetted)
         self.assertNotIn(liar, charlie.Knows)
-        pair = charlie.Knows[liar]
+        with self.assertRaises(TagResolutionError):
+            charlie.Knows[liar]
+        pair = _record_of(charlie.Knows).family.Pair_Of(liar)
+        self.assertIsNotNone(pair)                    # privately retained for retry
         self.assertTrue("since" @ pair)
         self.assertNotIn(_pair_tag(Strict.Knows), _state_of(pair).active)
         self.assertFalse(hasattr(pair, "vetted"))
@@ -6376,8 +6387,12 @@ class Ext_Nested_Tests(unittest.TestCase):
                 self.assertNotIn(tom, charlie.Trusts if held else charlie.Knows)
                 self.assertIn(charlie, Popular)
                 self.assertTrue(charlie.Knows[ruth].vip)
-                self.assertTrue(charlie.Knows[tom].vip)
-                self.assertEqual(_pair_ends(charlie.Knows[tom]).flights, [])
+                if not held:
+                    with self.assertRaises(TagResolutionError):
+                        charlie.Knows[tom]
+                pair = _record_of(charlie.Knows).family.Pair_Of(tom)
+                self.assertTrue(pair.vip)             # the acquired Gain remains private
+                self.assertEqual(_pair_ends(pair).flights, [])
 
     def test_nested_linkings_wait_for_their_own_bases_before_extension(self):
         class Circle(Tag):
