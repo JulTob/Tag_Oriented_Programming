@@ -1434,6 +1434,22 @@ class Late_Pin_Tests(unittest.TestCase):
         Rare(Wizard)
         self.assertIn(Wizard, Rare[:])
 
+    def test_a_masked_mro_cannot_hide_a_pin_base_from_tool_validation(self):
+        @Pin
+        class Rare(Tag):
+            pass
+
+        class Mask(MetaTag):
+            @property
+            def __mro__(cls):
+                return (cls, Tag, object)
+
+        with self.assertRaisesRegex(TagDeclarationError, "shared tool is a Report"):
+            class Shape(Rare, metaclass=Mask):
+                @Tool(Sword)
+                def weapon(tag):
+                    return Sword()
+
     def test_a_tag_with_a_shape_is_not_marked_a_pin_later(self):
         class Order(Tag):
             pass

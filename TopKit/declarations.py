@@ -1157,7 +1157,7 @@ def _check_tool_declarations(
 
     if any(
             _is_pin(base)
-            for base in tag.__mro__[1:]
+            for base in _type_mro.__get__(tag)[1:]
             ):
         _refuse_tools_on_a_pin(
                 tag,
