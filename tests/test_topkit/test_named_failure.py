@@ -124,4 +124,4 @@ class NamedFailureTests(unittest.TestCase):
         Gated(ari)
 
         self.assertIn(ari, Gated)
-        self.assertEqual(Contract.Status(ari), {"Open": True, "Done": True})
+        self.assertEqual(Contract.Status(ari), {"Done": True})

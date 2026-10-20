@@ -6,7 +6,8 @@ ordinary attribute access costs what it costs on a plain object. The
 runtime type is neutral (host first, then the ``Tagged`` marker) and only
 carries what Python requires on a type: special-method Actions and the
 descriptors that gate deleted, secret, published, computed-condition,
-and Constant names.
+and Constant names.  The only computed Agent conditions are Posts;
+Preconditions are transient Tagging Services and never enter this state.
 """
 
 from __future__ import annotations
@@ -54,6 +55,23 @@ class _Snapshot:
     secrets: frozenset[str]
 
 
+@dataclass(frozen=True, slots=True)
+class _Post_Layer:
+    """One Post gained by one Tagging attempt.
+
+    ``application`` distinguishes a fresh application of the same Tag from
+    an older one whose Rip protocol may reTag the Agent.  The declared
+    function is retained so surviving Underlays can be rebound when a
+    membership-bound layer ends.
+    """
+
+    application: object
+    tag: type
+    function: Function
+    underlay: bool
+    constant: bool
+
+
 @dataclass(slots=True)
 class _State:
     host_type: type
@@ -64,8 +82,14 @@ class _State:
     actions: dict[str, Function] = field(default_factory=dict)
     action_origins: dict[str, type] = field(default_factory=dict)
     records: dict[str, type] = field(default_factory=dict)
-    preconditions: dict[str, Check] = field(default_factory=dict)
     postconditions: dict[str, Check] = field(default_factory=dict)
+    post_layers: dict[str, tuple[_Post_Layer, ...]] = field(default_factory=dict)
+    # Active Tag -> (opaque application identity, Post names it supplied).
+    # The name index keeps Rip proportional to that application instead of
+    # every Post already carried by the Agent.
+    post_applications: dict[type, tuple[object, tuple[str, ...]]] = field(
+            default_factory=dict,
+            )
     reports: dict[str, tuple[type, Any]] = field(default_factory=dict)
     operations: dict[str, tuple[type, Function]] = field(default_factory=dict)
     published: set[str] = field(default_factory=set)
@@ -112,8 +136,9 @@ class _State:
         copied.actions = state.actions.copy()
         copied.action_origins = state.action_origins.copy()
         copied.records = state.records.copy()
-        copied.preconditions = state.preconditions.copy()
         copied.postconditions = state.postconditions.copy()
+        copied.post_layers = state.post_layers.copy()
+        copied.post_applications = state.post_applications.copy()
         copied.reports = state.reports.copy()
         copied.operations = state.operations.copy()
         copied.published = state.published.copy()
@@ -1344,8 +1369,8 @@ def _type_key_of(
              if state.deleted or state.restored else _EMPTY_NAMES),   # a restored name keeps its gate; __del__ has none
             frozenset(state.secrets) if state.secrets else _EMPTY_NAMES,
             frozenset(state.published) if state.published else _EMPTY_NAMES,
-            (frozenset(state.preconditions | state.postconditions)
-             if state.preconditions or state.postconditions else _EMPTY_NAMES),
+            (frozenset(state.postconditions)
+             if state.postconditions else _EMPTY_NAMES),
             any(_is_flag(tag) for tag in (*state.active, *state.training)),
             tuple(
                     sorted(
@@ -1371,7 +1396,7 @@ def _runtime_type_for(
         return shared
 
     from .access import _hooks_for   # access imports this module
-    from .contracts import _Condition_Gate
+    from .contracts import _Post_Gate
     from .presence import _presence_hook
     from .constants import _binding_write_hooks
     from .constants import _Constant_Gate
@@ -1408,7 +1433,7 @@ def _runtime_type_for(
             namespace[name] = _Published(name)
 
         for name in conditions:
-            namespace[name] = _Condition_Gate(
+            namespace[name] = _Post_Gate(
                     name,
                     namespace.get(name, _MISSING),
                     )

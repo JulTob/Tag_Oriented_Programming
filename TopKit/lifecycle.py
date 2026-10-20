@@ -26,6 +26,8 @@ from .fields import _Member
 from .fields import _field_of
 from .state import _Originals
 from .state import _State
+from .state import _runtime_type_for
+from .state import _set_runtime_type
 from .state import _state_of
 
 
@@ -44,6 +46,26 @@ def _rip(
     state.words = None
     state.snapshots.pop(tag, None)   # a view needs membership: never read again
     _field_of(tag)._Remove(agent)
+    post_application = state.post_applications.pop(tag, None)
+
+    if post_application is not None:
+        application, post_names = post_application
+
+        # Import locally: Overlay already reaches lifecycle through access.
+        from .overlay import _remove_post_application
+        changed = _remove_post_application(
+                state,
+                application,
+                keep_constants=True,
+                names=post_names,
+                )
+
+        if changed:
+            # Rebuild from the complete state key: a surviving same-named
+            # Post can keep the descriptor name while changing its gate.
+            next_type = _runtime_type_for(state)
+            if type(agent) is not next_type:
+                _set_runtime_type(agent, next_type)
 
     _teardown(
             agent,

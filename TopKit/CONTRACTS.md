@@ -15,9 +15,9 @@ is a contract.
 
 ```python
 from TopKit import (
-        Action, Contract, Flag, Operation, Pin, Post, Postcondition, Pre,
-        Precondition, Public, Record, Report, Rip, Tag, TagRogueAccessError,
-        Underlay,
+        Action, Constant, Contract, Flag, Operation, Pin, Post, Postcondition,
+        Pre, Precondition, Public, Record, Report, Rip, Tag,
+        TagRogueAccessError, Underlay,
         )
 
 
@@ -51,8 +51,11 @@ at its own time.
 | "You will stay like this" | `@Post` | after admission, once after the completed Form, then at later tagging and published-member use | the Tag stays; the Agent is **defective** |
 | "You may use what we share" | `@Public` | at every use | refused until membership and soundness return |
 
-The first two are conditions the Tag declares. The third is not declared
-at all: it is what publication *means*.
+The first two are conditions the Tag declares, but STEP-SPEC-61 gives them different
+homes. A Pre is a transient **Tagging Service**: the Gate asks it and then it
+is gone. A Post is an Agent **Gain** in the **Contract**, the bond between the
+Agent and its Agencies. The third is not declared at all: it is what
+publication *means*.
 
 A condition uses an ordinary name such as `Commissioned` or `Safe`.
 Preconditions and Postconditions cannot use Python dunder names such as
@@ -104,22 +107,23 @@ to calculate their initial returned values. Applying or Ripping Tags and
 performing world effects belong to Imprints. These rules do not provide a
 sandbox for arbitrary Python effects.
 
-After the Gate, Actions, Records, condition definitions and deletions take
-effect in declaration order, top to bottom, with each acquired Gain or
-condition visible to subsequent declarations. Then Imprints
-train the Agent; only after they finish does it enter the Field. If Gainings
-or Imprints fail, actual Gains and earlier completed Tags remain, but this
-Tag is absent: the Agent is Rogue with respect to it. Calling `Tag(agent)`
-again passes a fresh Gate, overlays ordinary Gains and restarts Imprints.
-Established Constants remain protected; retry does not resume an instruction.
+After the Gate, Actions, Records, Post definitions and deletions take effect
+in declaration order, top to bottom, with each provisional or acquired Gain
+visible to subsequent declarations. Then Imprints train the Agent; only after
+they finish does it enter the Field. If Gainings or Imprints fail, actually
+acquired non-Post Gains and earlier completed Tags remain, but this Tag is
+absent: the Agent is Rogue with respect to it. Provisional Posts, including
+Constant Posts, are discarded because no Contract bond with that application
+was admitted. Calling `Tag(agent)` again passes a fresh Gate, overlays ordinary
+Gains and restarts Imprints. Established non-Post Constants remain protected;
+retry does not resume an instruction.
 
-Acquired conditions, including Posts and Constant Posts, also remain after
-failed training. They govern the Rogue's current contract status and guards
-on published members of its active Tags. Put a safety Post before the Action
-that needs it. An ordinary Action can read the named condition before effects,
-such as `if not agent.Insulated: raise PermissionError(...)`; a Post definition
-does not automatically wrap ordinary Action calls. Ordinary Posts still follow
-the existing composition rules, while Constant Posts remain protected.
+Once Field admission succeeds, an ordinary Post is a membership-bound Agent
+Gain. A Constant Post becomes a lifetime term only then. Put a safety Post
+before the Action that needs to see it during Gainings. An ordinary Action can
+read the named Post before effects, such as
+`if not agent.Insulated: raise PermissionError(...)`; a Post definition does
+not automatically wrap ordinary Action calls.
 
 During training, the Tag's published Reports and Operations and its
 Agent-bound view are unavailable through the Agent. Unfinished training
@@ -137,6 +141,11 @@ A Base may therefore promise what a later Shape supplies. When a Post
 breaks, the Agent remains in the Field. It is absent from the sound
 population (`agent in Tag` is False) and appears in `~Tag`; the product
 left the line and is flagged.
+
+That promise is one term in the Contract bond. An ordinary Post belongs to
+the Tag application that admitted it and lasts exactly while that application
+remains in the Field. A Constant Post is the explicit lifetime form: once
+admitted, it remains binding after Rip.
 
 ```python
 class Warp_Core(Tag):
@@ -366,11 +375,11 @@ assert worf in list(Crew_Member)
 Being alive is necessary to be crew, not sufficient: other living things
 are not crew. A condition says *necessary*; membership says *is*.
 
-The order of the two marks does not matter: `@Post` above `@Pre` is the
-same condition. It fails under two names, and that is the point: at the
-door it is `Precondition.Alive`, someone who may not come aboard;
-afterwards it is `Postcondition.Alive`, someone aboard who needs sickbay.
-Two repairs, two names.
+The order of the two marks does not matter, but the two roles keep independent
+lifetimes. At the door the shared body is the transient Service
+`Precondition.Alive`; after admission it is the membership-bound Gain
+`Postcondition.Alive`. The Pre never becomes a member on Worf. Two roles, two
+failure names, one calculation.
 
 ---
 
@@ -434,13 +443,13 @@ the ship's medical record still says infected. That is the point.
 
 ---
 
-## 8. The author writes the guard
+## 8. The Contract follows its declared lifetime
 
-A condition is a function, and the question *does this promise still
-apply to this Agent* is one line inside it. Write it in your own words
-and it can follow any membership you like: another Tag's, a keyword on a
-Tag, or the Tag underneath an Underlay. No law has to guess which one
-you meant, and the guard is right there for the next reader.
+An ordinary Post automatically follows the Field application that supplied
+it. Inside that lifetime, its calculation may still depend on another Tag's
+membership, a keyword on a Tag, or another live Post under an Underlay. Write
+that extra dependency in the promise itself; the next reader can see which
+external state the promise means to follow.
 
 **A promise that follows another Tag.** The weapons lock matters only
 while the officer stands on the Bridge. Off the Bridge, the promise
@@ -499,10 +508,10 @@ worf.station = "tactical"
 del Red_Alert[Bridge]
 ```
 
-**An Underlay that knows whose promise the underneath is.** A Veteran's
-`Alive` is laid over the crew's. If the crew role is gone, the Veteran
-holds only his own clause, and the chain never calls a check of a Tag
-the Agent has left.
+**An Underlay whose lower membership ends.** A Veteran's `Alive` is laid over
+the crew's. When the crew role leaves, its ordinary Post layer ends
+automatically. The surviving Underlay reconnects to the next live layer; if
+none exists, the missing lower Post is neutral `True`.
 
 ```python
 class Veteran(Tag):
@@ -510,8 +519,7 @@ class Veteran(Tag):
     @Post
     @Underlay
     def Alive(agent, base):
-        underneath = base() if agent in Crew_Member[:] else True
-        return underneath and agent.decorated
+        return base() and agent.decorated
 
 
 kurn = Crew("Kurn")
@@ -519,7 +527,7 @@ kurn.decorated = True
 Crew_Member(kurn)
 Veteran(kurn)
 
-del Crew_Member[kurn]                   # the underneath leaves
+del Crew_Member[kurn]                   # its Post layer ends with membership
 kurn.alive = False                      # its promise no longer counts
 assert kurn in list(Veteran)            # only the Veteran's own clause
 
@@ -527,10 +535,10 @@ kurn.decorated = False
 assert kurn in ~Veteran
 ```
 
-**Or end it explicitly, when the role leaves.** A condition is sticky:
-Rip does not remove it, so a promise that outlives its Tag fails loud
-rather than vanishing. When a promise should end with the role, the
-role's own `@Rip` protocol ends it, one deliberate name at a time.
+**The ordinary lifetime needs no teardown.** Rip removes membership first,
+and the Post Gain belonging to that application ends at the same boundary,
+before any `@Rip` protocol runs. Lower live Posts of the same name become
+visible again.
 
 ```python
 class Sworn_Officer(Tag):
@@ -539,10 +547,6 @@ class Sworn_Officer(Tag):
     def Has_Oath(agent):
         return agent.oath is not None
 
-    @Rip
-    def Release(agent):
-        Contract.Delete(agent, "Has_Oath")  # visibly, here, and nowhere else
-
 
 kurn.decorated = True                   # a tagging re-checks every promise
 kurn.oath = "to the Empire"
@@ -550,20 +554,43 @@ Sworn_Officer(kurn)
 del Sworn_Officer[kurn]                 # released from the oath
 kurn.oath = None
 assert kurn in list(Veteran)            # no promise left to break
+assert not hasattr(kurn, "Has_Oath")
 ```
 
-Both are flow control, nothing more. The guard costs one `in`; the
-deletion costs one name. Each reads as the rule it is, where the rule
-lives. There is no automatic law: a condition stays until you end it.
+`Contract.Delete(agent, "Has_Oath")` remains available for deliberate early
+clearing of a removable Post tower. It is safe when the name is already
+absent, which keeps older Rip protocols harmless, but it is not needed for
+the ordinary membership lifetime.
+
+**A lifetime term says so.** Some bonds deliberately outlive membership, as
+an NDA can outlive employment. `@Constant @Post` establishes that lifetime
+only after successful Field admission; it cannot be replaced or deleted and
+Rip does not remove it.
+
+```python
+class Intelligence(Tag):
+
+    @Constant
+    @Post
+    def NDA(agent):
+        return agent.keeps_secret
+
+
+kurn.keeps_secret = True
+Intelligence(kurn)
+del Intelligence[kurn]
+kurn.keeps_secret = False
+assert kurn.NDA is False                # the admitted lifetime term remains
+```
 
 ---
 
 ## 9. One promise, by name
 
-`Contract.Status` reads the whole contract. Often you want one line of it,
-in the middle of an `if`. Every condition is readable on the Agent by its
-own name, as a plain `True` or `False` computed on read: nothing is
-stored, nothing is a proxy, and the member and the status always agree.
+`Contract.Status` reads the whole live bond. Often you want one line of it,
+in the middle of an `if`. Every visible Post is readable on the Agent by its
+own name, as a plain `True` or `False` computed on read: nothing is stored,
+nothing is a proxy, and the member and the status always agree.
 
 ```python
 worf.infected = True                    # Healthy's promise breaks
@@ -578,14 +605,16 @@ assert worf.Not_Infected
 assert not hasattr(worf, "Has_Sword")   # no such promise: the ordinary miss
 ```
 
-A gate reads the same way, and so does `Crew_Member`'s stacked `Alive`:
+A Gate does not read from the Agent: its Pre Service ended with Tagging.
+`Crew_Member`'s stacked `Alive` remains readable only because the same body
+also declared a Post:
 
 ```python
 dax = Crew("Dax")
 Crew_Member(dax)
 assert dax.Alive is True
 dax.alive = False
-assert dax.Alive is False               # Crew_Member's condition, read on Dax
+assert dax.Alive is False               # Crew_Member's Post Gain, read on Dax
 ```
 
 **The name is the promise's own.** Because the promise is read on the
@@ -710,11 +739,10 @@ assert Bridge                          # the promise holds again
   means the Agent left; a named promise means it is broken. React to each.
 - **Repair from the outside** with `for broken in ~Tag`, or **at the point
   of use** with autofix. Both are ordinary Python.
-- **End a condition yourself.** Rip never does. A guard in the promise,
-  `if agent not in Bridge[:]: return True`, lets it follow Field membership;
-  `Contract.Delete(agent, "Has_Oath")` in the role's `@Rip` protocol
-  ends it when the role leaves. One visible line beats a law that
-  guesses.
+- **Use the lifetime you mean.** A Pre is a transient Tagging Service. An
+  ordinary Post is a Gain bound to that admitted Field application and ends
+  with it. `@Constant @Post` is a lifetime Contract term after admission.
+  `Contract.Delete` is for deliberate early clearing, not ordinary Rip.
 - **Read the contract** with `Contract.Status`, `Contract.Display`, or
   `f"{agent:contract}"` when you need the whole picture, and **one
   promise by its name**, `agent.Has_Oath`, when you need one line of it.
