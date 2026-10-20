@@ -37,7 +37,8 @@ class Element(Tag):
 
     @Record
     def attacks(agent, stored) -> list[str]:
-        return stored or []
+        # Element's Post runs before Fire, Water or Electric adds an attack.
+        return stored or ["Tackle"]
 
     @Post
     def Has_An_Attack(agent):

@@ -529,14 +529,14 @@ class TaggingAdmissionTests(unittest.TestCase):
         self.assertFalse("Work" @ future)
         self.assertFalse("marker" @ future)
 
-    def test_posts_run_after_the_whole_form_and_failure_means_deficient_membership(self):
+    def test_posts_run_after_each_field_entry_and_failure_means_deficient_membership(self):
         checks = []
 
         class Base(Tag):
             @Post
-            def Has_Shape_Gain(agent):
+            def Base_Ready(agent):
                 checks.append("base post")
-                return "ready" @ agent
+                return True
 
         class Shape(Base):
             @Record
@@ -551,7 +551,7 @@ class TaggingAdmissionTests(unittest.TestCase):
         agent = Host()
         with self.assertRaises(TagPostconditionError.Works):
             Shape(agent)
-        self.assertEqual(checks, ["base post", "shape post"])
+        self.assertEqual(checks, ["base post", "base post", "shape post"])
         self.assertIn(agent, Base[:])
         self.assertIn(agent, Shape[:])
         self.assertTrue(isinstance(agent, Shape))
@@ -559,6 +559,47 @@ class TaggingAdmissionTests(unittest.TestCase):
         self.assertIn(agent, ~Shape)
         agent.ready = True
         self.assertTrue(bool(agent))
+        self.assertIn(agent, Shape)
+
+    def test_failed_base_post_stops_before_shapes_gate_but_keeps_base(self):
+        events = []
+
+        class Base(Tag):
+            @Record
+            def ready(agent):
+                events.append("base gain")
+                return False
+
+            @Post
+            def Ready(agent):
+                events.append("base post")
+                return agent.ready
+
+        class Shape(Base):
+            @Pre
+            def Allowed(agent):
+                events.append("shape gate")
+                return True
+
+            @Record
+            def ready(agent):
+                events.append("shape gain")
+                return True
+
+        agent = Host()
+        with self.assertRaises(TagPostconditionError.Ready):
+            Shape(agent)
+        self.assertEqual(events, ["base gain", "base post"])
+        self.assertIn(agent, Base[:])
+        self.assertIn(agent, ~Base)
+        self.assertNotIn(agent, Shape[:])
+        self.assertIs(agent.ready, False)
+
+        # Repair and retry: the admitted Base is not trained again.
+        events.clear()
+        agent.ready = True
+        Shape(agent)
+        self.assertEqual(events, ["shape gate", "shape gain", "base post"])
         self.assertIn(agent, Shape)
 
     def test_flag_words_begin_at_field_entry(self):
