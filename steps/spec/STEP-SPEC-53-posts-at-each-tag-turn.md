@@ -35,12 +35,18 @@ population when it is free and its Posts fail. Vehicle has not yet started.
 ## Proposed rule
 
 1. Keep STEP-SPEC-39's independent Base-first Tag turns and the within-Tag
-   order **Gate → Gainings → Imprints → Field → Posts**. Once a Tag finishes
-   its Field entry, evaluate the Agent's currently visible Posts for that
-   turn. Only then consider the next Tag's Gate.
+   semantic order **Gate → Gainings → Imprints → Field → Posts**. Once a Tag
+   finishes its Field entry, evaluate the Agent's currently visible Posts for
+   that turn. Only then consider the next Tag's Gate. The separately proposed
+   structural Target preflight ([#380](https://github.com/JulTob/Tag_Oriented_Programming/pull/380))
+   is a zero-step before the Gate; it does not change which semantic act runs
+   first.
 2. A failed Post does not undo that Tag's Field entry, Gains, or earlier
    completed Taggings. It stops progression to the next Tag turn and reports
-   the contract failure through the existing named Post diagnostics.
+   the contract failure. This timing STEP does not decide how several failed
+   Posts are aggregated; the later training-failure amendment
+   ([#324](https://github.com/JulTob/Tag_Oriented_Programming/pull/324))
+   records that separate diagnostic ruling.
 3. A later Shape does not implicitly supply what an earlier Base promised.
    If that relationship is wanted, the programmer must express it through
    an explicit protocol that is valid at the time of the Base's check.
@@ -57,6 +63,19 @@ That change requires its own amendment to STEP-SPEC-39 ([#368](https://github.co
 Record preparation, `@Fix` recovery, and sound-source admission also have
 separate designs. This Brief chooses **when** to judge Posts between Tag
 turns, not those training or recovery mechanisms.
+
+The runtime change must follow the observational-Post boundary proposed in
+[STEP-SPEC-49 / #346](https://github.com/JulTob/Tag_Oriented_Programming/pull/346)
+and its implementation stack
+([#305](https://github.com/JulTob/Tag_Oriented_Programming/pull/305) →
+[#348](https://github.com/JulTob/Tag_Oriented_Programming/pull/348) →
+[#353](https://github.com/JulTob/Tag_Oriented_Programming/pull/353) →
+[#357](https://github.com/JulTob/Tag_Oriented_Programming/pull/357)). Without
+that boundary, the newly earlier Post check could perform a TOP act such as
+Ripping its Base before the next Gate, contradicting the retained-membership
+rule above. Post recursion and one-query verdict reuse remain the separate
+[STEP-SPEC-50 / #388](https://github.com/JulTob/Tag_Oriented_Programming/pull/388)
+concern; this STEP adds another validity query, not a new recursion rule.
 
 ## Compatibility and acceptance
 
