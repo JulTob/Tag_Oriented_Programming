@@ -100,6 +100,8 @@ class TagCallablePublicationTests(unittest.TestCase):
 
     def test_plain_callable_operation_keeps_bound_python_introspection(self):
         class Calculate:
+            """Calculated result from a callable object."""
+
             def __call__(self, tag, value=7, *, scale=1):
                 return tag, value * scale
 
@@ -111,11 +113,33 @@ class TagCallablePublicationTests(unittest.TestCase):
         descriptor = vars(Crew)["score"]
         self.assertEqual(descriptor.__name__, "score")
         self.assertIs(descriptor.__func__, operation)
+        self.assertIs(descriptor.__wrapped__, operation)
+        self.assertEqual(descriptor.__doc__, Calculate.__doc__)
         self.assertIs(Crew.score.__self__, Crew)
         self.assertIs(Crew.score.__func__, operation)
         self.assertEqual(signature(Crew.score),
                          signature(MethodType(operation, Crew)))
         self.assertEqual(Crew.score(4, scale=3), (Crew, 12))
+
+    def test_callable_descriptor_keeps_native_classmethod_binding(self):
+        class Bind:
+            def __call__(self, tag, value):
+                return "direct", value
+
+            def __get__(self, instance, owner):
+                return lambda value: ("descriptor", value)
+
+        baseline = Bind()
+        decorated = Bind()
+
+        class Native:
+            work = classmethod(baseline)
+
+        class Crew(Tag):
+            work = Operation(decorated)
+
+        self.assertEqual(Crew.work(9), Native.work(9))
+        self.assertIs(vars(Crew)["work"].__wrapped__, decorated)
 
     def test_plain_function_publications_keep_existing_metadata(self):
         def builder(tag):
