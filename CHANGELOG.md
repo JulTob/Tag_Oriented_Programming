@@ -273,8 +273,8 @@
   and a Tag scanned before its mark is validated as a Pin at the mark.
   Tool kinds and their declaring Tags are tracked weakly by identity; a
   kind is free if every Tag that named it has gone. Restating the mark is
-  a no-op. Whether a Tag that trained an Agent now outside its Field may
-  be marked as a Pin remains open.
+  a no-op. An empty Tag may be marked even if it previously trained Agents
+  that have since left its Field.
 
 - **Presence by name:** `"name" @ agent` checks current contributions,
   including host bindings; `"name" @ Tag[agent]` checks the captured view.
