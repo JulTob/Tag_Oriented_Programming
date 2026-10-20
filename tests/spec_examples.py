@@ -343,14 +343,19 @@ def Run() -> None:
     assert cora.Knows[rue].since == 2010 and cora.Knows[rue].Greet() == "Cora waves at Rue"
     assert Tags(rue) == () and not hasattr(rue, "since")          # nothing lands on the Contact
     cora.Trusts(rue)
-    assert cora.Knows[rue] is cora.Trusts[rue]                     # one Pair across the Form
+    assert "since" @ cora.Knows[rue] and not ("since" @ cora.Trusts[rue])
+    assert "Greet" @ cora.Knows[rue] and not ("Greet" @ cora.Trusts[rue])
     rue.honest = False
     assert list(~cora.Trusts) == [rue] and bool(rue)     # a broken Pair, a sound Contact
-    pair = cora.Trusts[rue]
+    pair_view = cora.Trusts[rue]                         # this exact Link's current Pair
     del cora.Knows[rue]
     assert rue not in cora.Knows and rue in cora.Trusts[:]
-    assert cora.Knows[rue] is pair and cora.Trusts[rue] is pair
+    try: cora.Knows[rue]; raise SystemExit("the Base Pair ended")
+    except TagResolutionError: pass
+    assert pair_view.Still_Honest is False              # Trusts has its own Pair
     del cora.Trusts[rue]
+    try: pair_view.Still_Honest; raise SystemExit("a saved view needs a current Pair")
+    except TagResolutionError: pass
     assert rue not in cora.Knows and isinstance(rue, cora.Knows)
     try: cora.Knows = 1; raise SystemExit("a held Link is read-only")
     except TagCompositionError: pass
