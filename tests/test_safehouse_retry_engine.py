@@ -183,6 +183,7 @@ class SafehouseRetryEngineTests(unittest.TestCase):
 
         def Revoke(current):
             attempts.append(current)
+            self.assertTrue(_may_act(agent))
             if len(attempts) == 1:
                 raise KeyboardInterrupt
 
@@ -196,6 +197,7 @@ class SafehouseRetryEngineTests(unittest.TestCase):
         self.assertEqual(run.cursor, 0)
         self.assertEqual(visited, [])
         self.assertIs(_pending_run(agent, run.tag), run)
+        self.assertFalse(_may_act(agent))
 
         self._retry(agent, Invoke, Revoke)
         self.assertEqual(attempts, [run, run])
@@ -217,6 +219,39 @@ class SafehouseRetryEngineTests(unittest.TestCase):
         self.assertFalse(run.running)
         self.assertFalse(_may_act(agent))
         self.assertIs(_pending_run(agent, run.tag), run)
+
+    def test_interruption_stops_before_later_runs_without_replaying_steps(self) -> None:
+        agent = object()
+        first = _RipRun(
+                type("First", (), {}),
+                (("a", object(), object()), ("b", object(), object())),
+                )
+        second = _RipRun(type("Second", (), {}), (("c", object(), object()),))
+        _save_run(agent, first)
+        _save_run(agent, second)
+        visited = []
+        interrupted = False
+
+        def Invoke(current, name, teardown, declared):
+            nonlocal interrupted
+            visited.append(name)
+            if name == "b" and not interrupted:
+                interrupted = True
+                raise SystemExit(7)
+
+        with self.assertRaises(SystemExit):
+            self._retry(agent, Invoke)
+
+        self.assertEqual(visited, ["a", "b"])
+        self.assertEqual(first.cursor, 1)
+        self.assertEqual(second.cursor, 0)
+        self.assertIs(_pending_run(agent, first.tag), first)
+        self.assertIs(_pending_run(agent, second.tag), second)
+        self.assertFalse(_may_act(agent))
+
+        self._retry(agent, Invoke)
+        self.assertEqual(visited, ["a", "b", "b", "c"])
+        self.assertIsNone(_arrest_of(agent))
 
     def test_same_run_cannot_be_reentered_from_its_teardown(self) -> None:
         agent = object()

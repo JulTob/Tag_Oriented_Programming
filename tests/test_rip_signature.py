@@ -75,7 +75,7 @@ class RipSignatureTests(unittest.TestCase):
                         if fails:
                             self.assertIn(target, closing[...])
                             fails = False
-                            del Tag[target]
+                            del closing[target]
                             self.assertEqual(events, ["called"] * 3)
                             self.assertNotIn(target, Tag[...])
 
@@ -222,7 +222,7 @@ class RipSignatureTests(unittest.TestCase):
         self.assertIsInstance(failed.exception.__cause__, ValueError)
         self.assertIn(Target, Shape[...])
 
-        del Tag[Target]
+        del Shape[Target]
         self.assertEqual(events, ["base", "middle", "shape"] * 2)
         self.assertEqual(Target.colour, "original")
         self.assertNotIn(Target, Tag[...])

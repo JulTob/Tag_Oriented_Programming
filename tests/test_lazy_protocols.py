@@ -158,7 +158,7 @@ class LazyProtocolTests(unittest.TestCase):
                                     )
                             self.assertIn(kind, str(failure.exception))
                             self.assertFalse(hasattr(target, marker))
-                            self.assertEqual(target in tag, keeps_tag)
+                            self.assertEqual(target in tag[:], keeps_tag)
 
                             if not keeps_tag:
                                 self.assertIs(type(target), original_type)
@@ -219,7 +219,7 @@ class LazyProtocolTests(unittest.TestCase):
                                 )
                         self.assertIn(kind, str(failure.exception))
                         self.assertFalse(hasattr(target, marker))
-                        self.assertEqual(target in shape, keeps_tag)
+                        self.assertEqual(target in shape[:], keeps_tag)
 
             gc.collect()
 
