@@ -14,6 +14,7 @@ from TopKit import TagCompositionError
 from TopKit import TagResolutionError
 from TopKit.arrest import _safehouse
 from TopKit.fields import _field_of
+from TopKit.rip_runs import _pending_run
 from TopKit.state import _state_of
 
 
@@ -56,7 +57,7 @@ class SafehouseSingleRipTests(unittest.TestCase):
         self.assertEqual(events, [])
         self.assertFalse(bool(agent))
 
-        del Tag[agent]
+        del Guard[agent]
         self.assertEqual(events, ["clean"])
         self.assertNotIn(agent, Tag[...])
 
@@ -93,7 +94,7 @@ class SafehouseSingleRipTests(unittest.TestCase):
         self.assertIsNot(fresh_rips, old_rips)
         self.assertIsNot(fresh_snapshot, old_snapshot)
         self.assertIn(agent, Guard[:])
-        del Tag[agent]
+        del Guard[agent]
         self.assertEqual(events, ["clean"])
         self.assertIn(agent, Guard[:])
         self.assertIs(state.rips[Guard], fresh_rips)
@@ -146,7 +147,7 @@ class SafehouseSingleRipTests(unittest.TestCase):
                 # no-op; the old run may safely finish its removal.
                 Guard(agent)
                 self.assertIs(state.rips[Guard], old_rips)
-                del Tag[agent]
+                del Guard[agent]
                 self.assertEqual(events, ["clean"])
                 self.assertNotIn(agent, Guard[:])
                 self.assertNotIn(Guard, state.active)
@@ -194,7 +195,7 @@ class SafehouseSingleRipTests(unittest.TestCase):
         self.assertIsNot(fresh_snapshot, old_snapshot)
         self.assertIn(agent, Guard[:])
 
-        del Tag[agent]
+        del Guard[agent]
         self.assertEqual(events, ["clean"])
         self.assertIn(agent, Guard[:])
         self.assertIs(state.rips[Guard], fresh_rips)
@@ -335,7 +336,7 @@ class SafehouseSingleRipTests(unittest.TestCase):
         self.assertIn(agent, Wizard[...])
 
         ready = True
-        del Tag[agent]
+        del Wizard[agent]
         self.assertEqual(events, ["wizard", "fighter", "wizard", "wizard"])
 
     def test_rip_may_run_another_tags_rip_before_it_finishes(self) -> None:
@@ -363,14 +364,15 @@ class SafehouseSingleRipTests(unittest.TestCase):
         self.assertNotIn(agent, Wizard[:])
         self.assertNotIn(agent, Fighter[:])
 
-    def test_root_retry_requested_inside_own_rip_defers_its_current_step(self) -> None:
+    def test_root_deletion_does_not_retry_a_live_running_rip(self) -> None:
         events = []
 
         class Wizard(Tag):
             @Rip
             def Leave(agent):
                 events.append("enter")
-                del Tag[agent]
+                with self.assertRaisesRegex(TagResolutionError, "orphaned Rip work"):
+                    del Tag[agent]
                 events.append("return")
 
         agent = Host()
@@ -409,7 +411,7 @@ class SafehouseSingleRipTests(unittest.TestCase):
         self.assertIn(agent, Fighter[...])
 
         ready = True
-        del Tag[agent]
+        del Wizard[agent]
         self.assertEqual(events, ["wizard", "fighter", "wizard", "fighter"])
         self.assertNotIn(agent, Tag[...])
 
@@ -452,7 +454,7 @@ class SafehouseSingleRipTests(unittest.TestCase):
         del Wizard[agent]
         self.assertNotIn(agent, Wizard[:])
 
-    def test_root_retry_drains_work_added_during_the_retry(self) -> None:
+    def test_tag_retry_drains_work_added_during_the_retry(self) -> None:
         old_ready = False
         child_ready = False
         events = []
@@ -483,12 +485,58 @@ class SafehouseSingleRipTests(unittest.TestCase):
 
         old_ready = True
         with self.assertRaises(TagCompositionError):
-            del Tag[agent]
+            del Old[agent]
         self.assertEqual(events, ["old", "old", "child", "child"])
         self.assertIn(agent, Child[...])
 
         child_ready = True
+        del Child[agent]
+        self.assertNotIn(agent, Tag[...])
+
+    def test_root_deletion_retries_only_orphaned_work(self) -> None:
+        live_ready = False
+        ended_ready = False
+        events = []
+
+        class Live(Tag):
+            @Rip
+            def Leave_Live(agent):
+                events.append("live")
+                if not live_ready:
+                    raise RuntimeError("live waits")
+
+        class Ended(Tag):
+            @Rip
+            def Leave_Ended(agent):
+                events.append("ended")
+                if not ended_ready:
+                    raise RuntimeError("ended waits")
+
+        agent = Host()
+        Live(agent)
+        Ended(agent)
+        with self.assertRaises(TagCompositionError):
+            del Live[agent]
+        with self.assertRaises(TagCompositionError):
+            del Ended[agent]
+
+        with self.assertRaisesRegex(TagResolutionError, "orphaned Rip work"):
+            del Tag[agent]
+        self.assertEqual(events, ["live", "ended"])
+
+        # The future Tag-ending protocol will mark its saved runs orphaned.
+        # Model that private transition without ending a Tag on this branch.
+        _pending_run(agent, Ended).orphaned = True
+        ended_ready = True
         del Tag[agent]
+        self.assertEqual(events, ["live", "ended", "ended"])
+        self.assertIn(agent, Live[...])
+        self.assertNotIn(agent, Ended[...])
+        self.assertIn(agent, Tag[...])
+
+        live_ready = True
+        del Live[agent]
+        self.assertEqual(events, ["live", "ended", "ended", "live"])
         self.assertNotIn(agent, Tag[...])
 
     def test_redefined_same_name_tag_cannot_receive_old_saved_rip(self) -> None:
@@ -511,7 +559,9 @@ class SafehouseSingleRipTests(unittest.TestCase):
         self.assertNotIn(agent, replacement[...])
 
         ready = True
-        del Tag[agent]
+        with self.assertRaisesRegex(TagResolutionError, "orphaned Rip work"):
+            del Tag[agent]
+        del old[agent]
         self.assertEqual(events, ["old", "old"])
         self.assertNotIn(agent, Tag[...])
 

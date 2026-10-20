@@ -94,8 +94,10 @@ def _rip(
 
 def _retry_arrested(
         agent: object,
+        *,
+        orphaned_only: bool = False,
         ) -> object:
-    """Retry live saved Rip work in original order from root Tag[...]."""
+    """Retry saved Rip work; root deletion selects orphaned work only."""
 
     state = _state_of(agent)
 
@@ -112,6 +114,7 @@ def _retry_arrested(
                         name, teardown, agent, state,
                         ),
                 defer_running=_may_act(agent),
+                orphaned_only=orphaned_only,
                 )
     finally:
         state.composing -= 1

@@ -289,7 +289,9 @@ class MetaTag(type):
             _require_available(tag, "Rip")
 
         if tag is Tag:
-            _retry_arrested(agent)
+            # Root Tag[...] sees every arrest, but root deletion handles only
+            # teardowns orphaned by an ended Tag, never a live Tag's work.
+            _retry_arrested(agent, orphaned_only=True)
             return
 
         _rip(
