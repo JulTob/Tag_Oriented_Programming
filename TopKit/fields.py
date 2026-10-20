@@ -24,6 +24,9 @@ from typing import Callable
 from typing import Iterator
 import weakref
 
+from .arrest import _Arrest
+from .arrest import _arrest_of
+from .arrest import _safehouse
 from .contracts import _holds_for_population
 from .errors import TagCompositionError
 from .geometry import _is_tag_class
@@ -151,6 +154,40 @@ class _Population:
             population,
             ) -> str:
         return f"<{population._label} Field>"
+
+
+class _Safehouse(_Population):
+    """Private live population of arrested Agents, by original Tag identity.
+
+    ``origin=None`` selects all saved work. A new class with the same name
+    cannot see or inherit an earlier class's unfinished cleanup. No public
+    Tag syntax routes here until the Rip protocol and its guards are ready.
+    """
+
+    __slots__ = ("_origin",)
+    _label = "safehouse"
+
+    def __init__(self, origin: type | None) -> None:
+        self._origin = origin
+
+    def _keeps(self, arrest: _Arrest) -> bool:
+        origin = self._origin
+        return bool(arrest.runs) if origin is None else any(
+                run.tag is origin for run in arrest.runs
+                )
+
+    def __iter__(self) -> Iterator[object]:
+        # Snapshot candidate turns, then verify live custody at each turn.
+        # Neither lookup nor ordering calls the Agent's Python protocols.
+        held = tuple(dict.copy(_safehouse).values())
+
+        for arrest in held:
+            if _arrest_of(arrest.agent) is arrest and self._keeps(arrest):
+                yield arrest.agent
+
+    def __contains__(self, agent: object) -> bool:
+        arrest = _arrest_of(agent)
+        return arrest is not None and self._keeps(arrest)
 
 
 def _population_of(
