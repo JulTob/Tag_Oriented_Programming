@@ -4,7 +4,8 @@ TOP borrows the language's own syntax for Tag-level acts and leaves the
 Tag's dotted namespace to the program:
 
     Wizard(charlie)               apply (Bases first)
-    charlie in Wizard             active membership, sound or defective
+    charlie in Wizard             sound membership, as in the plain loop
+    charlie in Wizard[:]          active membership, sound or defective
     "Deprecated" in Wizard        a keyword: the Tag carries the Flag Pin Deprecated
     Wizard in charlie             the same, from the Agent's side
     "Wizard" in charlie           the same, by name
@@ -33,6 +34,7 @@ from .access import _keyword
 from .access import _refuse_host_truth
 from .access import _view_of
 from .contracts import _holds
+from .contracts import _holds_for_population
 from .declarations import _MISSING
 from .declarations import _check_constant_declarations
 from .declarations import _check_constant_shapes
@@ -56,6 +58,7 @@ from .fields import _sound_of
 from .geometry import _form_of
 from .geometry import _is_tag
 from .lifecycle import _rip
+from .observation import _refuse_observed_mutation
 from .state import Tagged
 from .state import _name_of
 from .state import _state_of
@@ -100,6 +103,7 @@ class MetaTag(type):
             name: str,
             value: Any,
             ) -> None:
+        _refuse_observed_mutation("change an existing Tag class")
         _refuse_truth_gain(tag.__name__, name, value)
         if _is_dunder(name):
             _refuse_condition_dunder(tag.__name__, name, _kind_of(value))
@@ -118,6 +122,7 @@ class MetaTag(type):
             tag,
             name: str,
             ) -> None:
+        _refuse_observed_mutation("delete from an existing Tag class")
         owner = _constant_owner(tag, name)
 
         if owner is not None:
@@ -134,6 +139,7 @@ class MetaTag(type):
             /,
             **inputs: Any,
             ) -> object:
+        _refuse_observed_mutation("apply a Tag or Pin")
         if target is _MISSING:
             raise TypeError(
                     f"{tag.__name__} is a Tag: apply it to a Target,"
@@ -162,8 +168,9 @@ class MetaTag(type):
             tag,
             candidate: object,
             ) -> bool:
-        """``agent in Wizard``: membership. ``"Deprecated" in Wizard``: a
-        keyword among the Tag's Flag Pins; a string is never a member."""
+        """``agent in Wizard``: sound membership, as in the plain loop.
+        ``agent in Wizard[:]`` is raw membership. A string asks for a
+        keyword among the Tag's Flag Pins, never Agent membership."""
 
         if isinstance(candidate, str):
             return _keyword(
@@ -171,11 +178,11 @@ class MetaTag(type):
                     candidate,
                     )
 
-        state = _state_of(candidate)
-
+        field = _field_of(tag)
         return (
-                state is not None
-                and tag in state.active
+                candidate in field
+                and _holds_for_population(candidate)
+                and candidate in field
                 )
 
     def __instancecheck__(
@@ -277,6 +284,7 @@ class MetaTag(type):
             tag,
             agent: object,
             ) -> None:
+        _refuse_observed_mutation("Rip a Tag")
         _rip(
                 agent,
                 tag,
