@@ -136,8 +136,10 @@ admitted Tag is judged before the next Tag's Gate. It is **not yet Deployed**.
    attempt's provisional Target representation and bindings, raises public
    `TagTargetError` (a subtype of `TagCompositionError`), and acquires no
    Gains or Field membership for this Tag. Earlier completed Taggings stay.
-   The name is for this Record-space refusal; other structural Host
-   actualization failures remain Composition Failures under STEP-SPEC-37.
+   `TagTargetError` also names structural Host Target refusals: inability
+   to carry TOP state or the requested runtime representation. Overlay
+   collisions keep their existing failure classes. Other Host
+   actualization rules remain under STEP-SPEC-37.
 3. Gainings still take effect in declaration order, top to bottom. An
    `@Record` initializer calculates a value at its own declaration
    position. If that calculation fails, it acquires no new value, Constant
@@ -164,6 +166,9 @@ admitted Tag is judged before the next Tag's Gate. It is **not yet Deployed**.
    `TagPostconditionError.Name` (also `Postcondition.Name`) remains the
    final error. If several visible Posts fail, Tagging raises **one final
    aggregate `TaggingFailure`** naming all of them in Post evaluation order.
+   `TaggingFailure` is a subtype of `TagPostconditionError`, so general
+   Postcondition failure handlers still catch it. A non-boolean Post verdict
+   remains a separate Contract Failure, not an aggregate of failed Posts.
    In either case the Agent stays in the Field as broken. The verdict is
    taken after all ordinary training attempts; past protocol errors alone
    do not determine membership or soundness.
