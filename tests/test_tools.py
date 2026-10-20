@@ -1756,6 +1756,7 @@ class Late_Pin_Tests(unittest.TestCase):
         self.assertEqual(Prize.note, "training remains")  # now a Pin Report
         self.assertNotIn(bob, Former[:])
         self.assertEqual(bob.note, "training remains")
+
     def test_a_tag_with_an_empty_field_may_be_marked_after_its_agents_leave(self):
         class Noted(Tag):
             pass
