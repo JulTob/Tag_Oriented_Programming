@@ -467,8 +467,10 @@ Tagging sequence or expand its rollback boundary.
   Operation, Report or plain value, `_refuse_tag_member` records the
   declared object in `state.originals` (first patch wins). `_call_teardown`
   hands an `_Originals` namespace to a Pin's `@Rip` teardown that declares
-  a seat beyond its receiver (and Underlay), read through `__wrapped__`
-  of the composed Action.
+  a seat beyond its receiver (and Underlay), read from the selected Rip
+  declaration's Python signature. The scheduled Action and its declaration
+  are retained together, so an explicit `__signature__` takes precedence
+  over `__wrapped__` without losing an Underlay's second seat.
 - **Published members check sound membership at use** (STEP-SPEC-10):
   the adapter and `_Published.__get__` call `_require_membership`, which
   raises `TagRogueAccessError` (a `TagResolutionError`, and nothing from

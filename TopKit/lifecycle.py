@@ -66,11 +66,12 @@ def _teardown(
     state.composing += 1
 
     try:
-        for name, teardown in teardowns:
+        for name, teardown, declared in teardowns:
             try:
                 _call_teardown(
                         name,
                         teardown,
+                        declared,
                         agent,
                         state,
                         )
@@ -109,11 +110,12 @@ def _teardown_all(
 
     try:
         for tag in reversed(list(state.active)):
-            for name, teardown in state.rips.pop(tag, ()):
+            for name, teardown, declared in state.rips.pop(tag, ()):
                 try:
                     _call_teardown(
                             name,
                             teardown,
+                            declared,
                             agent,
                             state,
                             )
@@ -126,6 +128,7 @@ def _teardown_all(
 def _call_teardown(
         name: str,
         teardown: Any,
+        declared: Any,
         agent: object,
         state: _State,
         ) -> None:
@@ -144,19 +147,22 @@ def _call_teardown(
         if state.pinned is None:
             result = teardown(agent)
         else:
-            declared = getattr(
-                    teardown,
-                    "__wrapped__",
-                    teardown,
-                    )
             seats = _parameters_of(declared).positional
-            receiver_seats = 2 if _takes_underlay(declared, name) else 1
+            underlay = _takes_underlay(declared, name)
+            receiver_seats = 2 if underlay else 1
 
             if seats > receiver_seats:
-                result = teardown(
-                        agent,
-                        _Originals(state.originals),
-                        )
+                originals = _Originals(state.originals)
+                if underlay:
+                    # Only the selected composed Rip receives this protocol
+                    # seat. Its prior Action is called without it unless the
+                    # declaration passes it explicitly with prior(originals).
+                    guard.selected = teardown
+                    guard.originals = originals
+                    guard.inject = True
+                    result = teardown(agent)
+                else:
+                    result = teardown(agent, originals)
             else:
                 result = teardown(agent)
     finally:
