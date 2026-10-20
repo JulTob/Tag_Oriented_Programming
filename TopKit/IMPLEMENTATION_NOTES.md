@@ -14,6 +14,7 @@ tracks splitting them by idea without changing semantics.
 
 | Module | Idea |
 | --- | --- |
+| `__init__.py` | the public TopKit names and their exports |
 | `errors.py` | the failure types |
 | `declarations.py` | the marks (`@Action`, `@Record`, `Report`, `Public`, `@Secret`, …), scanning a Tag class once, binding parameters |
 | `geometry.py` | Bases, Shapes, Forms, leaves |
