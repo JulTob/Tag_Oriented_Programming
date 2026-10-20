@@ -1610,6 +1610,36 @@ class Late_Pin_Tests(unittest.TestCase):
         self.assertNotIn("__topkit_pin__", Kind.__dict__)
         self.assertIs(Collector.__dict__["prize"], builder)
 
+    def test_physical_tool_mark_survives_a_getter_hiding_its_first_read(self):
+        class Kind(Tag):
+            pass
+
+        class Builder:
+            reads = 0
+
+            def __call__(self, agent):
+                return None
+
+            def __getattribute__(self, name):
+                if name == "__topkit_tool__":
+                    reads = object.__getattribute__(self, "reads") + 1
+                    object.__setattr__(self, "reads", reads)
+                    if reads == 1:
+                        return None
+                return object.__getattribute__(self, name)
+
+        builder = Tool(Kind | None)(Builder())
+        builder.reads = 0
+
+        class Collector(Tag):
+            prize = builder
+
+        self.assertEqual(builder.reads, 1)  # one observed read, then the physical mark wins
+        with self.assertRaises(TagDeclarationError):
+            Pin(Kind)
+        self.assertNotIn("__topkit_pin__", Kind.__dict__)
+        self.assertIs(Collector.__dict__["prize"], builder)
+
     def test_forged_tool_kind_cannot_call_getter_under_pin_lock(self):
         class Kind(Tag):
             pass
