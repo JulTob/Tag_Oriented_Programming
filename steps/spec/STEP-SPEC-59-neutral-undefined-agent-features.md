@@ -4,7 +4,7 @@
 - **Desk:** spec
 - **Title:** Neutral Resolution of Undefined Agent Features
 - **Author:** Codex, recording and evaluating the Director's 2026-10-20 proposal
-- **Status:** Brief
+- **Status:** Redacted
 - **Created:** 2026-10-20
 - **Issue:** [#386](https://github.com/JulTob/Tag_Oriented_Programming/issues/386)
 - **Related:** [STEP-SPEC-58](STEP-SPEC-58-agent-feature-deletion.md), Agent Feature deletion and Service Grants
@@ -15,24 +15,33 @@
 
 ## Summary
 
-An Agent may legally lack a Feature that a broader Agency normally gives.
-Instead of aborting a long-running program when that missing Feature is used,
-TOP could resolve it to an algebraic neutral result and emit a mandatory
-warning. The first draft limited that rule to a **known undeclared Feature
-coordinate**, where TOP retains enough information to answer exactly:
+This STEP evaluated whether an absent Agent Feature should resolve to an
+algebraic neutral result with a warning. The first draft limited that rule to
+a **known undeclared Feature coordinate**, where TOP retains enough information
+to answer by the ended Feature's kind:
 
 | Known Feature kind | Neutral use |
 | --- | --- |
 | Action or published Operation Grant | a no-op with the ended callable's synchronous or lazy shape |
 | Record, Tool value, or published Report Grant | the value `None` |
-| Agent Contract check | either absent, or boolean `True` if the broader proposal is cleared |
+| Agent Contract check | either absent, or candidate boolean `True` |
 
-That form does not answer the Director's broader case: an Agent whose Tags
-never declared the requested name. The Director's desired surface is truthy
-inside a boolean check and `None` for an ordinary value or call. Ordinary
-Python attribute lookup cannot produce those different literal results from
-the same expression. This Brief therefore records the implementable designs
-and their costs. It does not select a total-resolution mechanism yet.
+That form did not answer the broader case of an Agent whose Tags never declared
+the requested name. The explored surface was truthy inside a boolean check and
+`None` for an ordinary value or call. Ordinary Python attribute lookup cannot
+produce those different literal results from the same expression.
+
+The Director therefore **Redacted** the proposal on 2026-10-21. Every absent
+Feature remains strict, including a deliberately ended Gain and a revoked
+Grant. Optional code asks TOP presence before use:
+
+```python
+if "Fireball" @ wizard:
+    wizard.Fireball()
+```
+
+No missing-Feature proxy, null Action, or warning fallback is authorized. The
+analysis below stays on the record to explain why.
 
 ## Motivation
 
@@ -84,7 +93,7 @@ used. One proxy cannot both make `agent.unknown()` return literal `None` and
 make that same call result awaitable or iterable. Python dunders are looked up
 on the type and bypass an instance `__getattr__` entirely.
 
-## Proposed specification
+## Redacted specification candidate
 
 ### 1. Eligibility
 
@@ -132,8 +141,7 @@ For a known undeclared coordinate:
 - The safe first stage keeps a directly deleted Agent Contract name absent.
   Neutral `True` remains the internal identity for an absent Underlay,
   recursive Contract edge, and aggregate validity with no failed visible
-  Posts. Returning `True` from direct named reads remains the broader option
-  for Director review.
+  Posts. Returning `True` from direct named reads was the broader candidate.
 
 Presence stays false in every case. Therefore `"answer" @ agent` distinguishes
 an absent Record from a present Record whose actual value is `None`.
@@ -195,7 +203,7 @@ Check a Contract: if wizard.Ready
 therefore issue Calls to Action without assuming every legal member has the
 same Gain.
 
-## Worked cases
+## Rejected worked cases
 
 ### Deliberate specialization
 
@@ -376,22 +384,16 @@ but does not implement the total Agent request that motivated this section.
 If the total rule is cleared, option D is the current architecture
 recommendation. It preserves exact information wherever TOP has it and uses a
 small, conspicuous value only where Python gives TOP no kind information. The
-Director must still accept that the value is not literal `None` and select its
-protocol surface before runtime work begins.
+Director would still have to accept that the value is not literal `None` and
+select its protocol surface before any reconsidered runtime work began.
 
 ## Backwards compatibility
 
-Known Features deliberately deleted today usually raise `AttributeError` or
-a TOP access error when used. They would instead warn and provide a neutral
-result. Programs relying on that exception should enable an error filter for
-`MissingFeatureWarning` or check presence explicitly.
-
-Under the bounded design, names never managed by TOP continue raising
-`AttributeError`. A total fallback would instead change every unknown ordinary
-Agent lookup, `hasattr`, and `getattr` default as described above. Host objects
-before actualization remain unchanged. Python special method lookup remains
-strict. Existing Secret, Constant, membership, soundness, and Safehouse
-failures retain their classes.
+Redaction makes no runtime compatibility change. Known Features deliberately
+deleted continue to raise their current strict missing or TOP access failure;
+never-managed names keep ordinary `AttributeError`. Host objects, Python
+special methods, and existing Secret, Constant, membership, soundness and
+Safehouse failures remain unchanged.
 
 ## Alternatives considered
 
@@ -401,7 +403,7 @@ failures retain their classes.
 | Known coordinates plus a small total fallback | **Recommended if total resolution is required:** preserve exact kind where known and expose uncertainty honestly elsewhere. |
 | Neutralize only known undeclared coordinates | Solves deliberate deletion and Grant revocation with exact kind and literal neutral values, but does not answer never-declared names. |
 | Declare an expected kind | Exact and auditable, but declaration-driven rather than fully total. |
-| Keep every missing use strict | Strong debugging, but one optional mismatch can abort long-running population work. |
+| Keep every missing use strict | **Chosen:** exact, debuggable, and already guarded linguistically through `"name" @ agent`. |
 | Add tolerant syntax, such as an explicit resolve operator | Precise but adds a second language path and does not help old protocols automatically. |
 | Transform TOP source before Python runs it | Can produce exact context-dependent literals, but introduces a compiler and tooling boundary. |
 | Inspect caller bytecode | Rejected as runtime- and optimizer-dependent. |
@@ -409,7 +411,7 @@ failures retain their classes.
 | Make population commands skip members lacking a Feature | Useful and compatible, but solves only population dispatch rather than direct Agent requests. It can be designed separately. |
 | Emit no warning | Rejected: unexpected neutral behavior must never pass silently. |
 
-## Acceptance requirements
+## Requirements if reconsidered
 
 - Cover each known Feature kind, the latest ended visible layer's kind,
   neutral value, TOP presence result, Python `hasattr` result, and warning
@@ -437,35 +439,21 @@ failures retain their classes.
 - Fuzz Overlay, deletion, new Gain, Rip, reTag, Grant revocation and later
   publication so stale lower Features never leak through the neutral boundary.
 
-## Open Director decisions
+## Disposition
 
-1. Select the first implementation profile: bounded known coordinates, the
-   recommended hybrid of exact known coordinates plus a small total fallback,
-   an expected-kind schema, explicit tolerant syntax, or a translated TOP
-   surface.
-2. If a small total value is selected, accept that it is not literal `None`
-   and choose its protocol surface. The recommended minimum is truth and a
-   synchronous call only; awaiting, iteration, contexts, operators,
-   subattributes and serialization remain strict.
-3. Decide how a direct deleted Contract name represents the desired split of
-   truthy condition use and `None` value use. Python cannot produce both
-   literal values from one untransformed lookup.
-4. Confirm that mandatory warning means TOP calls `warnings.warn` on every
-   neutral use while the application's Python warning filter controls which
-   diagnostics are displayed.
-5. For a saved Operation whose live Grant has been revoked, choose strict
-   Resolution Failure or the selected warning-plus-neutral behavior. Recheck
-   itself is already cleared; ordinary Action and captured null handles retain
-   normal Python capture behavior.
+- All absent Agent Features are strict.
+- Optional use is guarded with TOP presence: `"name" @ agent`.
+- A deliberately ended Gain or revoked Grant receives no neutral exception.
+- A saved public Operation rechecks its live Grant and raises the strict
+  Resolution Failure after revocation.
+- No `MissingFeatureWarning`, proxy protocol, or source translation is added.
 
 ---
 
 ### Decision
 
-> **Brief.** The Director proposed neutral missing Agent Features with a
-> mandatory warning on 2026-10-20, then clarified the desired result for an
-> Agent whose Tags never declared the requested name: truthy in a condition
-> and `None` for an ordinary value or call. Python cannot provide those exact
-> context-dependent literals through ordinary attribute lookup. The five
-> choices above remain open before clearance; no runtime proxy is authorized
-> by this Brief.
+> Status set to **Redacted** on 2026-10-21. Python cannot provide the proposed
+> context-dependent literal answers through ordinary attribute lookup without
+> a proxy or translated syntax, and TOP already has the explicit linguistic
+> guard `"name" @ agent`. The Director chose strict failure for every absent
+> Feature, including deliberately ended Gains and revoked Grants.

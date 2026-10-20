@@ -8,7 +8,7 @@
 - **Created:** 2026-10-20
 - **Issue:** [#385](https://github.com/JulTob/Tag_Oriented_Programming/issues/385)
 - **Amends, if cleared:** [STEP-SPEC-1](STEP-SPEC-1-contribution-scope.md), [STEP-SPEC-3](STEP-SPEC-3-member-publication.md), [STEP-SPEC-5](STEP-SPEC-5-stored-records.md), [STEP-SPEC-10](STEP-SPEC-10-published-members-answer-members.md), [STEP-SPEC-12](STEP-SPEC-12-the-author-ends-a-condition.md), [STEP-SPEC-14](STEP-SPEC-14-condition-members.md), [STEP-SPEC-33](STEP-SPEC-33-contribution-presence.md), [STEP-SPEC-34](STEP-SPEC-34-constant-contributions.md), [STEP-SPEC-36](STEP-SPEC-36-tools.md), [STEP-SPEC-39](STEP-SPEC-39-tagging-admission.md), and [STEP-SPEC-40](STEP-SPEC-40-agent-contract-truth.md)
-- **Depends on:** [STEP-SPEC-32](STEP-SPEC-32-the-arrest.md), the neutral-resolution design in [issue #386](https://github.com/JulTob/Tag_Oriented_Programming/issues/386), the live-view design in [PR #228](https://github.com/JulTob/Tag_Oriented_Programming/pull/228), and the later Constant-tower design (not yet assigned a STEP)
+- **Depends on:** [STEP-SPEC-32](STEP-SPEC-32-the-arrest.md), the live-view design in [PR #228](https://github.com/JulTob/Tag_Oriented_Programming/pull/228), and the later Constant-tower design (not yet assigned a STEP)
 
 ## Summary
 
@@ -106,9 +106,9 @@ del ari.colour
 use(colour)               # the value was already delivered
 ```
 
-A saved Operation handle can recheck a live Grant at invocation if TOP wraps
-it as an authority-bearing handle. That stronger behavior is recommended but
-remains an explicit clearance choice below.
+A saved Operation handle rechecks its live Grant at invocation. Capturing the
+handle is not a permanent credential; after revocation it raises the same
+strict Resolution Failure as a fresh Agent access.
 
 ## Recommended Overlay model
 
@@ -171,7 +171,7 @@ Grant. The recommended handle rechecks the Grant when called:
 ```python
 send = ari.Send
 del ari.Send
-send("report")            # rechecks; result follows STEP-SPEC-59
+send("report")            # rechecks; strict Resolution Failure
 ```
 
 Fresh Agent access and a saved `Tag[agent]` view both resolve live state. This
@@ -190,7 +190,7 @@ for performing the Tag view resolution now, not a snapshot object.
 - Losing membership or becoming Broken does not itself count as deliberate
   Grant revocation. Until deliberately revoked, ordinary attempts to use that
   blocked Grant keep the existing Rogue/Broken failure. Whether revocation
-  itself is permitted is choice 12 below.
+  itself is permitted is choice 10 below.
 - Constant deletion is refused before mutation.
 
 Python protocol seats need their own implementation boundary. Conceptually a
@@ -208,12 +208,20 @@ binding. It does not silently expand to Preconditions or Postconditions;
 their phase visibility remains a Contract diagnostic unless STEP-SPEC-33 is
 separately amended.
 
-The result of using any ended Gain or revoked Grant belongs with the
-neutral-resolution design in issue #386 (proposed as STEP-SPEC-59). The
-strict option uses an appropriate missing or named `TagResolutionError`; the
-neutral option warns and returns that Feature kind's neutral value. Secret,
-Rogue, Broken, and Safehouse failures must retain their more specific meanings
-in either design. This STEP cannot be cleared independently of that choice.
+Using an ended Gain or revoked Grant is strict. A TOP-managed absent Feature
+raises its appropriate missing or named `TagResolutionError`; it does not warn
+and substitute `None`, `True`, or a null Action. A name TOP never managed keeps
+ordinary Python `AttributeError`. Secret, Rogue, Broken, and Safehouse failures
+retain their more specific meanings. Optional use must ask presence first:
+
+```python
+if "Fireball" @ wizard:
+    wizard.Fireball()
+```
+
+An already-read Report value remains ordinary Python data, as described
+above. A captured public Operation is still an authority-bearing handle and
+therefore rechecks its Grant before use.
 
 ## Rationale
 
@@ -240,8 +248,8 @@ deletion does not define a persistent per-Agent Grant. These paths change
 only after this Brief is cleared and implemented.
 
 The proposal preserves raw Python values already read from Reports and
-ordinary callables captured from Actions. It may make saved public Operation
-handles fail closed, depending on the clearance choice.
+ordinary callables captured from Actions. Saved public Operation handles fail
+closed because they represent live Grants rather than ordinary captured Gains.
 
 ## Alternatives considered
 
@@ -276,19 +284,14 @@ handles fail closed, depending on the clearance choice.
    deletion boundary rather than reaching a lower same-name Service.
 6. **Constant Service:** may an Agent revoke its Grant to a Constant public
    Service, or does Constant make that Grant unrevokable?
-7. **Captured Operation:** should a saved public Operation handle recheck the
-   live Grant and fail closed after deletion? An already-read Report value
-   cannot do so.
-8. **Dunders:** include safe runtime-type rebuilding here, or defer direct
+7. **Dunders:** include safe runtime-type rebuilding here, or defer direct
    deletion of protocol-seat Actions to a focused STEP?
-9. **Soft views:** clear the live-view dependency so a saved `Tag[agent]` view
+8. **Soft views:** clear the live-view dependency so a saved `Tag[agent]` view
    follows current state rather than retaining a deleted binding.
-10. **Use after deletion:** clear the strict-versus-neutral result through
-    STEP-SPEC-59 for every ended Gain and revoked Grant, not only Services.
-11. **Host beneath TOP:** when a Gain above a Host method, property, slot, or
+9. **Host beneath TOP:** when a Gain above a Host method, property, slot, or
     stored value ends, should the Host Feature become visible again, as
     recommended, or should the Agent-and-name boundary hide it too?
-12. **Blocked Grant revocation:** may a Broken or Rogue Agent deliberately
+10. **Blocked Grant revocation:** may a Broken or Rogue Agent deliberately
     revoke its own Grant even though it cannot currently use the Service? The
     recommendation is yes because revocation reduces authority; it must not
     evaluate or disclose the Service.
@@ -308,7 +311,7 @@ handles fail closed, depending on the clearance choice.
   `__delattr__`, a Host method/property/slot/value below a TOP Gain, repeated
   deletion, and the chosen dunder boundary.
 - Preserve Tool admission rules after value deletion and on later assignment.
-- Run the full suite, warning checks, Overlay fuzzing, leak checks, and all
+- Run the full suite, strict failure checks, Overlay fuzzing, leak checks, and all
   performance budgets.
 
 ---
@@ -317,5 +320,6 @@ handles fail closed, depending on the clearance choice.
 
 > **Brief.** The Director settled Feature/Gain/Service/Grant, and that
 > `del agent.name` ends an Agent Gain or revokes only that Agent's access to a
-> Tag Service. The twelve mechanics listed above remain proposed review points;
-> this STEP does not present them as cleared law.
+> Tag Service. The Director also chose strict use-after-deletion and live Grant
+> rechecking for saved Operations on 2026-10-21. The ten mechanics listed above
+> remain proposed review points; this STEP does not present them as cleared law.
