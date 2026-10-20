@@ -10,7 +10,9 @@ Three access forms, three meanings:
 from __future__ import annotations
 
 from functools import partial
+from functools import wraps
 from types import FunctionType
+from types import MethodType
 from typing import Any
 from typing import Callable
 import operator
@@ -21,6 +23,10 @@ from .arrest import _require_available
 from .arrest import _safehouse
 from .contracts import _condition_member
 from .contracts import _holds
+from .cleanup import _aenter
+from .cleanup import _aexit
+from .cleanup import _enter
+from .cleanup import _exit
 from .errors import TagCompositionError
 from .errors import TagResolutionError
 from .declarations import STATE
@@ -28,6 +34,7 @@ from .declarations import _MISSING
 from .declarations import _is_flag
 from .declarations import _words_of
 from .lifecycle import _teardown_all
+from .lazy_guard import _guard_lazy_result
 from .state import _Composing_Bound
 from .state import _Pinned_Operation
 from .state import _Secret_Bound
@@ -240,6 +247,121 @@ def _refuse_host_truth(
                 )
 
 
+def _invoke_host_context(
+        name: str,
+        agent: object,
+        args: tuple[Any, ...],
+        invoke: Callable[[], Any],
+        ) -> Any:
+    """Use one entered-context rule for either Host binding form."""
+
+    if name == "__enter__":
+        return _enter(agent, "sync", invoke)
+    if name == "__exit__":
+        failure = args[1] if len(args) > 1 else None
+        return _exit(agent, "sync", failure, invoke)
+    if name == "__aenter__":
+        return _guard_lazy_result(
+                _aenter(agent, invoke), agent, "host async context entry",
+                _require_available,
+                )
+
+    failure = args[1] if len(args) > 1 else None
+    return _aexit(agent, failure, invoke)
+
+
+class _Host_Context_Seat:
+    """Bind a non-function Host descriptor when Python selects the hook.
+
+    ``with`` chooses __exit__ before it calls __enter__. A property or
+    classmethod can capture a resource or owner at that point; binding it
+    only when cleanup runs would silently select a later resource.
+    """
+
+    __slots__ = ("name", "member", "__name__")
+
+    def __init__(self, name: str, member: Any) -> None:
+        self.name = self.__name__ = name
+        self.member = member
+
+    def __get__(self, agent: object | None, owner: type | None = None) -> Any:
+        if agent is None:
+            return self
+
+        # Python looks up __exit__ before __enter__. Refuse custody before
+        # a Host descriptor can do work merely by being selected.
+        _require_available(agent, f"context {self.name} lookup")
+        if owner is None:
+            owner = type(agent)
+        getter = getattr(type(self.member), "__get__", None)
+        bound = getter(self.member, agent, owner) if getter else self.member
+
+        def Hook(*args: Any, **kwargs: Any) -> Any:
+            def Invoke() -> Any:
+                return bound(*args, **kwargs)
+
+            return _invoke_host_context(self.name, agent, args, Invoke)
+
+        if isinstance(bound, MethodType):
+            # A classmethod (or a custom descriptor returning a method)
+            # remains a native bound method with its receiver and signature.
+            @wraps(bound.__func__)
+            def Bound_Hook(_receiver: object, *args: Any, **kwargs: Any) -> Any:
+                return Hook(*args, **kwargs)
+
+            return MethodType(Bound_Hook, bound.__self__)
+
+        if isinstance(bound, FunctionType):
+            wraps(bound)(Hook)
+        Hook.__name__ = self.name
+        return Hook
+
+    def __call__(self, agent: object, *args: Any, **kwargs: Any) -> Any:
+        # Explicit type-level protocol calls still take the Agent first.
+        return self.__get__(agent, type(agent))(*args, **kwargs)
+
+
+class _Host_Context_Data_Seat(_Host_Context_Seat):
+    """Keep a Host data descriptor's assignment and deletion behavior."""
+
+    def __set__(self, agent: object, value: Any) -> None:
+        _require_available(agent, f"context {self.name} assignment")
+        setter = getattr(type(self.member), "__set__", None)
+        if setter is None:
+            raise AttributeError(f"{self.name} cannot be assigned")
+        setter(self.member, agent, value)
+        _require_available(agent, f"context {self.name} assignment")
+
+    def __delete__(self, agent: object) -> None:
+        _require_available(agent, f"context {self.name} deletion")
+        deleter = getattr(type(self.member), "__delete__", None)
+        if deleter is None:
+            raise AttributeError(f"{self.name} cannot be deleted")
+        deleter(self.member, agent)
+        _require_available(agent, f"context {self.name} deletion")
+
+
+def _host_context_hook(name: str, member: Any) -> Any:
+    """Keep a Host context protocol while tracking its matching cleanup."""
+
+    if not isinstance(member, FunctionType):
+        descriptor_type = type(member)
+        if hasattr(descriptor_type, "__set__") or hasattr(
+                descriptor_type, "__delete__"
+                ):
+            return _Host_Context_Data_Seat(name, member)
+        return _Host_Context_Seat(name, member)
+
+    def Hook(agent: object, *args: Any, **kwargs: Any) -> Any:
+        def Invoke() -> Any:
+            return member.__get__(agent, type(agent))(*args, **kwargs)
+
+        return _invoke_host_context(name, agent, args, Invoke)
+
+    wraps(member)(Hook)
+    return Hook
+
+
 def _hooks_for(
         host_type: type,
         has_flags: bool,
@@ -272,6 +394,13 @@ def _hooks_for(
 
     if _host_member(host_type, "__deepcopy__") is None:
         hooks["__deepcopy__"] = _agent_deepcopy
+
+    # Track entered Host contexts even before this Agent first gains Rip.
+    # Python may capture __exit__ before a later Tagging changes its type.
+    for name in ("__enter__", "__exit__", "__aenter__", "__aexit__"):
+        member = _host_member(host_type, name)
+        if member is not None:
+            hooks[name] = _host_context_hook(name, member)
 
     return hooks
 
