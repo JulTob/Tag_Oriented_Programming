@@ -1209,6 +1209,8 @@ your Reports and Operations there.
 - [The Fields Guide](FIELDS.md): populations, partitions and the algebra.
 - [Constant Contributions](CONSTANTS.md): fixed bindings, shared values
   and promises that cannot be replaced or deleted.
+- [Features](../wiki/1.7-TopKit-Features.md): the vocabulary of Contributions,
+  Gains, Services, Grants, Protocols, and the Contract.
 - [The Specification](../spec/SPECIFICATION.md): the laws, ring by ring.
 - [`examples/dnd_character.py`](../examples/dnd_character.py) and
   [`examples/biome.py`](../examples/biome.py): the long form.
