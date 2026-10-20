@@ -2,7 +2,7 @@
 import unittest
 from TopKit import (Imprint, Link, Post, Pre, Public, Record, Tag,
                     TagImprintError, TagPostconditionError)
-from TopKit.links import _record_of
+from TopKit.links import _pair_of, _record_of
 
 class Host:
     pass
@@ -49,7 +49,7 @@ class LinkTrainingTests(unittest.TestCase):
         self.assertFalse(bool(pair))
         contact.ready = True
         owner.Knows(contact)
-        self.assertIs(owner.Knows[contact], pair)
+        self.assertIs(_pair_of(owner.Knows, contact), pair)
         self.assertEqual(pair.attempts, 2)
         self.assertEqual(attempts, [False, False])
         self.assertIn(contact, owner.Knows)

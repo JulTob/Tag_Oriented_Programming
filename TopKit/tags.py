@@ -378,7 +378,7 @@ class MetaTag(type):
             return _field_of(tag)
 
         if _is_link_tag(tag):
-            return _links()._pair_of(
+            return _links()._pair_view_of(
                     tag,
                     key,
                     )

@@ -3,6 +3,7 @@
 import unittest
 
 from TopKit import Imprint, Link, Record, Rip, Tag, TagCompositionError
+from TopKit.links import _pair_of
 
 
 class Host:
@@ -42,7 +43,8 @@ class IndependentLinkDraftTests(unittest.TestCase):
         self.assertEqual(turns, ["Knows", "Trusts"])
         self.assertIn(contact, owner.Knows)
         self.assertIn(contact, owner.Trusts)
-        self.assertIsNot(owner.Knows[contact], owner.Trusts[contact])
+        self.assertIsNot(_pair_of(owner.Knows, contact),
+                         _pair_of(owner.Trusts, contact))
         self.assertEqual(owner.Knows[contact].since, 2010)
         self.assertEqual(owner.Trusts[contact].confidence, 8)
         self.assertFalse("since" @ owner.Trusts[contact])
@@ -93,8 +95,9 @@ class IndependentLinkDraftTests(unittest.TestCase):
         Social(owner)
         owner.Bonded(contact)
 
-        pairs = (owner.Knows[contact], owner.Likes[contact],
-                 owner.Bonded[contact])
+        pairs = (_pair_of(owner.Knows, contact),
+                 _pair_of(owner.Likes, contact),
+                 _pair_of(owner.Bonded, contact))
         self.assertEqual(len({id(pair) for pair in pairs}), 3)
         self.assertTrue(all(contact in link for link in
                             (owner.Knows, owner.Likes, owner.Bonded)))

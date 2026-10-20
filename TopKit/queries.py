@@ -46,6 +46,9 @@ def Keyword(
     word (``@Flag("Wolf")``), or the class of an active Flag Tag. On a Tag,
     its Flag Pins. Works on any object, tagged or not."""
 
+    from .links import _pair_subject
+
+    agent = _pair_subject(agent)
     return all(
             _keyword(agent, word)
             for word in words

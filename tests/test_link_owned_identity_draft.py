@@ -5,6 +5,7 @@ import unittest
 import weakref
 
 from TopKit import Imprint, Link, Pre, Record, Rip, Tag, TagPreconditionError
+from TopKit.links import _pair_of
 from TopKit.state import _state_of
 
 
@@ -41,7 +42,8 @@ class OwnedLinkIdentityDraftTests(unittest.TestCase):
         shape_link(contact)
         self.assertIn(contact, base_link)
         self.assertIn(contact, shape_link)
-        self.assertIsNot(base_link[contact], shape_link[contact])
+        self.assertIsNot(_pair_of(base_link, contact),
+                         _pair_of(shape_link, contact))
         self.assertEqual(base_link[contact].base_card, "base")
         self.assertEqual(shape_link[contact].shape_card, "shape")
         self.assertFalse("shape_card" @ base_link[contact])
@@ -134,13 +136,13 @@ class OwnedLinkIdentityDraftTests(unittest.TestCase):
         base_link = Base[owner].Knows
         shape_link = Shape[owner].Knows
         shape_link(contact)
-        shape_pair = shape_link[contact]
+        shape_pair = _pair_of(shape_link, contact)
 
         del base_link[contact]
 
         self.assertNotIn(contact, base_link[:])
         self.assertIn(contact, shape_link)
-        self.assertIs(shape_link[contact], shape_pair)
+        self.assertIs(_pair_of(shape_link, contact), shape_pair)
         self.assertEqual(shape_link[contact].shape_card, "shape")
 
     def test_refused_gate_does_not_publish_scratch_owned_link(self):
