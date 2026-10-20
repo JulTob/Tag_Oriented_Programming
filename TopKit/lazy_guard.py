@@ -9,6 +9,7 @@ can resume it through its door.
 
 These are Python protocol objects, not native generator/coroutine objects:
 ``inspect.isgenerator`` and ``inspect.iscoroutine`` therefore return False.
+They retain the source's ``__name__`` and ``__qualname__`` for diagnostics.
 The coroutine proxy implements ``collections.abc.Coroutine`` and is accepted
 by ``asyncio.create_task``. A native wrapper would permanently unwind on a
 denied resume and could execute the source's ``finally`` while arrested.
@@ -95,11 +96,13 @@ def _checked_resume(guard: _Guard, source: Any, resume: Callable, *args: Any) ->
 
 
 class _Guarded_Generator(Generator):
-    __slots__ = ("_source", "_guard")
+    __slots__ = ("_source", "_guard", "__name__", "__qualname__")
 
     def __init__(self, source: Any, guard: _Guard) -> None:
         self._source = source
         self._guard = guard
+        self.__name__ = source.__name__
+        self.__qualname__ = source.__qualname__
 
     def __iter__(self):
         self._guard.check(self._source)
@@ -131,12 +134,14 @@ class _Guarded_Generator(Generator):
 class _Guarded_Coroutine(Coroutine):
     """Guard every resumption of a native coroutine."""
 
-    __slots__ = ("_source", "_iterator", "_guard")
+    __slots__ = ("_source", "_iterator", "_guard", "__name__", "__qualname__")
 
     def __init__(self, source: Any, guard: _Guard) -> None:
         self._source = source
         self._iterator = None
         self._guard = guard
+        self.__name__ = source.__name__
+        self.__qualname__ = source.__qualname__
 
     def _step(self):
         if self._iterator is None:
