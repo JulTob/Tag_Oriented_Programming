@@ -77,6 +77,13 @@ yet on `main` at this refresh.
 | Current state (§2.5) | Postconditions define requirements; missing declared gains alone and a past Imprint failure do not permanently mark deficiency | Director-approved; existing Imprint/current-state tests cover part of it |
 | Rip (§0.7) | Rip ends active membership, not history; ordinary gains are sticky; reapplication is fresh; no implicit cascade | Established; several lifecycle extensions remain Brief |
 
+The Gainings row records Python's deployed #174 behavior, not a settled Ada
+obligation for failed Imprints. The Director has since chosen best-effort
+Imprints followed by Field admission and Post judgment; that redesign is still
+in draft [#324](https://github.com/JulTob/Tag_Oriented_Programming/pull/324)
+and [#330](https://github.com/JulTob/Tag_Oriented_Programming/pull/330).
+Refresh this Ada boundary when those drafts are cleared and deployed.
+
 The profile must not import an irreversible-ban feature: a programmer can
 express a ban with a Report and Gate; no such TOP language feature has been
 decided. A Shape no longer blocks Rip of its Base: the Director cleared that
