@@ -75,6 +75,41 @@ class RipTests(unittest.TestCase):
 
         self.assertNotIn(ari, Fragile)
 
+    def test_retagging_during_teardown_keeps_the_new_rip_for_later(self) -> None:
+        events: list[tuple[str, bool, bool]] = []
+
+        class Renewed(Tag):
+            @Rip
+            def Again(agent) -> None:
+                events.append(("again", agent in Renewed, agent in Renewed[:]))
+                if len(events) == 1:
+                    Renewed(agent)
+
+            @Rip
+            def Finish(agent) -> None:
+                events.append(("finish", agent in Renewed, agent in Renewed[:]))
+
+        ari = Agent()
+        Renewed(ari)
+        del Renewed[ari]
+
+        self.assertIn(ari, Renewed)
+        # The fresh application stands in the raw Field. The old Rip's
+        # unfinished work still arrests the Agent until this callback ends.
+        self.assertEqual(events, [
+                ("again", False, False), ("finish", False, True),
+                ])
+
+        del Renewed[ari]
+
+        self.assertNotIn(ari, Renewed)
+        self.assertEqual(events, [
+                ("again", False, False),
+                ("finish", False, True),
+                ("again", False, False),
+                ("finish", False, False),
+                ])
+
     def test_ripping_a_base_keeps_its_shape_and_trains_the_base_again_on_request(self) -> None:
         teardowns: list[str] = []
 

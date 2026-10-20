@@ -23,20 +23,26 @@ from types import MemberDescriptorType
 from types import MethodType
 from typing import Any
 from typing import Callable
+from typing import Generic
 from typing import Iterator
+from typing import TypeVar
 from weakref import WeakValueDictionary
 import weakref
 
+from .arrest import _require_available
+from .arrest import _safehouse
 from .declarations import STATE
 from .declarations import _MISSING
 from .declarations import _Words
 from .declarations import _is_dunder
 from .declarations import _is_flag
 from .errors import TagCompositionError
+from .lazy_guard import _guard_lazy_result
 from .memo import _namespace_snapshot
 
 Function = Callable[..., Any]
 Check = Callable[..., Any]
+_Value = TypeVar("_Value")
 
 
 # ------------------------------------------------------------------
@@ -53,6 +59,82 @@ class _Snapshot:
     deleted: frozenset[str]
     secrets: frozenset[str]
     links: dict[str, type] = field(default_factory=dict)   # the Agent's own Links, by name (STEP-SPEC-22)
+
+
+class _Tag_Identity_Map(Generic[_Value]):
+    """A Tag-keyed state map that never calls a Tag metaclass's protocols.
+
+    The id-indexed entry also retains its Tag, as an ordinary dict key did.
+    Copies keep the same independent entries without asking __hash__ or
+    __eq__ of a user-defined metaclass.
+    """
+
+    __slots__ = ("_entries",)
+
+    def __init__(self) -> None:
+        self._entries: dict[int, tuple[type, _Value]] = {}
+
+    def __len__(self) -> int:
+        return len(self._entries)
+
+    def __contains__(self, tag: type) -> bool:
+        entry = self._entries.get(id(tag))
+        return entry is not None and entry[0] is tag
+
+    def __iter__(self) -> Iterator[type]:
+        return (tag for tag, _value in self._entries.values())
+
+    def __eq__(self, other: object) -> bool:
+        if type(other) is not _Tag_Identity_Map:
+            return NotImplemented
+
+        if self._entries.keys() != other._entries.keys():
+            return False
+
+        return all(
+                tag is other._entries[key][0]
+                and value == other._entries[key][1]
+                for key, (tag, value) in self._entries.items()
+                )
+
+    def __getitem__(self, tag: type) -> _Value:
+        entry = self._entries.get(id(tag))
+
+        if entry is None or entry[0] is not tag:
+            raise KeyError(tag)
+
+        return entry[1]
+
+    def __setitem__(self, tag: type, value: _Value) -> None:
+        self._entries[id(tag)] = (tag, value)
+
+    def get(self, tag: type, default: Any = None) -> Any:
+        entry = self._entries.get(id(tag))
+        return entry[1] if entry is not None and entry[0] is tag else default
+
+    def pop(self, tag: type, default: Any = _MISSING) -> Any:
+        key = id(tag)
+        entry = self._entries.get(key)
+
+        if entry is None or entry[0] is not tag:
+            if default is _MISSING:
+                raise KeyError(tag)
+
+            return default
+
+        del self._entries[key]
+        return entry[1]
+
+    def items(self) -> Iterator[tuple[type, _Value]]:
+        return iter(self._entries.values())
+
+    def clear(self) -> None:
+        self._entries.clear()
+
+    def copy(self) -> "_Tag_Identity_Map[_Value]":
+        copied = _Tag_Identity_Map()
+        copied._entries = self._entries.copy()
+        return copied
 
 
 @dataclass(slots=True)
@@ -74,8 +156,8 @@ class _State:
     secrets: set[str] = field(default_factory=set)
     deleted: set[str] = field(default_factory=set)
     restored: frozenset[str] = frozenset()   # deleted, then stored again; shared until used
-    snapshots: dict[type, _Snapshot] = field(default_factory=dict)
-    rips: dict[type, tuple[tuple[str, Function], ...]] = field(default_factory=dict)
+    snapshots: _Tag_Identity_Map[_Snapshot] = field(default_factory=_Tag_Identity_Map)
+    rips: _Tag_Identity_Map[tuple[tuple[str, Function], ...]] = field(default_factory=_Tag_Identity_Map)
     secret_values: dict[str, Any] = field(default_factory=dict)   # a pinned Tag's @Secret members
     originals: dict[str, Any] = field(default_factory=dict)       # what a Pin patched, as declared
     constants: dict[str, tuple[type, str, Any]] = field(default_factory=dict)  # origin, kind, declaration
@@ -84,6 +166,7 @@ class _State:
     links_ending: bool = False
     composing: int = 0
     checking: bool = False
+    arrestable: bool = False   # a gained Rip keeps the Host read gate after re-Tagging
     words: _Words | None = None   # what its Flags answer to; None after its Tags change
 
     def Restore(
@@ -135,6 +218,7 @@ class _State:
         copied.links_ending = state.links_ending
         copied.composing = state.composing
         copied.checking = state.checking
+        copied.arrestable = state.arrestable
         copied.words = state.words
         return copied
 
@@ -694,11 +778,15 @@ class _Bound:
         if agent is None:
             raise ReferenceError("the Agent of this Action no longer exists")
 
-        return bound._function(
+        if _safehouse:
+            _require_available(agent, "Action")
+
+        result = bound._function(
                 agent,
                 *args,
                 **kwargs,
                 )
+        return _guard_lazy_result(result, agent, "Action", _require_available)
 
     @property
     def __name__(
@@ -841,11 +929,16 @@ class _Pinned_Bound:
         bound._doc = doc
 
     def __call__(bound, *args: Any, **kwargs: Any) -> Any:
+        if _safehouse:
+            _require_available(bound._owner, "Operation")
         state = bound._state
         state.composing += 1
 
         try:
-            return bound._function(bound._owner, *args, **kwargs)
+            result = bound._function(bound._owner, *args, **kwargs)
+            return _guard_lazy_result(
+                    result, bound._owner, "Operation", _require_available
+                    )
         finally:
             state.composing -= 1
 
@@ -973,15 +1066,18 @@ class _Composing_Bound(_Bound):
         if agent is None:
             raise ReferenceError("the Agent of this Action no longer exists")
 
+        if _safehouse:
+            _require_available(agent, "Action")
         state = _state_of(agent)
         state.composing += 1
 
         try:
-            return bound._function(
+            result = bound._function(
                     agent,
                     *args,
                     **kwargs,
                     )
+            return _guard_lazy_result(result, agent, "Action", _require_available)
         finally:
             state.composing -= 1
 
@@ -1480,6 +1576,7 @@ def _type_key_of(
             frozenset(state.constants) if state.constants else _EMPTY_NAMES,
             frozenset(state.tools) if state.tools else _EMPTY_NAMES,
             frozenset(state.links) if state.links else _EMPTY_NAMES,
+            state.arrestable,
             )
 
 
@@ -1495,6 +1592,8 @@ def _runtime_type_for(
     if shared is not None:
         return shared
 
+    from .access import _arrest_read_hook
+    from .access import _arrest_write_hook
     from .access import _hooks_for   # access imports this module
     from .contracts import _Condition_Gate
     from .presence import _presence_hook
@@ -1516,6 +1615,8 @@ def _runtime_type_for(
             host_type,
             has_flags,
             )
+    if state.arrestable:
+        hooks["__getattribute__"] = _arrest_read_hook(host_type)
     namespace: dict[str, Any] = dict(hooks)
     namespace.update(dunders)
 
@@ -1569,6 +1670,14 @@ def _runtime_type_for(
             or issubclass(host_type, type)
             ):
         _binding_write_hooks(namespace, host_type, force=ungated_tools)
+
+    if state.arrestable:
+        for writer in ("__setattr__", "__delattr__"):
+            namespace[writer] = _arrest_write_hook(
+                    host_type,
+                    writer,
+                    namespace.get(writer, _MISSING),
+                    )
 
     if not issubclass(host_type, type):
         namespace["__bool__"] = hooks["__bool__"]   # the contract owns this seat

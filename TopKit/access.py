@@ -10,12 +10,15 @@ Three access forms, three meanings:
 from __future__ import annotations
 
 from functools import partial
+from types import FunctionType
 from typing import Any
 from typing import Callable
 import operator
 import sys
 
 from . import declarations
+from .arrest import _require_available
+from .arrest import _safehouse
 from .contracts import _condition_member
 from .contracts import _holds
 from .errors import TagCompositionError
@@ -58,6 +61,120 @@ def _host_member(
             return member
 
     return None
+
+
+def _arrest_read_hook(host_type: type) -> Callable[[object, str], Any]:
+    """Keep the Host getter, while a Rip-trained Agent's reads stay gated."""
+
+    original = object.__getattribute__
+
+    for owner in type.__getattribute__(host_type, "__mro__"):
+        member = type.__getattribute__(owner, "__dict__").get(
+                "__getattribute__", _MISSING
+                )
+        if member is _MISSING:
+            continue
+        if (
+                isinstance(member, FunctionType)
+                and member.__dict__.get("_TOPKIT_ARREST_READ")
+                ):
+            continue
+        original = member
+        break
+
+    native = (
+            original is object.__getattribute__
+            or original is type.__getattribute__
+            or isinstance(original, FunctionType)
+            )
+    arrests = _safehouse
+    lookup_entry = dict.get
+    identity = id
+    kind = type
+    string_type = str
+    plain_str = str.__str__
+    lookup = getattr
+    require = _require_available
+
+    def Read(agent: object, name: str) -> Any:
+        # Normalize a str subclass before the custody exception check; its
+        # __eq__ or __ne__ cannot fake the Python identity seat.
+        ordinary = plain_str(name) if kind(name) is not string_type else name
+        arrest = lookup_entry(arrests, identity(agent))
+
+        if arrest is not None and arrest.agent is agent and arrest.runs:
+            if ordinary == "__class__":
+                return kind(agent)  # actual runtime type, never the Host getter
+            require(agent, f"read {ordinary!r}")
+
+        if native:
+            value = original(agent, name)
+        else:
+            getter = lookup(kind(original), "__get__", None)
+            bound = getter(original, agent, kind(agent)) if getter else original
+            value = bound(name)
+
+        # A Host getter can catch its own failed Rip and return a value.
+        # Recheck after it runs before that value escapes custody.
+        arrest = lookup_entry(arrests, identity(agent))
+        if arrest is not None and arrest.agent is agent and arrest.runs:
+            if ordinary == "__class__":
+                return kind(agent)
+            require(agent, f"read {ordinary!r}")
+        return value
+
+    Read._TOPKIT_ARREST_READ = True
+    return Read
+
+
+def _arrest_write_hook(
+        host_type: type,
+        name: str,
+        installed: Any = _MISSING,
+        ) -> Callable[..., Any]:
+    """Preserve the Host binding hook and gate it on saved Rip custody."""
+
+    fallback = installed
+    if fallback is _MISSING:
+        for owner in type.__getattribute__(host_type, "__mro__"):
+            members = type.__getattribute__(owner, "__dict__")
+            if name in members:
+                fallback = members[name]
+                break
+
+    native = (
+            isinstance(fallback, FunctionType)
+            or fallback is object.__setattr__
+            or fallback is object.__delattr__
+            or fallback is type.__setattr__
+            or fallback is type.__delattr__
+            )
+    arrests = _safehouse
+    lookup_entry = dict.get
+    identity = id
+    require = _require_available
+    kind = type
+    lookup = getattr
+
+    def Write(agent: object, target: str, *values: Any) -> Any:
+        arrest = lookup_entry(arrests, identity(agent))
+        if arrest is not None and arrest.agent is agent and arrest.runs:
+            require(agent, f"{name} binding")
+
+        if native:
+            result = fallback(agent, target, *values)
+        else:
+            getter = lookup(kind(fallback), "__get__", None)
+            bound = getter(fallback, agent, kind(agent)) if getter else fallback
+            result = bound(target, *values)
+
+        arrest = lookup_entry(arrests, identity(agent))
+        if arrest is not None and arrest.agent is agent and arrest.runs:
+            require(agent, f"{name} binding")
+        return result
+
+    Write._TOPKIT_ARREST_WRITE = True
+    return Write
 
 
 IN_SEAT = (
@@ -336,9 +453,6 @@ def _agent_bool(
 
     if state is None:
         return _host_truth(agent)
-
-    if not state.postconditions:
-        return True   # nothing promised
 
     return _holds(agent)
 

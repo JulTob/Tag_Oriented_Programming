@@ -33,6 +33,8 @@ from typing import Iterator
 from .access import _keyword
 from .access import _refuse_host_truth
 from .access import _view_of
+from .arrest import _arrest_of
+from .arrest import _require_available
 from .contracts import _holds
 from .contracts import _holds_for_population
 from .declarations import _MISSING
@@ -52,15 +54,19 @@ from .declarations import _refuse_condition_dunder
 from .declarations import _refuse_truth_gain
 from .errors import TagCompositionError
 from .errors import TagDeclarationError
+from .errors import TagResolutionError
 from .fields import FIELD_SEAT
 from .fields import _Field
 from .fields import _Partition
+from .fields import _Safehouse
 from .fields import _field_of
 from .fields import _population_of
 from .fields import _sound_of
 from .geometry import _form_of
 from .geometry import _is_tag
 from .lifecycle import _rip
+from .lifecycle import _rip_field
+from .lifecycle import _retry_arrested
 from .state import Tagged
 from .state import _name_of
 from .state import _state_of
@@ -261,7 +267,9 @@ class MetaTag(type):
                 )
         return (
                 candidate in field
+                and _arrest_of(candidate) is None
                 and holds(candidate)
+                and _arrest_of(candidate) is None
                 and candidate in field
                 )
 
@@ -357,6 +365,9 @@ class MetaTag(type):
         if tag._topkit_kind is not None:
             _refuse_relation(tag)   # a Relation or a Pair Tag; one attribute read for every other Tag
 
+        if key is Ellipsis:
+            return _Safehouse(None if tag is Tag else tag)
+
         if isinstance(key, slice):
             if key != slice(None):
                 raise TypeError(
@@ -384,11 +395,33 @@ class MetaTag(type):
         if tag._topkit_kind is not None:
             _refuse_relation(tag)   # a Relation or a Pair Tag; one attribute read for every other Tag
 
+        if _arrest_of(tag) is not None:
+            _require_available(tag, "Rip")
+
         if _is_link_tag(tag) and isinstance(agent, slice):
             _links()._unlink_all(
                     tag,
                     agent,
                     )
+            return
+
+        if isinstance(agent, slice):
+            if agent != slice(None):
+                raise TypeError(
+                        "Tag[:] is the whole Field; positional slices have"
+                        " no meaning for a population"
+                        )
+
+            if tag is Tag:
+                raise TagResolutionError("root Tag has no Field to Rip")
+
+            _rip_field(tag)
+            return
+
+        if tag is Tag:
+            # Root Tag[...] sees every arrest, but root deletion handles only
+            # teardowns orphaned by an ended Tag, never a live Tag's work.
+            _retry_arrested(agent, orphaned_only=True)
             return
 
         _rip(

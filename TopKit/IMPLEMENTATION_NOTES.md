@@ -105,6 +105,14 @@ Actions; Agents are built once and play for a long time. So:
   fall back to the declared name and `None`, respectively. Metadata interrupts
   still propagate. Operation publication is a separate repair (#138).
 
+When a TOP Action or Operation returns a generator or coroutine, the
+Safehouse continuation guard returns a Python protocol proxy. It checks the
+receiver again on each resume; a receiver that has been collected causes a
+`ReferenceError`. The proxy remains iterable or awaitable and keeps the
+source's `__name__` and `__qualname__`, but `inspect.isgenerator` and
+`inspect.iscoroutine` return false because it is not a native generator or
+coroutine object. `asyncio.create_task` accepts the coroutine proxy.
+
 Synchronous Actions selected through an Agent-bound Tag view use the same
 composition door, even when that snapshot preceded the first Secret
 Contribution. The view still selects its captured Action; reads inside
