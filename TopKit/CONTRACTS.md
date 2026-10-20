@@ -629,6 +629,33 @@ for name, repair in REPAIRS.items():
 assert worf
 ```
 
+### Recursive promise reads
+
+A promise can reach itself through a larger validity question. `Ready` can
+ask `bool(agent)`, for example, and Agent truth includes `Ready`. The contract
+algebra gives that recursive occurrence its neutral element, `True`, while
+the original `Ready` calculation continues. Only that edge is neutral: every
+other visible Post still answers, so one recursive promise cannot hide an
+unrelated broken one.
+
+Within one outer validity query, TOP reuses the first completed verdict of an
+exact Post wherever the query reaches it again. This is a bounded operational
+answer, not a fixed-point proof. A direct paradox such as “Ready means not
+Ready” sees neutral `True` and ends false. More elaborate contradictory
+cycles can depend on which Post the query reaches first; avoid making a
+security or domain rule depend on that order. A separate validity query runs
+the checks afresh.
+
+Do not carry that reuse through an access change. A protected call checks at
+entry. If Agent or Secret-door state may have changed while its result was
+prepared, it checks again before return. When TOP can prove the relevant
+state stayed unchanged, it may reuse the entry verdict and avoid the second
+work. Thus a result prepared with credentials cannot escape after those
+credentials have gone away.
+
+This is the target contract behavior recorded in STEP-SPEC-50. Its STEP and
+runtime stack must deploy before older TopKit versions can rely on it.
+
 ---
 
 ## 10. Reading a contract
