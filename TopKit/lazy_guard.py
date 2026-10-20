@@ -2,8 +2,10 @@
 
 Native generators and coroutines may execute long after
 their Action or Operation call returns. A protocol proxy checks the receiver
-before *each* resumption, including send, throw and close. Denying a resume
-leaves the source suspended, so a saved Rip can resume it through its door.
+before *each* resumption, including send, throw and close. It also checks
+after send and throw, so a result cannot escape if that continuation arrests
+its receiver. Denying a resume leaves the source suspended, so a saved Rip
+can resume it through its door.
 
 These are Python protocol objects, not native generator/coroutine objects:
 ``inspect.isgenerator`` and ``inspect.iscoroutine`` therefore return False.
@@ -78,6 +80,20 @@ class _Guard:
             self.hold(receiver, source)
 
 
+def _checked_resume(guard: _Guard, source: Any, resume: Callable, *args: Any) -> Any:
+    """Do not release a continuation result if it arrested its receiver."""
+
+    try:
+        result = resume(*args)
+    except StopIteration:
+        # A completed generator or coroutine can carry a return value in
+        # StopIteration. That value belongs behind the same custody check.
+        guard.check(source)
+        raise
+    guard.check(source)
+    return result
+
+
 class _Guarded_Generator(Generator):
     __slots__ = ("_source", "_guard")
 
@@ -94,11 +110,15 @@ class _Guarded_Generator(Generator):
 
     def send(self, value):
         self._guard.check(self._source)
-        return self._source.send(value)
+        return _checked_resume(
+                self._guard, self._source, self._source.send, value
+                )
 
     def throw(self, *args):
         self._guard.check(self._source)
-        return self._source.throw(*args)
+        return _checked_resume(
+                self._guard, self._source, self._source.throw, *args
+                )
 
     def close(self):
         self._guard.check(self._source)
@@ -135,7 +155,9 @@ class _Guarded_Coroutine(Coroutine):
 
     def send(self, value):
         self._guard.check(self._source)
-        return self._step().send(value)
+        return _checked_resume(
+                self._guard, self._source, self._step().send, value
+                )
 
     def throw(self, *args):
         try:
@@ -151,7 +173,9 @@ class _Guarded_Coroutine(Coroutine):
             if isinstance(cancellation, CancelledError):
                 raise cancellation from None
             raise
-        return self._step().throw(*args)
+        return _checked_resume(
+                self._guard, self._source, self._step().throw, *args
+                )
 
     def close(self):
         self._guard.check(self._source)
