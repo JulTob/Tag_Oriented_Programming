@@ -40,6 +40,8 @@ Historical references to S19's failed-Rip rollback describe an obsolete implemen
 
 The retained body also predates [Requirement retirement](https://github.com/JulTob/Tag_Oriented_Programming/blob/fcea45fd2535594fd82f54aee2af7e815e98e0ca/steps/spec/STEP-SPEC-30-retire-requirement.md) and [Scope retirement](https://github.com/JulTob/Tag_Oriented_Programming/blob/fcea45fd2535594fd82f54aee2af7e815e98e0ca/steps/spec/STEP-SPEC-31-retire-scope.md). Its corresponding API examples and implementation plan are historical. Reconcile Gate placement and explicit reapplication with the newer decisions recorded in [#30](https://github.com/JulTob/Tag_Oriented_Programming/issues/30); do not reinstate whole-call restoration or require landing the frozen S19 branch.
 
+**Post timing amendment — 2026-10-20.** [STEP-SPEC-39](STEP-SPEC-39-tagging-admission.md) now checks every visible Post after each Tag enters its Field, before the next Tag's Gate. A Base Post must hold at the Base's own boundary; a Shape cannot supply a later Gain for that check. This supersedes the whole-Form timing stated in the historical Rationale below. The historical claim that a Shape's Gate runs before any Base also predates the deployed per-Tag Gate order.
+
 ### Provenance and dependencies
 
 - [Original #26 text](https://github.com/JulTob/Tag_Oriented_Programming/blob/1947490209d8eddf158c2bc6c0e6b538ddb6f9e0/steps/spec/STEP-SPEC-26-a-shape-keeps-no-base-hostage.md) and [reconciled source](https://github.com/JulTob/Tag_Oriented_Programming/blob/7802fd75c07165aa4ea61267df290ba1fa2ff57f/steps/spec/STEP-SPEC-26-a-shape-keeps-no-base-hostage.md) are pinned to their exact source commits.
@@ -417,10 +419,9 @@ behind the program's back), and it would end the Graduate at graduation.
 to remember the class tree, and makes a stop refusable.
 
 **Why a Postcondition, not a Requirement.** The gate inspects the Agent
-as it arrives, before any Base applies (§2.2). A Postcondition is checked
-after each Tag's Field entry, at every later tagging boundary, and whenever
-soundness is read. A Shape's need for continued Base membership belongs
-in the Shape's Post.
+as it arrives, before any Base applies (§2.2). A Postcondition is
+checked when the whole Form stands, at every later tagging boundary,
+and whenever soundness is read.
 
 ## Backwards compatibility
 
