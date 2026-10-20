@@ -17,6 +17,44 @@ class ReportOverlayTests(unittest.TestCase):
     class Host:
         pass
 
+    def test_deleted_shape_report_reveals_base_without_reordering_later_tag(self) -> None:
+        class Base(Tag):
+            @Public
+            @Report
+            def colour(tag):
+                return "base"
+
+        class Shape(Base):
+            @Public
+            @Report
+            def colour(tag):
+                return "shape"
+
+        class Later(Tag):
+            @Public
+            @Report
+            def colour(tag):
+                return "later"
+
+        base_only = self.Host()
+        with_later = self.Host()
+        Shape(base_only)
+        Shape(with_later)
+        Later(with_later)
+        self.assertEqual((base_only.colour, with_later.colour),
+                         ("shape", "later"))
+
+        del Shape.colour
+
+        self.assertEqual(base_only.colour, "base")
+        self.assertEqual(with_later.colour, "later")
+        self.assertEqual(Base[with_later].colour, "base")
+
+        del Later.colour
+
+        self.assertEqual(with_later.colour, "base")
+        self.assertTrue("colour" @ with_later)
+
     def test_deleting_latest_report_reveals_earlier_report_and_its_value(self) -> None:
         class First(Tag):
             @Public

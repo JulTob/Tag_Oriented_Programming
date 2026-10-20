@@ -511,12 +511,24 @@ def _view_report_present(
         ) -> bool:
     """A Report belongs to the Tag being searched, at its current value.
 
-    The captured binding survives value writes, but not deletion. A new
-    Report declaration or a Pin Record can also appear after the view was
-    captured; neither changes the captured Action and Record stack.
+    The Agent must still belong to the Tag. A new Report declaration or
+    Pin Record can appear after the view was captured; neither changes
+    its captured Action and Record stack.
     """
 
     tag = view._tag
+    state = _state_of(view._agent)
+
+    if state is None or not any(active is tag for active in state.active):
+        return False
+
+    pinned = _state_of(tag)
+
+    if pinned is not None and name in pinned.records and name in pinned.secrets:
+        # A Secret Pin Record lives in the Tag's private state, not its
+        # physical namespace. It remains a Report behind the Pin door.
+        return name in pinned.secret_values and _is_composing(pinned)
+
     member = _class_namespace(tag).get(name, _MISSING)
 
     if member is _MISSING:
@@ -529,28 +541,17 @@ def _view_report_present(
             and _report_epochs(tag, name)[1] == entry[1]
             )
 
-    if not existing:
-        state = _state_of(view._agent)
-
-        if state is None or not any(active is tag for active in state.active):
-            # A captured view cannot acquire names added after its Agent
-            # left this Field; an old captured Report keeps its binding.
-            return False
-
     if isinstance(member, declarations.Report):
         return True
 
     if isinstance(member, (classmethod, property, staticmethod)):
         return False
 
-    pinned = _state_of(tag)
-
     if pinned is not None:
         if name in pinned.records:
-            return (
-                    name in pinned.published
-                    and (name not in pinned.secrets or _is_composing(pinned))
-                    )
+            # A Pin Record belongs to the pinned Tag as a Report even when
+            # it was not published on the Agent.
+            return True
 
         if name in pinned.actions:
             return False
