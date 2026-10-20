@@ -24,6 +24,11 @@
   identifier text, so a `str` subclass name cannot hold an Agent or Tag
   alive after its declaration is gone.
 
+- **Runtime type cache does not own Hosts:** keys use Host identity rather
+  than a strong Host reference. Transient Host/Agent cycles can collect,
+  distinct Hosts with custom equality cannot share the wrong runtime type,
+  and equivalent Agents of one Host still share their runtime type.
+
 - **Tagging preparation cost:** ordinary Action/Record declarations reuse
   the existing collision and Underlay checks without constructing a
   disposable Overlay. Tags with deletions, conditions, Secrets, special
