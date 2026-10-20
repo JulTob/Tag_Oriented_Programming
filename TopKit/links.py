@@ -98,6 +98,7 @@ from .state import _State
 from .state import _async_doors
 from .state import _is_composing
 from .state import _namespace_of
+from .state import _register_view_subject
 from .state import _reopen_async_doors
 from .state import _shut_async_doors
 from .state import _state_of
@@ -2338,10 +2339,7 @@ def _pair_view_of(link: type, contact: object) -> _Pair_View:
     return _Pair_View(link, contact)
 
 
-def _pair_subject(value: object) -> object:
-    """Unwrap a live Pair view for named Contract diagnostics."""
-
-    return value._Pair_View__current() if type(value) is _Pair_View else value
+_register_view_subject(_Pair_View, _Pair_View._Pair_View__current)
 
 
 def _pair_of(

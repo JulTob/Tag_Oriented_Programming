@@ -12,6 +12,7 @@ from .geometry import _form_of
 from .geometry import _leaves
 from .state import _name_of
 from .state import _state_of
+from .state import _view_subject
 
 
 def Form(
@@ -46,9 +47,7 @@ def Keyword(
     word (``@Flag("Wolf")``), or the class of an active Flag Tag. On a Tag,
     its Flag Pins. Works on any object, tagged or not."""
 
-    from .links import _pair_subject
-
-    agent = _pair_subject(agent)
+    agent = _view_subject(agent)
     return all(
             _keyword(agent, word)
             for word in words

@@ -34,6 +34,7 @@ from .state import _namespace_of
 from .state import _State
 from .state import _name_of
 from .state import _state_of
+from .state import _view_subject
 
 
 Check = Callable[[object, dict[str, Any]], Any]
@@ -571,9 +572,7 @@ class Contract:
     def Postconditions(
             agent: object,
             ) -> bool:
-        from .links import _pair_subject
-
-        agent = _pair_subject(agent)
+        agent = _view_subject(agent)
         return _guarded(
                 agent,
                 "postconditions",
@@ -586,9 +585,7 @@ class Contract:
     def Preconditions(
             agent: object,
             ) -> bool:
-        from .links import _pair_subject
-
-        agent = _pair_subject(agent)
+        agent = _view_subject(agent)
         return _guarded(
                 agent,
                 "preconditions",
@@ -622,9 +619,7 @@ class Contract:
         """
 
         from .errors import TagResolutionError
-        from .links import _pair_subject
-
-        agent = _pair_subject(agent)
+        agent = _view_subject(agent)
 
         state = _state_of(agent)
 
@@ -670,9 +665,7 @@ class Contract:
         """Verdicts for visible conditions. Ordinary check errors become
         False; a self-referential soundness query raises Contract Failure."""
 
-        from .links import _pair_subject
-
-        agent = _pair_subject(agent)
+        agent = _view_subject(agent)
         return {
                 **_status_of(agent, "preconditions"),
                 **_status_of(agent, "postconditions"),
@@ -682,9 +675,7 @@ class Contract:
     def Display(
             agent: object,
             ) -> str:
-        from .links import _pair_subject
-
-        agent = _pair_subject(agent)
+        agent = _view_subject(agent)
         title = _title_of(agent)
         pre = _status_of(agent, "preconditions")
         post = _status_of(agent, "postconditions")
