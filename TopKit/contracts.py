@@ -82,10 +82,14 @@ def _is_checking_post(agent: object) -> bool:
     return False
 
 
-def _holds_for_population(agent: object) -> bool:
+def _holds_for_population(
+        agent: object,
+        state: _State | None = None,
+        ) -> bool:
     """Soundness may not depend on a Post that is still judging this Agent."""
 
-    state = _state_of(agent)
+    if state is None:
+        state = _state_of(agent)
 
     if state is None or not state.postconditions:
         return True
