@@ -1,11 +1,30 @@
 """A Shape applies its Bases without owning their shared members."""
 
+import gc
 import unittest
+import weakref
 
 from TopKit import Action, Operation, Pin, Public, Record, Report, Tag, Underlay
 
 
 class ShapeTagScopeTests(unittest.TestCase):
+    def test_probing_a_base_report_does_not_retain_an_unused_shape(self):
+        class Base(Tag):
+            @Report
+            def owner(tag):
+                return tag
+
+        def probe():
+            class Shape(Base):
+                pass
+
+            self.assertFalse(hasattr(Shape, "owner"))
+            return weakref.ref(Shape)
+
+        shape = probe()
+        gc.collect()
+        self.assertIsNone(shape())
+
     def test_a_shape_does_not_read_a_bases_report_or_operation_directly(self):
         class HostMixin:
             host_value = "ordinary Python inheritance"
