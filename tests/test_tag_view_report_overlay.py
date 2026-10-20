@@ -11,6 +11,21 @@ class TagViewReportOverlayTests(unittest.TestCase):
     class Host:
         pass
 
+    def test_shape_view_reads_base_report_at_its_tagging_point(self):
+        class Base(Tag):
+            @Report
+            def colour(tag):
+                return "blue"
+
+        class Shape(Base):
+            pass
+
+        agent = self.Host()
+        Shape(agent)
+
+        self.assertEqual(Base[agent].colour, "blue")
+        self.assertEqual(Shape[agent].colour, "blue")
+
     def test_independent_report_at_shape_point_wins_over_base(self):
         class Base(Tag):
             @Report
