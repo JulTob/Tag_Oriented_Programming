@@ -4,6 +4,7 @@ import dataclasses
 import unittest
 
 from TopKit.state import _State
+from TopKit.state import _Tag_Identity_Map
 
 
 class Host:
@@ -23,6 +24,8 @@ def a_state_with_every_seat_filled():
             current.add("name")
         elif isinstance(current, dict):
             current["name"] = SENTINEL
+        elif isinstance(current, _Tag_Identity_Map):
+            current[Host] = SENTINEL
     state.pinned = Host
     state.restored = frozenset({"restored"})
     state.composing = 3
@@ -44,7 +47,7 @@ class StateCopyTests(unittest.TestCase):
         copy = state.Copy()
         for seat in dataclasses.fields(_State):
             held = getattr(state, seat.name)
-            if isinstance(held, (list, set, dict)):
+            if isinstance(held, (list, set, dict, _Tag_Identity_Map)):
                 with self.subTest(seat=seat.name):
                     self.assertIsNot(getattr(copy, seat.name), held)
 
@@ -60,6 +63,8 @@ class StateCopyTests(unittest.TestCase):
                 held.add("added")
             elif isinstance(held, dict):
                 held["added"] = SENTINEL
+            elif isinstance(held, _Tag_Identity_Map):
+                held[Added] = SENTINEL
         for seat in dataclasses.fields(_State):
             with self.subTest(seat=seat.name):
                 self.assertEqual(_snapshot(getattr(state, seat.name)), before[seat.name])
@@ -68,7 +73,13 @@ class StateCopyTests(unittest.TestCase):
 def _snapshot(held):
     if isinstance(held, (list, set, dict)):
         return type(held)(held)
+    if isinstance(held, _Tag_Identity_Map):
+        return held.copy()
     return held
+
+
+class Added:
+    pass
 
 
 if __name__ == "__main__":
