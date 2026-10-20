@@ -105,9 +105,11 @@ performing world effects belong to Imprints. These rules do not provide a
 sandbox for arbitrary Python effects.
 
 While TOP evaluates a Precondition or Postcondition, it refuses Tagging or
-Pinning, Rip, `Contract.Delete`, `At_Exit`, and changes to existing Tag classes
-before those TOP acts take effect. This applies through query Actions and to
-other Targets.
+Pinning, Rip, `Contract.Delete`, `At_Exit`, creating a Tag class, and changes
+to existing Tag classes before those TOP acts take effect. This applies
+through query Actions and to other Targets. Python runs a class body before
+calling `MetaTag` to create the class, so the author remains responsible for
+ordinary Python effects in that body.
 Catching the immediate error still fails the check. For a Pre, that refuses
 Tagging; for a Post, the named check is false and the Agent remains in the
 Field. Calculations and query Actions remain legal.

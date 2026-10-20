@@ -280,8 +280,10 @@ Rip for an unfinished never-member and no automatic rollback of training
 effects. Preconditions, Posts and Record builders are observational authoring
 contracts, not sandboxes for arbitrary Python effects. The observation guard
 rejects explicit TOP state changes during Pre and Post evaluation, including
-their query Actions, but ordinary Python writes and I/O remain the author's
-responsibility. Record builders are not yet mechanically guarded.
+their query Actions, including Tag class creation in `MetaTag.__new__`, but
+ordinary Python writes and I/O remain the author's responsibility. Python
+runs a class body before reaching that guard. Record builders are not yet
+mechanically guarded.
 
 ## Synchronous protocol results
 
