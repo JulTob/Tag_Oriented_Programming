@@ -127,7 +127,7 @@ class FieldRipTests(unittest.TestCase):
         self.assertEqual(list(Target[:]), [])
         self.assertEqual(list(Other[:]), members)
 
-    def test_all_members_leave_before_fifo_teardowns_including_defective(self) -> None:
+    def test_all_members_leave_before_teardowns_including_defective(self) -> None:
         seen = []
 
         class Squad(Tag):
@@ -154,7 +154,7 @@ class FieldRipTests(unittest.TestCase):
 
         del Squad[:]
 
-        self.assertEqual(
+        self.assertCountEqual(
                 seen,
                 [(label, (False, False, False), ())
                  for label in ("first", "second", "third")],
@@ -188,21 +188,23 @@ class FieldRipTests(unittest.TestCase):
         del Holder[:]
         gc.collect()
 
-        self.assertEqual(seen, [
-                ((False, False), (False, True)),
-                ((False, False), (False, False)),
-                ])
+        self.assertEqual(len(seen), 2)
+        self.assertTrue(all(not any(memberships) for memberships, _ in seen))
+        self.assertEqual([sum(custody) for _, custody in seen], [1, 0])
 
     def test_retagging_during_cleanup_keeps_the_new_field_and_rip_chain(self) -> None:
         seen = []
+        retagged = None
 
         class Station(Tag):
             @Rip
             def Dismiss(agent):
+                nonlocal retagged
                 seen.append(agent)
 
-                if agent is first:
-                    Station(second)
+                if retagged is None:
+                    retagged = second if agent is first else first
+                    Station(retagged)
                     Station(newcomer)
 
         first, second, newcomer = Agent(), Agent(), Agent()
@@ -211,11 +213,12 @@ class FieldRipTests(unittest.TestCase):
 
         del Station[:]
 
-        self.assertEqual(seen, [first, second])
-        self.assertEqual(list(Station[:]), [second, newcomer])
+        self.assertCountEqual(seen, [first, second])
+        self.assertCountEqual(Station[:], [retagged, newcomer])
 
-        del Station[second]
-        self.assertEqual(seen, [first, second, second])
+        del Station[retagged]
+        self.assertEqual(seen.count(retagged), 2)
+        self.assertEqual(seen.count(first if retagged is second else second), 1)
         self.assertEqual(list(Station[:]), [newcomer])
 
     def test_base_field_rip_keeps_shape_membership(self) -> None:
@@ -264,7 +267,7 @@ class FieldRipTests(unittest.TestCase):
 
         del Duty[:]
 
-        self.assertEqual(seen, [First, Second])
+        self.assertCountEqual(seen, [First, Second])
         self.assertEqual(list(Duty[:]), [])
         self.assertTrue(issubclass(First, Tag))
         self.assertTrue(issubclass(Second, Tag))
@@ -292,52 +295,68 @@ class FieldRipTests(unittest.TestCase):
                 with self.assertRaisesRegex(TypeError, "positional slices"):
                     del Stable[key]
 
-    def test_failure_stops_fifo_and_keeps_unvisited_rips_for_retry(self) -> None:
+    def test_failure_stops_this_invocation_but_later_member_can_retry(self) -> None:
         seen = []
-        attempts = 0
+        completed = []
+        failed = None
+        blocked = True
+        labels = {}
 
         class Hazard(Tag):
             @Rip
             def Release(agent):
-                seen.append(("Release", agent.label))
+                seen.append(("Release", labels[agent]))
 
-                if agent is first:
+                if len(seen) == 1:
                     self.assertEqual(tuple(Hazard[:]), ())
-                    self.assertEqual(tuple(Hazard[...]), tuple(members))
+                    self.assertCountEqual(Hazard[...], members)
 
             @Rip
             def Finish(agent):
-                nonlocal attempts
-                seen.append(("Finish", agent.label))
+                nonlocal failed
+                seen.append(("Finish", labels[agent]))
 
-                if agent is second and attempts == 0:
-                    attempts += 1
+                if failed is None and len(completed) == 1:
+                    failed = agent
+
+                if agent is failed and blocked:
                     raise ValueError("failed")
 
+                completed.append(agent)
+
         members = [Agent(), Agent(), Agent()]
-        first, second, third = members
 
         for label, member in zip(("first", "second", "third"), members):
+            labels[member] = label
             member.label = label
             Hazard(member)
 
         with self.assertRaises(TagCompositionError):
             del Hazard[:]
 
+        self.assertIsNotNone(failed)
+        visited = [member for member in members
+                   if ("Release", labels[member]) in seen]
+        unvisited, = [member for member in members if member not in visited]
+        self.assertEqual(len(visited), 2)
+        self.assertEqual(len(completed), 1)
         self.assertEqual(tuple(Hazard[:]), ())
-        self.assertEqual(tuple(Hazard[...]), (second, third))
-        self.assertEqual(
-                seen,
-                [("Release", "first"), ("Finish", "first"),
-                 ("Release", "second"), ("Finish", "second")],
-                )
+        self.assertCountEqual(Hazard[...], [failed, unvisited])
 
-        del Hazard[second]
-        self.assertEqual(seen[-1], ("Finish", "second"))
-        del Hazard[third]
-        self.assertEqual(seen[-2:], [
-                ("Release", "third"), ("Finish", "third"),
-                ])
+        # Choose an unvisited member while another member still owes Rip.
+        # Members are peers: this succeeds without replaying that other's
+        # failed teardown or waiting for it to finish.
+        del Hazard[unvisited]
+
+        self.assertIn(unvisited, completed)
+        self.assertEqual(seen.count(("Release", labels[unvisited])), 1)
+        self.assertEqual(seen.count(("Finish", labels[unvisited])), 1)
+        self.assertCountEqual(Hazard[...], [failed])
+
+        blocked = False
+        del Hazard[failed]
+        self.assertEqual(seen.count(("Release", labels[failed])), 1)
+        self.assertEqual(seen.count(("Finish", labels[failed])), 2)
         self.assertEqual(tuple(Hazard[...]), ())
 
     def test_interruption_keeps_every_unvisited_member_in_custody(self) -> None:
@@ -350,12 +369,11 @@ class FieldRipTests(unittest.TestCase):
                 nonlocal interrupted
                 seen.append(agent)
 
-                if agent is first and not interrupted:
+                if not interrupted:
                     interrupted = True
                     raise KeyboardInterrupt
 
         members = [Agent(), Agent(), Agent()]
-        first, second, third = members
 
         for member in members:
             Fleet(member)
@@ -364,18 +382,32 @@ class FieldRipTests(unittest.TestCase):
             del Fleet[:]
 
         self.assertEqual(tuple(Fleet[:]), ())
-        self.assertEqual(tuple(Fleet[...]), (first, second, third))
-        self.assertEqual(seen, [first])
+        self.assertCountEqual(Fleet[...], members)
+        self.assertEqual(len(seen), 1)
+        interrupted_member = seen[0]
+        chosen = next(member for member in members
+                      if member is not interrupted_member)
 
-        for member in members:
-            del Fleet[member]
+        del Fleet[chosen]
+        self.assertEqual(seen, [interrupted_member, chosen])
+        self.assertCountEqual(Fleet[...], [interrupted_member] + [
+                member for member in members
+                if member not in (interrupted_member, chosen)
+                ])
+        remaining, = [member for member in members
+                      if member not in (interrupted_member, chosen)]
+        del Fleet[interrupted_member]
+        del Fleet[remaining]
 
-        self.assertEqual(seen, [first, first, second, third])
+        self.assertCountEqual(seen,
+                              [interrupted_member, interrupted_member,
+                               chosen, remaining])
         self.assertEqual(tuple(Fleet[...]), ())
 
     def test_failed_field_rip_keeps_unvisited_record_values_until_retry(self) -> None:
         finalized = []
         fail = True
+        failed_agent = None
 
         class Part:
             def __init__(self, label):
@@ -391,10 +423,11 @@ class FieldRipTests(unittest.TestCase):
 
             @Rip
             def Release(agent):
-                nonlocal fail
+                nonlocal fail, failed_agent
 
-                if agent is first and fail:
+                if fail:
                     fail = False
+                    failed_agent = agent
                     raise ValueError("still in use")
 
         first, second = Agent(), Agent()
@@ -410,10 +443,11 @@ class FieldRipTests(unittest.TestCase):
         gc.collect()
         self.assertEqual(finalized, [])
 
-        del Holder[first]
+        del Holder[failed_agent]
         gc.collect()
-        self.assertEqual(finalized, ["first"])
+        self.assertEqual(finalized, [failed_agent.label])
 
-        del Holder[second]
+        remaining = second if failed_agent is first else first
+        del Holder[remaining]
         gc.collect()
-        self.assertEqual(finalized, ["first", "second"])
+        self.assertEqual(finalized, [failed_agent.label, remaining.label])

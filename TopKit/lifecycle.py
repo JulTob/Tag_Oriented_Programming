@@ -150,11 +150,12 @@ def _teardown(
 
 
 def _rip_field(tag: type) -> None:
-    """Revoke the starting Field, then finish its saved Rips in join order.
+    """Revoke the starting Field, then attempt its saved Rips.
 
     Every starting member enters pending custody before the first callback.
-    A failure or interruption stops the walk; current and later runs remain
-    in their original Tag's Safehouse for explicit or act-triggered retry.
+    A failure or interruption stops this invocation. Unfinished runs stay
+    in their original Tag's Safehouse and can be retried by member; no
+    cleanup order among Field members is part of the deletion contract.
     """
 
     field = _field_of(tag)
@@ -182,7 +183,7 @@ def _rip_field(tag: type) -> None:
 
     for agent, state, teardowns in initial:
         run = _RipRun(tag, teardowns)
-        # Empty runs still keep a member in custody until its FIFO turn.
+        # Empty runs still keep a member in custody until selected cleanup.
         _save_run(agent, run, hold_empty=True)
         _revoke(agent, state, run, bulk=True)
         pending.append((agent, state, run))
