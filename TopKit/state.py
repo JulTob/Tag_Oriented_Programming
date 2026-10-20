@@ -78,6 +78,7 @@ class _State:
     originals: dict[str, Any] = field(default_factory=dict)       # what a Pin patched, as declared
     constants: dict[str, tuple[type, str, Any]] = field(default_factory=dict)  # origin, kind, declaration
     tools: dict[str, tuple[type, Any]] = field(default_factory=dict)   # origin, kind: a Tool slot admits only its kind
+    effect_serial: int = 0   # monotone marker for nested Gains, Imprints, and Field entry
     composing: int = 0
     checking: bool = False
     words: _Words | None = None   # what its Flags answer to; None after its Tags change
@@ -91,7 +92,7 @@ class _State:
         that is rolled back closes them on this same object."""
 
         for name in state.__slots__:
-            if name not in ("composing", "checking", "training"):
+            if name not in ("effect_serial", "composing", "checking", "training"):
                 setattr(
                         state,
                         name,
@@ -126,6 +127,7 @@ class _State:
         copied.originals = state.originals.copy()
         copied.constants = state.constants.copy()
         copied.tools = state.tools.copy()
+        copied.effect_serial = state.effect_serial
         copied.composing = state.composing
         copied.checking = state.checking
         copied.words = state.words

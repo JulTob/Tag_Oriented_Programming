@@ -19,6 +19,12 @@
 
 ### TopKit
 
+- **Nested Tagging during Host preparation:** if a Host's first runtime
+  transition completes another Tagging before refusing the outer one, that
+  completed Tag and its contract hooks remain. A refusal before nested work
+  has any Gains, Imprint effects or Field entry still restores the Host's
+  original bindings (#241).
+
 - **Sound membership:** `agent in Tag` now asks whether the Agent is still
   in that Field and its visible Posts hold, matching `for agent in Tag`.
   `agent in Tag[:]` asks for raw Field membership, including defective

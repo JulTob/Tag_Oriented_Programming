@@ -618,6 +618,8 @@ def _gainings(
                 state.Restore(previous)
             raise
 
+        state.effect_serial += 1
+
         if state.pinned is not None:
             from .declarations import _invalidate_declarations
             _invalidate_declarations(state.pinned)
