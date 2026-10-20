@@ -8,10 +8,13 @@ raising.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from contextlib import nullcontext
+from contextvars import ContextVar
 from typing import Any
 from typing import Callable
 from typing import Iterable
+from typing import Iterator
 
 from .declarations import _MISSING
 from .declarations import _protocol_inputs
@@ -34,6 +37,67 @@ from .state import _state_of
 
 
 Check = Callable[[object, dict[str, Any]], Any]
+
+
+class _Recursive_Soundness(TagContractError):
+    """A Post asked the sound population to judge its own Agent."""
+
+
+class _Post_Check:
+    __slots__ = ("identity", "active")
+
+    def __init__(self, agent: object) -> None:
+        self.identity = id(agent)
+        self.active = True
+
+
+_post_checks: ContextVar[tuple[_Post_Check, ...]] = ContextVar(
+        "topkit_post_checks", default=(),
+        )
+
+
+@contextmanager
+def _checking_post(agent: object) -> Iterator[None]:
+    """Mark a Post's actual execution, independently of Pre reads.
+
+    The marker is execution-local, holds only the Agent's identity, and is
+    revoked on exit. A copied context cannot keep an Agent alive or inherit
+    an *active* check after the Post finishes.
+    """
+
+    check = _Post_Check(agent)
+    token = _post_checks.set((*_post_checks.get(), check))
+
+    try:
+        yield
+    finally:
+        check.active = False
+        _post_checks.reset(token)
+
+
+def _is_checking_post(agent: object) -> bool:
+    for check in _post_checks.get():
+        if check.active and check.identity == id(agent):
+            return True
+
+    return False
+
+
+def _holds_for_population(agent: object) -> bool:
+    """Soundness may not depend on a Post that is still judging this Agent."""
+
+    state = _state_of(agent)
+
+    if state is None or not state.postconditions:
+        return True
+
+    if _is_checking_post(agent):
+        raise _Recursive_Soundness(
+                "a Post cannot ask whether its own Agent is sound in a"
+                " Tag population; use Tag[:] to ask about Field membership"
+                )
+
+    return _holds(agent, state)
 
 
 def _refuse_condition_binding(
@@ -272,16 +336,28 @@ def _evaluate(
         inputs: dict[str, Any],
         failure: _Named,
         phase: str,
+        *,
+        post: bool = False,
         ) -> None:
     """Run conditions; raise ``failure`` naming the first that does not hold."""
 
     for name, check in checks:
         flow = None
-        scope = _pre_observation() if phase == "Precondition" else nullcontext()
+        if post:
+            observation = _checking_post(agent)
+        elif phase == "Precondition":
+            observation = _pre_observation()
+        else:
+            observation = nullcontext()
+
         try:
-            with scope as flow:
+            with observation as flow:
                 try:
                     result = check(agent, inputs)
+                except _Recursive_Soundness as error:
+                    raise _Recursive_Soundness(
+                            f"{phase} {name!r} failed: {_exception_text(error)}"
+                            ) from error
                 except TagContractError as error:
                     raise TagContractError(
                             f"{phase} {name!r} failed: {_exception_text(error)}"
@@ -298,8 +374,8 @@ def _evaluate(
         except TagCompositionError as error:
             if flow is None or error is not flow.violation:
                 raise
-            # Validation may catch the immediate refusal; the enclosing
-            # observation still names this Precondition's failed Gate.
+            # Verdicts and diagnostics can catch the immediate refusal.
+            # The observation still names this Precondition's failed Gate.
             raise failure.Named(name)(
                     f"{phase} {name!r} raised {_type_name(error)}: {_exception_text(error)}"
                     ) from error
@@ -314,16 +390,20 @@ def _guarded(
         ) -> bool:
     """Run one scope of the Agent's visible conditions on demand.
 
-    Re-entrancy guarded: a nested ``bool(agent)`` inside a condition
-    answers True instead of recursing.
+    Re-entering this named diagnostic remains a shortcut. The Post marker
+    used by sound population queries is separate from that shortcut.
     """
 
     state = _state_of(agent)
 
-    if state is None or state.checking:
+    if state is None or state.checking or (
+            scope == "postconditions" and _is_checking_post(agent)
+            ):
         return True
 
-    state.checking = True
+    reentrant = state.checking
+    if scope == "preconditions":
+        state.checking = True
     state.composing += 1
 
     try:
@@ -336,54 +416,62 @@ def _guarded(
                     {},
                     failure,
                     phase,
+                    post=scope == "postconditions",
                     )
 
             return True
 
         for name, check in checks:
+            if scope == "postconditions":
+                observation = _checking_post(agent)
+            elif scope == "preconditions":
+                observation = _pre_observation()
+            else:
+                observation = nullcontext()
+
             try:
-                observation = (
-                        _pre_observation()
-                        if phase == "Precondition"
-                        else nullcontext()
-                        )
                 with observation:
                     if not _verdict(check(agent, {}), name):
                         return False
+            except _Recursive_Soundness:
+                raise
             except Exception:
                 return False
 
         return True
     finally:
         state.composing -= 1
-        state.checking = False
+        state.checking = reentrant
 
 
 def _holds(
         agent: object,
+        state: _State | None = None,
         ) -> bool:
     """True exactly when every visible Postcondition holds."""
 
-    state = _state_of(agent)
+    if state is None:
+        state = _state_of(agent)
 
-    if state is None or state.checking or not state.postconditions:
-        return True   # nothing promised, or asked from inside a check
+    if state is None or not state.postconditions or _is_checking_post(agent):
+        return True   # nothing promised, or asked from inside its own Post
 
-    state.checking = True
     state.composing += 1
 
     try:
         for name, check in state.postconditions.items():
-            try:
-                if not _verdict(check(agent, {}), name):
+            with _checking_post(agent):
+                try:
+                    if not _verdict(check(agent, {}), name):
+                        return False
+                except _Recursive_Soundness:
+                    raise
+                except Exception:
                     return False
-            except Exception:
-                return False
 
         return True
     finally:
         state.composing -= 1
-        state.checking = False
 
 
 def _condition_member(
@@ -396,22 +484,22 @@ def _condition_member(
     the Agent has no condition of that name."""
 
     check = state.postconditions.get(name)
-    precondition = check is None
+    post = check is not None
 
-    if precondition:
+    if not post:
         check = state.preconditions.get(name)
 
     if check is None:
         return None
 
     reentrant = state.checking
-    state.checking = True
+    if not post:
+        state.checking = True
     state.composing += 1
 
     try:
         try:
-            scope = _pre_observation() if precondition else nullcontext()
-            with scope:
+            with _checking_post(agent) if post else _pre_observation():
                 return _verdict(
                         check(agent, {}),
                         name,
@@ -435,7 +523,8 @@ def _status_of(
         return {}
 
     reentrant = state.checking
-    state.checking = True
+    if scope == "preconditions":
+        state.checking = True
     state.composing += 1
     status: dict[str, bool] = {}
 
@@ -443,15 +532,17 @@ def _status_of(
         for name, check in getattr(state, scope).items():
             try:
                 observation = (
-                        _pre_observation()
-                        if scope == "preconditions"
-                        else nullcontext()
+                        _checking_post(agent)
+                        if scope == "postconditions"
+                        else _pre_observation()
                         )
                 with observation:
                     status[name] = _verdict(
                             check(agent, {}),
                             name,
                             )
+            except _Recursive_Soundness:
+                raise
             except Exception:
                 status[name] = False
     finally:
@@ -578,7 +669,8 @@ class Contract:
     def Status(
             agent: object,
             ) -> dict[str, bool]:
-        """``{condition: holds?}`` for every visible condition, never raising."""
+        """Verdicts for visible conditions. Ordinary check errors become
+        False; a self-referential soundness query raises Contract Failure."""
 
         return {
                 **_status_of(agent, "preconditions"),

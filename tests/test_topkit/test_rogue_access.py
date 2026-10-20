@@ -100,7 +100,8 @@ class RogueAccessTests(unittest.TestCase):
             ari.colour
 
         self.assertEqual(ari.Own(), "mine")                           # her own Action still works
-        self.assertIn(ari, Agency)                                    # still a member, just defective
+        self.assertNotIn(ari, Agency)                                 # defective, so not sound
+        self.assertIn(ari, Agency[:])                                 # raw membership remains
 
         ari.homeland = "Rivendell"                                    # repaired
         self.assertEqual(ari.Dispatch("go"), "Agency:go")

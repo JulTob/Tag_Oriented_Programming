@@ -143,7 +143,9 @@ A Postcondition is a promise about the finished Agent. It is checked once
 after every missing Tag in the Form has completed training and entered its
 Field, and again at later completed Taggings and published-member uses.
 A Base may therefore promise what a later Shape supplies. When a Post
-breaks, membership remains. The product left the line; it is flagged.
+breaks, the Agent remains in the Field. It is absent from the sound
+population (`agent in Tag` is False) and appears in `~Tag`; the product
+left the line and is flagged.
 
 ```python
 class Warp_Core(Tag):
@@ -164,7 +166,7 @@ assert enterprise                       # every promise holds
 enterprise.core_temperature = 1400      # an accident, during play
 
 assert not enterprise                   # a promise is broken
-assert enterprise in Warp_Core          # still a Warp_Core ship
+assert enterprise in Warp_Core[:]       # still a Warp_Core ship
 assert enterprise in ~Warp_Core         # waiting in the repair queue
 ```
 
@@ -425,7 +427,7 @@ try:
 except Postcondition.Not_Infected:
     pass                                # applied; and the tagging reports the standing defect
 
-assert worf in Quarantined
+assert worf in Quarantined[:]             # admitted, though Healthy is still defective
 assert worf.bay == "isolation ward 2"
 
 worf.infected = False                   # treated
@@ -458,7 +460,7 @@ class Armed(Tag):
 
     @Post
     def Weapons_Locked(agent):
-        if agent not in Bridge:         # not on duty: nothing to lock
+        if agent not in Bridge[:]:      # not on duty: nothing to lock
             return True
         return agent.safety_on
 
@@ -517,7 +519,7 @@ class Veteran(Tag):
     @Post
     @Underlay
     def Alive(agent, base):
-        underneath = base() if agent in Crew_Member else True
+        underneath = base() if agent in Crew_Member[:] else True
         return underneath and agent.decorated
 
 
@@ -695,7 +697,7 @@ assert Bridge                          # its own Post holds
 del Bridge[worf]
 assert len(Bridge) == 0
 assert not Bridge                      # Has_Trained_Crew now fails
-assert Bridge in Certified             # still Certified, now deficient
+assert Bridge in Certified[:]          # still Certified, now deficient
 
 Bridge(worf)
 assert Bridge                          # the promise holds again
@@ -718,7 +720,7 @@ assert Bridge                          # the promise holds again
 - **Repair from the outside** with `for broken in ~Tag`, or **at the point
   of use** with autofix. Both are ordinary Python.
 - **End a condition yourself.** Rip never does. A guard in the promise,
-  `if agent not in Bridge: return True`, lets it follow any membership;
+  `if agent not in Bridge[:]: return True`, lets it follow Field membership;
   `Contract.Delete(agent, "Has_Oath")` in the role's `@Rip` protocol
   ends it when the role leaves. One visible line beats a law that
   guesses.
