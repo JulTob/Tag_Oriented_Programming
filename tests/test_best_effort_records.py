@@ -6,7 +6,7 @@ import warnings
 import weakref
 
 from TopKit import (Constant, Imprint, Pin, Post, Record, Rip, Tag,
-                    TagCompositionError, TagPostconditionError,
+                    TagCompositionError, TagOverwriteWarning, TagPostconditionError,
                     TagTrainingWarning, Tool)
 
 
@@ -141,6 +141,57 @@ class BestEffortRecordTests(unittest.TestCase):
         self.assertIn(agent, After[:])
         self.assertEqual(agent.value, 4)
         self.assertEqual(agent.seen, 4)
+
+    def test_failed_value_write_does_not_claim_an_independent_record_was_replaced(self):
+        class RefusingDict(dict):
+            def __setitem__(self, name, value):
+                super().__setitem__(name, value)
+                if name == "value" and value == 5:
+                    raise ValueError("write refused")
+
+        class Before(Tag):
+            @Record
+            def value(agent):
+                return 4
+
+        class After(Tag):
+            @Record
+            def value(agent):
+                return 5
+
+        agent = Host()
+        agent.__dict__ = RefusingDict()
+        Before(agent)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            After(agent)
+
+        self.assertEqual(agent.value, 4)
+        self.assertIn(agent, After[:])
+        self.assertEqual(len(caught), 1)
+        self.assertIsInstance(caught[0].message, TagTrainingWarning)
+
+    def test_overwrite_warning_as_error_restores_the_previous_record(self):
+        class Before(Tag):
+            @Record
+            def value(agent):
+                return 4
+
+        class After(Tag):
+            @Record
+            def value(agent):
+                return 5
+
+        agent = Host()
+        Before(agent)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", TagOverwriteWarning)
+            with self.assertRaises(TagOverwriteWarning):
+                After(agent)
+
+        self.assertEqual(agent.value, 4)
+        self.assertIn(agent, Before[:])
+        self.assertNotIn(agent, After[:])
 
     def test_pinned_record_builder_failure_still_admits_tag(self):
         class Receiver(Tag):

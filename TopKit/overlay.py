@@ -628,11 +628,15 @@ def _gainings(
                 )
 
         storing_record = False
+        warning_in_progress = False
+        replaced_record = None
         try:
             if kind == "action":
                 _install_action(state, tag, name, function)
             elif kind == "record":
-                _install_record(state, tag, name, function)
+                replaced_record = _install_record(
+                        state, tag, name, function, defer_warning=True,
+                        )
                 storing_record = True
                 _store_record(agent, name, value, one.secrets)
                 storing_record = False
@@ -645,13 +649,24 @@ def _gainings(
                 state.constants[name] = locks[name]
             if kind != "record" or needs_runtime:
                 prepare(one, needs_runtime)
+
+            if state.pinned is not None:
+                from .declarations import _invalidate_declarations
+                _invalidate_declarations(state.pinned)
+
+            if replaced_record is not None and not _quiet.get():
+                warning_in_progress = True
+                _warn_record_replacement(tag, name, replaced_record)
+                warning_in_progress = False
         except BaseException as error:
             if previous is not None:
                 if type(agent) is not previous_type:
                     _set_runtime_type(agent, previous_type)
                 _restore_namespace(agent, previous_namespace)
                 state.Restore(previous)
-            elif record_entry is not None and storing_record:
+            elif record_entry is not None and (
+                    storing_record or warning_in_progress
+                    ):
                 _restore_record_entry(state, name, record_entry)
             if storing_record:
                 if isinstance(error, Exception):
@@ -664,10 +679,6 @@ def _gainings(
                     continue
                 return error
             raise
-
-        if state.pinned is not None:
-            from .declarations import _invalidate_declarations
-            _invalidate_declarations(state.pinned)
 
         if kind == "action" and name in declarations.rips:
             acquired_rips.append((name, state.actions[name]))
@@ -1339,7 +1350,9 @@ def _install_record(
         tag: type,
         name: str,
         builder: Function,
-        ) -> None:
+        *,
+        defer_warning: bool = False,
+        ) -> type | None:
     _refuse_record(state, tag, name)
     if name in state.action_origins:
         state.actions.pop(name)
@@ -1347,13 +1360,8 @@ def _install_record(
 
     kind, prior = _record_overlay(state, tag, name, builder)
 
-    if prior is not None and not _quiet.get():
-        warnings.warn(
-                f"{tag.__name__}.{name} replaces the Record of independent"
-                f" Tag {prior.__name__}",
-                TagOverwriteWarning,
-                skip_file_prefixes=_WARNING_SKIP_PREFIXES,
-                )
+    if prior is not None and not defer_warning and not _quiet.get():
+        _warn_record_replacement(tag, name, prior)
 
     if kind is not None:
         state.tools[name] = (tag, kind)   # the latest Tool declaration's kind is the slot's
@@ -1363,6 +1371,16 @@ def _install_record(
     state.records[name] = tag
     _restore(state, name)
     state.published.discard(name)
+    return prior
+
+
+def _warn_record_replacement(tag: type, name: str, prior: type) -> None:
+    warnings.warn(
+            f"{tag.__name__}.{name} replaces the Record of independent"
+            f" Tag {prior.__name__}",
+            TagOverwriteWarning,
+            skip_file_prefixes=_WARNING_SKIP_PREFIXES,
+            )
 
 
 def _restore(
