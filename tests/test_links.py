@@ -501,13 +501,17 @@ class Pair_Tests(unittest.TestCase):
         self.assertEqual(list(charlie.Knows), [])
         self.assertEqual(list(~charlie.Knows), [ruth])
 
-    def test_one_pair_for_each_contact_across_a_links_form(self):
+    def test_each_actual_link_has_its_own_pair_for_a_contact(self):
         charlie, ruth = People("Charlie", "Ruth")
         Social(charlie)
         charlie.Trusts(ruth, since=2015)
-        self.assertIn(ruth, charlie.Knows)                # linking is closed upward
-        self.assertIs(charlie.Knows[ruth], charlie.Trusts[ruth])
+        self.assertIn(ruth, charlie.Knows)                # Base tags the Contact first
+        self.assertIn(ruth, charlie.Trusts)
+        self.assertIsNot(_record_of(charlie.Knows).family.Pair_Of(ruth),
+                         _record_of(charlie.Trusts).family.Pair_Of(ruth))
         self.assertEqual(charlie.Knows[ruth].since, 2015)
+        self.assertFalse("since" @ charlie.Trusts[ruth])
+        self.assertTrue(charlie.Trusts[ruth].Still_Honest)
 
     def test_independent_links_of_one_agent_have_separate_pairs(self):
         class Work(Tag):
