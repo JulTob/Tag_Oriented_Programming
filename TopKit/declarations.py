@@ -1049,7 +1049,7 @@ def _name_checks(
         kind = _kind_of(attribute)
         _refuse_condition_dunder(owner, name, kind)
 
-        if kind == "imprint":
+        if kind in ("imprint", "record"):
             TagTrainingWarning.Named(name)
 
         if kind == "condition":

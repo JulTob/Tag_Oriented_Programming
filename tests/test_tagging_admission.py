@@ -76,7 +76,7 @@ class TaggingAdmissionTests(unittest.TestCase):
         self.assertEqual(agent.status, "assembled")
         self.assertEqual(agent.Identify(), "Assembled")
 
-    def test_failed_record_retains_only_gains_that_were_acquired(self):
+    def test_failed_record_keeps_prior_gains_and_later_records_continue(self):
         class Unfinished(Tag):
             @Action
             def Read(agent):
@@ -92,17 +92,18 @@ class TaggingAdmissionTests(unittest.TestCase):
 
             @Record
             def later(agent):
-                return "not reached"
+                return "reached"
 
         agent = Host()
-        with self.assertRaisesRegex(TagCompositionError, "builder failed"):
+        with self.assertWarns(TagTrainingWarning) as caught:
             Unfinished(agent)
-        self.assert_not_admitted(Unfinished, agent)
+        self.assertEqual(caught.warning.name, "missing")
+        self.assertIn(agent, Unfinished)
         self.assertTrue("Read" @ agent)
         self.assertTrue("value" @ agent)
         self.assertIs(agent.Read(), False)
         self.assertFalse("missing" @ agent)
-        self.assertFalse("later" @ agent)
+        self.assertEqual(agent.later, "reached")
 
     def test_interrupted_builder_preserves_earlier_gains_and_its_previous_value(self):
         failure = KeyboardInterrupt()
@@ -122,7 +123,7 @@ class TaggingAdmissionTests(unittest.TestCase):
         with self.assertRaises(KeyboardInterrupt) as caught:
             Unfinished(agent)
         self.assertIs(caught.exception, failure)
-        self.assert_not_admitted(Unfinished, agent)
+        self.assertIn(agent, Unfinished[:])
         self.assertTrue("Read" @ agent)
         self.assertTrue("value" @ agent)
         self.assertIsNone(agent.Read())
@@ -303,9 +304,10 @@ class TaggingAdmissionTests(unittest.TestCase):
                 return None
 
         agent = Host()
-        with self.assertRaisesRegex(TagCompositionError, "not built"):
+        with self.assertWarns(TagTrainingWarning) as caught:
             Retried(agent)
-        self.assert_not_admitted(Retried, agent)
+        self.assertEqual(caught.warning.name, "value")
+        self.assertIn(agent, Retried[:])
         token = agent.token
         self.assertTrue("token" @ agent)
         self.assertFalse("value" @ agent)
@@ -313,6 +315,9 @@ class TaggingAdmissionTests(unittest.TestCase):
             agent.token = None
         with self.assertRaises(TagCompositionError):
             del agent.token
+        Retried(agent)  # an active Tag does not rerun the failed Record
+        self.assertFalse("value" @ agent)
+        del Retried[agent]
         Retried(agent)
         self.assertIs(agent.token, token)
         self.assertIsNone(agent.value)
@@ -381,19 +386,17 @@ class TaggingAdmissionTests(unittest.TestCase):
                         raise ValueError("imprint failed")
 
                 agent = Host()
-                if phase == "gain":
-                    with self.assertRaises(TagCompositionError):
-                        Shape(agent)
-                else:
-                    with self.assertWarns(TagTrainingWarning):
-                        Shape(agent)
+                with warnings.catch_warnings(record=True) as caught:
+                    warnings.simplefilter("always", TagTrainingWarning)
+                    Shape(agent)
+                self.assertEqual(
+                        [warning.message.name for warning in caught],
+                        ["next_value", "Finish"] if phase == "gain" else ["Finish"],
+                        )
                 self.assertIn(agent, Base[:])
                 self.assertTrue(isinstance(agent, Base))
                 self.assertEqual(Base[agent].base_value, "base")
-                if phase == "gain":
-                    self.assert_not_admitted(Shape, agent)
-                else:
-                    self.assertIn(agent, Shape[:])
+                self.assertIn(agent, Shape[:])
                 self.assertTrue("partial" @ agent)
                 self.assertIsNone(agent.partial)
 
@@ -708,9 +711,10 @@ class TaggingAdmissionTests(unittest.TestCase):
         clone = type(seed)()
         preparations.clear()
 
-        with self.assertRaises(TagCompositionError):
+        with self.assertWarns(TagTrainingWarning) as caught:
             Failed(clone)
-        self.assertNotIn(clone, Failed[:])
+        self.assertEqual(caught.warning.name, "missing")
+        self.assertIn(clone, Failed[:])
         self.assertFalse("missing" @ clone)
         self.assertEqual(len(preparations), 1)
 

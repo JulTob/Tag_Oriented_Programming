@@ -177,6 +177,45 @@ class TagTrainingWarning(UserWarning, metaclass=_Named):
 TrainingWarning = TagTrainingWarning
 
 
+def _traceback_summary(
+        error: BaseException,
+        ) -> tuple[tuple[str, int, str], ...]:
+    """Copy source coordinates without retaining traceback frames or Agents."""
+
+    frames: list[tuple[str, int, str]] = []
+    # A user exception may override __getattribute__; read the interpreter's
+    # traceback seat without calling that override.
+    traceback = BaseException.__dict__["__traceback__"].__get__(error)
+    while traceback is not None:
+        code = traceback.tb_frame.f_code
+        frames.append((code.co_filename, traceback.tb_lineno, code.co_name))
+        traceback = traceback.tb_next
+    return tuple(frames)
+
+
+def _training_warning(
+        kind: str,
+        tag: type,
+        name: str,
+        failure: TagError,
+        error: Exception,
+        *,
+        cause_type: str,
+        cause_text: str,
+        ) -> TagTrainingWarning:
+    """Describe one failed training step without keeping its traceback."""
+
+    return TagTrainingWarning.Named(name)(
+            kind,
+            tag,
+            name,
+            failure,
+            cause_type=cause_type,
+            cause_text=cause_text,
+            traceback_summary=_traceback_summary(error),
+            )
+
+
 class TagPostconditionError(TagError, metaclass=_Named):
     """A Postcondition found the finished Tagging defective. The Tag stays.
 

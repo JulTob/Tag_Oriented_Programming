@@ -12,10 +12,10 @@ For each Tag in the Form (Bases first), in order:
 
 A refusal in 1 leaves completed Tags and existing Gains in place. A
 structural refusal in 2 leaves the unfinished Tag outside its Field.
-An ordinary Imprint failure in 3 reports a warning, continues later
-Imprints, and admits the Agent at 4. Current Posts determine soundness;
+An ordinary Record or Imprint failure reports a warning, continues later
+training, and admits the Agent at 4. Current Posts determine soundness;
 failures are not permanent defects. Python interruptions stop later
-Imprints, retain Field entry, and keep their original type.
+training, retain Field entry, and keep their original type.
 """
 
 from __future__ import annotations
@@ -30,6 +30,7 @@ from .declarations import _declarations_of
 from .declarations import _is_flag
 from .declarations import _protocol_inputs
 from .errors import _exception_text
+from .errors import _training_warning
 from .errors import _type_name
 from .errors import TagCompositionError
 from .errors import TagImprintError
@@ -290,7 +291,8 @@ def _apply_one(
                     refresh=needs_runtime,
                     )
 
-        _gainings(
+        acquired_rips: list[tuple[str, Any]] = []
+        interruption = _gainings(
                 agent,
                 state,
                 tag,
@@ -298,18 +300,18 @@ def _apply_one(
                 deleted_before,
                 inputs,
                 prepare,
+                training_warnings,
+                acquired_rips,
                 )
 
         # A nested Imprint may lay another Action over a Rip name. Remember
         # this Tag's acquired layer before training can change the Overlay.
-        rip_actions = (
-                tuple((name, state.actions[name]) for name in declarations.rips)
-                if declarations.rips else ()
-                )
+        rip_actions = tuple(acquired_rips)
 
-        interruption = _imprint(
-                agent, tag, declarations, inputs, training_warnings,
-                )
+        if interruption is None:
+            interruption = _imprint(
+                    agent, tag, declarations, inputs, training_warnings,
+                    )
 
         # Tag-scope services arrive with admission. A failed representation
         # must not replace the services of an already active Agency.
@@ -665,17 +667,15 @@ def _imprint(
             try:
                 cause_type = _type_name(error)
                 cause_text = _exception_text(error)
-                summary = _traceback_summary(error)
                 failure = TagImprintError.Named(name)(
                         f"Imprint {str.__str__(name)!r} failed:"
                         f" {cause_type}: {cause_text}"
                         )
                 failures.append(
-                        TagTrainingWarning.Named(name)(
-                            "Imprint", tag, name, failure,
+                        _training_warning(
+                            "Imprint", tag, name, failure, error,
                             cause_type=cause_type,
                             cause_text=cause_text,
-                            traceback_summary=summary,
                             )
                         )
             except BaseException as interruption:
@@ -699,23 +699,6 @@ def _imprint(
                     )
 
     return None
-
-
-def _traceback_summary(
-        error: BaseException,
-        ) -> tuple[tuple[str, int, str], ...]:
-    """Copy source coordinates without retaining traceback frames or Agents."""
-
-    frames: list[tuple[str, int, str]] = []
-    # A user Exception can override __getattribute__ and make an ordinary
-    # error in its own Imprint metadata look like a new interruption. Read the
-    # interpreter's traceback seat without dispatching through that override.
-    traceback = BaseException.__dict__["__traceback__"].__get__(error)
-    while traceback is not None:
-        code = traceback.tb_frame.f_code
-        frames.append((code.co_filename, traceback.tb_lineno, code.co_name))
-        traceback = traceback.tb_next
-    return tuple(frames)
 
 
 def _report_training(

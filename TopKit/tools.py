@@ -383,7 +383,10 @@ def _advice(
         first = tags[0].__name__
 
         if built:
-            return f"Tag it in the builder, {first}(...)"
+            return (
+                    f"Use an already tagged {first}, or tag the object in"
+                    " an earlier Imprint before this Record builder runs"
+                    )
 
         return f"Tag it first, {first}(...), or hand over a {first}"
 

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from inspect import Parameter, Signature
 import unittest
+import warnings
 
-from TopKit import Pin, Record, Tag, TagCompositionError, TagResolutionError
+from TopKit import (Pin, Record, Tag, TagCompositionError, TagResolutionError,
+                    TagTrainingWarning)
 
 
 class Host:
@@ -44,6 +46,15 @@ def _target(pinned):
 
 
 class RecordDiagnosticTests(unittest.TestCase):
+    def assert_record_warning(self, tag, target, **inputs):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", TagTrainingWarning)
+            self.assertIs(tag(target, **inputs), target)
+        self.assertEqual(len(caught), 1)
+        self.assertIn(target, tag[:])
+        self.assertEqual(caught[0].message.kind, "Record")
+        return caught[0].message
+
     def test_callable_builders_can_store_native_lazy_objects_as_data(self):
         events = []
 
@@ -82,7 +93,7 @@ class RecordDiagnosticTests(unittest.TestCase):
                         if factory is not async_stream:
                             value.close()
 
-    def test_failing_callable_names_record_and_preserves_original_cause(self):
+    def test_failing_callable_names_record_without_retaining_original(self):
         for pinned in (False, True):
             for hostile in (False, True):
                 with self.subTest(pinned=pinned, hostile=hostile):
@@ -107,16 +118,20 @@ class RecordDiagnosticTests(unittest.TestCase):
                     if pinned:
                         Prepared = Pin(Prepared)
 
-                    with self.assertRaises(TagCompositionError) as caught:
-                        Prepared(_target(pinned), seed=23)
-
-                    self.assertIs(caught.exception.__cause__, original)
+                    target = _target(pinned)
+                    issue = self.assert_record_warning(Prepared, target, seed=23)
+                    self.assertIsNone(issue.failure.__cause__)
                     self.assertEqual(
-                            str(caught.exception),
+                            str(issue.failure),
                             "Record Prepared.balance could not be materialized:"
                             " ValueError: value cannot be calculated",
                             )
-                    self.assertEqual(events, [23])
+                    self.assertEqual(issue.cause_type, "ValueError")
+                    self.assertEqual(issue.cause_text,
+                                     "value cannot be calculated")
+                    self.assertEqual(events, [23, "later"])
+                    self.assertIsNone(target.later)
+                    self.assertFalse("balance" @ target)
                     self.assertEqual(vars(builder), original_namespace)
 
     def test_aliased_function_reports_declaration_without_renaming_it(self):
@@ -130,15 +145,14 @@ class RecordDiagnosticTests(unittest.TestCase):
         class Prepared(Tag):
             balance = Record(Implementation)
 
-        with self.assertRaises(TagCompositionError) as caught:
-            Prepared(Host())
+        issue = self.assert_record_warning(Prepared, Host())
 
         self.assertEqual(
-                str(caught.exception),
+                str(issue.failure),
                 "Record Prepared.balance could not be materialized:"
                 " RuntimeError: builder failed",
                 )
-        self.assertIs(caught.exception.__cause__, original)
+        self.assertIsNone(issue.failure.__cause__)
         self.assertEqual(
                 (Implementation.__name__, Implementation.__qualname__),
                 metadata,
@@ -165,7 +179,7 @@ class RecordDiagnosticTests(unittest.TestCase):
                     self.assertTrue("balance" @ target)
                     self.assertEqual(events, [19])
 
-    def test_top_failures_remain_the_same_exception(self):
+    def test_top_failures_are_reported_as_training_failures(self):
         for pinned in (False, True):
             with self.subTest(pinned=pinned):
                 original = TagResolutionError("query failed")
@@ -178,10 +192,10 @@ class RecordDiagnosticTests(unittest.TestCase):
 
                 if pinned:
                     Prepared = Pin(Prepared)
-                with self.assertRaises(TagResolutionError) as caught:
-                    Prepared(_target(pinned))
-                self.assertIs(caught.exception, original)
-                self.assertIsNone(caught.exception.__cause__)
+                issue = self.assert_record_warning(Prepared, _target(pinned))
+                self.assertEqual(issue.cause_type, "TagResolutionError")
+                self.assertEqual(issue.cause_text, "query failed")
+                self.assertIsNone(issue.failure.__cause__)
 
     def test_python_interruptions_remain_the_same_exception(self):
         for pinned in (False, True):
@@ -196,9 +210,11 @@ class RecordDiagnosticTests(unittest.TestCase):
 
                 if pinned:
                     Prepared = Pin(Prepared)
+                target = _target(pinned)
                 with self.assertRaises(Stop) as caught:
-                    Prepared(_target(pinned))
+                    Prepared(target)
                 self.assertIs(caught.exception, original)
+                self.assertIn(target, Prepared[:])
 
     def test_declaration_name_text_never_runs_subclass_diagnostic_hooks(self):
         class Name(str):
@@ -220,16 +236,15 @@ class RecordDiagnosticTests(unittest.TestCase):
                         })
                 if pinned:
                     prepared = Pin(prepared)
-                with self.assertRaises(TagCompositionError) as caught:
-                    prepared(_target(pinned))
-                self.assertIs(caught.exception.__cause__, original)
+                issue = self.assert_record_warning(prepared, _target(pinned))
+                self.assertIsNone(issue.failure.__cause__)
                 self.assertEqual(
-                        str(caught.exception),
+                        str(issue.failure),
                         "Record Prepared.balance could not be materialized:"
                         " ValueError: builder failed",
                         )
 
-    def test_unprintable_exception_still_has_the_original_cause(self):
+    def test_unprintable_exception_has_safe_warning_text(self):
         class Unprintable(ValueError):
             def __str__(self):
                 raise RuntimeError("exception text cannot be calculated")
@@ -246,11 +261,12 @@ class RecordDiagnosticTests(unittest.TestCase):
 
                 if pinned:
                     Prepared = Pin(Prepared)
-                with self.assertRaises(TagCompositionError) as caught:
-                    Prepared(_target(pinned))
-                self.assertIs(caught.exception.__cause__, original)
+                issue = self.assert_record_warning(Prepared, _target(pinned))
+                self.assertIsNone(issue.failure.__cause__)
+                self.assertEqual(issue.cause_text,
+                                 "<exception text unavailable>")
                 self.assertEqual(
-                        str(caught.exception),
+                        str(issue.failure),
                         "Record Prepared.balance could not be materialized:"
                         " Unprintable: <exception text unavailable>",
                         )
