@@ -1,9 +1,13 @@
 """A recursive Post reads its own unfinished verdict as neutral True."""
 
+from contextvars import copy_context
 import unittest
+import weakref
 
-from TopKit import Contract, Post, Tag, TagCompositionError, Underlay
+from TopKit import Action, Contract, Post, Pre, Record, Secret, Tag, Underlay
+from TopKit import TagCompositionError
 from TopKit import TagPostconditionError
+from TopKit import TagPreconditionError
 
 
 class Host:
@@ -118,7 +122,283 @@ class PostNeutralCycleTests(unittest.TestCase):
         agent.safe = False
         self.assertFalse(agent.Ready)
 
-    def test_a_caught_top_change_still_fails_a_recursive_post(self):
+    def test_collective_post_cycle_bounds_eight_member_rechecks(self):
+        armed = [False]
+        checks = [0]
+
+        class Group(Tag):
+            @Post
+            def Everyone_Is_Sound(agent):
+                if not armed[0]:
+                    return True
+                checks[0] += 1
+                return len(Group) == len(Group[:])
+
+        members = [Host() for _ in range(8)]
+        for agent in members:
+            Group(agent)
+
+        armed[0] = True
+        self.assertEqual(len(Group), len(members))
+        self.assertLessEqual(checks[0], 2048)
+
+        # The memo belongs to one question. New questions see changed facts.
+        armed[0] = False
+        self.assertEqual(len(Group), len(members))
+
+    def test_bool_query_reuses_first_verdict_in_same_context_without_a_cycle(self):
+        armed = [False]
+        inside_pair = [False]
+        sensor_reads = [0]
+
+        class Sample(Tag):
+            @Post
+            def Pair(agent):
+                if not armed[0]:
+                    return True
+                inside_pair[0] = True
+                try:
+                    first = agent.Sensor
+                    second = agent.Sensor
+                finally:
+                    inside_pair[0] = False
+                return first and second
+
+            @Post
+            def Sensor(agent):
+                if not inside_pair[0]:
+                    return True
+                sensor_reads[0] += 1
+                return sensor_reads[0] == 1
+
+        agent = Host()
+        Sample(agent)
+        armed[0] = True
+
+        self.assertTrue(bool(agent))
+        self.assertEqual(sensor_reads[0], 1)
+        sensor_reads[0] = 0
+        self.assertTrue(bool(agent))
+        self.assertEqual(sensor_reads[0], 1)
+
+    def test_detailed_failure_reuses_its_verdict_within_the_same_query(self):
+        armed = [False]
+        reads = [0]
+
+        class Subject(Tag):
+            @Post
+            def Ready(agent):
+                if not armed[0]:
+                    return True
+                reads[0] += 1
+                return False
+
+        subject = Host()
+        Subject(subject)
+
+        class Witness(Tag):
+            @Post
+            def Checks_Twice(agent):
+                if not armed[0]:
+                    return True
+                for _ in range(2):
+                    try:
+                        Contract.Postconditions(subject)
+                    except TagPostconditionError.Ready:
+                        pass
+                return True
+
+        witness = Host()
+        Witness(witness)
+        armed[0] = True
+
+        self.assertTrue(bool(witness))
+        self.assertEqual(reads[0], 1)
+
+    def test_memo_preserves_the_active_post_context(self):
+        seen = []
+
+        class Mixed(Tag):
+            @Post
+            def Observer(agent):
+                seen.append(Contract.Status(agent))
+                return True
+
+            @Post
+            def First(agent):
+                return not agent.Second
+
+            @Post
+            def Second(agent):
+                return agent.First
+
+        agent = Host()
+        with self.assertRaises(TagPostconditionError.First):
+            Mixed(agent)
+
+        self.assertEqual(seen[-1], {
+                "Observer": True,
+                "First": False,
+                "Second": False,
+                })
+        self.assertFalse(agent.First)
+        self.assertFalse(agent.Second)
+
+    def test_pre_checks_do_not_reuse_post_verdicts_from_a_different_flow(self):
+        armed = [False]
+
+        class Mixed(Tag):
+            @Pre
+            def Gate(agent):
+                return True if not armed[0] else not agent.Promise
+
+            @Post
+            def Promise(agent):
+                try:
+                    return Contract.Preconditions(agent)
+                except TagPreconditionError.Gate:
+                    return False
+
+            @Post
+            def Witness(agent):
+                if not armed[0]:
+                    return True
+                try:
+                    Contract.Preconditions(agent)
+                except TagPreconditionError.Gate:
+                    pass
+                _ = agent.Witness
+                return agent.Promise
+
+        agent = Host()
+        Mixed(agent)
+        armed[0] = True
+
+        self.assertFalse(agent.Witness)
+        self.assertFalse(agent.Promise)
+        self.assertFalse(Contract.Status(agent)["Gate"])
+
+    def test_entering_a_pre_discards_earlier_post_verdicts(self):
+        armed = [False]
+        reads = [0]
+
+        class Subject(Tag):
+            @Pre
+            def Gate(agent):
+                return True
+
+            @Post
+            def Promise(agent):
+                reads[0] += 1
+                return True
+
+        subject = Host()
+        Subject(subject)
+        reads[0] = 0
+
+        class Witness(Tag):
+            @Post
+            def Safe(agent):
+                if not armed[0]:
+                    return True
+                _ = agent.Safe   # enable this query's cycle memo
+                self.assertTrue(subject.Promise)
+                self.assertTrue(Contract.Preconditions(subject))
+                self.assertTrue(subject.Promise)
+                return True
+
+        witness = Host()
+        Witness(witness)
+        armed[0] = True
+        self.assertTrue(witness.Safe)
+        self.assertEqual(reads[0], 2)
+
+    def test_secret_post_verdict_is_not_reused_after_its_door_closes(self):
+        armed = [False]
+
+        class Carrier(Tag):
+            @Secret
+            @Record
+            def code(agent):
+                return "private"
+
+            @Action
+            def Read_Promise(agent, subject):
+                return subject.Promise
+
+        carrier = Host()
+        Carrier(carrier)
+
+        class Subject(Tag):
+            @Post
+            def Promise(agent):
+                try:
+                    return carrier.code == "private"
+                except AttributeError:
+                    return False
+
+        subject = Host()
+        with self.assertRaises(TagPostconditionError.Promise):
+            Subject(subject)
+
+        class Witness(Tag):
+            @Post
+            def Safe(agent):
+                if not armed[0]:
+                    return True
+                self.assertTrue(carrier.Read_Promise(subject))
+                _ = agent.Safe   # the same query now has a cycle
+                return subject.Promise
+
+        witness = Host()
+        Witness(witness)
+        armed[0] = True
+
+        self.assertFalse(witness.Safe)
+
+    def test_secret_probe_in_a_copied_context_taints_the_parent_query(self):
+        armed = [False]
+        reads = [0]
+
+        class Carrier(Tag):
+            @Secret
+            @Record
+            def code(agent):
+                return "private"
+
+        carrier = Host()
+        Carrier(carrier)
+
+        class Subject(Tag):
+            @Post
+            def Promise(agent):
+                if not armed[0]:
+                    return True
+                reads[0] += 1
+                return reads[0] == 1
+
+        subject = Host()
+        Subject(subject)
+
+        class Witness(Tag):
+            @Post
+            def Safe(agent):
+                if not armed[0]:
+                    return True
+                try:
+                    copy_context().run(lambda: carrier.code)
+                except AttributeError:
+                    pass
+                return subject.Promise and subject.Promise
+
+        witness = Host()
+        Witness(witness)
+        armed[0] = True
+
+        self.assertFalse(bool(witness))
+        self.assertEqual(reads[0], 2)
+
+    def test_a_caught_top_change_cannot_be_cached_as_a_passing_post(self):
         seen = []
         calls = [0]
 
@@ -142,6 +422,22 @@ class PostNeutralCycleTests(unittest.TestCase):
 
         self.assertEqual(seen, [(False, False)])
         self.assertEqual(calls[0], 2)
+
+    def test_failed_detailed_post_does_not_keep_an_agent_alive(self):
+        class Checked(Tag):
+            @Post
+            def Ready(agent):
+                _ = len(Checked)   # open a nested Post query session
+                return False
+
+        def Fail_Once():
+            agent = Host()
+            reference = weakref.ref(agent)
+            with self.assertRaises(TagPostconditionError.Ready):
+                Checked(agent)
+            return reference
+
+        self.assertIsNone(Fail_Once()())
 
     def test_failed_post_diagnostic_keeps_a_hostile_name_inside_observation(self):
         class Mutated(Tag):

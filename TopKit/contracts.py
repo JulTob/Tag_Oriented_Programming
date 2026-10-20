@@ -31,6 +31,7 @@ from .errors import TagPreconditionError
 from .geometry import _leaves
 from .observation import _observing
 from .observation import _pre_observation
+from .observation import _reading_pre
 from .state import _namespace_of
 from .state import _State
 from .state import _name_of
@@ -41,22 +42,149 @@ Check = Callable[[object, dict[str, Any]], Any]
 
 
 class _Post_Check:
-    __slots__ = ("identity", "check_identity", "active")
+    __slots__ = (
+            "identity", "check_identity", "active", "session", "root",
+            "sensitive",
+            )
 
     def __init__(self, agent: object, check: Check) -> None:
         self.identity = id(agent)
         self.check_identity = id(check)
         self.active = True
+        session = _post_session()
+        self.root = session is None
+        self.session = session
+        self.sensitive = False
+
+
+class _Post_Session:
+    __slots__ = (
+            "active", "results", "sensitive",
+            )
+
+    def __init__(
+            self,
+            sensitive: bool,
+            ) -> None:
+        self.active = True
+        self.sensitive = sensitive
+        self.results: dict[
+                tuple[int, int, frozenset[tuple[int, int]]],
+                tuple[object, Check, bool],
+                ] = {}
+
+    def Taint(self) -> None:
+        if not self.active:
+            return
+        self.sensitive = True
+        self.results.clear()
 
 
 _post_checks: ContextVar[tuple[_Post_Check, ...]] = ContextVar(
         "topkit_post_checks", default=(),
         )
+_post_query_session: ContextVar[_Post_Session | None] = ContextVar(
+        "topkit_post_query", default=None,
+        )
+
+
+def _post_session() -> _Post_Session | None:
+    for check in reversed(_post_checks.get()):
+        if check.active:
+            if check.session is None or not check.session.active:
+                check.session = _Post_Session(
+                        check.sensitive or _reading_pre(),
+                        )
+                check.root = True
+            return check.session
+    session = _post_query_session.get()
+    return session if session is not None and session.active else None
+
+
+def _active_post_context() -> frozenset[tuple[int, int]]:
+    """A cycle's verdict depends on the checks already being evaluated."""
+
+    return frozenset(
+            (marker.identity, marker.check_identity)
+            for marker in _post_checks.get()
+            if marker.active
+            )
+
+
+@contextmanager
+def _post_evaluation() -> Iterator[None]:
+    """Keep one Post memo through a complete population truth query."""
+
+    if _post_session() is not None:
+        yield
+        return
+
+    session = _Post_Session(_reading_pre())
+    token = _post_query_session.set(session)
+    try:
+        yield
+    finally:
+        session.active = False
+        session.results.clear()
+        _post_query_session.reset(token)
+
+
+def _cached_post(agent: object, check: Check, inputs: dict[str, Any]) -> Any:
+    session = _post_session()
+    if (session is None or inputs or _memo_sensitive(session)):
+        return _MISSING
+
+    entry = session.results.get((id(agent), id(check), _active_post_context()))
+    return (entry[2] if entry is not None
+            and entry[0] is agent and entry[1] is check else _MISSING)
+
+
+def _remember_post(
+        agent: object,
+        check: Check,
+        inputs: dict[str, Any],
+        verdict: bool,
+        context: frozenset[tuple[int, int]] | None = None,
+        ) -> None:
+    session = _post_session()
+    if (session is not None and not inputs
+            and not _memo_sensitive(session)):
+        session.results[
+                (id(agent), id(check),
+                 _active_post_context() if context is None else context)
+                ] = (agent, check, verdict)
+
+
+def _memo_sensitive(session: _Post_Session) -> bool:
+    """Pre and Secret door contexts can change a Post's observed verdict."""
+
+    if _reading_pre():
+        session.Taint()
+    return session.sensitive
+
+
+def _taint_post_memo() -> None:
+    """A Pre or Secret probe invalidates even a session copied to a task."""
+
+    for marker in _post_checks.get():
+        if marker.active:
+            marker.sensitive = True
+            if marker.session is not None:
+                marker.session.Taint()
+
+    session = _post_query_session.get()
+    if session is not None and session.active:
+        session.Taint()
 
 
 @contextmanager
 def _checking_post(agent: object, check: Check) -> Iterator[Any]:
-    """Observe one Post; its exact check is neutral on recursive reads."""
+    """Mark and observe a Post's actual execution, independently of Pre reads.
+
+    The marker holds only identities until a nested query needs a session;
+    it is revoked on exit. A copied context cannot keep an Agent alive or
+    inherit an *active* check after the Post finishes.
+    """
 
     marker = _Post_Check(agent, check)
     token = _post_checks.set((*_post_checks.get(), marker))
@@ -66,6 +194,9 @@ def _checking_post(agent: object, check: Check) -> Iterator[Any]:
             yield flow
     finally:
         marker.active = False
+        if marker.root and marker.session is not None:
+            marker.session.active = False
+            marker.session.results.clear()
         _post_checks.reset(token)
 
 
@@ -334,9 +465,31 @@ def _evaluate(
         if post and _is_checking_post(agent, check):
             continue
 
+        if post:
+            cached = _cached_post(agent, check, inputs)
+            if cached is not _MISSING:
+                if not cached:
+                    cached_flow = None
+                    try:
+                        with _checking_post(agent, check) as cached_flow:
+                            raise failure.Named(name)(
+                                    f"{phase} {name!r} failed"
+                                    )
+                    except TagCompositionError as error:
+                        if (cached_flow is None
+                                or error is not cached_flow.violation):
+                            raise
+                        plain_name = str.__str__(name)
+                        raise failure.Named(plain_name)(
+                                f"{phase} {plain_name!r} raised"
+                                f" {_type_name(error)}: {_exception_text(error)}"
+                                ) from error
+                continue
+
         flow = None
         if post:
             observation = _checking_post(agent, check)
+            context = _active_post_context()
         elif phase == "Precondition":
             observation = _pre_observation()
         else:
@@ -356,6 +509,8 @@ def _evaluate(
                             ) from error
 
                 verdict = _verdict(result, f"{phase} {name!r}")
+                if post:
+                    _remember_post(agent, check, inputs, verdict, context)
                 if not verdict:
                     raise failure.Named(name)(
                             f"{phase} {name!r} failed"
@@ -415,6 +570,13 @@ def _guarded(
                 continue
 
             if scope == "postconditions":
+                cached = _cached_post(agent, check, {})
+                if cached is not _MISSING:
+                    if not cached:
+                        return False
+                    continue
+
+            if scope == "postconditions":
                 observation = _checking_post(agent, check)
             elif scope == "preconditions":
                 observation = _pre_observation()
@@ -424,10 +586,13 @@ def _guarded(
             try:
                 with observation:
                     verdict = _verdict(check(agent, {}), name)
+                if scope == "postconditions":
+                    _remember_post(agent, check, {}, verdict)
                 if not verdict:
                     return False
             except Exception:
                 return False
+
 
         return True
     finally:
@@ -447,16 +612,26 @@ def _holds(
     if state is None or not state.postconditions:
         return True   # nothing promised
 
+    nested = bool(_post_checks.get() or _post_query_session.get() is not None)
     state.composing += 1
 
     try:
         for name, check in state.postconditions.items():
-            if _is_checking_post(agent, check):
-                continue
+            if nested:
+                if _is_checking_post(agent, check):
+                    continue
+
+                cached = _cached_post(agent, check, {})
+                if cached is not _MISSING:
+                    if not cached:
+                        return False
+                    continue
 
             try:
                 with _checking_post(agent, check):
                     verdict = _verdict(check(agent, {}), name)
+                if nested:
+                    _remember_post(agent, check, {}, verdict)
                 if not verdict:
                     return False
             except Exception:
@@ -488,6 +663,11 @@ def _condition_member(
     if post and _is_checking_post(agent, check):
         return True
 
+    if post:
+        cached = _cached_post(agent, check, {})
+        if cached is not _MISSING:
+            return cached
+
     reentrant = state.checking
     if not post:
         state.checking = True
@@ -500,6 +680,8 @@ def _condition_member(
                         check(agent, {}),
                         name,
                         )
+            if post:
+                _remember_post(agent, check, {}, verdict)
             return verdict
         except TagContractError:
             raise
@@ -536,6 +718,12 @@ def _status_of(
                 status[result_name] = True
                 continue
 
+            if scope == "postconditions":
+                cached = _cached_post(agent, check, {})
+                if cached is not _MISSING:
+                    status[result_name] = cached
+                    continue
+
             try:
                 observation = (
                         _checking_post(agent, check)
@@ -544,6 +732,8 @@ def _status_of(
                         )
                 with observation:
                     verdict = _verdict(check(agent, {}), name)
+                if scope == "postconditions":
+                    _remember_post(agent, check, {}, verdict)
                 status[result_name] = verdict
             except Exception:
                 status[result_name] = False

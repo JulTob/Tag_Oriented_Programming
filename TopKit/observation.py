@@ -6,10 +6,12 @@ It does not isolate ordinary Python attribute writes or I/O.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from contextvars import ContextVar
 from contextvars import Token
 from typing import Any
 from typing import Callable
+from typing import Iterator
 
 from .errors import TagCompositionError
 
@@ -27,6 +29,23 @@ _pre_flow: ContextVar[_Pre_Flow | None] = ContextVar(
         "TopKit_precondition_observation",
         default=None,
         )
+
+
+class _Pre_Read:
+    __slots__ = ("active",)
+
+    def __init__(self) -> None:
+        self.active = True
+
+
+_pre_reads: ContextVar[tuple[_Pre_Read, ...]] = ContextVar(
+        "TopKit_precondition_reads",
+        default=(),
+        )
+
+
+def _reading_pre() -> bool:
+    return any(marker.active for marker in _pre_reads.get())
 
 
 def _refuse_pre_mutation(act: str) -> None:
@@ -88,10 +107,25 @@ def _observing(phase: str) -> _Observation:
     return _Observation(phase)
 
 
-def _pre_observation() -> _Observation:
+@contextmanager
+def _pre_observation() -> Iterator[_Pre_Flow]:
     """Observe a Precondition, retaining the existing guarded TOP boundary."""
 
-    return _observing("a Precondition")
+    # A copied execution context may share a Post session but not its epoch.
+    from .contracts import _taint_post_memo
+
+    _taint_post_memo()
+    marker = _Pre_Read()
+    token = _pre_reads.set((*_pre_reads.get(), marker))
+    try:
+        with _observing("a Precondition") as flow:
+            yield flow
+    finally:
+        # Also taint a Post that began while this Pre was running and may
+        # continue in a copied context after the Pre ends here.
+        _taint_post_memo()
+        marker.active = False
+        _pre_reads.reset(token)
 
 
 def _observe_pre(
