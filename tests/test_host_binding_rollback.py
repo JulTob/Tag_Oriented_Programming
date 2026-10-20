@@ -331,7 +331,7 @@ class HostBindingRollbackTests(unittest.TestCase):
         host.kept = "broken"
         self.assertFalse(host.Ready)
         self.assertFalse(bool(host))
-        self.assertIn(host, Inner)   # raw admission remains until Rip
+        self.assertNotIn(host, Inner)   # sound membership follows the broken Post
         self.assertIn(host, ~Inner)
         self.assertIn(host, Inner[:])
 
