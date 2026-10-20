@@ -46,14 +46,16 @@
   successful Constant bindings are protected before later Gainings.
 - Gate and candidate-Overlay evaluation now follow the Base-first Tag chain
   without removing completed Bases when a later Tag refuses or collides.
-- **Admission follows completed training (STEP-SPEC-39):** each Tag passes
-  its Gate, acquires Gains in declaration order, finishes its Imprints, then
-  enters the Field. Failed Gainings or Imprints retain acquired Gains and
-  Posts without admitting the unfinished Tag. Earlier completed Tags stay;
-  Tagging again starts a fresh attempt. Every visible Post is checked after
-  each Tag's Field entry, before the next Tag's Gate; a failed Post preserves
-  this membership and stops the remaining Form. A Base Post must hold before
-  its Shape starts. Tool gains use the same order:
+- **Admission follows Imprint attempts (STEP-SPEC-39, amended):** each Tag passes
+  its Gate, acquires Gains in declaration order, attempts its Imprints, then
+  enters the Field. A failed Gaining retains acquired Gains and Posts without
+  admitting that Tag; retry starts a fresh attempt. An ordinary Imprint
+  failure emits a named Training Warning, lets later Imprints run, and still
+  admits the Agent. Earlier completed Tags stay. Every visible Post is
+  checked after each Tag's Field entry, before the next Tag's Gate; a failed
+  Post preserves this membership and stops the remaining Form. Several
+  failed Posts produce one `TaggingFailure` naming each. A Base Post must
+  hold before its Shape starts. Tool gains use the same order:
   their proposed kind is checked before replacing the prior binding or rule,
   and an acquired Tool remains guarded on a Rogue.
 
