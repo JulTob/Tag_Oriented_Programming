@@ -150,6 +150,23 @@ takes a string name; other left operands keep their ordinary `@`
 behaviour. A pinned Tag can be queried as an Agent, but a bare, unpinned
 Tag has no TOP presence query.
 
+#### Proposal: neutral answers from ended Features
+
+> This is a reviewed design proposal, not current TopKit behavior.
+
+STEP-SPEC-59 proposes that a Feature deliberately ended at an Agent can answer
+with its neutral value and a `MissingFeatureWarning`: an Action becomes a
+no-op, a Record recalls `None`, and lazy callables keep an empty result of
+their declared coroutine or iterator shape. Names TOP has never known still
+raise `AttributeError`, so a typo does not quietly become a no-op.
+
+TOP presence remains explicit: `"name" @ agent` is false for the ended
+Feature. Python `hasattr` cannot agree when direct lookup returns a neutral
+value, because `hasattr` is true whenever lookup does not raise
+`AttributeError`. Read the full proposal, its security boundaries, and its
+four open choices in
+[Neutral answers from ended Agent Features](../wiki/1.8-TopKit-Neutral-Features.md).
+
 ### A Tag can be taken away. What it gave stays.
 
 ```python
