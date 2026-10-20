@@ -70,6 +70,7 @@ from .lifecycle import _retry_arrested
 from .state import Tagged
 from .state import _name_of
 from .state import _state_of
+from .state import _view_subject
 from .transactions import _apply
 
 
@@ -217,6 +218,8 @@ class MetaTag(type):
                     f" {tag.__name__}(target)"
                     )
 
+        target = _view_subject(target)
+
         if _is_link_tag(tag):
             return _links()._link(
                     tag,
@@ -260,14 +263,18 @@ class MetaTag(type):
                     )
 
         field = _field_of(tag)
+        candidate = field._Member(candidate)
+
+        if candidate is None:
+            return False
+
         holds = (
                 _links()._contact_holds(tag)
                 if tag._topkit_kind == "link"
                 else _holds_for_population
                 )
         return (
-                candidate in field
-                and _arrest_of(candidate) is None
+                _arrest_of(candidate) is None
                 and holds(candidate)
                 and _arrest_of(candidate) is None
                 and candidate in field
@@ -280,6 +287,10 @@ class MetaTag(type):
         if tag._topkit_kind is not None:
             _refuse_relation(tag)   # a Relation or a Pair Tag; one attribute read for every other Tag
         state = _state_of(candidate)
+
+        if state is None:
+            candidate = _view_subject(candidate)
+            state = _state_of(candidate)
 
         if state is not None and (
                 tag in state.ever
@@ -378,11 +389,13 @@ class MetaTag(type):
             return _field_of(tag)
 
         if _is_link_tag(tag):
+            key = _view_subject(key)
             return _links()._pair_view_of(
                     tag,
                     key,
                     )
 
+        key = _view_subject(key)
         return _view_of(
                 key,
                 tag,
@@ -407,9 +420,10 @@ class MetaTag(type):
 
             if tag is Tag:
                 raise TagResolutionError("root Tag has no Field to Rip")
-
             _rip_field(tag)
             return
+
+        agent = _view_subject(agent)
 
         if tag is Tag:
             # Root Tag[...] sees every arrest, but root deletion handles only
