@@ -15,6 +15,42 @@ class Host:
 
 
 class BestEffortImprintTests(unittest.TestCase):
+    def test_hostile_exception_traceback_access_does_not_stop_training(self):
+        events = []
+
+        class Hostile(Exception):
+            def __getattribute__(self, name):
+                if name == "__traceback__":
+                    raise RuntimeError("traceback access refused")
+                return super().__getattribute__(name)
+
+        class Vehicle(Tag):
+            @Imprint
+            def Break(agent):
+                events.append("break")
+                raise Hostile("training failed")
+
+            @Imprint
+            def Continue(agent):
+                events.append("continue")
+
+            @Post
+            def Ready(agent):
+                events.append("post")
+                return True
+
+        agent = Host()
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", TagTrainingWarning)
+            self.assertIs(Vehicle(agent), agent)
+
+        self.assertEqual(events, ["break", "continue", "post"])
+        self.assertEqual([issue.message.name for issue in caught], ["Break"])
+        self.assertEqual(caught[0].message.cause_type, "Hostile")
+        self.assertEqual(caught[0].message.cause_text, "training failed")
+        self.assertEqual(caught[0].message.origin[0], __file__)
+        self.assertIn(agent, Vehicle)
+
     def test_each_failure_warns_in_order_and_later_training_still_runs(self):
         events = []
 

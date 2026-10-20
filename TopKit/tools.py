@@ -383,7 +383,10 @@ def _advice(
         first = tags[0].__name__
 
         if built:
-            return f"Tag it in the builder, {first}(...)"
+            return (
+                    f"Use an already tagged {first}; a previously"
+                    " completed Tag's Imprint can prepare it"
+                    )
 
         return f"Tag it first, {first}(...), or hand over a {first}"
 

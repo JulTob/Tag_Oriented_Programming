@@ -239,7 +239,7 @@ class NestedImprintTests(unittest.TestCase):
         self.assertNotIn(agent, Refused[:])
         self.assertFalse(isinstance(agent, Refused))
 
-    def test_interrupted_record_keeps_earlier_gains_without_admission(self):
+    def test_interrupted_record_keeps_earlier_gains_and_admits(self):
         failure = KeyboardInterrupt()
 
         class Unfinished(Tag):
@@ -260,28 +260,27 @@ class NestedImprintTests(unittest.TestCase):
         self.assertTrue("value" @ agent)
         self.assertIsNone(agent.value)
         self.assertFalse("Stop" @ agent)
-        self.assertNotIn(agent, Unfinished[:])
-        self.assertFalse(isinstance(agent, Unfinished))
+        self.assertIn(agent, Unfinished[:])
+        self.assertTrue(isinstance(agent, Unfinished))
 
-    def test_record_failure_uses_its_own_phase_despite_nested_post_failure(self):
-        class Inner(Tag):
+    def test_record_warning_precedes_the_final_failed_post(self):
+        class Outer(Tag):
+            @Record
+            def item(agent):
+                raise RuntimeError("measurement failed")
+
             @Post
             def Ready(agent):
                 return False
 
-        class Outer(Tag):
-            @Record
-            def item(agent):
-                Inner(agent)
-                return "not built"
-
         agent = Host()
-        with self.assertRaises(TagPostconditionError.Ready):
-            Outer(agent)
-        self.assertIn(agent, Inner[:])
-        self.assertNotIn(agent, Outer[:])
-        self.assertTrue(isinstance(agent, Inner))
-        self.assertIn(agent, ~Inner)
+        with self.assertWarns(TagTrainingWarning) as warned:
+            with self.assertRaises(TagPostconditionError.Ready):
+                Outer(agent)
+        self.assertEqual(warned.warning.name, "item")
+        self.assertEqual(warned.warning.cause_type, "RuntimeError")
+        self.assertIn(agent, Outer[:])
+        self.assertIn(agent, ~Outer)
         self.assertFalse("item" @ agent)
 
     def test_nested_form_stops_at_base_post_before_shape_imprint(self):
@@ -335,16 +334,18 @@ class NestedImprintTests(unittest.TestCase):
 
         agent = Host()
         agent.original = "kept"
-        with self.assertRaises(TagImprintError):
+        with self.assertWarns(TagTrainingWarning) as warned:
             Shape(agent)
+        self.assertEqual(warned.warning.name, "item")
+        self.assertEqual(warned.warning.cause_type, "TagImprintError")
         self.assertEqual(events, ["trained"])
         self.assertEqual(agent.original, "kept")
         self.assertEqual(agent.badge, "built")
         self.assertIn(agent, Base[:])
         self.assertTrue(isinstance(agent, Base))
         self.assertEqual(Base[agent].badge, "built")
-        self.assertNotIn(agent, Shape[:])
-        self.assertFalse(isinstance(agent, Shape))
+        self.assertIn(agent, Shape[:])
+        self.assertTrue(isinstance(agent, Shape))
         self.assertFalse("item" @ agent)
 
     def test_interrupted_quality_check_preserves_the_completed_training(self):

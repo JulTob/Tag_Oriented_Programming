@@ -1,9 +1,11 @@
-"""Tool admission follows ordered Gainings and keeps acquired Rogue state."""
+"""Tool admission checks each gained value before its binding sticks."""
 
 import unittest
+import warnings
 
 from TopKit import (Action, Contract, Imprint, Post, Record, Tag, Tool,
-                    TagCompositionError, TagTrainingWarning)
+                    TagCompositionError, TagPostconditionError,
+                    TagTrainingWarning)
 
 
 class Host:
@@ -108,7 +110,7 @@ class ToolAdmissionTests(unittest.TestCase):
         Equipped(agent, weapon=sword)
         self.assertIs(agent.same_weapon, sword)
 
-    def test_failed_admission_retains_earlier_gains_and_posts_without_entry(self):
+    def test_failed_tool_value_keeps_other_gains_and_post_judges_member(self):
         class Unfinished(Tag):
             @Record
             def first(agent):
@@ -124,16 +126,20 @@ class ToolAdmissionTests(unittest.TestCase):
 
             @Record
             def later(agent):
-                return "not reached"
+                return "reached"
 
         agent = Host()
-        with self.assertRaisesRegex(TagCompositionError, r"Unfinished\.weapon"):
-            Unfinished(agent)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", TagTrainingWarning)
+            with self.assertRaises(TagPostconditionError.Ready):
+                Unfinished(agent)
         self.assertEqual(agent.first, "already gained")
         self.assertFalse("weapon" @ agent)
-        self.assertFalse("later" @ agent)
+        self.assertEqual(agent.later, "reached")
         self.assertEqual(Contract.Status(agent), {"Ready": False})
-        self.assertNotIn(agent, Unfinished[:])
+        self.assertIn(agent, Unfinished[:])
+        self.assertNotIn(agent, Unfinished)
+        self.assertEqual([entry.message.name for entry in caught], ["weapon"])
 
     def test_failed_replacement_preserves_the_previous_value_and_policy(self):
         class Equipped(Tag):
@@ -149,12 +155,12 @@ class ToolAdmissionTests(unittest.TestCase):
         sword = Sword()
         agent = Host()
         Equipped(agent, weapon=sword)
-        with self.assertRaises(TagCompositionError):
+        with self.assertWarns(TagTrainingWarning.weapon):
             Changed(agent)
         self.assertIs(agent.weapon, sword)
         with self.assertRaises(TagCompositionError):
             agent.weapon = Shield()
-        self.assertNotIn(agent, Changed[:])
+        self.assertIn(agent, Changed[:])
 
     def test_imprint_failure_retains_the_tool_and_its_admission_rule(self):
         class Unfinished(Tag):
@@ -206,11 +212,12 @@ class ToolAdmissionTests(unittest.TestCase):
         original = Sword()
         Equipped(agent, replacement=original)
         del Equipped[agent]
-        with self.assertRaises(TagCompositionError):
+        with self.assertWarns(TagTrainingWarning.weapon):
             Equipped(agent, replacement=Shield())
         self.assertIs(agent.weapon, original)
-        self.assertNotIn(agent, Equipped[:])
+        self.assertIn(agent, Equipped[:])
         replacement = Sword()
+        del Equipped[agent]            # a fresh training turn needs a fresh Tagging
         Equipped(agent, replacement=replacement)
         self.assertIs(agent.weapon, replacement)
 
@@ -234,12 +241,15 @@ class ToolAdmissionTests(unittest.TestCase):
         rejected = Sword()
         rejected.reject = True
         agent = Host()
-        with self.assertRaisesRegex(TagCompositionError, r"Equipped\.weapon") as caught:
+        with self.assertWarns(TagTrainingWarning.weapon) as caught:
             Equipped(agent, weapon=rejected)
-        self.assertIs(caught.exception.__cause__, failure)
+        self.assertIn("Equipped.weapon", str(caught.warning))
+        self.assertIn("class admission failed", str(caught.warning.failure))
+        self.assertEqual(caught.warning.cause_type, "TagCompositionError")
         self.assertFalse("weapon" @ agent)
-        self.assertNotIn(agent, Equipped[:])
+        self.assertIn(agent, Equipped[:])
         original = Sword()
+        del Equipped[agent]
         Equipped(agent, weapon=original)
         with self.assertRaisesRegex(TagCompositionError, r"Equipped\.weapon") as caught:
             agent.weapon = rejected
@@ -270,8 +280,9 @@ class ToolAdmissionTests(unittest.TestCase):
             Equipped(agent, weapon=interrupted)
         self.assertIs(caught.exception, interruption)
         self.assertFalse("weapon" @ agent)
-        self.assertNotIn(agent, Equipped[:])
+        self.assertIn(agent, Equipped[:])
         original = Sword()
+        del Equipped[agent]
         Equipped(agent, weapon=original)
         with self.assertRaises(KeyboardInterrupt) as caught:
             object.__setattr__(agent, "weapon", interrupted)
