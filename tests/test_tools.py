@@ -7,7 +7,8 @@ or several of them, all holding; ``| None`` declares the empty hand.
 Three laws: the slot has a kind, checked at admission (at the gaining
 and at every write, ``object.__setattr__`` included); the slot is never
 empty unless its kind says ``| None``; the slot never Tags, the forge
-does.
+does. Successful Tool builders only receive prepared values; the
+Imprint and Action examples below deliberately Forge during execution.
 """
 
 import gc
@@ -66,8 +67,8 @@ def Forge(agent, label="sword"):
 
 class Fighter(Tag):
     @Tool(Weapon)
-    def weapon(agent):
-        return Forge(agent)
+    def weapon(agent, *, weapon):
+        return weapon
 
 
 class Squire(Tag):
@@ -90,7 +91,7 @@ class Swordsman(Tag):
 class Tag_Kind_Tests(unittest.TestCase):
     def test_the_gained_slot_holds_a_member_of_its_kind(self):
         charlie = Character("Charlie")
-        Fighter(charlie)
+        Fighter(charlie, weapon=Forge(charlie))
         self.assertIn(charlie.weapon, Weapon[:])
         self.assertNotIn(charlie, Weapon[:])             # the bearer is not a Weapon
         self.assertTrue("weapon" @ charlie)
@@ -98,7 +99,7 @@ class Tag_Kind_Tests(unittest.TestCase):
 
     def test_a_non_member_is_refused_at_the_write_and_nothing_changes(self):
         charlie = Character("Charlie")
-        Fighter(charlie)
+        Fighter(charlie, weapon=Forge(charlie))
         held = charlie.weapon
         with self.assertRaises(TagCompositionError) as refusal:
             charlie.weapon = Sword("a stick")
@@ -110,7 +111,7 @@ class Tag_Kind_Tests(unittest.TestCase):
 
     def test_object_setattr_passes_the_same_admission(self):
         charlie = Character("Charlie")
-        Fighter(charlie)
+        Fighter(charlie, weapon=Forge(charlie))
         held = charlie.weapon
         with self.assertRaises(TagCompositionError):
             object.__setattr__(charlie, "weapon", Sword("a stick"))
@@ -118,14 +119,14 @@ class Tag_Kind_Tests(unittest.TestCase):
 
     def test_a_member_is_admitted_by_assignment(self):
         charlie = Character("Charlie")
-        Fighter(charlie)
+        Fighter(charlie, weapon=Forge(charlie))
         other = Forge(charlie, "other")
         charlie.weapon = other
         self.assertIs(charlie.weapon, other)
 
     def test_an_agent_of_a_shape_of_the_kind_is_admitted(self):
         charlie = Character("Charlie")
-        Fighter(charlie)
+        Fighter(charlie, weapon=Forge(charlie))
         long = Sword("long")
         Longsword(long)                                   # membership is closed upward
         charlie.weapon = long
@@ -138,7 +139,7 @@ class Tag_Kind_Tests(unittest.TestCase):
                 return tool.damage > 0
 
         charlie = Character("Charlie")
-        Fighter(charlie)
+        Fighter(charlie, weapon=Forge(charlie))
         blunt = Forge(charlie, "blunt")
         Sharp(blunt)
         blunt.damage = 0
@@ -148,14 +149,14 @@ class Tag_Kind_Tests(unittest.TestCase):
 
     def test_a_rogue_of_the_kind_is_refused_but_stays_in_hand(self):
         charlie = Character("Charlie")
-        Fighter(charlie)
+        Fighter(charlie, weapon=Forge(charlie))
         held = charlie.weapon
         del Weapon[held]                                  # a Rogue in hand: admission is a gate
         self.assertIs(charlie.weapon, held)
         self.assertTrue("weapon" @ charlie)
         self.assertNotIn(charlie.weapon, Weapon[:])
         bob = Character("Bob")
-        Fighter(bob)
+        Fighter(bob, weapon=Forge(bob))
         with self.assertRaises(TagCompositionError) as refusal:
             bob.weapon = held                             # moved to another slot: refused
         self.assertIn("left Weapon", str(refusal.exception))
@@ -163,13 +164,13 @@ class Tag_Kind_Tests(unittest.TestCase):
     def test_a_kind_of_two_tags_asks_for_both(self):
         class Holy(Tag):
             @Tool(Weapon, Blessed)
-            def weapon(agent):
-                sword = Forge(agent)
-                Blessed(sword)
-                return sword
+            def weapon(agent, *, weapon):
+                return weapon
 
         hugh = Character("Hugh")
-        Holy(hugh)
+        sword = Forge(hugh)
+        Blessed(sword)
+        Holy(hugh, weapon=sword)
         plain = Forge(hugh, "plain")
         with self.assertRaises(TagCompositionError) as refusal:
             hugh.weapon = plain
@@ -197,7 +198,7 @@ class Tag_Kind_Tests(unittest.TestCase):
 
     def test_the_bearer_is_admitted_only_when_it_is_of_the_kind(self):
         charlie = Character("Charlie")
-        Fighter(charlie)
+        Fighter(charlie, weapon=Forge(charlie))
         with self.assertRaises(TagCompositionError):
             charlie.weapon = charlie                      # not a Weapon: refused as any non-member
         Weapon(charlie)
@@ -211,7 +212,7 @@ class Tag_Kind_Tests(unittest.TestCase):
                 return tool.damage > 0
 
         charlie = Character("Charlie")
-        Fighter(charlie)
+        Fighter(charlie, weapon=Forge(charlie))
         Sharp(charlie.weapon)
         charlie.weapon.damage = 0
         self.assertTrue("weapon" @ charlie)
@@ -437,7 +438,7 @@ class Class_Kind_Tests(unittest.TestCase):
 class Emptiness_Tests(unittest.TestCase):
     def test_none_is_refused_at_the_write_without_the_empty_hand(self):
         charlie = Character("Charlie")
-        Fighter(charlie)
+        Fighter(charlie, weapon=Forge(charlie))
         held = charlie.weapon
         with self.assertRaises(TagCompositionError) as refusal:
             charlie.weapon = None
@@ -460,7 +461,7 @@ class Emptiness_Tests(unittest.TestCase):
 
     def test_del_is_the_drop_and_the_kind_stays(self):
         charlie = Character("Charlie")
-        Fighter(charlie)
+        Fighter(charlie, weapon=Forge(charlie))
         del charlie.weapon
         self.assertFalse("weapon" @ charlie)
         self.assertIn(charlie, Fighter)
@@ -507,7 +508,7 @@ class Emptiness_Tests(unittest.TestCase):
 class Forge_Tests(unittest.TestCase):
     def test_the_slot_tags_nothing(self):
         charlie = Character("Charlie")
-        Fighter(charlie)
+        Fighter(charlie, weapon=Forge(charlie))
         plain = Sword("plain")
         with self.assertRaises(TagCompositionError):
             charlie.weapon = plain                        # refused, not Tagged
@@ -581,24 +582,24 @@ class Declaration_Tests(unittest.TestCase):
     def test_tool_alone_declares_the_record_and_record_may_restate_it(self):
         class Plain(Tag):
             @Tool(Weapon)
-            def weapon(agent):
-                return Forge(agent)
+            def weapon(agent, *, weapon):
+                return weapon
 
         class Restated(Tag):
             @Record
             @Tool(Weapon)
-            def weapon(agent):
-                return Forge(agent)
+            def weapon(agent, *, weapon):
+                return weapon
 
         class Restated_Below(Tag):
             @Tool(Weapon)
             @Record
-            def weapon(agent):
-                return Forge(agent)
+            def weapon(agent, *, weapon):
+                return weapon
 
         for tag in (Plain, Restated, Restated_Below):
             agent = Character(tag.__name__)
-            tag(agent)
+            tag(agent, weapon=Forge(agent))
             self.assertIn(agent.weapon, Weapon[:])
             with self.assertRaises(TagCompositionError):
                 agent.weapon = Sword("a stick")
@@ -614,7 +615,7 @@ class Declaration_Tests(unittest.TestCase):
             class Invalid(Tag):
                 @Tool
                 def weapon(agent):
-                    return Forge(agent)
+                    return None
         self.assertIn("parentheses", str(refusal.exception))
 
     def test_the_roots_name_no_kind(self):
@@ -674,7 +675,7 @@ class Declaration_Tests(unittest.TestCase):
                 with self.subTest(kind=kind.__name__, tool_outside=tool_outside):
                     with self.assertRaises(TagDeclarationError):
                         def weapon(agent):
-                            return Forge(agent)
+                            return None
 
                         if tool_outside:
                             member = Tool(Sword)(kind(weapon))
@@ -697,7 +698,7 @@ class Declaration_Tests(unittest.TestCase):
             class Armory(Tag):
                 @Tool(Weapon)
                 def standard(tag):
-                    return Forge(tag)
+                    return None
         self.assertIn("a shared tool is a Report", str(refusal.exception))
 
         @Pin
@@ -708,30 +709,28 @@ class Declaration_Tests(unittest.TestCase):
             class Armory_Shape(Collection):
                 @Tool(Weapon)
                 def standard(tag):
-                    return Forge(tag)
+                    return None
 
     def test_a_private_name_is_refused(self):
         with self.assertRaises(TagDeclarationError):
             class Hidden(Tag):
                 @Tool(Weapon)
                 def _weapon(agent):
-                    return Forge(agent)
+                    return None
 
     def test_the_builder_keeps_its_three_seats(self):
         class Armed_With(Tag):
             @Tool(Weapon)
             def weapon(agent, stored=None, *, weapon=None):
-                if weapon is not None:
-                    Weapon(weapon)
-                    return weapon
-                return Forge(agent) if stored is None else stored
+                return weapon if weapon is not None else stored
 
         gift = Sword("a gift")
+        Weapon(gift)
         charlie = Character("Charlie")
         Armed_With(charlie, weapon=gift)
         self.assertIs(charlie.weapon, gift)
         bob = Character("Bob")
-        Armed_With(bob)
+        Armed_With(bob, weapon=Forge(bob))
         self.assertIn(bob.weapon, Weapon[:])
 
 
@@ -745,19 +744,19 @@ class Stacking_Tests(unittest.TestCase):
         class Oathbound(Tag):
             @Constant
             @Tool(Weapon)
-            def relic(agent):
-                return Forge(agent, "relic")
+            def relic(agent, *, relic):
+                return relic
 
         class Sworn(Tag):
             @Tool(Weapon)
             @Constant
-            def relic(agent):
-                return Forge(agent, "relic")
+            def relic(agent, *, relic):
+                return relic
 
         for tag in (Oathbound, Sworn):
             with self.subTest(tag=tag.__name__):
                 agent = Character(tag.__name__)
-                tag(agent)
+                tag(agent, relic=Forge(agent, "relic"))
                 relic = agent.relic
                 with self.assertRaises(TagCompositionError):
                     agent.relic = Forge(agent, "copy")
@@ -773,8 +772,8 @@ class Stacking_Tests(unittest.TestCase):
         class Concealed(Tag):
             @Secret
             @Tool(Weapon)
-            def dagger(agent):
-                return Forge(agent, "dagger")
+            def dagger(agent, *, dagger):
+                return dagger
 
             @Action
             def Draw(agent):
@@ -783,8 +782,8 @@ class Stacking_Tests(unittest.TestCase):
         class Hidden(Tag):
             @Tool(Weapon)
             @Secret
-            def dagger(agent):
-                return Forge(agent, "dagger")
+            def dagger(agent, *, dagger):
+                return dagger
 
             @Action
             def Draw(agent):
@@ -793,7 +792,7 @@ class Stacking_Tests(unittest.TestCase):
         for tag in (Concealed, Hidden):
             with self.subTest(tag=tag.__name__):
                 agent = Character(tag.__name__)
-                tag(agent)
+                tag(agent, dagger=Forge(agent, "dagger"))
                 with self.assertRaises(AttributeError):
                     agent.dagger
                 dagger = agent.Draw()
@@ -805,19 +804,19 @@ class Stacking_Tests(unittest.TestCase):
         class Shown(Tag):
             @Public
             @Tool(Weapon)
-            def weapon(agent):
-                return Forge(agent)
+            def weapon(agent, *, weapon):
+                return weapon
 
         class Displayed(Tag):
             @Tool(Weapon)
             @Public
-            def weapon(agent):
-                return Forge(agent)
+            def weapon(agent, *, weapon):
+                return weapon
 
         for tag in (Shown, Displayed):
             with self.subTest(tag=tag.__name__):
                 agent = Character(tag.__name__)
-                tag(agent)
+                tag(agent, weapon=Forge(agent))
                 self.assertIn(agent.weapon, Weapon[:])
                 with self.assertRaises(TagCompositionError):
                     agent.weapon = Sword("a stick")
@@ -833,11 +832,12 @@ class Overlay_Tests(unittest.TestCase):
         class Paladin(Fighter):
             @Tool(Weapon, Blessed)
             def weapon(agent, stored):
-                Blessed(stored)
                 return stored
 
         pat = Character("Pat")
-        Paladin(pat)
+        sword = Forge(pat)
+        Blessed(sword)
+        Paladin(pat, weapon=sword)
         self.assertIn(pat.weapon, Weapon[:])
         self.assertIn(pat.weapon, Blessed[:])
         plain = Forge(pat, "plain")
@@ -851,7 +851,7 @@ class Overlay_Tests(unittest.TestCase):
                 return stored
 
         pat = Character("Pat")
-        Collector(pat)
+        Collector(pat, weapon=Forge(pat))
         del Weapon[pat.weapon]
         rogue = pat.weapon
         pat.weapon = Sword("plain")                       # the Shape's kind is the slot's now
@@ -866,7 +866,7 @@ class Overlay_Tests(unittest.TestCase):
                 return stored
 
         pat = Character("Pat")
-        Rearmed(pat)
+        Rearmed(pat, weapon=Forge(pat))
         self.assertIn(pat.weapon, Weapon[:])
         pat.weapon = "a stick"                            # a Record is a Record again
         self.assertEqual(pat.weapon, "a stick")
@@ -878,7 +878,7 @@ class Overlay_Tests(unittest.TestCase):
                 return Forge(agent)
 
         pat = Character("Pat")
-        Smith(pat)
+        Smith(pat, weapon=Forge(pat))
         self.assertIn(pat.weapon(), Weapon[:])            # a smith: every call forges
 
     def test_an_independent_record_replaces_with_the_usual_warning_and_ends_the_rule(self):
@@ -888,7 +888,7 @@ class Overlay_Tests(unittest.TestCase):
                 return "a stick"
 
         charlie = Character("Charlie")
-        Fighter(charlie)
+        Fighter(charlie, weapon=Forge(charlie))
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always", TagOverwriteWarning)
             Other(charlie)
@@ -903,7 +903,7 @@ class Overlay_Tests(unittest.TestCase):
                 return "a stick"
 
         charlie = Character("Charlie")
-        Fighter(charlie)
+        Fighter(charlie, weapon=Forge(charlie))
         held = charlie.weapon
         with self.assertRaises(TagCompositionError):
             Other(charlie)
@@ -923,10 +923,10 @@ class Overlay_Tests(unittest.TestCase):
                 return "a stick, and nobody minds"
 
         charlie = Character("Charlie")
-        Unarmed(charlie)
+        Unarmed(charlie, weapon=Forge(charlie))
         self.assertFalse("weapon" @ charlie)
         bob = Character("Bob")
-        Rearmed(bob)
+        Rearmed(bob, weapon=Forge(bob))
         self.assertEqual(bob.weapon, "a stick, and nobody minds")
 
     def test_a_tool_over_a_plain_record_takes_the_slot_and_guards_it(self):
@@ -937,11 +937,11 @@ class Overlay_Tests(unittest.TestCase):
 
         class Knight(Carrying):
             @Tool(Weapon)
-            def weapon(agent, stored):
-                return Forge(agent)
+            def weapon(agent, stored, *, weapon):
+                return weapon
 
         kay = Character("Kay")
-        Knight(kay)
+        Knight(kay, weapon=Forge(kay))
         self.assertIn(kay.weapon, Weapon[:])
         with self.assertRaises(TagCompositionError):
             kay.weapon = "a stick"
@@ -955,7 +955,7 @@ class Overlay_Tests(unittest.TestCase):
         class Holding(Tag):
             @Tool(Weapon)
             def weapon(agent):
-                return Forge(agent)
+                return None
 
         charlie = Character("Charlie")
         Promising(charlie)
@@ -979,7 +979,7 @@ class Overlay_Tests(unittest.TestCase):
 class Lifecycle_Tests(unittest.TestCase):
     def test_rip_of_the_bearer_leaves_the_slot_sticky_and_guarded(self):
         charlie = Character("Charlie")
-        Fighter(charlie)
+        Fighter(charlie, weapon=Forge(charlie))
         held = charlie.weapon
         del Fighter[charlie]
         self.assertNotIn(charlie, Fighter)
@@ -990,57 +990,57 @@ class Lifecycle_Tests(unittest.TestCase):
 
     def test_reapplication_rebuilds_an_ordinary_slot(self):
         charlie = Character("Charlie")
-        Fighter(charlie)
+        Fighter(charlie, weapon=Forge(charlie))
         held = charlie.weapon
         del Fighter[charlie]
-        Fighter(charlie)
+        Fighter(charlie, weapon=Forge(charlie))
         self.assertIsNot(charlie.weapon, held)
         self.assertIn(charlie.weapon, Weapon[:])
 
     def test_reapplication_keeps_the_tool_through_the_stored_seat(self):
         class Keeper(Tag):
             @Tool(Weapon)
-            def weapon(agent, stored=None):
-                return Forge(agent) if stored is None else stored
+            def weapon(agent, stored=None, *, weapon=None):
+                return weapon if stored is None else stored
 
         charlie = Character("Charlie")
-        Keeper(charlie)
+        Keeper(charlie, weapon=Forge(charlie))
         held = charlie.weapon
         del Keeper[charlie]
         Keeper(charlie)
         self.assertIs(charlie.weapon, held)
 
     def test_reapplication_keeps_a_constant_tool_without_running_the_builder(self):
-        forged = []
+        calculations = []
 
         class Oathbound(Tag):
             @Constant
             @Tool(Weapon)
-            def relic(agent):
-                forged.append(agent)
-                return Forge(agent, "relic")
+            def relic(agent, *, relic):
+                calculations.append(agent)
+                return relic
 
         charlie = Character("Charlie")
-        Oathbound(charlie)
+        Oathbound(charlie, relic=Forge(charlie, "relic"))
         held = charlie.relic
         del Oathbound[charlie]
         self.assertIs(charlie.relic, held)                # survives Rip
         Oathbound(charlie)
         self.assertIs(charlie.relic, held)
-        self.assertEqual(len(forged), 1)
+        self.assertEqual(len(calculations), 1)
 
     def test_rip_of_the_tools_tag_leaves_a_rogue_in_hand_that_the_bearers_post_notices(self):
         class Armed(Tag):
             @Tool(Weapon)
-            def weapon(agent):
-                return Forge(agent)
+            def weapon(agent, *, weapon):
+                return weapon
 
             @Post
             def Sound_Weapon(agent):
                 return agent.weapon in Weapon[:] and bool(agent.weapon)
 
         charlie = Character("Charlie")
-        Armed(charlie)
+        Armed(charlie, weapon=Forge(charlie))
         self.assertTrue(bool(charlie))
         del Weapon[charlie.weapon]
         self.assertTrue("weapon" @ charlie)
@@ -1053,15 +1053,15 @@ class Lifecycle_Tests(unittest.TestCase):
     def test_a_rip_protocol_may_disarm(self):
         class Conscript(Tag):
             @Tool(Weapon)
-            def weapon(agent):
-                return Forge(agent)
+            def weapon(agent, *, weapon):
+                return weapon
 
             @Rip
             def Disarm(agent):
                 del agent.weapon
 
         charlie = Character("Charlie")
-        Conscript(charlie)
+        Conscript(charlie, weapon=Forge(charlie))
         del Conscript[charlie]
         self.assertFalse("weapon" @ charlie)
 
@@ -1089,8 +1089,8 @@ class Lifecycle_Tests(unittest.TestCase):
 class Sharing_Tests(unittest.TestCase):
     def test_two_bearers_may_hold_one_tool(self):
         charlie, bob = Character("Charlie"), Character("Bob")
-        Fighter(charlie)
-        Fighter(bob)
+        Fighter(charlie, weapon=Forge(charlie))
+        Fighter(bob, weapon=Forge(bob))
         bob.weapon = charlie.weapon
         self.assertIs(bob.weapon, charlie.weapon)
         del charlie.weapon                                # hand-over, line two
@@ -1099,8 +1099,8 @@ class Sharing_Tests(unittest.TestCase):
 
     def test_the_tools_tags_travel_with_it(self):
         charlie, bob = Character("Charlie"), Character("Bob")
-        Fighter(charlie)
-        Fighter(bob)
+        Fighter(charlie, weapon=Forge(charlie))
+        Fighter(bob, weapon=Forge(bob))
         Cursed(charlie.weapon)
         bob.weapon = charlie.weapon
         self.assertIn(bob.weapon, Cursed)
@@ -1116,14 +1116,14 @@ class Sharing_Tests(unittest.TestCase):
 
         class Socketed(Tag):
             @Tool(Jewel)
-            def gem(tool):
-                gem = Gem()
-                Jewel(gem)
+            def gem(tool, *, gem):
                 return gem
 
         charlie = Character("Charlie")
-        Fighter(charlie)
-        Socketed(charlie.weapon)
+        Fighter(charlie, weapon=Forge(charlie))
+        gem = Gem()
+        Jewel(gem)
+        Socketed(charlie.weapon, gem=gem)
         self.assertIn(charlie.weapon.gem, Jewel[:])
         with self.assertRaises(TagCompositionError):
             charlie.weapon.gem = Gem()
@@ -1141,9 +1141,7 @@ class Sharing_Tests(unittest.TestCase):
 
         class Guard(Tag):
             @Tool(Vault)
-            def vault(agent):
-                vault = Sword("the vault")
-                Vault(vault)
+            def vault(agent, *, vault):
                 return vault
 
             @Action
@@ -1151,7 +1149,9 @@ class Sharing_Tests(unittest.TestCase):
                 return agent.vault.combination
 
         ann = Character("Ann")
-        Guard(ann)
+        vault = Sword("the vault")
+        Vault(vault)
+        Guard(ann, vault=vault)
         self.assertEqual(ann.vault.Open(), "1234")
         with self.assertRaises(AttributeError):
             ann.Crack()
@@ -1202,7 +1202,7 @@ class Host_Tests(unittest.TestCase):
                     agent.__dict__[name] = value
 
         lou = Logging_Host("Lou")
-        Fighter(lou)
+        Fighter(lou, weapon=Forge(lou))
         writes.clear()
         with self.assertRaises(TagCompositionError):
             lou.weapon = Sword("a stick")
@@ -1226,7 +1226,7 @@ class Host_Tests(unittest.TestCase):
     def test_presence_answers_for_the_slot_without_running_anything(self):
         charlie = Character("Charlie")
         self.assertFalse(hasattr(charlie, "weapon"))
-        Fighter(charlie)
+        Fighter(charlie, weapon=Forge(charlie))
         self.assertTrue("weapon" @ charlie)
         self.assertTrue("weapon" @ Fighter[charlie])
         del charlie.weapon
@@ -1234,8 +1234,8 @@ class Host_Tests(unittest.TestCase):
 
     def test_a_tool_slot_does_not_multiply_runtime_types(self):
         charlie, bob = Character("Charlie"), Character("Bob")
-        Fighter(charlie)
-        Fighter(bob)
+        Fighter(charlie, weapon=Forge(charlie))
+        Fighter(bob, weapon=Forge(bob))
         self.assertIs(type(charlie), type(bob))
         sam = Character("Sam")
         Squire(sam)
@@ -1251,7 +1251,7 @@ class Host_Tests(unittest.TestCase):
                 return tool.damage > 0
 
         charlie = Character("Charlie")
-        Fighter(charlie)
+        Fighter(charlie, weapon=Forge(charlie))
         Sharp(charlie.weapon)
         charlie.weapon.damage = 0
         self.assertFalse(bool(charlie.weapon))
