@@ -10,11 +10,13 @@
 
 ## Summary
 
-Propose `@Fix` as an explicit way for a Tag to repair an Agent it already
-holds, or whose unfinished Rip it owes. The Director approved both a
-re-runable `@Fix @Imprint` and a standalone `@Fix` protocol, including a Fix
-owned by the Tag that holds an arrested Agent. This Brief records those
-directions and the remaining execution choices. It changes no runtime code.
+Propose `@Fix` as a Tag-owned recovery protocol. The Director approved both
+a re-runable `@Fix @Imprint` and a standalone `@Fix`, including recovery by
+the Tag that owes an arrested Agent's unfinished Rip. The proposed recovery
+entry is the Tagging spelling itself, `Car(car)`: on a broken member it would
+run Car's Fix protocol rather than repeat ordinary Tagging. This Brief
+records that direction and the remaining execution choices. It changes no
+runtime code.
 
 ## Motivation
 
@@ -24,11 +26,12 @@ unrelated Tag over a broken Agent. A failed Rip can also leave an Agent in
 the owning Tag's Safehouse: repairing a condition needed by that saved Rip
 may require access to its Actions and Records before retry can succeed.
 
-Normal `Tag(agent)` on an active member is a no-op; it does not re-run the
-Imprint. Another new Tag is not an implicit repair of this Tag. An ordinary
-Action can already repair a free Agent, but arrested Agent access is reserved
-for its saved Rip work. `@Fix` would name an intentional, auditable recovery
-entry in that Tag.
+Today `Car(car)` is a no-op when Car already holds the Agent. The Director
+prefers giving that same Tagging expression a recovery meaning when repair
+is needed, without repeating Car's Gate, Gainings and ordinary Imprints.
+Another new Tag is not an implicit repair of Car. An ordinary Action can
+already repair a free Agent, but arrested Agent access is reserved for its
+saved Rip work. `@Fix` would name the intentional recovery work within Car.
 
 ## Proposed language
 
@@ -53,26 +56,29 @@ class Car(Tag):
 # Also proposed: @Imprint @Fix def Calibrate(car): ...
 ```
 
-`Calibrate` runs at its normal Imprint turn during first Tagging. It can also
-be invoked later as a Fix for this Car. `Replace_Fuse` runs only when called
-as a Fix; it is a Tag-owned protocol, not a gained Agent Action. Neither form
-reapplies Car, repeats other Imprints or Record initializers, enters or leaves
-the Field, or removes any saved Rip work.
+`Calibrate` runs at its normal Imprint turn during first Tagging. It could
+also run in Car's later recovery. `Replace_Fuse` runs only during recovery;
+it is a Tag-owned protocol, not a gained Agent Action. The intended recovery
+expression is `Car(car)`. It would run selected Fix protocols without
+repeating the Gate, Gainings, ordinary Imprints or Record initializers,
+changing Field membership, or removing saved Rip work. Which Fixes it
+selects is still open below.
 
 ### Receiver and permission
 
-The proposed explicit call is `Car.Replace_Fuse(car)` or
-`Car.Calibrate(car)`. The first argument is the existing Agent. The Fix
-belongs to **the Tag that declares it**, even when that Tag is a Base in a
-Shape's Form. `Base.Repair(agent)` names Base's protocol;
-`Shape.Repair(agent)` would not silently take ownership of it.
+The proposed call is `Car(car)`, with the existing Agent as Target. If Car
+already holds a sound Agent and owes no Rip, the call remains a no-op. If
+Car holds a broken Agent, the call may enter Car's recovery protocol. If
+Car owes that Agent a saved Rip, the call may enter Car's recovery protocol
+without granting it fresh Field membership. The Fix belongs to **the Tag
+that declares it**, even when that Tag is a Base in a Shape's Form:
+`Shape(agent)` does not silently run Base's Fix.
 
-Permission is checked when the call runs, including for a handle captured
-earlier:
+Permission is checked when the Tagging expression runs:
 
-1. A free Agent may run a Fix of a Tag whose raw Field currently contains
-   it. The check is raw membership, not soundness: a repair need not first
-   execute the Posts it is trying to restore.
+1. A free Agent may enter a Fix of a Tag whose raw Field currently contains
+   it. This uses raw membership rather than requiring soundness first: a
+   repair need not satisfy the Posts it is trying to restore.
 2. While an Agent is arrested, only a Tag with **its own pending saved Rip
    application** may run its Fix on that Agent. Mere membership in another
    Tag does not open recovery during someone else's arrest.
@@ -80,24 +86,29 @@ earlier:
    refused. A structural Target refusal before Field admission creates no
    recovery claim; the programmer can repair the Target and retry Tagging.
 
-The recommended implementation is a revocable, Agent-specific recovery
-door, separate from the saved Rip door. It permits the Fix body to read and
-change that Agent and call its Actions while the door is open. It closes on
-normal return, failure, or Python interruption; a copied execution context
-or captured callable cannot keep it open. The Fix body has the ordinary
-composition access of a Tag protocol, including its Agent's Secret
-Contributions. The call must finish synchronously: a returned coroutine,
-generator or async generator cannot carry the recovery door beyond the call.
+An arrested Agent needs a narrow recovery door so the owning Fix can read
+and change it and call its Actions without releasing the saved Rip. The
+exact door and its interaction with automatic Rip retry remain open. It
+must close on normal return, failure, or Python interruption; a copied
+execution context or captured callable must not keep it open. A Fix must
+finish synchronously: a returned coroutine, generator or async generator
+cannot carry the recovery door beyond the call.
 
 ### Result and continued custody
 
-A Fix changes current state; it does not certify a permanent result. Current
-Posts determine whether a free Agent is now sound. A Fix on an arrested
-Agent does **not** release it: its original saved Rip run remains owed, and
-ordinary access still retries or refuses that Rip under STEP-SPEC-32. A Fix
-also grants no exception to the rule that a new, unrelated Tagging starts
-from a sound Agent. The programmer repairs the existing Tag explicitly,
-then applies another Tag when the Agent is sound.
+A Fix changes current state; it does not certify a permanent result or
+automatically check Posts after each Fix. The program may ask `bool(agent)`
+or read a named condition to check repair. A Fix on an arrested Agent does
+**not** release it: its original saved Rip run remains owed, and ordinary
+access still retries or refuses that Rip under STEP-SPEC-32. A Fix grants
+no exception to the rule that a new, unrelated Tagging starts from a sound
+Agent. The programmer repairs the existing Agent explicitly, then applies
+another Tag when it is sound.
+
+An explicit recovery failure should raise `TagFixError.Name`, naming the
+failed Fix and preserving its original cause. During initial Tagging,
+`@Fix @Imprint` still follows the Imprint diagnostic rule. Whether one
+failed Fix stops other selected Fixes remains open.
 
 As with Imprints and Actions, effects already performed by a failing Fix
 remain; there is no general rollback of Python effects. `@Fix` does not
@@ -107,7 +118,7 @@ make Record builders or Preconditions performative.
 
 `@Fix` identifies which Tag is responsible for recovery. A plain gained
 Action is available through the Agent's Overlay and can be replaced by later
-Tags. A Fix remains named on its declaring Tag and can be reached even when
+Tags. A Fix belongs to its declaring Tag's recovery protocol even after
 that Tag has revoked Field membership but still owes a saved Rip. This keeps
 the Safehouse exception narrow: an unrelated Tag cannot use its own Fix to
 obtain general access to someone else's arrested Agent.
@@ -119,19 +130,23 @@ arrested-Agent recovery door.
 
 ## Open decisions for the Director
 
-1. **Call spelling.** Is `Car.Repair(car)` the right Tag-owned syntax? A
-   `Car[car]` view normally needs current Field membership, so it cannot
-   address a member arrested after Car's Rip without changing what views
-   mean. This Brief recommends the direct Tag spelling.
-2. **Completion check.** Should a Fix merely perform its named work and
-   leave current Posts to `bool(agent)` / ordinary contract reads, or
-   immediately check them and report any still broken promise? The first
-   permits several partial repairs; this Brief recommends it.
-3. **Failure name.** Should a failed recovery call raise a new named
-   `TagFixError.Name` with its original cause? During initial Tagging,
-   `@Fix @Imprint` would use the ordinary Imprint diagnostic, not a Fix
-   diagnostic. This Brief recommends the separate recovery failure name.
-4. **Other marks and Pins.** The first implementation could accept `@Fix`
+1. **Selection and Post ownership.** When `Car(car)` finds a broken Agent,
+   should it run every Fix declared by Car, only Fixes explicitly tied to
+   a failed Post owned by Car, or let each Fix decide whether it applies?
+   Does a failure of another Tag's Post trigger Car's recovery at all?
+   A Post tie needs a declaration spelling and a rule for an overlaid Post.
+2. **Failure sequence.** If two selected Fixes raise, should recovery stop
+   at the first named `TagFixError.Name`, or continue other Fixes and report
+   both? Effects already performed remain in either case.
+3. **Arrest door.** How does `Car(car)` enter Car's Fix while its saved Rip
+   would ordinarily retry on access, and how does the door close without
+   releasing that saved Rip? A fresh Tagging of an unrelated Tag must not
+   use this door.
+4. **No Fix and input routing.** If Car has no selected Fix, should calling
+   `Car(car)` on its broken member remain a no-op or report that recovery is
+   unavailable? If Fix protocols accept inputs, should `Car(car, part=...)`
+   route those inputs to each selected Fix?
+5. **Other marks and Pins.** The first implementation could accept `@Fix`
    alone or with `@Imprint`, in either order, and refuse other combinations
    until defined. Should the same protocol also repair a Tag that is an
    Agent of a Pin? The ownership and saved Rip rule can apply there, but
@@ -139,17 +154,20 @@ arrested-Agent recovery door.
 
 ## Backwards compatibility
 
-`@Fix` is new and would not alter existing declarations by itself. The
-related admission and sound-source changes belong to STEP-SPEC-39, not to
-this STEP. Programs using ordinary Actions to repair free Agents can keep
-them. A declaration named `Fix` without the proposed decorator remains an
-ordinary Action under today's scan.
+`@Fix` is new. The proposed recovery meaning would change an active,
+broken member's `Car(car)` from a no-op to a deliberate Fix run. Active,
+sound reapplication and in-progress same-Tag calls would remain no-ops.
+The related admission and sound-source changes belong to STEP-SPEC-39,
+not to this STEP. Programs using ordinary Actions to repair free Agents
+can keep them. A declaration named `Fix` without the proposed decorator
+remains an ordinary Action under today's scan.
 
 ## Alternatives considered
 
 | Alternative | Assessment |
 | --- | --- |
-| Reapply an active Tag to retry training | Existing Tagging makes this a no-op; changing it would make repeated calls silently repeat effects. |
+| Reapply an active Tag's full training | Would repeat its Gate, Gains and every Imprint; the proposed `Car(car)` recovery runs only selected Fix protocols. |
+| Call `Car.Repair(car)` | Names a Tag member as a function, can collide with a Report, and departs from the Tagging expression already used for that Agent. |
 | Automatically apply a different Tag to repair a broken Agent | Crosses the independent Tag boundary and makes the other Tag responsible for this Tag's contract. |
 | Let every Tag's Fix run during any arrest | Gives unrelated Tags an access door to an Agent held by another Tag's unfinished Rip. |
 | Use only Agent Actions | Useful for free Agents, but does not identify the Tag that owns saved Rip work or grant a narrow recovery door. |
@@ -159,6 +177,8 @@ ordinary Action under today's scan.
 ### Decision *(to be filled by the Director)*
 
 > Status remains **Brief**. The Director has approved the two declaration
-> forms and an owning Tag's Fix during its arrest. Call spelling, automatic
-> completion checks, recovery failure naming, mark combinations and Pin
-> parity remain open for review.
+> forms and an owning Tag's Fix during its arrest. The preferred recovery
+> entry is `Car(car)`, with no automatic Post check after each Fix and a
+> named `TagFixError.Name` for an explicit recovery failure. Fix selection,
+> Post ties, failure sequence, Safehouse permission and Pin parity remain
+> open for review.
