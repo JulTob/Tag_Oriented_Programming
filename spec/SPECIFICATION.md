@@ -1296,6 +1296,14 @@ Postcondition runs at step 5, **once per call, after the whole Form**, so a
 Base may promise what its Shape delivers. Postconditions take no inputs:
 they judge the Agent, not the materials.
 
+A Postcondition reads and queries; it does not change TOP state while
+judging the Agent. Tagging, Rip, condition deletion and other explicit TOP
+acts are refused during its evaluation, including through a called Action.
+An attempted act fails that Post even when its immediate error is caught.
+Read-only Actions and value calculations remain available. Ordinary Python
+writes and outside effects remain the author's responsibility; TOP does not
+sandbox them.
+
 Its definition is acquired at its declaration position during Gainings.
 If a later Gain or Imprint fails, the acquired Post remains on the Rogue and
 participates in current contract queries and published-member guards. This

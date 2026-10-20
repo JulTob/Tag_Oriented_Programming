@@ -46,8 +46,12 @@ they are not additional traversal laws cleared by the Director's quote.
    operands are still evaluated at the member's turn.
 6. After judging a partition's condition, TopKit checks membership in that
    Field again. Its truth and length paths use the same membership checks
-   as iteration. Each call is a separate live walk; conditions that change
-   state can therefore produce different answers on successive calls.
+   as iteration. Each call is a separate live walk. The old examples in
+   which a Post Ripped a member while being checked are superseded by the
+   observational Post ruling (STEP-SPEC-49): explicit TOP acts in Posts are
+   refused. Per-turn membership still applies when a member leaves between
+   turns through an act outside Post evaluation. Ordinary Python effects
+   remain an authoring responsibility, not a sandboxed part of this rule.
 
 ## Rationale
 
