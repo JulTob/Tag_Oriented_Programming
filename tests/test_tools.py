@@ -1351,6 +1351,25 @@ class Host_Tests(unittest.TestCase):
 
 
 class Late_Pin_Tests(unittest.TestCase):
+    def test_late_pin_refuses_a_replaced_private_field_without_iterating_it(self):
+        class Candidate(Tag):
+            pass
+
+        walked = Event()
+
+        class HostileField:
+            def __iter__(self):
+                walked.set()
+                raise AssertionError("program Field ran under Pin lock")
+
+        Candidate._topkit_field = HostileField()
+
+        with self.assertRaisesRegex(TagDeclarationError, "private Field seat"):
+            Pin(Candidate)
+
+        self.assertFalse(walked.is_set())
+        self.assertNotIn("__topkit_pin__", Candidate.__dict__)
+
     def test_tool_getter_waiting_for_another_pin_does_not_deadlock(self):
         class Kind(Tag):
             pass

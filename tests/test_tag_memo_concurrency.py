@@ -55,6 +55,65 @@ class PausingToolInspectionAction(PausingAction):
 
 
 class TagMemoConcurrencyTests(unittest.TestCase):
+    def test_pin_and_memo_publication_keep_one_lock_order(self):
+        from TopKit.declarations import _pin_mark_lock, _pin_publication
+        from TopKit.memo import _publication, _remember_memo
+
+        class Candidate(Tag):
+            pass
+
+        class Peer(Tag):
+            pass
+
+        entered = threading.Event()
+        failures = []
+
+        class CallbackKey(str):
+            armed = False
+            __hash__ = str.__hash__
+
+            def __eq__(self, other):
+                if self.armed and other == "hazard":
+                    entered.set()
+                    Pin(Peer)
+                return str.__eq__(self, other)
+
+        key = CallbackKey("hazard")
+        hostile = type(Tag)(
+                "Hostile", (Tag,), {"__module__": __name__, key: 1},
+                )
+        key.armed = True
+
+        # Pin invalidates a declaration memo while owning its shared lock.
+        # The memo lock must come first: a memo lookup can call a program's
+        # class-key comparison, which can mark a different Pin.
+        with _pin_publication():
+            self.assertTrue(_publication._is_owned())
+            self.assertTrue(_pin_mark_lock._is_owned())
+
+        def mark():
+            try:
+                Pin(Candidate)
+            except BaseException as error:
+                failures.append(error)
+
+        def memo():
+            try:
+                _remember_memo(hostile, "hazard", object())
+            except BaseException as error:
+                failures.append(error)
+
+        first = threading.Thread(target=mark, daemon=True)
+        second = threading.Thread(target=memo, daemon=True)
+        first.start()
+        second.start()
+        first.join(2)
+        second.join(2)
+        self.assertFalse(first.is_alive(), "Pin and memo locks deadlocked")
+        self.assertFalse(second.is_alive(), "memo and Pin locks deadlocked")
+        self.assertTrue(entered.is_set())
+        self.assertEqual(failures, [])
+
     def interleave(self, action, first, peer):
         results = []
         failures = []

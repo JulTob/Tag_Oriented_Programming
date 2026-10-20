@@ -48,6 +48,7 @@ from .memo import _memo_of
 from .memo import _namespace_snapshot
 from .memo import _namespace_has_callback_keys
 from .memo import _physical_namespace_get
+from .memo import _publication as _memo_publication
 from .memo import _keep_physical_snapshots
 from .memo import _retain_physical_snapshot
 from .memo import _remember_memo
@@ -630,9 +631,15 @@ def _refuse_late_pin(
                 " before its Shapes"
                 )
 
-    from .fields import FIELD_SEAT   # fields imports declarations through contracts
+    from .fields import FIELD_SEAT, _Field   # fields imports declarations through contracts
 
-    agents = list(_physical_namespace_get(_class_namespace(tag), FIELD_SEAT))
+    field = _physical_namespace_get(_class_namespace(tag), FIELD_SEAT)
+    if type(field) is not _Field:
+        raise TagDeclarationError(
+                f"@Pin cannot mark {tag_name}: its private Field seat"
+                " is not a TOP Field"
+                )
+    agents = list(field)
 
     if agents:
         raise TagDeclarationError(
@@ -1189,8 +1196,12 @@ def _pin_publication():
     """Keep class snapshots alive until after Pin's shared lock exits."""
 
     with _keep_physical_snapshots():
-        with _pin_mark_lock:
-            yield
+        # Memo invalidation during Pin publication takes _publication. The
+        # reverse order can deadlock when a memo read invokes a class-key
+        # callback that attempts to mark another Pin.
+        with _memo_publication:
+            with _pin_mark_lock:
+                yield
 
 
 def _tool_owner_naming(tag: type) -> type | None:
