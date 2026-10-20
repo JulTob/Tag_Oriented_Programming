@@ -377,7 +377,7 @@ def _evaluate(
             if flow is None or error is not flow.violation:
                 raise
             # Verdicts and diagnostics can catch the immediate refusal.
-            # The observation still names this Precondition's failed Gate.
+            # The observation still names the failed Gate or promise.
             raise failure.Named(name)(
                     f"{phase} {name!r} raised {_type_name(error)}: {_exception_text(error)}"
                     ) from error
