@@ -3,6 +3,8 @@
 The mark is placed on the Host class before an instance method can be
 captured. It keeps the same class object and Python MRO. A method captured
 before the first Tagging then remains capable of checking a later arrest.
+Native async generators returned by guarded methods are refused even before
+Tagging: their later event-loop cleanup cannot yet pass the custody check.
 """
 
 from __future__ import annotations
@@ -73,6 +75,8 @@ def GuardedHost(host: type) -> type:
     is refused until its cleanup boundary is designed.
     Python descriptors, class/static methods and methods declared on other
     unmarked Python classes are outside this first, narrow profile.
+    A guarded ordinary method returning a native async generator is refused
+    on that call, including when its receiver has never been Tagged.
     """
 
     if not isinstance(host, type):

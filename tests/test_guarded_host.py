@@ -331,6 +331,22 @@ class GuardedHostTests(unittest.TestCase):
             GuardedHost(Vault)
         self.assertIs(Vault.__dict__["read"], original)
 
+    def test_ordinary_method_returning_async_generator_is_refused_before_tagging(self) -> None:
+        @GuardedHost
+        class Vault:
+            def stream(self):
+                async def Values():
+                    yield "value"
+
+                return Values()
+
+        vault = Vault()                         # no TOP Tagging has happened
+        with self.assertRaisesRegex(
+                TypeError,
+                "async generator results cannot yet be guarded",
+                ):
+            vault.stream()
+
     def test_marking_the_same_class_twice_is_idempotent(self) -> None:
         @GuardedHost
         class Vault:
