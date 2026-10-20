@@ -661,7 +661,8 @@ Three laws govern the slot:
    builder, reads, calculates and returns an initial value. Applying or
    Ripping Tags belongs in an Imprint; a held object that needs a Tag
    kind at admission must already belong to that Tag when the builder
-   returns. An earlier Imprint may prepare it (§0.6). Nested Tagging
+   returns. An Imprint in a prior Tagging turn may prepare it (§0.6);
+   this Tag's Imprints run only after its Record builders. Nested Tagging
    follows its own §0.6 failure boundary; Rip is not restoration (§0.7).
 
 The rule belongs to the effective Record declaration, as Overlay already
