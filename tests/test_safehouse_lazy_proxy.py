@@ -245,7 +245,7 @@ class SafehouseLazyProxyTests(unittest.TestCase):
         self.assertIsInstance(outer, Generator)
         self.assertFalse(inspect.isgenerator(outer))
         self.assertEqual(next(outer), 1)
-        self.assertEqual(checks, ["outer", "inner"])
+        self.assertEqual(checks, ["outer", "inner", "inner", "outer"])
 
         value = object()
         self.assertIs(_guard_lazy_result(value, outer_receiver, "Action", Outer), value)
