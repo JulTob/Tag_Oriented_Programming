@@ -28,6 +28,7 @@ class _RipRun:
     cursor: int = 0
     running: bool = False
     revoked: bool = False
+    orphaned: bool = False  # original Tag ended; only these runs belong to root deletion
     application: object | None = None
     revocation_only: bool = False
 
@@ -93,21 +94,33 @@ def _retry_arrested(
         invoke: Callable[[_RipRun, str, Any], None],
         *,
         defer_running: bool = False,
+        orphaned_only: bool = False,
         ) -> object:
     """Drain live saved runs in order, including work created during retry.
 
     The caller supplies ordinary TOP membership revocation and Rip calling.
     A revocation that is interrupted must be safe to resume from its last
-    boundary. The run remains held until all its teardowns complete. When a
-    Rip callback itself requests root retry, defer its currently running
-    step until that callback returns, without skipping earlier saved work.
+    boundary. Revocation and teardowns run inside this Agent's Rip door.
+    The run remains held until all its teardowns complete. If a callback
+    requests root retry, defer its currently running step until it returns.
+    Root deletion selects only orphaned work; an ordinary act retries all.
     """
 
-    if _arrest_of(agent) is None:
+    arrest = _arrest_of(agent)
+
+    if arrest is None:
         raise TagResolutionError("this Agent has no saved Rip work")
 
+    if orphaned_only and not any(run.orphaned for run in arrest.runs):
+        raise TagResolutionError("this Agent has no orphaned Rip work")
+
     while (arrest := _arrest_of(agent)) is not None:
-        run = arrest.runs[0]
+        run = next(
+                (run for run in arrest.runs if run.orphaned),
+                None,
+                ) if orphaned_only else arrest.runs[0]
+        if run is None:
+            break
         # A Rip callback may request the root retry. Its own unfinished
         # step cannot run again until that callback returns. Keep the
         # ordered ledger in place and let the outer call resume it.

@@ -75,14 +75,14 @@ def _rip(
     else:
         # Keep the ordinary no-@Rip path fast. If it is interrupted even
         # after one seat changed, save its unfinished revocation for retry.
-        application = state.no_rip_applications.get(tag)
+        application = _no_rip_application(state, tag)
 
         try:
             _field_of(tag)._Remove(agent)
             state.active.remove(tag)
             state.words = None
             state.snapshots.pop(tag, None)
-            state.no_rip_applications.pop(tag, None)
+            _forget_no_rip_application(state, tag)
         except BaseException:
             _save_run(agent, _RipRun(
                     tag, (),
@@ -103,10 +103,65 @@ def _rip(
     return agent
 
 
+def _revoke_membership(
+        agent: object,
+        tag: type,
+        ) -> tuple[_State, tuple[tuple[str, Any], ...]]:
+    """End one membership and hand its saved Rip chain to the caller.
+
+    The Safehouse path uses ``_revoke`` so it can recognize an old
+    application's Rip tuple after a fresh Tagging. This simpler seam
+    remains available to callers that own an ordinary active membership.
+    """
+
+    state = _state_of(agent)
+
+    if state is None or tag not in state.active:
+        raise TagResolutionError(
+                f"{tag.__name__} is not active on this Agent"
+                )
+
+    state.active.remove(tag)
+    state.words = None
+    state.snapshots.pop(tag, None)
+    _field_of(tag)._Remove(agent)
+
+    return state, state.rips.pop(tag, ())
+
+
+def _teardown(
+        agent: object,
+        state: _State,
+        tag: type,
+        teardowns: tuple[tuple[str, Any], ...],
+        ) -> None:
+    """Run the handed-over Rip chain without reading a fresh Tagging's state."""
+
+    failures: list[tuple[str, Exception]] = []
+    state.composing += 1
+
+    try:
+        for name, teardown in teardowns:
+            try:
+                _call_teardown(name, teardown, agent, state)
+            except Exception as error:
+                failures.append((name, error))
+    finally:
+        state.composing -= 1
+
+    if failures:
+        names = ", ".join(name for name, _error in failures)
+        raise TagCompositionError(
+                f"{tag.__name__} teardown failed in: {names}"
+                ) from failures[0][1]
+
+
 def _retry_arrested(
         agent: object,
+        *,
+        orphaned_only: bool = False,
         ) -> object:
-    """Retry live saved Rip work in original order from root Tag[...]."""
+    """Retry saved Rip work; root deletion selects orphaned work only."""
 
     state = _state_of(agent)
 
@@ -123,6 +178,7 @@ def _retry_arrested(
                         name, teardown, agent, state,
                         ),
                 defer_running=_may_act(agent),
+                orphaned_only=orphaned_only,
                 )
     finally:
         state.composing -= 1
@@ -146,6 +202,22 @@ def _run_one(agent: object, state: _State, run: _RipRun) -> None:
         state.composing -= 1
 
 
+def _no_rip_application(state: _State, tag: type) -> object | None:
+    """Use the captured view unless its construction left a fallback key."""
+
+    applications = state.no_rip_applications
+    application = applications.get(tag) if applications is not None else None
+    return application if application is not None else state.snapshots.get(tag)
+
+
+def _forget_no_rip_application(state: _State, tag: type) -> None:
+    applications = state.no_rip_applications
+    if applications is not None:
+        applications.pop(tag, None)
+        if not applications:
+            state.no_rip_applications = None
+
+
 def _revoke(agent: object, state: _State, run: _RipRun) -> None:
     """Remove one saved application before its teardown starts.
 
@@ -159,10 +231,10 @@ def _revoke(agent: object, state: _State, run: _RipRun) -> None:
     # The Rip tuple identifies an application with teardowns. A Tag with
     # none has its own fresh application key, set before Field entry and
     # independent of whether its captured view was built successfully.
-    current_application = (
-            state.no_rip_applications.get(run.tag)
-            if run.revocation_only else state.rips.get(run.tag)
-            )
+    if run.revocation_only:
+        current_application = _no_rip_application(state, run.tag)
+    else:
+        current_application = state.rips.get(run.tag)
     saved_application = (
             run.application if run.revocation_only else run.teardowns
             )
@@ -184,7 +256,7 @@ def _revoke(agent: object, state: _State, run: _RipRun) -> None:
     state.words = None
     state.snapshots.pop(run.tag, None)
     state.rips.pop(run.tag, None)
-    state.no_rip_applications.pop(run.tag, None)
+    _forget_no_rip_application(state, run.tag)
     run.revoked = True
     _ = (words, snapshot)
 

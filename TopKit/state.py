@@ -23,7 +23,9 @@ from types import MemberDescriptorType
 from types import MethodType
 from typing import Any
 from typing import Callable
+from typing import Generic
 from typing import Iterator
+from typing import TypeVar
 from weakref import WeakValueDictionary
 import weakref
 
@@ -40,6 +42,7 @@ from .memo import _namespace_snapshot
 
 Function = Callable[..., Any]
 Check = Callable[..., Any]
+_Value = TypeVar("_Value")
 
 
 # ------------------------------------------------------------------
@@ -55,6 +58,82 @@ class _Snapshot:
     operations: dict[str, tuple[type, Function]]
     deleted: frozenset[str]
     secrets: frozenset[str]
+
+
+class _Tag_Identity_Map(Generic[_Value]):
+    """A Tag-keyed state map that never calls a Tag metaclass's protocols.
+
+    The id-indexed entry also retains its Tag, as an ordinary dict key did.
+    Copies keep the same independent entries without asking __hash__ or
+    __eq__ of a user-defined metaclass.
+    """
+
+    __slots__ = ("_entries",)
+
+    def __init__(self) -> None:
+        self._entries: dict[int, tuple[type, _Value]] = {}
+
+    def __len__(self) -> int:
+        return len(self._entries)
+
+    def __contains__(self, tag: type) -> bool:
+        entry = self._entries.get(id(tag))
+        return entry is not None and entry[0] is tag
+
+    def __iter__(self) -> Iterator[type]:
+        return (tag for tag, _value in self._entries.values())
+
+    def __eq__(self, other: object) -> bool:
+        if type(other) is not _Tag_Identity_Map:
+            return NotImplemented
+
+        if self._entries.keys() != other._entries.keys():
+            return False
+
+        return all(
+                tag is other._entries[key][0]
+                and value == other._entries[key][1]
+                for key, (tag, value) in self._entries.items()
+                )
+
+    def __getitem__(self, tag: type) -> _Value:
+        entry = self._entries.get(id(tag))
+
+        if entry is None or entry[0] is not tag:
+            raise KeyError(tag)
+
+        return entry[1]
+
+    def __setitem__(self, tag: type, value: _Value) -> None:
+        self._entries[id(tag)] = (tag, value)
+
+    def get(self, tag: type, default: Any = None) -> Any:
+        entry = self._entries.get(id(tag))
+        return entry[1] if entry is not None and entry[0] is tag else default
+
+    def pop(self, tag: type, default: Any = _MISSING) -> Any:
+        key = id(tag)
+        entry = self._entries.get(key)
+
+        if entry is None or entry[0] is not tag:
+            if default is _MISSING:
+                raise KeyError(tag)
+
+            return default
+
+        del self._entries[key]
+        return entry[1]
+
+    def items(self) -> Iterator[tuple[type, _Value]]:
+        return iter(self._entries.values())
+
+    def clear(self) -> None:
+        self._entries.clear()
+
+    def copy(self) -> "_Tag_Identity_Map[_Value]":
+        copied = _Tag_Identity_Map()
+        copied._entries = self._entries.copy()
+        return copied
 
 
 @dataclass(slots=True)
@@ -75,9 +154,9 @@ class _State:
     secrets: set[str] = field(default_factory=set)
     deleted: set[str] = field(default_factory=set)
     restored: frozenset[str] = frozenset()   # deleted, then stored again; shared until used
-    snapshots: dict[type, _Snapshot] = field(default_factory=dict)
-    rips: dict[type, tuple[tuple[str, Function], ...]] = field(default_factory=dict)
-    no_rip_applications: dict[type, object] = field(default_factory=dict)
+    snapshots: _Tag_Identity_Map[_Snapshot] = field(default_factory=_Tag_Identity_Map)
+    rips: _Tag_Identity_Map[tuple[tuple[str, Function], ...]] = field(default_factory=_Tag_Identity_Map)
+    no_rip_applications: _Tag_Identity_Map[object] | None = None
     secret_values: dict[str, Any] = field(default_factory=dict)   # a pinned Tag's @Secret members
     originals: dict[str, Any] = field(default_factory=dict)       # what a Pin patched, as declared
     constants: dict[str, tuple[type, str, Any]] = field(default_factory=dict)  # origin, kind, declaration
@@ -127,7 +206,10 @@ class _State:
         copied.restored = state.restored
         copied.snapshots = state.snapshots.copy()
         copied.rips = state.rips.copy()
-        copied.no_rip_applications = state.no_rip_applications.copy()
+        copied.no_rip_applications = (
+                state.no_rip_applications.copy()
+                if state.no_rip_applications is not None else None
+                )
         copied.secret_values = state.secret_values.copy()
         copied.originals = state.originals.copy()
         copied.constants = state.constants.copy()
@@ -661,8 +743,6 @@ class _Bound:
                 *args,
                 **kwargs,
                 )
-        if _safehouse:
-            _require_available(agent, "Action")
         return _guard_lazy_result(result, agent, "Action", _require_available)
 
     @property
@@ -813,8 +893,6 @@ class _Pinned_Bound:
 
         try:
             result = bound._function(bound._owner, *args, **kwargs)
-            if _safehouse:
-                _require_available(bound._owner, "Operation")
             return _guard_lazy_result(
                     result, bound._owner, "Operation", _require_available
                     )
@@ -956,8 +1034,6 @@ class _Composing_Bound(_Bound):
                     *args,
                     **kwargs,
                     )
-            if _safehouse:
-                _require_available(agent, "Action")
             return _guard_lazy_result(result, agent, "Action", _require_available)
         finally:
             state.composing -= 1
@@ -1362,7 +1438,9 @@ def _type_key_of(
         state: _State,
         ) -> tuple:
     return (
-            state.host_type,
+            # A live cached runtime type owns its Host through its bases,
+            # preventing id reuse. The key must not root a Host/Agent cycle.
+            id(state.host_type),
             (frozenset((state.deleted | state.restored) - {"__del__"})
              if state.deleted or state.restored else _EMPTY_NAMES),   # a restored name keeps its gate; __del__ has none
             frozenset(state.secrets) if state.secrets else _EMPTY_NAMES,

@@ -22,6 +22,20 @@ class Receiver:
 
 
 class SafehouseLazyProxyTests(unittest.TestCase):
+    def test_nested_generator_guards_keep_the_source_name(self) -> None:
+        receiver = Receiver()
+
+        def Steps():
+            yield 1
+
+        inner = _guard_lazy_result(Steps(), receiver, "Action Steps", lambda *_: None)
+        outer = _guard_lazy_result(inner, receiver, "Operation Steps", lambda *_: None)
+        self.assertIsInstance(outer, Generator)
+        self.assertFalse(inspect.isgenerator(outer))
+        self.assertEqual(outer.__name__, "Steps")
+        self.assertIn("Steps", outer.__qualname__)
+        self.assertEqual(list(outer), [1])
+
     def test_denied_generator_continuations_do_not_unwind_the_source(self) -> None:
         receiver = Receiver()
         arrest = _Arrest(receiver)
@@ -85,6 +99,8 @@ class SafehouseLazyProxyTests(unittest.TestCase):
         self.assertIsInstance(coroutine, Coroutine)
         self.assertFalse(inspect.iscoroutine(coroutine))
         self.assertTrue(inspect.isawaitable(coroutine))
+        self.assertEqual(coroutine.__name__, "Value")
+        self.assertIn("Value", coroutine.__qualname__)
 
         async def Run():
             task = asyncio.create_task(coroutine)
@@ -229,7 +245,7 @@ class SafehouseLazyProxyTests(unittest.TestCase):
         self.assertIsInstance(outer, Generator)
         self.assertFalse(inspect.isgenerator(outer))
         self.assertEqual(next(outer), 1)
-        self.assertEqual(checks, ["outer", "inner"])
+        self.assertEqual(checks, ["outer", "inner", "inner", "outer"])
 
         value = object()
         self.assertIs(_guard_lazy_result(value, outer_receiver, "Action", Outer), value)

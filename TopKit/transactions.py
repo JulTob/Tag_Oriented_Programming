@@ -46,6 +46,7 @@ from .state import STATE
 from .state import _Published
 from .state import _Snapshot
 from .state import _State
+from .state import _Tag_Identity_Map
 from .state import _actualize_runtime_type
 from .state import _bind_to
 from .state import _host_bindings_of
@@ -291,7 +292,11 @@ def _apply_one(
                     state.Restore(previous)
                 else:
                     state.rips.pop(tag, None)
-                    state.no_rip_applications.pop(tag, None)
+                    applications = state.no_rip_applications
+                    if applications is not None:
+                        applications.pop(tag, None)
+                        if not applications:
+                            state.no_rip_applications = None
             raise
     except BaseException as error:
         primary_failure = error
@@ -300,10 +305,29 @@ def _apply_one(
         try:
             if tag in state.active:
                 try:
-                    state.snapshots[tag] = _snapshot(
+                    applications = state.no_rip_applications
+                    no_rip_application = (
+                            applications.get(tag)
+                            if applications is not None else None
+                            )
+                    snapshot = _snapshot(
                             agent,
                             state,
                             )
+                    if (
+                            no_rip_application is None
+                            or (
+                                state.no_rip_applications is not None
+                                and state.no_rip_applications.get(tag)
+                                is no_rip_application
+                                )
+                            ):
+                        state.snapshots[tag] = snapshot
+                        if no_rip_application is not None:
+                            applications = state.no_rip_applications
+                            applications.pop(tag, None)
+                            if not applications:
+                                state.no_rip_applications = None
                 except BaseException as closing_error:
                     if primary_failure is None:
                         raise
@@ -370,6 +394,7 @@ def _inspect(
                 {},
                 TagPostconditionError,
                 "Postcondition",
+                post=True,
                 )
     finally:
         state.composing -= 1
@@ -474,6 +499,8 @@ def _enter_field(
     # Field removal is interrupted. Establish it before the Field entry;
     # the captured view may fail to build after admission.
     if not declarations.rips:
+        if state.no_rip_applications is None:
+            state.no_rip_applications = _Tag_Identity_Map()
         state.no_rip_applications[tag] = object()
 
     _field_of(tag)._Add(agent)
