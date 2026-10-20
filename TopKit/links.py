@@ -2296,14 +2296,17 @@ def _link(
                     if contact_state is not None and member in contact_state.active:
                         _hook(contact, [member])
                         ends.hooked = True
+
+                # One Link is complete once its Pair training and Contact
+                # admission have both finished. Judge its Posts before the
+                # next Shape Link gets a Gate turn.
+                _inspect(pair)
+                _inspect(contact)
             except BaseException:
                 contact_state = _state_of(contact)
                 if contact_state is None or member not in contact_state.active:
                     _withdraw_pair_admission(pair, admitted)
                 raise
-
-        _inspect(pair)
-        _inspect(contact)
     except BaseException:
         state = _state_of(pair)
         if created and (state is None or not (
