@@ -37,12 +37,14 @@ from .access import _view_of
 from .contracts import _holds
 from .contracts import _holds_for_population
 from .declarations import _MISSING
+from .declarations import _begin_ordinary_form
 from .declarations import _check_constant_declarations
 from .declarations import _check_constant_shapes
 from .declarations import _check_pin_bases
 from .declarations import _check_rip_declarations
 from .declarations import _check_tool_declarations
 from .declarations import _constant_owner
+from .declarations import _end_ordinary_form
 from .declarations import _is_dunder
 from .declarations import _is_pin
 from .declarations import _kind_of
@@ -61,10 +63,13 @@ from .fields import _Partition
 from .fields import _field_of
 from .fields import _population_of
 from .fields import _sound_of
+from .geometry import _cached_form_of
 from .geometry import _form_of
 from .geometry import _is_tag
+from .geometry import _is_tag_class
 from .lifecycle import _rip
 from .memo import _class_namespace
+from .memo import _type_mro
 from .observation import _refuse_observed_mutation
 from .state import Tagged
 from .state import _name_of
@@ -165,23 +170,65 @@ class MetaTag(type):
                     f" {tag.__name__}(target)"
                     )
 
-        if _is_pin(tag):
-            _check_pin_target(
-                    tag,
-                    target,
-                    )
-        elif isinstance(target, type):
-            raise TypeError(
-                    f"{tag.__name__} is applied to objects, not classes"
-                    )
-        else:
-            _refuse_host_truth(target)
+        pending_tags = None
+        provisional = None
+        try:
+            with _pin_mark_lock:
+                pin = _is_pin(tag)
+                if not pin:
+                    cached = _cached_form_of(tag)
+                    if cached is not None:
+                        # This is exactly what _form_of would return, even
+                        # after a real Bases change. Reserve it directly.
+                        pending_tags = cached + (tag,)
+                        _begin_ordinary_form(pending_tags)
+                    else:
+                        # A cold Form walk may call a programmer's hash.
+                        # Reserve its physical lineage before releasing the
+                        # lock for that walk.
+                        provisional = tuple(
+                                member for member in _type_mro.__get__(tag)
+                                if _is_tag_class(member)
+                                )
+                        _begin_ordinary_form(provisional)
 
-        return _apply(
-                target,
-                tag,
-                inputs,
-                )
+            if provisional is not None:
+                try:
+                    # A cold Form walk may call a programmer's metaclass
+                    # __hash__; do not hold the Pin lock while it runs.
+                    computed = _form_of(tag)
+                    with _pin_mark_lock:
+                        if any(_is_pin(member) for member in computed):
+                            raise TagCompositionError(
+                                    "an ordinary Form gained a Pin Base"
+                                    " while it was being prepared"
+                                    )
+                        _begin_ordinary_form(computed)
+                        pending_tags = computed
+                finally:
+                    _end_ordinary_form(provisional)
+
+            if pin:
+                _check_pin_target(
+                        tag,
+                        target,
+                        )
+            elif isinstance(target, type):
+                raise TypeError(
+                        f"{tag.__name__} is applied to objects, not classes"
+                        )
+            else:
+                _refuse_host_truth(target)
+
+            return _apply(
+                    target,
+                    tag,
+                    inputs,
+                    form=pending_tags,
+                    )
+        finally:
+            if pending_tags is not None:
+                _end_ordinary_form(pending_tags)
 
     def __contains__(
             tag,

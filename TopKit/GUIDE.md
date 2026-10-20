@@ -1145,6 +1145,11 @@ Flag Pin is a keyword on the Tag: `"Deprecated" in Wizard`. Prefer it to
 to `asleep = True`: a value can be flipped back, membership is a state of
 the architecture, with a Field to walk and a history that stays.
 
+A Tag stays a Tag after its last Agent leaves. `Pin(Former)` may mark a
+previously used Tag once its Field is empty; its past Agent membership
+remains history. A Tag with a live Agent, a Shape, or an active Tool kind
+cannot be marked a Pin later. Mark a Pin at declaration when possible.
+
 ---
 
 ## Reading an Agent

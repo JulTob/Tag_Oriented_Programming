@@ -12,6 +12,7 @@ from weakref import WeakKeyDictionary
 from .memo import _memo_key
 from .memo import _memo_of
 from .memo import _remember_memo
+from .memo import _type_bases
 
 
 _tag_meta: type | None = None
@@ -22,6 +23,12 @@ _bases_cache: "WeakKeyDictionary[type, tuple[type, ...]]" = WeakKeyDictionary()
 
 def _form_key(tag: type) -> str:
     return _memo_key(tag, "BASES")
+
+
+def _cached_form_of(tag: type) -> tuple[type, ...] | None:
+    """Read cached Bases without running a metaclass hash or attribute hook."""
+
+    return _memo_of(tag, _form_key(tag))
 
 
 def _tag_metaclass(
@@ -82,7 +89,7 @@ def _direct_bases(
 
     return tuple(
             base
-            for base in tag.__bases__
+            for base in _type_bases.__get__(tag)
             if _is_tag(base)
             )
 
