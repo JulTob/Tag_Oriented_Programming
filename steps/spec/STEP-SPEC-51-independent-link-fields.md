@@ -60,11 +60,14 @@ held by a Base Link. Those effects contradict the independence of Tags.
    protocol, remains its own turn and its own Field admission. A shared
    declaration name or declaring-Tag Form alone does not apply the other
    Link. `Base[ari].Knows(contact)` selects that Base layer's Link explicitly.
-5. **Independent Rip and views.** Ripping one actual Link's Contact or whole
-   Field acts on that Link's own membership, Pair, and saved teardown. It
-   does not remove the Contact from another Link. A Pair view never silently
-   switches to the Pair of another same-name Link. Whether a saved Pair
-   view follows a new Pair after Rip and reTag remains open.
+5. **Independent Rip and live Pair views.** Ripping one actual Link's Contact
+   or whole Field acts on that Link's own membership, Pair, and saved
+   teardown. It does not remove the Contact from another Link. A saved
+   `view = link[contact]` is a lazy shortcut to that **same actual Link** and
+   Contact. Each later use resolves what a fresh `link[contact]` would resolve
+   at that moment, including the Link's ordinary access rule. After Rip and
+   reTag, it reaches the newly current Pair. It never follows the Agent's
+   name Overlay to a different same-name Link.
 
 For example, this proposed behavior distinguishes two same-name Links:
 
@@ -117,7 +120,9 @@ Pair code, tests, STEP-SPEC-22 text, and wiki examples before merging. Its
 current extension behavior would change: gaining `Spy` would not retrain
 Contacts already in `Social[ari].Knows`, and a direct call to the independent
 `ari.Knows(ruth)` would not add Ruth to the Base Link. The explicit Base Link
-call shown above remains available.
+call shown above remains available. PR #171 currently returns a raw Pair from
+`link[contact]`; that must become a lazy Link-and-Contact view to satisfy the
+Director's saved-view ruling.
 
 ## Alternatives considered
 
@@ -137,7 +142,8 @@ call shown above remains available.
 - Direct Agent access chooses the visible Link; a declaring Tag view chooses
   that Tag's Link. Reads do not admit Contacts.
 - Ripping one Link leaves another Link's Field, Pair, and saved Rip work
-  intact. The Pair's access permissions remain scoped to its chosen Link.
+  intact. A saved Pair view re-resolves the current Pair of its chosen actual
+  Link and Contact after Rip and reTag, without switching to another Link.
 - STEP-SPEC-22, current specification text introduced by #171, wiki, and
   tests agree before a Links implementation is cleared or deployed.
 
