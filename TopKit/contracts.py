@@ -16,6 +16,7 @@ from typing import Callable
 from typing import Iterable
 from typing import Iterator
 
+from .arrest import _arrest_of
 from .declarations import _MISSING
 from .declarations import _protocol_inputs
 from .declarations import _discard_lazy_result
@@ -83,7 +84,10 @@ def _is_checking_post(agent: object) -> bool:
 
 
 def _holds_for_population(agent: object) -> bool:
-    """Soundness may not depend on a Post that is still judging this Agent."""
+    """A free Agent's soundness may not depend on its own running Post."""
+
+    if _arrest_of(agent) is not None:
+        return False
 
     state = _state_of(agent)
 
@@ -423,7 +427,12 @@ def _holds(
         agent: object,
         state: _State | None = None,
         ) -> bool:
-    """True exactly when every visible Postcondition holds."""
+    """True when free and every visible Postcondition holds."""
+
+    # Custody is a separate status. A saved Rip must clear before Posts
+    # can classify this Agent as sound or defective.
+    if _arrest_of(agent) is not None:
+        return False
 
     if state is None:
         state = _state_of(agent)
@@ -444,7 +453,12 @@ def _holds(
                 except Exception:
                     return False
 
-        return True
+            # A Post can itself trigger a failed Rip and catch its error.
+            # Its True answer cannot make a newly arrested Agent valid.
+            if _arrest_of(agent) is not None:
+                return False
+
+        return _arrest_of(agent) is None
     finally:
         state.composing -= 1
 
