@@ -517,6 +517,13 @@ def _view_report_present(
     """
 
     tag = view._tag
+    pinned = _state_of(tag)
+
+    if pinned is not None and name in pinned.records and name in pinned.secrets:
+        # A Secret Pin Record lives in the Tag's private state, not its
+        # physical namespace. It remains a Report behind the Pin door.
+        return name in pinned.secret_values and _is_composing(pinned)
+
     member = _class_namespace(tag).get(name, _MISSING)
 
     if member is _MISSING:
@@ -535,14 +542,11 @@ def _view_report_present(
     if isinstance(member, (classmethod, property, staticmethod)):
         return False
 
-    pinned = _state_of(tag)
-
     if pinned is not None:
         if name in pinned.records:
-            return (
-                    name in pinned.published
-                    and (name not in pinned.secrets or _is_composing(pinned))
-                    )
+            # A Pin Record belongs to the pinned Tag as a Report even when
+            # it was not published on the Agent.
+            return True
 
         if name in pinned.actions:
             return False
