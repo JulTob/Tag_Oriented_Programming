@@ -48,6 +48,78 @@ class ObservationalPreconditionTests(unittest.TestCase):
         self.assertIn(agent, Existing[:])
         self.assertNotIn(agent, Rejected[:])
 
+    def test_started_generator_cleanup_cannot_tag_after_pre_returns(self):
+        other = Host()
+
+        class Changed(Tag):
+            pass
+
+        class Rejected(Tag):
+            @Pre
+            def Gate(agent):
+                def Result():
+                    try:
+                        yield True
+                    finally:
+                        Changed(other)
+
+                result = Result()
+                next(result)
+                return result
+
+        with self.assertRaises(Precondition.Gate) as caught:
+            Rejected(Host())
+
+        self.assertIsInstance(caught.exception.__cause__, TagCompositionError)
+        self.assertNotIn(other, Changed[:])
+
+    def test_result_repr_cannot_tag_during_condition_validation(self):
+        other = Host()
+
+        class Changed(Tag):
+            pass
+
+        class Result:
+            def __repr__(self):
+                Changed(other)
+                return "invalid verdict"
+
+        class Checked(Tag):
+            @Pre
+            def Ready(agent):
+                return Result() if agent.invalid else True
+
+        agent = Host()
+        agent.invalid = False
+        Checked(agent)
+        agent.invalid = True
+
+        self.assertIs(agent.Ready, False)
+        self.assertEqual(Contract.Status(agent), {"Ready": False})
+        self.assertNotIn(other, Changed[:])
+
+    def test_exception_text_cannot_tag_during_named_pre_failure(self):
+        other = Host()
+
+        class Changed(Tag):
+            pass
+
+        class Failure(Exception):
+            def __str__(self):
+                Changed(other)
+                return "failed"
+
+        class Rejected(Tag):
+            @Pre
+            def Gate(agent):
+                raise Failure()
+
+        with self.assertRaises(Precondition.Gate) as caught:
+            Rejected(Host())
+
+        self.assertIsInstance(caught.exception.__cause__, TagCompositionError)
+        self.assertNotIn(other, Changed[:])
+
     def test_query_action_is_allowed_but_its_other_target_tagging_is_not(self):
         other = Host()
 

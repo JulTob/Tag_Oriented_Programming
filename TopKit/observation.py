@@ -6,9 +6,11 @@ calls. It does not pretend to isolate ordinary Python objects or I/O.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any
 from typing import Callable
+from typing import Iterator
 
 from .errors import TagCompositionError
 
@@ -43,41 +45,47 @@ def _refuse_pre_mutation(act: str) -> None:
     raise flow.violation
 
 
+@contextmanager
+def _pre_observation() -> Iterator[_Pre_Flow]:
+    """Observe a whole Pre read, including verdict and error rendering.
+
+    Nested scopes share the first violation. A copied context may retain the
+    token after this call, so deactivate it before resetting this context.
+    """
+
+    flow = _pre_flow.get()
+    opened = flow is None or not flow.active
+
+    if opened:
+        flow = _Pre_Flow()
+        token = _pre_flow.set(flow)
+
+    try:
+        try:
+            yield flow
+        except Exception:
+            if flow.violation is not None:
+                raise flow.violation
+            raise
+
+        if flow.violation is not None:
+            raise flow.violation
+    finally:
+        if opened:
+            flow.active = False
+            _pre_flow.reset(token)
+
+
 def _observe_pre(
         check: Callable[[object, dict[str, Any]], Any],
         ) -> Callable[[object, dict[str, Any]], Any]:
-    """Keep the first attempted TOP mutation fatal, even when caught.
-
-    Nested Preconditions use the same flow. A copied context may retain the
-    token after this call, so deactivate it before resetting this context.
-    """
+    """Guard a Pre called directly or through an Underlay."""
 
     def Observed_Pre(
             agent: object,
             inputs: dict[str, Any],
             ) -> Any:
-        flow = _pre_flow.get()
-        opened = flow is None or not flow.active
-
-        if opened:
-            flow = _Pre_Flow()
-            token = _pre_flow.set(flow)
-
-        try:
-            try:
-                result = check(agent, inputs)
-            except Exception:
-                if flow.violation is not None:
-                    raise flow.violation
-                raise
-
-            if flow.violation is not None:
-                raise flow.violation
-
-            return result
-        finally:
-            if opened:
-                flow.active = False
-                _pre_flow.reset(token)
+        with _pre_observation():
+            return check(agent, inputs)
 
     return Observed_Pre

@@ -8,6 +8,7 @@ raising.
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from typing import Any
 from typing import Callable
 from typing import Iterable
@@ -25,6 +26,7 @@ from .errors import TagError
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
 from .geometry import _leaves
+from .observation import _pre_observation
 from .state import _namespace_of
 from .state import _State
 from .state import _name_of
@@ -274,21 +276,33 @@ def _evaluate(
     """Run conditions; raise ``failure`` naming the first that does not hold."""
 
     for name, check in checks:
+        flow = None
+        scope = _pre_observation() if phase == "Precondition" else nullcontext()
         try:
-            result = check(agent, inputs)
-        except TagContractError as error:
-            raise TagContractError(
-                    f"{phase} {name!r} failed: {_exception_text(error)}"
-                    ) from error
-        except Exception as error:
+            with scope as flow:
+                try:
+                    result = check(agent, inputs)
+                except TagContractError as error:
+                    raise TagContractError(
+                            f"{phase} {name!r} failed: {_exception_text(error)}"
+                            ) from error
+                except Exception as error:
+                    raise failure.Named(name)(
+                            f"{phase} {name!r} raised {_type_name(error)}: {_exception_text(error)}"
+                            ) from error
+
+                if not _verdict(result, f"{phase} {name!r}"):
+                    raise failure.Named(name)(
+                            f"{phase} {name!r} failed"
+                            )
+        except TagCompositionError as error:
+            if flow is None or error is not flow.violation:
+                raise
+            # Validation may catch the immediate refusal; the enclosing
+            # observation still names this Precondition's failed Gate.
             raise failure.Named(name)(
                     f"{phase} {name!r} raised {_type_name(error)}: {_exception_text(error)}"
                     ) from error
-
-        if not _verdict(result, f"{phase} {name!r}"):
-            raise failure.Named(name)(
-                    f"{phase} {name!r} failed"
-                    )
 
 
 def _guarded(
@@ -328,8 +342,14 @@ def _guarded(
 
         for name, check in checks:
             try:
-                if not _verdict(check(agent, {}), name):
-                    return False
+                observation = (
+                        _pre_observation()
+                        if phase == "Precondition"
+                        else nullcontext()
+                        )
+                with observation:
+                    if not _verdict(check(agent, {}), name):
+                        return False
             except Exception:
                 return False
 
@@ -376,8 +396,9 @@ def _condition_member(
     the Agent has no condition of that name."""
 
     check = state.postconditions.get(name)
+    precondition = check is None
 
-    if check is None:
+    if precondition:
         check = state.preconditions.get(name)
 
     if check is None:
@@ -389,10 +410,12 @@ def _condition_member(
 
     try:
         try:
-            return _verdict(
-                    check(agent, {}),
-                    name,
-                    )
+            scope = _pre_observation() if precondition else nullcontext()
+            with scope:
+                return _verdict(
+                        check(agent, {}),
+                        name,
+                        )
         except TagContractError:
             raise
         except Exception:
@@ -419,10 +442,16 @@ def _status_of(
     try:
         for name, check in getattr(state, scope).items():
             try:
-                status[name] = _verdict(
-                        check(agent, {}),
-                        name,
+                observation = (
+                        _pre_observation()
+                        if scope == "preconditions"
+                        else nullcontext()
                         )
+                with observation:
+                    status[name] = _verdict(
+                            check(agent, {}),
+                            name,
+                            )
             except Exception:
                 status[name] = False
     finally:
