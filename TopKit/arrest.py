@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any
-from typing import Iterator
 
 from .errors import TagArrestedAccessError
 
@@ -70,6 +68,27 @@ class _Rip_Door:
         self.active = False
         self.agent = None
 
+    def __enter__(self) -> None:
+        if not self.active:
+            raise RuntimeError("a closed Rip door cannot be entered again")
+        current = _rip_doors.get()
+        if current:
+            current = tuple(active for active in current if active.active)
+        _rip_doors.set(current + (self,))
+
+    def __exit__(self, _kind: object, _error: object, _trace: object) -> None:
+        self.Close()
+        # An async exit may be closed from a different Context after it
+        # suspended. A ContextVar token belongs only to its origin Context;
+        # pruning this Context and revoking the shared door works in both.
+        current = _rip_doors.get()
+        if len(current) == 1 and current[0] is self:
+            _rip_doors.set(())
+        else:
+            _rip_doors.set(tuple(
+                    active for active in current if active.active
+                    ))
+
 
 _rip_doors: ContextVar[tuple[_Rip_Door, ...]] = ContextVar(
         "topkit_rip_doors",
@@ -77,23 +96,8 @@ _rip_doors: ContextVar[tuple[_Rip_Door, ...]] = ContextVar(
         )
 
 
-@contextmanager
-def _rip_door(agent: object) -> Iterator[None]:
-    door = _Rip_Door(agent)
-    _rip_doors.set(tuple(
-            active for active in _rip_doors.get() if active.active
-            ) + (door,))
-
-    try:
-        yield
-    finally:
-        door.Close()
-        # An async exit may be closed from a different Context after it
-        # suspended. A ContextVar token belongs only to its origin Context;
-        # pruning this Context and revoking the shared door works in both.
-        _rip_doors.set(tuple(
-                active for active in _rip_doors.get() if active.active
-                ))
+def _rip_door(agent: object) -> _Rip_Door:
+    return _Rip_Door(agent)
 
 
 def _may_act(agent: object) -> bool:
