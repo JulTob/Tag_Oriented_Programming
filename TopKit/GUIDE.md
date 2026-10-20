@@ -744,6 +744,18 @@ the value's contents or changing its publication rules. See
 or protocols is running. A handle to a secret Action captured inside and
 called outside fails, on purpose.
 
+#### Proposal: check again before a Service result leaves
+
+> This is a reviewed design proposal, not current TopKit behavior.
+
+STEP-SPEC-60 proposes that a published Report or Operation check authority at
+entry and start a fresh check before releasing a result whenever the Agent or
+its access may have changed. Native coroutine and generator results would
+repeat that boundary at every continuation. The Operation's composition door
+stays around its body and closes before a value or control reaches the caller.
+Read the fast-path limits, lazy-result boundary, and six open choices in
+[Service result release checks](../wiki/1.9-TopKit-Service-Release.md).
+
 ### Pattern 9 · Roles that end
 
 **When you want** a Tag to clean up when it leaves, or a role that lasts for
