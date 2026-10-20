@@ -13,6 +13,7 @@ from .state import _Deleted
 from .state import _Published
 from .state import _Secret_Gate
 from .state import _current_report_binding
+from .state import _host_member
 from .state import _real_namespace_of
 from .state import _is_composing
 from .constants import _Constant_Gate
@@ -116,7 +117,13 @@ def _present(
         binding = _current_report_binding(state, name)
 
         if binding is None:
-            return (name in state.actions or name in state.records) and name in namespace
+            if name in state.secrets:
+                return name in namespace
+            if name in namespace:
+                return True
+            if name in state.deleted or name in state.restored:
+                return False
+            return _host_member(state.host_type, name) is not _MISSING
 
         if not binding.public:
             return False
