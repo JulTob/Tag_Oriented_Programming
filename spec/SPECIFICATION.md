@@ -657,12 +657,12 @@ Three laws govern the slot:
    `del agent.weapon`, and `@Delete` at the name frees the slot (§1.6).
    A Constant slot refuses both (§1.5).
 3. **The slot never Tags.** The kit applies no Tag to what the builder
-   returns or to what is assigned. The forge Tags the object in plain
-   sight, or the object arrives already Tagged. A tagging inside the
-   builder is an ordinary call on another Target with its own §0.6
-   boundary: its failure keeps its own name and refuses the bearer's
-   gaining; a Tag it applied to a pre-existing object stays applied,
-   since Rip is not restoration (§0.7).
+   returns or to what is assigned. A Tool builder, like any Record
+   builder, reads, calculates and returns an initial value. Applying or
+   Ripping Tags belongs in an Imprint; a held object that needs a Tag
+   kind at admission must already belong to that Tag when the builder
+   returns. An earlier Imprint may prepare it (§0.6). Nested Tagging
+   follows its own §0.6 failure boundary; Rip is not restoration (§0.7).
 
 The rule belongs to the effective Record declaration, as Overlay already
 says (§1.2). A later Layer that redeclares the name as a Tool brings its
