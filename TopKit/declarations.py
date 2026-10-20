@@ -40,6 +40,7 @@ from .geometry import _is_tag
 from .geometry import _is_tag_class
 from .memo import _class_namespace
 from .memo import _forget_memo
+from .memo import _Tag_Memo
 from .memo import _memo_key
 from .memo import _memo_of
 from .memo import _namespace_snapshot
@@ -521,29 +522,48 @@ def Pin(
 
     with _pin_mark_lock:
         if _class_namespace(tag).get(_PIN) is True:
-            return tag   # restating the mark changes nothing
+            return tag
 
-        _refuse_late_pin(tag)
-        _refuse_tools_on_a_pin(
-                tag,
-                _namespace_snapshot(tag),
-                )
-        type.__setattr__(
-                tag,
-                _PIN,
-                True,
-                )
+    while True:
+        # These scans may call a program's metadata getters. Another thread
+        # must be able to mark a Pin while one of those getters is running.
+        namespace = _namespace_snapshot(tag)
+        _refuse_tools_on_a_pin(tag, namespace)
+        _validate_pin(tag, _declarations_of(tag))
 
-        try:
-            _check_pin_bases(tag)
-            _invalidate_declarations(tag)   # a scan made before the mark never validated it as a Pin
-            _declarations_of(tag)        # validate the members now, not at first pinning
-        except BaseException:
-            type.__delattr__(tag, _PIN)  # refused: nothing changed
-            _invalidate_declarations(tag)
-            raise
+        with _pin_mark_lock:
+            if _class_namespace(tag).get(_PIN) is True:
+                return tag   # restating the mark changes nothing
 
-    return tag
+            # A Tool assignment can land while the unlocked scan runs. The
+            # setter uses this same lock; retry on its new namespace.
+            if _pin_namespace_changed(namespace, _namespace_snapshot(tag)):
+                continue
+
+            _refuse_late_pin(tag)
+            type.__setattr__(tag, _PIN, True)
+
+            try:
+                _check_pin_bases(tag)
+                _invalidate_declarations(tag)
+            except BaseException:
+                type.__delattr__(tag, _PIN)  # refused: nothing changed
+                _invalidate_declarations(tag)
+                raise
+
+            return tag
+
+
+def _pin_namespace_changed(before: dict[str, Any], after: dict[str, Any]) -> bool:
+    """Ignore only internal memo publication when retrying Pin preflight."""
+
+    old = {name: value for name, value in before.items()
+           if type(value) is not _Tag_Memo}
+    new = {name: value for name, value in after.items()
+           if type(value) is not _Tag_Memo}
+    return old.keys() != new.keys() or any(
+            old[name] is not new[name] for name in old
+            )
 
 
 def _refuse_late_pin(
@@ -1137,8 +1157,12 @@ def _check_tool_declarations(
         tag: type,
         namespace: dict[str, Any],
         ) -> None:
-    """A ``@Tool`` marks a Record, whatever the order of its decorators,
-    and never a member of a Pin."""
+    """Inspect user declaration metadata before locking Pin publication.
+
+    Only the final kind check and registry update need the shared lock.
+    A callable metadata getter can wait for another Pin thread, which must
+    be able to take that lock while the getter is running.
+    """
 
     for name, member in namespace.items():
         if _tool_kind_of(member) is None:
@@ -1170,11 +1194,12 @@ def _check_tool_declarations(
             if (kind := _tool_kind_of(member)) is not None
             ]
 
-    for name, kind in tools:
-        _refuse_pin_tool_kind(tag, name, kind)
+    with _pin_mark_lock:
+        for name, kind in tools:
+            _refuse_pin_tool_kind(tag, name, kind)
 
-    for _name, kind in tools:
-        _note_kinds(tag, kind)
+        for _name, kind in tools:
+            _note_kinds(tag, kind)
 
 
 _NAMED_FAILURES: dict[str, type] = {

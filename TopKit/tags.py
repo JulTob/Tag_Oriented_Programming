@@ -101,8 +101,7 @@ class MetaTag(type):
                 )
         _check_pin_bases(tag)
         _check_constant_declarations(tag, namespace)
-        with _pin_mark_lock:
-            _check_tool_declarations(tag, namespace)
+        _check_tool_declarations(tag, namespace)
 
         return tag
 

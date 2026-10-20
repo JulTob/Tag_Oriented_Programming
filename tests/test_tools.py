@@ -1351,6 +1351,122 @@ class Host_Tests(unittest.TestCase):
 
 
 class Late_Pin_Tests(unittest.TestCase):
+    def test_tool_getter_waiting_for_another_pin_does_not_deadlock(self):
+        class Kind(Tag):
+            pass
+
+        class Peer(Tag):
+            pass
+
+        entered = Event()
+        release = Event()
+
+        class Builder:
+            armed = False
+
+            def __call__(self, agent):
+                return None
+
+            def __getattribute__(self, name):
+                if name == "__topkit_tool__" and object.__getattribute__(self, "armed"):
+                    entered.set()
+                    if not release.wait(2):
+                        raise TimeoutError("peer Pin could not finish")
+                return object.__getattribute__(self, name)
+
+        builder = Tool(Kind)(Builder())
+
+        class Collector(Tag):
+            prize = builder
+
+        builder.armed = True
+        failures = []
+        peer_done = Event()
+
+        def mark_collector():
+            try:
+                Pin(Collector)
+            except TagDeclarationError:
+                return
+            except BaseException as error:
+                failures.append(error)
+            else:
+                failures.append(AssertionError("Tool owner became a Pin"))
+
+        def mark_peer():
+            try:
+                Pin(Peer)
+            except BaseException as error:
+                failures.append(error)
+            finally:
+                peer_done.set()
+
+        first = Thread(target=mark_collector)
+        second = Thread(target=mark_peer)
+        first.start()
+        try:
+            self.assertTrue(entered.wait(2))
+            second.start()
+            self.assertTrue(peer_done.wait(1), "Pin blocked behind user getter")
+        finally:
+            release.set()
+            first.join(2)
+            if second.ident is not None:
+                second.join(2)
+
+        self.assertFalse(first.is_alive())
+        self.assertFalse(second.is_alive())
+        self.assertEqual(failures, [])
+
+    def test_pin_rechecks_when_a_tool_lands_during_unlocked_scan(self):
+        import TopKit.declarations as declarations
+
+        class Kind(Tag):
+            pass
+
+        class Candidate(Tag):
+            pass
+
+        entered = Event()
+        resume = Event()
+        outcome = []
+        original = declarations._validate_pin
+
+        def pause_once(tag, scanned):
+            original(tag, scanned)
+            if not entered.is_set():
+                entered.set()
+                if not resume.wait(2):
+                    raise TimeoutError("Tool write could not finish")
+
+        def mark():
+            try:
+                Pin(Candidate)
+            except TagDeclarationError:
+                outcome.append("refused")
+            except BaseException as error:
+                outcome.append(error)
+            else:
+                outcome.append("accepted")
+
+        @Tool(Kind)
+        def tool(agent):
+            return None
+
+        with patch.object(declarations, "_validate_pin", pause_once):
+            worker = Thread(target=mark)
+            worker.start()
+            try:
+                self.assertTrue(entered.wait(2))
+                Candidate.tool = tool
+            finally:
+                resume.set()
+                worker.join(2)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(outcome, ["refused"])
+        self.assertNotIn("__topkit_pin__", Candidate.__dict__)
+
     def test_a_metaclass_cannot_discard_the_pin_mark(self):
         class Discard(MetaTag):
             def __setattr__(cls, name, value):
