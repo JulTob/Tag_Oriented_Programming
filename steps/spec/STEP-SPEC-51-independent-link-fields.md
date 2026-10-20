@@ -62,9 +62,9 @@ held by a Base Link. Those effects contradict the independence of Tags.
    Link. `Base[ari].Knows(contact)` selects that Base layer's Link explicitly.
 5. **Independent Rip and views.** Ripping one actual Link's Contact or whole
    Field acts on that Link's own membership, Pair, and saved teardown. It
-   does not remove the Contact from another Link. A Pair view resolves its
-   chosen actual Link and Contact; it does not silently change to the Pair
-   of another same-name Link.
+   does not remove the Contact from another Link. A saved Pair view resolves
+   its chosen actual Link and Contact afresh after Rip and reTag, following
+   that Link's current Pair. It never switches to another same-name Link.
 
 For example, this proposed behavior distinguishes two same-name Links:
 
