@@ -723,7 +723,7 @@ def _report_training(
                     failure,
                     skip_file_prefixes=_WARNING_SKIP_PREFIXES,
                     )
-        except Exception as error:
+        except BaseException as error:
             # Warning filters and custom reporting hooks run after Field
             # entry. Neither may mask a failed Post or an interruption.
             if primary is not None:
@@ -731,6 +731,10 @@ def _report_training(
                     BaseException.add_note(primary, str(error))
                 except BaseException:
                     pass
+            elif not isinstance(error, Exception):
+                # A new Python interruption remains an interruption when
+                # training and Posts themselves completed normally.
+                raise
             elif warning_errors:
                 try:
                     BaseException.add_note(warning_errors[0], str(error))

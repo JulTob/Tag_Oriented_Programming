@@ -4,6 +4,7 @@ import gc
 import unittest
 import warnings
 import weakref
+from unittest.mock import patch
 
 from TopKit import (Constant, Imprint, Pin, Post, Record, Rip, Tag,
                     TagCompositionError, TagOverwriteWarning, TagPostconditionError,
@@ -297,6 +298,31 @@ class BestEffortRecordTests(unittest.TestCase):
         self.assertEqual(agent.frame, "frame")
         self.assertFalse("wheels" @ agent)
         self.assertFalse("paint" @ agent)
+
+    def test_warning_hook_cannot_replace_training_interruption(self):
+        original = KeyboardInterrupt("training stopped")
+        reporter = SystemExit("warning output failed")
+
+        class Car(Tag):
+            @Record
+            def wheels(agent):
+                raise ValueError("no wheels")
+
+            @Imprint
+            def Train(agent):
+                raise original
+
+        agent = Host()
+        with warnings.catch_warnings():
+            warnings.simplefilter("always", TagTrainingWarning)
+            with patch.object(warnings, "showwarning", side_effect=reporter):
+                with self.assertRaises(KeyboardInterrupt) as caught:
+                    Car(agent)
+
+        self.assertIs(caught.exception, original)
+        self.assertIn(agent, Car[:])
+        self.assertTrue(any("warning output failed" in note
+                            for note in original.__notes__))
 
     def test_interruption_before_rip_declaration_saves_no_unacquired_teardown(self):
         interruption = KeyboardInterrupt("stop")
