@@ -2,7 +2,7 @@
 
 import unittest
 
-from TopKit import Constant, Pin, Public, Record, Report, Tag
+from TopKit import Action, Constant, Operation, Pin, Public, Record, Report, Tag
 
 
 class BaseReportLinkTests(unittest.TestCase):
@@ -114,6 +114,72 @@ class BaseReportLinkTests(unittest.TestCase):
         self.assertEqual(Shape.label, "right")
         del Right.label
         self.assertIsNone(Shape.label)
+
+    def test_link_skips_an_operation_or_action_replacing_a_base_report(self):
+        class Deep(Tag):
+            @Report
+            def signal(tag):
+                return "deep"
+
+        class Base(Deep):
+            @Report
+            def signal(tag):
+                return "base"
+
+        class Shape(Base):
+            @Report
+            def signal(tag, base_signal):
+                return base_signal
+
+        self.assertEqual(Shape.signal, "base")
+
+        @Operation
+        def signal(tag):
+            return "operation"
+
+        Base.signal = signal
+        self.assertEqual(Shape.signal, "deep")
+
+        @Action
+        def signal(tag):
+            return "action"
+
+        Base.signal = signal
+        self.assertEqual(Shape.signal, "deep")
+
+        del Base.signal
+
+        @Pin
+        class Pinned(Tag):
+            @Action
+            def signal(tag):
+                return "pinned operation"
+
+        Pinned(Base)
+        self.assertEqual(Shape.signal, "deep")
+
+    def test_written_false_and_none_are_base_report_values(self):
+        class Deep(Tag):
+            @Report
+            def signal(tag):
+                return "deep"
+
+        class Base(Deep):
+            @Report
+            def signal(tag):
+                return "base"
+
+        class Shape(Base):
+            @Report
+            def signal(tag, base_signal):
+                return base_signal
+
+        Base.signal = False
+        self.assertIs(Shape.signal, False)
+        Base.signal = None
+        self.assertIsNone(Shape.signal)
+        del Base.signal
+        self.assertEqual(Shape.signal, "deep")
 
     def test_constant_link_fixes_first_success_but_other_report_builds_once(self):
         class Base(Tag):

@@ -726,23 +726,23 @@ class Report:
             report,
             owner: type,
             ) -> Any:
-        """The value a Base owns under this name, or None: the first member
-        declared after this Report's own class in the MRO."""
+        """The next Base Report value under this name, or None."""
 
         # State imports declarations, so the Pin carrier is read here only
         # when a Shape explicitly asks for its Base Report's value.
+        from .state import _Pinned_Operation
         from .state import _Pinned_Value
 
         passed_own_class = False
 
         for klass in owner.__mro__:
-            member = klass.__dict__.get(report._name)
+            member = klass.__dict__.get(report._name, _MISSING)
 
             if member is report:
                 passed_own_class = True
                 continue
 
-            if not passed_own_class or member is None:
+            if not passed_own_class or member is _MISSING:
                 continue
 
             if isinstance(member, Report):
@@ -753,6 +753,19 @@ class Report:
 
             if isinstance(member, _Pinned_Value):
                 return member.value
+
+            # A nearer Base may have replaced its Report with another
+            # Contribution. That declaration is not a Report value; keep
+            # searching for a lower Base Report rather than passing its
+            # Python descriptor or Action function to this builder.
+            if isinstance(
+                    member,
+                    (classmethod, staticmethod, property, _Pinned_Operation),
+                    ):
+                continue
+            kind = getattr_static(member, _KIND, None)
+            if type(kind) is str and kind != "report":
+                continue
 
             return member
 
