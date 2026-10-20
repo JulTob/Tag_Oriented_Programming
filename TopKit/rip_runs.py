@@ -29,6 +29,8 @@ class _RipRun:
     running: bool = False
     revoked: bool = False
     orphaned: bool = False  # original Tag ended; only these runs belong to root deletion
+    held: tuple[Any, ...] = ()  # values removed at revocation stay held through retry
+    member: Any = None  # weak Field seat identifies an application, even without @Rip
 
 
 def _tag_name(tag: type) -> str:
@@ -37,10 +39,15 @@ def _tag_name(tag: type) -> str:
     return str.__str__(type.__dict__["__name__"].__get__(tag))
 
 
-def _save_run(agent: object, run: _RipRun) -> None:
+def _save_run(
+        agent: object,
+        run: _RipRun,
+        *,
+        hold_empty: bool = False,
+        ) -> None:
     """Hold a pending run by Agent identity, never host hash or equality."""
 
-    if not run.teardowns:
+    if not run.teardowns and not hold_empty:
         return
 
     arrest = _arrest_of(agent)
@@ -67,6 +74,29 @@ def _pending_run(agent: object, tag: type) -> _RipRun | None:
     return None
 
 
+def _pending_unrevoked_run(
+        agent: object,
+        tag: type,
+        teardowns: tuple[tuple[str, Any], ...],
+        member: Any,
+        ) -> _RipRun | None:
+    """Find a saved run for this exact Field application."""
+
+    arrest = _arrest_of(agent)
+
+    if arrest is not None:
+        for run in arrest.runs:
+            if (
+                    run.tag is tag
+                    and run.teardowns is teardowns
+                    and run.member is member
+                    and not run.revoked
+                    ):
+                return run
+
+    return None
+
+
 def _finish_run(agent: object, run: _RipRun) -> None:
     """Release only this completed run, then release an empty custody."""
 
@@ -84,6 +114,11 @@ def _finish_run(agent: object, run: _RipRun) -> None:
 
     if not arrest.runs and dict.get(_safehouse, id(agent)) is arrest:
         _safehouse.pop(id(agent))
+
+    # A Field Rip may remove the last references to Record values. Keep
+    # those values alive while this run is pending, then release them only
+    # after it has left Safehouse custody.
+    run.held = ()
 
 
 def _retry_arrested(

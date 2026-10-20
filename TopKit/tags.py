@@ -51,6 +51,7 @@ from .declarations import _name_checks
 from .declarations import _refuse_condition_dunder
 from .declarations import _refuse_truth_gain
 from .errors import TagCompositionError
+from .errors import TagResolutionError
 from .fields import FIELD_SEAT
 from .fields import _Field
 from .fields import _Partition
@@ -61,6 +62,7 @@ from .fields import _sound_of
 from .geometry import _form_of
 from .geometry import _is_tag
 from .lifecycle import _rip
+from .lifecycle import _rip_field
 from .lifecycle import _retry_arrested
 from .state import Tagged
 from .state import _name_of
@@ -291,6 +293,19 @@ class MetaTag(type):
             ) -> None:
         if _arrest_of(tag) is not None:
             _require_available(tag, "Rip")
+
+        if isinstance(agent, slice):
+            if agent != slice(None):
+                raise TypeError(
+                        "Tag[:] is the whole Field; positional slices have"
+                        " no meaning for a population"
+                        )
+
+            if tag is Tag:
+                raise TagResolutionError("root Tag has no Field to Rip")
+
+            _rip_field(tag)
+            return
 
         if tag is Tag:
             # Root Tag[...] sees every arrest, but root deletion handles only
