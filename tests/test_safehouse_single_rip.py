@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 
 import TopKit.lifecycle as lifecycle
+import TopKit.transactions as transactions
 from TopKit import Action
 from TopKit import Rip
 from TopKit import Tag
@@ -225,12 +226,137 @@ class SafehouseSingleRipTests(unittest.TestCase):
         Plain(agent)
         state = _state_of(agent)
         self.assertNotIn(Plain, state.rips)
+        self.assertIn(Plain, state.snapshots)
+        self.assertIsNone(state.no_rip_applications)
         del Plain[agent]
         self.assertNotIn(agent, Plain[:])
         self.assertNotIn(agent, Tag[...])
+        self.assertIsNone(state.no_rip_applications)
         Plain(agent)
         self.assertIn(agent, Plain[:])
         self.assertNotIn(Plain, state.rips)
+
+    def test_no_rip_interrupted_field_removal_is_saved_for_retry(self) -> None:
+        for remove_first in (False, True):
+            with self.subTest(remove_first=remove_first):
+                class Plain(Tag):
+                    pass
+
+                agent = Host()
+                Plain(agent)
+                state = _state_of(agent)
+                field = _field_of(Plain)
+                remove = field._Remove
+                interrupted = False
+
+                def Interrupt(target):
+                    nonlocal interrupted
+                    if remove_first:
+                        remove(target)
+                    if not interrupted:
+                        interrupted = True
+                        raise KeyboardInterrupt
+                    if not remove_first:
+                        remove(target)
+
+                with patch.object(field, "_Remove", Interrupt):
+                    with self.assertRaises(KeyboardInterrupt):
+                        del Plain[agent]
+
+                self.assertEqual(agent in Plain[:], not remove_first)
+                self.assertIn(Plain, state.active)
+                self.assertIn(agent, Plain[...])
+                self.assertFalse(bool(agent))
+
+                # The old admission still blocks another Tagging until its
+                # interrupted revocation is completed.
+                Plain(agent)
+                self.assertEqual(agent in Plain[:], not remove_first)
+                del Plain[agent]
+                self.assertNotIn(Plain, state.active)
+                self.assertNotIn(agent, Plain[:])
+                self.assertNotIn(agent, Plain[...])
+
+                Plain(agent)
+                self.assertIn(agent, Plain[:])
+
+    def test_no_rip_retry_keeps_new_tagging_after_active_removal(self) -> None:
+        class Plain(Tag):
+            pass
+
+        class InterruptingActive(list):
+            interrupted = False
+
+            def remove(self, tag):
+                result = super().remove(tag)
+                if not self.interrupted:
+                    self.interrupted = True
+                    raise KeyboardInterrupt
+                return result
+
+        agent = Host()
+        Plain(agent)
+        state = _state_of(agent)
+        old_snapshot = state.snapshots[Plain]
+        state.active = InterruptingActive(state.active)
+
+        with self.assertRaises(KeyboardInterrupt):
+            del Plain[agent]
+
+        self.assertNotIn(agent, Plain[:])
+        self.assertNotIn(Plain, state.active)
+        self.assertIn(agent, Plain[...])
+
+        Plain(agent)
+        fresh_snapshot = state.snapshots[Plain]
+        self.assertIsNot(fresh_snapshot, old_snapshot)
+        self.assertIn(agent, Plain[:])
+
+        del Plain[agent]
+        self.assertIn(agent, Plain[:])
+        self.assertIs(state.snapshots[Plain], fresh_snapshot)
+        self.assertNotIn(agent, Plain[...])
+
+    def test_no_rip_retry_keeps_fresh_admission_without_either_snapshot(self) -> None:
+        class Plain(Tag):
+            pass
+
+        class InterruptingActive(list):
+            interrupted = False
+
+            def remove(self, tag):
+                super().remove(tag)
+                if not self.interrupted:
+                    self.interrupted = True
+                    raise KeyboardInterrupt
+
+        agent = Host()
+        with patch.object(transactions, "_snapshot", side_effect=RuntimeError("view")):
+            with self.assertRaisesRegex(RuntimeError, "view"):
+                Plain(agent)
+
+            state = _state_of(agent)
+            old_application = state.no_rip_applications[Plain]
+            self.assertNotIn(Plain, state.snapshots)
+            self.assertIn(agent, Plain[:])
+            state.active = InterruptingActive(state.active)
+
+            with self.assertRaises(KeyboardInterrupt):
+                del Plain[agent]
+
+            self.assertIn(agent, Plain[...])
+            self.assertNotIn(agent, Plain[:])
+            with self.assertRaisesRegex(RuntimeError, "view"):
+                Plain(agent)
+
+        self.assertNotIn(Plain, state.snapshots)
+        self.assertIsNot(state.no_rip_applications[Plain], old_application)
+        self.assertIn(agent, Plain[:])
+
+        # The old run belongs to Plain, not the root orphan Safehouse.
+        del Plain[agent]
+        self.assertIn(agent, Plain[:])
+        self.assertNotIn(agent, Plain[...])
 
     def test_failed_step_stops_later_work_and_retries_its_own_cursor(self) -> None:
         events = []

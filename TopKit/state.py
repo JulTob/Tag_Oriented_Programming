@@ -156,6 +156,7 @@ class _State:
     restored: frozenset[str] = frozenset()   # deleted, then stored again; shared until used
     snapshots: _Tag_Identity_Map[_Snapshot] = field(default_factory=_Tag_Identity_Map)
     rips: _Tag_Identity_Map[tuple[tuple[str, Function], ...]] = field(default_factory=_Tag_Identity_Map)
+    no_rip_applications: _Tag_Identity_Map[object] | None = None
     secret_values: dict[str, Any] = field(default_factory=dict)   # a pinned Tag's @Secret members
     originals: dict[str, Any] = field(default_factory=dict)       # what a Pin patched, as declared
     constants: dict[str, tuple[type, str, Any]] = field(default_factory=dict)  # origin, kind, declaration
@@ -205,6 +206,10 @@ class _State:
         copied.restored = state.restored
         copied.snapshots = state.snapshots.copy()
         copied.rips = state.rips.copy()
+        copied.no_rip_applications = (
+                state.no_rip_applications.copy()
+                if state.no_rip_applications is not None else None
+                )
         copied.secret_values = state.secret_values.copy()
         copied.originals = state.originals.copy()
         copied.constants = state.constants.copy()
