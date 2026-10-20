@@ -49,23 +49,28 @@ _Link_Slot = tuple[type | None, tuple[type, ...]]
 # Public queries may receive a saved view instead of its current Agent.
 # Register exact view types once at module load so query calls do not import
 # modules during an Agent's finalizer (including interpreter shutdown).
-_VIEW_SUBJECTS: dict[type, Callable[[object], object]] = {}
+_VIEW_SUBJECTS: list[tuple[type, Callable[[object], object]]] = []
 
 
 def _register_view_subject(
         view_type: type,
         resolver: Callable[[object], object],
-        registry: dict[type, Callable[[object], object]] = _VIEW_SUBJECTS,
+        registry: list[tuple[type, Callable[[object], object]]] = _VIEW_SUBJECTS,
         ) -> None:
-    registry[view_type] = resolver
+    registry.append((view_type, resolver))
 
 
 def _view_subject(
         value: object,
-        registry: dict[type, Callable[[object], object]] = _VIEW_SUBJECTS,
+        registry: list[tuple[type, Callable[[object], object]]] = _VIEW_SUBJECTS,
         ) -> object:
-    resolver = registry.get(type(value))
-    return value if resolver is None else resolver(value)
+    value_type = type(value)
+
+    for view_type, resolver in registry:
+        if value_type is view_type:
+            return resolver(value)
+
+    return value
 
 
 # ------------------------------------------------------------------

@@ -156,6 +156,22 @@ class LivePairViewDraftTests(unittest.TestCase):
         with self.assertRaises(TagResolutionError):
             _ = "anything" @ saved
 
+    def test_unrelated_host_metaclass_is_not_asked_to_hash_or_compare(self):
+        class HostMeta(type):
+            def __hash__(cls):
+                raise AssertionError("a plain query hashed the Host type")
+
+            def __eq__(cls, other):
+                raise AssertionError("a plain query compared the Host type")
+
+        class Foreign(metaclass=HostMeta):
+            pass
+
+        target = Foreign()
+        self.assertFalse(Keyword(target, "Unknown"))
+        self.assertEqual(Contract.Status(target), {})
+        self.assertTrue(Contract.Postconditions(target))
+
 
 if __name__ == "__main__":
     unittest.main()
