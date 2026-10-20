@@ -187,6 +187,31 @@ class ObservationalPostTests(unittest.TestCase):
         self.assertNotIn(Agency, Certified)
         self.assertNotIn(other, Changed[:])
 
+    def test_status_does_not_hash_a_declaration_name_outside_observation(self):
+        other = Host()
+
+        class Changed(Tag):
+            pass
+
+        class Name(str):
+            armed = False
+
+            def __hash__(self):
+                if Name.armed:
+                    Changed(other)
+                return str.__hash__(self)
+
+        def Ready(agent):
+            return True
+
+        Checked = type("Checked", (Tag,), {Name("Ready"): Post(Ready)})
+        agent = Host()
+        Checked(agent)
+        Name.armed = True
+
+        self.assertEqual(Contract.Status(agent), {"Ready": True})
+        self.assertNotIn(other, Changed[:])
+
     def test_python_interruption_from_post_remains_primary(self):
         original = KeyboardInterrupt("stop")
 
