@@ -29,10 +29,10 @@ object without keeping every Agent in a global root Field.
    Agent. This fact survives later Rip and cannot be inferred merely from
    an attached provisional State: a refused first Gate or failed host
    actualization leaves the untouched host unactualized. A later refused
-   Gate does not erase an earlier successful actualization. A successful
-   root `Tag(host)` may actualize a host with TOP's default Agent behavior
-   but admits it to no Field. A Tag class actualized as a Pin Target is
-   also an Agent for these queries.
+   Gate does not erase an earlier successful actualization. A Tag class
+   actualized as a Pin Target is also an Agent for these queries. Whether
+   calling root `Tag(host)` can actualize a host without Field admission
+   remains open under STEP-SPEC-32; this Brief does not define that call.
 2. `agent in Tag[:]` asks whether that object has been successfully
    actualized. It includes a Rogue whose Gains or Imprint failed after
    actualization, an Agent after its last ordinary Rip, and an arrested
