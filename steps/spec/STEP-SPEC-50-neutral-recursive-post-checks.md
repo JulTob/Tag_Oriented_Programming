@@ -76,14 +76,14 @@ question.
    fresh and sees the later value.
 
    Reuse never crosses a permission boundary that can change what the
-   calculation may see. A protected call checks its contract before work
-   begins. If Agent or access state may have changed while the result was
-   prepared, TOP checks again before returning it; the second check may be
-   omitted only when TOP can establish that the relevant state did not
-   change. Opening or closing a Secret door invalidates a query's reusable
-   verdicts, so a result calculated with credentials cannot authorize a read
-   after those credentials are gone. An interruption or raised check failure
-   retains its existing diagnostic and cause rather than becoming neutral.
+   calculation may see. Opening or closing a Secret door invalidates the
+   query's reusable verdicts; if the query later reaches that Post again, it
+   calculates a fresh verdict under the current door. An interruption or
+   raised check failure retains its existing diagnostic and cause rather than
+   becoming neutral. The broader rule for checking a published Service both
+   before protected work and before releasing its result is recorded
+   separately in [issue #389](https://github.com/JulTob/Tag_Oriented_Programming/issues/389);
+   it is not implemented by this Post memo.
    This does not grant permission for Posts to mutate TOP state; the
    observational-Post rule is proposed separately in
    [#346](https://github.com/JulTob/Tag_Oriented_Programming/pull/346)
@@ -131,10 +131,11 @@ tractable without pretending to solve a contradictory contract.
 
 Permission is a separate dimension. A Secret door can change what a check
 is allowed to observe, so a reusable verdict cannot cross the door's opening
-or closing. Entry and return checks protect work that lasts across such a
-change; a stable TOP state/version can prove the return check redundant.
+or closing. This STEP conservatively invalidates that query's Post memo; it
+does not claim an Agent-state epoch can prove arbitrary Python inputs stable.
 STEP-SPEC-49 blocks explicit TOP mutations inside a Post, but it does not
 make arbitrary reads pure or authorize reuse between separate queries.
+Service entry/release authorization belongs to issue #389.
 
 ## Backwards compatibility
 
@@ -183,10 +184,8 @@ Precondition's Gate result.
   reads of the same exact Post in one validity query reuse its first completed
   verdict even when reached through a different active-Post path. A separate
   outer query sees changed Records or outside inputs.
-- Opening or closing a Secret door invalidates completed verdicts. A
-  protected call checks before work and, when relevant Agent or access state
-  may have changed, before returning its result. A test covers the proven
-  unchanged-state fast path without allowing an inside-door result to leak.
+- Opening or closing a Secret door invalidates completed verdicts in that
+  query. A later path recomputes rather than leaking an inside-door answer.
 - A finite collective Field query terminates, and each repeated exact Post
   is evaluated at most once while reuse remains safe. A separate performance
   test must measure dense collective checks before this rule is deployed.
