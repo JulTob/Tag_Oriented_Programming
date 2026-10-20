@@ -2596,7 +2596,7 @@ def _leave(
             )
     opened = state.composing
     state.composing = 0   # her door stays shut, even inside her own finalizer (rule 3.6)
-    access = _Pair_Access(pair, None)
+    access = _Pair_Access(pair, link)
     token = _pair_access.set(access)
 
     try:
