@@ -6,11 +6,10 @@ It does not isolate ordinary Python attribute writes or I/O.
 
 from __future__ import annotations
 
-from contextlib import contextmanager
 from contextvars import ContextVar
+from contextvars import Token
 from typing import Any
 from typing import Callable
-from typing import Iterator
 
 from .errors import TagCompositionError
 
@@ -46,43 +45,53 @@ def _refuse_pre_mutation(act: str) -> None:
     raise flow.violation
 
 
-@contextmanager
-def _observing(phase: str) -> Iterator[_Pre_Flow]:
+class _Observation:
     """Observe a check, including verdict and error rendering.
 
     Nested scopes share the first violation. A copied context may retain the
     token after this call, so deactivate it before resetting this context.
     """
 
-    flow = _pre_flow.get()
-    opened = flow is None or not flow.active
+    __slots__ = ("phase", "flow", "opened", "token")
 
-    if opened:
-        flow = _Pre_Flow(phase)
-        token = _pre_flow.set(flow)
+    def __init__(self, phase: str) -> None:
+        self.phase = phase
+        self.flow: _Pre_Flow | None = None
+        self.opened = False
+        self.token: Token[_Pre_Flow | None] | None = None
 
-    try:
+    def __enter__(self) -> _Pre_Flow:
+        flow = _pre_flow.get()
+        self.opened = flow is None or not flow.active
+
+        if self.opened:
+            flow = _Pre_Flow(self.phase)
+            self.token = _pre_flow.set(flow)
+
+        self.flow = flow
+        return flow
+
+    def __exit__(self, exc_type, exc, traceback) -> bool:
         try:
-            yield flow
-        except Exception:
-            if flow.violation is not None:
-                raise flow.violation
-            raise
-
-        if flow.violation is not None:
-            raise flow.violation
-    finally:
-        if opened:
-            flow.active = False
-            _pre_flow.reset(token)
+            if (exc_type is None or issubclass(exc_type, Exception)) and (
+                    self.flow.violation is not None
+                    ):
+                raise self.flow.violation
+            return False
+        finally:
+            if self.opened:
+                self.flow.active = False
+                _pre_flow.reset(self.token)
 
 
-@contextmanager
-def _pre_observation() -> Iterator[_Pre_Flow]:
+def _observing(phase: str) -> _Observation:
+    return _Observation(phase)
+
+
+def _pre_observation() -> _Observation:
     """Observe a Precondition, retaining the existing guarded TOP boundary."""
 
-    with _observing("a Precondition") as flow:
-        yield flow
+    return _observing("a Precondition")
 
 
 def _observe_pre(

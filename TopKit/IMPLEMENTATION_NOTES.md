@@ -277,8 +277,11 @@ removed: completed independent Tags and acquired Gains are not restored away.
 An in-progress Tagging is tracked separately from membership so applying the
 same Tag to the same Agent during its Imprint is a no-op. There is no automatic
 Rip for an unfinished never-member and no automatic rollback of training
-effects. Preconditions and Record builders are observational authoring
-contracts, not sandboxes for arbitrary Python effects.
+effects. Preconditions, Posts and Record builders are observational authoring
+contracts, not sandboxes for arbitrary Python effects. The observation guard
+rejects explicit TOP state changes during Pre and Post evaluation, including
+their query Actions, but ordinary Python writes and I/O remain the author's
+responsibility. Record builders are not yet mechanically guarded.
 
 ## Synchronous protocol results
 
