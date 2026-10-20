@@ -66,6 +66,19 @@ def _present(
     namespace = _namespace(agent)
     state = namespace.get(STATE)
 
+    if state is not None and state.pinned is not None and name in state.secrets:
+        return _is_composing(state) and name in state.secret_values
+
+    if issubclass(type(agent), type):
+        # A Tag answers from its own Tag scope. Static lookup below would
+        # otherwise find a Base's Report or Operation, even when this
+        # Shape does not own it.
+        from .tags import MetaTag
+        from .tags import _base_tag_member
+        if (issubclass(type(agent), MetaTag)
+                and _base_tag_member(agent, name)):
+            return False
+
     if state is not None and name in state.secrets:
         if not _is_composing(state):
             return False

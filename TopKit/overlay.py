@@ -54,6 +54,7 @@ from .declarations import _MISSING
 from .presence import _Presence
 from .state import _Bound
 from .state import _Pinned_Operation
+from .state import _Pinned_Value
 from .state import _Published
 from .state import _State
 from .state import _name_of
@@ -596,7 +597,7 @@ def _gainings(
                 _install_action(state, tag, name, function)
             elif kind == "record":
                 _install_record(state, tag, name, function)
-                _store_record(agent, name, value, one.secrets)
+                _store_record(agent, state, name, value, one.secrets)
             else:
                 _install(state, tag, one)
 
@@ -839,10 +840,10 @@ def _own_declaration(
         declarations = _declarations_of(klass)
 
         if any(name == n for n, _f, _p in declarations.operations):
-            return (klass, "operation", declared)
+            return (klass, "operation", declared) if klass is pinned else None
 
         if any(name == n for n, _r, _p in declarations.reports):
-            return (klass, "report", declared)
+            return (klass, "report", declared) if klass is pinned else None
 
         if any(name == n for n, _f in declarations.actions) or any(
                 name == n for n, _f in declarations.records
@@ -956,9 +957,9 @@ def _pinned_stored(
         name: str,
         ) -> Any:
     """What the pinned Tag currently holds under ``name``, for a Pin
-    Record's stored seat: its own Report's value, a plain value, or what an
-    earlier Pin landed (own or inherited). Behaviour is never a stored
-    value."""
+    Record's stored seat: its own Report's value, a plain Python value, or
+    what an earlier Pin landed on this Tag. A Base's Report or Pin gain is
+    not the Shape's stored value. Behaviour is never a stored value."""
 
     for klass in pinned.__mro__:
         if name not in klass.__dict__:
@@ -966,10 +967,15 @@ def _pinned_stored(
 
         declared = klass.__dict__[name]
 
+        if isinstance(declared, _Pinned_Value):
+            return declared.value if klass is pinned else None
+
         if isinstance(declared, Report):
+            if klass is not pinned:
+                return None
             return declared.__get__(
                     None,
-                    pinned,
+                    klass,
                     )
 
         if isinstance(
@@ -1329,6 +1335,7 @@ def _record_value(
 
 def _store_record(
         agent: object,
+        state: _State,
         name: str,
         value: Any,
         secrets: frozenset[str],
@@ -1337,6 +1344,9 @@ def _store_record(
 
     if isinstance(agent, type) and name in secrets:
         namespace.pop(name, None)
-        _state_of(agent).secret_values[name] = value
+        state.secret_values[name] = value
     else:
-        namespace[name] = value
+        namespace[name] = (
+                _Pinned_Value(value, agent)
+                if state.pinned is not None else value
+                )

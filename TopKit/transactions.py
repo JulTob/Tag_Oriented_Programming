@@ -620,7 +620,7 @@ def _snapshot(
         ) -> _Snapshot:
     namespace = _namespace_of(agent)
     records = {
-            name: namespace[name]
+            name: namespace.get(name)
             for name in state.records
             if name in namespace
             }

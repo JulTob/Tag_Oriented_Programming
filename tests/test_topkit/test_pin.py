@@ -90,8 +90,10 @@ class PinTests(unittest.TestCase):
 
         self.assertEqual(Wizard.rarity, "rare")
         self.assertEqual(Wizard.Describe(), "Wizard is rare")
-        self.assertEqual(War_Caster.rarity, "rare")                 # a Report: inherited
-        self.assertEqual(War_Caster.Describe(), "War_Caster is rare")   # an Operation: the receiver is the Tag read
+        with self.assertRaises(AttributeError):
+            War_Caster.rarity
+        with self.assertRaises(AttributeError):
+            War_Caster.Describe
         self.assertNotIn(War_Caster, Rare)                            # membership does not inherit
         self.assertFalse(hasattr(ari, "rarity"))
         self.assertFalse(hasattr(ari, "Describe"))
@@ -265,7 +267,8 @@ class PinTests(unittest.TestCase):
 
         self.assertIn(Rare, Meta)
         self.assertEqual(Rare.level, 2)
-        self.assertEqual(Homebrew.level, 2)
+        with self.assertRaises(AttributeError):
+            Homebrew.level
 
     def test_a_pin_patches_the_tags_own_operations_and_reports(self) -> None:
         """A Tag's Tag-scope declarations are host members to a Pin: the
@@ -298,7 +301,8 @@ class PinTests(unittest.TestCase):
             Patch(Wizard)
 
         self.assertEqual(Wizard.Greet("x"), "WIZARD:X")
-        self.assertEqual(War_Caster.Greet("x"), "WAR_CASTER:X")
+        with self.assertRaises(AttributeError):
+            War_Caster.Greet
         self.assertEqual(Wizard.colour, "blue-patched")
         self.assertEqual(ari.Hail(), "WIZARD:ALL")                    # every Agent actualized, no per-Agent work
 
