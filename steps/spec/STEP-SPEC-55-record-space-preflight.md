@@ -12,9 +12,11 @@
 
 ## Summary
 
-After a Tag's Gate passes, TOP checks that the Target can physically hold
-every Record space this Tagging needs **before it acquires any of this Tag's
-Gainings**. This is a zero step: it does not calculate or store Record values.
+Before a Tag's Gate runs, TOP checks that the Target can physically hold every
+Record space this Tagging needs **before it acquires any of this Tag's
+Gainings**. This is a structural zero step: it does not calculate or store
+Record values and is not a semantic act of Tagging. The Gate remains first
+among those acts.
 If the space cannot be prepared, TOP restores this attempt's provisional
 Target representation and bindings, leaves the Tag unadmitted, and raises
 `TagTargetError`, a public kind of `TagCompositionError`. Earlier completed
@@ -31,13 +33,14 @@ confuse a failed calculation with a structural refusal.
 
 ## Proposed specification
 
-1. For each Tag turn, run its Gate first. Before that Tag's first Gaining or
-   Imprint, check the statically knowable physical storage needed for **all
-   Record bindings this application must establish**, without calling their
-   builders or assigning their calculated values. This check does not change
-   the declaration order in which actual Gainings later become visible. It
-   cannot predict the result of an arbitrary Host descriptor or setter when
-   the calculated value is eventually written.
+1. For each Tag turn, check the statically knowable physical storage needed
+   for **all Record bindings this application must establish** before running
+   the Gate. Do not call their builders or assign their calculated values.
+   Once that structural zero step succeeds, the Gate is the first semantic
+   Tagging act. The check does not change the declaration order in which
+   actual Gainings later become visible. It cannot predict the result of an
+   arbitrary Host descriptor or setter when the calculated value is eventually
+   written.
 2. If a needed Record space cannot be provided, this Tag acquires no Gains,
    runs no Record initializer or Imprint, and enters no Field. Restore the
    Target's provisional runtime type, instance dictionary and supported
@@ -68,22 +71,23 @@ fail before `Start` sticks. If `Base(target)` completed first, Base remains
 applied. If the Target can hold `wheels` but its builder raises while
 calculating a value, this STEP's structural refusal does not apply.
 
-## Open Gate ordering detail
+## Structural priority over the Gate
 
-This Brief proposes a successful Gate before the zero step. Current TopKit
-checks ordinary Record conflicts during `_gate` before it evaluates that
-Tag's `@Pre`. If both a Precondition would refuse and a Record space is
-missing, the choice changes which failure the caller sees; neither order
-would acquire a Gain. The Director still needs to settle that diagnostic
-priority before this STEP is Cleared.
+The Director settled the diagnostic priority on 2026-10-20. If a Precondition
+would refuse and a Record space is also known to be impossible, TOP reports
+the structural Target failure without running the Gate. There is no useful
+Tagging for the Gate to judge, and avoiding programmer code on a physically
+unsuitable Target gives the smaller side-effect boundary. This does not move
+Gainings, Imprints, Field admission or Posts ahead of the Gate; it classifies
+the zero step as preparation for attempting the Tagging at all.
 
 ## Rationale
 
 Space and value are separate questions. The zero step makes a physically
-unsuitable Target an early, bounded refusal while preserving the ordinary
-top-to-bottom visibility of real Gainings. Keeping `TagTargetError` under
-`TagCompositionError` lets existing composition handlers catch it and gives
-the caller a more precise reason.
+unsuitable Target an early, bounded refusal without running programmer Gate
+code, while preserving the ordinary top-to-bottom visibility of real
+Gainings. Keeping `TagTargetError` under `TagCompositionError` lets existing
+composition handlers catch it and gives the caller a more precise reason.
 
 ## Backwards compatibility
 
@@ -106,9 +110,11 @@ invalid and does not turn a builder's own exception into `TagTargetError`.
 
 ## Acceptance requirements
 
-Check every statically knowable required Record space before the first Gain
-or Imprint. Cover a protected Host slot, a compatible frozen dataclass, a
-logical name collision that remains `TagCompositionError`, a dynamic write
+Check every statically knowable required Record space before the Gate and
+therefore before the first Gain or Imprint. Cover a Target whose Gate would
+have an observable call but whose space is impossible, a protected Host slot,
+a compatible frozen dataclass, a logical name collision that remains
+`TagCompositionError`, a dynamic write
 refusal during training, and a later failing Tag in a Form whose earlier Tags
 remain. Verify restoration of provisional runtime type and bindings, zero
 builder calls on structural refusal, the public `TagTargetError` subtype and
@@ -119,5 +125,6 @@ cause, and existing Host actualization and performance budgets.
 ### Decision
 
 > **Brief.** The Director distinguished Record-space preparation from
-> Record-value training on 2026-10-20. Formal clearance and runtime
+> Record-value training and placed the statically knowable structural zero
+> step before the Gate on 2026-10-20. Formal clearance and runtime
 > implementation remain separate review steps.
