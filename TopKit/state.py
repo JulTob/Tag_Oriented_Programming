@@ -29,12 +29,15 @@ from typing import TypeVar
 from weakref import WeakValueDictionary
 import weakref
 
+from .arrest import _require_available
+from .arrest import _safehouse
 from .declarations import STATE
 from .declarations import _MISSING
 from .declarations import _Words
 from .declarations import _is_dunder
 from .declarations import _is_flag
 from .errors import TagCompositionError
+from .lazy_guard import _guard_lazy_result
 from .memo import _namespace_snapshot
 
 Function = Callable[..., Any]
@@ -725,11 +728,15 @@ class _Bound:
         if agent is None:
             raise ReferenceError("the Agent of this Action no longer exists")
 
-        return bound._function(
+        if _safehouse:
+            _require_available(agent, "Action")
+
+        result = bound._function(
                 agent,
                 *args,
                 **kwargs,
                 )
+        return _guard_lazy_result(result, agent, "Action", _require_available)
 
     @property
     def __name__(
@@ -872,11 +879,16 @@ class _Pinned_Bound:
         bound._doc = doc
 
     def __call__(bound, *args: Any, **kwargs: Any) -> Any:
+        if _safehouse:
+            _require_available(bound._owner, "Operation")
         state = bound._state
         state.composing += 1
 
         try:
-            return bound._function(bound._owner, *args, **kwargs)
+            result = bound._function(bound._owner, *args, **kwargs)
+            return _guard_lazy_result(
+                    result, bound._owner, "Operation", _require_available
+                    )
         finally:
             state.composing -= 1
 
@@ -1004,15 +1016,18 @@ class _Composing_Bound(_Bound):
         if agent is None:
             raise ReferenceError("the Agent of this Action no longer exists")
 
+        if _safehouse:
+            _require_available(agent, "Action")
         state = _state_of(agent)
         state.composing += 1
 
         try:
-            return bound._function(
+            result = bound._function(
                     agent,
                     *args,
                     **kwargs,
                     )
+            return _guard_lazy_result(result, agent, "Action", _require_available)
         finally:
             state.composing -= 1
 

@@ -7,6 +7,8 @@ from contextvars import ContextVar
 from typing import Any
 from typing import Iterator
 
+from .errors import TagArrestedAccessError
+
 class _Arrest:
     __slots__ = ("agent", "runs", "lazy")
 
@@ -102,3 +104,16 @@ def _may_act(agent: object) -> bool:
             door.active and door.agent is agent
             for door in reversed(_rip_doors.get())
             )
+
+
+def _require_available(agent: object, act: str) -> None:
+    """Refuse a TOP act while this Agent has unfinished Rip work.
+
+    Public Rip activation will first retry that work, then use this same
+    boundary to decide whether the requested act may proceed.
+    """
+
+    if not _may_act(agent):
+        raise TagArrestedAccessError(
+                f"{act} is unavailable: this Agent has unfinished Rip work"
+                )
