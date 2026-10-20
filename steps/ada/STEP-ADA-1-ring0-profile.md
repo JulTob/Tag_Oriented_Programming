@@ -56,9 +56,11 @@ Specification and test passages still described whole-call restoration.
 since brought ordered Tagging to `main`. The Ada carrier and Field boundaries
 below remain open; Python's implementation is evidence, not an Ada profile.
 The Director subsequently ruled that each admitted Tag's visible Posts are
-checked before the next Tag's Gate. That focused Python change is under
-[PR #318](https://github.com/JulTob/Tag_Oriented_Programming/pull/318), not
-yet on `main` at this refresh.
+checked before the next Tag's Gate. The focused proposal is
+[STEP-SPEC-53 / PR #370](https://github.com/JulTob/Tag_Oriented_Programming/pull/370),
+with its Python runtime draft in
+[PR #373](https://github.com/JulTob/Tag_Oriented_Programming/pull/373); neither
+is on `main` at this refresh.
 
 ## Specification
 
@@ -73,15 +75,17 @@ yet on `main` at this refresh.
 | Apply (§0.5) | Apply pending Tags Base-first; active reapplication does nothing; fresh reapplication after Rip repeats ordinary training | Established |
 | Gate (§0.6) | Each pending Tag passes its own Gate when its turn arrives; completed earlier Taggings remain if a later Gate refuses | Deployed in Python by #174; Ada implementation pending |
 | Gainings (§0.6) | After its Gate, each Tag applies gains and Imprints in declaration order, visible to later gains; failed training leaves acquired Actions, Records and Posts on a Rogue outside that Tag's Field | Deployed in Python by #174; Ada implementation pending |
-| Admission (§0.6) | After Gainings/Imprints complete, the Agent enters the Field and gains its Reports and Operations; visible Posts are checked then, before the next Tag's Gate. A failed Post leaves this membership in place and stops further Tagging. | Field-before-Post sequence deployed by #174; per-Tag Post timing under #318; Ada implementation pending |
+| Admission (§0.6) | After Gainings/Imprints complete, the Agent enters the Field and gains its Reports and Operations; visible Posts are checked then, before the next Tag's Gate. A failed Post leaves this membership in place and stops further Tagging. | Field-before-Post sequence deployed by #174; focused per-Tag Post proposal under #370 with runtime draft #373; Ada implementation pending |
 | Current state (§2.5) | Postconditions define requirements; missing declared gains alone and a past Imprint failure do not permanently mark deficiency | Director-approved; existing Imprint/current-state tests cover part of it |
 | Rip (§0.7) | Rip ends active membership, not history; ordinary gains are sticky; reapplication is fresh; no implicit cascade | Established; several lifecycle extensions remain Brief |
 
 The Gainings row records Python's deployed #174 behavior, not a settled Ada
 obligation for failed Imprints. The Director has since chosen best-effort
 Imprints followed by Field admission and Post judgment; that redesign is still
-in draft [#324](https://github.com/JulTob/Tag_Oriented_Programming/pull/324)
-and [#330](https://github.com/JulTob/Tag_Oriented_Programming/pull/330).
+proposed in focused
+[STEP-SPEC-54 / PR #372](https://github.com/JulTob/Tag_Oriented_Programming/pull/372),
+with its Python runtime prototype in
+[#330](https://github.com/JulTob/Tag_Oriented_Programming/pull/330).
 Refresh this Ada boundary when those drafts are cleared and deployed.
 
 The profile must not import an irreversible-ban feature: a programmer can
