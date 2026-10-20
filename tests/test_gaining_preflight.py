@@ -6,9 +6,10 @@ import warnings
 from unittest import mock
 
 import TopKit.transactions as transactions
-from TopKit import (Action, Constant, Delete, Flag, Operation, Pin, Post, Pre,
-                    Public, Record, Report, Rip, Secret, Tag,
-                    TagCompositionError, TagResolutionError, Tool, Underlay)
+from TopKit import (Action, Constant, Delete, Flag, Imprint, Operation, Pin,
+                    Post, Pre, Public, Record, Report, Rip, Secret, Tag,
+                    TagCompositionError, TagResolutionError, TagTargetError,
+                    Tool, Underlay)
 from TopKit.declarations import _invalidate_declarations
 from TopKit.state import _State, _state_of
 
@@ -42,11 +43,58 @@ class GainingPreflightTests(unittest.TestCase):
                         return "replacement"
 
                 agent = host_type()
-                with self.assertRaises(TagCompositionError):
+                with self.assertRaises(TagTargetError) as caught:
                     Arriving(agent)
+                self.assertIsInstance(caught.exception, TagCompositionError)
+                self.assertIn("Arriving.occupied", str(caught.exception))
                 self.assertEqual(built, [])
                 self.assertNotIn("earlier", agent.__dict__)
                 self.assertNotIn(agent, Arriving)
+
+    def test_target_refusal_leaves_a_completed_base_and_no_gains_from_this_tag(self):
+        events = []
+
+        class PropertyHost:
+            @property
+            def occupied(self):
+                return "host value"
+
+        class Base(Tag):
+            @Record
+            def kept(agent):
+                events.append("base")
+                return 1
+
+        class Shape(Base):
+            @Action
+            def Work(agent):
+                return "work"
+
+            @Post
+            def Ready(agent):
+                return True
+
+            @Record
+            def occupied(agent):
+                events.append("shape Record")
+                return "new value"
+
+            @Imprint
+            def Train(agent):
+                events.append("shape Imprint")
+
+        agent = PropertyHost()
+        with self.assertRaises(TagTargetError) as caught:
+            Shape(agent)
+
+        self.assertIn("Shape.occupied", str(caught.exception))
+        self.assertEqual(events, ["base"])
+        self.assertIn(agent, Base[:])
+        self.assertNotIn(agent, Shape[:])
+        self.assertEqual(agent.kept, 1)
+        self.assertEqual(agent.occupied, "host value")
+        self.assertFalse("Work" @ agent)
+        self.assertFalse("Ready" @ agent)
 
     def test_a_missing_underlay_refuses_before_earlier_builders(self):
         built = []

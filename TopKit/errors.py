@@ -91,6 +91,10 @@ class TagCompositionError(TagError):
     be materialized, or a teardown failed."""
 
 
+class TagTargetError(TagCompositionError):
+    """The Target has no usable space for a declared Record."""
+
+
 class TagResolutionError(TagError):
     """A required Underlay, Tag view, or contribution is unavailable."""
 
