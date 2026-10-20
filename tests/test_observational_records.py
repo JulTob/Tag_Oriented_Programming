@@ -158,6 +158,31 @@ class ObservationalRecordTests(unittest.TestCase):
         self.assertNotIn(other, Changed[:])
         self.assertNotIn(agent, Incomplete[:])
 
+    def test_interruption_after_caught_mutation_keeps_the_interruption(self):
+        class Changed(Tag):
+            pass
+
+        other = Host()
+
+        for interruption in (KeyboardInterrupt("stop"), SystemExit("stop")):
+            with self.subTest(interruption=type(interruption).__name__):
+                class Incomplete(Tag):
+                    @Record
+                    def result(agent):
+                        try:
+                            Changed(other)
+                        except TagCompositionError:
+                            pass
+                        raise interruption
+
+                agent = Host()
+                with self.assertRaises(type(interruption)) as caught:
+                    Incomplete(agent)
+
+                self.assertIs(caught.exception, interruption)
+                self.assertNotIn(other, Changed[:])
+                self.assertNotIn(agent, Incomplete[:])
+
     def test_record_cannot_delete_contract_change_tag_or_register_exit_work(self):
         class Existing(Tag):
             label = "original"

@@ -42,7 +42,9 @@ class _Observation_Flow:
             traceback: object,
             ) -> None:
         try:
-            if self.carrier.violation is not None:
+            if (self.carrier.violation is not None
+                    and (error_type is None
+                         or issubclass(error_type, Exception))):
                 raise self.carrier.violation
         finally:
             if self.active:
