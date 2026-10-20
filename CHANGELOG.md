@@ -265,16 +265,15 @@
   wiki page "Tools: what an Agent has" runs as one program under the
   suite.
 
-- **A Pin is declared, not converted** (Director ruling, 2026-10-20):
-  `Pin(Tag)` is accepted only while the Tag is pristine. Any ordinary-Tag
-  use commits it for good — a declared Shape, a begun application turn
-  (even one the Gate refused, even one whose Agents later left the Field,
-  even a turn still underway when the mark is attempted), or a `@Tool`
-  naming it as a kind, including by late assignment. The commitment is a
-  plain mark on the Tag itself, so the refusal never lapses and nothing
-  is tracked weakly. A refused mark leaves the Tag ordinary, a Tag
-  scanned before its mark is re-validated as a Pin at the mark, and
-  restating the mark is a no-op. Steady Tagging cost: +5 instructions.
+- **Unsafe late Pin marks are refused:** `Pin(Tag)` applied later is
+  refused, with nothing changed, when the Tag already has a Shape (the Shape
+  would become a Pin unchecked, its Tools landing on Tags), an Agent (its
+  Field would mix objects and Tags), or a place as a Tool's kind (the
+  slot would admit Tags). A refused mark no longer stays on the class,
+  and a Tag scanned before its mark is validated as a Pin at the mark.
+  Tool kinds are tracked weakly by Tag identity. Restating the mark is a
+  no-op. Whether a Tag that trained an Agent now outside its Field may be
+  marked as a Pin remains open.
 
 - **Presence by name:** `"name" @ agent` checks current contributions,
   including host bindings; `"name" @ Tag[agent]` checks the captured view.

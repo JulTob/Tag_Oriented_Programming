@@ -34,6 +34,7 @@ from .errors import TagCompositionError
 from .errors import TagImprintError
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
+from .geometry import _is_tag
 from .geometry import _is_tag_class
 from .memo import _forget_memo
 from .memo import _memo_key
@@ -49,8 +50,6 @@ _SECRET = "__topkit_secret__"
 _PUBLIC = "__topkit_public__"
 _FLAG = "__topkit_flag__"
 _PIN = "__topkit_pin__"
-_APPLIED = "__topkit_applied__"   # this Tag began an application turn: it is an ordinary Tag for good
-_TOOL_NAMED = "__topkit_tool_named__"   # a @Tool named this Tag as its kind: same commitment
 _CONSTANT = "__topkit_constant__"
 _TOOL = "__topkit_tool__"   # a Record's kind: the Tags its slot admits (tools._Kind)
 _ACTION_CHAIN = "__topkit_action_chain__"
@@ -545,43 +544,35 @@ def Pin(
 def _refuse_late_pin(
         tag: type,
         ) -> None:
-    """A Pin is declared, not converted (Director ruling, 2026-10-20).
-
-    ``@Pin`` is part of the Tag's declaration: it is accepted only while
-    the Tag is pristine. Any ordinary-Tag use commits the Tag for good:
-    a declared Shape, a begun application turn (even one the Gate then
-    refused, and even one whose Agents have since left the Field), or a
-    ``@Tool`` naming it as a kind. The refusal never lapses: it reads
-    marks on the Tag itself, so it does not depend on whether the using
-    party is still alive or already collected (§1.3, §1.9)."""
+    """Refuse a late mark that would change current ordinary-Tag use:
+    Shapes would become Pins, the Field could mix objects and Tags, or
+    a declared Tool kind would start admitting Tags (§1.3, §1.9). Past
+    Taggings no longer in the Field are a separate unresolved case."""
 
     shapes = type.__subclasses__(tag)
 
     if shapes:
         raise TagDeclarationError(
                 f"@Pin marks {tag.__name__} at its declaration, and it"
-                f" already has the Shape {shapes[0].__name__}: a Tag never"
-                f" becomes a Pin. Write @Pin over class {tag.__name__},"
+                f" already has the Shape {shapes[0].__name__}: a Shape of a"
+                f" Pin is a Pin. Write @Pin over class {tag.__name__},"
                 " before its Shapes"
-                )
-
-    if _APPLIED in tag.__dict__:
-        raise TagDeclarationError(
-                f"@Pin marks {tag.__name__} at its declaration, and"
-                f" {tag.__name__} has already been applied as an ordinary"
-                " Tag: a Tag never becomes a Pin (§1.9)"
                 )
 
     from .fields import _field_of   # fields imports declarations through contracts
 
-    if next(iter(_field_of(tag)), None) is not None:
+    agents = list(_field_of(tag))
+
+    if agents:
         raise TagDeclarationError(
                 f"@Pin marks {tag.__name__} at its declaration, and it"
                 " already has Agents: a Pin's Field holds Tags, never"
                 " objects (§1.9)"
                 )
 
-    if _TOOL_NAMED in tag.__dict__:
+    named = _kinds_named.get(id(tag))
+
+    if named is not None and named() is tag:
         raise TagDeclarationError(
                 f"@Pin marks {tag.__name__} at its declaration, and a @Tool"
                 f" already names {tag.__name__} as its kind: a Pin is no"
@@ -1056,6 +1047,33 @@ def _refuse_tools_on_a_pin(
                     )
 
 
+_kinds_named: dict[int, ref[type]] = {}   # weak, by Tag identity
+
+
+def _note_kinds(
+        kind: Any,
+        ) -> None:
+    """Remember the Tags a declared Tool names, so marking one of them a
+    Pin later is refused (``_refuse_late_pin``)."""
+
+    for term in kind.terms:
+        for alternative in term:
+            if not _is_tag(alternative):
+                continue
+
+            key = id(alternative)
+            current = _kinds_named.get(key)
+
+            if current is not None and current() is alternative:
+                continue
+
+            def Forget(expired: ref[type], key: int = key) -> None:
+                if _kinds_named.get(key) is expired:
+                    del _kinds_named[key]
+
+            _kinds_named[key] = ref(alternative, Forget)
+
+
 def _check_tool_declarations(
         tag: type,
         namespace: dict[str, Any],
@@ -1086,6 +1104,12 @@ def _check_tool_declarations(
                 tag,
                 namespace,
                 )
+
+    for member in namespace.values():
+        kind = _tool_kind_of(member)
+
+        if kind is not None:
+            _note_kinds(kind)
 
 
 _NAMED_FAILURES: dict[str, type] = {

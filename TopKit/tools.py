@@ -34,7 +34,6 @@ from .declarations import Report
 from .declarations import _MISSING
 from .declarations import _RIP
 from .declarations import _TOOL
-from .declarations import _TOOL_NAMED
 from .declarations import _has_flag
 from .declarations import _is_pin
 from .declarations import _kind_of
@@ -217,11 +216,6 @@ def _kind_from(
                 continue
 
             _refuse_as_kind(part)
-
-            if _is_tag(part) and _TOOL_NAMED not in part.__dict__:
-                #-- Naming a Tag as a kind commits it as an ordinary Tag:
-                #-- it can never become a Pin (declarations._refuse_late_pin).
-                setattr(part, _TOOL_NAMED, True)
 
             if part not in alternatives:
                 alternatives.append(part)
