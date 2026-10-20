@@ -24,7 +24,9 @@ from inspect import signature
 from threading import RLock
 from types import AsyncGeneratorType
 from types import CoroutineType
+from types import FunctionType
 from types import GeneratorType
+from types import MemberDescriptorType
 from typing import Any
 from typing import Callable
 from typing import NamedTuple
@@ -1029,11 +1031,26 @@ def _tool_kind_of(
             attribute,
             )
 
-    return getattr(
+    observed = getattr(
             function,
             _TOOL,
             None,
             )
+
+    # An ordinary function has no custom lookup hook, and is the hot path.
+    # For callable objects, a dynamic getter can conceal an actual @Tool
+    # mark after class publication. The physical mark remains authoritative
+    # at Record gaining, just as it is for late Pin validation.
+    if type(function) is FunctionType:
+        return observed
+
+    physical = _tool_kind_of_static(attribute)
+    if physical is not None:
+        from .tools import _Kind
+        if type(physical) is _Kind:
+            return physical
+
+    return observed
 
 
 def _tool_kind_of_static(attribute: Any) -> Any:
@@ -1048,7 +1065,14 @@ def _tool_kind_of_static(attribute: Any) -> Any:
     elif not callable(attribute):
         return None
 
-    return getattr_static(attribute, _TOOL, None)
+    physical = getattr_static(attribute, _TOOL, None)
+    if type(physical) is MemberDescriptorType:
+        try:
+            return physical.__get__(attribute, type(attribute))
+        except AttributeError:
+            return None
+
+    return physical
 
 
 def _tool_tag_kinds(kind: Any) -> tuple[type, ...]:
