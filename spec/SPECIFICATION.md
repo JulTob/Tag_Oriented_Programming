@@ -713,18 +713,21 @@ Community.colour            # "green"
 Community.Greet("Ari")      # "Community:Ari"
 ```
 
-An ordinary Report builder runs once per Tag, on first read, and its value
-is held on the Tag: one copy for the whole Field. Like a Record, it may declare a
-second parameter, which receives the value the Tag's Bases give that name,
-or `None`, so a Shape can extend a Base's Report rather than replace it.
+An ordinary Report builder runs once on its declaring Tag, on first read,
+and its value is held there: one copy for that Tag's whole Field. A Shape
+does not directly acquire a Base's Report. If the Shape declares its own
+Report with a second parameter, that parameter explicitly receives the
+Base's value under the same name, or `None`, when the Shape calculates its
+own value.
 
 A Constant Report initializes once on its **declaring Tag**, on first
-read through that Tag or any Shape. The builder receives the declaring
-Tag. Every Shape shares the exact same resulting value; no Shape runs a
-separate initialization. Its binding cannot be replaced or deleted, but
-the value's contents may mutate. A Constant Operation instead fixes the
-implementation: it still runs on every call with the Tag through which
-it was called as receiver.
+read through that Tag. The builder receives the declaring Tag. Its binding
+cannot be replaced or deleted, but the value's contents may mutate. A
+Shape does not acquire that Report; applying the Shape also applies its
+Base, so the Agent can still reach the Base's value through its Base view
+or publication. A Constant Operation fixes its implementation on the
+declaring Tag and receives that Tag on each direct call. A Shape can call
+only Operations it declares itself.
 
 Reports and Operations are **not visible on the Agent**. `ari.colour` does
 not exist after `Community(ari)`, and neither does `ari.Greet`. Projecting
@@ -1085,13 +1088,15 @@ Agents and Tags.
 
 **The receiver rule** (§1.1). The first parameter of a Pin's Agent-scope
 member is the pinned Tag; write it `tag`. A Pin's Record lands as a
-Report of the pinned Tag: one value, held on the Tag, inherited by its
-Shapes, and readable through the `inherited` seat of a Shape's own Report
-(§1.4). A Pin's Action lands as an Operation: read from the pinned Tag or
-any of its Shapes, it receives the Tag it was read from, as an Operation
-does. Membership does not inherit: `War_Caster in Rare` is False until
-`Rare(War_Caster)`. Nothing a Pin lands is ever projected onto the Tag's
-Agents. A Pin's own Operations and Reports stay on the Pin.
+Report of the pinned Tag: one value, held on that Tag. A Shape does not
+acquire it, though the Shape's own Report can explicitly read its Base's
+value through the second parameter (§1.4). A Pin's Action lands as an
+Operation of the pinned Tag and receives that Tag when called. A Shape
+does not acquire the Operation; a Pin must apply to the Shape itself to
+give it an Operation. Membership likewise belongs to each Tag:
+`War_Caster in Rare` is False until `Rare(War_Caster)`. Nothing a Pin
+lands is ever projected onto the Tag's Agents. A Pin's own Operations
+and Reports stay on the Pin.
 
 **Patching, with collision control.** The pinned Tag's own Tag-scope
 declarations are host members to a Pin, as a host method is to an
