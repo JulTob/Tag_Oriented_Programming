@@ -3,6 +3,7 @@
 Rip ends active membership. Contributions are sticky: Actions and Records
 stay on the Agent (a Rogue Agent) unless the Tag's @Rip teardowns change
 them. Each Rip removes only the named Tag, even if a Shape stays active.
+An explicit Post can require continued Base membership when needed.
 
 Of the three deletion tiers (§3.2), the kit gives the finalizer's
 teardowns and At_Exit. The guaranteed tier is the program's own: it tags
@@ -15,6 +16,7 @@ from typing import Any
 from types import MappingProxyType
 import atexit
 
+from .declarations import _is_link
 from .arrest import _arrest_of
 from .arrest import _may_act
 from .declarations import _parameters_of
@@ -44,6 +46,8 @@ from .state import _state_of
 def _rip(
         agent: object,
         tag: type,
+        *,
+        retry_older: bool = True,
         ) -> object:
     """End this Tag's application, then finish older arrested work.
 
@@ -58,7 +62,7 @@ def _rip(
 
     if pending is not None:
         _run_one(agent, state, pending)
-        if _arrest_of(agent) is not None and not _may_act(agent):
+        if retry_older and _arrest_of(agent) is not None and not _may_act(agent):
             _retry_arrested(agent)
         return agent
 
@@ -89,7 +93,8 @@ def _rip(
     # An explicit other-Tag Rip runs its own protocol first. After it
     # succeeds, any older arrested work must clear before the Agent is free.
     if (
-            (teardowns or arrest is not None)
+            retry_older
+            and (teardowns or arrest is not None)
             and _arrest_of(agent) is not None
             and not _may_act(agent)
             ):
@@ -318,10 +323,35 @@ def _teardown_all(
     if state is None:
         return
 
+    if state.links:
+        from .links import _begin_ending   # links builds on this module
+
+        _begin_ending(
+                agent,
+                state,
+                )   # the Agent in hand fills the first seat of its own Links (STEP-SPEC-22 rule 8.3)
+
     state.composing += 1   # teardowns run inside the composition door, as on a Rip
+    interrupted: BaseException | None = None
 
     try:
         for tag in reversed(list(state.active)):
+            if interrupted is not None and not _is_link(tag):
+                continue   # after an interruption only its exits from Links still run (STEP-SPEC-22 rule 8.4)
+
+            if _is_link(tag):
+                # A Contact's finalizer may be its last caller. Use the
+                # ordinary saved Rip so a failed Pair teardown leaves the
+                # Contact in its Link's Safehouse for later retry.
+                try:
+                    _rip(agent, tag, retry_older=False)
+                except Exception:
+                    pass
+                except BaseException as error:
+                    if interrupted is None:
+                        interrupted = error
+                continue
+
             for name, teardown in state.rips.pop(tag, ()):
                 try:
                     _call_teardown(
@@ -332,8 +362,30 @@ def _teardown_all(
                             )
                 except Exception:
                     pass
+                except BaseException as error:
+                    if interrupted is None:
+                        interrupted = error
+                    break   # preserve the ordinary Tag's interruption boundary; Link exits still follow
     finally:
         state.composing -= 1
+
+        if state.links:
+            from .links import _end_links   # links builds on this module
+
+            try:
+                _end_links(
+                        agent,
+                        state,
+                        )   # after its own teardowns, its exits from other Links included (STEP-SPEC-22 rules 8.3, 8.6)
+            except BaseException:
+                if interrupted is None:
+                    raise   # otherwise the first interrupt is the one raised, below
+
+    try:
+        if interrupted is not None:
+            raise interrupted
+    finally:
+        interrupted = None   # never keep the Agent alive through a traceback that holds this frame
 
 
 def _call_teardown(

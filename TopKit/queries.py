@@ -6,6 +6,8 @@ from __future__ import annotations
 from typing import Any
 
 from .access import _keyword
+from .declarations import _is_link
+from .declarations import _is_pair_tag
 from .geometry import _form_of
 from .geometry import _leaves
 from .state import _name_of
@@ -60,7 +62,22 @@ def Tags(
     if state is None:
         return ()
 
-    return _leaves(state.active)
+    return _leaves(_own_tags(state.active))
+
+
+def _own_tags(
+        active: list[type],
+        ) -> list[type]:
+    """The Agent's own Tags: never the Links that hold it as a Contact,
+    since nothing on a Contact names the Agent who links her
+    (STEP-SPEC-22 rule 6.2), and never the kit's Tags on a Pair, which is
+    reached only through its Link (rule 7.1)."""
+
+    return [
+            tag
+            for tag in active
+            if not _is_link(tag) and not _is_pair_tag(tag)
+            ]
 
 
 def Outline(
@@ -79,7 +96,7 @@ def Outline(
 
     active = set(state.active)
 
-    for leaf in _leaves(state.active):
+    for leaf in _leaves(_own_tags(state.active)):
         depth = 1
 
         for tag in _form_of(leaf):

@@ -5,7 +5,7 @@ import gc
 import unittest
 from weakref import ref
 
-from TopKit import Contract, Post, Pre, Tag
+from TopKit import Contract, Link, Post, Pre, Tag
 from TopKit import TagContractError, TagPostconditionError, TagPreconditionError
 
 
@@ -14,6 +14,62 @@ class Host:
 
 
 class PostPopulationRecursionTests(unittest.TestCase):
+    def test_link_membership_checks_the_pairs_post_like_its_walk(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Post
+                def PairReady(owner, contact):
+                    return contact.ready
+
+        owner, contact = Host(), Host()
+        contact.ready = True
+        Circle(owner)
+        owner.Knows(contact)
+        self.assertIn(contact, owner.Knows)
+
+        contact.ready = False
+        self.assertIn(contact, owner.Knows[:])
+        self.assertNotIn(contact, owner.Knows)
+        self.assertEqual(list(owner.Knows), [])
+        self.assertIn(contact, ~owner.Knows)
+
+    def test_a_links_pair_post_cannot_ask_its_own_sound_membership(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Post
+                def PairSound(owner, contact):
+                    return contact in owner.Knows
+
+        owner, contact = Host(), Host()
+        Circle(owner)
+
+        with self.assertRaisesRegex(TagContractError, "PairSound.*Tag\\[:\\]"):
+            owner.Knows(contact)
+        self.assertIn(contact, owner.Knows[:])
+        with self.assertRaises(TagContractError):
+            _ = contact in owner.Knows
+
+    def test_a_contacts_post_cannot_ask_its_own_link_soundness(self):
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                pass
+
+        owner, contact = Host(), Host()
+        Circle(owner)
+        owner.Knows(contact)
+
+        class Checking(Tag):
+            @Post
+            def ContactSound(agent):
+                return agent in owner.Knows
+
+        with self.assertRaisesRegex(TagContractError, "ContactSound.*Tag\\[:\\]"):
+            Checking(contact)
+        self.assertIn(contact, owner.Knows[:])
+
     def test_same_agent_sound_membership_fails_during_post_and_named_reads(self):
         class Existing(Tag):
             pass

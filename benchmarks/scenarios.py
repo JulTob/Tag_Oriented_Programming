@@ -31,6 +31,7 @@ import weakref
 
 from TopKit import Flag
 from TopKit import Keyword
+from TopKit import Link
 from TopKit import Post
 from TopKit import Pre
 from TopKit import Precondition
@@ -1189,6 +1190,188 @@ def Flag_Stunned(
                 stunned += 1
 
     return stunned
+
+
+# ------------------------------------------------------------------
+# j. Links (STEP-SPEC-22): a two-place statement, Charlie knows Ruth
+# ------------------------------------------------------------------
+
+
+class Oop_Acquaintance:
+    """The OOP Pair: a record object in a per-Agent weak dictionary."""
+
+    __slots__ = ("since", "cover")
+
+    def __init__(
+            acquaintance,
+            since: int,
+            ) -> None:
+        acquaintance.since = since
+        acquaintance.cover = None
+
+
+class Oop_Socialite(Character):
+
+    def __init__(
+            socialite,
+            name: str,
+            ) -> None:
+        super().__init__(name)
+        socialite.known: "weakref.WeakKeyDictionary[Character, Oop_Acquaintance]" = (
+                weakref.WeakKeyDictionary()
+                )
+
+    def Knows(
+            socialite,
+            contact: Character,
+            since: int,
+            ) -> None:
+        if contact is socialite:
+            raise ValueError("not oneself")   # the gate, written by hand
+
+        socialite.known[contact] = Oop_Acquaintance(since)
+
+
+class Socialite(Tag):
+
+    @Link
+    class Knows(Tag):
+
+        @Pre
+        def Not_Oneself(agent, contact):
+            return contact is not agent
+
+        @Record
+        def since(agent, contact, *, since=None):
+            return since
+
+
+class Cover_Agent(Socialite):
+
+    @Link
+    class Knows(Socialite.Knows):
+
+        @Record
+        def cover(agent, contact):
+            return f"a cousin of {agent.name}"
+
+
+def Oop_Socialite_With_Contacts() -> tuple[Oop_Socialite, list[Character]]:
+    socialite = Oop_Socialite("Charlie")
+
+    return (
+            socialite,
+            [Character(f"contact-{index}") for index in range(POPULATION)],
+            )
+
+
+def Top_Socialite_With_Contacts() -> tuple[Character, list[Character]]:
+    socialite = Character("Charlie")
+    Socialite(socialite)
+
+    return (
+            socialite,
+            [Character(f"contact-{index}") for index in range(POPULATION)],
+            )
+
+
+def Oop_Link_All(
+        fixture: tuple[Oop_Socialite, list[Character]],
+        number: int,
+        ) -> list[tuple[str, int]]:
+    socialite, contacts = fixture
+
+    for index in range(number):
+        socialite.Knows(contacts[index], since=index)
+
+    return [
+            (contact.name, socialite.known[contact].since)
+            for contact in contacts[:number]
+            ]
+
+
+def Top_Link_All(
+        fixture: tuple[Character, list[Character]],
+        number: int,
+        ) -> list[tuple[str, int]]:
+    socialite, contacts = fixture
+
+    for index in range(number):
+        socialite.Knows(contacts[index], since=index)
+
+    return [
+            (contact.name, socialite.Knows[contact].since)
+            for contact in contacts[:number]
+            ]
+
+
+def Oop_Linked() -> tuple[Oop_Socialite, list[Character]]:
+    fixture = Oop_Socialite_With_Contacts()
+    Oop_Link_All(fixture, POPULATION)
+
+    return fixture
+
+
+def Top_Linked() -> tuple[Character, list[Character]]:
+    fixture = Top_Socialite_With_Contacts()
+    Top_Link_All(fixture, POPULATION)
+
+    return fixture
+
+
+def Oop_Read_Since(
+        fixture: tuple[Oop_Socialite, list[Character]],
+        number: int,
+        ) -> int:
+    socialite, contacts = fixture
+    total = 0
+
+    for index in range(number):
+        total += socialite.known[contacts[index % POPULATION]].since
+
+    return total
+
+
+def Top_Read_Since(
+        fixture: tuple[Character, list[Character]],
+        number: int,
+        ) -> int:
+    socialite, contacts = fixture
+    total = 0
+
+    for index in range(number):
+        total += socialite.Knows[contacts[index % POPULATION]].since
+
+    return total
+
+
+def Oop_Extend(
+        fixture: tuple[Oop_Socialite, list[Character]],
+        number: int,
+        ) -> list[str]:
+    """A new role that adds a fact to every acquaintance already held."""
+
+    socialite, contacts = fixture
+
+    for _ in range(number):
+        for contact in contacts:
+            socialite.known[contact].cover = f"a cousin of {socialite.name}"
+
+    return sorted({socialite.known[contact].cover for contact in contacts})
+
+
+def Top_Extend(
+        fixture: tuple[Character, list[Character]],
+        number: int,
+        ) -> list[str]:
+    """``Cover_Agent(charlie)``: a Shape extends the held Link, every Pair."""
+
+    socialite, contacts = fixture
+
+    for _ in range(number):
+        Cover_Agent(socialite)
+
+    return sorted({socialite.Knows[contact].cover for contact in contacts})
 
 
 # ------------------------------------------------------------------

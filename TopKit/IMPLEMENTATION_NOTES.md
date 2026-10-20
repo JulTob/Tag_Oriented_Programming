@@ -22,6 +22,7 @@ tracks splitting them by idea without changing semantics.
 | `contracts.py` | strict verdicts, binding conditions, `Contract` |
 | `constants.py` | protecting Constant bindings without freezing their values |
 | `tools.py` | Tool slots: a Record's kind, a Tag or a class, admission at the gaining and at every write |
+| `links.py` | Links: Relations, each Agent's Link, the Pairs, linking, extension, lines and ending |
 | `presence.py` | Contribution presence without evaluating values or conditions |
 | `transactions.py` | the tagging sequence and the call boundary |
 | `lifecycle.py` | Rip, teardown, `At_Exit` |
@@ -551,10 +552,129 @@ Tagging sequence or expand its rollback boundary.
   checked and `object.__setattr__` on that name is the documented
   bypass.
 
+- **Links** (`links.py`, STEP-SPEC-22, §1.10). Each Agent's Link is a
+  real Tag granted by `overlay._gainings` through `_grant` at its position
+  in declaration order. A `_Link_Record` keeps its Relation Layers, their
+  arrival order and its `_Family`; the family holds one hidden `Pair`
+  per Contact across the Link's Form. `_new_link` resolves Base Links on
+  that Agent, copies Tag-scope members and prepares published lines.
+  The Link's slot has a `_Link_Gate` and binding write hooks: ordinary
+  assignment, deletion and `object.__setattr__` cannot replace it.
+
+  `_pair_tag` adapts a Relation's Agent-scope declarations with
+  `_two_seats`, so the hidden Pair is an ordinary Agent whose functions
+  receive `(agent, contact)`. Its memo belongs to the Relation through
+  `_memo_key`, `_memo_of` and `_remember_memo`. A callable closing over its
+  Relation therefore makes a collectible owner-local cycle, not a global
+  weak-key cache with a strong value retaining its own key. Competing
+  publishers receive the same winning Pair Tag. Declaration scans use
+  `_namespace_snapshot`, including Link validation, Pair construction,
+  Tag-scope copying and input-seat discovery. `_adapted_metadata` gives
+  adapters their declared Contribution names and known TOP marks without
+  requiring a callable's instance dictionary or optional display metadata.
+
+  `_link` walks the Link's Form one member at a time, Bases first. It
+  trains that member's missing Pair Layers through `_train_pair_layers`
+  and the ordinary `_apply_form`: Gate, ordered Gainings, Imprints and
+  Pair admission. Only after training does `_apply_form` admit the
+  Contact to that Link, install its published services and capture its
+  view. `_hook` registers the Contact's unlink teardown. Pair and Contact
+  Posts run after the completed linking. A broken Post keeps membership;
+  a failed Gaining or Imprint keeps actual Pair Gains without admitting
+  the Contact to the unfinished Link. Earlier completed Links and other
+  independent Taggings stay.
+
+  The optional `admitted` list in `transactions._apply_form` reports only
+  memberships directly established by that invocation, not nested calls'
+  completed work. If a Link turn fails before its Contact enters,
+  `_withdraw_pair_admission` removes only those direct Pair admissions
+  that no completed Shape still needs, including their Field/history,
+  scheduled Rips and snapshots. It preserves Actions, Records, conditions
+  and other acquired Gains. This internal admission bookkeeping is not a
+  Rip and does not restore an old Pair snapshot. A retry can therefore run
+  the unfinished training again without repeating an independent completed
+  extension or undoing an earlier Base Link.
+
+  `_Ends.flights` tracks each `_Flight`'s requested Link and current turn.
+  Re-entering the same Link currently training is a no-op; asking for a
+  Shape whose Base Link is unfinished raises. `_train_pair_layers` skips
+  completed turns and independent turns already in flight, while ordinary
+  `_apply_form` checks that an attempted Shape's actual Bases have finished.
+  `_pair_form(member)` supplies the current Layers for one Link's turn.
+  A Base Link's extensions finish before a later Shape Link's own Layer;
+  an extension arriving after that Shape instead overlays it. Existing
+  Gains are neither reordered nor replayed.
+
+  `_extend` publishes acquired Relation Layers onto the held Link, then
+  trains its Pairs sequentially using the extending Relation's own Form.
+  `_pairs_to_extend` selects admitted Contacts and the Link's current
+  linking turn. If a later Pair fails, completed training and partial
+  Gains remain; the Link keeps its acquired Layer. `_grant` calls `_extend`
+  on retry even when no new Layer needs publication, so missing training
+  can finish. Applying an independent extension does not retry every
+  failed sibling. A retained Rogue Pair outside the Field is retried by
+  linking that Contact again with the Link's current Layers. No Links
+  call-boundary object, owner-based undo log or restore-and-replay pass is
+  allocated on ordinary Tagging.
+
+  `_enter_doors` and `_leave_doors` serve Pair functions, published lines,
+  `_door_shut_operation` and `_door_shut_builder`. They open the holding
+  Agent's composition door and close the relevant Contacts' synchronous
+  and inherited async doors, restoring both afterward. Operations close
+  the doors of Contacts passed by position or name; a Report builder
+  closes every held Contact's door because its retained value is served
+  to later readers. A self-link keeps its Agent's door. Static methods
+  remain ordinary Python functions.
+
+  `@Link` marks declared generator and coroutine functions once with
+  `_mark_code_that_runs_later`; `_stepper_of` uses that mark. The adapter
+  validates arguments with `Signature.bind`. `_steps_behind` and
+  `_coroutine_behind` create and advance the declared work behind `_Doors`,
+  including `send`, `throw` and `close`. `_Doors` keeps endpoint references
+  weak and closes the Contact's async authority inherited when the work
+  started; a Contact's own hook entered later retains its separate door.
+  Between steps the caller's doors are restored. Arbitrary returned
+  closures, generators and tasks are not wrapped. Async generator
+  functions, generator-based coroutines and lazy protocol declarations
+  remain refused by `_refuse_code_that_runs_later`.
+
+  `_relation_homes` records the declaring Tag and name weakly after the
+  Relation's declaration passes; later aliases are refused while that
+  Tag lives. `_refuse_a_name_both_ways` rejects a name used both as a
+  published line and as a Link member along a declaration chain;
+  `_refuse_mixed_layers` checks extensions that meet on an Agent. Pair
+  Tags remain internal to the kit, excluded from `Tags`, `Outline` and
+  ordinary Tag-level acts. Contact-facing queries skip Links, and
+  `ever_links` is a weak set allocated only when needed. Published-line
+  records may retain the last Link for a name, but the Link and Pair
+  endpoints refer to the holding Agent weakly.
+
+  `_Family.Pair_Of` verifies Contact identity and also recognizes the
+  held endpoint during teardown after cyclic collection clears weak
+  references. `_pair_of` currently returns any Pair still retained by
+  that family, not only an admitted Contact's Pair; this supports training
+  and cleanup reads. The public view policy for a retained failed attempt
+  remains a Director question, not a new ruling established by this
+  implementation note. A failed Gate that acquired nothing drops a newly
+  made Pair. A failed training attempt with Gains retains it for retry.
+  `_forget_pair` releases an unadmitted Pair when its Contact dies; an
+  admitted Contact's hook keeps cleanup on its finalizer path.
+
+  `_begin_ending` makes the dying Agent available in the first seat before
+  its own teardowns run, including when cyclic collection has cleared its
+  weak references. `_end_links` then sets `state.links_ending` before Link
+  cleanup, so `_agent_of` refuses linking through an existing or newly
+  granted Link of that ending Agent. Links are Ripped Shape-first, all
+  selected Contacts receive cleanup despite an interruption, and the first
+  interruption is propagated afterward. Newly granted empty Links and
+  retained unadmitted Pairs end in the cleanup's `finally`; no Link Rip is
+  invented for a Pair that never entered. `_Family.End` marks ended Pairs
+  and clears scheduled Rips so collection does not replay them.
 - **The oracle** (`tests/oracle_topkit.py`): an independent model of
   the laws driven by a random walk; `tests/test_oracle.py` runs a short
   walk under the suite. Run it at size with `--seeds 50 --steps 1200
-  --population 18` (about 60,000 transitions, under twenty seconds).
+  --population 18` (about 120,000 transitions with the Links walk,
+  `Run_Links`, under a minute).
 - **Stacked `@Pre @Post`** marks the function's kind `"condition"`, in
   either order; the scan appends it to both lists and `_name_checks`
   registers both named failures. It is the only spelling: `@Requirement`,
