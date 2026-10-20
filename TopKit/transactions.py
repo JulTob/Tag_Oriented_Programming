@@ -25,6 +25,7 @@ from __future__ import annotations
 from typing import Any
 
 from .contracts import _evaluate
+from .declarations import _APPLIED
 from .declarations import _Declarations
 from .declarations import _discard_lazy_result
 from .declarations import _declarations_of
@@ -103,6 +104,12 @@ def _apply(
             # An earlier Imprint may have completed this later turn.
             if member in state.active:
                 continue
+
+            if _APPLIED not in member.__dict__:
+                #-- Beginning a turn commits the Tag as an ordinary Tag,
+                #-- before any user code runs: it never becomes a Pin,
+                #-- even from inside its own Imprint or another thread.
+                setattr(member, _APPLIED, True)
 
             _gate(agent, state, member, inputs)
             _apply_one(agent, state, member, inputs)

@@ -1372,9 +1372,102 @@ class Late_Pin_Tests(unittest.TestCase):
         charlie = Character("Charlie")
         Noted(charlie)
         with self.assertRaises(TagDeclarationError) as refusal:
-            Pin(Noted)                                    # its Field would mix objects and Tags
-        self.assertIn("already has Agents", str(refusal.exception))
+            Pin(Noted)                                    # a Tag never becomes a Pin
+        self.assertIn("already been applied", str(refusal.exception))
         self.assertIn(charlie, Noted)
+
+    def test_a_tag_that_ever_trained_is_not_marked_a_pin_later(self):
+        #-- The historical case, ruled 2026-10-20: training commits the
+        #-- Tag even after its Field empties and the Agent is collected.
+        class Season(Tag):
+            pass
+
+        def train_and_lose():
+            passing = Character("Passing")
+            Season(passing)
+            del Season[passing]
+
+        train_and_lose()
+        gc.collect()
+        self.assertEqual(len(Season[:]), 0)
+        with self.assertRaises(TagDeclarationError) as refusal:
+            Pin(Season)
+        self.assertIn("already been applied", str(refusal.exception))
+
+    def test_a_refused_gate_still_commits_the_tag(self):
+        #-- Writing Tag(object) treats the Tag as ordinary; even a refusal
+        #-- at the Gate keeps it one for good.
+        class Guarded(Tag):
+            @Pre
+            def Never(agent):
+                return False
+
+        with self.assertRaises(TagPreconditionError):
+            Guarded(Character("Hopeful"))
+
+        with self.assertRaises(TagDeclarationError) as refusal:
+            Pin(Guarded)
+        self.assertIn("already been applied", str(refusal.exception))
+
+    def test_a_pin_mark_from_inside_the_tags_own_imprint_is_refused(self):
+        #-- The in-flight door: Field entry follows Imprints, so the old
+        #-- Field check saw nothing. The turn itself now commits the Tag.
+        caught = []
+
+        class Sneaky(Tag):
+            @Imprint
+            def convert(agent):
+                try:
+                    Pin(Sneaky)
+                except TagDeclarationError as error:
+                    caught.append(str(error))
+
+        target = Character("Target")
+        Sneaky(target)
+
+        self.assertEqual(len(caught), 1)
+        self.assertIn("already been applied", caught[0])
+        self.assertIn(target, Sneaky)                     # an ordinary Field, no Tags
+        self.assertFalse(Sneaky.__dict__.get("__topkit_pin__", False))
+
+    def test_a_tool_kind_assigned_late_still_blocks_the_pin(self):
+        #-- The assignment door: the kind is committed when @Tool names
+        #-- it, wherever the marked Record then lands.
+        class Prize(Tag):
+            pass
+
+        class Collector(Tag):
+            pass
+
+        def prize(agent):
+            return None
+
+        Collector.prize = Tool(Prize | None)(Record(prize))
+
+        with self.assertRaises(TagDeclarationError) as refusal:
+            Pin(Prize)
+        self.assertIn("a @Tool already names Prize", str(refusal.exception))
+
+    def test_the_refusal_outlives_the_naming_tool(self):
+        #-- A commitment never lapses: the naming Tool's Tag dying does
+        #-- not reopen the Pin door (ruled 2026-10-20).
+        class Prize(Tag):
+            pass
+
+        def declare():
+            class Collector(Tag):
+                @Tool(Prize)
+                def prize(agent):
+                    return None
+
+            return weakref.ref(Collector)
+
+        collector = declare()
+        gc.collect()
+        self.assertIsNone(collector())
+        with self.assertRaises(TagDeclarationError) as refusal:
+            Pin(Prize)
+        self.assertIn("a @Tool already names Prize", str(refusal.exception))
 
     def test_a_tag_named_as_a_tool_kind_is_not_marked_a_pin_later(self):
         class Prize(Tag):
@@ -1479,13 +1572,14 @@ class Late_Pin_Tests(unittest.TestCase):
         self.assertIn(charlie, Mixed)
 
     def test_a_pin_scanned_before_its_mark_is_validated_at_the_mark(self):
+        from TopKit.declarations import _declarations_of
+
         class Plain(Tag):
             @Delete
             def name(agent):
                 pass
 
-        Plain(Character("Charlie"))                       # scanned as an ordinary Tag; the Agent dies at once
-        gc.collect()
+        _declarations_of(Plain)                           # scanned as an ordinary Tag, without applying it
         with self.assertRaises(TagDeclarationError) as refusal:
             Pin(Plain)                                    # the earlier scan is not taken as a Pin's
         self.assertIn("@Delete of name", str(refusal.exception))
