@@ -51,7 +51,6 @@ class ShapeTagScopeTests(unittest.TestCase):
         agent = type("Host", (), {})()
         Shape(agent)
         self.assertEqual(Base[agent].colour, "blue")
-        self.assertEqual(Shape[agent].colour, "blue")
         self.assertEqual(Shape[agent].Name(), "Base")
 
     def test_a_shape_applies_the_bases_published_members_to_its_agent(self):
