@@ -69,7 +69,7 @@ assert list(~Wizard) == []                  # the defective ones: a promise is b
 cal.alive = False                           # Cal breaks Officer's promise
 assert list(Fighter) == [bo]                # off the line
 assert list(~Fighter) == [cal]              # waiting for repair
-assert cal in Fighter                       # still a member
+assert cal not in Fighter                   # not sound
 assert cal in Fighter[:]                    # still in the Field
 assert list(~~Fighter) == [cal]             # broken twice is still broken
 assert len(Fighter) == 1                    # sound members
@@ -80,6 +80,10 @@ assert len(Fighter[:]) == 2                 # all members
 The plain loop, `for f in Fighter`, is the working population. `~Fighter`
 is the repair queue. `Fighter[:]` is the roster. `len(Fighter) > 0` asks
 whether anyone is fit; `len(Fighter[:])` counts everyone.
+The same distinction applies to a single Agent: `agent in Fighter` asks
+whether it is a sound member, `agent in Fighter[:]` whether it is in the
+Field at all, and `agent in ~Fighter` whether it is a defective member.
+`bool(Fighter)` instead asks whether Fighter's own Posts hold.
 
 When migrating an old population guard, remember that `len(Fighter) > 0`
 counts the whole sound population. The former `bool(Fighter)` stopped at

@@ -262,6 +262,13 @@ class PopulationWalkTests(unittest.TestCase):
         self.assertNotIn(cal, Wizard | Fighter)
         self.assertNotIn(cal, Wizard[:])
 
+        dee = Agent()
+        ripping[0] = False
+        Wizard(dee)
+        ripping[0] = True
+        self.assertNotIn(dee, Wizard)                            # direct Tag membership also rechecks
+        self.assertNotIn(dee, Wizard[:])
+
     def test_a_defective_view_rechecks_membership_after_its_postcondition(self) -> None:
         ripping = [False]
 
@@ -313,6 +320,10 @@ class PopulationWalkTests(unittest.TestCase):
 
         reapplied[0] = False
         self.assertIn(ari, Wizard | Fighter)
+        self.assertIn(ari, Wizard[:])
+
+        reapplied[0] = False
+        self.assertIn(ari, Wizard)                               # re-tagging keeps it sound
         self.assertIn(ari, Wizard[:])
 
     def test_a_one_pass_materialization_uses_a_comprehension(self) -> None:
