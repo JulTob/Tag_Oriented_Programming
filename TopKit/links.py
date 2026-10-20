@@ -1473,6 +1473,7 @@ def _grant(
         if link is None:
             link = _new_link(
                     agent,
+                    state,
                     name,
                     layers,
                     )
@@ -1503,11 +1504,13 @@ def _grant(
 
 def _new_link(
         agent: object,
+        state: _State,
         name: str,
         layers: tuple[type, ...],
         ) -> type:
     """A distinct Tag and Pair family for this Agent's declared Link."""
 
+    _base_links(state, layers)   # validate ordered Bases before granting this Link
     _refuse_mixed_layers(
             list(layers),
             name,
