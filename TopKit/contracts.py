@@ -532,6 +532,10 @@ def _status_of(
 
     try:
         for name, check in getattr(state, scope).items():
+            # Declaration names may be str subclasses with user-defined
+            # hashing. Status is a read; its result keys need plain strings.
+            result_name = str.__str__(name)
+
             try:
                 observation = (
                         _checking_post(agent)
@@ -539,14 +543,14 @@ def _status_of(
                         else _pre_observation()
                         )
                 with observation:
-                    status[name] = _verdict(
+                    status[result_name] = _verdict(
                             check(agent, {}),
                             name,
                             )
             except _Recursive_Soundness:
                 raise
             except Exception:
-                status[name] = False
+                status[result_name] = False
     finally:
         state.composing -= 1
         state.checking = reentrant
