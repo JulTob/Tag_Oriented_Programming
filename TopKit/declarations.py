@@ -1191,7 +1191,7 @@ def _refuse_tools_on_a_pin(
     on the Tag, which is Tag-scope having and not a Tool."""
 
     for name, member in namespace.items():
-        if _tool_kind_of(member) is not None:
+        if _declared_tool_kind(member) is not None:
             raise TagDeclarationError(
                     f"{tag.__name__}.{name}: a Pin's Records land as Reports"
                     " of the pinned Tag; a shared tool is a Report (§1.9)"
@@ -1202,6 +1202,23 @@ def _refuse_tools_on_a_pin(
 # The lock owns no Tag; the registry below keeps only weak references.
 _pin_mark_lock = RLock()
 _kinds_named: dict[int, tuple[ref[type], WeakValueDictionary[int, type]]] = {}
+
+
+def _declared_tool_kind(member: Any) -> Any:
+    """Read a Tool mark once, keeping an actual @Tool mark authoritative.
+
+    A callable's getter may expose or hide metadata on successive reads.
+    A descriptor that merely supplies ``__topkit_tool__`` and returns None
+    is not itself a Tool mark.
+    """
+
+    observed = _tool_kind_of(member)
+    physical = _tool_kind_of_static(member)
+    if physical is not None:
+        from .tools import _Kind
+        if type(physical) is _Kind:
+            return physical
+    return observed
 
 
 @contextmanager
@@ -1296,9 +1313,15 @@ def _check_tool_declarations(
     be able to take that lock while the getter is running.
     """
 
+    marked = []
     for name, member in namespace.items():
-        if _tool_kind_of(member) is None:
+        # Read user metadata once, outside publication. A later read may
+        # disagree without any change to the Tag's class namespace.
+        kind = _declared_tool_kind(member)
+        if kind is None:
             continue
+
+        marked.append((name, member, kind))
 
         if not issubclass(type(name), str):
             raise TagDeclarationError("@Tool needs a string Record name")
@@ -1315,19 +1338,19 @@ def _check_tool_declarations(
                     f" has, a Record; {name} is not one here"
                     )
 
-    if any(
+    if marked and any(
             _is_pin(base)
             for base in _type_mro.__get__(tag)[1:]
             ):
-        _refuse_tools_on_a_pin(
-                tag,
-                namespace,
+        name, _member, _kind = marked[0]
+        raise TagDeclarationError(
+                f"{tag.__name__}.{name}: a Pin's Records land as Reports"
+                " of the pinned Tag; a shared tool is a Report (§1.9)"
                 )
 
     tools = [
             (str.__str__(name), _tool_tag_kinds(kind))
-            for name, member in namespace.items()
-            if (kind := _tool_kind_of(member)) is not None
+            for name, _member, kind in marked
             ]
 
     return tuple(tools)
