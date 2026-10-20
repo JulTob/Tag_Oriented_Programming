@@ -150,6 +150,22 @@ takes a string name; other left operands keep their ordinary `@`
 behaviour. A pinned Tag can be queried as an Agent, but a bare, unpinned
 Tag has no TOP presence query.
 
+#### Guard an optional Feature
+
+Missing Agent Features stay strict. Ask presence before an optional use:
+
+```text
+if "Fireball" @ wizard:
+    wizard.Fireball()
+```
+
+This keeps a typo visible and distinguishes an absent Record from a present
+Record whose value is `None` or `False`. If the Feature is required, express
+that requirement in a Post with the same presence query. The explored neutral
+missing-value design was Redacted; its Python constraints and the practical
+Gain/Grant patterns are explained in
+[Guard optional Agent Features](../wiki/1.8-TopKit-Optional-Features.md).
+
 ### A Tag can be taken away. What it gave stays.
 
 ```python
