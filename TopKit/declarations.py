@@ -26,6 +26,7 @@ from types import AsyncGeneratorType
 from types import CoroutineType
 from types import FunctionType
 from types import GeneratorType
+from types import GetSetDescriptorType
 from types import MemberDescriptorType
 from typing import Any
 from typing import Callable
@@ -1065,6 +1066,10 @@ def _tool_kind_of_static(attribute: Any) -> Any:
     elif not callable(attribute):
         return None
 
+    physical_dict = _tool_physical_dict(attribute)
+    if physical_dict is not None and _TOOL in physical_dict:
+        return physical_dict[_TOOL]
+
     physical = getattr_static(attribute, _TOOL, None)
     if type(physical) is MemberDescriptorType:
         try:
@@ -1073,6 +1078,20 @@ def _tool_kind_of_static(attribute: Any) -> Any:
             return None
 
     return physical
+
+
+def _tool_physical_dict(attribute: Any) -> dict[str, Any] | None:
+    """Read an instance dictionary through its native seat, bypassing a
+    callable's custom ``__getattribute__`` and Tool-mark descriptor."""
+
+    descriptor = getattr_static(attribute, "__dict__", None)
+    if type(descriptor) is not GetSetDescriptorType:
+        return None
+    try:
+        namespace = descriptor.__get__(attribute, type(attribute))
+    except AttributeError:
+        return None
+    return namespace if type(namespace) is dict else None
 
 
 def _tool_tag_kinds(kind: Any) -> tuple[type, ...]:
