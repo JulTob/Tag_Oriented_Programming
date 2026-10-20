@@ -153,7 +153,7 @@ class PopulationCapacityTests(unittest.TestCase):
                 @Post
                 def Ready(agent):
                     events.append(agent.name)
-                    if agent.name == "b" and agent in Left:
+                    if agent.name == "b" and agent in Left[:]:
                         del Left[agent]
                     return agent.name != "c"
 

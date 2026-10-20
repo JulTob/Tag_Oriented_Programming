@@ -27,7 +27,7 @@ import weakref
 from .arrest import _Arrest
 from .arrest import _arrest_of
 from .arrest import _safehouse
-from .contracts import _holds
+from .contracts import _holds_for_population
 from .errors import TagCompositionError
 from .geometry import _is_tag_class
 from .memo import _class_namespace
@@ -52,7 +52,7 @@ def _sound_of(
 
     return _Partition(
             _field_of(tag),
-            _holds,
+            _holds_for_population,
             "sound",
             )
 

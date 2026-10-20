@@ -7,7 +7,7 @@
 - **Status:** Deployed
 - **Created:** 2026-09-04
 - **Deployed:** 2026-09-05
-- **Amended:** 2026-10-09
+- **Amended:** 2026-10-15
 
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
@@ -18,6 +18,33 @@
 > without membership. Posts still judge admitted members after the completed
 > Form, and the sound/defective Field partitions are unchanged. The text below
 > records the earlier design and its Gate amendment.
+
+> **Membership-query amendment, 2026-10-15:** The Director ruled that
+> `agent in Tag` asks whether the Agent is a **sound member**, consistent
+> with `for agent in Tag` and `len(Tag)`. A broken Agent remains in the
+> Field, but answers False to that query; `agent in Tag[:]` asks raw Field
+> membership and `agent in ~Tag` asks for a defective Field member.
+> `bool(Tag)` continues to judge the Tag's own Posts, not its population.
+> The earlier statements below that `agent in Tag` stays true for a
+> defective member record the superseded law; the Field and its sound and
+> defective partitions remain as described.
+
+## Amendment: a sound membership query (2026-10-15)
+
+The Director clarified: a broken Agent is not a valid Agent in any Field.
+`agent in Fighter` therefore requires both Field membership and a sound
+Agent; `agent in Fighter[:]` remains true for a defective Agent in that
+Field. `agent in ~Fighter` finds that Agent for repair. A Post can change
+the answer to the sound query without changing Field membership. This
+supersedes the original `agent in Tag` rule in the Summary, Rule 6 and
+Rationale below. It does not change `bool(Tag)`, which checks the Tag's
+own Posts under STEP-SPEC-40. The proposed arrest and Safehouse behavior
+in STEP-SPEC-32 needs its own implementation decision.
+
+While a Post judges an Agent, a sound-population query that reaches that
+same Agent raises a Contract Failure rather than assuming the unfinished
+promise holds. An author who needs Field admission in that Post writes
+`agent in Tag[:]`. Queries about other Agents remain available.
 
 ## Summary
 
