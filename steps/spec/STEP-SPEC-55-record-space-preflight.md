@@ -32,30 +32,35 @@ confuse a failed calculation with a structural refusal.
 ## Proposed specification
 
 1. For each Tag turn, run its Gate first. Before that Tag's first Gaining or
-   Imprint, check the physical storage needed for **all Record bindings this
-   application must establish**, without calling their builders or assigning
-   their calculated values. This check does not change the declaration order
-   in which actual Gainings later become visible.
+   Imprint, check the statically knowable physical storage needed for **all
+   Record bindings this application must establish**, without calling their
+   builders or assigning their calculated values. This check does not change
+   the declaration order in which actual Gainings later become visible. It
+   cannot predict the result of an arbitrary Host descriptor or setter when
+   the calculated value is eventually written.
 2. If a needed Record space cannot be provided, this Tag acquires no Gains,
    runs no Record initializer or Imprint, and enters no Field. Restore the
    Target's provisional runtime type, instance dictionary and supported
    slot bindings to their state before this Tag's preparation. Earlier
    completed independent Taggings and their bindings stay in place.
-3. Report this structural refusal as public `TagTargetError`, a subtype of
-   `TagCompositionError`. Name the Tag and Record space that cannot be
-   prepared. Preserve an underlying Host refusal as the cause when one was
-   raised. A later Record *value* calculation or application failure is a
-   training failure, not this target error; its handling belongs to the
-   separate [Record initializer issue #375](https://github.com/JulTob/Tag_Oriented_Programming/issues/375).
+3. Report a physical Record-space refusal as public `TagTargetError`, a
+   subtype of `TagCompositionError`. Name the Tag and Record space that
+   cannot be prepared. Preserve an underlying Host refusal as the cause when
+   one was raised. A logical name collision with a Constant, Action, or
+   condition retains its existing `TagCompositionError` rule. A later Record
+   *value* calculation or application failure, including a dynamic Host
+   write refusal, is a training failure, not this target error; its handling
+   belongs to the separate [Record initializer issue #375](https://github.com/JulTob/Tag_Oriented_Programming/issues/375).
 4. The restoration boundary is the bounded one in STEP-SPEC-37: physical
    representation and bindings, not a deep copy of mutable values or a
    reversal of external Python effects. A generated frozen dataclass remains
    eligible where TOP can provide the Record space through its supported
    kernel path. Frozen status by itself is not a structural refusal.
 
-General Host actualization failures remain STEP-SPEC-37 Composition Failures.
-Whether they should also use `TagTargetError` is outside this Record-space
-proposal.
+General Host actualization failures remain governed by STEP-SPEC-37. The
+separate [Target-error PR #325](https://github.com/JulTob/Tag_Oriented_Programming/pull/325)
+also classifies those structural refusals as `TagTargetError`; this STEP does
+not change their preparation or restoration rules.
 
 For example, if `Car` declares `@Action Start` before `@Record wheels`, and
 the Target's Host reserves `wheels` in a protected slot, `Car(target)` must
@@ -101,12 +106,13 @@ invalid and does not turn a builder's own exception into `TagTargetError`.
 
 ## Acceptance requirements
 
-Check every required Record space before the first Gain or Imprint. Cover a
-protected Host slot, a compatible frozen dataclass, and a later failing Tag
-in a Form whose earlier Tags remain. Verify restoration of provisional
-runtime type and bindings, zero builder calls on structural refusal, the
-public `TagTargetError` subtype and cause, and existing Host actualization
-and performance budgets.
+Check every statically knowable required Record space before the first Gain
+or Imprint. Cover a protected Host slot, a compatible frozen dataclass, a
+logical name collision that remains `TagCompositionError`, a dynamic write
+refusal during training, and a later failing Tag in a Form whose earlier Tags
+remain. Verify restoration of provisional runtime type and bindings, zero
+builder calls on structural refusal, the public `TagTargetError` subtype and
+cause, and existing Host actualization and performance budgets.
 
 ---
 
