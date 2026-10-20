@@ -659,8 +659,6 @@ class _Bound:
                 *args,
                 **kwargs,
                 )
-        if _safehouse:
-            _require_available(agent, "Action")
         return _guard_lazy_result(result, agent, "Action", _require_available)
 
     @property
@@ -811,8 +809,6 @@ class _Pinned_Bound:
 
         try:
             result = bound._function(bound._owner, *args, **kwargs)
-            if _safehouse:
-                _require_available(bound._owner, "Operation")
             return _guard_lazy_result(
                     result, bound._owner, "Operation", _require_available
                     )
@@ -954,8 +950,6 @@ class _Composing_Bound(_Bound):
                     *args,
                     **kwargs,
                     )
-            if _safehouse:
-                _require_available(agent, "Action")
             return _guard_lazy_result(result, agent, "Action", _require_available)
         finally:
             state.composing -= 1
@@ -1360,7 +1354,9 @@ def _type_key_of(
         state: _State,
         ) -> tuple:
     return (
-            state.host_type,
+            # A live cached runtime type owns its Host through its bases,
+            # preventing id reuse. The key must not root a Host/Agent cycle.
+            id(state.host_type),
             (frozenset((state.deleted | state.restored) - {"__del__"})
              if state.deleted or state.restored else _EMPTY_NAMES),   # a restored name keeps its gate; __del__ has none
             frozenset(state.secrets) if state.secrets else _EMPTY_NAMES,

@@ -98,9 +98,9 @@ def _retry_arrested(
 
     The caller supplies ordinary TOP membership revocation and Rip calling.
     A revocation that is interrupted must be safe to resume from its last
-    boundary. The run remains held until all its teardowns complete. When a
-    Rip callback itself requests root retry, defer its currently running
-    step until that callback returns, without skipping earlier saved work.
+    boundary. Revocation and teardowns run inside this Agent's Rip door.
+    The run remains held until all its teardowns complete. If a callback
+    requests root retry, defer its currently running step until it returns.
     Root deletion selects only orphaned work; an ordinary act retries all.
     """
 

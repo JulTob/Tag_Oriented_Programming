@@ -51,7 +51,7 @@ class LazyProtocolBoundaryTests(unittest.TestCase):
         if mark in (Pre, Post):
             with self.assertRaises(TagContractError):
                 role(target)
-            self.assertEqual(target in role, mark is Post)
+            self.assertEqual(target in role[:], mark is Post)
         else:
             role(target)
             if mark is Rip:
