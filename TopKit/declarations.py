@@ -546,8 +546,8 @@ def _refuse_late_pin(
         ) -> None:
     """Refuse a late mark that would change current ordinary-Tag use:
     Shapes would become Pins, the Field could mix objects and Tags, or
-    a declared Tool kind would start admitting Tags (§1.3, §1.9). Past
-    Taggings no longer in the Field are a separate unresolved case."""
+    a declared Tool kind would start admitting Tags (§1.3, §1.9).
+    An empty Field may be marked even if it held Agents before."""
 
     shapes = type.__subclasses__(tag)
 
