@@ -68,8 +68,10 @@ question.
 4. **Bounded evaluation.** TOP must stop recursion at the active check and
    avoid factorial replay of collective dependencies. It may reuse a
    completed check's result within one outer contract or population query;
-   any such memo ends with that query and does not make a later truth read
-   stale. An interruption or raised check failure retains its existing
+   a result that depends on a neutral recursive edge must not be reused
+   under a different set of active checks, since that could change its
+   verdict. Any memo ends with that query and does not make a later truth
+   read stale. An interruption or raised check failure retains its existing
    diagnostic and cause rather than becoming neutral. This does not grant
    permission for Posts to mutate TOP state; the observational-Post rule
    is proposed separately in [#346](https://github.com/JulTob/Tag_Oriented_Programming/pull/346)
@@ -114,6 +116,11 @@ discarded before the next query. A Post's direct Python effects remain an
 authoring violation under STEP-SPEC-49; the memo does not license a check
 that changes the answer while being read.
 
+The active-check context can still produce exponentially many distinct
+evaluations for an arbitrary network of Posts. Bounding recursion and
+avoiding repeated work under the same context does not promise constant or
+linear time for every author-written predicate graph.
+
 ## Backwards compatibility
 
 This reverses the Contract Failure sentence in deployed
@@ -148,6 +155,18 @@ the author's responsibility.
 Pure Precondition cycles and mixed Pre/Post cycles require a separate
 decision. This STEP defines Post validity recursion and does not change a
 Precondition's Gate result.
+
+## Acceptance requirements
+
+- Direct and indirect self-checks terminate through named reads, Agent truth,
+  sound membership and Contract diagnostics; a direct negation of its own
+  neutral answer is False.
+- An unrelated failing Post still makes the whole Agent false during a
+  recursive query, while raw Field membership remains readable.
+- Layered same-name Posts distinguish their exact calculations, and results
+  reached under different active-check contexts are not incorrectly shared.
+- A collective Field query terminates without factorial replay; a later
+  independent query observes changed Records or outside read-only inputs.
 
 ---
 
