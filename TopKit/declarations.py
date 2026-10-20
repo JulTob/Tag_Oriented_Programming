@@ -557,7 +557,7 @@ def Pin(
             type.__setattr__(tag, _PIN, True)
 
             try:
-                _check_pin_bases(tag)
+                _check_pin_bases(tag, locked=True)
                 # A retired memo can be the last owner of a program value.
                 # Keep it alive until after the Pin lock is released.
                 retired = _invalidate_declarations(tag)
@@ -651,6 +651,15 @@ def _is_pin(
     metaclass descriptor may mask the public attribute lookup."""
 
     return any(
+            _class_namespace(layer).get(_PIN) is True
+            for layer in _type_mro.__get__(tag)
+            )
+
+
+def _is_pin_locked(tag: type) -> bool:
+    """The same check while Pin publication owns its shared lock."""
+
+    return any(
             _physical_namespace_get(_class_namespace(layer), _PIN) is True
             for layer in _type_mro.__get__(tag)
             )
@@ -670,6 +679,8 @@ def _is_tag_base(
 
 def _check_pin_bases(
         tag: type,
+        *,
+        locked: bool = False,
         ) -> None:
     """One Form is all Pins or no Pins."""
 
@@ -678,12 +689,17 @@ def _check_pin_bases(
             for base in _type_bases.__get__(tag)
             if _is_tag_base(base)
             )
+    check = _is_pin_locked if locked else _is_pin
     pins = [
             base
             for base in bases
-            if _is_pin(base)
+            if check(base)
             ]
-    marked = _physical_namespace_get(_class_namespace(tag), _PIN) is True
+    namespace = _class_namespace(tag)
+    marked = (
+            _physical_namespace_get(namespace, _PIN)
+            if locked else namespace.get(_PIN)
+            ) is True
 
     if not bases or len(pins) == len(bases):
         return
@@ -1203,7 +1219,7 @@ def _refuse_pin_tool_kinds(
     when the declaring Tag is made or gains that Tool later."""
 
     for alternative in tags:
-        if _is_pin(alternative):
+        if _is_pin_locked(alternative):
             raise TagDeclarationError(
                     f"{_type_name.__get__(owner)}.{name}: @Tool cannot name"
                     f" {_type_name.__get__(alternative)}, now a Pin (§1.3)"

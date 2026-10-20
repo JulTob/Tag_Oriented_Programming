@@ -44,6 +44,7 @@ from .declarations import _check_tool_declarations
 from .declarations import _constant_owner
 from .declarations import _is_dunder
 from .declarations import _is_pin
+from .declarations import _is_pin_locked
 from .declarations import _kind_of
 from .declarations import _name_checks
 from .declarations import _note_tag_kinds
@@ -67,6 +68,7 @@ from .memo import _class_namespace
 from .memo import _metaclass_data_descriptor
 from .memo import _namespace_has_callback_keys
 from .memo import _physical_namespace_get
+from .memo import _type_mro
 from .observation import _refuse_observed_mutation
 from .state import Tagged
 from .state import _name_of
@@ -89,6 +91,28 @@ def _check_late_binding(tag: type, name: str, value: Any) -> None:
                 )
 
     _check_constant_shapes(tag, name)
+
+
+def _metaclass_setattr_tail(tag: type) -> bool:
+    """Whether ``super()`` after MetaTag would run a program's setter.
+
+    A late Tool cannot call that setter while Pin publication is locked.
+    Refuse the declaration rather than silently bypassing the hook.
+    """
+
+    after_meta_tag = False
+    for meta in _type_mro.__get__(type(tag)):
+        if meta is MetaTag:
+            after_meta_tag = True
+            continue
+        if not after_meta_tag:
+            continue
+        member = _physical_namespace_get(
+                _class_namespace(meta), "__setattr__", _MISSING,
+                )
+        if member is not _MISSING:
+            return member is not type.__setattr__
+    return False
 
 
 class MetaTag(type):
@@ -158,11 +182,13 @@ class MetaTag(type):
                     refusal = "namespace"
                 elif _metaclass_data_descriptor(tag, name):
                     refusal = "descriptor"
-                elif _is_pin(tag):
+                elif _metaclass_setattr_tail(tag):
+                    refusal = "metaclass"
+                elif _is_pin_locked(tag):
                     refusal = "pin"
                 else:
                     pinned_kind = next(
-                            (kind for kind in tool_tags if _is_pin(kind)),
+                            (kind for kind in tool_tags if _is_pin_locked(kind)),
                             None,
                             )
                     if pinned_kind is not None:
@@ -187,6 +213,12 @@ class MetaTag(type):
                 raise TagDeclarationError(
                         f"{tag.__name__}.{name}: a late @Tool cannot replace"
                         " a metaclass data descriptor"
+                        )
+            if refusal == "metaclass":
+                raise TagDeclarationError(
+                        f"{tag.__name__}.{name}: a late @Tool cannot use"
+                        " a cooperative metaclass __setattr__ while Pin"
+                        " publication is locked"
                         )
             if refusal == "pin":
                 raise TagDeclarationError(

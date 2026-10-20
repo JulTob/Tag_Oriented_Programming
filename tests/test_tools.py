@@ -1576,6 +1576,36 @@ class Late_Pin_Tests(unittest.TestCase):
         self.assertEqual(failures, [])
         self.assertIs(Collector.__dict__["prize"], prize)
 
+    def test_late_tool_refuses_cooperative_metaclass_setter(self):
+        calls = []
+
+        class Audit(type):
+            def __setattr__(cls, name, value):
+                calls.append(name)
+                super().__setattr__(name, value)
+
+        class Hybrid(MetaTag, Audit):
+            pass
+
+        class Kind(Tag):
+            pass
+
+        class Collector(Tag, metaclass=Hybrid):
+            pass
+
+        Collector.ordinary = 1
+        self.assertEqual(calls, ["ordinary"])
+        calls.clear()
+
+        @Tool(Kind)
+        def prize(agent):
+            return None
+
+        with self.assertRaisesRegex(TagDeclarationError, "cooperative metaclass"):
+            Collector.prize = prize
+        self.assertEqual(calls, [])
+        self.assertNotIn("prize", Collector.__dict__)
+
     def test_pin_and_tool_refuse_hostile_physical_namespace_keys(self):
         import TopKit.declarations as declarations
 
