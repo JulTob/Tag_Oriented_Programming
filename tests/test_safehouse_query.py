@@ -66,6 +66,7 @@ class SafehouseQueryTests(unittest.TestCase):
             Fighter(agent)
 
         self.assertIn(agent, Fighter[:])
+        self.assertNotIn(agent, Fighter)
         self.assertIn(agent, ~Fighter)
         arrest = _Arrest(agent)
         arrest.runs.append(SimpleNamespace(tag=Fighter))
