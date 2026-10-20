@@ -1675,6 +1675,78 @@ class Late_Pin_Tests(unittest.TestCase):
         with self.assertRaises(TagCompositionError):
             agent.prize = object()
 
+    def test_descriptor_tool_mark_still_guards_gaining_after_getter_hides_it(self):
+        class Kind(Tag):
+            pass
+
+        class Builder:
+            hidden = False
+            value = None
+
+            def __call__(self, agent):
+                return self.value
+
+            @property
+            def __topkit_tool__(self):
+                return None if self.hidden else self._kind
+
+            @__topkit_tool__.setter
+            def __topkit_tool__(self, kind):
+                self._kind = kind
+
+        builder = Tool(Kind)(Builder())
+
+        class Owner(Tag):
+            prize = builder
+
+        builder.hidden = True
+        builder.value = object()
+        with self.assertRaises(TagCompositionError):
+            Owner(Character())
+        with self.assertRaises(TagDeclarationError):
+            Pin(Kind)
+
+    def test_later_descriptor_cannot_hide_a_physical_tool_mark(self):
+        class Kind(Tag):
+            pass
+
+        class Builder:
+            value = None
+
+            def __call__(self, agent):
+                return self.value
+
+        builder = Tool(Kind)(Builder())
+
+        class Owner(Tag):
+            prize = builder
+
+        Builder.__topkit_tool__ = property(lambda self: None)
+        builder.value = object()
+        with self.assertRaises(TagCompositionError):
+            Owner(Character())
+
+    def test_tool_refuses_a_mark_with_no_physical_seat(self):
+        class Kind(Tag):
+            pass
+
+        class Builder:
+            __slots__ = ("_kind", "__topkit_kind__")
+
+            def __call__(self, agent):
+                return None
+
+            @property
+            def __topkit_tool__(self):
+                return self._kind
+
+            @__topkit_tool__.setter
+            def __topkit_tool__(self, kind):
+                self._kind = kind
+
+        with self.assertRaisesRegex(TagDeclarationError, "physical mark"):
+            Tool(Kind)(Builder())
+
     def test_dynamic_only_tool_metadata_still_guards_gaining(self):
         class Kind(Tag):
             pass
