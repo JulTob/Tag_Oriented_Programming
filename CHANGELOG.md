@@ -23,6 +23,9 @@
   Report positions without reading their values. An optional Report that
   fails on read cannot interrupt an unrelated Tagging, and a Report still
   initializes on its first actual read.
+- **Tag views resolve Reports at their Tagging point:** an own Report wins;
+  otherwise the view reads the latest still-visible Report in its recorded
+  Agent Overlay. Deleting or Ripping that source can reveal an earlier layer.
 
 - **Sound membership:** `agent in Tag` now asks whether the Agent is still
   in that Field and its visible Posts hold, matching `for agent in Tag`.

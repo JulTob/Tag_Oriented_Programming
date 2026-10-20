@@ -131,7 +131,7 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(view.colour, "blue")
         self.assertEqual(Base[agent].colour, "red")
 
-    def test_view_does_not_search_unrelated_or_departed_report_layers(self) -> None:
+    def test_view_reads_its_recorded_overlay_and_skips_departed_sources(self) -> None:
         class Base(Tag):
             @Report
             def colour(tag):
@@ -148,12 +148,13 @@ class PublicationTests(unittest.TestCase):
         Unrelated(agent)
 
         self.assertEqual(Shape[agent].colour, "red")
-        with self.assertRaises(AttributeError):
-            Unrelated[agent].colour
+        self.assertEqual(Unrelated[agent].colour, "red")
 
         del Base[agent]
         with self.assertRaises(AttributeError):
             Shape[agent].colour
+        with self.assertRaises(AttributeError):
+            Unrelated[agent].colour
 
     def test_a_later_pin_report_reaches_captured_and_fresh_tag_views(self) -> None:
         class Source(Tag):

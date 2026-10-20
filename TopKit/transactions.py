@@ -48,12 +48,10 @@ from .state import _Snapshot
 from .state import _State
 from .state import _actualize_runtime_type
 from .state import _bind_to
-from .state import _current_report_origin
 from .state import _host_bindings_of
 from .state import _name_of
 from .state import _namespace_of
 from .state import _rebind_all
-from .state import _report_epochs
 from .state import _remember_report
 from .state import _restore_namespace
 from .state import _restore_host_bindings
@@ -633,24 +631,12 @@ def _snapshot(
         if name in state.secret_values:
             records[name] = state.secret_values[name]
 
-    reports = {}
-
-    for name in state.reports:
-        origin = _current_report_origin(state, name)
-
-        if origin is not None:
-            deletions = _report_epochs(origin, name)[1]
-            # The view reads the current Tag value when asked. Capturing
-            # its position must not run an optional Report's builder.
-            reports[name] = (
-                    origin,
-                    deletions,
-                    )
-
     return _Snapshot(
             actions=dict(state.actions),
             records=records,
-            reports=reports,
+            # Binding tuples are immutable. Keep the Overlay prefix at
+            # this Tagging point without running an optional builder.
+            reports=state.reports.copy(),
             operations=dict(state.operations),
             deleted=frozenset(state.deleted) if state.deleted else _NONE,
             secrets=frozenset(state.secrets) if state.secrets else _NONE,

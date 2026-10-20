@@ -429,9 +429,12 @@ Tagging sequence or expand its rollback boundary.
   plain value on that class, which is the documented counter pattern.
   Agent-bound Tag views require current membership on every lookup.
   Their Actions, Records and Operations come from the latest snapshot
-  recorded for that Tag. The snapshot records a Report's origin and deletion
-  epoch without running its builder; Reports read the Tag's current binding
-  and value only when requested.
+  recorded for that Tag. The snapshot records the ordered Report bindings
+  at that Tagging point without running their builders. A Tag view prefers
+  its Tag's current own Report. Otherwise it reads the first still-visible
+  binding from that recorded Overlay prefix, using the owning Tag's current
+  value. Rip or deletion can reveal a lower binding; a later Tagging cannot
+  move a Report into an older view.
   A published Report also reads live through the Agent.
 - **Failures name their check.** `TagPreconditionError`,
   `TagImprintError` and `TagPostconditionError` use the `_Named`

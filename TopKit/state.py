@@ -134,47 +134,59 @@ def _remember_report(
             )
 
 
+def _live_report_binding(
+        name: str,
+        binding: _Report_Binding,
+        ) -> _Report_Binding | None:
+    """Check a recorded Report without reading or building its value."""
+
+    origin = binding.origin
+
+    if _report_epochs(origin, name)[1] != binding.deletions:
+        return None
+
+    member = _class_namespace(origin).get(name, _MISSING)
+
+    if member is _MISSING:
+        return None
+
+    if isinstance(member, Report):
+        # A fresh Report declaration keeps the binding's Overlay rank,
+        # while its current @Public mark governs direct Agent access.
+        if member.public != binding.public:
+            return _Report_Binding(
+                    binding.origin,
+                    binding.declaration,
+                    binding.deletions,
+                    member.public,
+                    )
+    elif binding.declaration is None:
+        pinned = _state_of(origin)
+
+        if (
+                pinned is None
+                or name not in pinned.records
+                or name not in pinned.published
+                ):
+            return None
+    else:
+        if isinstance(member, (classmethod, property, staticmethod)):
+            return None
+        if getattr_static(member, _KIND, None) is not None:
+            return None
+
+    return binding
+
+
 def _current_report_binding(
         state: "_State",
         name: str,
         ) -> _Report_Binding | None:
     for binding in reversed(state.reports.get(name, ())):
-        origin = binding.origin
+        live = _live_report_binding(name, binding)
 
-        if _report_epochs(origin, name)[1] != binding.deletions:
-            continue
-
-        member = _class_namespace(origin).get(name, _MISSING)
-
-        if member is _MISSING:
-            continue
-
-        if isinstance(member, Report):
-            # A fresh Report declaration on this Tag keeps the Agent's
-            # Overlay rank, but its current @Public mark governs access.
-            if member.public != binding.public:
-                return _Report_Binding(
-                        binding.origin,
-                        binding.declaration,
-                        binding.deletions,
-                        member.public,
-                        )
-        elif binding.declaration is None:
-            pinned = _state_of(origin)
-
-            if (
-                    pinned is None
-                    or name not in pinned.records
-                    or name not in pinned.published
-                    ):
-                continue
-        else:
-            if isinstance(member, (classmethod, property, staticmethod)):
-                continue
-            if getattr_static(member, _KIND, None) is not None:
-                continue
-
-        return binding
+        if live is not None:
+            return live
 
     return None
 
@@ -196,7 +208,7 @@ def _current_report_origin(
 class _Snapshot:
     actions: dict[str, Function]
     records: dict[str, Any]
-    reports: dict[str, tuple[type, int]]
+    reports: dict[str, tuple[_Report_Binding, ...]]
     operations: dict[str, tuple[type, Function]]
     deleted: frozenset[str]
     secrets: frozenset[str]

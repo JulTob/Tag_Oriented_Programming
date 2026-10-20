@@ -80,14 +80,16 @@ class ReportOverlayTests(unittest.TestCase):
         self.assertIsNone(agent.colour)
         self.assertTrue("colour" @ agent)
         self.assertIsNone(first_view.colour)
-        with self.assertRaises(AttributeError):
-            second_view.colour
-        self.assertFalse("colour" @ second_view)
+        self.assertIsNone(second_view.colour)
+        self.assertTrue("colour" @ second_view)
 
         del First.colour
         with self.assertRaises(AttributeError):
             agent.colour
         self.assertFalse("colour" @ agent)
+        with self.assertRaises(AttributeError):
+            second_view.colour
+        self.assertFalse("colour" @ second_view)
 
     def test_pin_published_report_takes_one_overlay_turn(self) -> None:
         class Earlier(Tag):
@@ -120,8 +122,8 @@ class ReportOverlayTests(unittest.TestCase):
         self.assertEqual(agent.signal, "earlier")
         self.assertTrue("signal" @ agent)
         self.assertEqual(captured.signal, "earlier")
-        with self.assertRaises(AttributeError):
-            Later[agent].signal
+        self.assertEqual(Later[agent].signal, "earlier")
+        self.assertTrue("signal" @ Later[agent])
 
     def test_a_pin_report_reappears_after_a_later_report_is_deleted(self) -> None:
         class Pinned(Tag):

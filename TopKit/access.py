@@ -25,7 +25,6 @@ from .declarations import STATE
 from .declarations import _MISSING
 from .declarations import _is_flag
 from .declarations import _words_of
-from .geometry import _form_of
 from .lifecycle import _teardown_all
 from .state import _Composing_Bound
 from .state import _Pinned_Operation
@@ -33,8 +32,8 @@ from .state import _Secret_Bound
 from .state import _Snapshot
 from .state import _State
 from .state import _is_composing
+from .state import _live_report_binding
 from .state import _name_of
-from .state import _report_epochs
 from .state import _state_of
 from .memo import _class_namespace
 
@@ -511,11 +510,7 @@ def _view_report_source(
         name: str,
         snapshot: _Snapshot,
         ) -> type | None:
-    """Find the Tag whose current Report is visible at this view position.
-
-    A new Report declaration or Pin Record can appear after Tagging;
-    neither changes that Tagging's Action and Record snapshot.
-    """
+    """Read the Tag's own Report, then its recorded Overlay prefix."""
 
     tag = view._tag
     state = _state_of(view._agent)
@@ -529,48 +524,49 @@ def _view_report_source(
         # A Secret Pin Record lives in the Tag's private state, not its
         # physical namespace. It remains a Report behind the Pin door.
         return tag if name in pinned.secret_values and _is_composing(pinned) else None
+
     member = _class_namespace(tag).get(name, _MISSING)
-    entry = snapshot.reports.get(name)
 
-    if member is _MISSING:
-        if entry is None or entry[0] is tag:
-            return None
-        tag = entry[0]
-        if (
-                not any(base is tag for base in _form_of(view._tag))
-                or not any(active is tag for active in _state_of(view._agent).active)
-                ):
-            return None
-        member = _class_namespace(tag).get(name, _MISSING)
-        if member is _MISSING:
-            return None
-
-    existing = (
-            entry is not None
-            and entry[0] is tag
-            and _report_epochs(tag, name)[1] == entry[1]
-            )
-
-    if isinstance(member, declarations.Report):
-        return tag
-
-    if isinstance(member, (classmethod, property, staticmethod)):
-        return None
-
-    if pinned is not None:
-        if name in pinned.records:
-            # A Pin Record belongs to the pinned Tag as a Report even when
-            # it was not published on the Agent.
+    if member is not _MISSING:
+        # A current own declaration has priority. A plain value remains a
+        # Report only if it replaced a Report binding at this view point.
+        if isinstance(member, declarations.Report):
             return tag
 
-        if name in pinned.actions:
+        if isinstance(member, (classmethod, property, staticmethod)):
             return None
 
-    if getattr_static(member, declarations._KIND, None) is not None:
+        if pinned is not None:
+            if name in pinned.records:
+                # Unmarked Pin Records are Tag Reports in a Tag view.
+                return tag
+
+            if name in pinned.actions:
+                return None
+
+        if getattr_static(member, declarations._KIND, None) is not None:
+            return None
+
+        for binding in reversed(snapshot.reports.get(name, ())):
+            if binding.origin is tag:
+                return tag if _live_report_binding(name, binding) is not None else None
+
         return None
 
-    # Only a plain value write keeps the earlier Report binding.
-    return tag if existing else None
+    # This Tag declares no Report now. Read the first still-live Report
+    # below it in the Overlay captured when this Tag last entered its Field.
+    # Later Tags never enter that prefix, and a departed source loses its
+    # Agent credentials even while the Tag's own Report value still exists.
+    for binding in reversed(snapshot.reports.get(name, ())):
+        origin = binding.origin
+
+        if origin is tag or not any(active is origin for active in state.active):
+            continue
+
+        if _live_report_binding(name, binding) is not None:
+            return origin
+
+    return None
 
 
 def _view_snapshot(
