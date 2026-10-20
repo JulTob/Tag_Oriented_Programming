@@ -1183,38 +1183,6 @@ your Reports and Operations there.
 
 ---
 
-## Proposal: ordered Link underlays
-
-A Relation declares its Agent and Contact seats explicitly, then writes its
-ordered Link Form in the class header:
-
-```text
-@Link(agent, contact)
-class Trusts(Network, agent.Knows, contact.Knows, server.Registre):
-    ...
-```
-
-For `ari.Trusts(ruth)`, those entries mean `Network(ruth)`,
-`ari.Knows(ruth)`, `ruth.Knows(ari)`, and `server.Registre(ruth)`, in that
-order, followed by `ari.Trusts(ruth)`. `agent.Knows` selects the calling
-Agent's actual Link; `contact.Knows` selects the Contact's actual Link and
-applies it reciprocally to the Agent. Every turn is a complete Tagging with
-its own Field and, for an actual Link, its own Pair.
-
-A bare Relation blueprint such as `Knows` is not a Tag and cannot be applied
-by itself. Bare `@Link` is also retired by the proposal: every Relation names
-`@Link(agent, contact)`. The class header is TOP's Form language, not Python
-member inheritance or the old shared Link-family design. The syntax is not
-implemented; the
-[proposal guide](../wiki/1.6.1-TopKit-Link-Underlays.md) records the boundary.
-
-Once Ruth is admitted to `ari.Trusts`, calling `ari.Trusts(ruth)` again is
-the ordinary active-Tag no-op. It does not apply underlays added to the
-Relation later. Rip Ruth from that Link and link her again to run the current
-underlays and training deliberately.
-
----
-
 ## Do and don't
 
 | Do | Don't |

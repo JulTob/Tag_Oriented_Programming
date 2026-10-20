@@ -75,12 +75,6 @@ class DocumentTests(unittest.TestCase):
     def test_the_tagging_wiki_page(self) -> None:
         self.assertGreater(Run_Blocks(ROOT / "wiki" / "1.5-TopKit-Tagging.md"), 5)
 
-    def test_the_link_underlays_proposal_page(self) -> None:
-        self.assertEqual(
-                Run_Blocks(ROOT / "wiki" / "1.6.1-TopKit-Link-Underlays.md"),
-                0,
-                )
-
     def test_the_constants_guide(self) -> None:
         self.assertGreater(Run_Blocks(ROOT / "TopKit" / "CONSTANTS.md"), 5)
 
