@@ -261,13 +261,15 @@ class ParameterCacheTests(unittest.TestCase):
             role = type("Ephemeral", (Tag,), {"Calculate": Action(Protocol)})
             agent.protocol = Protocol
             spec = declarations._parameters_of(Protocol)
+            key = id(Protocol)
             return ((weakref.ref(Protocol), weakref.ref(agent), weakref.ref(role)),
-                    spec)
+                    spec, key, declarations._parameter_cache[key])
 
-        references, spec = create()
+        references, spec, key, entry = create()
         gc.collect()
         gc.collect()
         self.assertTrue(all(reference() is None for reference in references))
+        self.assertIsNot(declarations._parameter_cache.get(key), entry)
         self.assertEqual(spec.named, (("receiver", False), ("amount", True)))
 
     def test_parameter_identifier_backreferences_are_not_globally_memoized(self):
