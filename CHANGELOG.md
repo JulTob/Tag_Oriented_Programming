@@ -23,8 +23,10 @@
   `@Operation` handle captured before a Pin or arrest checks its Tag before
   and after each call, including calls through `@Public` on an Agent.
   Generator and coroutine results check again at each continuation, even
-  when created before the Tag became an Agent. Handles retain their original
-  callable, receiver, bound signature and method equality. Native async
+  when created before the Tag became an Agent. Handles are native bound
+  methods with stable equality, hash, receiver and signature. Their
+  `__func__` is the guarded wrapper; `inspect.unwrap(handle.__func__)`
+  recovers the declared callable. Native async
   generator results are refused until their finalization path is settled
   in #243.
 

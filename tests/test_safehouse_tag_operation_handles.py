@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import gc
+import inspect
 from inspect import signature
 from types import MethodType
 from types import SimpleNamespace
@@ -42,16 +43,19 @@ class SafehouseTagOperationTests(unittest.TestCase):
         saved = Crew.Work
         native = MethodType(do_work, Crew)
         self.assertIs(saved.__self__, Crew)
-        self.assertIs(saved.__func__, do_work)
+        self.assertTrue(inspect.ismethod(saved))
+        self.assertIs(inspect.unwrap(saved.__func__), do_work)
         self.assertEqual(signature(saved), signature(native))
         self.assertEqual(saved.__qualname__, native.__qualname__)
         self.assertEqual(saved.__annotations__, native.__annotations__)
         self.assertEqual(saved.__name__, "do_work")
         self.assertEqual(saved.__doc__, do_work.__doc__)
-        self.assertEqual(repr(saved), "<Operation Work of Crew>")
+        self.assertIn("bound method", repr(saved))
         self.assertEqual(saved, Crew.Work)
-        self.assertEqual(saved, native)
-        self.assertEqual(hash(saved), hash(native))
+        # A native bound method is equal to another lookup of its guarded
+        # function, while the original function is reachable through unwrap.
+        self.assertNotEqual(saved, native)
+        self.assertEqual(hash(saved), hash(Crew.Work))
         self.assertEqual({saved: "kept"}[Crew.Work], "kept")
 
         @Pin
@@ -63,6 +67,8 @@ class SafehouseTagOperationTests(unittest.TestCase):
             for call in (saved, Crew.Work):
                 with self.assertRaises(TagArrestedAccessError):
                     call()
+            with self.assertRaises(TagArrestedAccessError):
+                saved.__func__(Crew)
             with _rip_door(Crew):
                 self.assertEqual(saved(3), (Crew, 3))
             with self.assertRaises(TagArrestedAccessError):
@@ -92,13 +98,14 @@ class SafehouseTagOperationTests(unittest.TestCase):
         function.closed = True
         saved = Crew.Work
         self.assertIs(saved.__self__, Crew)
-        self.assertIs(saved.__func__, function)
+        self.assertTrue(inspect.ismethod(saved))
+        self.assertIs(inspect.unwrap(saved.__func__), function)
         self.assertEqual(saved.__name__, "Work")
         self.assertIsNone(saved.__doc__)
-        self.assertEqual(repr(saved), "<Operation Work of Crew>")
+        self.assertIn("bound method", repr(saved))
         self.assertEqual(signature(saved), signature(MethodType(function, Crew)))
-        self.assertFalse(hasattr(saved, "__qualname__"))
-        self.assertFalse(hasattr(saved, "__annotations__"))
+        self.assertTrue(saved.__qualname__.endswith(".Crew.Work"))
+        self.assertEqual(saved.__annotations__, {})
         self.assertEqual(saved(5), (Crew, 5))
 
     def test_operation_cannot_return_after_arresting_its_own_tag(self):

@@ -22,6 +22,7 @@ from inspect import getattr_static
 from inspect import signature
 from types import AsyncGeneratorType
 from types import CoroutineType
+from types import FunctionType
 from types import GeneratorType
 from types import MethodType
 from typing import Any
@@ -346,93 +347,48 @@ def _call_tag_operation(
     return _guard_lazy_result(result, tag, "Operation", _require_available)
 
 
-class _Operation_Bound:
-    """A Tag Operation handle that remains revocable after capture."""
-
-    __slots__ = ("_function", "_tag", "_name")
-
-    def __init__(
-            bound,
-            function: Function,
-            tag: type,
-            name: str,
-            ) -> None:
-        bound._function = function
-        bound._tag = tag
-        bound._name = name
-
-    def __call__(bound, *args: Any, **kwargs: Any) -> Any:
-        tag = bound._tag
-        if _safehouse:
-            _require_available(tag, "Operation")
-
-        result = bound._function(tag, *args, **kwargs)
-        return _guard_lazy_result(result, tag, "Operation", _require_available)
-
-    def __eq__(bound, other: object) -> Any:
-        if isinstance(other, _Operation_Bound):
-            other = MethodType(other._function, other._tag)
-
-        return MethodType(bound._function, bound._tag).__eq__(other)
-
-    def __hash__(bound) -> int:
-        return hash(MethodType(bound._function, bound._tag))
-
-    def __repr__(bound) -> str:
-        return f"<Operation {bound._name} of {bound._tag.__name__}>"
-
-    @property
-    def __self__(bound) -> type:
-        return bound._tag
-
-    @property
-    def __func__(bound) -> Function:
-        return bound._function
-
-    @property
-    def __signature__(bound) -> Any:
-        return signature(MethodType(bound._function, bound._tag))
-
-    @property
-    def __name__(bound) -> str:
-        try:
-            name = getattr(bound._function, "__name__", None)
-        except Exception:
-            name = None
-        return name if isinstance(name, str) else bound._name
-
-    def __getattr__(bound, name: str) -> Any:
-        if name in ("__qualname__", "__annotations__"):
-            return getattr(bound._function, name)
-        raise AttributeError(name)
-
-    @property
-    def __doc__(bound) -> str | None:
-        try:
-            return getattr(bound._function, "__doc__", None)
-        except Exception:
-            return None
-
-
 class _Guarded_Operation(classmethod):
-    """The classmethod source, returning a guarded bound handle."""
+    """The classmethod source, returning a native guarded bound method."""
+
+    def __init__(operation, function: Function) -> None:
+        super().__init__(function)
+
+        def Guarded(tag: type, *args: Any, **kwargs: Any) -> Any:
+            if _safehouse:
+                _require_available(tag, "Operation")
+
+            result = function(tag, *args, **kwargs)
+            return _guard_lazy_result(
+                    result, tag, "Operation", _require_available,
+                    )
+
+        Guarded.__wrapped__ = function
+        if isinstance(function, FunctionType):
+            Guarded.__name__ = function.__name__
+            Guarded.__qualname__ = function.__qualname__
+            Guarded.__module__ = function.__module__
+            Guarded.__doc__ = function.__doc__
+            Guarded.__annotations__ = function.__annotations__
+        else:
+            Guarded.__annotations__ = {}
+        operation._wrapper = Guarded
 
     def __set_name__(operation, owner: type, name: str) -> None:
         operation._name = name
+        if not isinstance(operation.__func__, FunctionType):
+            operation._wrapper.__name__ = name
+            operation._wrapper.__qualname__ = f"{owner.__qualname__}.{name}"
+            operation._wrapper.__module__ = owner.__module__
 
     def __get__(
             operation,
             instance: object,
             owner: type | None = None,
-            ) -> _Operation_Bound:
+            ) -> MethodType:
         if owner is None:
             owner = type(instance)
 
-        return _Operation_Bound(
-                operation.__func__,
-                owner,
-                getattr(operation, "_name", "Operation"),
-                )
+        return MethodType(operation._wrapper, owner)
 
 
 def Operation(
