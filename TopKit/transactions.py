@@ -707,7 +707,10 @@ def _traceback_summary(
     """Copy source coordinates without retaining traceback frames or Agents."""
 
     frames: list[tuple[str, int, str]] = []
-    traceback = error.__traceback__
+    # A user Exception can override __getattribute__ and make an ordinary
+    # error in its own Imprint metadata look like a new interruption. Read the
+    # interpreter's traceback seat without dispatching through that override.
+    traceback = BaseException.__dict__["__traceback__"].__get__(error)
     while traceback is not None:
         code = traceback.tb_frame.f_code
         frames.append((code.co_filename, traceback.tb_lineno, code.co_name))
