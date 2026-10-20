@@ -41,8 +41,11 @@ Report, within the Tag scope settled separately in #230.
    both visible to the next Shape read. A Pin-supplied Report contributes
    its current value, never its Python descriptor object.
 3. If the chosen Base binding is deleted, the next eligible current Base
-   binding in that same search order supplies the value. Deletion and
-   Pinning do not reorder the Agent's Tagging Overlay.
+   binding in that same search order supplies the value. If none remains,
+   the builder receives `None`, as the existing two-parameter builder does.
+   That input alone cannot distinguish an absent Base Report from one whose
+   value is `None`. Deletion and Pinning do not reorder the Agent's Tagging
+   Overlay.
 4. A Shape-owned `@Constant @Report` with a Base Report link calculates
    once, on its first permitted read, and keeps that resulting binding
    fixed when the Base later changes. As with other Constant values,
@@ -81,13 +84,6 @@ If a nearer Base's `signal` Report is replaced by an Operation named
 `signal`, a Shape's explicit `signal` link reads a deeper Base's current
 `signal` Report, when one exists. It must not receive the Operation object.
 
-## Open question
-
-If no eligible Base Report remains, should the builder receive `None`, as
-today's calculation does, or should the read fail? A real Report may itself
-hold `None`, so the answer cannot be inferred from that value. This Brief
-does not settle the missing-link behavior.
-
 ## Rationale
 
 The second builder input is an explicit link to a Base's current Report,
@@ -104,6 +100,8 @@ fixed result can use `@Constant` if the protected binding is appropriate.
 Existing one-parameter Report calculations and Constant binding rules do
 not change. The runtime and guide still describe the earlier calculation
 until #231 is implemented; this Brief records the proposed rule only.
+The Base link supplies a declared Shape Report's builder input; it does not
+define how `Shape[agent].name` selects a Report from the Agent's Overlay.
 
 ## Alternatives considered
 
