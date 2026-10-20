@@ -188,9 +188,6 @@ class MetaTag(type):
             # before they ask the Agent's Posts.
             return tag is Tag and candidate in _sound_of(tag)
 
-        if _safehouse and _arrest_of(candidate) is not None:
-            return False
-
         state = _state_of(candidate)
         if state is None or not state.postconditions:
             return (
@@ -198,9 +195,11 @@ class MetaTag(type):
                     and candidate in field
                     )
 
+        if _safehouse and _arrest_of(candidate) is not None:
+            return False
+
         return (
-                (not _safehouse or _arrest_of(candidate) is None)
-                and _holds_for_population(candidate)
+                _holds_for_population(candidate)
                 and (not _safehouse or _arrest_of(candidate) is None)
                 and candidate in field
                 )
