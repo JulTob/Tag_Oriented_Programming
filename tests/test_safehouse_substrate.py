@@ -7,7 +7,10 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
+from TopKit import Post
+from TopKit import Tag
 from TopKit import TagArrestedAccessError
+from TopKit import TagContractError
 from TopKit import TagResolutionError
 from TopKit.arrest import _Arrest
 from TopKit.arrest import _arrest_of
@@ -19,6 +22,30 @@ from TopKit.fields import _Safehouse
 
 
 class SafehouseSubstrateTests(unittest.TestCase):
+    def test_saved_custody_does_not_weaken_recursive_post_guard(self) -> None:
+        class Host:
+            pass
+
+        class Checking(Tag):
+            @Post
+            def Ready(agent):
+                return agent in ~Checking
+
+        agent = Host()
+        with self.assertRaises(TagContractError):
+            Checking(agent)
+
+        arrest = _Arrest(agent)
+        arrest.runs.append(SimpleNamespace(tag=Checking))
+        with patch.dict(_safehouse, {id(agent): arrest}, clear=True):
+            self.assertIn(agent, _Safehouse(Checking))
+            self.assertIn(agent, Checking[:])
+            self.assertEqual(list(Checking), [])
+            self.assertNotIn(agent, ~Checking)
+
+        with self.assertRaises(TagContractError):
+            list(Checking)
+
     def test_error_is_a_resolution_failure(self) -> None:
         self.assertTrue(issubclass(TagArrestedAccessError, TagResolutionError))
 

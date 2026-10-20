@@ -95,7 +95,8 @@ def _retry_arrested(
 
     The caller supplies ordinary TOP membership revocation and Rip calling.
     A revocation that is interrupted must be safe to resume from its last
-    boundary. The run remains held until all its teardowns complete.
+    boundary. Revocation and teardowns run inside this Agent's Rip door.
+    The run remains held until all its teardowns complete.
     """
 
     if _arrest_of(agent) is None:
@@ -112,11 +113,11 @@ def _retry_arrested(
         run.running = True
 
         try:
-            if not run.revoked:
-                revoke(run)
-                run.revoked = True
-
             with _rip_door(agent):
+                if not run.revoked:
+                    revoke(run)
+                    run.revoked = True
+
                 while run.cursor < len(run.teardowns):
                     name, teardown = run.teardowns[run.cursor]
 
