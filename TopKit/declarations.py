@@ -507,6 +507,10 @@ def Pin(
         raise TagDeclarationError(
                 "@Pin marks a Tag class"
                 )
+    if not _is_tag_base(tag):
+        raise TagDeclarationError(
+                "the root Tag cannot be a Pin"
+                )
 
     _refuse_tools_on_a_pin(
             tag,
