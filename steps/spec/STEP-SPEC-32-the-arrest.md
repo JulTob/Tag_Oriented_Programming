@@ -40,10 +40,11 @@ domain is separately open in [#37](https://github.com/JulTob/Tag_Oriented_Progra
    This supersedes the no-arrest recommendation in historical question 14.
 2. **A whole-Field Rip stops at its first failure or interruption.** Its
    initial members leave the Field and enter pending Safehouse custody
-   before any teardown runs. Cleanup takes their join order. On a failed
+   before any teardown runs. The join-order wording recorded here was
+   superseded by the 2026-10-20 correction below. On a failed
    teardown or `KeyboardInterrupt`/`SystemExit`, the walk stops there;
-   the current and unvisited cleanup remains available for ordered retry.
-   Completed teardown steps are not repeated. An empty Field after the
+   the current and unvisited cleanup remains available for retry.
+   Recorded completed teardown steps are not repeated. An empty Field after the
    interruption does not mean cleanup succeeded. This supersedes the
    continuation recommendation in historical question 16 and answers
    the stopping and retention boundary in question 17.
@@ -80,6 +81,24 @@ domain is separately open in [#37](https://github.com/JulTob/Tag_Oriented_Progra
    a saved Rip and it fails again, `TagArrestedAccessError` is a
    `TagResolutionError`, with the original Rip failure as its cause. The
    act does not start.
+
+### Director correction on Field cleanup order — 2026-10-20
+
+A Field has no inherent **cleanup** order. A whole-Field Rip still revokes
+all starting memberships into Safehouse custody before the first teardown
+and stops its current cleanup attempt at the first failure or interruption.
+The implementation may happen to visit members in join order, but TOP does
+not promise that order for deletion. A program may explicitly retry any
+pending member next, even while another member's Rip remains unfinished.
+Within one Agent's saved Rip run, the declared teardown order and recorded
+progress still apply. This supersedes item 2's join-order and cross-member
+"ordered retry" wording, not its revocation or stopping rule. It does not
+settle a separate question about the ordinary Field walk's order.
+
+"A completed teardown step is not repeated" means TOP recorded its
+completion. If Python interrupts after a callback returns but before TOP
+records that return, whether retry calls it again remains open. This Brief
+makes no exactly-once promise for that interruption window.
 
 These decisions do not settle automatic Agent deletion, forced triage,
 automatic Tag finalization, Pin and Link teardown, concurrent access, or
