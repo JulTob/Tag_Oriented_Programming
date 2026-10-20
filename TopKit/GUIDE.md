@@ -475,7 +475,7 @@ try:
 except Postcondition.Has_Spellbook:
     pass                                # the Tag stays; Newt is defective
 
-assert newt in Wizard                   # a member
+assert newt in Wizard[:]                # a member
 assert not newt                         # whose promise is broken
 assert newt in ~Wizard                  # waiting in the repair queue
 
@@ -792,8 +792,9 @@ Declare a safety Post before the Action that needs it. An Action can read
 its named condition before effects, such as
 `if not agent.Insulated: raise PermissionError(...)`. A Post definition does
 not automatically guard an ordinary Action call. `if agent:` asks current
-truthiness; combine it with membership when the operation needs a currently
-valid member of a specific Agency.
+truthiness across all visible Posts. `agent in Tag` asks whether the Agent
+is a sound member of that Tag; `agent in Tag[:]` asks whether it remains
+in its Field, including when defective.
 
 A role for a block is two acts you already know, the tagging and the Rip,
 joined by Python's own `try` and `finally`. The rule is the one Python
@@ -856,8 +857,8 @@ The Gains and Posts already acquired stay after a Rip. If an Officer
 really must remain a Candidate, the author can declare a Post on Officer
 that checks `agent in Candidate[:]`. Ripping Candidate then leaves Officer
 in its Field but defective while that Post fails. Guard the Post with
-Officer membership if the promise should stop mattering after Officer is
-also Ripped.
+`agent in Officer[:]` if the promise should stop mattering after Officer
+is also Ripped.
 
 This frees `with` for ordinary Python context protocols. A host or an
 Agent may still define `__enter__` and `__exit__` (or the asynchronous
@@ -903,7 +904,7 @@ assert lance.Salute() == "Lance salutes"   # what he became: stays
 assert lance                               # what the role required: ended by you
 ```
 
-The other way is a guard inside the promise, `if agent not in Knight:
+The other way is a guard inside the promise, `if agent not in Knight[:]:
 return True`, which lets the promise follow any membership you like; the
 Contracts Guide shows both.
 
@@ -1143,7 +1144,8 @@ the architecture, with a Field to walk and a history that stays.
 
 | Question | Spelling |
 | --- | --- |
-| Is it a Wizard now? | `agent in Wizard` |
+| Is it a sound Wizard now? | `agent in Wizard` |
+| Is it in Wizard's Field, even if defective? | `agent in Wizard[:]` |
 | Was it ever? | `isinstance(agent, Wizard)` |
 | Does it carry the keyword? | `"Undead" in agent`, `Keyword(agent, "Undead")`, a Flag's words too |
 | Does it currently provide this name? | `"Attack" @ agent` |
@@ -1196,7 +1198,7 @@ your Reports and Operations there.
 | Expect a Rogue Agent to keep its own Actions and lose the Agency's published ones. | Check membership by hand inside every published Operation. |
 | Catch the named promise, repair what it names, retry. | Catch every failure in one handler and guess. |
 | Keep shared data in a `Report`, one copy. | Copy shared data into every Agent's Record. |
-| Ask `agent in Wizard`. | Ask `type(agent) is Character`; the type is wrapped. |
+| Ask `agent in Wizard` for sound membership, or `agent in Wizard[:]` for the whole Field. | Ask `type(agent) is Character`; the type is wrapped. |
 
 ---
 
