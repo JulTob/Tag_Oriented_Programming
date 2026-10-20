@@ -58,6 +58,7 @@ from .fields import _sound_of
 from .geometry import _form_of
 from .geometry import _is_tag
 from .lifecycle import _rip
+from .observation import _refuse_pre_mutation
 from .state import Tagged
 from .state import _name_of
 from .state import _state_of
@@ -102,6 +103,7 @@ class MetaTag(type):
             name: str,
             value: Any,
             ) -> None:
+        _refuse_pre_mutation("change an existing Tag class")
         _refuse_truth_gain(tag.__name__, name, value)
         if _is_dunder(name):
             _refuse_condition_dunder(tag.__name__, name, _kind_of(value))
@@ -120,6 +122,7 @@ class MetaTag(type):
             tag,
             name: str,
             ) -> None:
+        _refuse_pre_mutation("delete from an existing Tag class")
         owner = _constant_owner(tag, name)
 
         if owner is not None:
@@ -136,6 +139,7 @@ class MetaTag(type):
             /,
             **inputs: Any,
             ) -> object:
+        _refuse_pre_mutation("apply a Tag or Pin")
         if target is _MISSING:
             raise TypeError(
                     f"{tag.__name__} is a Tag: apply it to a Target,"
@@ -280,6 +284,7 @@ class MetaTag(type):
             tag,
             agent: object,
             ) -> None:
+        _refuse_pre_mutation("Rip a Tag")
         _rip(
                 agent,
                 tag,

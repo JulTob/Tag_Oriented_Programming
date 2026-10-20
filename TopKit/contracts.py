@@ -29,6 +29,7 @@ from .errors import TagError
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
 from .geometry import _leaves
+from .observation import _pre_observation
 from .state import _namespace_of
 from .state import _State
 from .state import _name_of
@@ -341,26 +342,46 @@ def _evaluate(
     """Run conditions; raise ``failure`` naming the first that does not hold."""
 
     for name, check in checks:
-        with _checking_post(agent) if post else nullcontext():
-            try:
-                result = check(agent, inputs)
-            except _Recursive_Soundness as error:
-                raise _Recursive_Soundness(
-                        f"{phase} {name!r} failed: {_exception_text(error)}"
-                        ) from error
-            except TagContractError as error:
-                raise TagContractError(
-                        f"{phase} {name!r} failed: {_exception_text(error)}"
-                        ) from error
-            except Exception as error:
-                raise failure.Named(name)(
-                        f"{phase} {name!r} raised {_type_name(error)}: {_exception_text(error)}"
-                        ) from error
+        flow = None
+        if post:
+            observation = _checking_post(agent)
+        elif phase == "Precondition":
+            observation = _pre_observation()
+        else:
+            observation = nullcontext()
 
-            if not _verdict(result, f"{phase} {name!r}"):
-                raise failure.Named(name)(
-                        f"{phase} {name!r} failed"
-                        )
+        try:
+            with observation as flow:
+                try:
+                    result = check(agent, inputs)
+                except _Recursive_Soundness as error:
+                    raise _Recursive_Soundness(
+                            f"{phase} {name!r} failed: {_exception_text(error)}"
+                            ) from error
+                except TagContractError as error:
+                    raise TagContractError(
+                            f"{phase} {name!r} failed: {_exception_text(error)}"
+                            ) from error
+                except Exception as error:
+                    raise failure.Named(name)(
+                            f"{phase} {name!r} raised {_type_name(error)}: {_exception_text(error)}"
+                            ) from error
+
+                if not _verdict(result, f"{phase} {name!r}"):
+                    raise failure.Named(name)(
+                            f"{phase} {name!r} failed"
+                            )
+        except TagCompositionError as error:
+            if flow is None or error is not flow.violation:
+                raise
+            # Verdicts and diagnostics can catch the immediate refusal.
+            # The observation still names this Precondition's failed Gate.
+            # Observation has ended; a declaration name can be a str
+            # subclass whose __repr__ performs another TOP act.
+            plain_name = str.__str__(name)
+            raise failure.Named(plain_name)(
+                    f"{phase} {plain_name!r} raised {_type_name(error)}: {_exception_text(error)}"
+                    ) from error
 
 
 def _guarded(
@@ -404,14 +425,21 @@ def _guarded(
             return True
 
         for name, check in checks:
-            with _checking_post(agent) if scope == "postconditions" else nullcontext():
-                try:
+            if scope == "postconditions":
+                observation = _checking_post(agent)
+            elif scope == "preconditions":
+                observation = _pre_observation()
+            else:
+                observation = nullcontext()
+
+            try:
+                with observation:
                     if not _verdict(check(agent, {}), name):
                         return False
-                except _Recursive_Soundness:
-                    raise
-                except Exception:
-                    return False
+            except _Recursive_Soundness:
+                raise
+            except Exception:
+                return False
 
         return True
     finally:
@@ -461,7 +489,7 @@ def _condition_member(
     check = state.postconditions.get(name)
     post = check is not None
 
-    if check is None:
+    if not post:
         check = state.preconditions.get(name)
 
     if check is None:
@@ -473,16 +501,16 @@ def _condition_member(
     state.composing += 1
 
     try:
-        with _checking_post(agent) if post else nullcontext():
-            try:
+        try:
+            with _checking_post(agent) if post else _pre_observation():
                 return _verdict(
                         check(agent, {}),
                         name,
                         )
-            except TagContractError:
-                raise
-            except Exception:
-                return False
+        except TagContractError:
+            raise
+        except Exception:
+            return False
     finally:
         state.composing -= 1
         state.checking = reentrant
@@ -505,16 +533,25 @@ def _status_of(
 
     try:
         for name, check in getattr(state, scope).items():
-            with _checking_post(agent) if scope == "postconditions" else nullcontext():
-                try:
-                    status[name] = _verdict(
+            # A str subclass key may run code from __hash__. The result
+            # dictionary is also written on the fallback path, after the
+            # observation has ended, so store only inert plain strings.
+            result_name = str.__str__(name)
+            try:
+                observation = (
+                        _checking_post(agent)
+                        if scope == "postconditions"
+                        else _pre_observation()
+                        )
+                with observation:
+                    status[result_name] = _verdict(
                             check(agent, {}),
                             name,
                             )
-                except _Recursive_Soundness:
-                    raise
-                except Exception:
-                    status[name] = False
+            except _Recursive_Soundness:
+                raise
+            except Exception:
+                status[result_name] = False
     finally:
         state.composing -= 1
         state.checking = reentrant
@@ -594,6 +631,9 @@ class Contract:
         """
 
         from .errors import TagResolutionError
+        from .observation import _refuse_pre_mutation
+
+        _refuse_pre_mutation("delete a condition")
 
         state = _state_of(agent)
 

@@ -197,6 +197,10 @@ def At_Exit(
     the registry when the Agent dies.
     """
 
+    from .observation import _refuse_pre_mutation
+
+    _refuse_pre_mutation("register an At_Exit teardown")
+
     global _exit_count
 
     reference = _Member(

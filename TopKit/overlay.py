@@ -22,6 +22,7 @@ from .access import _host_finalizer
 from .access import _host_in_seat
 from .contracts import _bind_condition
 from .contracts import _guarded
+from .observation import _observe_pre
 from .constants import _constant_overlay
 from .constants import _refuse_constant
 from .declarations import _Declarations
@@ -403,11 +404,13 @@ def _install(
     for name, function in declarations.preconditions:
         prior = state.preconditions.get(name)
         state.preconditions[name] = _stamp(
-                _bind_condition(
-                        function,
-                        prior,
-                        True,
-                        name,
+                _observe_pre(
+                        _bind_condition(
+                                function,
+                                prior,
+                                True,
+                                name,
+                                )
                         ),
                 tag,
                 )
