@@ -384,8 +384,8 @@ def _advice(
 
         if built:
             return (
-                    f"Use an already tagged {first}, or tag the object in"
-                    " an earlier Imprint before this Record builder runs"
+                    f"Use an already tagged {first}; a previously"
+                    " completed Tag's Imprint can prepare it"
                     )
 
         return f"Tag it first, {first}(...), or hand over a {first}"

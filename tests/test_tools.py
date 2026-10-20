@@ -188,7 +188,7 @@ class Tag_Kind_Tests(unittest.TestCase):
         with self.assertWarns(TagTrainingWarning.weapon) as caught:
             Careless(charlie)
         self.assertIn("not a Weapon now", str(caught.warning.failure))
-        self.assertIn("earlier Imprint", str(caught.warning.failure))
+        self.assertIn("completed Tag's Imprint", str(caught.warning.failure))
         self.assertNotIn("Tag it in the builder", str(caught.warning.failure))
         self.assertIn(charlie, Careless[:])
         self.assertFalse(hasattr(charlie, "weapon"))
