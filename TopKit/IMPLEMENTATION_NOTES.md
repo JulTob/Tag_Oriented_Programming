@@ -260,17 +260,24 @@ effects or later training. Acquired Gains follow STEP-SPEC-39.
 
 FieldAdding establishes active membership, history and the Field together,
 then captures the admitted Tag's view. `_inspect` runs visible Posts after
-each Field entry, before the next Tag's Gate. A Gaining failure before
-FieldAdding leaves actually acquired Gains and completed Tags in place
-without admitting the unfinished Tag. Retry passes a fresh Gate, overlays
-ordinary Gains and restarts Imprints, retaining established Constants.
-`_imprint` instead collects each ordinary failure as a named Training Warning
+each Field entry, before the next Tag's Gate. A structural Gaining refusal
+before FieldAdding leaves actually acquired Gains and completed Tags in
+place without admitting the unfinished Tag.
+The Record-space preflight gives a `TagTargetError` before any Gain from this
+Tag. Once the Agent's current Posts hold, retry after a structural refusal
+passes a fresh Gate, overlays ordinary Gains and restarts Imprints, retaining
+established Constants.
+`_gainings` collects an ordinary Record calculation, Tool-kind, or value
+write failure as `TrainingWarning.Name`. The failed Record's prior binding
+remains and later Gainings continue. A Python interruption stops later
+Gainings and Imprints, but still reaches FieldAdding and Post inspection.
+`_imprint` likewise collects each ordinary failure as a named Training Warning
 and continues later Imprints. FieldAdding admits the Agent after those
 attempts; `_inspect` checks every visible Post and raises the named failure
 for one false verdict or `TaggingFailure` naming all false Posts. A Post
 failure preserves membership; current Posts determine soundness, not a
-permanent failure marker. An interruption stops later Imprints, but still
-admits and inspects the Agent before the original interruption propagates.
+permanent failure marker. An Imprint interruption stops later Imprints, but
+still admits and inspects the Agent before the original interruption propagates.
 Acquired conditions, including Posts and Constant Posts, remain even after
 a pre-Field failure. They participate in contract queries and
 published-member guards; ordinary Actions are not automatically wrapped in
@@ -311,13 +318,16 @@ failures are collected after remaining teardowns run; Python interruptions
 keep their propagation behavior. Best-effort deletion uses the same checks.
 
 Record and Imprint failures, and invalid Underlay declarations, use their
-Contribution names instead of requiring callable naming metadata. A Record
-failure still follows the pre-Field Gaining boundary and keeps its original
-cause. An ordinary Imprint failure becomes a `TrainingWarning.Name` after
-admission; its `.failure` is `TagImprintError.Name`. The original error is
-copied as type, text and source coordinates without retaining traceback
-frames or the Agent. Warning reporting cannot mask a failed Post or a Python
-interruption. These diagnostics do not expand the rollback boundary.
+Contribution names instead of requiring callable naming metadata. An
+ordinary Record or Imprint failure becomes a `TrainingWarning.Name` after
+admission; its `.failure` is a Record Composition Failure or
+`TagImprintError.Name`, respectively. The original error is copied as type,
+text and source coordinates without retaining traceback frames or the Agent.
+Warning reporting cannot mask a failed Post or a Python interruption. A
+failed Record value write restores its previous binding before later Gains.
+The ordinary Record path snapshots only the named Overlay seats rather than
+the whole Agent state; a Pin or guarded runtime gain still uses a full state
+snapshot. These diagnostics do not expand the rollback boundary.
 
 ## Judgment calls
 
