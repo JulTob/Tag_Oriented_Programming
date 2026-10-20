@@ -30,7 +30,7 @@ Specification's two-way Field partition needs an explicit amendment when
 the Safehouse is implemented. The global Safehouse's mixed population
 domain is separately open in [#37](https://github.com/JulTob/Tag_Oriented_Programming/issues/37); Pair cleanup evidence is [#39](https://github.com/JulTob/Tag_Oriented_Programming/issues/39). Act interception is a TOP behavior boundary, not a Python security sandbox.
 
-### Later Director decisions — 2026-10-15; order corrected 2026-10-20
+### Later Director decisions — 2026-10-15
 
 1. **An old Rip and a fresh Tagging are separate applications.** If an old
    `Wizard` teardown explicitly calls `Wizard(ada)`, the fresh membership
@@ -40,19 +40,13 @@ domain is separately open in [#37](https://github.com/JulTob/Tag_Oriented_Progra
    This supersedes the no-arrest recommendation in historical question 14.
 2. **A whole-Field Rip stops at its first failure or interruption.** Its
    initial members leave the Field and enter pending Safehouse custody
-   before any teardown runs. Cleanup tries one member at a time, without
-   a promised order among Field members. On a failed teardown or
-   `KeyboardInterrupt`/`SystemExit`, this invocation stops; the current
-   and unvisited cleanup remains in Safehouse custody. A program may
-   explicitly retry any pending member, even while another member's
-   cleanup remains unfinished. Each member's declared Rip steps keep
-   their own order, and completed steps are not repeated. An empty Field
-   after the interruption does not mean cleanup succeeded. The Director's
-   2026-10-20 ruling supersedes the earlier join-order/FIFO choice for
-   deletion, while ordinary Field walks retain their documented walk
-   mechanics. This supersedes the continuation recommendation in
-   historical question 16 and answers the stopping and retention
-   boundary in question 17.
+   before any teardown runs. Cleanup takes their join order. On a failed
+   teardown or `KeyboardInterrupt`/`SystemExit`, the walk stops there;
+   the current and unvisited cleanup remains available for ordered retry.
+   Completed teardown steps are not repeated. An empty Field after the
+   interruption does not mean cleanup succeeded. This supersedes the
+   continuation recommendation in historical question 16 and answers
+   the stopping and retention boundary in question 17.
 3. **Arrest is separate from a broken Post.** An Agent kept by any
    Safehouse is absent from both the sound population and `~Tag` of every
    Field it still belongs to, without evaluating its Posts or attempting
