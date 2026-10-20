@@ -113,6 +113,10 @@ def _mark(
     """Mark a function with its kind. ``@Pre`` and ``@Post`` stacked on one
     function make it a *condition*: necessary to enter and to stay."""
 
+    from .observation import _refuse_pre_mutation
+
+    _refuse_pre_mutation("change a Contribution declaration")
+
     existing = getattr(
             function,
             _KIND,
@@ -140,6 +144,9 @@ def _flag(
         target: Any,
         name: str,
         ) -> Any:
+    from .observation import _refuse_pre_mutation
+
+    _refuse_pre_mutation("change a Contribution declaration")
     if isinstance(target, Report):
         function = target.builder
     else:
@@ -359,6 +366,9 @@ def Public(
     its second input. Stacks with ``@Report`` / ``@Operation`` in either
     order."""
 
+    from .observation import _refuse_pre_mutation
+
+    _refuse_pre_mutation("change a Contribution declaration")
     if isinstance(member, Report):
         member.public = True
 
