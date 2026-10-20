@@ -2,7 +2,7 @@
 
 import unittest
 
-from TopKit import Contract, Post, Tag, TagCompositionError
+from TopKit import Contract, Post, Tag, TagCompositionError, Underlay
 from TopKit import TagPostconditionError
 
 
@@ -97,6 +97,26 @@ class PostNeutralCycleTests(unittest.TestCase):
         self.assertTrue(second.Ready)
         second.safe = False
         self.assertFalse(second.Ready)
+
+    def test_lower_underlay_post_can_read_the_visible_upper_post(self):
+        class Base(Tag):
+            @Post
+            def Ready(agent):
+                return agent.Ready
+
+        class Shape(Tag):
+            @Underlay
+            @Post
+            def Ready(agent, lower):
+                return lower() and agent.safe
+
+        agent = Host()
+        agent.safe = True
+        Base(agent)
+        Shape(agent)
+        self.assertTrue(agent.Ready)
+        agent.safe = False
+        self.assertFalse(agent.Ready)
 
     def test_a_caught_top_change_still_fails_a_recursive_post(self):
         seen = []
