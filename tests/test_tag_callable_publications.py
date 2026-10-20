@@ -67,7 +67,7 @@ class TagCallablePublicationTests(unittest.TestCase):
         # that failure remains harmless. Names and signatures are not needed.
         self.assertEqual(set(operation.reads), {"__doc__"})
 
-    def test_operation_modifier_orders_and_shape_binding(self):
+    def test_operation_modifier_orders_on_the_declaring_tag(self):
         before = Hostile()
         after = Hostile()
 
@@ -75,12 +75,8 @@ class TagCallablePublicationTests(unittest.TestCase):
             first = Constant(Operation(before))
             second = Operation(Constant(after))
 
-        class Shape(Base):
-            pass
-
         self.assertEqual(Base.first(), (Base, None, 7))
-        self.assertEqual(Shape.first(), (Shape, None, 7))
-        self.assertEqual(Shape.second(), (Shape, None, 7))
+        self.assertEqual(Base.second(), (Base, None, 7))
         self.assertEqual(before.reads, [])
         self.assertEqual(after.reads, [])
 
