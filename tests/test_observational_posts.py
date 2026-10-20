@@ -156,6 +156,37 @@ class ObservationalPostTests(unittest.TestCase):
             Contract.Postconditions(agent)
         self.assertIsInstance(caught.exception.__cause__, TagCompositionError)
 
+    def test_pin_post_cannot_tag_another_target_even_if_it_catches_refusal(self):
+        other = Host()
+
+        class Changed(Tag):
+            pass
+
+        class Agency(Tag):
+            try_change = False
+
+        @Pin
+        class Certified(Tag):
+            @Post
+            def Sound(tag):
+                if tag.try_change:
+                    try:
+                        Changed(other)
+                    except TagCompositionError:
+                        pass
+                return True
+
+        Certified(Agency)
+        Agency.try_change = True
+
+        self.assertFalse(bool(Agency))
+        with self.assertRaises(TagPostconditionError.Sound) as caught:
+            Contract.Postconditions(Agency)
+        self.assertIsInstance(caught.exception.__cause__, TagCompositionError)
+        self.assertIn(Agency, Certified[:])
+        self.assertNotIn(Agency, Certified)
+        self.assertNotIn(other, Changed[:])
+
     def test_python_interruption_from_post_remains_primary(self):
         original = KeyboardInterrupt("stop")
 
