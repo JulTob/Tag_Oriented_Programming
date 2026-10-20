@@ -295,7 +295,7 @@ class PopulationWalkTests(unittest.TestCase):
         self.assertNotIn(cal, ~Wizard)
         self.assertNotIn(cal, Wizard[:])
 
-    def test_retagging_while_judging_soundness_keeps_the_member(self) -> None:
+    def test_retagging_while_judging_soundness_keeps_raw_membership(self) -> None:
         ripping = [False]
         reapplied = [False]
 
@@ -316,15 +316,23 @@ class PopulationWalkTests(unittest.TestCase):
         Wizard(ari)
         ripping[0] = True
 
+        # The Post Rips and re-Tags during its own soundness check. The
+        # physical Field remains live, but the new Post binding has not
+        # been judged by this walk's saved contract turn. The next walk
+        # judges it normally; STEP-SPEC-35's admission rule still holds.
+        self.assertEqual([member for member in Wizard], [])
+        self.assertIn(ari, Wizard[:])
         self.assertEqual([member for member in Wizard], [ari])
 
         reapplied[0] = False
-        self.assertIn(ari, Wizard | Fighter)
+        self.assertNotIn(ari, Wizard | Fighter)
         self.assertIn(ari, Wizard[:])
+        self.assertIn(ari, Wizard | Fighter)
 
         reapplied[0] = False
-        self.assertIn(ari, Wizard)                               # re-tagging keeps it sound
+        self.assertNotIn(ari, Wizard)                            # the fresh Post was not judged yet
         self.assertIn(ari, Wizard[:])
+        self.assertIn(ari, Wizard)                               # next query judges the fresh Post
 
     def test_a_one_pass_materialization_uses_a_comprehension(self) -> None:
         checks = []
