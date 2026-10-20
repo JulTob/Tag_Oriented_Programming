@@ -29,6 +29,7 @@ from .errors import TagError
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
 from .geometry import _leaves
+from .observation import _observing
 from .observation import _pre_observation
 from .state import _namespace_of
 from .state import _State
@@ -57,8 +58,8 @@ _post_checks: ContextVar[tuple[_Post_Check, ...]] = ContextVar(
 
 
 @contextmanager
-def _checking_post(agent: object) -> Iterator[None]:
-    """Mark a Post's actual execution, independently of Pre reads.
+def _checking_post(agent: object) -> Iterator[Any]:
+    """Mark and observe a Post's actual execution, independently of Pre reads.
 
     The marker is execution-local, holds only the Agent's identity, and is
     revoked on exit. A copied context cannot keep an Agent alive or inherit
@@ -69,7 +70,8 @@ def _checking_post(agent: object) -> Iterator[None]:
     token = _post_checks.set((*_post_checks.get(), check))
 
     try:
-        yield
+        with _observing("a Postcondition") as flow:
+            yield flow
     finally:
         check.active = False
         _post_checks.reset(token)
@@ -375,9 +377,9 @@ def _evaluate(
             if flow is None or error is not flow.violation:
                 raise
             # Verdicts and diagnostics can catch the immediate refusal.
-            # The observation still names this Precondition's failed Gate.
-            # Observation has ended; a declaration name can be a str
-            # subclass whose __repr__ performs another TOP act.
+            # The observation still names the failed Gate or promise.
+            # Its name may be a str subclass whose __repr__ performs a TOP
+            # act after observation ends, so render a plain string.
             plain_name = str.__str__(name)
             raise failure.Named(plain_name)(
                     f"{phase} {plain_name!r} raised {_type_name(error)}: {_exception_text(error)}"
@@ -463,14 +465,14 @@ def _holds(
 
     try:
         for name, check in state.postconditions.items():
-            with _checking_post(agent):
-                try:
+            try:
+                with _checking_post(agent):
                     if not _verdict(check(agent, {}), name):
                         return False
-                except _Recursive_Soundness:
-                    raise
-                except Exception:
-                    return False
+            except _Recursive_Soundness:
+                raise
+            except Exception:
+                return False
 
         return True
     finally:

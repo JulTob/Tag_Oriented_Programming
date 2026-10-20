@@ -104,14 +104,17 @@ to calculate their initial returned values. Applying or Ripping Tags and
 performing world effects belong to Imprints. These rules do not provide a
 sandbox for arbitrary Python effects.
 
-While TOP evaluates a Precondition, it refuses Tagging or Pinning, Rip,
-`Contract.Delete`, `At_Exit`, and changes to existing Tag classes before those
-TOP acts take effect. This applies through query Actions and to other Targets.
-Catching the immediate error does not make the Gate pass: the attempted act
-still refuses that Precondition. Calculations and query Actions remain legal.
+While TOP evaluates a Precondition or Postcondition, it refuses Tagging or
+Pinning, Rip, `Contract.Delete`, `At_Exit`, and changes to existing Tag classes
+before those TOP acts take effect. This applies through query Actions and to
+other Targets.
+Catching the immediate error still fails the check. For a Pre, that refuses
+Tagging; for a Post, the named check is false and the Agent remains in the
+Field. Calculations and query Actions remain legal.
 Ordinary Python assignments, mutable values, host methods, I/O and work in
 another thread remain the author's responsibility. Record builders follow the
-same read-and-query authoring rule; this guard currently covers Preconditions.
+same read-and-query authoring rule; the runtime guard covers explicit TOP acts
+during Preconditions and Posts, not ordinary Python effects or Record builders.
 
 After the Gate, Actions, Records, condition definitions and deletions take
 effect in declaration order, top to bottom, with each acquired Gain or

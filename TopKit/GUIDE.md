@@ -462,6 +462,13 @@ Operations; a Record may also store such an object as its value.
 **When you want** a Tag to guarantee something about the finished Agent.
 Postconditions inspect the product after everything applied.
 
+A Post can calculate from Records and call Actions that only look things up.
+While it is being checked, TOP refuses Tagging, Rip, condition deletion and
+other explicit TOP changes, even if a called Action tries them and catches
+the immediate error. That attempt makes the Post fail; the Agent stays in
+its Field for repair. Ordinary Python assignments and outside effects are
+the author's responsibility, so a Post should not use them to change state.
+
 ```python
 class Wizard(Tag):
 

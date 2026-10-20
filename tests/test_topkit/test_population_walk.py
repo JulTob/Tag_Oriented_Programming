@@ -195,7 +195,7 @@ class PopulationWalkTests(unittest.TestCase):
         self.assertEqual(self.walked(Wizard[:], Return_Ari), [ari, bo, cal])
         self.assertEqual(list(Wizard[:]), [bo, cal, ari])
 
-    def test_population_queries_share_membership_at_turn(self) -> None:
+    def test_population_queries_do_not_permit_post_side_effects(self) -> None:
         def ask(question):
             checks = []
             changing = [False]
@@ -218,22 +218,23 @@ class PopulationWalkTests(unittest.TestCase):
             checks.clear()
             changing[0] = True
 
-            return question(Enemy), checks, pair
+            return question(Enemy), checks, pair, Enemy
 
         questions = (
-                ("population truth", lambda population: bool(population & population), False),
-                ("length", len, 0),
-                ("iteration", lambda population: [member for member in population], []),
+                ("population truth", lambda population: bool(population & population), True),
+                ("length", len, 1),
+                ("iteration", lambda population: [member for member in population], None),
                 )
 
         for name, question, expected in questions:
             with self.subTest(question=name):
-                answer, checks, pair = ask(question)
+                answer, checks, pair, Enemy = ask(question)
 
-                self.assertEqual(answer, expected)
-                self.assertEqual(checks, [pair[0]])
+                self.assertEqual(answer, [pair[1]] if expected is None else expected)
+                self.assertIs(checks[0], pair[0])
+                self.assertIn(pair[1], Enemy[:])
 
-    def test_a_sound_view_rechecks_membership_after_its_postcondition(self) -> None:
+    def test_a_sound_view_leaves_membership_when_post_attempts_rip(self) -> None:
         ripping = [False]
 
         class Wizard(Tag):
@@ -253,23 +254,24 @@ class PopulationWalkTests(unittest.TestCase):
         ripping[0] = True
 
         self.assertEqual([member for member in Wizard], [])
-        self.assertNotIn(ari, Wizard[:])
+        self.assertIn(ari, Wizard[:])
+        self.assertIn(bo, Wizard[:])
 
         cal = Agent()
         ripping[0] = False
         Wizard(cal)
         ripping[0] = True
         self.assertNotIn(cal, Wizard | Fighter)
-        self.assertNotIn(cal, Wizard[:])
+        self.assertIn(cal, Wizard[:])
 
         dee = Agent()
         ripping[0] = False
         Wizard(dee)
         ripping[0] = True
-        self.assertNotIn(dee, Wizard)                            # direct Tag membership also rechecks
-        self.assertNotIn(dee, Wizard[:])
+        self.assertNotIn(dee, Wizard)
+        self.assertIn(dee, Wizard[:])
 
-    def test_a_defective_view_rechecks_membership_after_its_postcondition(self) -> None:
+    def test_a_defective_view_keeps_membership_when_post_attempts_rip(self) -> None:
         ripping = [False]
 
         class Wizard(Tag):
@@ -285,25 +287,23 @@ class PopulationWalkTests(unittest.TestCase):
         Wizard(bo)
         ripping[0] = True
 
-        self.assertEqual([member for member in ~Wizard], [])
-        self.assertNotIn(ari, Wizard[:])
+        self.assertEqual([member for member in ~Wizard], [ari, bo])
+        self.assertIn(ari, Wizard[:])
 
         cal = Agent()
         ripping[0] = False
         Wizard(cal)
         ripping[0] = True
-        self.assertNotIn(cal, ~Wizard)
-        self.assertNotIn(cal, Wizard[:])
+        self.assertIn(cal, ~Wizard)
+        self.assertIn(cal, Wizard[:])
 
-    def test_retagging_while_judging_soundness_keeps_the_member(self) -> None:
+    def test_a_post_cannot_rip_then_retag_during_its_own_soundness_check(self) -> None:
         ripping = [False]
-        reapplied = [False]
 
         class Wizard(Tag):
             @Post
             def Ready(agent):
-                if ripping[0] and not reapplied[0]:
-                    reapplied[0] = True
+                if ripping[0]:
                     del Wizard[agent]
                     Wizard(agent)
 
@@ -316,15 +316,14 @@ class PopulationWalkTests(unittest.TestCase):
         Wizard(ari)
         ripping[0] = True
 
-        self.assertEqual([member for member in Wizard], [ari])
-
-        reapplied[0] = False
-        self.assertIn(ari, Wizard | Fighter)
+        self.assertEqual(list(Wizard), [])
+        self.assertNotIn(ari, Wizard | Fighter)
+        self.assertNotIn(ari, Wizard)
         self.assertIn(ari, Wizard[:])
 
-        reapplied[0] = False
-        self.assertIn(ari, Wizard)                               # re-tagging keeps it sound
-        self.assertIn(ari, Wizard[:])
+        # The failed mutation leaves the old membership to be repaired in place.
+        ripping[0] = False
+        self.assertEqual(list(Wizard), [ari])
 
     def test_a_one_pass_materialization_uses_a_comprehension(self) -> None:
         checks = []
