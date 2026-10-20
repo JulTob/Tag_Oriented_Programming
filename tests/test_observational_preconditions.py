@@ -12,6 +12,7 @@ from TopKit import Form
 from TopKit import Imprint
 from TopKit import Pin
 from TopKit import Post
+from TopKit import Postcondition
 from TopKit import Pre
 from TopKit import Precondition
 from TopKit import Tag
@@ -372,7 +373,7 @@ class ObservationalPreconditionTests(unittest.TestCase):
         copied[0].run(Independent, another)  # The inherited token has expired.
         self.assertIn(another, Independent[:])
 
-    def test_imprint_and_post_still_allow_deliberate_tagging(self):
+    def test_imprint_can_tag_but_post_cannot(self):
         trained = Host()
         checked = Host()
         doubly_checked = Host()
@@ -393,9 +394,12 @@ class ObservationalPreconditionTests(unittest.TestCase):
                 Checked(checked)
                 return True
 
-        Finished(Host())
+        finished = Host()
+        with self.assertRaises(Postcondition.Ready):
+            Finished(finished)
         self.assertIn(trained, Training[:])
-        self.assertIn(checked, Checked[:])
+        self.assertNotIn(checked, Checked[:])
+        self.assertIn(finished, Finished[:])
 
         class Both(Tag):
             @Pre
@@ -405,8 +409,11 @@ class ObservationalPreconditionTests(unittest.TestCase):
                     Checked(doubly_checked)
                 return True
 
-        Both(Host())
-        self.assertIn(doubly_checked, Checked[:])
+        both = Host()
+        with self.assertRaises(Postcondition.Ready):
+            Both(both)
+        self.assertIn(both, Both[:])
+        self.assertNotIn(doubly_checked, Checked[:])
 
     def test_status_does_not_hash_a_declared_name_outside_observation(self):
         class Mutated(Tag):

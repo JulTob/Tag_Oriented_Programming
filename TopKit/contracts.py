@@ -29,6 +29,7 @@ from .errors import TagError
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
 from .geometry import _leaves
+from .observation import _observing
 from .observation import _pre_observation
 from .state import _namespace_of
 from .state import _State
@@ -57,8 +58,8 @@ _post_checks: ContextVar[tuple[_Post_Check, ...]] = ContextVar(
 
 
 @contextmanager
-def _checking_post(agent: object) -> Iterator[None]:
-    """Mark a Post's actual execution, independently of Pre reads.
+def _checking_post(agent: object) -> Iterator[Any]:
+    """Mark and observe a Post's actual execution, independently of Pre reads.
 
     The marker is execution-local, holds only the Agent's identity, and is
     revoked on exit. A copied context cannot keep an Agent alive or inherit
@@ -69,7 +70,8 @@ def _checking_post(agent: object) -> Iterator[None]:
     token = _post_checks.set((*_post_checks.get(), check))
 
     try:
-        yield
+        with _observing("a Postcondition") as flow:
+            yield flow
     finally:
         check.active = False
         _post_checks.reset(token)
@@ -463,14 +465,14 @@ def _holds(
 
     try:
         for name, check in state.postconditions.items():
-            with _checking_post(agent):
-                try:
+            try:
+                with _checking_post(agent):
                     if not _verdict(check(agent, {}), name):
                         return False
-                except _Recursive_Soundness:
-                    raise
-                except Exception:
-                    return False
+            except _Recursive_Soundness:
+                raise
+            except Exception:
+                return False
 
         return True
     finally:
