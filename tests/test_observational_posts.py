@@ -12,6 +12,9 @@ from TopKit import Record
 from TopKit import Tag
 from TopKit import TagCompositionError
 from TopKit import TagPostconditionError
+from TopKit import lifecycle
+from TopKit.declarations import _is_flag
+from TopKit.declarations import _is_pin
 
 
 class Host:
@@ -49,10 +52,14 @@ class ObservationalPostTests(unittest.TestCase):
         Existing(agent)
         Checked(agent)
         agent.try_changes = True
+        registrations = lifecycle._exit_count
 
         self.assertFalse(agent.Sound)
         self.assertEqual(Contract.Status(agent), {"Ready": True, "Sound": False})
         self.assertEqual(Existing.label, "original")
+        self.assertFalse(_is_flag(Existing))
+        self.assertFalse(_is_pin(Existing))
+        self.assertEqual(lifecycle._exit_count, registrations)
         self.assertTrue(agent.Ready)
         self.assertIn(agent, Checked[:])
 
