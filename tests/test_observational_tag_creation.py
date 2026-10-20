@@ -20,12 +20,18 @@ class ObservationalTagCreationTests(unittest.TestCase):
     def test_caught_tag_declaration_still_refuses_precondition(self):
         created = []
         body_effects = []
+        published = []
+
+        class Parent(Tag):
+            def __init_subclass__(cls):
+                published.append(cls)
+                super().__init_subclass__()
 
         class Candidate(Tag):
             @Pre
             def Ready(agent):
                 try:
-                    class Temp(Tag):
+                    class Temp(Parent):
                         body_effects.append("class body ran")
 
                     created.append(Temp)
@@ -41,6 +47,7 @@ class ObservationalTagCreationTests(unittest.TestCase):
         self.assertIn("create a Tag class", str(caught.exception))
         self.assertEqual(body_effects, ["class body ran"])
         self.assertEqual(created, [])
+        self.assertEqual(published, [])
         self.assertNotIn(agent, Candidate[:])
 
     def test_caught_type_construction_still_fails_post(self):
