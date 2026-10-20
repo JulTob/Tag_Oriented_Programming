@@ -188,6 +188,36 @@ class ObservationalPreconditionTests(unittest.TestCase):
         Query(agent)
         self.assertIn(agent, Query[:])
 
+    def test_pre_query_of_post_checks_forbidden_top_mutation(self):
+        other = Host()
+
+        class Changed(Tag):
+            pass
+
+        class Checked(Tag):
+            @Post
+            def Ready(agent):
+                if agent.trigger:
+                    Changed(other)
+                return True
+
+        class Entry(Tag):
+            @Pre
+            def Gate(agent):
+                return agent in Checked
+
+        agent = Host()
+        agent.trigger = False
+        Checked(agent)
+        agent.trigger = True
+
+        with self.assertRaises(Precondition.Gate) as caught:
+            Entry(agent)
+
+        self.assertIsInstance(caught.exception.__cause__, TagCompositionError)
+        self.assertNotIn(other, Changed[:])
+        self.assertNotIn(agent, Entry[:])
+
     def test_named_contract_paths_guard_at_exit_registration(self):
         armed = False
 

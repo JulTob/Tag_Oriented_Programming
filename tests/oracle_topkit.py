@@ -481,7 +481,10 @@ def Assert_Target(
     for tag in family + OBSERVED_TAGS:
         active = tag in model.active
 
-        assert (target in tag) is active, (context, "membership", tag.__name__, active)
+        assert (target in tag[:]) is active, (context, "membership", tag.__name__, active)
+        assert (target in tag) is (active and model.Sound()), (
+                context, "sound membership", tag.__name__, active, model.Sound()
+                )
         assert isinstance(target, tag) is (tag in model.ever), (context, "history", tag.__name__)
 
         if active:
@@ -928,8 +931,8 @@ def Exercise_Transactions(
         model.slipping_allowed = True
         target.slipping_fails = False
         Tag_It(target, Slipping, model, context + " retry")
-        assert target in Slipping, (context, "successful retry did not enter")
-        assert target in Slipping[:], (context, "completed training did not enter the raw Field")
+        assert target in Slipping[:], (context, "successful retry did not enter")
+        assert (target in Slipping) is model.Sound(), (context, "retry sound membership")
         assert (target in list(Slipping)) is model.Sound(), (context, "retry sound Field")
         assert (target in ~Slipping) is (not model.Sound()), (context, "retry deficient Field")
         assert Slipping[target].Read_Slip() == model.slipping_round, (context, "retry view")
