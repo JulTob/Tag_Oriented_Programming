@@ -377,9 +377,9 @@ def _evaluate(
             if flow is None or error is not flow.violation:
                 raise
             # Verdicts and diagnostics can catch the immediate refusal.
-            # The observation still names this Precondition's failed Gate.
-            # Observation has ended; a declaration name can be a str
-            # subclass whose __repr__ performs another TOP act.
+            # The observation still names the failed Gate or promise.
+            # Its name may be a str subclass whose __repr__ performs a TOP
+            # act after observation ends, so render a plain string.
             plain_name = str.__str__(name)
             raise failure.Named(plain_name)(
                     f"{phase} {plain_name!r} raised {_type_name(error)}: {_exception_text(error)}"

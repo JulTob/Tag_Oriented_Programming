@@ -127,6 +127,35 @@ class ObservationalPostTests(unittest.TestCase):
         self.assertTrue(bool(agent))
         self.assertEqual(Contract.Status(agent), {"Healthy": True})
 
+    def test_query_action_cannot_hide_a_caught_rip_from_its_post(self):
+        class Existing(Tag):
+            pass
+
+        class Checked(Tag):
+            def Look(agent):
+                if agent.try_rip:
+                    try:
+                        del Existing[agent]
+                    except TagCompositionError:
+                        pass
+                return True
+
+            @Post
+            def Ready(agent):
+                return agent.Look()
+
+        agent = Host()
+        agent.try_rip = False
+        Existing(agent)
+        Checked(agent)
+        agent.try_rip = True
+
+        self.assertFalse(agent.Ready)
+        self.assertIn(agent, Existing[:])
+        with self.assertRaises(TagPostconditionError.Ready) as caught:
+            Contract.Postconditions(agent)
+        self.assertIsInstance(caught.exception.__cause__, TagCompositionError)
+
     def test_python_interruption_from_post_remains_primary(self):
         original = KeyboardInterrupt("stop")
 
