@@ -19,6 +19,17 @@
 
 ### TopKit
 
+- **Sound membership:** `agent in Tag` now asks whether the Agent is still
+  in that Field and its visible Posts hold, matching `for agent in Tag`.
+  `agent in Tag[:]` asks for raw Field membership, including defective
+  Agents. A Post that asks for its own Agent's sound membership raises a
+  Contract Failure; use `Tag[:]` when the Post needs raw admission.
+
+- **Runtime type cache does not own Hosts:** keys use Host identity rather
+  than a strong Host reference. Transient Host/Agent cycles can collect,
+  distinct Hosts with custom equality cannot share the wrong runtime type,
+  and equivalent Agents of one Host still share their runtime type.
+
 - **Report view capture leaves builders lazy:** closing a Tagging records
   Report positions without reading their values. An optional Report that
   fails on read cannot interrupt an unrelated Tagging, and a Report still

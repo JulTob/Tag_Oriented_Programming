@@ -17,7 +17,7 @@ including [#77](https://github.com/JulTob/Tag_Oriented_Programming/pull/77)'s re
 **Brief**. No runtime code, current Specification amendment, or new Director
 clearance is included.
 
-This is a **historical Brief inventory**, not a replacement for today’s population laws. Main keeps `agent in Tag` as membership even when the Agent is defective; the draft’s sound-only `in` rows belong to its unmerged alternative. [STEP-SPEC-40](STEP-SPEC-40-agent-contract-truth.md) now makes `bool(Tag)` ask the Tag’s own Posts, while lengths and population views retain their population meanings. Its `if Tag:` and host-length-open rows are therefore stale.
+This is a **historical Brief inventory**, not a replacement for today’s population laws. The 2026-10-15 [sound-membership amendment](STEP-SPEC-4-defective-taggings.md#amendment-a-sound-membership-query-2026-10-15) now makes `agent in Tag` ask whether the Agent is a sound member, as some of this Brief's rows proposed. `agent in Tag[:]` still asks raw Field membership. This ruling does not clear the Brief's other algebra proposals. [STEP-SPEC-40](STEP-SPEC-40-agent-contract-truth.md) makes `bool(Tag)` ask the Tag’s own Posts, while lengths and population views retain their population meanings. The historical `if Tag:` and host-length-open rows below are therefore stale.
 
 Absorbing `~` landed separately under [STEP-SPEC-38](STEP-SPEC-38-absorbing-defective-population.md) / [#63](https://github.com/JulTob/Tag_Oriented_Programming/pull/63), resolving that PR’s historical STEP-29 number collision. Live membership at a walk turn landed under [STEP-SPEC-35](STEP-SPEC-35-population-walk-membership.md) / [#65](https://github.com/JulTob/Tag_Oriented_Programming/pull/65). Neither clearance adopts the rest of this table.
 
