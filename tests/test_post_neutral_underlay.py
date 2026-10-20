@@ -2,7 +2,7 @@
 
 import unittest
 
-from TopKit import Contract, Pin, Post, Pre, Tag, TagResolutionError, Underlay
+from TopKit import Constant, Contract, Pin, Post, Pre, Tag, TagResolutionError, Underlay
 
 
 class Host:
@@ -54,6 +54,22 @@ class PostNeutralUnderlayTests(unittest.TestCase):
         agent.ready = False
         self.assertFalse(agent.Ready)
         self.assertEqual(seen, ["upper", "lower"])
+
+    def test_first_constant_post_underlay_receives_callable_true(self):
+        class Ready(Tag):
+            @Constant
+            @Post
+            @Underlay
+            def Sound(agent, prior):
+                return prior() and agent.ready
+
+        agent = Host()
+        agent.ready = True
+        Ready(agent)
+        self.assertTrue(agent.Sound)
+
+        agent.ready = False
+        self.assertFalse(agent.Sound)
 
     def test_first_pin_post_underlay_receives_callable_true(self):
         @Pin

@@ -262,6 +262,8 @@ def _bind_condition(
         prior: Check | None,
         with_inputs: bool,
         name: str,
+        *,
+        neutral_underlay: bool = False,
         ) -> Check:
     """Bind one condition, giving it its Underlay when marked.
 
@@ -273,7 +275,7 @@ def _bind_condition(
 
     uses_underlay = _takes_underlay(function, name)
 
-    if uses_underlay and prior is None and with_inputs:
+    if uses_underlay and prior is None and not neutral_underlay:
         from .errors import TagResolutionError
 
         raise TagResolutionError(
