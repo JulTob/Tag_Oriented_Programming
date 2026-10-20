@@ -6,6 +6,7 @@ import gc
 import unittest
 import weakref
 from TopKit import Action
+from TopKit import Delete
 from TopKit import Imprint
 from TopKit import Operation
 from TopKit import Pin
@@ -78,6 +79,364 @@ class PublicationTests(unittest.TestCase):
 
         with self.assertRaises(AttributeError):
             ember.colour = "blue"
+
+    def test_tag_views_read_the_current_own_report_value(self) -> None:
+        class Base(Tag):
+            @Public
+            @Report
+            def colour(tag):
+                return "red"
+
+        class Shape(Base):
+            @Record
+            def rank(agent):
+                return 1
+
+        agent = Agent()
+        Shape(agent)
+        base_view = Base[agent]
+        shape_view = Shape[agent]
+
+        self.assertEqual(base_view.colour, "red")
+        self.assertTrue("colour" @ base_view)
+        with self.assertRaises(AttributeError):
+            shape_view.colour
+        self.assertFalse("colour" @ shape_view)
+
+        Base.colour = "blue"
+        self.assertEqual(base_view.colour, "blue")
+        self.assertEqual(Base[agent].colour, "blue")
+        self.assertEqual(shape_view.rank, 1)
+        self.assertTrue("colour" @ base_view)
+
+    def test_a_later_pin_report_reaches_captured_and_fresh_tag_views(self) -> None:
+        class Source(Tag):
+            @Record
+            def count(agent):
+                return 1
+
+        agent = Agent()
+        Source(agent)
+        captured = Source[agent]
+        self.assertFalse("mark" @ captured)
+
+        @Pin
+        class Stamp(Tag):
+            @Public
+            @Record
+            def mark(tag):
+                return None
+
+        Stamp(Source)
+        self.assertIsNone(captured.mark)
+        self.assertIsNone(Source[agent].mark)
+        self.assertTrue("mark" @ captured)
+        self.assertTrue("mark" @ Source[agent])
+        self.assertEqual(captured.count, 1)
+
+        Source.mark = False
+        self.assertIs(captured.mark, False)
+        self.assertTrue("mark" @ captured)
+
+        class Later(Source):
+            @Record
+            def count(agent):
+                return 2
+
+        Later(agent)
+        self.assertEqual(agent.count, 2)
+        self.assertEqual(captured.count, 1)
+
+        @Operation
+        def mark(tag):
+            return "operation"
+
+        Source.mark = mark
+        with self.assertRaises(AttributeError):
+            captured.mark
+        self.assertFalse("mark" @ captured)
+
+    def test_a_new_report_declaration_reaches_an_old_tag_view(self) -> None:
+        builds: list[type] = []
+
+        class Source(Tag):
+            @Public
+            @Report
+            def mark(tag):
+                return "old"
+
+        agent = Agent()
+        Source(agent)
+        captured = Source[agent]
+        del Source.mark
+        Source.mark = "plain"
+        with self.assertRaises(AttributeError):
+            captured.mark
+        self.assertFalse("mark" @ captured)
+
+        @Public
+        @Report
+        def mark(tag):
+            builds.append(tag)
+            return "new"
+
+        Source.mark = mark
+        self.assertTrue("mark" @ captured)
+        self.assertEqual(builds, [])
+        self.assertEqual(captured.mark, "new")
+        self.assertEqual(builds, [Source])
+
+    def test_a_pin_report_replaces_a_deleted_report_in_an_old_view(self) -> None:
+        class Source(Tag):
+            @Public
+            @Report
+            def mark(tag):
+                return "old"
+
+        agent = Agent()
+        Source(agent)
+        captured = Source[agent]
+        del Source.mark
+        self.assertFalse("mark" @ captured)
+
+        @Pin
+        class Stamp(Tag):
+            @Public
+            @Record
+            def mark(tag):
+                return False
+
+        Stamp(Source)
+        self.assertTrue("mark" @ captured)
+        self.assertTrue("mark" @ Source[agent])
+        self.assertIs(captured.mark, False)
+        self.assertIs(Source[agent].mark, False)
+
+    def test_tag_report_is_visible_despite_an_agent_side_delete(self) -> None:
+        class Gone(Tag):
+            @Delete
+            def mark(agent):
+                pass
+
+        class Source(Tag):
+            pass
+
+        agent = Agent()
+        Gone(agent)
+        Source(agent)
+        captured = Source[agent]
+
+        @Pin
+        class Stamp(Tag):
+            @Public
+            @Record
+            def mark(tag):
+                return "current"
+
+        Stamp(Source)
+        self.assertEqual(captured.mark, "current")
+        self.assertTrue("mark" @ captured)
+
+    def test_tag_report_is_visible_despite_a_captured_agent_secret(self) -> None:
+        class Early(Tag):
+            @Secret
+            @Action
+            def mark(agent):
+                return "secret"
+
+        class Source(Tag):
+            pass
+
+        agent = Agent()
+        Early(agent)
+        Source(agent)
+        captured = Source[agent]
+
+        @Pin
+        class Stamp(Tag):
+            @Public
+            @Record
+            def mark(tag):
+                return "report"
+
+        Stamp(Source)
+        self.assertEqual(captured.mark, "report")
+        self.assertTrue("mark" @ captured)
+
+    def test_late_secret_pin_record_is_not_exposed_by_tag_view_presence(self) -> None:
+        class Source(Tag):
+            pass
+
+        agent = Agent()
+        Source(agent)
+        captured = Source[agent]
+
+        @Pin
+        class Hidden(Tag):
+            @Secret
+            @Record
+            def password(tag):
+                return "key"
+
+            @Action
+            def Read_View(tag, agent):
+                view = tag[agent]
+                return view.password, "password" @ view
+
+        Hidden(Source)
+        with self.assertRaises(AttributeError):
+            captured.password
+        self.assertFalse("password" @ captured)
+        self.assertEqual(Source.Read_View(agent), ("key", True))
+
+    def test_late_unmarked_pin_report_is_visible_only_through_tag_views(self) -> None:
+        class Source(Tag):
+            pass
+
+        agent = Agent()
+        Source(agent)
+        captured = Source[agent]
+
+        @Pin
+        class Internal(Tag):
+            @Record
+            def budget(tag):
+                return None
+
+        Internal(Source)
+        self.assertIsNone(Source.budget)
+        self.assertIsNone(captured.budget)
+        self.assertIsNone(Source[agent].budget)
+        self.assertTrue("budget" @ captured)
+        self.assertTrue("budget" @ Source[agent])
+        self.assertFalse("budget" @ agent)
+        with self.assertRaises(AttributeError):
+            agent.budget
+
+    def test_an_operation_replacing_a_report_is_not_read_as_a_report(self) -> None:
+        class Source(Tag):
+            @Public
+            @Report
+            def mark(tag):
+                return "report"
+
+        agent = Agent()
+        Source(agent)
+        captured = Source[agent]
+
+        @Operation
+        def mark(tag):
+            return "operation"
+
+        Source.mark = mark
+        self.assertEqual(Source.mark(), "operation")
+        with self.assertRaises(AttributeError):
+            captured.mark
+        self.assertFalse("mark" @ captured)
+
+    def test_callable_values_remain_reports_for_existing_bindings(self) -> None:
+        class CallableValue:
+            def __call__(self):
+                return "called"
+
+        value = CallableValue()
+
+        class Source(Tag):
+            @Public
+            @Report
+            def mark(tag):
+                return "initial"
+
+        agent = Agent()
+        Source(agent)
+        captured = Source[agent]
+        Source.mark = value
+
+        self.assertIs(agent.mark, value)
+        self.assertIs(captured.mark, value)
+        self.assertTrue("mark" @ captured)
+
+        class Pinned(Tag):
+            pass
+
+        pinned_value = Action(CallableValue())
+
+        @Pin
+        class Stamp(Tag):
+            @Public
+            @Record
+            def mark(tag):
+                return pinned_value
+
+        Stamp(Pinned)
+        another = Agent()
+        Pinned(another)
+        self.assertIs(Pinned[another].mark, pinned_value)
+        self.assertTrue("mark" @ Pinned[another])
+
+    def test_a_pin_operation_replacing_a_report_is_not_read_as_a_report(self) -> None:
+        class Source(Tag):
+            @Public
+            @Report
+            def mark(tag):
+                return "report"
+
+        agent = Agent()
+        Source(agent)
+        captured = Source[agent]
+
+        @Pin
+        class Work(Tag):
+            @Public
+            @Action
+            def mark(tag):
+                return "operation"
+
+        Work(Source)
+        self.assertEqual(Source.mark(), "operation")
+        with self.assertRaises(AttributeError):
+            captured.mark
+        self.assertFalse("mark" @ captured)
+
+    def test_a_ripped_agent_cannot_see_a_report_added_later(self) -> None:
+        class Source(Tag):
+            pass
+
+        agent = Agent()
+        Source(agent)
+        captured = Source[agent]
+        del Source[agent]
+
+        @Public
+        @Report
+        def mark(tag):
+            return "new"
+
+        Source.mark = mark
+        with self.assertRaises(AttributeError):
+            captured.mark
+        self.assertFalse("mark" @ captured)
+
+    def test_a_ripped_agent_loses_report_view_until_retagging(self) -> None:
+        class Source(Tag):
+            @Public
+            @Report
+            def mark(tag):
+                return "old"
+
+        agent = Agent()
+        Source(agent)
+        captured = Source[agent]
+        del Source[agent]
+        Source.mark = "current"
+
+        with self.assertRaises(AttributeError):
+            captured.mark
+        self.assertFalse("mark" @ captured)
+
+        Source(agent)
+        self.assertEqual(captured.mark, "current")
+        self.assertTrue("mark" @ captured)
 
     def test_deleting_a_report_removes_its_declaration_without_rebuilding(self) -> None:
         builds: list[type] = []

@@ -131,7 +131,7 @@ def _current_report_origin(
 class _Snapshot:
     actions: dict[str, Function]
     records: dict[str, Any]
-    reports: dict[str, tuple[type, int, Any]]
+    reports: dict[str, tuple[type, int]]
     operations: dict[str, tuple[type, Function]]
     deleted: frozenset[str]
     secrets: frozenset[str]
