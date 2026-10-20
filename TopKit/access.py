@@ -518,6 +518,17 @@ def _view_report_source(
     """
 
     tag = view._tag
+    state = _state_of(view._agent)
+
+    if state is None or not any(active is tag for active in state.active):
+        return None
+
+    pinned = _state_of(tag)
+
+    if pinned is not None and name in pinned.records and name in pinned.secrets:
+        # A Secret Pin Record lives in the Tag's private state, not its
+        # physical namespace. It remains a Report behind the Pin door.
+        return tag if name in pinned.secret_values and _is_composing(pinned) else None
     member = _class_namespace(tag).get(name, _MISSING)
     entry = snapshot.reports.get(name)
 
@@ -546,14 +557,11 @@ def _view_report_source(
     if isinstance(member, (classmethod, property, staticmethod)):
         return None
 
-    pinned = _state_of(tag)
-
     if pinned is not None:
         if name in pinned.records:
-            return tag if (
-                    name in pinned.published
-                    and (name not in pinned.secrets or _is_composing(pinned))
-                    ) else None
+            # A Pin Record belongs to the pinned Tag as a Report even when
+            # it was not published on the Agent.
+            return tag
 
         if name in pinned.actions:
             return None

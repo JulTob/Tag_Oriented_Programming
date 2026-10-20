@@ -324,12 +324,18 @@ class PublicationTests(unittest.TestCase):
             def password(tag):
                 return "key"
 
+            @Action
+            def Read_View(tag, agent):
+                view = tag[agent]
+                return view.password, "password" @ view
+
         Hidden(Source)
         with self.assertRaises(AttributeError):
             captured.password
         self.assertFalse("password" @ captured)
+        self.assertEqual(Source.Read_View(agent), ("key", True))
 
-    def test_late_internal_pin_record_stays_out_of_agent_tag_views(self) -> None:
+    def test_late_unmarked_pin_report_is_visible_only_through_tag_views(self) -> None:
         class Source(Tag):
             pass
 
@@ -341,13 +347,17 @@ class PublicationTests(unittest.TestCase):
         class Internal(Tag):
             @Record
             def budget(tag):
-                return 3
+                return None
 
         Internal(Source)
-        self.assertEqual(Source.budget, 3)
+        self.assertIsNone(Source.budget)
+        self.assertIsNone(captured.budget)
+        self.assertIsNone(Source[agent].budget)
+        self.assertTrue("budget" @ captured)
+        self.assertTrue("budget" @ Source[agent])
+        self.assertFalse("budget" @ agent)
         with self.assertRaises(AttributeError):
-            captured.budget
-        self.assertFalse("budget" @ captured)
+            agent.budget
 
     def test_an_operation_replacing_a_report_is_not_read_as_a_report(self) -> None:
         class Source(Tag):

@@ -59,7 +59,7 @@ from .state import _Published
 from .state import _State
 from .state import _name_of
 from .state import _namespace_of
-from .state import _report_epochs
+from .state import _remember_report
 from .state import _state_of
 from .state import _restore_namespace
 from .state import _set_runtime_type
@@ -444,7 +444,7 @@ def _install(
                 )
 
     for name, report, public in declarations.reports:
-        state.reports[name] = (tag, report, _report_epochs(tag, name)[1])
+        _remember_report(state, name, tag, report, public)
 
         if public:
             state.published.add(name)
@@ -1165,6 +1165,7 @@ def _install_action(
             name,
             )
     state.action_origins[name] = tag
+    state.reports.pop(name, None)   # the Action ends older Report layers at this Agent name
     state.tools.pop(name, None)   # an Action at the name ends a Tool slot's rule (ordinary Overlay)
     _restore(state, name)
     state.published.discard(name)
@@ -1253,6 +1254,7 @@ def _install_record(
         state.tools.pop(name, None)   # a plain Record at the name ends the rule (ordinary Overlay)
 
     state.records[name] = tag
+    state.reports.pop(name, None)   # the Record ends older Report layers at this Agent name
     _restore(state, name)
     state.published.discard(name)
 
