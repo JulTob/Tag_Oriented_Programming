@@ -209,11 +209,10 @@ Think of a factory line. For each missing Tag in the Form, in order:
    published Reports and Operations become accessible through the Agent,
    and its Agent-bound view is captured.
 
-Then, once for the whole call:
-
-5. **Posts.** Every visible Postcondition inspects the finished Agent.
-   Checking once after the completed Form lets a Base promise what a later
-   Shape supplies.
+5. **Posts.** Every visible Postcondition inspects the Agent after this Tag
+   enters its Field, before the next Tag's Gate. A failed Post keeps this
+   Tag's membership and stops the remaining Form. A Base Post must hold at
+   the Base's own boundary; a Shape cannot supply a later Gain for that check.
 
 The **call boundary** decides what a failure means:
 
@@ -1291,10 +1290,12 @@ a fresh attempt, including its Gate, Gainings and Imprints.
 
 ## 2.4 Postconditions: the promise
 
-A Postcondition inspects the **finished product**. Every visible
-Postcondition runs at step 5, **once per call, after the whole Form**, so a
-Base may promise what its Shape delivers. Postconditions take no inputs:
-they judge the Agent, not the materials.
+A Postcondition inspects the **finished product of each Tagging**. Every
+visible Postcondition runs at step 5, **after each Tag enters its Field**,
+before the next missing Tag's Gate. A Base Post must already hold when the
+Base enters; a requirement about a later Shape's finished state belongs in
+the Shape's Post. Postconditions take no inputs: they judge the Agent, not
+the materials.
 
 Its definition is acquired at its declaration position during Gainings.
 If a later Gain or Imprint fails, the acquired Post remains on the Rogue and
@@ -1704,8 +1705,8 @@ A conforming implementation provides, ring by ring:
   selects its sound members;
 - non-owning, identity-indexed, iterable Fields;
 - Base-first Form application, each Base once, active reapply a no-op;
-- the five-step tagging sequence: each missing Tag's Gate, Gainings,
-  Imprints and FieldAdding, then Posts once after the completed Form;
+- the five-step tagging sequence for each missing Tag: Gate, Gainings,
+  Imprints, FieldAdding and Posts before the next Tag's Gate;
   failed Gainings or Imprints leave acquired Gains without that Tag's
   membership or history; earlier completed Tags stay, retry starts fresh,
   and current Posts decide members' deficiency;
@@ -1747,9 +1748,8 @@ A conforming implementation provides, ring by ring:
 
 **Ring 2**
 - strict boolean conditions; each Tag gating when its turn arrives, with
-  inputs; Imprints before FieldAdding, with inputs; Postconditions once per
-  call after the whole Form, re-checked at every later boundary, without
-  inputs;
+  inputs; Imprints before FieldAdding, with inputs; Postconditions after
+  each Tag's Field entry, re-checked at every later boundary, without inputs;
 - the contract direction, with weakened Postconditions diagnosed;
 - defective Agents: contract truthiness; `agent in Tag` and the plain loop
   select sound members, `~Tag` selects defective members, and `Tag[:]`

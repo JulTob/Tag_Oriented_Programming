@@ -417,9 +417,10 @@ behind the program's back), and it would end the Graduate at graduation.
 to remember the class tree, and makes a stop refusable.
 
 **Why a Postcondition, not a Requirement.** The gate inspects the Agent
-as it arrives, before any Base applies (§2.2). A Postcondition is
-checked when the whole Form stands, at every later tagging boundary,
-and whenever soundness is read.
+as it arrives, before any Base applies (§2.2). A Postcondition is checked
+after each Tag's Field entry, at every later tagging boundary, and whenever
+soundness is read. A Shape's need for continued Base membership belongs
+in the Shape's Post.
 
 ## Backwards compatibility
 

@@ -259,15 +259,16 @@ Python slot bindings. It does not undo mutable value contents, external
 effects or later training. Acquired Gains follow STEP-SPEC-39.
 
 FieldAdding establishes active membership, history and the Field together,
-then captures the admitted Tag's view. `_inspect` runs visible Posts once
-after the completed Form. A Gainings or Imprint failure leaves actually
-acquired Gains and completed Tags in place without admitting the unfinished
-Tag. A Post failure preserves membership; current Posts determine soundness,
-not a permanent failure marker. Retry passes a fresh Gate, overlays ordinary
-Gains and restarts Imprints, retaining established Constants. Acquired
-conditions, including Posts and Constant Posts, remain even after unfinished
-training. They participate in contract queries and published-member guards;
-ordinary Actions are not automatically wrapped in Post checks.
+then captures the admitted Tag's view. `_inspect` runs visible Posts after
+each Field entry, before the next Tag's Gate. A Gainings or Imprint failure
+leaves actually acquired Gains and completed Tags in place without admitting
+the unfinished Tag. A Post failure preserves membership; current Posts
+determine soundness, not a permanent failure marker. Retry passes a fresh
+Gate, overlays ordinary Gains and restarts Imprints, retaining established
+Constants. Acquired conditions, including Posts and Constant Posts, remain
+even after unfinished training. They participate in contract queries and
+published-member guards; ordinary Actions are not automatically wrapped in
+Post checks.
 
 `_enter_field` admits only after training. For a Pin, `_publication_plans`
 preflights every current Field recipient before admission; `_publish_to_field`

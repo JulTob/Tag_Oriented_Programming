@@ -779,9 +779,10 @@ bottom in declaration order, each visible to subsequent declarations. The
 Gate has already evaluated this Tag's own Preconditions. Imprints then train
 with acquired Gains, before entry in
 the Field. The Tag's published Reports and Operations and its Agent-bound
-view become available through the Agent after FieldAdding. Posts judge
-the finished Agent once after the whole Form: a broken promise leaves a
-defective member, rather than undoing membership.
+view become available through the Agent after FieldAdding. Every visible
+Post judges the Agent after each Tag's Field entry, before the next Tag's
+Gate. A broken promise leaves this Tag's membership in place and stops
+the remaining Form.
 
 `@Rip` runs after an admitted Agent leaves. A failed training attempt never
 joined the Field, so it triggers no automatic Rip and is outside `Tag[:]`.

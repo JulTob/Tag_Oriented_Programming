@@ -48,7 +48,7 @@ at its own time.
 | Claim | Mark | Checked | When it fails |
 | --- | --- | --- | --- |
 | "You may enter" | `@Pre` | at that Tag's door, once | current Tag never starts; earlier turns stay |
-| "You will stay like this" | `@Post` | after admission, once after the completed Form, then at later tagging and published-member use | the Tag stays; the Agent is **defective** |
+| "You will stay like this" | `@Post` | after each Tag enters its Field, then at later tagging and published-member use | the Tag stays; the Agent is **defective** |
 | "You may use what we share" | `@Public` | at every use | refused until membership and soundness return |
 
 The first two are conditions the Tag declares. The third is not declared
@@ -130,11 +130,13 @@ resources acquired in that attempt.
 
 ## 3. The promise: the Tag stays, the Agent is defective
 
-A Postcondition is a promise about the finished Agent. It is checked once
-after every missing Tag in the Form has completed training and entered its
-Field, and again at later completed Taggings and published-member uses.
-A Base may therefore promise what a later Shape supplies. When a Post
-breaks, the Agent remains in the Field. It is absent from the sound
+A Postcondition is a promise about the finished Agent. Every visible Post is
+checked after each Tag in the Form completes training and enters its Field,
+before the next Tag's Gate, and again at later completed Taggings and
+published-member uses. A Base Post must hold when Base enters. If a Shape
+needs to establish a further requirement, declare that Post on the Shape or
+prepare the Base before its Field entry. When a Post breaks, the Agent
+remains in the Field. It is absent from the sound
 population (`agent in Tag` is False) and appears in `~Tag`; the product
 left the line and is flagged.
 
