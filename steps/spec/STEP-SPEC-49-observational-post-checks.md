@@ -67,13 +67,14 @@ plus the authoring rule for direct assignments instead.
    not promise a copy of the world or rollback of arbitrary Python effects.
    The mechanically enforced boundary is explicit TOP acts; the remaining
    boundary is the author's responsibility.
-5. **Reentrancy.** A Post asking whether its own Agent is sound cannot use
-   that unfinished verdict as evidence. Keep the existing Contract Failure
-   for a same-Agent sound-population query; `Tag[:]` remains the raw
-   Field-membership question. The current `bool(agent)` shortcut during its
-   own Post is a separate reentrancy choice to review, not an established
-   read-only guarantee. No blocked mutation may become a passing verdict
-   through either shortcut.
+5. **Reentrancy.** Recursive validity checks have their own rule: the
+   Director chose neutral `True` at a revisited Post check, including sound
+   population queries, Agent truth, and Contract diagnostics. That rule
+   supersedes the current same-Agent Contract Failure and needs its own
+   focused STEP and runtime change (#291, #295 and #33). `Tag[:]` remains a
+   raw Field-membership question. This STEP concerns observation: a blocked
+   TOP mutation cannot become a passing Post merely because a recursive
+   check returns neutral `True`.
 6. **Failure reporting.** A detected mutation attempt should make that Post
    fail under the existing named Post diagnostic, so a detailed check names
    the offending Post while boolean and population reads do not report a
