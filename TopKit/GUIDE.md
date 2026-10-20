@@ -1201,7 +1201,7 @@ For `ari.Trusts(ruth)`, those entries mean `Network(ruth)`,
 `ari.Trusts(ruth)`. Each is a complete Tagging with its own Field and, for
 an actual Link, its own Pair. A bare Relation blueprint such as `Knows` is
 not a Tag and cannot be applied by itself. The syntax is not implemented;
-`Agent` versus `Owner` is still an open naming choice. The
+`Agent.Knows` is the settled spelling for the calling Agent's Link. The
 [proposal guide](../wiki/1.6.1-TopKit-Link-Underlays.md) records the boundary.
 
 ---
