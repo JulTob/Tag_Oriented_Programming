@@ -18,7 +18,8 @@ class ShapeTagScopeTests(unittest.TestCase):
             class Shape(Base):
                 pass
 
-            self.assertFalse(hasattr(Shape, "owner"))
+            with self.assertRaises(AttributeError):
+                getattr(Shape, "owner")
             return weakref.ref(Shape)
 
         shape = probe()
