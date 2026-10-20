@@ -29,6 +29,7 @@ from .errors import TagPostconditionError
 from .errors import TagPreconditionError
 from .errors import TagResolutionError
 from .errors import TagRogueAccessError
+from .errors import TagTargetError
 from .lifecycle import At_Exit
 from .queries import Apply
 from .queries import Form
@@ -75,6 +76,7 @@ __all__ = [
         "TagPreconditionError",
         "TagResolutionError",
         "TagRogueAccessError",
+        "TagTargetError",
         "Tagged",
         "Tags",
         "Tool",

@@ -6,9 +6,10 @@ import warnings
 from unittest import mock
 
 import TopKit.transactions as transactions
-from TopKit import (Action, Constant, Delete, Flag, Operation, Pin, Post, Pre,
-                    Public, Record, Report, Rip, Secret, Tag,
-                    TagCompositionError, TagResolutionError, Tool, Underlay)
+from TopKit import (Action, Constant, Delete, Flag, Imprint, Operation, Pin,
+                    Post, Pre, Public, Record, Report, Rip, Secret, Tag,
+                    TagCompositionError, TagResolutionError, TagTargetError,
+                    Tool, Underlay)
 from TopKit.declarations import _invalidate_declarations
 from TopKit.state import _State, _state_of
 
@@ -18,6 +19,37 @@ class Host:
 
 
 class GainingPreflightTests(unittest.TestCase):
+    def test_known_target_refusal_precedes_the_gate(self):
+        events = []
+
+        class PropertyHost:
+            @property
+            def occupied(self):
+                return "host"
+
+        class Arriving(Tag):
+            @Pre
+            def Allowed(agent):
+                events.append("Gate")
+                return False
+
+            @Record
+            def occupied(agent):
+                events.append("Record")
+                return "replacement"
+
+        agent = PropertyHost()
+        with self.assertRaisesRegex(
+                TagTargetError,
+                "Arriving.occupied",
+                ):
+            Arriving(agent)
+
+        self.assertEqual(events, [])
+        self.assertIs(type(agent), PropertyHost)
+        self.assertEqual(vars(agent), {})
+        self.assertNotIn(agent, Arriving[:])
+
     def test_a_late_host_property_or_slot_refuses_before_earlier_builders(self):
         class PropertyHost:
             @property
@@ -42,11 +74,73 @@ class GainingPreflightTests(unittest.TestCase):
                         return "replacement"
 
                 agent = host_type()
-                with self.assertRaises(TagCompositionError):
+                with self.assertRaises(TagTargetError) as caught:
                     Arriving(agent)
+                self.assertIsInstance(caught.exception, TagCompositionError)
+                self.assertIn("Arriving.occupied", str(caught.exception))
                 self.assertEqual(built, [])
                 self.assertNotIn("earlier", agent.__dict__)
                 self.assertNotIn(agent, Arriving)
+
+    def test_record_calculation_failure_is_not_a_target_refusal(self):
+        original = ValueError("calculation failed")
+
+        class Arriving(Tag):
+            @Record
+            def value(agent):
+                raise original
+
+        with self.assertRaises(TagCompositionError) as caught:
+            Arriving(Host())
+
+        self.assertNotIsInstance(caught.exception, TagTargetError)
+        self.assertIs(caught.exception.__cause__, original)
+        self.assertIn("Arriving.value", str(caught.exception))
+
+    def test_target_refusal_leaves_a_completed_base_and_no_gains_from_this_tag(self):
+        events = []
+
+        class PropertyHost:
+            @property
+            def occupied(self):
+                return "host value"
+
+        class Base(Tag):
+            @Record
+            def kept(agent):
+                events.append("base")
+                return 1
+
+        class Shape(Base):
+            @Action
+            def Work(agent):
+                return "work"
+
+            @Post
+            def Ready(agent):
+                return True
+
+            @Record
+            def occupied(agent):
+                events.append("shape Record")
+                return "new value"
+
+            @Imprint
+            def Train(agent):
+                events.append("shape Imprint")
+
+        agent = PropertyHost()
+        with self.assertRaises(TagTargetError) as caught:
+            Shape(agent)
+
+        self.assertIn("Shape.occupied", str(caught.exception))
+        self.assertEqual(events, ["base"])
+        self.assertIn(agent, Base[:])
+        self.assertNotIn(agent, Shape[:])
+        self.assertEqual(agent.kept, 1)
+        self.assertEqual(agent.occupied, "host value")
+        self.assertFalse("Work" @ agent)
+        self.assertFalse("Ready" @ agent)
 
     def test_a_missing_underlay_refuses_before_earlier_builders(self):
         built = []
@@ -111,8 +205,9 @@ class GainingPreflightTests(unittest.TestCase):
 
                 agent = Host()
                 Existing(agent)
-                with self.assertRaises(TagCompositionError):
+                with self.assertRaises(TagCompositionError) as caught:
                     Arriving(agent)
+                self.assertNotIsInstance(caught.exception, TagTargetError)
                 self.assertEqual(built, [])
                 self.assertNotIn("earlier", agent.__dict__)
                 self.assertIn(agent, Existing)

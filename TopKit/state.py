@@ -32,7 +32,7 @@ from .declarations import _MISSING
 from .declarations import _Words
 from .declarations import _is_dunder
 from .declarations import _is_flag
-from .errors import TagCompositionError
+from .errors import TagTargetError
 from .memo import _namespace_snapshot
 
 Function = Callable[..., Any]
@@ -452,13 +452,13 @@ def _state_for(
     namespace = _namespace_of(agent)
 
     if namespace is None:
-        raise TagCompositionError(
+        raise TagTargetError(
                 f"{type(agent).__name__} cannot carry TOP state"
                 " (no instance dictionary)"
                 )
 
     if not issubclass(type(agent), type) and namespace is not _real_namespace_of(agent):
-        raise TagCompositionError(
+        raise TagTargetError(
                 f"{type(agent).__name__} cannot carry TOP state"
                 " (its __dict__ is not its instance storage)"
                 )
@@ -478,7 +478,7 @@ def _state_for(
             try:
                 _set_runtime_type(agent, host_of_runtime)
             except Exception as error:
-                raise TagCompositionError(
+                raise TagTargetError(
                         f"{host_type.__name__} cannot restore its host runtime type"
                         ) from error
             host_type = host_of_runtime
@@ -493,7 +493,7 @@ def _state_for(
 
         if retained is None or retained.get(STATE) is not state:
             namespace.pop(STATE, None)
-            raise TagCompositionError(
+            raise TagTargetError(
                     f"{host_type.__name__} cannot retain TOP state"
                     )
 
@@ -535,17 +535,17 @@ def _actualize_runtime_type(
         else:
             agent.__class__ = runtime_type
     except Exception as error:
-        raise TagCompositionError(
+        raise TagTargetError(
                 f"{host_type.__name__} cannot be actualized in place"
                 ) from error
 
     if type(agent) is not runtime_type:
-        raise TagCompositionError(
+        raise TagTargetError(
                 f"{host_type.__name__} did not accept the Agent runtime type"
                 )
 
     if _state_of(agent) is not state:
-        raise TagCompositionError(
+        raise TagTargetError(
                 f"{host_type.__name__} did not retain TOP state during actualization"
                 )
 
@@ -609,7 +609,7 @@ def _set_runtime_type(agent: object, runtime_type: type) -> None:
         object.__setattr__(agent, "__class__", runtime_type)
 
     if type(agent) is not runtime_type:
-        raise TagCompositionError("the host did not accept the Agent runtime type")
+        raise TagTargetError("the host did not accept the Agent runtime type")
 
 
 # ------------------------------------------------------------------
@@ -1456,7 +1456,7 @@ def _runtime_type_for(
                 dict(requested_namespace),
                 )
     except Exception as error:
-        raise TagCompositionError(
+        raise TagTargetError(
                 f"{host_type.__name__} cannot be actualized as an Agent"
                 ) from error
 
@@ -1483,7 +1483,7 @@ def _runtime_type_for(
                 )
 
     if not valid_runtime_type:
-        raise TagCompositionError(
+        raise TagTargetError(
                 f"{host_type.__name__}'s metaclass did not construct"
                 " TOP's requested Agent runtime type"
                 )
@@ -1492,7 +1492,7 @@ def _runtime_type_for(
         type.__setattr__(runtime_type, "__qualname__", host_type.__qualname__)
         type.__setattr__(runtime_type, "__module__", host_type.__module__)
     except Exception as error:
-        raise TagCompositionError(
+        raise TagTargetError(
                 f"{host_type.__name__} cannot be actualized as an Agent"
                 ) from error
 

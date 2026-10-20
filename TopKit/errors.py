@@ -91,6 +91,10 @@ class TagCompositionError(TagError):
     be materialized, or a teardown failed."""
 
 
+class TagTargetError(TagCompositionError):
+    """The Target cannot carry TOP state, its runtime, or a declared Record."""
+
+
 class TagResolutionError(TagError):
     """A required Underlay, Tag view, or contribution is unavailable."""
 

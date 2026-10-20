@@ -14,6 +14,7 @@ from TopKit import Imprint
 from TopKit import Record
 from TopKit import Tag
 from TopKit import TagCompositionError
+from TopKit import TagTargetError
 from TopKit import Tags
 
 
@@ -31,11 +32,13 @@ class HostActualizationTests(unittest.TestCase):
             target: object,
             host_type: type,
             namespace_of: Callable[[object], dict[str, object]] = vars,
-            ) -> TagCompositionError:
+            ) -> TagTargetError:
         entry_namespace = dict(namespace_of(target))
 
-        with self.assertRaises(TagCompositionError) as raised:
+        with self.assertRaises(TagTargetError) as raised:
             self.Role(target)
+
+        self.assertIsInstance(raised.exception, TagCompositionError)
 
         self.assertIs(type(target), host_type)
         self.assertEqual(dict(namespace_of(target)), entry_namespace)
@@ -45,6 +48,22 @@ class HostActualizationTests(unittest.TestCase):
         self.assertFalse(hasattr(target, "Signal"))
 
         return raised.exception
+
+    def test_host_without_instance_storage_is_an_invalid_target(self) -> None:
+        class SlotOnlyHost:
+            __slots__ = ("kept", "__weakref__")
+
+            def __init__(self) -> None:
+                self.kept = "host state"
+
+        target = SlotOnlyHost()
+        with self.assertRaisesRegex(TagTargetError, "no instance dictionary"):
+            self.Role(target)
+
+        self.assertIs(type(target), SlotOnlyHost)
+        self.assertEqual(target.kept, "host state")
+        self.assertEqual(Tags(target), ())
+        self.assertNotIn(target, self.Role)
 
     def test_a_raising_class_hook_is_normalized_and_rolled_back(self) -> None:
         class RestrictiveHost:

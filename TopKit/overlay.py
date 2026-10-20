@@ -38,6 +38,7 @@ from .declarations import _takes_underlay
 from .errors import _exception_text
 from .errors import _type_name
 from .errors import TagCompositionError
+from .errors import TagTargetError
 from .errors import TagDeclarationError
 from .errors import TagError
 from .errors import TagOverwriteWarning
@@ -1190,10 +1191,10 @@ def _refuse_record(
                 )
 
     if _host_data_descriptor(state.host_type, name):
-        raise TagCompositionError(
-                f"{tag.__name__}.{name} is a Record but the host"
-                f" {state.host_type.__name__} defines {name!r} as a property"
-                " or slot; Records need an ordinary attribute"
+        raise TagTargetError(
+                f"{tag.__name__}.{name} cannot prepare a Record space on"
+                f" Target {state.host_type.__name__}: {name!r} is a host"
+                " property or slot, not an ordinary attribute"
                 )
 
     action_origin = state.action_origins.get(name)
