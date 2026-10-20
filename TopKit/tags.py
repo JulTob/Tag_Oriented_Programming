@@ -63,10 +63,12 @@ from .fields import _Partition
 from .fields import _field_of
 from .fields import _population_of
 from .fields import _sound_of
+from .geometry import _cached_form_of
 from .geometry import _form_of
 from .geometry import _is_tag
 from .geometry import _is_tag_class
 from .lifecycle import _rip
+from .memo import _class_namespace
 from .memo import _type_mro
 from .observation import _refuse_observed_mutation
 from .state import Tagged
@@ -137,7 +139,7 @@ class MetaTag(type):
             _check_constant_shapes(tag, name)
             super().__setattr__(name, value)
 
-            if tool_kind is not None:
+            if tool_kind is not None and _class_namespace(tag).get(name) is value:
                 _note_kinds(tag, tool_kind)
 
     def __delattr__(
@@ -169,26 +171,42 @@ class MetaTag(type):
                     )
 
         pending_tags = None
+        provisional = None
         try:
             with _pin_mark_lock:
                 pin = _is_pin(tag)
-                # Reserve the exact Form that _apply will use, including a
-                # cached Form after a class's real Bases change. Do this
-                # before a Gate or Host hook can turn a Base into a Pin.
                 if not pin:
-                    # A cold Form walk can invoke a custom metaclass hash.
-                    # Reserve the physical Tag lineage first, so even a
-                    # same-thread hash hook cannot Pin one of its Bases.
-                    provisional = tuple(
-                            member for member in _type_mro.__get__(tag)
-                            if _is_tag_class(member)
-                            )
-                    _begin_ordinary_form(provisional)
-                    try:
-                        pending_tags = _form_of(tag)
+                    cached = _cached_form_of(tag)
+                    if cached is not None:
+                        # This is exactly what _form_of would return, even
+                        # after a real Bases change. Reserve it directly.
+                        pending_tags = cached + (tag,)
                         _begin_ordinary_form(pending_tags)
-                    finally:
-                        _end_ordinary_form(provisional)
+                    else:
+                        # A cold Form walk may call a programmer's hash.
+                        # Reserve its physical lineage before releasing the
+                        # lock for that walk.
+                        provisional = tuple(
+                                member for member in _type_mro.__get__(tag)
+                                if _is_tag_class(member)
+                                )
+                        _begin_ordinary_form(provisional)
+
+            if provisional is not None:
+                try:
+                    # A cold Form walk may call a programmer's metaclass
+                    # __hash__; do not hold the Pin lock while it runs.
+                    computed = _form_of(tag)
+                    with _pin_mark_lock:
+                        if any(_is_pin(member) for member in computed):
+                            raise TagCompositionError(
+                                    "an ordinary Form gained a Pin Base"
+                                    " while it was being prepared"
+                                    )
+                        _begin_ordinary_form(computed)
+                        pending_tags = computed
+                finally:
+                    _end_ordinary_form(provisional)
 
             if pin:
                 _check_pin_target(

@@ -25,6 +25,12 @@ def _form_key(tag: type) -> str:
     return _memo_key(tag, "BASES")
 
 
+def _cached_form_of(tag: type) -> tuple[type, ...] | None:
+    """Read cached Bases without running a metaclass hash or attribute hook."""
+
+    return _memo_of(tag, _form_key(tag))
+
+
 def _tag_metaclass(
         ) -> type:
     """Bind ``MetaTag`` without needing the root ``Tag`` while it is built."""

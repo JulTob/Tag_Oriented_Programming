@@ -1081,8 +1081,8 @@ of its own Form. A Shape of a Pin is a Pin, and one Form is all Pins or
 no Pins: mixing them is a Declaration Failure. Fields therefore never mix
 Agents and Tags. A late `@Pin` mark on a Tag that already has a Shape,
 a current Field member, or a place as a Tool's kind (§1.3) is a Declaration
-Failure, and a refused mark leaves the Tag ordinary. The case of a Tag
-that previously trained an Agent now outside its Field is not decided here.
+Failure, and a refused mark leaves the Tag ordinary. A Tag with an empty
+Field may be marked even if it previously trained Agents that have left.
 
 **The receiver rule** (§1.1). The first parameter of a Pin's Agent-scope
 member is the pinned Tag; write it `tag`. A Pin's Record lands as a

@@ -1351,6 +1351,42 @@ class Host_Tests(unittest.TestCase):
 
 
 class Late_Pin_Tests(unittest.TestCase):
+    def test_cold_form_hash_can_wait_for_a_concurrent_pin_refusal(self):
+        armed = [False]
+        completed = Event()
+        outcomes = []
+
+        class Hashing(MetaTag):
+            def __hash__(cls):
+                if armed[0]:
+                    armed[0] = False
+
+                    def pin():
+                        try:
+                            Pin(cls)
+                        except TagDeclarationError as error:
+                            outcomes.append(str(error))
+                        finally:
+                            completed.set()
+
+                    worker = Thread(target=pin)
+                    worker.start()
+                    outcomes.append(completed.wait(2))
+                    worker.join(2)
+                return type.__hash__(cls)
+
+        class Candidate(Tag, metaclass=Hashing):
+            pass
+
+        armed[0] = True
+        ari = Character("Ari")
+        Candidate(ari)
+
+        self.assertIn(True, outcomes)
+        self.assertTrue(any("Tagging is in flight" in item
+                            for item in outcomes if isinstance(item, str)))
+        self.assertIn(ari, Candidate[:])
+
     def test_cold_form_hash_hook_cannot_pin_the_tag_before_reservation(self):
         armed = [False]
         refusals = []
@@ -1379,11 +1415,26 @@ class Late_Pin_Tests(unittest.TestCase):
 
     def test_cold_form_failure_releases_provisional_pin_reservation(self):
         armed = [False]
+        completed = Event()
+        outcomes = []
 
         class Hashing(MetaTag):
             def __hash__(cls):
                 if armed[0]:
                     armed[0] = False
+
+                    def pin():
+                        try:
+                            Pin(cls)
+                        except TagDeclarationError as error:
+                            outcomes.append(str(error))
+                        finally:
+                            completed.set()
+
+                    worker = Thread(target=pin)
+                    worker.start()
+                    outcomes.append(completed.wait(2))
+                    worker.join(2)
                     raise ValueError("cold Form failed")
                 return type.__hash__(cls)
 
@@ -1394,7 +1445,41 @@ class Late_Pin_Tests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "cold Form failed"):
             Candidate(Character("Ari"))
 
-        self.assertIs(Pin(Candidate), Candidate)
+        self.assertIn(True, outcomes)
+        self.assertTrue(any("Tagging is in flight" in item
+                            for item in outcomes if isinstance(item, str)))
+        later = []
+        worker = Thread(target=lambda: later.append(Pin(Candidate)))
+        worker.start()
+        worker.join(2)
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(later, [Candidate])
+
+    def test_a_new_pin_base_during_form_calculation_refuses_ordinary_tagging(self):
+        armed = [False]
+
+        class Old(Tag):
+            pass
+
+        class New(Tag):
+            pass
+
+        class Hashing(MetaTag):
+            def __hash__(cls):
+                if armed[0]:
+                    armed[0] = False
+                    Pin(New)
+                    type.__setattr__(cls, "__bases__", (New,))
+                return type.__hash__(cls)
+
+        class Shape(Old, metaclass=Hashing):
+            pass
+
+        armed[0] = True
+        ari = Character("Ari")
+        with self.assertRaisesRegex(TagCompositionError, "Pin Base"):
+            Shape(ari)
+        self.assertNotIn(ari, New[:])
 
     def test_cached_form_base_stays_reserved_after_real_bases_change(self):
         refusals = []
@@ -1671,6 +1756,22 @@ class Late_Pin_Tests(unittest.TestCase):
         self.assertEqual(Prize.note, "training remains")  # now a Pin Report
         self.assertNotIn(bob, Former[:])
         self.assertEqual(bob.note, "training remains")
+    def test_a_tag_with_an_empty_field_may_be_marked_after_its_agents_leave(self):
+        class Noted(Tag):
+            pass
+
+        class RecordOf(Tag):
+            pass
+
+        charlie = Character("Charlie")
+        Noted(charlie)
+        del Noted[charlie]
+        self.assertNotIn(charlie, Noted[:])
+
+        self.assertIs(Pin(Noted), Noted)
+        Noted(RecordOf)
+        self.assertIn(RecordOf, Noted[:])
+        self.assertNotIn(charlie, Noted[:])
 
     def test_a_tag_named_as_a_tool_kind_is_not_marked_a_pin_later(self):
         class Prize(Tag):
@@ -1810,6 +1911,28 @@ class Late_Pin_Tests(unittest.TestCase):
         with self.assertRaises(TagDeclarationError):
             Rare.prize = prize
         self.assertNotIn("prize", Rare.__dict__)
+
+    def test_a_metaclass_interception_does_not_register_a_tool_owner(self):
+        class Absorb:
+            def __set__(self, owner, value):
+                pass
+
+        class Meta(MetaTag):
+            prize = Absorb()
+
+        class Prize(Tag):
+            pass
+
+        class Collector(Tag, metaclass=Meta):
+            pass
+
+        @Tool(Prize)
+        def prize(agent):
+            return None
+
+        Collector.prize = prize
+        self.assertNotIn("prize", Collector.__dict__)
+        self.assertIs(Pin(Prize), Prize)
 
     def test_a_concurrent_pin_cannot_pass_while_a_tool_owner_is_registering(self):
         import TopKit.declarations as declarations

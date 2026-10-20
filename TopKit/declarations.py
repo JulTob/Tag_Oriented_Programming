@@ -552,9 +552,8 @@ def _refuse_late_pin(
         ) -> None:
     """Refuse a late mark that would change current ordinary-Tag use:
     Shapes would become Pins, the Field could mix objects and Tags, or
-    a declared Tool kind would start admitting Tags (§1.3, §1.9). A
-    completed Rip leaves the Tag's Field empty, so past Taggings do not
-    prevent a later Pin mark."""
+    a declared Tool kind would start admitting Tags (§1.3, §1.9).
+    An empty Field may be marked even if it held Agents before."""
 
     if any(
             member is tag
