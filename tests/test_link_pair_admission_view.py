@@ -13,6 +13,37 @@ class Host:
 
 
 class LinkPairAdmissionViewTests(unittest.TestCase):
+    def test_rip_access_does_not_open_an_unadmitted_shape_view(self):
+        seen = []
+
+        class Social(Tag):
+            @Link
+            class Knows(Tag):
+                @Rip
+                def Leave(agent, contact):
+                    seen.append(agent.Knows[contact])
+                    try:
+                        agent.Trusts[contact]
+                    except TagResolutionError:
+                        seen.append("Shape refused")
+
+            @Link
+            class Trusts(Knows):
+                pass
+
+        owner, contact = Host(), Host()
+        Social(owner)
+        owner.Knows(contact)
+        pair = owner.Knows[contact]
+
+        with self.assertRaises(TagResolutionError):
+            owner.Trusts[contact]
+        del owner.Knows[contact]
+
+        self.assertEqual(seen, [pair, "Shape refused"])
+        with self.assertRaises(TagResolutionError):
+            owner.Trusts[contact]
+
     def test_failed_training_keeps_a_private_pair_and_retry_reuses_it(self):
         seen = []
         copied = []
