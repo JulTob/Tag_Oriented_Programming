@@ -609,7 +609,7 @@ class Declaration_Tests(unittest.TestCase):
             class Invalid(Tag):
                 @Tool
                 def weapon(agent):
-                    return Forge(agent)
+                    return None
         self.assertIn("parentheses", str(refusal.exception))
 
     def test_the_roots_name_no_kind(self):
@@ -669,7 +669,7 @@ class Declaration_Tests(unittest.TestCase):
                 with self.subTest(kind=kind.__name__, tool_outside=tool_outside):
                     with self.assertRaises(TagDeclarationError):
                         def weapon(agent):
-                            return Forge(agent)
+                            return None
 
                         if tool_outside:
                             member = Tool(Sword)(kind(weapon))
@@ -692,7 +692,7 @@ class Declaration_Tests(unittest.TestCase):
             class Armory(Tag):
                 @Tool(Weapon)
                 def standard(tag):
-                    return Forge(tag)
+                    return None
         self.assertIn("a shared tool is a Report", str(refusal.exception))
 
         @Pin
@@ -703,14 +703,14 @@ class Declaration_Tests(unittest.TestCase):
             class Armory_Shape(Collection):
                 @Tool(Weapon)
                 def standard(tag):
-                    return Forge(tag)
+                    return None
 
     def test_a_private_name_is_refused(self):
         with self.assertRaises(TagDeclarationError):
             class Hidden(Tag):
                 @Tool(Weapon)
                 def _weapon(agent):
-                    return Forge(agent)
+                    return None
 
     def test_the_builder_keeps_its_three_seats(self):
         class Armed_With(Tag):
