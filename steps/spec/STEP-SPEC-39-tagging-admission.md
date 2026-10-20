@@ -146,8 +146,8 @@ admitted Tag is judged before the next Tag's Gate. It is **not yet Deployed**.
    successful earlier Gain; Imprints then run in their declaration order.
 4. If an Imprint fails ordinarily, later Imprints still run. Each ordinary
    `@Record` or `@Imprint` failure is reported by its own **named training
-   warning**, in declaration order. The proposed spelling is
-   `TrainingWarning.Name`, where `Name` is that protocol's declared name.
+   warning**, in declaration order: `TrainingWarning.Name`, where `Name`
+   is that protocol's declared name.
    Reporting must not stop the remaining training or prevent Field
    admission. A failed protocol does not erase earlier Gains or by itself
    mark the Agent permanently broken.
