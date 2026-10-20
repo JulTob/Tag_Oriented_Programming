@@ -10,6 +10,7 @@ Three access forms, three meanings:
 from __future__ import annotations
 
 from functools import partial
+from functools import wraps
 from types import FunctionType
 from typing import Any
 from typing import Callable
@@ -19,6 +20,8 @@ import sys
 from . import declarations
 from .arrest import _require_available
 from .arrest import _safehouse
+from .buffers import _acquire_buffer
+from .buffers import _release_buffer
 from .contracts import _condition_member
 from .contracts import _holds
 from .errors import TagCompositionError
@@ -58,6 +61,56 @@ def _host_member(
         if member is not None:
             return member
 
+    return None
+
+
+def _host_buffer_hooks(
+        acquire: FunctionType | None,
+        release: FunctionType | None,
+        ) -> dict[str, Callable[..., Any]]:
+    """Guard ordinary Host buffer methods from the first actualization."""
+
+    hooks: dict[str, Callable[..., Any]] = {}
+
+    if acquire is not None:
+        @wraps(acquire)
+        def Buffer(agent: object, *args: Any, **kwargs: Any) -> Any:
+            def Invoke() -> Any:
+                return acquire(agent, *args, **kwargs)
+
+            release_hook = None
+            if release is not None:
+                def Release(view: memoryview) -> Any:
+                    return release(agent, view)
+
+                release_hook = Release
+
+            return _acquire_buffer(agent, Invoke, release_hook)
+
+        hooks["__buffer__"] = Buffer
+
+    if release is not None:
+        @wraps(release)
+        def Release(agent: object, *args: Any, **kwargs: Any) -> Any:
+            def Invoke() -> Any:
+                return release(agent, *args, **kwargs)
+
+            view = args[0] if args else kwargs.get("view", _MISSING)
+            return _release_buffer(agent, view, Invoke)
+
+        hooks["__release_buffer__"] = Release
+
+    return hooks
+
+
+def _buffer_member(host_type: type, name: str) -> Any:
+    """The first Host protocol seat, including an explicit None mask."""
+
+    for klass in host_type.__mro__:
+        if klass is object:
+            break
+        if name in klass.__dict__:
+            return klass.__dict__[name]
     return None
 
 
@@ -272,6 +325,13 @@ def _hooks_for(
 
     if _host_member(host_type, "__deepcopy__") is None:
         hooks["__deepcopy__"] = _agent_deepcopy
+
+    buffer_member = _buffer_member(host_type, "__buffer__")
+    release_member = _buffer_member(host_type, "__release_buffer__")
+    hooks.update(_host_buffer_hooks(
+            buffer_member if isinstance(buffer_member, FunctionType) else None,
+            release_member if isinstance(release_member, FunctionType) else None,
+            ))
 
     return hooks
 
