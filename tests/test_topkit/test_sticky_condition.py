@@ -77,7 +77,7 @@ class StickyConditionTests(unittest.TestCase):
         class Sworn(Tag):
             @Post
             def Has_Oath(agent):
-                if agent not in Sworn:                                # the guard, in the author's words
+                if agent not in Sworn[:]:                             # raw admission, even while this Post runs
                     return True
                 return agent.oath is not None
 
@@ -138,7 +138,7 @@ class StickyConditionTests(unittest.TestCase):
             @Post
             @Underlay
             def Fine(agent, base):
-                underneath = base() if agent in Alive else True       # whose promise base() is
+                underneath = base() if agent in Alive[:] else True    # whose promise base() is
                 return underneath and agent.pointy_ears
 
         ari = Agent()
