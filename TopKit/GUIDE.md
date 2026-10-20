@@ -1185,23 +1185,27 @@ your Reports and Operations there.
 
 ## Proposal: ordered Link underlays
 
-A Link may eventually declare complete Taggings that its Contact must finish
-before the selected Link begins. The provisional spelling distinguishes an
-ordinary Tag, the calling Agent's actual Link, and one particular external
-Agent's actual Link:
+A Relation declares its Agent and Contact seats explicitly, then writes its
+ordered Link Form in the class header:
 
 ```text
-@Link(underlays=(Network, Agent.Knows, server.Registre))
-class Trusts(Tag):
+@Link(agent, contact)
+class Trusts(Network, agent.Knows, contact.Knows, server.Registre):
     ...
 ```
 
 For `ari.Trusts(ruth)`, those entries mean `Network(ruth)`,
-`ari.Knows(ruth)`, and `server.Registre(ruth)`, in that order, followed by
-`ari.Trusts(ruth)`. Each is a complete Tagging with its own Field and, for
-an actual Link, its own Pair. A bare Relation blueprint such as `Knows` is
-not a Tag and cannot be applied by itself. The syntax is not implemented;
-`Agent.Knows` is the settled spelling for the calling Agent's Link. The
+`ari.Knows(ruth)`, `ruth.Knows(ari)`, and `server.Registre(ruth)`, in that
+order, followed by `ari.Trusts(ruth)`. `agent.Knows` selects the calling
+Agent's actual Link; `contact.Knows` selects the Contact's actual Link and
+applies it reciprocally to the Agent. Every turn is a complete Tagging with
+its own Field and, for an actual Link, its own Pair.
+
+A bare Relation blueprint such as `Knows` is not a Tag and cannot be applied
+by itself. Bare `@Link` is also retired by the proposal: every Relation names
+`@Link(agent, contact)`. The class header is TOP's Form language, not Python
+member inheritance or the old shared Link-family design. The syntax is not
+implemented; the
 [proposal guide](../wiki/1.6.1-TopKit-Link-Underlays.md) records the boundary.
 
 Once Ruth is admitted to `ari.Trusts`, calling `ari.Trusts(ruth)` again is
