@@ -91,6 +91,15 @@ assert ari.spell_slots == 1
 Notice the first parameter is `agent`, not `self`. A Tag's methods act on
 *someone else's* object. The name is your choice; the position is the rule.
 
+> **Vocabulary proposal.** [STEP-SPEC-58](../steps/spec/STEP-SPEC-58-agent-feature-deletion.md)
+> is a Brief, not deployed law. It calls any named thing exposed by an Agent
+> or Agency a **Feature**. A Tag gives one Agent a **Gain**; an Agency owns a
+> shared **Service**; publication gives one Agent a **Grant** to that Service.
+> A **Contribution** is the declaration layer by which a Tag builds or
+> composes the visible Feature. The words add an ownership vocabulary; they
+> do not change the current Action, Record, Report, Operation or Overlay
+> behavior.
+
 ### Tags compose. The last one applied is what you see.
 
 ```python
@@ -647,6 +656,11 @@ class whose `in` nobody uses for membership.
 **When you want** one value or one behaviour for the whole Field, and a
 clean line between what the Agent shows and what the Tag keeps.
 
+In STEP-SPEC-58's proposed vocabulary, the Report or Operation is the
+Agency's **Service**. `@Public` supplies each eligible Agent with a
+**Grant** to reach it. The Agent receives an access path, not a private copy
+of the shared value or implementation.
+
 ```python
 class Agency(Tag):
 
@@ -1164,6 +1178,15 @@ its Gates or Gainings, and a Tag cannot gain or delete that name. A host's
 truthy. Boolean information can live in an ordinary Action or Record;
 objects held in Records keep their own truth.
 
+STEP-SPEC-58 proposes calling the visible Post Overlay the **Contract**. If
+every Post holds, including when there are none, it is a **Valid Contract**
+and a free Agent is a **Valid Agent**. If any Post fails, it is a **Void
+Contract** and the free Agent is a **Broken Agent**. An arrested Agent is in
+a separate Safehouse cleanup state and is neither Valid nor Broken until its
+saved Rip work succeeds. Existing *sound* and *defective* wording continues
+to describe the current population behavior while that vocabulary Brief is
+reviewed.
+
 ## Reading a Tag
 
 | Question | Spelling |
@@ -1209,6 +1232,8 @@ your Reports and Operations there.
 - [The Fields Guide](FIELDS.md): populations, partitions and the algebra.
 - [Constant Contributions](CONSTANTS.md): fixed bindings, shared values
   and promises that cannot be replaced or deleted.
+- [Features](../wiki/1.7-TopKit-Features.md): the proposed Gain, Service,
+  Grant and Contract ownership vocabulary.
 - [The Specification](../spec/SPECIFICATION.md): the laws, ring by ring.
 - [`examples/dnd_character.py`](../examples/dnd_character.py) and
   [`examples/biome.py`](../examples/biome.py): the long form.
