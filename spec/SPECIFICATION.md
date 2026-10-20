@@ -659,9 +659,10 @@ Three laws govern the slot:
 3. **The slot never Tags.** The kit applies no Tag to what the builder
    returns or to what is assigned. A Tool builder, like any Record
    builder, reads, calculates and returns an initial value. Applying or
-   Ripping Tags belongs in an Imprint; a held object that needs a Tag
-   kind at admission must already belong to that Tag when the builder
-   returns. An Imprint in a prior Tagging turn may prepare it (§0.6);
+   Ripping Tags belongs in an Action or Imprint, outside the builder; a held
+   object that needs a Tag kind at admission must already belong to that
+   Tag when the builder returns. An Imprint in a prior Tagging turn may
+   prepare it (§0.6);
    this Tag's Imprints run only after its Record builders. Nested Tagging
    follows its own §0.6 failure boundary; Rip is not restoration (§0.7).
 
