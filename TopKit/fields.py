@@ -33,6 +33,7 @@ from .contracts import _holds_for_population
 from .errors import TagCompositionError
 from .geometry import _is_tag_class
 from .memo import _class_namespace
+from .state import _view_subject
 
 
 FIELD_SEAT = "_topkit_field"   # the kit's own seat on every Tag class; MetaTag.__new__ fills it
@@ -200,6 +201,7 @@ class _Safehouse(_Population):
                 yield arrest.agent
 
     def __contains__(self, agent: object) -> bool:
+        agent = _view_subject(agent)
         arrest = _arrest_of(agent)
         return arrest is not None and self._keeps(arrest)
 
@@ -465,10 +467,32 @@ class _Field(_Population):
             ) -> bool:
         reference = field._members.get(id(agent))
 
+        if reference is not None and reference() is agent:
+            return True
+
+        agent = _view_subject(agent)
+        reference = field._members.get(id(agent))
+
         return (
                 reference is not None
                 and reference() is agent
                 )
+
+    def _Member(
+            field,
+            agent: object,
+            ) -> object | None:
+        """The current member behind a direct Target or soft Pair view."""
+
+        reference = field._members.get(id(agent))
+
+        if reference is not None and reference() is agent:
+            return agent
+
+        agent = _view_subject(agent)
+        reference = field._members.get(id(agent))
+
+        return agent if reference is not None and reference() is agent else None
 
     def __iter__(
             field,
@@ -551,9 +575,13 @@ class _Partition(_Population):
             ) -> bool:
         field = partition._field
 
+        agent = field._Member(agent)
+
+        if agent is None:
+            return False
+
         return (
-                agent in field
-                and _arrest_of(agent) is None
+                _arrest_of(agent) is None
                 and partition._holds(agent)
                 and _arrest_of(agent) is None
                 and agent in field

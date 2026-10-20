@@ -59,6 +59,7 @@ def Tags(
         ) -> tuple[type, ...]:
     """The active leaf Tags, in application order."""
 
+    agent = _view_subject(agent)
     state = _state_of(agent)
 
     if state is None:
@@ -89,6 +90,7 @@ def Outline(
     """A readable picture of the Agent's Geometry: host, then each leaf's
     Form from Base to Shape."""
 
+    agent = _view_subject(agent)
     state = _state_of(agent)
     host = _name_of(agent)
     lines = [host]
