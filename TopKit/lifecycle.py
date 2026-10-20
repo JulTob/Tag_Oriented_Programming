@@ -12,6 +12,7 @@ before ``try`` and Rips in ``finally`` (STEP-SPEC-31).
 from __future__ import annotations
 
 from typing import Any
+from types import MappingProxyType
 import atexit
 
 from .arrest import _arrest_of
@@ -22,6 +23,7 @@ from .declarations import _discard_lazy_result
 from .declarations import _Lazy_Rip_Guard
 from .declarations import _lazy_rip_guard
 from .declarations import _takes_underlay
+from .declarations import STATE
 from .errors import TagCompositionError
 from .errors import TagResolutionError
 from .fields import _Member
@@ -31,8 +33,10 @@ from .rip_runs import _pending_run
 from .rip_runs import _retry_arrested as _retry_saved_runs
 from .rip_runs import _run_saved
 from .rip_runs import _save_run
+from .rip_runs import _tag_name
 from .state import _Originals
 from .state import _State
+from .state import _real_namespace_of
 from .state import _state_of
 
 
@@ -145,6 +149,48 @@ def _teardown(
                 ) from failures[0][1]
 
 
+def _rip_field(tag: type) -> None:
+    """Revoke the starting Field, then finish its saved Rips in join order.
+
+    Every starting member enters pending custody before the first callback.
+    A failure or interruption stops the walk; current and later runs remain
+    in their original Tag's Safehouse for explicit or act-triggered retry.
+    """
+
+    field = _field_of(tag)
+    initial = []
+
+    for agent in list(field):
+        # The first phase cannot call a Host property or dictionary hook.
+        namespace = _real_namespace_of(agent)
+
+        if namespace is None:
+            state = None
+        elif issubclass(type(namespace), dict):
+            state = dict.get(namespace, STATE)
+        else:  # a Pin's physical class namespace is a mappingproxy
+            state = MappingProxyType.get(namespace, STATE)
+
+        if state is None or not any(active is tag for active in state.active):
+            raise TagResolutionError(
+                    f"{_tag_name(tag)} is not active on this Agent"
+                    )
+
+        initial.append((agent, state, state.rips.get(tag, ())))
+
+    pending = []
+
+    for agent, state, teardowns in initial:
+        run = _RipRun(tag, teardowns)
+        # Empty runs still keep a member in custody until its FIFO turn.
+        _save_run(agent, run, hold_empty=True)
+        _revoke(agent, state, run, bulk=True)
+        pending.append((agent, state, run))
+
+    for agent, state, run in pending:
+        _run_one(agent, state, run)
+
+
 def _retry_arrested(
         agent: object,
         *,
@@ -191,7 +237,13 @@ def _run_one(agent: object, state: _State, run: _RipRun) -> None:
         state.composing -= 1
 
 
-def _revoke(agent: object, state: _State, run: _RipRun) -> None:
+def _revoke(
+        agent: object,
+        state: _State,
+        run: _RipRun,
+        *,
+        bulk: bool = False,
+        ) -> None:
     """Remove one saved application before its teardown starts.
 
     Repeating a partly interrupted revocation is safe. A new Tagging may
@@ -204,7 +256,7 @@ def _revoke(agent: object, state: _State, run: _RipRun) -> None:
     # The Rip tuple is this application identity. If the old membership
     # was removed before an interruption and the Agent reTagged, the new
     # application has a different tuple. Never revoke its fresh Field.
-    if state.rips.get(run.tag) is not run.teardowns:
+    if not bulk and state.rips.get(run.tag) is not run.teardowns:
         run.revoked = True
         return
 
@@ -219,11 +271,11 @@ def _revoke(agent: object, state: _State, run: _RipRun) -> None:
 
     words = state.words
     snapshot = state.snapshots.get(run.tag)
+    run.held = (words, snapshot)
     state.words = None
     state.snapshots.pop(run.tag, None)
     state.rips.pop(run.tag, None)
     run.revoked = True
-    _ = (words, snapshot)
 
 
 def _teardown_all(
