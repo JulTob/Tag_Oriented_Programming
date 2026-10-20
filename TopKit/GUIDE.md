@@ -1183,6 +1183,29 @@ your Reports and Operations there.
 
 ---
 
+## Proposal: ordered Link underlays
+
+A Link may eventually declare complete Taggings that its Contact must finish
+before the selected Link begins. The provisional spelling distinguishes an
+ordinary Tag, the calling Agent's actual Link, and one particular external
+Agent's actual Link:
+
+```text
+@Link(underlays=(Network, Agent.Knows, server.Registre))
+class Trusts(Tag):
+    ...
+```
+
+For `ari.Trusts(ruth)`, those entries mean `Network(ruth)`,
+`ari.Knows(ruth)`, and `server.Registre(ruth)`, in that order, followed by
+`ari.Trusts(ruth)`. Each is a complete Tagging with its own Field and, for
+an actual Link, its own Pair. A bare Relation blueprint such as `Knows` is
+not a Tag and cannot be applied by itself. The syntax is not implemented;
+`Agent` versus `Owner` is still an open naming choice. The
+[proposal guide](../wiki/1.6.1-TopKit-Link-Underlays.md) records the boundary.
+
+---
+
 ## Do and don't
 
 | Do | Don't |
