@@ -15,8 +15,9 @@
 > **Supersession, 2026-10-12:** [STEP-SPEC-39: Tagging Admission](STEP-SPEC-39-tagging-admission.md)
 > replaces this STEP's training and admission boundaries. Gainings and
 > Imprints now precede FieldAdding; unfinished training leaves actual Gains
-> without membership. Posts still judge admitted members after the completed
-> Form, and the sound/defective Field partitions are unchanged. The text below
+> without membership. The Director's 2026-10-20 amendment to SPEC-39 places
+> Post checks after each Tag's Field entry, before the next Tag's Gate; the
+> sound/defective Field partitions are unchanged. The text below
 > records the earlier design and its Gate amendment.
 
 > **Membership-query amendment, 2026-10-15:** The Director ruled that

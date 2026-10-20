@@ -50,8 +50,10 @@
   its Gate, acquires Gains in declaration order, finishes its Imprints, then
   enters the Field. Failed Gainings or Imprints retain acquired Gains and
   Posts without admitting the unfinished Tag. Earlier completed Tags stay;
-  Tagging again starts a fresh attempt. Posts judge the completed Form once
-  and a failed Post preserves membership. Tool gains use the same order:
+  Tagging again starts a fresh attempt. Every visible Post is checked after
+  each Tag's Field entry, before the next Tag's Gate; a failed Post preserves
+  this membership and stops the remaining Form. A Base Post must hold before
+  its Shape starts. Tool gains use the same order:
   their proposed kind is checked before replacing the prior binding or rule,
   and an acquired Tool remains guarded on a Rogue.
 

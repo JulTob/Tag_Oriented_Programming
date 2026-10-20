@@ -39,10 +39,11 @@ was partial or it previously entered and was Ripped.
    through the Agent until admission.
 4. After Imprints finish, FieldAdding establishes membership, history and
    Field entry together. An unfinished attempt establishes none of these.
-5. Once the whole Form finishes, every visible Post checks the resulting
-   Agent. Posts define requirements; a missing optional Gain or a historical
-   exception does not independently define deficiency. Post failure preserves
-   membership, and current Posts determine soundness.
+5. After each Tag enters its Field, every visible Post checks the Agent
+   before the next Tag's Gate. Posts define requirements; a missing optional
+   Gain or a historical exception does not independently define deficiency.
+   Post failure preserves this Tag's membership and stops the remaining Form;
+   current Posts determine soundness.
 6. Failed Gainings or Imprints retain actually acquired Gains and completed
    Taggings, without admitting the unfinished Tag. Python interruptions follow
    the same boundary and keep their original exception type.
@@ -68,9 +69,12 @@ deficient without ceasing to belong. Retrying through normal Tagging uses
 TOP's existing Overlay and Imprint mechanisms rather than introducing a
 resume protocol.
 
-Posts remain once after the completed Form: a Base may promise what a later
-Shape supplies. Existing conditions remain sticky after Rip; this STEP does
-not change the author's responsibility for ending them.
+Each Tag is judged after its own Field entry. A Base Post must hold at that
+point; it cannot rely on a later Shape's Gain. Put a requirement about the
+Shape's finished state in the Shape's Post, or prepare the Base through its
+own Gainings and Imprints before admission. Existing conditions remain sticky
+after Rip; this STEP does not change the author's responsibility for ending
+them.
 
 A safety Post can precede the Action that needs it, so the contract is already
 established when that Gain arrives. This does not automatically guard ordinary
@@ -113,3 +117,12 @@ The independent oracle must model these outcomes, including Field join order.
 > a Rogue with Gains outside the Agency. The Director also specified that
 > Gains arrive in Tag declaration order, top to bottom, and are visible to
 > subsequent Gains. Implementation is submitted in successive reviewable PRs.
+
+### Amendment — 2026-10-20
+
+The Director clarified that a Form only orders independent Tags: **Posts are
+checked after each completed Tagging, before the next Tag's Gate**, rather
+than once after the whole Form. A failed Post leaves the just admitted Tag
+in its Field, but later Tags in the Form do not start. This amends rule 5
+and the earlier whole-Form rationale; Gate, Gains, Imprints and Field entry
+retain their established order.

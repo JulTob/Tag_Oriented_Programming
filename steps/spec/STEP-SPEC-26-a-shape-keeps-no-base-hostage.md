@@ -40,6 +40,8 @@ Historical references to S19's failed-Rip rollback describe an obsolete implemen
 
 The retained body also predates [Requirement retirement](https://github.com/JulTob/Tag_Oriented_Programming/blob/fcea45fd2535594fd82f54aee2af7e815e98e0ca/steps/spec/STEP-SPEC-30-retire-requirement.md) and [Scope retirement](https://github.com/JulTob/Tag_Oriented_Programming/blob/fcea45fd2535594fd82f54aee2af7e815e98e0ca/steps/spec/STEP-SPEC-31-retire-scope.md). Its corresponding API examples and implementation plan are historical. Reconcile Gate placement and explicit reapplication with the newer decisions recorded in [#30](https://github.com/JulTob/Tag_Oriented_Programming/issues/30); do not reinstate whole-call restoration or require landing the frozen S19 branch.
 
+**Post timing amendment — 2026-10-20.** [STEP-SPEC-39](STEP-SPEC-39-tagging-admission.md) now checks every visible Post after each Tag enters its Field, before the next Tag's Gate. A Base Post must hold at the Base's own boundary; a Shape cannot supply a later Gain for that check. This supersedes the whole-Form timing stated in the historical Rationale below. The historical claim that a Shape's Gate runs before any Base also predates the deployed per-Tag Gate order.
+
 ### Provenance and dependencies
 
 - [Original #26 text](https://github.com/JulTob/Tag_Oriented_Programming/blob/1947490209d8eddf158c2bc6c0e6b538ddb6f9e0/steps/spec/STEP-SPEC-26-a-shape-keeps-no-base-hostage.md) and [reconciled source](https://github.com/JulTob/Tag_Oriented_Programming/blob/7802fd75c07165aa4ea61267df290ba1fa2ff57f/steps/spec/STEP-SPEC-26-a-shape-keeps-no-base-hostage.md) are pinned to their exact source commits.
