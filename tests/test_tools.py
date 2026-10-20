@@ -1532,6 +1532,28 @@ class Late_Pin_Tests(unittest.TestCase):
             Rare.prize = prize
         self.assertNotIn("prize", Rare.__dict__)
 
+    def test_a_metaclass_interception_does_not_register_a_tool_owner(self):
+        class Absorb:
+            def __set__(self, owner, value):
+                pass
+
+        class Meta(MetaTag):
+            prize = Absorb()
+
+        class Prize(Tag):
+            pass
+
+        class Collector(Tag, metaclass=Meta):
+            pass
+
+        @Tool(Prize)
+        def prize(agent):
+            return None
+
+        Collector.prize = prize
+        self.assertNotIn("prize", Collector.__dict__)
+        self.assertIs(Pin(Prize), Prize)
+
     def test_a_refused_pin_leaves_no_mark(self):
         class Odd(Tag):
             @Delete

@@ -62,6 +62,7 @@ from .fields import _sound_of
 from .geometry import _form_of
 from .geometry import _is_tag
 from .lifecycle import _rip
+from .memo import _class_namespace
 from .observation import _refuse_observed_mutation
 from .state import Tagged
 from .state import _name_of
@@ -129,7 +130,7 @@ class MetaTag(type):
         _check_constant_shapes(tag, name)
         super().__setattr__(name, value)
 
-        if tool_kind is not None:
+        if tool_kind is not None and _class_namespace(tag).get(name) is value:
             _note_kinds(tag, tool_kind)
 
     def __delattr__(
