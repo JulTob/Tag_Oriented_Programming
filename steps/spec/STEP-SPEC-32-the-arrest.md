@@ -10,20 +10,85 @@
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
 
-## Preservation and current review boundary — 2026-10-14
+## Preservation and current review boundary — 2026-10-15
 
 This file extracts the existing proposal from frozen [#26](https://github.com/JulTob/Tag_Oriented_Programming/pull/26),
 including [#77](https://github.com/JulTob/Tag_Oriented_Programming/pull/77)'s reconciliation where applicable. It stays
-**Brief**. No runtime code, current Specification amendment, or new Director
-clearance is included.
+**Brief**. No runtime code or current Specification amendment is included.
+The later Director decisions below do not clear the whole STEP.
 
 This recovered **Brief** preserves the recorded ordinary explicit-Rip/Field-Rip decisions and #77's limits. Current [Rip](https://github.com/JulTob/Tag_Oriented_Programming/blob/fcea45fd2535594fd82f54aee2af7e815e98e0ca/TopKit/lifecycle.py) ends an allowed membership, consumes its teardown ledger, attempts all teardowns despite ordinary failures, then reports those failures. It has no Safehouse, arrested-act interception or ordered retry. [#36](https://github.com/JulTob/Tag_Oriented_Programming/issues/36) tracks the proposed replacement; do not port the historical S19 rollback implementation.
 
-The historical “Open questions” section has 17 numbered entries, not 17 undecided questions. Entries 1, 2, 4 and 5 record the Director's decisions; entry 3 settles the failure's name while leaving its classification and cause open. Entries 6–17 retain recommendations or unresolved choices. These recorded decisions do not clear the whole Brief or make its historical implementation plan current.
+The historical “Open questions” section has 17 numbered entries, not 17 undecided questions. Entries 1, 2, 4, 5 and 9 record the Director's earlier decisions; entry 11 confirms `TagArrestedAccessError`, while entry 3's failure classification and cause are settled below. Historical rule 4 already treats host member reads, host method calls and display as acts by an arrested Agent. The dated decisions below supersede parts of entries 6, 8, 14, 16 and 17. The remaining recommendations and unresolved choices stay open. None of these decisions clears the whole Brief or makes its historical implementation plan current.
 
-Separate membership, pending cleanup obligations and retention before implementation. Agent deletion, Tag collection, Pins/Links, interpreter exit, bulk retry, concurrent access, reapplication during failing cleanup, cross-member continuation and interruptions remain within the listed open questions, not extensions already settled by the explicit-Rip decision. In particular, questions 14, 16 and 17 constrain [whole-Field cleanup](https://github.com/JulTob/Tag_Oriented_Programming/issues/35).
+Separate membership, pending cleanup obligations and retention before implementation. Agent deletion, Tag collection, Pins/Links, interpreter exit, bulk retry and concurrent access remain within the listed open questions, not extensions already settled by the explicit-Rip decision. The later rulings below settle the specified reapplication, cross-member and interruption boundaries for [whole-Field cleanup](https://github.com/JulTob/Tag_Oriented_Programming/issues/35).
 
-Question 6's proposed exclusion from both sound and defective populations would introduce an additional partition; it must be reconciled with current Post-based truth rather than inferred from arrest. The global Safehouse's mixed population domain is separately open in [#37](https://github.com/JulTob/Tag_Oriented_Programming/issues/37); Pair cleanup evidence is [#39](https://github.com/JulTob/Tag_Oriented_Programming/issues/39). Act interception is a TOP behavior boundary, not a Python security sandbox.
+Question 6's proposal to keep arrest separate from sound and defective
+populations is confirmed below, including when the Agent still belongs to
+a Field. This creates a third status within that Field; the current
+Specification's two-way Field partition needs an explicit amendment when
+the Safehouse is implemented. The global Safehouse's mixed population
+domain is separately open in [#37](https://github.com/JulTob/Tag_Oriented_Programming/issues/37); Pair cleanup evidence is [#39](https://github.com/JulTob/Tag_Oriented_Programming/issues/39). Act interception is a TOP behavior boundary, not a Python security sandbox.
+
+### Later Director decisions — 2026-10-15
+
+1. **An old Rip and a fresh Tagging are separate applications.** If an old
+   `Wizard` teardown explicitly calls `Wizard(ada)`, the fresh membership
+   and Gains stand. If a later teardown of the old application fails, Ada
+   remains arrested for that saved old work until it succeeds. A retry of
+   the old work must not Rip the fresh membership or replay its Gains.
+   This supersedes the no-arrest recommendation in historical question 14.
+2. **A whole-Field Rip stops at its first failure or interruption.** Its
+   initial members leave the Field and enter pending Safehouse custody
+   before any teardown runs. Cleanup takes their join order. On a failed
+   teardown or `KeyboardInterrupt`/`SystemExit`, the walk stops there;
+   the current and unvisited cleanup remains available for ordered retry.
+   Completed teardown steps are not repeated. An empty Field after the
+   interruption does not mean cleanup succeeded. This supersedes the
+   continuation recommendation in historical question 16 and answers
+   the stopping and retention boundary in question 17.
+3. **Arrest is separate from a broken Post.** An Agent kept by any
+   Safehouse is absent from both the sound population and `~Tag` of every
+   Field it still belongs to, without evaluating its Posts or attempting
+   a retry. Its raw membership in `MyTag[:]` remains. `MyTag[...]` contains
+   pending work owed to that Tag; root `Tag[...]` contains all arrested
+   Agents. Thus `Fighter[:] & Tag[...]` finds Fighters arrested by any Tag,
+   including one whose Fighter Posts hold. After all pending Rips succeed,
+   each remaining membership is classified by its current Posts. This
+   confirms the separate status proposed in historical question 6.
+4. **Orphaned work stays with its original Tag application.** A new Tag
+   class with the same name begins with its own empty Safehouse; it does
+   not receive an ended Tag's arrested Agents or teardown protocol.
+   Root `Tag` has no Field. Root `Tag`, `~Tag` and
+   `Tag[:]` answer membership questions without walking a Field; their
+   proposed query rules are recorded separately in
+   [STEP-SPEC-46 (#235)](https://github.com/JulTob/Tag_Oriented_Programming/pull/235).
+   `Tag[...]` locates
+   orphaned work in its Safehouse, and `del Tag[agent]` retries all of
+   that Agent's saved orphan teardowns. There is no root membership to Rip.
+   This does not itself establish
+   when a Tag class ends or make a same-name replacement its successor.
+5. **An ordinary act retries before it starts.** A read or Action on an
+   arrested Agent first retries its saved Rip work. The act proceeds only
+   when every pending teardown succeeds. A failed retry refuses the act.
+   This confirms the act-triggered retry rule in the historical Summary.
+6. **Another explicit Rip is allowed.** If Ada is arrested by Wizard but
+   still belongs to Fighter, `del Fighter[ada]` runs Fighter's Rip first.
+   It then retries Wizard's saved Rip work. A failure keeps Ada arrested;
+   neither Rip silently discards the other's pending work.
+7. **Refused access is a Resolution Failure.** If an attempted act retries
+   a saved Rip and it fails again, `TagArrestedAccessError` is a
+   `TagResolutionError`, with the original Rip failure as its cause. The
+   act does not start.
+
+These decisions do not settle automatic Agent deletion, forced triage,
+automatic Tag finalization, Pin and Link teardown, concurrent access, or
+the exact Python interception of acts by an arrested Agent. The Director
+chose a stronger **opt-in** guard for captured Python Host methods; its
+API, coverage and compatibility costs still need a separate design and
+implementation review. `Tag(agent)` was suggested as a way to actualize a
+host without Field admission; its exact behavior remains a separate root
+Tag decision in STEP-SPEC-46.
 
 ### Provenance and dependencies
 

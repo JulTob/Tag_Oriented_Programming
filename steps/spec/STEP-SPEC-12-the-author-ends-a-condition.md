@@ -11,6 +11,14 @@
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
 
+> **Guard-spelling amendment, 2026-10-15:** The Director's later
+> [sound-membership ruling](STEP-SPEC-4-defective-taggings.md#amendment-a-sound-membership-query-2026-10-15)
+> makes `agent in Tag` a sound-membership query. A guard intended to follow
+> raw Field membership, including a defective member, now writes
+> `agent in Tag[:]` (or `agent not in Tag[:]`). The original examples below
+> record the earlier spelling; sticky conditions and the author's choice
+> of guard are unchanged.
+
 ## Summary
 
 A Tag's Preconditions and Postconditions are sticky, like its
