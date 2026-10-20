@@ -216,6 +216,9 @@ def Model_Tagging(
     if tag in model.active:
         return False
 
+    if not model.Sound():
+        raise AssertionError("a broken source must refuse before model Tagging")
+
     for member in Form(tag):
         if member in model.active:
             continue
@@ -437,6 +440,18 @@ def Tag_It(
         ) -> None:
     """Apply ``tag`` as the law predicts: refused at the gate, applied
     and reported defective, or applied clean."""
+
+    if tag not in model.active and not model.Sound():
+        try:
+            tag(target, **inputs)
+        except TagCompositionError as error:
+            if "current Posts fail" not in str(error):
+                raise AssertionError((
+                        context, "an unrelated composition failure hid source refusal",
+                        )) from error
+            return
+
+        raise AssertionError((context, "broken source passed", tag.__name__))
 
     if tag is Gated and not model.ok and Gated not in model.active:
         try:
@@ -741,12 +756,13 @@ def Run_Seed(
 
             try:
                 Apply(target, first, object())
-            except (TypeError, TagPostconditionError):
+            except (TypeError, TagPostconditionError, TagCompositionError):
                 pass
             else:
                 raise AssertionError((context, "invalid Apply succeeded"))
 
-            Model_Tagging(model, first)                               # Apply stops at the first Tag's failed Post
+            if first in model.active or model.Sound():
+                Model_Tagging(model, first)                           # Apply stops at the first Tag's failed Post
 
         Assert_Target(target, model, family, context)
 
@@ -782,8 +798,13 @@ def Exercise_Block(
     held = tuple(randomizer.choice(family) for _ in range(1 + randomizer.randrange(3)))
     inside = model.Copy()
     door: type | None = None
+    source_refused = False
 
     for tag in held:
+        if tag not in inside.active and not inside.Sound():
+            door = tag
+            source_refused = True
+            break
         if Model_Tagging(inside, tag):
             door = tag                                                # reports at the door: the try never starts
             break
@@ -819,12 +840,20 @@ def Exercise_Block(
     try:
         Hold()
     except TagPostconditionError:
-        assert door is not None, (context, "a door failure the model does not predict")
+        assert door is not None and not source_refused, (
+                context, "a Post failure the model does not predict")
         assert not ran, (context, "the block ran after a door failure")
     except (TagResolutionError, TagCompositionError) as error:
-        assert type(error) is refusal, (context, "a Rip the model does not refuse failed", type(error).__name__)
-        assert Is_Block_Error(error.__context__) is fail, (context, "the Rip's context is not the block's error")
-        assert fail or error.__context__ is None, (context, "a Rip's failure carries a context of its own")
+        if source_refused:
+            if (type(error) is not TagCompositionError or ran
+                    or "current Posts fail" not in str(error)):
+                raise AssertionError((
+                        context, "a source refusal the model does not predict",
+                        )) from error
+        else:
+            assert type(error) is refusal, (context, "a Rip the model does not refuse failed", type(error).__name__)
+            assert Is_Block_Error(error.__context__) is fail, (context, "the Rip's context is not the block's error")
+            assert fail or error.__context__ is None, (context, "a Rip's failure carries a context of its own")
     except LookupError as error:
         assert Is_Block_Error(error) and refusal is None, (context, "the block's error reached the caller past a failed Rip")
     else:

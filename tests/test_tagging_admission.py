@@ -426,7 +426,7 @@ class TaggingAdmissionTests(unittest.TestCase):
         self.assertTrue("outer_value" @ agent)
         self.assertIs(agent.outer_value, False)
 
-    def test_acquired_safety_post_protects_the_rogue_and_existing_agency(self):
+    def test_acquired_safety_post_blocks_new_tag_and_existing_service(self):
         class Existing(Tag):
             @Public
             @Operation
@@ -494,8 +494,10 @@ class TaggingAdmissionTests(unittest.TestCase):
         self.assertEqual(len(caught), 1)
         self.assertIsInstance(caught[0].message.failure,
                               TagImprintError.Train)
-        self.assertEqual(caught[0].message.cause_type, "Can_Train")
-        self.assertIn("Can_Train", caught[0].message.cause_text)
+        # Electric's false SafetyChecks bars a fresh Safe Tagging before its
+        # Gate. Electric still admits the Agent and keeps its training Gains.
+        self.assertEqual(caught[0].message.cause_type, "TagCompositionError")
+        self.assertIn("current Posts fail", caught[0].message.cause_text)
         self.assertIn(agent, Electric[:])
         self.assert_not_admitted(Safe, agent)
         self.assertTrue("before_safety" @ agent)
@@ -509,7 +511,7 @@ class TaggingAdmissionTests(unittest.TestCase):
             agent.Use()
         with self.assertRaises(AssertionError):
             agent.TurnOnBattery()
-        # Ordinary Actions can still read the Rogue's state. Performative
+        # Ordinary Actions can still read the broken Agent's state. Performative
         # Actions establish their own guards, as TurnOnBattery does above.
         self.assertIs(agent.ReadBattery(), False)
         self.assertIs(agent.battery_on, False)
@@ -636,7 +638,7 @@ class TaggingAdmissionTests(unittest.TestCase):
         events.clear()
         agent.ready = True
         Shape(agent)
-        self.assertEqual(events, ["shape gate", "shape gain", "base post"])
+        self.assertEqual(events, ["base post", "shape gate", "shape gain", "base post"])
         self.assertIn(agent, Shape)
 
     def test_flag_words_begin_at_field_entry(self):

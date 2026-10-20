@@ -2,7 +2,7 @@
 
 import unittest
 
-from TopKit import (Contract, Pin, Post, Pre, Tag, TagContractWarning,
+from TopKit import (Contract, Pin, Post, Pre, Tag, TagCompositionError, TagContractWarning,
                     TagPostconditionError)
 
 
@@ -137,8 +137,14 @@ class TagContractTruthTests(unittest.TestCase):
         Original(Agency)
         Agency.ready = False
         self.assertFalse(Agency)
+        with self.assertRaisesRegex(TagCompositionError, "current Posts fail"):
+            Replacement(Agency)
+        self.assertNotIn(Agency, Replacement[:])
+
+        Agency.ready = True
         with self.assertWarns(TagContractWarning):
             Replacement(Agency)
+        Agency.ready = False
         self.assertTrue(Agency)
         self.assertEqual(Contract.Status(Agency), {"Ready": True})
 

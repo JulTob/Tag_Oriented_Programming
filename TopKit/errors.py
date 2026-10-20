@@ -87,8 +87,8 @@ class TagDeclarationError(TagError):
 
 
 class TagCompositionError(TagError):
-    """Contributions cannot form a coherent Overlay, or a Record cannot
-    be materialized, or a teardown failed."""
+    """A Tagging source has failed Posts, Contributions cannot form a
+    coherent Overlay, a Record cannot be materialized, or a teardown failed."""
 
 
 class TagResolutionError(TagError):

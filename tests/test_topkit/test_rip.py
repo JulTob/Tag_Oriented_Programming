@@ -150,9 +150,10 @@ class RipTests(unittest.TestCase):
         self.assertEqual(list(Operative), [])
         self.assertEqual(list(~Operative), [ari])
 
-        Agency(ari)
-        self.assertTrue(bool(ari))
-        self.assertEqual(list(Operative), [ari])
+        with self.assertRaisesRegex(TagCompositionError, "current Posts fail"):
+            Agency(ari)
+        self.assertNotIn(ari, Agency[:])
+        self.assertIn(ari, Operative[:])
 
     def test_ripping_a_base_pin_keeps_its_shape_pin(self) -> None:
         @Pin

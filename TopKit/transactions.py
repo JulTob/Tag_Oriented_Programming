@@ -24,6 +24,7 @@ from typing import Any
 import warnings
 
 from .contracts import _evaluate
+from .contracts import _holds_for_population
 from .declarations import _Declarations
 from .declarations import _discard_lazy_result
 from .declarations import _declarations_of
@@ -86,6 +87,14 @@ def _apply(
                         f"{tag.__name__} needs {member.__name__}, whose"
                         " Tagging has not finished"
                         )
+
+        # A fresh Tagging cannot act as the recovery protocol for a
+        # currently broken Agent. Active reapplication returned above.
+        if not _holds_for_population(agent):
+            raise TagCompositionError(
+                    f"{tag.__name__} cannot start Tagging while the"
+                    " Agent's current Posts fail"
+                    )
 
     entry_class = type(agent)
     entry_host = (

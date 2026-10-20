@@ -48,7 +48,7 @@ at its own time.
 | Claim | Mark | Checked | When it fails |
 | --- | --- | --- | --- |
 | "You may enter" | `@Pre` | at that Tag's door, once | current Tag never starts; earlier turns stay |
-| "You will stay like this" | `@Post` | after each Tag enters its Field, then at later tagging and published-member use | the Tag stays; the Agent is **defective** |
+| "You will stay like this" | `@Post` | before new Tagging, after each Tag enters its Field, and at published-member use | the Agent is **defective**; a new Tagging waits for repair |
 | "You may use what we share" | `@Public` | at every use | refused until membership and soundness return |
 
 The first two are conditions the Tag declares. The third is not declared
@@ -106,25 +106,30 @@ sandbox for arbitrary Python effects.
 
 After the Gate, Actions, Records, condition definitions and deletions take
 effect in declaration order, top to bottom, with each acquired Gain or
-condition visible to subsequent declarations. Then Imprints
-train the Agent; only after they finish does it enter the Field. If Gainings
-or Imprints fail, actual Gains and earlier completed Tags remain, but this
-Tag is absent: the Agent is Rogue with respect to it. Calling `Tag(agent)`
-again passes a fresh Gate, overlays ordinary Gains and restarts Imprints.
-Established Constants remain protected; retry does not resume an instruction.
+condition visible to subsequent declarations. Then Imprints train the Agent.
+An ordinary Imprint failure gives a named Training Warning; later Imprints
+still run, and the Agent enters the Field. Every visible Post is then
+inspected. A Gaining failure before FieldAdding instead retains actual
+Gains and earlier completed Tags without admitting this Tag: the Agent is
+Rogue with respect to it. Calling `Tag(agent)` again passes a fresh Gate,
+overlays ordinary Gains and restarts Imprints. An admitted Agent must Rip
+that Tag before a fresh training attempt. Established Constants remain
+protected; retry does not resume an instruction.
 
 Acquired conditions, including Posts and Constant Posts, also remain after
-failed training. They govern the Rogue's current contract status and guards
-on published members of its active Tags. Put a safety Post before the Action
+a pre-Field Gaining failure. They govern the Rogue's current contract status
+and guards on published members of its active Tags. Put a safety Post before
+the Action
 that needs it. An ordinary Action can read the named condition before effects,
 such as `if not agent.Insulated: raise PermissionError(...)`; a Post definition
 does not automatically wrap ordinary Action calls. Ordinary Posts still follow
 the existing composition rules, while Constant Posts remain protected.
 
 During training, the Tag's published Reports and Operations and its
-Agent-bound view are unavailable through the Agent. Unfinished training
-does not trigger Rip and lies outside `Tag[:]`; the program owns cleanup of
-resources acquired in that attempt.
+Agent-bound view are unavailable through the Agent. A Gaining failure
+before FieldAdding does not trigger Rip and lies outside `Tag[:]`; the
+program owns cleanup of resources acquired in that attempt. An Imprint
+failure still leads to FieldAdding and ordinary Rip remains available.
 
 ---
 
@@ -132,8 +137,8 @@ resources acquired in that attempt.
 
 A Postcondition is a promise about the finished Agent. Every visible Post is
 checked after each Tag in the Form completes training and enters its Field,
-before the next Tag's Gate, and again at later completed Taggings and
-published-member uses. A Base Post must hold when Base enters. If a Shape
+before any later Tagging begins, and at published-member uses. A Base Post
+must hold when Base enters. If a Shape
 needs to establish a further requirement, declare that Post on the Shape or
 prepare the Base before its Field entry. When a Post breaks, the Agent
 remains in the Field. It is absent from the sound
@@ -376,11 +381,13 @@ Two repairs, two names.
 
 ---
 
-## 7. Quarantine: a gate that reads another Tag's defect
+## 7. Quarantine: a gate that reads another Tag's standing
 
-Conditions can ask about other Tags, including whether an Agent is
-defective under them. Sickbay quarantines exactly the crew who are
-infected, which is a broken promise of `Healthy`.
+Conditions can ask about other Tags. Sickbay can admit someone to
+`Quarantined` while they are still a sound member of `Healthy`, when
+exposure calls for observation. If infection later breaks `Healthy`'s
+Post, `~Healthy` identifies the deficient member without removing either
+Field membership.
 
 ```python
 class Healthy(Tag):
@@ -394,7 +401,7 @@ class Quarantined(Tag):
 
     @Pre
     def Is_A_Case(agent):
-        return agent in ~Healthy         # defective under Healthy
+        return agent.exposed and agent in Healthy
 
     @Record
     def bay(agent):
@@ -406,22 +413,22 @@ class Quarantined(Tag):
 
 
 Healthy(worf)
+worf.exposed = False
 
 try:
     Quarantined(worf)
 except Precondition.Is_A_Case:
-    pass                                # healthy crew are not quarantined
+    pass                                # no exposure yet
 
-worf.infected = True                    # exposure, during play
-assert worf in ~Healthy
-
-try:
-    Quarantined(worf)                   # the gate opens exactly now
-except Postcondition.Not_Infected:
-    pass                                # applied; and the tagging reports the standing defect
-
-assert worf in Quarantined[:]             # admitted, though Healthy is still defective
+worf.exposed = True
+Quarantined(worf)                       # sound Agent passes its own Gate
+assert worf in Quarantined[:]
 assert worf.bay == "isolation ward 2"
+
+worf.infected = True                    # the admitted Agent becomes deficient
+assert worf in ~Healthy
+assert worf in Quarantined[:]           # admission survives damage
+assert worf not in Quarantined          # sound population excludes it
 
 worf.infected = False                   # treated
 assert worf in list(Healthy)
@@ -429,10 +436,10 @@ del Quarantined[worf]                   # discharged: the Rip protocol runs
 assert worf.bay is None
 ```
 
-Notice the `except` around the quarantine. Every tagging re-checks every
-promise on the Agent, so tagging a defective Agent applies the Tag and
-then reports the defect that is still standing. Quarantine went through;
-the ship's medical record still says infected. That is the point.
+The Agent entered `Quarantined` while sound, then became deficient.
+Starting a new Tagging while an existing Post fails is refused before its
+Gate. Repair the existing Agent through its own means first; another Tag
+does not silently become its recovery protocol.
 
 ---
 

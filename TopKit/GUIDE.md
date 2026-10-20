@@ -164,12 +164,16 @@ That last line surprises people. TOP calls this a **Rogue Agent**: it has
 what it learned, but no active membership. If a Tag must clean up after
 itself, it says so with `@Rip` (pattern 9).
 
-Unfinished Tagging can also produce a Rogue: Gainings or Imprints failed
-before the Agent entered the Field, leaving its actual Gains without
-membership. Calling `Tag(agent)` again starts a fresh attempt. The Gate
-judges the Agent as it is now, ordinary Gains overlay it, and Imprints
-restart. Successfully established Constants stay protected. A failed
+Unfinished Tagging can also produce a Rogue: a Gaining failed before the
+Agent entered the Field, leaving its actual Gains without membership.
+Calling `Tag(agent)` again starts a fresh attempt. The Gate judges the
+Agent as it is now, ordinary Gains overlay it, and Imprints restart.
+Successfully established Constants stay protected. That unfinished
 attempt does not count as having been in the Tag for `isinstance`.
+An ordinary Imprint failure is different: each failed Imprint gives a
+named Training Warning, later Imprints still run, and the Agent enters
+the Field. Its Posts then decide whether it is sound. Applying that
+active Tag again is a no-op; Rip it before training it afresh.
 
 Acquired conditions remain too, including Posts and Constant Posts. They
 continue to judge the Rogue's current state, just as contracts stay after
@@ -785,10 +789,11 @@ Post judges the Agent after each Tag's Field entry, before the next Tag's
 Gate. A broken promise leaves this Tag's membership in place and stops
 the remaining Form.
 
-`@Rip` runs after an admitted Agent leaves. A failed training attempt never
-joined the Field, so it triggers no automatic Rip and is outside `Tag[:]`.
+`@Rip` runs after an admitted Agent leaves. A Gaining failure before
+FieldAdding leaves a Rogue outside `Tag[:]`; it triggers no automatic Rip.
 The program handles cleanup of that attempt's resources with ordinary
-Python error handling.
+Python error handling. Ordinary Imprint failures still admit the Agent,
+which can then leave through the usual Rip protocol.
 
 Declare a safety Post before the Action that needs it. An Action can read
 its named condition before effects, such as
@@ -804,13 +809,16 @@ teaches for a lock: **tag before `try`, Rip in `finally`.** A `finally`
 always runs when its `try` ends, whether the block finished or raised.
 
 Tag *before* the `try`, not inside it. A Gate refusal then raises before
-the block starts and leaves this Tag unstarted. Failed Gainings or Imprints
-leave actual Gains outside this Tag; a broken Post leaves it admitted.
-All are reported at the Tagging statement, before this `try`, so its
-`finally` never begins. An unconditional Rip in a `finally` covering failed
-Tagging could try to expel a never-member and obscure the original failure.
-Handle unfinished training effects separately with ordinary Python error
-handling.
+the block starts and leaves this Tag unstarted. A failed Gaining may leave
+actual Gains outside this Tag; a broken Post leaves it admitted. Each
+ordinary Imprint failure gives a named Training Warning. If Posts hold,
+Tagging returns the admitted Agent and the block runs. A broken Post raises
+at the Tagging statement, before this `try`, so its `finally` never begins.
+Promoting a Training Warning to an exception can also stop the block after
+admission. An unconditional Rip in a `finally` covering failed Tagging
+could try to expel a never-member and obscure the original failure. Check
+membership when handling a failed Tagging; clean up a Rogue's resources
+separately with ordinary Python error handling.
 
 If the Agent may carry the Tag already, take away only what the block
 gave:
