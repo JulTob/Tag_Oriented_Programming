@@ -75,9 +75,9 @@ class DocumentTests(unittest.TestCase):
     def test_the_tagging_wiki_page(self) -> None:
         self.assertGreater(Run_Blocks(ROOT / "wiki" / "1.5-TopKit-Tagging.md"), 5)
 
-    def test_the_neutral_features_wiki_page(self) -> None:
+    def test_the_optional_features_wiki_page(self) -> None:
         self.assertEqual(
-            Run_Blocks(ROOT / "wiki" / "1.8-TopKit-Neutral-Features.md"),
+            Run_Blocks(ROOT / "wiki" / "1.8-TopKit-Optional-Features.md"),
             0,
         )
 
