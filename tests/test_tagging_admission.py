@@ -64,7 +64,7 @@ class TaggingAdmissionTests(unittest.TestCase):
             @Post
             def Admitted(agent):
                 events.append("post")
-                return agent in Assembled
+                return agent in Assembled[:]
 
         agent = Host()
         self.assertIs(Assembled(agent), agent)
