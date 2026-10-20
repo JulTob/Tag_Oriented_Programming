@@ -39,7 +39,7 @@ class DefectiveTaggingTests(unittest.TestCase):
         with self.assertRaises(TagPostconditionError):
             Candidate_Record(ari)
 
-        self.assertIn(ari, Candidate_Record)          # still a member
+        self.assertNotIn(ari, Candidate_Record)       # not sound
         self.assertIn(ari, Candidate_Record[:])       # everyone
         self.assertEqual(ari.token, "prepared")
         self.assertFalse(bool(ari))
@@ -65,6 +65,10 @@ class DefectiveTaggingTests(unittest.TestCase):
         self.assertEqual(list(Candidate_Record), [good])
         self.assertEqual(list(~Candidate_Record), [bad])
         self.assertEqual(set(Candidate_Record[:]), {good, bad})
+        self.assertIn(good, Candidate_Record)
+        self.assertNotIn(bad, Candidate_Record)
+        self.assertIn(bad, Candidate_Record[:])
+        self.assertIn(bad, ~Candidate_Record)
         self.assertEqual(len(Candidate_Record), 1)
         self.assertEqual(len(~Candidate_Record), 1)
         self.assertEqual(len(Candidate_Record[:]), 2)
@@ -75,6 +79,7 @@ class DefectiveTaggingTests(unittest.TestCase):
         bad.ready = True
 
         self.assertFalse(~Candidate_Record)        # nobody left to repair
+        self.assertIn(bad, Candidate_Record)
 
     def test_posts_of_earlier_tags_recheck_on_later_tagging(self) -> None:
         ari = Agent()
@@ -91,7 +96,8 @@ class DefectiveTaggingTests(unittest.TestCase):
         with self.assertRaises(TagPostconditionError):
             Advanced(bea)
 
-        self.assertIn(bea, Advanced)
+        self.assertNotIn(bea, Advanced)
+        self.assertIn(bea, Advanced[:])                # admitted, but defective
         self.assertIn(bea, ~Advanced)
 
     def test_imprint_failure_keeps_raw_effects_without_admitting_the_tag(self) -> None:
