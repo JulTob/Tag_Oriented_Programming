@@ -40,12 +40,15 @@ from .geometry import _is_tag
 from .geometry import _is_tag_class
 from .memo import _class_namespace
 from .memo import _forget_memo
+from .memo import _metaclass_data_descriptor
 from .memo import _Tag_Memo
 from .memo import _memo_key
 from .memo import _memo_of
 from .memo import _namespace_snapshot
 from .memo import _remember_memo
+from .memo import _type_bases
 from .memo import _type_mro
+from .memo import _type_name
 
 
 _KIND = "__topkit_kind__"
@@ -540,18 +543,28 @@ def Pin(
             if _pin_namespace_changed(namespace, _namespace_snapshot(tag)):
                 continue
 
+            if _metaclass_data_descriptor(tag, _PIN):
+                break
+
             _refuse_late_pin(tag)
             type.__setattr__(tag, _PIN, True)
 
             try:
                 _check_pin_bases(tag)
-                _invalidate_declarations(tag)
+                # A retired memo can be the last owner of a program value.
+                # Keep it alive until after the Pin lock is released.
+                retired = _invalidate_declarations(tag)
             except BaseException:
                 type.__delattr__(tag, _PIN)  # refused: nothing changed
-                _invalidate_declarations(tag)
+                retired_after = _invalidate_declarations(tag)
                 raise
 
             return tag
+
+    raise TagDeclarationError(
+            f"@Pin cannot mark {_type_name.__get__(tag)}:"
+            " its metaclass has a data descriptor for the Pin mark"
+            )
 
 
 def _pin_namespace_changed(before: dict[str, Any], after: dict[str, Any]) -> bool:
@@ -574,13 +587,15 @@ def _refuse_late_pin(
     a declared Tool kind would start admitting Tags (§1.3, §1.9).
     An empty Field may be marked even if it held Agents before."""
 
+    tag_name = _type_name.__get__(tag)
     shapes = type.__subclasses__(tag)
 
     if shapes:
+        shape_name = _type_name.__get__(shapes[0])
         raise TagDeclarationError(
-                f"@Pin marks {tag.__name__} at its declaration, and it"
-                f" already has the Shape {shapes[0].__name__}: a Shape of a"
-                f" Pin is a Pin. Write @Pin over class {tag.__name__},"
+                f"@Pin marks {tag_name} at its declaration, and it"
+                f" already has the Shape {shape_name}: a Shape of a"
+                f" Pin is a Pin. Write @Pin over class {tag_name},"
                 " before its Shapes"
                 )
 
@@ -590,7 +605,7 @@ def _refuse_late_pin(
 
     if agents:
         raise TagDeclarationError(
-                f"@Pin marks {tag.__name__} at its declaration, and it"
+                f"@Pin marks {tag_name} at its declaration, and it"
                 " already has Agents: a Pin's Field holds Tags, never"
                 " objects (§1.9)"
                 )
@@ -598,10 +613,11 @@ def _refuse_late_pin(
     owner = _tool_owner_naming(tag)
 
     if owner is not None:
+        owner_name = _type_name.__get__(owner)
         raise TagDeclarationError(
-                f"@Pin marks {tag.__name__} at its declaration, and a @Tool"
-                f" already names {tag.__name__} as its kind"
-                f" ({owner.__name__}): a Pin is no"
+                f"@Pin marks {tag_name} at its declaration, and a @Tool"
+                f" already names {tag_name} as its kind"
+                f" ({owner_name}): a Pin is no"
                 " Tool kind, its Agents are Tags (§1.3)"
                 )
 
@@ -626,7 +642,7 @@ def _is_tag_base(
 
     return _is_tag_class(base) and any(
             _is_tag_class(deeper)
-            for deeper in base.__bases__
+            for deeper in _type_bases.__get__(base)
             )
 
 
@@ -637,7 +653,7 @@ def _check_pin_bases(
 
     bases = tuple(
             base
-            for base in tag.__bases__
+            for base in _type_bases.__get__(tag)
             if _is_tag_base(base)
             )
     pins = [
@@ -654,7 +670,7 @@ def _check_pin_bases(
         return
 
     raise TagDeclarationError(
-                f"{tag.__name__} mixes Pins and Tags in one Form; a Pin's"
+                f"{_type_name.__get__(tag)} mixes Pins and Tags in one Form; a Pin's"
                 " Bases must be Pins (STEP-SPEC-9 §2)"
                 )
 
@@ -823,8 +839,8 @@ def _declaration_key(
 
 def _invalidate_declarations(
         tag: type,
-        ) -> None:
-    _forget_memo(tag, _declaration_key(tag))
+        ) -> Any:
+    return _forget_memo(tag, _declaration_key(tag))
 
 
 def _is_private(
@@ -1117,27 +1133,33 @@ def _note_kinds(
     """Remember the Tags a declared Tool names, so marking one of them a
     Pin later is refused (``_refuse_late_pin``)."""
 
-    for term in kind.terms:
-        for alternative in term:
-            if not _is_tag(alternative):
-                continue
+    _note_tag_kinds(
+            owner,
+            tuple(alternative for term in kind.terms
+                  for alternative in term if _is_tag(alternative)),
+            )
 
-            key = id(alternative)
-            current = _kinds_named.get(key)
 
-            if current is not None and current[0]() is alternative:
-                current[1][id(owner)] = owner
-                continue
+def _note_tag_kinds(owner: type, tags: tuple[type, ...]) -> None:
+    """Register already-inspected Tag kinds while Pin publication is locked."""
 
-            def Forget(expired: ref[type], key: int = key) -> None:
-                with _pin_mark_lock:
-                    entry = _kinds_named.get(key)
-                    if entry is not None and entry[0] is expired:
-                        del _kinds_named[key]
+    for alternative in tags:
+        key = id(alternative)
+        current = _kinds_named.get(key)
 
-            owners: WeakValueDictionary[int, type] = WeakValueDictionary()
-            owners[id(owner)] = owner
-            _kinds_named[key] = (ref(alternative, Forget), owners)
+        if current is not None and current[0]() is alternative:
+            current[1][id(owner)] = owner
+            continue
+
+        def Forget(expired: ref[type], key: int = key) -> None:
+            with _pin_mark_lock:
+                entry = _kinds_named.get(key)
+                if entry is not None and entry[0] is expired:
+                    del _kinds_named[key]
+
+        owners: WeakValueDictionary[int, type] = WeakValueDictionary()
+        owners[id(owner)] = owner
+        _kinds_named[key] = (ref(alternative, Forget), owners)
 
 
 def _refuse_pin_tool_kind(owner: type, name: str, kind: Any) -> None:

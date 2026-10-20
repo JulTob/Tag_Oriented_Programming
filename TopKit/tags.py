@@ -27,7 +27,6 @@ for tag in Rare, Rare[Wizard], del Rare[Wizard], f"{Wizard:pins}".
 
 from __future__ import annotations
 
-from contextlib import nullcontext
 from typing import Any
 from typing import Iterator
 
@@ -47,14 +46,13 @@ from .declarations import _is_dunder
 from .declarations import _is_pin
 from .declarations import _kind_of
 from .declarations import _name_checks
-from .declarations import _note_kinds
+from .declarations import _note_tag_kinds
 from .declarations import _pin_mark_lock
 from .declarations import _refuse_condition_dunder
-from .declarations import _refuse_pin_tool_kind
-from .declarations import _refuse_tools_on_a_pin
 from .declarations import _refuse_truth_gain
 from .declarations import _tool_kind_of_static
 from .errors import TagCompositionError
+from .errors import TagDeclarationError
 from .fields import FIELD_SEAT
 from .fields import _Field
 from .fields import _Partition
@@ -65,11 +63,46 @@ from .geometry import _form_of
 from .geometry import _is_tag
 from .lifecycle import _rip
 from .memo import _class_namespace
+from .memo import _metaclass_data_descriptor
 from .observation import _refuse_observed_mutation
 from .state import Tagged
 from .state import _name_of
 from .state import _state_of
 from .transactions import _apply
+
+
+def _check_late_binding(tag: type, name: str, value: Any) -> None:
+    """Run declaration and Constant checks without holding the Pin lock."""
+
+    _refuse_truth_gain(tag.__name__, name, value)
+    if _is_dunder(name):
+        _refuse_condition_dunder(tag.__name__, name, _kind_of(value))
+    owner = _constant_owner(tag, name)
+
+    if owner is not None:
+        raise TagCompositionError(
+                f"{tag.__name__}.{name} is Constant from"
+                f" {owner.__name__}; it cannot be overwritten"
+                )
+
+    _check_constant_shapes(tag, name)
+
+
+def _tool_tag_kinds(kind: Any) -> tuple[type, ...]:
+    """Freeze a Tool's Tag alternatives before entering the Pin lock."""
+
+    from .tools import _Kind
+
+    if type(kind) is not _Kind or type(kind.terms) is not tuple:
+        raise TagDeclarationError("a late @Tool has invalid kind metadata")
+
+    tags = []
+    for term in kind.terms:
+        if type(term) is not tuple:
+            raise TagDeclarationError("a late @Tool has invalid kind metadata")
+        tags.extend(alternative for alternative in term if _is_tag(alternative))
+
+    return tuple(tags)
 
 
 class MetaTag(type):
@@ -113,28 +146,57 @@ class MetaTag(type):
         _refuse_observed_mutation("change an existing Tag class")
         tool_kind = _tool_kind_of_static(value)
 
-        with (_pin_mark_lock if tool_kind is not None else nullcontext()):
-            if tool_kind is not None:
-                if _is_pin(tag):
-                    _refuse_tools_on_a_pin(tag, {name: value})
-                _refuse_pin_tool_kind(tag, name, tool_kind)
-
-            _refuse_truth_gain(tag.__name__, name, value)
-            if _is_dunder(name):
-                _refuse_condition_dunder(tag.__name__, name, _kind_of(value))
-            owner = _constant_owner(tag, name)
-
-            if owner is not None:
-                raise TagCompositionError(
-                        f"{tag.__name__}.{name} is Constant from"
-                        f" {owner.__name__}; it cannot be overwritten"
-                        )
-
-            _check_constant_shapes(tag, name)
+        if tool_kind is None:
+            _check_late_binding(tag, name, value)
             super().__setattr__(name, value)
+            return
 
-            if tool_kind is not None and _class_namespace(tag).get(name) is value:
-                _note_kinds(tag, tool_kind)
+        tool_tags = _tool_tag_kinds(tool_kind)
+        while True:
+            # Hold the old binding strongly: replacing the class slot must
+            # not run its finalizer while the shared Pin lock is held.
+            old = _class_namespace(tag).get(name, _MISSING)
+            _check_late_binding(tag, name, value)
+
+            with _pin_mark_lock:
+                if _class_namespace(tag).get(name, _MISSING) is not old:
+                    continue
+
+                if _metaclass_data_descriptor(tag, name):
+                    refusal = "descriptor"
+                elif _is_pin(tag):
+                    refusal = "pin"
+                else:
+                    pinned_kind = next(
+                            (kind for kind in tool_tags if _is_pin(kind)),
+                            None,
+                            )
+                    if pinned_kind is not None:
+                        refusal = "kind"
+                    else:
+                        # A plain class-dictionary slot publishes together
+                        # with its Tool-kind registration. Descriptor slots
+                        # were refused above because they can run user code.
+                        type.__setattr__(tag, name, value)
+                        if _class_namespace(tag).get(name) is value:
+                            _note_tag_kinds(tag, tool_tags)
+                        return
+
+            if refusal == "descriptor":
+                raise TagDeclarationError(
+                        f"{tag.__name__}.{name}: a late @Tool cannot replace"
+                        " a metaclass data descriptor"
+                        )
+            if refusal == "pin":
+                raise TagDeclarationError(
+                        f"{tag.__name__}.{name}: a Pin's Records land as"
+                        " Reports of the pinned Tag; a shared tool is a"
+                        " Report (§1.9)"
+                        )
+            raise TagDeclarationError(
+                    f"{tag.__name__}.{name}: @Tool cannot name"
+                    f" {pinned_kind.__name__}, now a Pin (§1.3)"
+                    )
 
     def __delattr__(
             tag,

@@ -13,6 +13,8 @@ from typing import Any
 _publication = RLock()
 _type_namespace = type.__dict__["__dict__"]
 _type_mro = type.__dict__["__mro__"]
+_type_bases = type.__dict__["__bases__"]
+_type_name = type.__dict__["__name__"]
 
 
 @dataclass(slots=True)
@@ -34,6 +36,24 @@ def _memo_key(tag: type, kind: str) -> str:
 def _class_namespace(tag: type) -> Any:
     # vars/type.__getattribute__ can still evaluate a metaclass property.
     return _type_namespace.__get__(tag)
+
+
+def _metaclass_data_descriptor(tag: type, name: str) -> bool:
+    """Whether publishing this class binding would call user descriptor code."""
+
+    for meta in _type_mro.__get__(type(tag)):
+        namespace = _class_namespace(meta)
+        if name not in namespace:
+            continue
+
+        member = namespace[name]
+        return any(
+                "__set__" in _class_namespace(base)
+                or "__delete__" in _class_namespace(base)
+                for base in _type_mro.__get__(type(member))
+                )
+
+    return False
 
 
 def _metaclass_binding(tag: type, name: str) -> bool:
@@ -72,13 +92,14 @@ def _remember_memo(tag: type, name: str, value: Any) -> Any:
     return value
 
 
-def _forget_memo(tag: type, name: str) -> None:
+def _forget_memo(tag: type, name: str) -> Any:
     with _publication:
         memo = _class_namespace(tag).get(name)
         if type(memo) is _Tag_Memo and memo.owner is tag and memo.name == name:
             # Retire the value even when deleting the class binding would
             # call a program's metaclass descriptor. A later warm read
             # must miss, and the old scan must release its references.
+            retired = memo.payload.value
             memo.payload.value = None
             # Releasing the old value may run a finalizer or weakref
             # callback that replaces the class binding. Delete only the
@@ -86,6 +107,10 @@ def _forget_memo(tag: type, name: str) -> None:
             if (not _metaclass_binding(tag, name)
                     and _class_namespace(tag).get(name) is memo):
                 type.__delattr__(tag, name)
+
+            return retired
+
+    return None
 
 
 def _namespace_snapshot(tag: type) -> dict[str, Any]:

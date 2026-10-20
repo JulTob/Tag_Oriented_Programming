@@ -1418,6 +1418,140 @@ class Late_Pin_Tests(unittest.TestCase):
         self.assertFalse(second.is_alive())
         self.assertEqual(failures, [])
 
+    def test_late_tool_checks_old_binding_outside_pin_lock(self):
+        class Kind(Tag):
+            pass
+
+        entered = Event()
+        release = Event()
+        peer_done = Event()
+        outcomes = []
+
+        class Old:
+            armed = False
+
+            def __call__(self, agent):
+                return None
+
+            def __getattribute__(self, name):
+                if name == "__topkit_constant__" and object.__getattribute__(self, "armed"):
+                    entered.set()
+                    while not peer_done.is_set() and not release.wait(0.01):
+                        pass
+                return object.__getattribute__(self, name)
+
+        old = Old()
+
+        class Collector(Tag):
+            prize = old
+
+        old.armed = True
+
+        @Tool(Kind)
+        def prize(agent):
+            return None
+
+        def assign():
+            try:
+                Collector.prize = prize
+            except TagDeclarationError:
+                outcomes.append("refused")
+            except BaseException as error:
+                outcomes.append(error)
+            else:
+                outcomes.append("accepted")
+
+        def mark_kind():
+            try:
+                Pin(Kind)
+            except BaseException as error:
+                outcomes.append(error)
+            finally:
+                peer_done.set()
+
+        first = Thread(target=assign)
+        second = Thread(target=mark_kind)
+        first.start()
+        try:
+            self.assertTrue(entered.wait(2))
+            second.start()
+            self.assertTrue(peer_done.wait(1), "Pin blocked behind old binding getter")
+        finally:
+            release.set()
+            first.join(2)
+            if second.ident is not None:
+                second.join(2)
+
+        self.assertFalse(first.is_alive())
+        self.assertFalse(second.is_alive())
+        self.assertEqual(outcomes, ["refused"])
+        self.assertIs(Collector.__dict__["prize"], old)
+
+    def test_late_tool_on_pin_does_not_read_callable_mark_under_lock(self):
+        @Pin
+        class Rare(Tag):
+            pass
+
+        class Kind(Tag):
+            pass
+
+        class Builder:
+            armed = False
+
+            def __call__(self, agent):
+                return None
+
+            def __getattribute__(self, name):
+                if name == "__topkit_tool__" and object.__getattribute__(self, "armed"):
+                    raise AssertionError("late Tool mark was read dynamically")
+                return object.__getattribute__(self, name)
+
+        builder = Tool(Kind)(Builder())
+        builder.armed = True
+        with self.assertRaises(TagDeclarationError):
+            Rare.prize = builder
+        self.assertNotIn("prize", Rare.__dict__)
+
+    def test_replaced_binding_finalizer_runs_after_pin_lock(self):
+        class Kind(Tag):
+            pass
+
+        class Peer(Tag):
+            pass
+
+        finalized = Event()
+        peer_done = Event()
+        failures = []
+
+        def mark_peer():
+            try:
+                Pin(Peer)
+            except BaseException as error:
+                failures.append(error)
+            finally:
+                peer_done.set()
+
+        class Old:
+            def __del__(self):
+                finalized.set()
+                peer = Thread(target=mark_peer)
+                peer.start()
+                if not peer_done.wait(1):
+                    failures.append(AssertionError("Pin blocked by old binding finalizer"))
+                peer.join(2)
+
+        class Collector(Tag):
+            prize = Old()
+
+        @Tool(Kind)
+        def prize(agent):
+            return None
+
+        Collector.prize = prize
+        self.assertTrue(finalized.is_set())
+        self.assertTrue(peer_done.is_set())
+        self.assertEqual(failures, [])
+
     def test_pin_rechecks_when_a_tool_lands_during_unlocked_scan(self):
         import TopKit.declarations as declarations
 
@@ -1483,6 +1617,62 @@ class Late_Pin_Tests(unittest.TestCase):
         self.assertIs(Pin(Rare), Rare)
         Rare(Wizard)
         self.assertIn(Wizard, Rare[:])
+
+    def test_a_metaclass_descriptor_cannot_run_under_pin_lock(self):
+        setter_entered = Event()
+        setter_release = Event()
+        peer_done = Event()
+        outcomes = []
+
+        class Blocking:
+            def __set__(self, owner, value):
+                setter_entered.set()
+                if not setter_release.wait(2):
+                    raise TimeoutError("peer Pin blocked behind mark descriptor")
+
+        class Meta(MetaTag):
+            __topkit_pin__ = Blocking()
+
+        class Candidate(Tag, metaclass=Meta):
+            pass
+
+        class Peer(Tag):
+            pass
+
+        def mark_candidate():
+            try:
+                Pin(Candidate)
+            except TagDeclarationError:
+                outcomes.append("refused")
+            except BaseException as error:
+                outcomes.append(error)
+            else:
+                outcomes.append("accepted")
+
+        def mark_peer():
+            try:
+                Pin(Peer)
+            except BaseException as error:
+                outcomes.append(error)
+            finally:
+                peer_done.set()
+
+        first = Thread(target=mark_candidate)
+        second = Thread(target=mark_peer)
+        first.start()
+        try:
+            second.start()
+            self.assertTrue(peer_done.wait(1), "Pin blocked by mark descriptor")
+        finally:
+            setter_release.set()
+            first.join(2)
+            second.join(2)
+
+        self.assertFalse(first.is_alive())
+        self.assertFalse(second.is_alive())
+        self.assertFalse(setter_entered.is_set())
+        self.assertEqual(outcomes, ["refused"])
+        self.assertNotIn("__topkit_pin__", Candidate.__dict__)
 
     def test_a_metaclass_cannot_discard_a_refused_pins_rollback(self):
         class Discard(MetaTag):
@@ -1749,10 +1939,17 @@ class Late_Pin_Tests(unittest.TestCase):
             Rare.prize = prize
         self.assertNotIn("prize", Rare.__dict__)
 
-    def test_a_metaclass_interception_does_not_register_a_tool_owner(self):
+    def test_late_tool_refuses_metaclass_setter_before_it_runs(self):
+        setter_entered = Event()
+        setter_release = Event()
+        peer_done = Event()
+        outcomes = []
+
         class Absorb:
             def __set__(self, owner, value):
-                pass
+                setter_entered.set()
+                if not setter_release.wait(2):
+                    raise TimeoutError("peer Pin blocked behind descriptor setter")
 
         class Meta(MetaTag):
             prize = Absorb()
@@ -1767,7 +1964,39 @@ class Late_Pin_Tests(unittest.TestCase):
         def prize(agent):
             return None
 
-        Collector.prize = prize
+        def assign():
+            try:
+                Collector.prize = prize
+            except TagDeclarationError:
+                outcomes.append("refused")
+            except BaseException as error:
+                outcomes.append(error)
+            else:
+                outcomes.append("accepted")
+
+        def mark_peer():
+            try:
+                Pin(Prize)
+            except BaseException as error:
+                outcomes.append(error)
+            finally:
+                peer_done.set()
+
+        first = Thread(target=assign)
+        second = Thread(target=mark_peer)
+        first.start()
+        try:
+            second.start()
+            self.assertTrue(peer_done.wait(1), "Pin blocked behind descriptor setter")
+        finally:
+            setter_release.set()
+            first.join(2)
+            second.join(2)
+
+        self.assertFalse(first.is_alive())
+        self.assertFalse(second.is_alive())
+        self.assertFalse(setter_entered.is_set())
+        self.assertEqual(outcomes, ["refused"])
         self.assertNotIn("prize", Collector.__dict__)
         self.assertIs(Pin(Prize), Prize)
 
