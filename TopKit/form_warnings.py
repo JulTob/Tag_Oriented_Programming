@@ -8,6 +8,7 @@ an independent Tagging or a reversed Overlay still warns at its own call.
 from __future__ import annotations
 
 from contextvars import ContextVar
+from inspect import currentframe
 from os import sep
 from os.path import dirname
 import warnings
@@ -29,6 +30,30 @@ _Collision = tuple[type, type, str, str]  # new Tag, prior Tag, kind, name
 _current: ContextVar[frozenset[_Collision]] = ContextVar(
         "topkit_form_warnings", default=frozenset(),
         )
+_PACKAGE_PREFIX = dirname(__file__) + sep
+
+
+def _declaration_stacklevel(shape: type) -> int:
+    """Point through a custom MetaTag ``__new__`` to its class statement."""
+
+    frame = currentframe()
+    level = 0
+    try:
+        while frame is not None:
+            level += 1
+            code = frame.f_code
+            first = code.co_varnames[0] if code.co_argcount else None
+            custom_meta_new = (
+                    code.co_name == "__new__"
+                    and first is not None
+                    and frame.f_locals.get(first) is type(shape)
+                    )
+            if not code.co_filename.startswith(_PACKAGE_PREFIX) and not custom_meta_new:
+                return level - 1
+            frame = frame.f_back
+    finally:
+        del frame
+    return 1
 
 
 def _declared_collisions(shape: type) -> frozenset[_Collision]:
@@ -146,7 +171,7 @@ def _declared_collisions(shape: type) -> frozenset[_Collision]:
                 f" over {origin.__name__}.{name} (an independent Tag's {kind})"
                 f"{suffix}",
                 category,
-                skip_file_prefixes=(dirname(__file__) + sep,),
+                stacklevel=_declaration_stacklevel(shape),
                 )
     return result
 

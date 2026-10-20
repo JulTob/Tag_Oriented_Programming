@@ -112,7 +112,8 @@ class FormWarningTests(unittest.TestCase):
 
     def test_custom_metatag_subclass_keeps_declaration_diagnosis(self) -> None:
         class Extension(MetaTag):
-            pass
+            def __new__(meta, name, bases, namespace, **kwargs):
+                return super().__new__(meta, name, bases, namespace, **kwargs)
 
         class A(Tag):
             @Action
@@ -126,6 +127,7 @@ class FormWarningTests(unittest.TestCase):
 
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
+            declaration_line = inspect.currentframe().f_lineno + 1
             class C(A, B, metaclass=Extension):
                 pass
 
@@ -134,6 +136,8 @@ class FormWarningTests(unittest.TestCase):
 
         self.assertEqual(len(caught), 1, caught)
         self.assertIn("C's Form", str(caught[0].message))
+        self.assertEqual(caught[0].filename, __file__)
+        self.assertEqual(caught[0].lineno, declaration_line)
 
     def test_invalid_underlay_keeps_its_application_time_failure(self) -> None:
         class A(Tag):
