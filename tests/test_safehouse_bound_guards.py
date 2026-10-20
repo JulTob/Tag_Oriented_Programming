@@ -21,6 +21,13 @@ class Host:
     pass
 
 
+def _arrest(agent: object, tag: type) -> _Arrest:
+    arrest = _Arrest(agent)
+    arrest.runs.append(SimpleNamespace(tag=tag))
+    _safehouse[id(agent)] = arrest
+    return arrest
+
+
 class SafehouseBoundGuardTests(unittest.TestCase):
     def test_captured_action_runs_only_through_its_rip_door(self) -> None:
         class Fighter(Tag):
@@ -214,6 +221,103 @@ class SafehouseBoundGuardTests(unittest.TestCase):
 
         result.close()
         self.assertEqual(events, ["first", "second", "finally"])
+
+    def test_generator_cannot_yield_after_arresting_its_agent(self) -> None:
+        events = []
+
+        class Fighter(Tag):
+            def Steps(agent):
+                try:
+                    _arrest(agent, Fighter)
+                    yield "must not escape"
+                    yield "repair step"
+                finally:
+                    events.append("finalized")
+
+        agent = Host()
+        Fighter(agent)
+        with patch.dict(_safehouse, {}, clear=True):
+            result = agent.Steps()
+            with self.assertRaises(TagArrestedAccessError):
+                next(result)
+            self.assertEqual(len(_safehouse[id(agent)].lazy), 1)
+            self.assertEqual(events, [])
+
+            with _rip_door(agent):
+                self.assertEqual(next(result), "repair step")
+                result.close()
+            self.assertEqual(events, ["finalized"])
+
+    def test_generator_throw_cannot_yield_after_arrest(self) -> None:
+        class Fighter(Tag):
+            def Steps(agent):
+                try:
+                    yield "first"
+                except ValueError:
+                    _arrest(agent, Fighter)
+                    yield "must not escape"
+
+        agent = Host()
+        Fighter(agent)
+        with patch.dict(_safehouse, {}, clear=True):
+            result = agent.Steps()
+            self.assertEqual(next(result), "first")
+            with self.assertRaises(TagArrestedAccessError):
+                result.throw(ValueError("continue"))
+            self.assertEqual(len(_safehouse[id(agent)].lazy), 1)
+            with _rip_door(agent):
+                result.close()
+
+    def test_generator_return_value_stays_in_custody(self) -> None:
+        class Fighter(Tag):
+            def Finish(agent):
+                if False:
+                    yield None
+                _arrest(agent, Fighter)
+                return "must not escape"
+
+        agent = Host()
+        Fighter(agent)
+        with patch.dict(_safehouse, {}, clear=True):
+            result = agent.Finish()
+            with self.assertRaises(TagArrestedAccessError):
+                next(result)
+            self.assertEqual(len(_safehouse[id(agent)].lazy), 1)
+
+    def test_coroutine_return_value_stays_in_custody(self) -> None:
+        class Fighter(Tag):
+            async def Finish(agent):
+                _arrest(agent, Fighter)
+                return "must not escape"
+
+        agent = Host()
+        Fighter(agent)
+        with patch.dict(_safehouse, {}, clear=True):
+            result = agent.Finish()
+            with self.assertRaises(TagArrestedAccessError):
+                result.send(None)
+            self.assertEqual(len(_safehouse[id(agent)].lazy), 1)
+
+    def test_coroutine_throw_cannot_yield_after_arrest(self) -> None:
+        class Fighter(Tag):
+            async def Steps(agent):
+                try:
+                    await asyncio.sleep(0)
+                except ValueError:
+                    _arrest(agent, Fighter)
+                    await asyncio.sleep(0)
+                return "finished"
+
+        agent = Host()
+        Fighter(agent)
+        with patch.dict(_safehouse, {}, clear=True):
+            result = agent.Steps()
+            self.assertIsNone(result.send(None))
+            with self.assertRaises(TagArrestedAccessError):
+                result.throw(ValueError("continue"))
+            self.assertEqual(len(_safehouse[id(agent)].lazy), 1)
+            with _rip_door(agent):
+                result.close()
 
     def test_native_async_generator_action_result_is_explicitly_refused(self) -> None:
         class Fighter(Tag):
