@@ -53,7 +53,13 @@ class _Post_Check:
         self.check_identity = id(check)
         self.owner_thread = get_ident()
         self.active = True
-        session = _post_session()
+        # The common one-Post read has no outer query. Leave its memo
+        # unallocated unless the Post itself asks another Post question.
+        session = (
+                _post_session()
+                if _post_checks.get() or _post_query_session.get() is not None
+                else None
+                )
         self.root = session is None
         self.session = session
         self.sensitive = False
@@ -72,7 +78,7 @@ class _Post_Session:
         self.owner_thread = get_ident()
         self.sensitive = sensitive
         self.results: dict[
-                tuple[int, int, frozenset[tuple[int, int]]],
+                tuple[int, int],
                 tuple[object, Check, bool],
                 ] = {}
 
@@ -92,8 +98,13 @@ _post_query_session: ContextVar[_Post_Session | None] = ContextVar(
 
 
 def _post_session() -> _Post_Session | None:
+    checks = _post_checks.get()
+    session = _post_query_session.get()
+    if not checks and session is None:
+        return None
+
     thread = get_ident()
-    for check in reversed(_post_checks.get()):
+    for check in reversed(checks):
         if check.active:
             # A copied ContextVar value shares the marker object. A worker
             # thread must not read or replace the parent's memo session.
@@ -107,15 +118,8 @@ def _post_session() -> _Post_Session | None:
             if check.session.owner_thread == thread:
                 return check.session
             break
-    session = _post_query_session.get()
     return (session if session is not None and session.active
             and session.owner_thread == thread else None)
-
-
-def _active_post_context() -> frozenset[tuple[int, int]]:
-    """Local design spike: share the first completed verdict across paths."""
-
-    return frozenset()
 
 
 @contextmanager
@@ -141,7 +145,7 @@ def _cached_post(agent: object, check: Check, inputs: dict[str, Any]) -> Any:
     if (session is None or inputs or _memo_sensitive(session)):
         return _MISSING
 
-    entry = session.results.get((id(agent), id(check), _active_post_context()))
+    entry = session.results.get((id(agent), id(check)))
     return (entry[2] if entry is not None
             and entry[0] is agent and entry[1] is check else _MISSING)
 
@@ -151,14 +155,12 @@ def _remember_post(
         check: Check,
         inputs: dict[str, Any],
         verdict: bool,
-        context: frozenset[tuple[int, int]] | None = None,
         ) -> None:
     session = _post_session()
     if (session is not None and not inputs
             and not _memo_sensitive(session)):
         session.results[
-                (id(agent), id(check),
-                 _active_post_context() if context is None else context)
+                (id(agent), id(check))
                 ] = (agent, check, verdict)
 
 
@@ -184,8 +186,7 @@ def _taint_post_memo() -> None:
         session.Taint()
 
 
-@contextmanager
-def _checking_post(agent: object, check: Check) -> Iterator[Any]:
+class _Checking_Post:
     """Mark and observe a Post's actual execution, independently of Pre reads.
 
     The marker holds only identities until a nested query needs a session;
@@ -193,23 +194,48 @@ def _checking_post(agent: object, check: Check) -> Iterator[Any]:
     inherit an *active* check after the Post finishes.
     """
 
-    marker = _Post_Check(agent, check)
-    token = _post_checks.set((*_post_checks.get(), marker))
+    __slots__ = ("agent", "check", "marker", "token", "observer")
 
-    try:
-        with _observing("a Postcondition") as flow:
-            yield flow
-    finally:
+    def __init__(self, agent: object, check: Check) -> None:
+        self.agent = agent
+        self.check = check
+
+    def __enter__(self) -> Any:
+        marker = _Post_Check(self.agent, self.check)
+        self.marker = marker
+        self.token = _post_checks.set((*_post_checks.get(), marker))
+        try:
+            observer = _observing("a Postcondition")
+            self.observer = observer
+            return observer.__enter__()
+        except BaseException:
+            self._close()
+            raise
+
+    def __exit__(self, exc_type: Any, exc: Any, traceback: Any) -> bool:
+        try:
+            return self.observer.__exit__(exc_type, exc, traceback)
+        finally:
+            self._close()
+
+    def _close(self) -> None:
+        marker = self.marker
         marker.active = False
         if marker.root and marker.session is not None:
             marker.session.active = False
             marker.session.results.clear()
-        _post_checks.reset(token)
+        _post_checks.reset(self.token)
+
+
+def _checking_post(agent: object, check: Check) -> _Checking_Post:
+    return _Checking_Post(agent, check)
 
 
 def _is_checking_post(agent: object, check: Check) -> bool:
+    thread = get_ident()
     for marker in _post_checks.get():
-        if (marker.active and marker.identity == id(agent)
+        if (marker.active and marker.owner_thread == thread
+                and marker.identity == id(agent)
                 and marker.check_identity == id(check)):
             return True
 
@@ -468,6 +494,10 @@ def _evaluate(
         ) -> None:
     """Run conditions; raise ``failure`` naming the first that does not hold."""
 
+    if post and _post_session() is None:
+        with _post_evaluation():
+            return _evaluate(checks, agent, inputs, failure, phase, post=True)
+
     for name, check in checks:
         if post and _is_checking_post(agent, check):
             continue
@@ -496,7 +526,6 @@ def _evaluate(
         flow = None
         if post:
             observation = _checking_post(agent, check)
-            context = _active_post_context()
         elif phase == "Precondition":
             observation = _pre_observation()
         else:
@@ -517,7 +546,7 @@ def _evaluate(
 
                 verdict = _verdict(result, f"{phase} {name!r}")
                 if post:
-                    _remember_post(agent, check, inputs, verdict, context)
+                    _remember_post(agent, check, inputs, verdict)
                 if not verdict:
                     raise failure.Named(name)(
                             f"{phase} {name!r} failed"
@@ -713,6 +742,11 @@ def _status_of(
 
     if state is None:
         return {}
+
+    if (scope == "postconditions" and state.postconditions
+            and _post_session() is None):
+        with _post_evaluation():
+            return _status_of(agent, scope)
 
     reentrant = state.checking
     if scope == "preconditions":

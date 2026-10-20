@@ -1,7 +1,7 @@
 """A recursive Post reads its own unfinished verdict as neutral True."""
 
 from contextvars import copy_context
-from threading import Thread
+from threading import Thread, get_ident
 import unittest
 import weakref
 
@@ -239,6 +239,31 @@ class PostNeutralCycleTests(unittest.TestCase):
         self.assertTrue(bool(agent))
         self.assertEqual(reads[0], 1)
         self.assertFalse(bool(agent))  # a new query sees the new sensor input
+
+    def test_named_and_status_queries_share_their_first_sibling_verdict(self):
+        armed = [False]
+        reads = [0]
+
+        class Sample(Tag):
+            @Post
+            def Pair(agent):
+                return True if not armed[0] else agent.Sensor
+
+            @Post
+            def Sensor(agent):
+                if not armed[0]:
+                    return True
+                reads[0] += 1
+                return reads[0] % 2 == 1
+
+        agent = Host()
+        Sample(agent)
+        armed[0] = True
+
+        self.assertTrue(Contract.Postconditions(agent))
+        self.assertEqual(reads[0], 1)
+        self.assertEqual(Contract.Status(agent), {"Pair": False, "Sensor": False})
+        self.assertEqual(reads[0], 2)
 
     def test_first_completed_verdict_is_shared_across_paths_in_one_query(self):
         seen = []
@@ -503,6 +528,35 @@ class PostNeutralCycleTests(unittest.TestCase):
 
         self.assertTrue(bool(witness))
         self.assertEqual(reads[0], 2)
+
+    def test_copied_thread_does_not_inherit_parent_active_post_as_neutral(self):
+        armed = [False]
+        main_thread = get_ident()
+        reads = []
+
+        class Subject(Tag):
+            @Post
+            def Ready(agent):
+                if not armed[0]:
+                    return True
+                reads.append(get_ident())
+                if get_ident() != main_thread:
+                    return False
+                result = []
+                context = copy_context()
+                worker = Thread(target=lambda: result.append(
+                        context.run(lambda: agent.Ready),
+                        ))
+                worker.start()
+                worker.join()
+                return result == [False]
+
+        subject = Host()
+        Subject(subject)
+        armed[0] = True
+
+        self.assertTrue(bool(subject))
+        self.assertEqual(len(reads), 2)
 
     def test_copied_thread_secret_probe_taints_parent_verdict_session(self):
         armed = [False]
