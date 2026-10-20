@@ -190,6 +190,11 @@ def _rip_field(tag: type) -> None:
 
     for agent, state, run in pending:
         _run_one(agent, state, run)
+        # A Field Rip is an explicit Rip for each starting member. Just
+        # like _rip, finish older saved work for this Agent after its
+        # chosen Tag's Rip, before moving to another Field member.
+        if _arrest_of(agent) is not None and not _may_act(agent):
+            _retry_arrested(agent)
 
 
 def _retry_arrested(

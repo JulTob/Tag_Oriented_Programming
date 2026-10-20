@@ -359,6 +359,62 @@ class FieldRipTests(unittest.TestCase):
         self.assertEqual(seen.count(("Finish", labels[failed])), 2)
         self.assertEqual(tuple(Hazard[...]), ())
 
+    def test_bulk_rip_retries_each_members_older_arrest_after_own_rip(self) -> None:
+        events = []
+        blocked = {}
+
+        class Wizard(Tag):
+            @Rip
+            def Release(agent):
+                events.append(("Wizard", agent))
+
+                if blocked[agent]:
+                    raise ValueError("still blocked")
+
+        class Fighter(Tag):
+            @Rip
+            def Stand_Down(agent):
+                events.append(("Fighter", agent))
+                self.assertEqual(tuple(Fighter[:]), ())
+
+        members = [Agent(), Agent()]
+
+        for member in members:
+            blocked[member] = True
+            Wizard(member)
+            Fighter(member)
+
+            with self.assertRaises(TagCompositionError):
+                del Wizard[member]
+
+        self.assertCountEqual(Fighter[:], members)
+        self.assertCountEqual(Wizard[...], members)
+        events.clear()
+
+        with self.assertRaises(TagCompositionError):
+            del Fighter[:]
+
+        attempted = [member for kind, member in events if kind == "Fighter"]
+        self.assertEqual(len(attempted), 1)
+        first = attempted[0]
+        other, = [member for member in members if member is not first]
+        self.assertEqual(events, [("Fighter", first), ("Wizard", first)])
+        self.assertEqual(tuple(Fighter[:]), ())
+        self.assertCountEqual(Fighter[...], [other])
+        self.assertCountEqual(Wizard[...], members)
+
+        blocked[other] = False
+        del Fighter[other]
+        self.assertEqual(events[-2:], [("Fighter", other), ("Wizard", other)])
+        self.assertCountEqual(Wizard[...], [first])
+
+        blocked[first] = False
+        del Wizard[first]
+        self.assertEqual(events.count(("Fighter", first)), 1)
+        self.assertEqual(events.count(("Fighter", other)), 1)
+        self.assertEqual(tuple(Fighter[...]), ())
+        self.assertEqual(tuple(Wizard[...]), ())
+
     def test_interruption_keeps_every_unvisited_member_in_custody(self) -> None:
         seen = []
         interrupted = False
