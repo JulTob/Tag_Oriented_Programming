@@ -34,19 +34,28 @@ jobs:
           python-version: ${{ matrix.python }}
       - name: The suite
         run: |
-          set -o pipefail
-          if PYTHONPATH=. python -m unittest discover -s tests -t . 2>&1 | tee suite.log; then
-            :
-          else
-            {
-              echo '## Python suite failure'
-              echo '```text'
-              tail -n 200 suite.log
-              echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
-            python -c 'import pathlib; s=pathlib.Path("suite.log").read_text()[-24000:]; print("::error title=Python suite failure::"+s.replace("%","%25").replace("\r","%0D").replace("\n","%0A"))'
-            exit 1
-          fi
+          PYTHONPATH=. python - <<'PY'
+          import unittest
+
+          original_failure = unittest.result.TestResult.addFailure
+          original_error = unittest.result.TestResult.addError
+
+          def report(kind, test, err):
+              name = test.id().replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+              print(f'::error title=unittest {kind}::{name} ({err[0].__name__})', flush=True)
+
+          def add_failure(self, test, err):
+              report('failure', test, err)
+              return original_failure(self, test, err)
+
+          def add_error(self, test, err):
+              report('error', test, err)
+              return original_error(self, test, err)
+
+          unittest.result.TestResult.addFailure = add_failure
+          unittest.result.TestResult.addError = add_error
+          unittest.main(module=None, argv=['unittest', 'discover', '-s', 'tests', '-t', '.'])
+          PY
 
   performance-observation:
     name: Performance ratios (observation only)
