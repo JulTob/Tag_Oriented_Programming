@@ -84,7 +84,10 @@ def _is_checking_post(agent: object) -> bool:
 
 
 def _holds_for_population(agent: object) -> bool:
-    """Soundness may not depend on a Post that is still judging this Agent."""
+    """A free Agent's soundness may not depend on its own running Post."""
+
+    if _arrest_of(agent) is not None:
+        return False
 
     state = _state_of(agent)
 
@@ -647,7 +650,8 @@ class Contract:
     def Status(
             agent: object,
             ) -> dict[str, bool]:
-        """``{condition: holds?}`` for every visible condition, never raising."""
+        """Verdicts for visible conditions. Ordinary check errors become
+        False; a self-referential soundness query raises Contract Failure."""
 
         return {
                 **_status_of(agent, "preconditions"),
