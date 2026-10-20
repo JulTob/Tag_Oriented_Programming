@@ -1204,6 +1204,11 @@ not a Tag and cannot be applied by itself. The syntax is not implemented;
 `Agent.Knows` is the settled spelling for the calling Agent's Link. The
 [proposal guide](../wiki/1.6.1-TopKit-Link-Underlays.md) records the boundary.
 
+Once Ruth is admitted to `ari.Trusts`, calling `ari.Trusts(ruth)` again is
+the ordinary active-Tag no-op. It does not apply underlays added to the
+Relation later. Rip Ruth from that Link and link her again to run the current
+underlays and training deliberately.
+
 ---
 
 ## Do and don't
