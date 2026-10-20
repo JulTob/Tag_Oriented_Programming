@@ -254,7 +254,9 @@ alicante.Rail(murcia, minutes=55)
 
 assert alicante.Rail[murcia].minutes == 55
 assert murcia.Rail[alicante].minutes == 55              # the way back exists
-assert alicante.Rail[murcia] is not murcia.Rail[alicante]   # two Pairs, two roads
+alicante.Rail[murcia].minutes = 60
+assert murcia.Rail[alicante].minutes == 55              # each direction keeps its own Pair
+alicante.Rail[murcia].minutes = 55
 ```
 
 Linking a city that is already linked, or repeating the same linking
@@ -351,33 +353,34 @@ seas for free.
 
 ---
 
-## 6. Kinds of link: a Motorway is a Road
+## 6. Link layers: a Motorway starts with a Road
 
-Some links are a kind of another. A motorway is a road with a toll. In
-the setting at the top, `Motorway` is declared as a **Shape** of `Road`.
-Linking through the Shape links through its Base first, and both share
-**one Pair**:
+In the setting at the top, `Motorway` names `Road` as its Base Relation.
+Linking through Motorway links the Contact through Road first, then
+Motorway. Each actual Link has its own Field and Pair:
 
 ```python
 alicante.Motorway(valencia, distance=170, speed_limit=120, toll=12)
 
+assert valencia in alicante.Road
 assert valencia in alicante.Motorway
-assert alicante.Road[valencia] is alicante.Motorway[valencia]   # one Pair
-assert alicante.Road[valencia].travel_time == 85                # the Road's facts
-assert alicante.Motorway[valencia].toll == 12                   # and the Motorway's
+assert alicante.Road[valencia].travel_time == 85       # Road's own Pair
+assert alicante.Motorway[valencia].toll == 12          # Motorway's own Pair
+assert not ("distance" @ alicante.Motorway[valencia])  # Road's Record stays with Road
 ```
 
-Use a Shape when the new link **is** the old one, plus more. Linking the
-Motorway first also links the Road. After that, each Field membership
-stands on its own. For example, a motorway can remain after its Road
-membership is Ripped:
+Use a Base Relation when the new Link should apply that Relation's
+training first. Read a Base Link's facts through that Link explicitly.
+The two memberships stand on their own: a Motorway can remain after its
+Road membership is Ripped.
 
 ```python
 del alicante.Road[valencia]
 
 assert valencia not in alicante.Road[:]
 assert valencia in alicante.Motorway[:]
-assert alicante.Motorway[valencia].distance == 170   # the Pair keeps its facts
+assert alicante.Motorway[valencia].toll == 12       # its own Pair keeps its facts
+assert not ("distance" @ alicante.Motorway[valencia])
 
 alicante.Motorway(valencia)                           # already linked: no new training
 assert valencia not in alicante.Road[:]
@@ -395,7 +398,7 @@ present when it starts leaves Road and enters Road's Safehouse before any
 Pair teardown runs. Teardowns then run one Contact at a time. A failure
 stops the remaining work, which stays in Safehouse for explicit retry,
 for example `del alicante.Road[valencia]`. A Contact still in Motorway
-keeps that separate membership and its shared Pair. The declaration
+keeps that separate membership and its own Pair. The declaration
 `Road` is only the Relation used to make each Agent's Link; it has no
 Field to Rip.
 
