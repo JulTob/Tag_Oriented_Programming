@@ -515,7 +515,15 @@ def _view_report_source(
     tag = view._tag
     state = _state_of(view._agent)
 
-    if state is None or not any(active is tag for active in state.active):
+    if state is None:
+        return None
+
+    view_position = next(
+            (index for index, active in enumerate(state.active) if active is tag),
+            None,
+            )
+
+    if view_position is None:
         return None
 
     pinned = _state_of(tag)
@@ -555,12 +563,14 @@ def _view_report_source(
 
     # This Tag declares no Report now. Read the first still-live Report
     # below it in the Overlay captured when this Tag last entered its Field.
-    # Later Tags never enter that prefix, and a departed source loses its
-    # Agent credentials even while the Tag's own Report value still exists.
+    # Later Tags never enter that prefix. A source Ripped and reTagged after
+    # this Tag has a new position and cannot regain the old view's access.
+    earlier = state.active[:view_position]
+
     for binding in reversed(snapshot.reports.get(name, ())):
         origin = binding.origin
 
-        if origin is tag or not any(active is origin for active in state.active):
+        if origin is tag or not any(active is origin for active in earlier):
             continue
 
         if _live_report_binding(name, binding) is not None:

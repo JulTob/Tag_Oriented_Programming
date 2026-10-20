@@ -145,6 +145,38 @@ class TagViewReportOverlayTests(unittest.TestCase):
             _ = view.colour
         self.assertFalse("colour" @ view)
 
+    def test_retagged_source_stays_above_older_shape_view(self):
+        class Base(Tag):
+            @Report
+            def colour(tag):
+                return "base"
+
+        class Other(Tag):
+            @Report
+            def colour(tag):
+                return "other"
+
+        class Shape(Base):
+            pass
+
+        agent = self.Host()
+        Base(agent)
+        Other(agent)
+        Shape(agent)
+        view = Shape[agent]
+        self.assertEqual(view.colour, "other")
+
+        del Other[agent]
+        self.assertEqual(view.colour, "base")
+
+        Other(agent)
+        self.assertEqual(Other[agent].colour, "other")
+        self.assertEqual(view.colour, "base")
+
+        del Shape[agent]
+        Shape(agent)
+        self.assertEqual(view.colour, "other")
+
     def test_saved_view_uses_new_tagging_point_after_retag(self):
         class Base(Tag):
             @Report

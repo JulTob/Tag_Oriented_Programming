@@ -434,7 +434,8 @@ Tagging sequence or expand its rollback boundary.
   its Tag's current own Report. Otherwise it reads the first still-visible
   binding from that recorded Overlay prefix, using the owning Tag's current
   value. Rip or deletion can reveal a lower binding; a later Tagging cannot
-  move a Report into an older view.
+  move a Report into an older view, even when it reapplies a Tag that had
+  once supplied that view.
   A published Report also reads live through the Agent.
 - **Failures name their check.** `TagPreconditionError`,
   `TagImprintError` and `TagPostconditionError` use the `_Named`
