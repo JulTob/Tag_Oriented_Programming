@@ -4,7 +4,7 @@ For each Tag in the Form (Bases first), in order:
 
     1. Gate: that Tag's declarations are checked against the current
        Overlay, then its Preconditions inspect the Agent at this turn.
-    2. Its Gains, conditions and deletions take effect in declaration
+    2. Its Gains, Posts and deletions take effect in declaration
        order. Each builder can read or call what is already acquired.
     3. Its Imprints run, with acquired Gains but no membership yet.
     4. Field entry establishes membership and published services.
@@ -14,8 +14,9 @@ Once for the whole call:
     5. Every visible Postcondition is checked.
 
 A refusal in 1 leaves completed Tags and existing Gains in place. A
-failure in 2 or 3 retains acquired Gains and Posts, but never admits the
-unfinished Tag. A failure after 4 retains membership. Current Posts
+failure in 2 or 3 retains acquired Actions and Records, but provisional
+Posts end because the unfinished Tag never formed a membership. A failure
+after 4 retains membership. Current Posts
 determine soundness; failures are not permanent defects. Python
 interruptions keep their original type and follow the same boundary.
 """
@@ -24,6 +25,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .contracts import _bind_condition
 from .contracts import _evaluate
 from .declarations import _Declarations
 from .declarations import _discard_lazy_result
@@ -40,6 +42,7 @@ from .fields import _field_of
 from .geometry import _form_of
 from .overlay import _install
 from .overlay import _gainings
+from .overlay import _remove_post_application
 from .overlay import _quiet
 from .overlay import _preflight_ordinary_gains
 from .state import STATE
@@ -116,7 +119,6 @@ def _apply(
                 and not state.ever
                 and not state.actions
                 and not state.records
-                and not state.preconditions
                 and not state.postconditions
                 and not state.deleted
                 ):
@@ -146,8 +148,8 @@ def _gate(
     An internal Report or Operation does not by itself require scratch
     composition; a public one does.
     Tags needing full composition are laid over a scratch copy of the state,
-    on top of completed Tags. Their composed Preconditions judge the live
-    Agent.
+    on top of completed Tags. Preconditions are separately bound as
+    transient Services over this Tag's ordered Form and judge the live Agent.
     """
 
     declarations = _declarations_of(tag)
@@ -155,12 +157,13 @@ def _gate(
             not declarations.gain_order
             and not declarations.reports
             and not declarations.operations
+            and not declarations.preconditions
             and not _is_flag(tag)
             ):
         return   # no Overlay or Flag protocol seat to validate
 
-    if declarations.preconditions or declarations.postconditions:
-        _refuse_conditions_shadowed_by_the_agent(
+    if declarations.postconditions:
+        _refuse_posts_shadowed_by_the_agent(
                 agent,
                 state,
                 tag,
@@ -169,14 +172,13 @@ def _gate(
     quiet = _quiet.set(_quiet.get() + 1)   # the real pass warns; catch_warnings() would reset every registry
 
     try:
-        if _preflight_ordinary_gains(state, tag, declarations):
-            return
-        scratch = state.Copy()
-        _install(
-                scratch,
-                tag,
-                declarations,
-                )
+        if not _preflight_ordinary_gains(state, tag, declarations):
+            scratch = state.Copy()
+            _install(
+                    scratch,
+                    tag,
+                    declarations,
+                    )
     finally:
         _quiet.reset(quiet)
 
@@ -187,11 +189,7 @@ def _gate(
 
     try:
         _evaluate(
-                (
-                    (name, scratch.preconditions[name])
-                    for name, _function in declarations.preconditions
-                    if name in scratch.preconditions
-                    ),
+                _precondition_services(tag),
                 agent,
                 inputs,
                 TagPreconditionError,
@@ -209,6 +207,7 @@ def _apply_one(
         ) -> None:
     declarations = _declarations_of(tag)
     deleted_before = set(state.deleted)
+    application = object()
     state.training.add(tag)
     state.composing += 1
     primary_failure: BaseException | None = None
@@ -251,6 +250,7 @@ def _apply_one(
                 deleted_before,
                 inputs,
                 prepare,
+                application,
                 )
 
         # A nested Imprint may lay another Action over a Rip name. Remember
@@ -273,13 +273,24 @@ def _apply_one(
 
         try:
             if has_header:
-                _install(state, tag, header)
+                _install(
+                        state,
+                        tag,
+                        header,
+                        application=application,
+                        )
                 _prepare_gains(agent, state, deleted_before, tag, header)
 
             if rip_actions:
                 state.rips[tag] = rip_actions
 
-            _enter_field(agent, state, tag, declarations)
+            _enter_field(
+                    agent,
+                    state,
+                    tag,
+                    declarations,
+                    application,
+                    )
         except BaseException:
             if tag not in state.active:
                 if previous is not None:
@@ -292,6 +303,21 @@ def _apply_one(
             raise
     except BaseException as error:
         primary_failure = error
+        if tag not in state.active:
+            changed = _remove_post_application(
+                    state,
+                    application,
+                    keep_constants=False,
+                    names=tuple(name for name, _ in declarations.postconditions),
+                    )
+
+            if changed:
+                # A failed provisional Constant can leave a lower Post with
+                # the same name.  The name set then stays equal while the
+                # runtime gate must change from Constant back to Post.
+                next_type = _runtime_type_for(state)
+                if type(agent) is not next_type:
+                    _set_runtime_type(agent, next_type)
         raise
     finally:
         try:
@@ -318,22 +344,48 @@ def _apply_one(
             state.composing -= 1
 
 
-def _refuse_conditions_shadowed_by_the_agent(
+def _precondition_services(
+        tag: type,
+        ) -> tuple[tuple[str, Any], ...]:
+    """Bind the current Tag's transient Pre Services over its Form.
+
+    Pres from unrelated active Tags are deliberately absent: Services
+    compose through the current ordered Form, not through Agent history.
+    The returned checks exist only for this Gate evaluation.
+    """
+
+    visible: dict[str, Any] = {}
+    current: list[tuple[str, Any]] = []
+
+    for member in _form_of(tag):
+        for name, function in _declarations_of(member).preconditions:
+            check = _bind_condition(
+                    function,
+                    visible.get(name),
+                    True,
+                    name,
+                    )
+            visible[name] = check
+
+            if member is tag:
+                current.append((name, check))
+
+    return tuple(current)
+
+
+def _refuse_posts_shadowed_by_the_agent(
         agent: object,
         state: _State,
         tag: type,
         declarations: Any,
         ) -> None:
-    """A condition is read on the Agent by its name (STEP-SPEC-14). A value
+    """A Post is read on the Agent by its name. A value
     the Agent itself already holds under that name would shadow it in
     silence, so the tagging is refused at the door."""
 
     namespace = _namespace_of(agent) or {}
 
-    for name, _function in (
-            *declarations.preconditions,
-            *declarations.postconditions,
-            ):
+    for name, _function in declarations.postconditions:
         if (
                 name in namespace
                 and name not in state.records
@@ -341,9 +393,9 @@ def _refuse_conditions_shadowed_by_the_agent(
                 and name != STATE
                 ):
             raise TagCompositionError(
-                    f"{tag.__name__}.{name} is a condition, but"
+                    f"{tag.__name__}.{name} is a Post, but"
                     f" {_name_of(agent)} already holds a value called"
-                    f" {name!r}; a condition is read by its name and cannot"
+                    f" {name!r}; a Post is read by its name and cannot"
                     " share it"
                     )
 
@@ -362,7 +414,7 @@ def _inspect(
 
     try:
         _evaluate(
-                state.postconditions.items(),
+                tuple(state.postconditions.items()),
                 agent,
                 {},
                 TagPostconditionError,
@@ -453,6 +505,7 @@ def _enter_field(
         state: _State,
         tag: type,
         declarations: _Declarations,
+        application: object,
         ) -> None:
     """Establish membership after the Tag's Gains have been prepared."""
 
@@ -462,6 +515,16 @@ def _enter_field(
 
     _field_of(tag)._Add(agent)
     state.active.append(tag)
+    post_names = tuple(
+            name
+            for name, _function in declarations.postconditions
+            if any(
+                    layer.application is application
+                    for layer in state.post_layers.get(name, ())
+                    )
+            )
+    if post_names:
+        state.post_applications[tag] = (application, post_names)
     state.words = None
     state.ever.add(tag)
 

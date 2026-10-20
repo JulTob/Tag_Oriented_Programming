@@ -163,8 +163,7 @@ def _agent_getattr(
         agent: object,
         name: str,
         ) -> Any:
-    """Miss path only: Tag views by name, then a condition by name as a
-    plain bool (STEP-SPEC-14), then the host's own __getattr__."""
+    """Miss path only: Tag views, then a Post verdict, then host fallback."""
 
     state = _state_of(agent)
 
@@ -184,7 +183,7 @@ def _agent_getattr(
                         state,
                         )
 
-        if state.postconditions or state.preconditions:
+        if state.postconditions:
             verdict = _condition_member(
                     agent,
                     state,

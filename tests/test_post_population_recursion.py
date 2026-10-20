@@ -83,7 +83,7 @@ class PostPopulationRecursionTests(unittest.TestCase):
         Checking(agent)
         self.assertTrue(agent.Standing)
 
-    def test_indirect_post_pre_soundness_cycle_is_not_reported_as_false(self):
+    def test_pre_soundness_query_exists_only_during_its_gate(self):
         class Base(Tag):
             pass
 
@@ -92,25 +92,15 @@ class PostPopulationRecursionTests(unittest.TestCase):
             def Existing(agent):
                 return agent in Base
 
-        class Witness(Tag):
-            @Post
-            def Guard(agent):
-                return Contract.Preconditions(agent)
-
         agent = Host()
         Base(agent)
         Checking(agent)
 
-        with self.assertRaisesRegex(TagContractError, "Guard.*Existing.*Tag\\[:\\]"):
-            Witness(agent)
+        self.assertFalse(hasattr(agent, "Existing"))
+        self.assertEqual(Contract.Status(agent), {})
+        self.assertTrue(agent in Base)
 
-        self.assertIn(agent, Witness[:])
-        with self.assertRaises(TagContractError):
-            agent.Guard
-        with self.assertRaises(TagContractError):
-            _ = agent in Base
-
-    def test_named_pre_queries_existing_posts_without_the_post_cycle_guard(self):
+    def test_pre_can_query_existing_posts_at_the_gate_but_is_not_retained(self):
         class Existing(Tag):
             @Post
             def Ready(agent):
@@ -127,10 +117,8 @@ class PostPopulationRecursionTests(unittest.TestCase):
         Checking(agent)
 
         agent.ready = False
-        self.assertFalse(agent.Standing)
-        with self.assertRaises(TagPreconditionError.Standing):
-            Contract.Preconditions(agent)
-        self.assertIs(Contract.Status(agent)["Standing"], False)
+        self.assertFalse(hasattr(agent, "Standing"))
+        self.assertEqual(Contract.Status(agent), {"Ready": False})
 
         refused = Host()
         refused.ready = False
@@ -139,7 +127,7 @@ class PostPopulationRecursionTests(unittest.TestCase):
         with self.assertRaises(TagPreconditionError.Standing):
             Checking(refused)
 
-    def test_post_can_ask_whether_a_stored_precondition_still_holds(self):
+    def test_a_continuing_responsibility_must_be_written_as_a_post(self):
         class Existing(Tag):
             @Pre
             def Allowed(agent):
@@ -147,12 +135,8 @@ class PostPopulationRecursionTests(unittest.TestCase):
 
         class Checking(Tag):
             @Post
-            def PreStillHolds(agent):
-                try:
-                    Contract.Preconditions(agent)
-                except TagPreconditionError.Allowed:
-                    return False
-                return True
+            def AllowedStillHolds(agent):
+                return agent.allowed
 
         agent = Host()
         agent.allowed = True
@@ -161,18 +145,19 @@ class PostPopulationRecursionTests(unittest.TestCase):
         agent.allowed = False
 
         self.assertIn(agent, Checking[:])
-        self.assertFalse(agent.PreStillHolds)
+        self.assertFalse(hasattr(agent, "Allowed"))
+        self.assertFalse(agent.AllowedStillHolds)
         self.assertFalse(bool(agent))
         self.assertNotIn(agent, Checking)
         self.assertIn(agent, ~Checking)
-        with self.assertRaises(TagPostconditionError.PreStillHolds):
+        with self.assertRaises(TagPostconditionError.AllowedStillHolds):
             Contract.Postconditions(agent)
 
         refused = Host()
         refused.allowed = True
         Existing(refused)
         refused.allowed = False
-        with self.assertRaises(TagPostconditionError.PreStillHolds):
+        with self.assertRaises(TagPostconditionError.AllowedStillHolds):
             Checking(refused)
 
     def test_bool_inside_its_own_post_keeps_the_existing_shortcut(self):

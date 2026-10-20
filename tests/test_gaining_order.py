@@ -37,7 +37,7 @@ class GainingOrderTests(unittest.TestCase):
         self.assertEqual(agent.before, "not established")
         self.assertIs(agent.after, True)
 
-    def test_a_pre_gates_first_but_is_attached_at_its_declaration(self):
+    def test_a_pre_gates_first_and_is_never_attached_as_a_gain(self):
         events = []
 
         class Given(Tag):
@@ -56,14 +56,17 @@ class GainingOrderTests(unittest.TestCase):
 
             @Record
             def after(agent):
-                return agent.Allowed
+                try:
+                    return agent.Allowed
+                except AttributeError:
+                    return "not established"
 
         agent = Host()
         Given(agent)
 
-        self.assertEqual(events, ["Pre", "Record", "Pre"])
+        self.assertEqual(events, ["Pre", "Record"])
         self.assertEqual(agent.before, "not established")
-        self.assertIs(agent.after, True)
+        self.assertEqual(agent.after, "not established")
 
     def test_a_delete_preserves_the_old_value_until_its_declaration(self):
         class Given(Tag):

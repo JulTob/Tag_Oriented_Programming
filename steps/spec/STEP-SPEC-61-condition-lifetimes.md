@@ -4,9 +4,9 @@
 - **Desk:** spec
 - **Title:** Condition Lifetimes
 - **Author:** Codex, recording the Director's 2026-10-20 ruling
-- **Status:** Cleared
+- **Status:** Deployed
 - **Created:** 2026-10-20
-- **Cleared:** 2026-10-20
+- **Deployed:** 2026-10-20
 
 > One STEP, one topic. This STEP defines when each kind of condition exists.
 > It does not change Post-check timing, failed-Imprint admission, recursive
@@ -152,7 +152,8 @@ and neutral recursive Post evaluation.
 
 ### Decision
 
-> **Cleared on 2026-10-20.** The Director ordered Pres to be “transient to
+> **Deployed on 2026-10-20.** The Director ordered Pres to be “transient to
 > tagging,” ordinary Posts to be “Field membership dependent,” and Constant
 > Posts to be “for life,” using an NDA that remains relevant after leaving a
-> company as the model. Implementation follows in a dependent PR.
+> company as the model. The dependent implementation, current Specification,
+> guides, oracle, and focused regressions deploy the ruling.
