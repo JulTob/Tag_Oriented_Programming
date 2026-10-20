@@ -95,6 +95,54 @@ class OwnedLinkIdentityDraftTests(unittest.TestCase):
         self.assertIsNot(First[owner].Knows, Other[owner].Knows)
         self.assertIs(owner.Knows, Other[owner].Knows)
 
+    def test_outer_view_does_not_gain_a_nested_tags_later_link(self):
+        class Inner(Tag):
+            @Link
+            class Knows(Tag):
+                pass
+
+        class Outer(Tag):
+            @Imprint
+            def Bring_Inner(owner):
+                Inner(owner)
+
+        owner = Host()
+        Outer(owner)
+
+        self.assertFalse("Knows" @ Outer[owner])
+        with self.assertRaises(AttributeError):
+            _ = Outer[owner].Knows
+        self.assertIs(Inner[owner].Knows, owner.Knows)
+
+    def test_ripping_base_link_keeps_shape_field_and_pair(self):
+        class Base(Tag):
+            @Link
+            class Knows(Tag):
+                @Record
+                def base_card(owner, contact):
+                    return "base"
+
+        class Shape(Base):
+            @Link
+            class Knows(Base.Knows):
+                @Record
+                def shape_card(owner, contact):
+                    return "shape"
+
+        owner, contact = Host(), Host()
+        Shape(owner)
+        base_link = Base[owner].Knows
+        shape_link = Shape[owner].Knows
+        shape_link(contact)
+        shape_pair = shape_link[contact]
+
+        del base_link[contact]
+
+        self.assertNotIn(contact, base_link[:])
+        self.assertIn(contact, shape_link)
+        self.assertIs(shape_link[contact], shape_pair)
+        self.assertEqual(shape_link[contact].shape_card, "shape")
+
     def test_refused_gate_does_not_publish_scratch_owned_link(self):
         class One(Tag):
             @Link

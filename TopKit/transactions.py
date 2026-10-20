@@ -240,6 +240,17 @@ def _apply_one(
         ) -> None:
     declarations = _declarations_of(tag)
     deleted_before = set(state.deleted)
+    # A nested Tagging in this Tag's Imprint may publish a later Link before
+    # this Tag's view is captured. Its view starts at this turn's Overlay and
+    # adds only the Links this Tag itself grants.
+    visible_links = (
+            {
+                name: link
+                for name, (link, _layers) in state.links.items()
+                if link is not None
+                }
+            if state.links else None
+            )
     state.training.add(tag)
     if declarations.rips:
         state.arrestable = True
@@ -334,6 +345,7 @@ def _apply_one(
                             agent,
                             state,
                             tag,
+                            visible_links,
                             )
                 except BaseException as closing_error:
                     if primary_failure is None:
@@ -701,6 +713,7 @@ def _snapshot(
         agent: object,
         state: _State,
         tag: type,
+        visible_links: dict[str, type] | None,
         ) -> _Snapshot:
     namespace = _namespace_of(agent)
     records = {
@@ -724,11 +737,7 @@ def _snapshot(
             if not _is_link(entry[0])
             }
 
-    links = {
-            name: link
-            for name, (link, _layers) in state.links.items()
-            if link is not None
-            }
+    links = {} if visible_links is None else visible_links.copy()
     links.update(
             (name, link)
             for name, (link, _layers) in state.owned_links.get(tag, {}).items()
