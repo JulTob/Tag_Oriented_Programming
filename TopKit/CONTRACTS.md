@@ -107,17 +107,21 @@ sandbox for arbitrary Python effects.
 After the Gate, Actions, Records, condition definitions and deletions take
 effect in declaration order, top to bottom, with each acquired Gain or
 condition visible to subsequent declarations. Then Imprints train the Agent.
-An ordinary Imprint failure gives a named Training Warning; later Imprints
-still run, and the Agent enters the Field. Every visible Post is then
-inspected. A Gaining failure before FieldAdding instead retains actual
-Gains and earlier completed Tags without admitting this Tag: the Agent is
-Rogue with respect to it. Calling `Tag(agent)` again passes a fresh Gate,
-overlays ordinary Gains and restarts Imprints. An admitted Agent must Rip
-that Tag before a fresh training attempt. Established Constants remain
+An ordinary Record calculation or value-application failure gives a named
+Training Warning, leaves the prior Record binding in place, and lets later
+Gainings run. An ordinary Imprint failure likewise warns and lets later
+Imprints run. The Agent enters the Field after those attempts; every visible
+Post is then inspected. A structural pre-Field refusal instead retains
+actual Gains and earlier completed Tags without admitting this Tag: the
+Agent is Rogue with respect to it. Once its visible Posts hold, calling
+`Tag(agent)` again passes a fresh Gate, overlays ordinary Gains and restarts
+Imprints. A broken Post must be repaired before this or any other fresh
+Tagging. A fresh training attempt for an admitted Agent requires Rip and
+soundness under every currently visible Post. Established Constants remain
 protected; retry does not resume an instruction.
 
 Acquired conditions, including Posts and Constant Posts, also remain after
-a pre-Field Gaining failure. They govern the Rogue's current contract status
+a structural pre-Field failure. They govern the Rogue's current contract status
 and guards on published members of its active Tags. Put a safety Post before
 the Action
 that needs it. An ordinary Action can read the named condition before effects,
@@ -126,10 +130,12 @@ does not automatically wrap ordinary Action calls. Ordinary Posts still follow
 the existing composition rules, while Constant Posts remain protected.
 
 During training, the Tag's published Reports and Operations and its
-Agent-bound view are unavailable through the Agent. A Gaining failure
+Agent-bound view are unavailable through the Agent. A structural refusal
 before FieldAdding does not trigger Rip and lies outside `Tag[:]`; the
-program owns cleanup of resources acquired in that attempt. An Imprint
-failure still leads to FieldAdding and ordinary Rip remains available.
+program owns cleanup of resources acquired in that attempt. Ordinary
+Record and Imprint failures still lead to FieldAdding and ordinary Rip
+remains available. A Record-space refusal is detected before the first
+Gain and raised as `TagTargetError`.
 
 ---
 

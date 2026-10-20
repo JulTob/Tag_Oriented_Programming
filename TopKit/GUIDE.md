@@ -164,16 +164,21 @@ That last line surprises people. TOP calls this a **Rogue Agent**: it has
 what it learned, but no active membership. If a Tag must clean up after
 itself, it says so with `@Rip` (pattern 9).
 
-Unfinished Tagging can also produce a Rogue: a Gaining failed before the
-Agent entered the Field, leaving its actual Gains without membership.
-Calling `Tag(agent)` again starts a fresh attempt. The Gate judges the
-Agent as it is now, ordinary Gains overlay it, and Imprints restart.
-Successfully established Constants stay protected. That unfinished
-attempt does not count as having been in the Tag for `isinstance`.
-An ordinary Imprint failure is different: each failed Imprint gives a
-named Training Warning, later Imprints still run, and the Agent enters
-the Field. Its Posts then decide whether it is sound. Applying that
-active Tag again is a no-op; Rip it before training it afresh.
+Unfinished Tagging can also produce a Rogue: a structural Gaining refusal
+stopped before Field entry, leaving its actual Gains without membership.
+Once the Agent's visible Posts hold, calling `Tag(agent)` again starts a
+fresh attempt. A broken Post must be repaired first, even for a retry of
+this Tag. The Gate judges the Agent as it is now, ordinary Gains overlay
+it, and Imprints restart. Successfully established Constants stay protected.
+That unfinished attempt does not count as having been in the Tag for
+`isinstance`.
+An ordinary Record calculation or value-application failure is different:
+the failed Record keeps its prior value (or no value), gives a named Training
+Warning, and later Gainings continue. An ordinary Imprint failure likewise
+warns and lets later Imprints run. The Agent enters the Field after these
+attempts. Its Posts then decide whether it is sound. Applying that
+active Tag again is a no-op; Rip it and ensure its current Posts hold before
+training it afresh.
 
 Acquired conditions remain too, including Posts and Constant Posts. They
 continue to judge the Rogue's current state, just as contracts stay after
@@ -244,6 +249,12 @@ property; it does not recompute. Reapplying an active Tag does nothing, so
 a Record is never silently rebuilt. Rip removes membership, not the binding.
 Applying the Tag after Rip is fresh Tagging: that Tag's ordinary Record
 builders run again. Bases already active are not trained again.
+A failed builder or value write leaves the old Record binding in place (or
+leaves the name absent), warns as `TrainingWarning.RecordName`, and allows
+later Gainings and Imprints to run. A Post can require that Record with a
+presence check such as `"spellbook" @ agent`. TOP checks the Target's Record
+space before any Gain; a structurally incompatible Target raises
+`TagTargetError` instead of beginning this Tag's training.
 A builder without a second positional seat replaces
 the current binding with its returned value. With that seat (`stored` in the
 examples), it receives the current stored value, including a value left by
@@ -789,11 +800,11 @@ Post judges the Agent after each Tag's Field entry, before the next Tag's
 Gate. A broken promise leaves this Tag's membership in place and stops
 the remaining Form.
 
-`@Rip` runs after an admitted Agent leaves. A Gaining failure before
-FieldAdding leaves a Rogue outside `Tag[:]`; it triggers no automatic Rip.
+`@Rip` runs after an admitted Agent leaves. A structural Gaining refusal
+before FieldAdding leaves a Rogue outside `Tag[:]`; it triggers no automatic Rip.
 The program handles cleanup of that attempt's resources with ordinary
-Python error handling. Ordinary Imprint failures still admit the Agent,
-which can then leave through the usual Rip protocol.
+Python error handling. Ordinary Record and Imprint failures still admit the
+Agent, which can then leave through the usual Rip protocol.
 
 Declare a safety Post before the Action that needs it. An Action can read
 its named condition before effects, such as
@@ -809,11 +820,12 @@ teaches for a lock: **tag before `try`, Rip in `finally`.** A `finally`
 always runs when its `try` ends, whether the block finished or raised.
 
 Tag *before* the `try`, not inside it. A Gate refusal then raises before
-the block starts and leaves this Tag unstarted. A failed Gaining may leave
-actual Gains outside this Tag; a broken Post leaves it admitted. Each
-ordinary Imprint failure gives a named Training Warning. If Posts hold,
-Tagging returns the admitted Agent and the block runs. A broken Post raises
-at the Tagging statement, before this `try`, so its `finally` never begins.
+the block starts and leaves this Tag unstarted. A structural Gaining refusal
+may leave actual Gains outside this Tag; a broken Post leaves it admitted.
+Each ordinary Record or Imprint failure gives a named Training Warning. If
+Posts hold, Tagging returns the admitted Agent and the block runs. A broken
+Post raises at the Tagging statement, before this `try`, so its `finally`
+never begins.
 Promoting a Training Warning to an exception can also stop the block after
 admission. An unconditional Rip in a `finally` covering failed Tagging
 could try to expel a never-member and obscure the original failure. Check
