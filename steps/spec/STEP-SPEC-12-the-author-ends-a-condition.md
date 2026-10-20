@@ -11,6 +11,13 @@
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
 
+> **Superseded lifetime, 2026-10-20:**
+> [STEP-SPEC-61](STEP-SPEC-61-condition-lifetimes.md) replaces this STEP's
+> sticky-condition law. A Pre is now a transient Tagging Service, an ordinary
+> Post follows its admitted Field application, and only an admitted Constant
+> Post deliberately survives Rip. The text below remains the decision record
+> for the former model.
+
 > **Guard-spelling amendment, 2026-10-15:** The Director's later
 > [sound-membership ruling](STEP-SPEC-4-defective-taggings.md#amendment-a-sound-membership-query-2026-10-15)
 > makes `agent in Tag` a sound-membership query. A guard intended to follow
