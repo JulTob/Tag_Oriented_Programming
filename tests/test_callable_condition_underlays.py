@@ -4,7 +4,7 @@ import gc
 import unittest
 import warnings
 
-from TopKit import (Pin, Post, Pre, Tag, TagContractError,
+from TopKit import (Imprint, Pin, Post, Pre, Tag, TagContractError,
                     TagPostconditionError, TagPreconditionError, Underlay)
 
 
@@ -49,13 +49,24 @@ class CallableConditionUnderlayTests(unittest.TestCase):
         base = type("Base", (Tag,), {"Work": mark(Deferred_Prior)})
         if pinned:
             base = Pin(base)
-        shape = type("Shape", (base,), {"Work": mark(Underlay(Added if ordinary else Added()))})
+        declarations = {"Work": mark(Underlay(Added if ordinary else Added()))}
+        if mark is Post:
+            # The Base must be sound before the Shape can begin. Turn on the
+            # prior during this Shape's training, then judge its Underlay.
+            @Imprint
+            def Activate(agent):
+                nonlocal ready
+                ready = True
+
+            declarations["Activate"] = Activate
+        shape = type("Shape", (base,), declarations)
         target = type("Target", (Tag,), {}) if pinned else Host()
         # Test the Underlay after the Base passed its own neutral Gate/Posts.
         # Do not depend on a pending Shape overriding the Base's Gate, or
         # dispose of a lazy prior before the Underlay under test can see it.
         base(target)
-        ready = True
+        if mark is Pre:
+            ready = True
         return shape, target, calls
 
     def test_boolean_and_fallthrough_underlays_match_function_controls(self):

@@ -1324,9 +1324,12 @@ guards; this does not establish membership in the unfinished Tag. An ordinary
 Imprint failure instead admits the Agent, and this Post judges it at that
 boundary. A Constant Post keeps its protection in either case.
 
-Every visible Postcondition is re-checked at each later tagging boundary,
-so a later completed Tagging can report an earlier Tag's broken promise.
-That is a Postcondition failure, not a Gate refusal. Conditions
+Before a fresh Tagging starts, every currently visible Postcondition must
+hold. A broken Agent cannot acquire an unrelated Tag as an implicit repair:
+this is a composition refusal before the new Tag's Gate or Gains. Applying an
+already active Tag remains a no-op. After each Tag enters its Field, every
+visible Postcondition is checked again, so that Tag's Gains may break an
+earlier Tag's promise. That is a Postcondition failure. Conditions
 do not check themselves during play; what must be watched continuously is
 a Record.
 

@@ -8,6 +8,7 @@ import weakref
 from TopKit import Pin
 from TopKit import Post
 from TopKit import Tag
+from TopKit import TagContractError
 
 from ._fixtures import Agent
 
@@ -295,7 +296,7 @@ class PopulationWalkTests(unittest.TestCase):
         self.assertNotIn(cal, ~Wizard)
         self.assertNotIn(cal, Wizard[:])
 
-    def test_retagging_while_judging_soundness_keeps_the_member(self) -> None:
+    def test_a_post_cannot_rip_then_retag_during_its_own_soundness_check(self) -> None:
         ripping = [False]
         reapplied = [False]
 
@@ -309,21 +310,17 @@ class PopulationWalkTests(unittest.TestCase):
 
                 return True
 
-        class Fighter(Tag):
-            pass
-
         ari = Agent()
         Wizard(ari)
         ripping[0] = True
 
-        self.assertEqual([member for member in Wizard], [ari])
+        with self.assertRaisesRegex(TagContractError, "Post cannot ask"):
+            list(Wizard)
+        self.assertNotIn(ari, Wizard[:])
 
-        reapplied[0] = False
-        self.assertIn(ari, Wizard | Fighter)
-        self.assertIn(ari, Wizard[:])
-
-        reapplied[0] = False
-        self.assertIn(ari, Wizard)                               # re-tagging keeps it sound
+        # Outside the Post's own check, a fresh Tagging can start normally.
+        ripping[0] = False
+        Wizard(ari)
         self.assertIn(ari, Wizard[:])
 
     def test_a_one_pass_materialization_uses_a_comprehension(self) -> None:
