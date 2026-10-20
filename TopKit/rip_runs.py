@@ -30,6 +30,7 @@ class _RipRun:
     revoked: bool = False
     orphaned: bool = False  # original Tag ended; only these runs belong to root deletion
     held: tuple[Any, ...] = ()  # values removed at revocation stay held through retry
+    member: Any = None  # weak Field seat identifies an application, even without @Rip
 
 
 def _tag_name(tag: type) -> str:
@@ -68,6 +69,29 @@ def _pending_run(agent: object, tag: type) -> _RipRun | None:
     if arrest is not None:
         for run in arrest.runs:
             if run.tag is tag:
+                return run
+
+    return None
+
+
+def _pending_unrevoked_run(
+        agent: object,
+        tag: type,
+        teardowns: tuple[tuple[str, Any], ...],
+        member: Any,
+        ) -> _RipRun | None:
+    """Find a saved run for this exact Field application."""
+
+    arrest = _arrest_of(agent)
+
+    if arrest is not None:
+        for run in arrest.runs:
+            if (
+                    run.tag is tag
+                    and run.teardowns is teardowns
+                    and run.member is member
+                    and not run.revoked
+                    ):
                 return run
 
     return None

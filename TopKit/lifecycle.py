@@ -30,6 +30,7 @@ from .fields import _Member
 from .fields import _field_of
 from .rip_runs import _RipRun
 from .rip_runs import _pending_run
+from .rip_runs import _pending_unrevoked_run
 from .rip_runs import _retry_arrested as _retry_saved_runs
 from .rip_runs import _run_saved
 from .rip_runs import _save_run
@@ -72,6 +73,7 @@ def _rip(
         # This exact tuple identifies the Tag application. A fresh
         # reTagging builds a new Rip tuple, even for the same declarations.
         run = _RipRun(tag, teardowns)
+        run.member = _field_of(tag)._members.get(id(agent))
         # Publish the original work before the Agent leaves the Field.
         # A failing callback can then never strand an unrecorded suffix.
         _save_run(agent, run)
@@ -177,14 +179,28 @@ def _rip_field(tag: type) -> None:
                     f"{_tag_name(tag)} is not active on this Agent"
                     )
 
-        initial.append((agent, state, state.rips.get(tag, ())))
+        initial.append((
+                agent,
+                state,
+                state.rips.get(tag, ()),
+                field._members.get(id(agent)),
+                ))
 
     pending = []
 
-    for agent, state, teardowns in initial:
-        run = _RipRun(tag, teardowns)
-        # Empty runs still keep a member in custody until selected cleanup.
-        _save_run(agent, run, hold_empty=True)
+    for agent, state, teardowns, member in initial:
+        # A single-Agent Rip may have saved this application before an
+        # interruption left it in the Field. Reuse that run, not a second
+        # copy of its teardown chain. A fresh Tagging has a different
+        # Field seat, even if both applications have no @Rip declarations.
+        run = _pending_unrevoked_run(agent, tag, teardowns, member)
+
+        if run is None:
+            run = _RipRun(tag, teardowns)
+            run.member = member
+            # Empty runs still hold custody until selected cleanup.
+            _save_run(agent, run, hold_empty=True)
+
         _revoke(agent, state, run, bulk=True)
         pending.append((agent, state, run))
 
@@ -259,6 +275,14 @@ def _revoke(
     if run.revoked:
         return
 
+    # A reTagging installs a different weak Field seat. This also keeps
+    # no-@Rip applications separate, whose teardown tuples are both ().
+    field = _field_of(run.tag)
+    member = field._members.get(id(agent))
+    if run.member is not None and member is not None and member is not run.member:
+        run.revoked = True
+        return
+
     # The Rip tuple is this application identity. If the old membership
     # was removed before an interruption and the Agent reTagged, the new
     # application has a different tuple. Never revoke its fresh Field.
@@ -268,8 +292,8 @@ def _revoke(
 
     # Remove the Field seat before dropping active. Until active leaves,
     # another Tagging of this same Tag is still a no-op. If interrupted
-    # later, the tuple above tells retry whether that seat is still old.
-    _field_of(run.tag)._Remove(agent)
+    # later, the tuple and Field seat tell retry which application remains.
+    field._Remove(agent)
     for index, active in enumerate(state.active):
         if active is run.tag:
             state.active.pop(index)

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import gc
 import unittest
+from unittest.mock import patch
 
+import TopKit.lifecycle as lifecycle
 from TopKit import Pin
 from TopKit import Post
 from TopKit import Record
@@ -12,6 +14,9 @@ from TopKit import Report
 from TopKit import Rip
 from TopKit import Tag
 from TopKit import TagCompositionError
+from TopKit.arrest import _arrest_of
+from TopKit.fields import _field_of
+from TopKit.state import _state_of
 from TopKit.tags import MetaTag
 
 from ._fixtures import Agent
@@ -459,6 +464,152 @@ class FieldRipTests(unittest.TestCase):
                               [interrupted_member, interrupted_member,
                                chosen, remaining])
         self.assertEqual(tuple(Fleet[...]), ())
+
+    def test_bulk_rip_reuses_run_saved_before_interrupted_single_revoke(self) -> None:
+        seen = []
+
+        class Guard(Tag):
+            @Rip
+            def Clean(agent):
+                seen.append(agent)
+
+        agent = Agent()
+        Guard(agent)
+        field = _field_of(Guard)
+
+        def Interrupt(target):
+            raise KeyboardInterrupt("before Field removal")
+
+        with patch.object(field, "_Remove", Interrupt):
+            with self.assertRaises(KeyboardInterrupt):
+                del Guard[agent]
+
+        self.assertIn(agent, Guard[:])
+        self.assertIn(agent, Guard[...])
+        self.assertEqual(seen, [])
+
+        del Guard[:]
+
+        self.assertNotIn(agent, Guard[:])
+        self.assertNotIn(agent, Guard[...])
+        self.assertEqual(seen, [agent])
+
+    def test_bulk_retry_reuses_run_saved_during_bulk_revocation(self) -> None:
+        seen = []
+
+        class Guard(Tag):
+            @Rip
+            def Clean(agent):
+                seen.append(agent)
+
+        members = [Agent(), Agent(), Agent()]
+
+        for member in members:
+            Guard(member)
+
+        field = _field_of(Guard)
+        remove = field._Remove
+        attempted = 0
+
+        def Interrupt(target):
+            nonlocal attempted
+            attempted += 1
+
+            if attempted == 2:
+                raise KeyboardInterrupt("during Field revocation")
+
+            return remove(target)
+
+        with patch.object(field, "_Remove", Interrupt):
+            with self.assertRaises(KeyboardInterrupt):
+                del Guard[:]
+
+        remaining = list(Guard[:])
+        self.assertEqual(len(remaining), 2)
+        self.assertEqual(len(Guard[...]), 2)
+        self.assertEqual(seen, [])
+        revoked, = [member for member in members if member not in remaining]
+        self.assertIn(revoked, Guard[...])
+
+        del Guard[:]
+
+        self.assertCountEqual(seen, remaining)
+        self.assertEqual(tuple(Guard[:]), ())
+        self.assertCountEqual(Guard[...], [revoked])
+
+        del Guard[revoked]
+        self.assertCountEqual(seen, members)
+        self.assertEqual(len(seen), 3)
+        self.assertEqual(tuple(Guard[...]), ())
+
+    def test_bulk_rip_keeps_fresh_application_separate_from_older_arrest(self) -> None:
+        attempts = 0
+
+        class Guard(Tag):
+            @Rip
+            def Clean(agent):
+                nonlocal attempts
+                attempts += 1
+
+                if attempts == 1:
+                    raise ValueError("old application failed")
+
+        agent = Agent()
+        Guard(agent)
+
+        with self.assertRaises(TagCompositionError):
+            del Guard[agent]
+
+        self.assertNotIn(agent, Guard[:])
+        self.assertIn(agent, Guard[...])
+        Guard(agent)
+        self.assertIn(agent, Guard[:])
+
+        del Guard[:]
+
+        # The new application Rips once, then the old arrest retries once.
+        self.assertEqual(attempts, 3)
+        self.assertNotIn(agent, Guard[:])
+        self.assertNotIn(agent, Guard[...])
+
+    def test_interrupted_empty_run_does_not_stand_for_fresh_tagging(self) -> None:
+        class Plain(Tag):
+            pass
+
+        agent = Agent()
+        Plain(agent)
+        state = _state_of(agent)
+
+        class InterruptingActive(list):
+            def pop(self, index=-1):
+                value = super().pop(index)
+                raise KeyboardInterrupt("after active removal")
+
+        state.active = InterruptingActive(state.active)
+
+        with self.assertRaises(KeyboardInterrupt):
+            del Plain[:]
+
+        old_run, = _arrest_of(agent).runs
+        self.assertFalse(old_run.revoked)
+        state.active = list(state.active)
+        Plain(agent)
+        self.assertIn(agent, Plain[:])
+
+        selected = []
+        original = lifecycle._run_one
+
+        def Capture(target, current_state, run):
+            selected.append(run)
+            return original(target, current_state, run)
+
+        with patch.object(lifecycle, "_run_one", Capture):
+            del Plain[:]
+
+        self.assertEqual(len(selected), 1)
+        self.assertIsNot(selected[0], old_run)
+        self.assertNotIn(agent, Plain[:])
+        self.assertNotIn(agent, Plain[...])
 
     def test_failed_field_rip_keeps_unvisited_record_values_until_retry(self) -> None:
         finalized = []
