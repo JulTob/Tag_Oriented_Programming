@@ -1,4 +1,4 @@
-"""Unfinished Imprints retain Gains while completed Tags remain admitted."""
+"""Nested Tagging keeps completed work; failed Imprints still admit members."""
 
 import gc
 import unittest
@@ -6,8 +6,8 @@ import weakref
 
 from TopKit import (Action, Imprint, Pin, Post, Pre, Record, Report,
                     Rip, Tag, TagCompositionError, TagContractError,
-                    TagImprintError, TagPostconditionError, TagPreconditionError,
-                    TagResolutionError, TagOverwriteWarning)
+                    TagImprintError, TagPostconditionError,
+                    TagTrainingWarning, TagOverwriteWarning)
 
 
 class Host:
@@ -75,7 +75,7 @@ class NestedImprintTests(unittest.TestCase):
         del Outer[Receiver]
         self.assertEqual(calls, ["outer"])
 
-    def test_nested_gate_failure_keeps_outer_gains_without_admission_or_auto_rip(self):
+    def test_nested_gate_failure_warns_and_admits_outer_without_auto_rip(self):
         events = []
 
         class Nested(Tag):
@@ -97,17 +97,18 @@ class NestedImprintTests(unittest.TestCase):
                 events.append("release")
 
         agent = Host()
-        with self.assertRaises(TagImprintError.Continue) as caught:
+        with self.assertWarns(TagTrainingWarning) as warned:
             Outer(agent)
-        self.assertIsInstance(caught.exception.__cause__, TagPreconditionError.Refuse)
-        self.assertNotIn(agent, Outer[:])
-        self.assertFalse(isinstance(agent, Outer))
+        self.assertIsInstance(warned.warning.failure, TagImprintError.Continue)
+        self.assertEqual(warned.warning.cause_type, "Refuse")
+        self.assertIn("Precondition 'Refuse'", warned.warning.cause_text)
+        self.assertIsNone(warned.warning.failure.__cause__)
+        self.assertIn(agent, Outer[:])
+        self.assertTrue(isinstance(agent, Outer))
         self.assertNotIn(agent, Nested[:])
         self.assertTrue("Release" @ agent)
-        with self.assertRaises(TagResolutionError):
-            del Outer[agent]
         self.assertEqual(events, ["acquire"])
-        agent.Release()   # the acquired Action remains callable explicitly
+        del Outer[agent]
         self.assertEqual(events, ["acquire", "release"])
 
     def test_nested_composition_error_is_owned_by_outer_imprint(self):
@@ -117,13 +118,16 @@ class NestedImprintTests(unittest.TestCase):
                 raise TagCompositionError("nested refusal")
 
         agent = Host()
-        with self.assertRaises(TagImprintError.Work) as caught:
+        with self.assertWarns(TagTrainingWarning) as warned:
             Outer(agent)
-        self.assertIsInstance(caught.exception.__cause__, TagCompositionError)
-        self.assertNotIn(agent, Outer[:])
-        self.assertFalse(isinstance(agent, Outer))
+        self.assertIsInstance(warned.warning.failure, TagImprintError.Work)
+        self.assertEqual(warned.warning.cause_type, "TagCompositionError")
+        self.assertEqual(warned.warning.cause_text, "nested refusal")
+        self.assertIsNone(warned.warning.failure.__cause__)
+        self.assertIn(agent, Outer[:])
+        self.assertTrue(isinstance(agent, Outer))
 
-    def test_interruption_preserves_gains_and_current_fitness_without_a_tag_view(self):
+    def test_interruption_preserves_gains_admission_and_current_fitness(self):
         for failure in (KeyboardInterrupt(), SystemExit(7), Stop()):
             with self.subTest(failure=type(failure).__name__):
                 events = []
@@ -157,18 +161,17 @@ class NestedImprintTests(unittest.TestCase):
                 with self.assertRaises(type(failure)) as caught:
                     Trained(agent)
                 self.assertIs(caught.exception, failure)
-                self.assertNotIn(agent, Trained[:])
-                self.assertFalse(isinstance(agent, Trained))
-                with self.assertRaises(TagResolutionError):
-                    Trained[agent]
+                self.assertIn(agent, Trained[:])
+                self.assertTrue(isinstance(agent, Trained))
+                self.assertEqual(Trained[agent].badge, "badge")
                 self.assertEqual(agent.Present(), "badge")
                 self.assertTrue(bool(agent))
                 self.assertNotIn(agent, ~Trained)
                 self.assertEqual(events, ["acquire"])
-                agent.Release()
+                del Trained[agent]
                 self.assertEqual(events, ["acquire", "release"])
 
-    def test_nested_interruption_admits_neither_unfinished_tag(self):
+    def test_nested_interruption_admits_both_started_tags(self):
         failure = KeyboardInterrupt()
 
         class Inner(Tag):
@@ -185,12 +188,12 @@ class NestedImprintTests(unittest.TestCase):
         with self.assertRaises(KeyboardInterrupt) as caught:
             Outer(agent)
         self.assertIs(caught.exception, failure)
-        self.assertNotIn(agent, Inner[:])
-        self.assertNotIn(agent, Outer[:])
-        self.assertFalse(isinstance(agent, Inner))
-        self.assertFalse(isinstance(agent, Outer))
+        self.assertIn(agent, Inner[:])
+        self.assertIn(agent, Outer[:])
+        self.assertTrue(isinstance(agent, Inner))
+        self.assertTrue(isinstance(agent, Outer))
 
-    def test_interrupted_base_does_not_admit_it_or_begin_its_shape(self):
+    def test_interrupted_base_is_admitted_but_does_not_begin_its_shape(self):
         failure = KeyboardInterrupt()
 
         class Base(Tag):
@@ -207,9 +210,9 @@ class NestedImprintTests(unittest.TestCase):
         with self.assertRaises(KeyboardInterrupt) as caught:
             Shape(agent)
         self.assertIs(caught.exception, failure)
-        self.assertNotIn(agent, Base[:])
+        self.assertIn(agent, Base[:])
         self.assertNotIn(agent, Shape[:])
-        self.assertFalse(isinstance(agent, Base))
+        self.assertTrue(isinstance(agent, Base))
         self.assertFalse(isinstance(agent, Shape))
         self.assertFalse("later" @ agent)
 
@@ -301,13 +304,17 @@ class NestedImprintTests(unittest.TestCase):
                 Shape(agent)
 
         agent = Host()
-        with self.assertRaises(TagImprintError.Join) as caught:
-            Outer(agent)
-        self.assertIsInstance(caught.exception.__cause__, TagPostconditionError.Ready)
-        self.assertEqual(events, ["base post"])
+        with self.assertWarns(TagTrainingWarning) as warned:
+            with self.assertRaises(TagPostconditionError.Ready):
+                Outer(agent)
+        self.assertIsInstance(warned.warning.failure, TagImprintError.Join)
+        self.assertEqual(warned.warning.cause_type, "Ready")
+        self.assertIn("Postcondition 'Ready'", warned.warning.cause_text)
+        self.assertIsNone(warned.warning.failure.__cause__)
+        self.assertEqual(events, ["base post", "base post"])
         self.assertIn(agent, Base[:])
         self.assertNotIn(agent, Shape[:])
-        self.assertNotIn(agent, Outer[:])
+        self.assertIn(agent, Outer[:])
 
     def test_later_record_failure_preserves_the_completed_form_prefix(self):
         events = []
@@ -403,12 +410,12 @@ class NestedImprintTests(unittest.TestCase):
             Outer(agent)
         self.assertIs(caught.exception, failure)
         self.assertIn(agent, Reapplied[:])
-        self.assertNotIn(agent, Outer[:])
+        self.assertIn(agent, Outer[:])
         self.assertEqual(Reapplied[agent].application, 2)
         self.assertEqual(applications, ["built", "built"])
         del Reapplied[agent]
 
-    def test_unfinished_training_does_not_attempt_a_snapshot_or_replace_interruption(self):
+    def test_interrupted_training_keeps_its_interruption_after_snapshot_attempt(self):
         failure = KeyboardInterrupt()
         events = []
 
@@ -430,12 +437,12 @@ class NestedImprintTests(unittest.TestCase):
         with self.assertRaises(KeyboardInterrupt) as caught:
             Interrupted(agent)
         self.assertIs(caught.exception, failure)
-        self.assertNotIn(agent, Interrupted[:])
-        self.assertFalse(isinstance(agent, Interrupted))
-        self.assertEqual(getattr(failure, "__notes__", []), [])
+        self.assertIn(agent, Interrupted[:])
+        self.assertTrue(isinstance(agent, Interrupted))
+        self.assertIn("could not be captured", " ".join(getattr(failure, "__notes__", [])))
         self.assertTrue("Release" @ agent)
         self.assertEqual(events, [])
-        agent.Release()
+        del Interrupted[agent]
         self.assertEqual(events, ["release"])
 
     def test_snapshot_only_failure_preserves_finished_work(self):
@@ -464,7 +471,7 @@ class NestedImprintTests(unittest.TestCase):
         self.assertTrue(bool(agent))
         del Finished[agent]
 
-    def test_unfinished_training_preserves_existing_exception_notes(self):
+    def test_interrupted_training_preserves_existing_exception_notes(self):
         failure = Stop()
         failure.__notes__ = "legacy notes"
         events = []
@@ -488,36 +495,63 @@ class NestedImprintTests(unittest.TestCase):
             Interrupted(agent)
         self.assertIs(caught.exception, failure)
         self.assertEqual(failure.__notes__, "legacy notes")
-        self.assertNotIn(agent, Interrupted[:])
-        self.assertFalse(isinstance(agent, Interrupted))
+        self.assertIn(agent, Interrupted[:])
+        self.assertTrue(isinstance(agent, Interrupted))
         self.assertEqual(events, [])
-        agent.Release()
+        del Interrupted[agent]
         self.assertEqual(events, ["release"])
 
-    def test_handled_imprint_failure_does_not_keep_an_agent_in_the_field(self):
-        class Failed(Tag):
+    def test_failed_post_cannot_mask_an_interruption_with_existing_notes(self):
+        failure = Stop()
+        failure.__notes__ = "legacy notes"
+
+        class Interrupted(Tag):
+            @Post
+            def Ready(agent):
+                return False
+
             @Imprint
-            def Train(agent):
-                raise RuntimeError("failed")
+            def Stop_Training(agent):
+                raise failure
 
-        def attempt():
-            agent = Host()
-            reference = weakref.ref(agent)
-            try:
-                Failed(agent)
-            except TagImprintError:
-                pass
-            return reference
+        agent = Host()
+        with self.assertRaises(Stop) as caught:
+            Interrupted(agent)
+        self.assertIs(caught.exception, failure)
+        self.assertEqual(failure.__notes__, "legacy notes")
+        self.assertIn(agent, Interrupted[:])
+        self.assertIn(agent, ~Interrupted)
 
-        was_enabled = gc.isenabled()
-        gc.disable()
-        try:
-            reference = attempt()
-            self.assertIsNone(reference())
-            self.assertEqual(list(Failed[:]), [])
-        finally:
-            if was_enabled:
-                gc.enable()
+    def test_handled_imprint_warning_does_not_keep_a_collected_agent_in_the_field(self):
+        for nested_cause in (False, True):
+            with self.subTest(nested_cause=nested_cause):
+                class Failed(Tag):
+                    @Imprint
+                    def Train(agent):
+                        if nested_cause:
+                            try:
+                                raise ValueError("first failure")
+                            except ValueError as previous:
+                                raise RuntimeError("failed") from previous
+                        raise RuntimeError("failed")
+
+                def attempt():
+                    agent = Host()
+                    reference = weakref.ref(agent)
+                    with self.assertWarns(TagTrainingWarning):
+                        Failed(agent)
+                    self.assertIn(agent, Failed[:])
+                    return reference
+
+                was_enabled = gc.isenabled()
+                gc.disable()
+                try:
+                    reference = attempt()
+                    self.assertIsNone(reference())
+                    self.assertEqual(list(Failed[:]), [])
+                finally:
+                    if was_enabled:
+                        gc.enable()
 
     def test_failed_imprint_fitness_follows_the_current_training_result(self):
         for prepared in (False, True):
@@ -544,12 +578,17 @@ class NestedImprintTests(unittest.TestCase):
                         return agent.badge == "badge"
 
                 agent = Host()
-                with self.assertRaises(TagImprintError.Train):
-                    Trained(agent)
-                self.assertNotIn(agent, Trained[:])
-                self.assertFalse(isinstance(agent, Trained))
+                with self.assertWarns(TagTrainingWarning) as warned:
+                    if prepared:
+                        self.assertIs(Trained(agent), agent)
+                    else:
+                        with self.assertRaises(TagPostconditionError.Equipped):
+                            Trained(agent)
+                self.assertIsInstance(warned.warning.failure, TagImprintError.Train)
+                self.assertIn(agent, Trained[:])
+                self.assertTrue(isinstance(agent, Trained))
                 self.assertTrue("badge" @ agent)
                 self.assertEqual(bool(agent), prepared)
-                self.assertNotIn(agent, ~Trained)
-                self.assertNotIn(agent, list(Trained))
-                self.assertEqual(later, [])
+                self.assertEqual(agent in ~Trained, not prepared)
+                self.assertEqual(agent in list(Trained), prepared)
+                self.assertEqual(later, ["ran"])

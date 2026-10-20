@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+import warnings
 from TopKit import Contract
 from TopKit import Imprint
 from TopKit import Post
@@ -13,6 +14,7 @@ from TopKit import Tag
 from TopKit import TagImprintError
 from TopKit import TagPostconditionError
 from TopKit import TagPreconditionError
+from TopKit import TagTrainingWarning
 
 from ._fixtures import Agent
 
@@ -52,12 +54,13 @@ class NamedFailureTests(unittest.TestCase):
         class Caster(Tag):
             @Pre
             def Is_A_Caster(agent):
-                assert agent.level > 0
+                if not agent.level > 0:
+                    raise AssertionError("a Caster needs a level")
 
         with self.assertRaises(Precondition.Is_A_Caster):
             Caster(Agent())
 
-    def test_postcondition_and_imprint_failures_are_named(self) -> None:
+    def test_post_failure_and_imprint_warning_keep_declared_names(self) -> None:
         class Armed(Tag):
             @Imprint
             def Arm(agent):
@@ -68,11 +71,17 @@ class NamedFailureTests(unittest.TestCase):
             def Has_Shield(agent):
                 return False
 
-        with self.assertRaises(Imprint.Arm) as caught:
-            Armed(Agent())
-
-        self.assertEqual(caught.exception.name, "Arm")
-        self.assertIsInstance(caught.exception, TagImprintError)
+        agent = Agent()
+        with warnings.catch_warnings(record=True) as recorded:
+            warnings.simplefilter("always", TagTrainingWarning)
+            self.assertIs(Armed(agent), agent)
+        self.assertEqual(len(recorded), 1)
+        warning = recorded[0].message
+        self.assertIsInstance(warning, TagTrainingWarning)
+        self.assertEqual(warning.name, "Arm")
+        self.assertIsInstance(warning.failure, Imprint.Arm)
+        self.assertIsInstance(warning.failure, TagImprintError)
+        self.assertIn(agent, Armed[:])
 
         with self.assertRaises(Postcondition.Has_Shield) as caught:
             Shielded(Agent())

@@ -1,9 +1,10 @@
 """Pin Gainings invalidate the receiving Tag's current declaration memo."""
 
 import unittest
+import warnings
 
 from TopKit import (Imprint, Pin, Public, Record, Tag, TagImprintError,
-                    TagOverwriteWarning)
+                    TagOverwriteWarning, TagTrainingWarning)
 
 
 class Host:
@@ -57,21 +58,31 @@ class PinGainingMemoTests(unittest.TestCase):
                         ))
                 raise ValueError("unfinished Pin")
 
-        with self.assertWarns(TagOverwriteWarning):
-            with self.assertRaises(TagImprintError.Finish) as raised:
-                Unfinished(Receiver)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            Unfinished(Receiver)
 
-        self.assertIsInstance(raised.exception.__cause__, ValueError)
+        self.assertIn(TagOverwriteWarning,
+                      [type(issue.message) for issue in caught])
+        training = [issue.message for issue in caught
+                    if isinstance(issue.message, TagTrainingWarning)]
+        self.assertEqual(len(training), 1)
+        failure = training[0].failure
+        self.assertIsInstance(failure, TagImprintError.Finish)
+        self.assertEqual(training[0].cause_type, "ValueError")
+        self.assertEqual(training[0].cause_text, "unfinished Pin")
         self.assertEqual(observed, [(False, False)])
         self.assertIn(Receiver, Established)
-        self.assertNotIn(Receiver, Unfinished[:])
+        self.assertIn(Receiver, Unfinished[:])
         self.assertEqual(Receiver.Read(during_training), ("acquired", None))
         self.assertIs(Receiver.marker, None)
 
         future = Host()
         Receiver(future)
-        self.assertFalse("Read" @ future)
-        self.assertFalse("marker" @ future)
+        self.assertTrue("Read" @ future)
+        self.assertTrue("marker" @ future)
+        self.assertEqual(future.Read(), ("acquired", None))
+        self.assertIsNone(future.marker)
 
 
 if __name__ == "__main__":

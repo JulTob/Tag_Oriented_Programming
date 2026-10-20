@@ -2,12 +2,13 @@
 
 import gc
 import unittest
+import warnings
 import weakref
 
 from TopKit import (Action, Constant, Contract, Flag, Imprint, Keyword,
                     Operation, Pin, Post, Pre, Public, Record, Report, Rip, Tag,
                     TagCompositionError, TagContractWarning, TagImprintError,
-                    TagPostconditionError, TagPreconditionError,
+                    TagPostconditionError, TagPreconditionError, TagTrainingWarning,
                     TagResolutionError, Secret)
 
 
@@ -164,7 +165,7 @@ class TaggingAdmissionTests(unittest.TestCase):
         self.assertIn(agent, Existing[:])
         self.assertIn(agent, New[:])
 
-    def test_failed_imprint_and_interruptions_leave_gains_outside_the_tag(self):
+    def test_failed_imprint_and_interruptions_admit_the_trained_tag(self):
         for failure in (ValueError("failed"), KeyboardInterrupt(),
                         SystemExit(7), Stop()):
             with self.subTest(failure=type(failure).__name__):
@@ -192,20 +193,31 @@ class TaggingAdmissionTests(unittest.TestCase):
                         events.append("not reached")
 
                 agent = Host()
-                expected = TagImprintError.Finish if isinstance(failure, Exception) else type(failure)
-                with self.assertRaises(expected) as caught:
-                    Unfinished(agent)
-                if isinstance(failure, Exception):
-                    self.assertIs(caught.exception.__cause__, failure)
-                else:
-                    self.assertIs(caught.exception, failure)
-                self.assert_not_admitted(Unfinished, agent)
+                with warnings.catch_warnings(record=True) as caught:
+                    warnings.simplefilter("always", TagTrainingWarning)
+                    if isinstance(failure, Exception):
+                        self.assertIs(Unfinished(agent), agent)
+                        self.assertEqual(len(caught), 1)
+                        self.assertIsInstance(caught[0].message.failure,
+                                              TagImprintError.Finish)
+                        self.assertEqual(caught[0].message.cause_type,
+                                         type(failure).__name__)
+                        self.assertEqual(caught[0].message.cause_text,
+                                         str(failure))
+                    else:
+                        with self.assertRaises(type(failure)) as interrupted:
+                            Unfinished(agent)
+                        self.assertIs(interrupted.exception, failure)
+                        self.assertEqual(caught, [])
+                self.assertIn(agent, Unfinished[:])
+                self.assertIn(agent, Unfinished)
                 self.assertTrue("Read" @ agent)
                 self.assertTrue("value" @ agent)
                 self.assertIsNone(agent.Read())
-                self.assertEqual(events, ["acquire"])
+                self.assertEqual(events, ["acquire", "not reached"] if isinstance(failure, Exception)
+                                 else ["acquire"])
 
-    def test_retry_runs_a_fresh_gate_gainings_and_all_imprints(self):
+    def test_active_reapplication_is_a_noop_and_rip_allows_fresh_training(self):
         events = []
 
         class Retried(Tag):
@@ -230,17 +242,21 @@ class TaggingAdmissionTests(unittest.TestCase):
 
         agent = Host()
         agent.round = 0
-        with self.assertRaises(TagImprintError.Finish):
+        with self.assertWarns(TagTrainingWarning):
             Retried(agent)
-        self.assert_not_admitted(Retried, agent)
+        self.assertIn(agent, Retried[:])
         self.assertEqual(agent.round, 1)
         self.assertIs(Retried(agent), agent)
+        self.assertEqual(agent.round, 1)
+        del Retried[agent]
+        self.assertNotIn(agent, Retried[:])
+        Retried(agent)
         self.assertEqual(agent.round, 2)
         self.assertIn(agent, Retried[:])
         self.assertEqual(events, [("gate", 0), ("first", 1), ("finish", 1),
                                   ("gate", 1), ("first", 2), ("finish", 2)])
 
-    def test_a_refused_retry_keeps_the_rogues_existing_gains(self):
+    def test_a_refused_fresh_tagging_keeps_existing_gains(self):
         class Retried(Tag):
             @Pre
             def Allowed(agent):
@@ -256,12 +272,16 @@ class TaggingAdmissionTests(unittest.TestCase):
 
         agent = Host()
         agent.allowed = True
-        with self.assertRaises(TagImprintError.Finish):
+        with self.assertWarns(TagTrainingWarning):
             Retried(agent)
+        self.assertIn(agent, Retried[:])
+        del Retried[agent]
         agent.allowed = False
         with self.assertRaises(TagPreconditionError.Allowed):
             Retried(agent)
-        self.assert_not_admitted(Retried, agent)
+        self.assertNotIn(agent, Retried[:])
+        with self.assertRaises(TagResolutionError):
+            Retried[agent]
         self.assertEqual(agent.value, 1)
 
     def test_acquired_constants_stay_locked_but_an_unbuilt_constant_can_retry(self):
@@ -361,13 +381,19 @@ class TaggingAdmissionTests(unittest.TestCase):
                         raise ValueError("imprint failed")
 
                 agent = Host()
-                expected = TagCompositionError if phase == "gain" else TagImprintError.Finish
-                with self.assertRaises(expected):
-                    Shape(agent)
+                if phase == "gain":
+                    with self.assertRaises(TagCompositionError):
+                        Shape(agent)
+                else:
+                    with self.assertWarns(TagTrainingWarning):
+                        Shape(agent)
                 self.assertIn(agent, Base[:])
                 self.assertTrue(isinstance(agent, Base))
                 self.assertEqual(Base[agent].base_value, "base")
-                self.assert_not_admitted(Shape, agent)
+                if phase == "gain":
+                    self.assert_not_admitted(Shape, agent)
+                else:
+                    self.assertIn(agent, Shape[:])
                 self.assertTrue("partial" @ agent)
                 self.assertIsNone(agent.partial)
 
@@ -388,12 +414,12 @@ class TaggingAdmissionTests(unittest.TestCase):
                 raise ValueError("outer failed")
 
         agent = Host()
-        with self.assertRaises(TagImprintError.Finish):
+        with self.assertWarns(TagTrainingWarning):
             Outer(agent)
         self.assertIn(agent, Inner[:])
         self.assertTrue(isinstance(agent, Inner))
         self.assertIsNone(Inner[agent].inner_value)
-        self.assert_not_admitted(Outer, agent)
+        self.assertIn(agent, Outer[:])
         self.assertTrue("outer_value" @ agent)
         self.assertIs(agent.outer_value, False)
 
@@ -437,6 +463,10 @@ class TaggingAdmissionTests(unittest.TestCase):
             def ReadBattery(agent):
                 return agent.battery_on
 
+            @Action
+            def RepairInsulation(agent):
+                agent.insulated = True
+
             @Record
             def after_safety(agent):
                 self.assertIs(agent.SafetyChecks, False)
@@ -454,10 +484,16 @@ class TaggingAdmissionTests(unittest.TestCase):
         Existing(agent)
         self.assertEqual(agent.Use(), "existing service")
 
-        with self.assertRaises(TagImprintError.Train) as caught:
-            Electric(agent)
-        self.assertIsInstance(caught.exception.__cause__, TagPreconditionError.Can_Train)
-        self.assert_not_admitted(Electric, agent)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", TagTrainingWarning)
+            with self.assertRaises(TagPostconditionError.SafetyChecks):
+                Electric(agent)
+        self.assertEqual(len(caught), 1)
+        self.assertIsInstance(caught[0].message.failure,
+                              TagImprintError.Train)
+        self.assertEqual(caught[0].message.cause_type, "Can_Train")
+        self.assertIn("Can_Train", caught[0].message.cause_text)
+        self.assertIn(agent, Electric[:])
         self.assert_not_admitted(Safe, agent)
         self.assertTrue("before_safety" @ agent)
         self.assertTrue("after_safety" @ agent)
@@ -475,15 +511,13 @@ class TaggingAdmissionTests(unittest.TestCase):
         self.assertIs(agent.ReadBattery(), False)
         self.assertIs(agent.battery_on, False)
 
-        agent.can_train = True
-        with self.assertWarns(TagContractWarning):
-            Safe(agent)
+        agent.RepairInsulation()
         self.assertTrue(agent.insulated)
         self.assertIs(agent.SafetyChecks, True)
         self.assertTrue(bool(agent))
         self.assertIn(agent, list(Existing))
         self.assertEqual(agent.Use(), "existing service")
-        self.assert_not_admitted(Electric, agent)
+        self.assertIn(agent, Electric)
         agent.TurnOnBattery()
         self.assertIs(agent.ReadBattery(), True)
 
@@ -514,9 +548,9 @@ class TaggingAdmissionTests(unittest.TestCase):
             def Finish(tag):
                 raise ValueError("unfinished Pin")
 
-        with self.assertRaises(TagImprintError.Finish):
+        with self.assertWarns(TagTrainingWarning):
             Unfinished(Receiver)
-        self.assert_not_admitted(Unfinished, Receiver)
+        self.assertIn(Receiver, Unfinished[:])
         self.assertTrue("Work" @ Receiver)
         self.assertTrue("marker" @ Receiver)
         self.assertEqual(Receiver.Work(), "pinned operation")
@@ -620,7 +654,7 @@ class TaggingAdmissionTests(unittest.TestCase):
         self.assertTrue(Keyword(agent, Marked))
         self.assertIn("assembled", agent)
 
-    def test_unadmitted_training_does_not_run_rip_on_field_cleanup_or_finalization(self):
+    def test_failed_training_admits_and_runs_rip_on_field_cleanup(self):
         events = []
 
         class Unfinished(Tag):
@@ -634,17 +668,18 @@ class TaggingAdmissionTests(unittest.TestCase):
                 events.append("rip")
 
         agent = Host()
-        with self.assertRaises(TagImprintError.Train):
+        with self.assertWarns(TagTrainingWarning):
             Unfinished(agent)
-        self.assert_not_admitted(Unfinished, agent)
+        self.assertIn(agent, Unfinished[:])
         for member in Unfinished[:]:
             del Unfinished[member]
-        self.assertEqual(events, ["train"])
+        del member
+        self.assertEqual(events, ["train", "rip"])
         reference = weakref.ref(agent)
         del agent
         gc.collect()
         self.assertIsNone(reference())
-        self.assertEqual(events, ["train"])
+        self.assertEqual(events, ["train", "rip"])
 
     def test_a_runtime_clone_keeps_completed_preparation_after_its_first_builder_fails(self):
         preparations = []

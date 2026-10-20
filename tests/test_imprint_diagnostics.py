@@ -11,7 +11,7 @@ import warnings
 from typing import Any
 
 from TopKit import Action, Imprint, Pin, Post, Record, Tag
-from TopKit import TagImprintError, TagResolutionError
+from TopKit import TagImprintError, TagPostconditionError, TagTrainingWarning
 from TopKit import state as runtime
 
 
@@ -52,16 +52,37 @@ def _target(pinned: bool) -> object:
 
 
 class ImprintDiagnosticTests(unittest.TestCase):
-    def assert_rogue(self, tag, target):
-        self.assertNotIn(target, tag)
-        self.assertNotIn(target, tag[:])
-        self.assertFalse(isinstance(target, tag))
-        self.assertNotIn(target, list(tag))
-        self.assertNotIn(target, ~tag)
-        with self.assertRaises(TagResolutionError):
-            tag[target]
+    def assert_admitted(self, tag, target):
+        self.assertIn(target, tag[:])
+        self.assertTrue(isinstance(target, tag))
+        self.assertIsNotNone(tag[target])
 
-    def test_callable_failure_keeps_its_name_cause_and_acquired_gains(self):
+    def assert_training_warning(self, tag, target, **inputs):
+        with warnings.catch_warnings(record=True) as recorded:
+            warnings.simplefilter("always", TagTrainingWarning)
+            self.assertIs(tag(target, **inputs), target)
+        warnings_of_training = [
+                item.message for item in recorded
+                if isinstance(item.message, TagTrainingWarning)
+                ]
+        self.assertEqual(len(warnings_of_training), 1)
+        warning = warnings_of_training[0]
+        self.assertEqual(warning.kind, "Imprint")
+        self.assertEqual(warning.tag_name, tag.__name__)
+        self.assertIsInstance(warning, getattr(TagTrainingWarning, warning.name))
+        self.assertIsInstance(warning.failure, TagImprintError)
+        return warning
+
+    def assert_cause_snapshot(self, warning, kind, text, function=None):
+        self.assertIsNone(warning.failure.__cause__)
+        self.assertEqual(warning.cause_type, kind)
+        self.assertEqual(warning.cause_text, text)
+        self.assertTrue(warning.traceback_summary)
+        self.assertEqual(warning.origin, warning.traceback_summary[-1][:2])
+        if function is not None:
+            self.assertEqual(warning.traceback_summary[-1][2], function)
+
+    def test_callable_failure_keeps_its_name_cause_snapshot_and_acquired_gains(self):
         for pinned in (False, True):
             for hostile_metadata in (False, True):
                 with self.subTest(pinned=pinned, hostile_metadata=hostile_metadata):
@@ -102,18 +123,21 @@ class ImprintDiagnosticTests(unittest.TestCase):
                         Trained = Pin(Trained)
                     target = _target(pinned)
 
-                    with self.assertRaises(TagImprintError.Training) as caught:
-                        Trained(target, value=17)
+                    diagnostic = self.assert_training_warning(Trained, target, value=17)
+                    failure = diagnostic.failure
 
-                    self.assertIs(caught.exception.__cause__, original)
-                    self.assertEqual(caught.exception.name, "Training")
+                    self.assert_cause_snapshot(
+                            diagnostic, "RuntimeError", "training failed", "fail",
+                            )
+                    self.assertEqual(diagnostic.name, "Training")
+                    self.assertIsInstance(failure, TagImprintError.Training)
                     self.assertEqual(
-                            str(caught.exception),
+                            str(failure),
                             "Imprint 'Training' failed: RuntimeError: training failed",
                             )
-                    self.assertEqual(events, ["before", ("failure", 17)])
+                    self.assertEqual(events, ["before", ("failure", 17), "later"])
                     self.assertEqual(vars(protocol), original_namespace)
-                    self.assert_rogue(Trained, target)
+                    self.assert_admitted(Trained, target)
                     self.assertTrue("badge" @ target)
                     self.assertTrue("Read" @ target)
                     self.assertEqual(target.Read(), "ready")
@@ -132,17 +156,20 @@ class ImprintDiagnosticTests(unittest.TestCase):
             Declared = Imprint(Implementation)
 
         target = Host()
-        with self.assertRaises(TagImprintError.Declared) as caught:
-            Trained(target)
+        diagnostic = self.assert_training_warning(Trained, target)
+        failure = diagnostic.failure
 
         self.assertEqual(
-                str(caught.exception),
+                str(failure),
                 "Imprint 'Declared' failed: ValueError: implementation failed",
                 )
-        self.assertIs(caught.exception.__cause__, original)
+        self.assertIsInstance(failure, TagImprintError.Declared)
+        self.assert_cause_snapshot(
+                diagnostic, "ValueError", "implementation failed", "Implementation",
+                )
         self.assertEqual(Implementation.__name__, original_name)
         self.assertEqual(Implementation.__qualname__, original_qualname)
-        self.assert_rogue(Trained, target)
+        self.assert_admitted(Trained, target)
 
     def test_a_successful_callable_needs_no_diagnostic_metadata(self):
         for pinned in (False, True):
@@ -208,14 +235,18 @@ class ImprintDiagnosticTests(unittest.TestCase):
                             Trained = Pin(Trained)
                         target = _target(pinned)
 
-                        with self.assertRaises(TagImprintError.Training) as failure:
-                            Trained(target)
+                        diagnostic = self.assert_training_warning(Trained, target)
+                        failure = diagnostic.failure
 
-                        self.assertIn("Imprint 'Training' returned", str(failure.exception))
-                        self.assertIn(kind, str(failure.exception))
-                        self.assertIsNone(failure.exception.__cause__)
-                        self.assertEqual(events, [])
-                        self.assert_rogue(Trained, target)
+                        self.assertIn("Imprint 'Training' returned", str(failure))
+                        self.assertIn(kind, str(failure))
+                        self.assertIsNone(failure.__cause__)
+                        self.assertIsNone(diagnostic.cause_type)
+                        self.assertIsNone(diagnostic.cause_text)
+                        self.assertEqual(diagnostic.traceback_summary, ())
+                        self.assertIsNone(diagnostic.origin)
+                        self.assertEqual(events, ["later"])
+                        self.assert_admitted(Trained, target)
                         self.assertTrue("badge" @ target)
                         self.assertEqual(target.badge, "ready")
                         self.assertTrue(bool(target))
@@ -231,7 +262,7 @@ class ImprintDiagnosticTests(unittest.TestCase):
             gc.collect()
         self.assertFalse(any("was never awaited" in str(item.message) for item in caught))
 
-    def test_close_failures_keep_the_imprint_name_and_original_cause(self):
+    def test_close_failures_keep_the_imprint_name_and_cause_snapshot(self):
         for pinned in (False, True):
             for kind in ("coroutine", "generator"):
                 with self.subTest(pinned=pinned, kind=kind):
@@ -271,14 +302,16 @@ class ImprintDiagnosticTests(unittest.TestCase):
                     if pinned:
                         Trained = Pin(Trained)
                     target = _target(pinned)
-                    with self.assertRaises(TagImprintError.Training) as caught:
-                        Trained(target)
+                    diagnostic = self.assert_training_warning(Trained, target)
+                    failure = diagnostic.failure
 
-                    self.assertIs(caught.exception.__cause__, original)
-                    self.assertIn("Imprint 'Training' failed", str(caught.exception))
-                    self.assertIn("close failed", str(caught.exception))
-                    self.assertEqual(events, ["started", "closed"])
-                    self.assert_rogue(Trained, target)
+                    self.assert_cause_snapshot(
+                            diagnostic, "RuntimeError", "close failed",
+                            )
+                    self.assertIn("Imprint 'Training' failed", str(failure))
+                    self.assertIn("close failed", str(failure))
+                    self.assertEqual(events, ["started", "closed", "later"])
+                    self.assert_admitted(Trained, target)
                     self.assertTrue(bool(target))
 
     def test_python_interruptions_keep_their_original_type_and_gains(self):
@@ -309,7 +342,7 @@ class ImprintDiagnosticTests(unittest.TestCase):
 
                     self.assertIs(caught.exception, original)
                     self.assertEqual(events, [])
-                    self.assert_rogue(Trained, target)
+                    self.assert_admitted(Trained, target)
                     self.assertTrue("badge" @ target)
                     self.assertEqual(target.badge, "ready")
                     self.assertTrue(bool(target))
@@ -333,10 +366,18 @@ class ImprintDiagnosticTests(unittest.TestCase):
                     if pinned:
                         Trained = Pin(Trained)
                     target = _target(pinned)
-                    with self.assertRaises(TagImprintError.Training):
-                        Trained(target)
-                    self.assert_rogue(Trained, target)
+                    with warnings.catch_warnings(record=True) as recorded:
+                        warnings.simplefilter("always", TagTrainingWarning)
+                        if ready:
+                            self.assertIs(Trained(target), target)
+                        else:
+                            with self.assertRaises(TagPostconditionError.Equipped):
+                                Trained(target)
+                    self.assertEqual(len(recorded), 1)
+                    self.assertIsInstance(recorded[0].message, TagTrainingWarning)
+                    self.assert_admitted(Trained, target)
                     self.assertEqual(bool(target), ready)
+                    self.assertEqual(target in Trained, ready)
 
     def test_a_missing_record_does_not_add_an_implicit_requirement(self):
         for pinned in (False, True):
@@ -357,12 +398,13 @@ class ImprintDiagnosticTests(unittest.TestCase):
                 if pinned:
                     Trained = Pin(Trained)
                 target = _target(pinned)
-                with self.assertRaises(TagImprintError.Training) as caught:
-                    Trained(target)
+                diagnostic = self.assert_training_warning(Trained, target)
 
-                self.assertIs(caught.exception.__cause__, original)
+                self.assert_cause_snapshot(
+                        diagnostic, "RuntimeError", "training stopped", "fail",
+                        )
                 self.assertFalse("badge" @ target)
-                self.assert_rogue(Trained, target)
+                self.assert_admitted(Trained, target)
                 self.assertTrue(bool(target))
 
     def test_unprintable_exceptions_do_not_replace_the_imprint_failure(self):
@@ -399,15 +441,18 @@ class ImprintDiagnosticTests(unittest.TestCase):
                     if pinned:
                         Trained = Pin(Trained)
                     target = _target(pinned)
-                    with self.assertRaises(TagImprintError.Training) as caught:
-                        Trained(target)
+                    diagnostic = self.assert_training_warning(Trained, target)
+                    failure = diagnostic.failure
 
                     self.assertEqual(
-                            str(caught.exception),
+                            str(failure),
                             "Imprint 'Training' failed: Unprintable: <exception text unavailable>",
                             )
-                    self.assertIs(caught.exception.__cause__, original)
-                    self.assert_rogue(Trained, target)
+                    self.assert_cause_snapshot(
+                            diagnostic, "Unprintable", "<exception text unavailable>",
+                            "fail",
+                            )
+                    self.assert_admitted(Trained, target)
                     self.assertTrue(bool(target))
                     self.assertEqual(runtime._state_of(target).composing, 0)
 
@@ -456,17 +501,19 @@ class ImprintDiagnosticTests(unittest.TestCase):
                     if pinned:
                         Trained = Pin(Trained)
                     target = _target(pinned)
-                    with self.assertRaises(TagImprintError.Training) as caught:
-                        Trained(target)
+                    diagnostic = self.assert_training_warning(Trained, target)
+                    failure = diagnostic.failure
 
                     self.assertEqual(
-                            str(caught.exception),
+                            str(failure),
                             "Imprint 'Training' failed: Unprintable: <exception text unavailable>",
                             )
-                    self.assertIs(caught.exception.__cause__, original)
-                    self.assertEqual(events, ["closed"])
+                    self.assert_cause_snapshot(
+                            diagnostic, "Unprintable", "<exception text unavailable>",
+                            )
+                    self.assertEqual(events, ["closed", "later"])
                     self.assertIsNone(lazy.cr_frame if kind == "coroutine" else lazy.gi_frame)
-                    self.assert_rogue(Trained, target)
+                    self.assert_admitted(Trained, target)
                     self.assertTrue(bool(target))
                     self.assertEqual(runtime._state_of(target).composing, 0)
 
@@ -521,7 +568,7 @@ class ImprintDiagnosticTests(unittest.TestCase):
                         Trained(target)
 
                     self.assertIs(caught.exception, interruption)
-                    self.assert_rogue(Trained, target)
+                    self.assert_admitted(Trained, target)
                     self.assertTrue("badge" @ target)
                     self.assertEqual(target.badge, "ready")
                     self.assertTrue(bool(target))
@@ -555,15 +602,17 @@ class ImprintDiagnosticTests(unittest.TestCase):
                 if pinned:
                     Trained = Pin(Trained)
                 target = _target(pinned)
-                with self.assertRaises(TagImprintError.Training) as caught:
-                    Trained(target)
+                diagnostic = self.assert_training_warning(Trained, target)
+                failure = diagnostic.failure
 
                 self.assertEqual(
-                        str(caught.exception),
+                        str(failure),
                         "Imprint 'Training' failed: Unformattable: training failed",
                         )
-                self.assertIs(caught.exception.__cause__, original)
-                self.assert_rogue(Trained, target)
+                self.assert_cause_snapshot(
+                        diagnostic, "Unformattable", "training failed", "fail",
+                        )
+                self.assert_admitted(Trained, target)
                 self.assertEqual(runtime._state_of(target).composing, 0)
 
     def test_string_subclass_declaration_names_use_only_their_plain_text(self):
@@ -621,12 +670,19 @@ class ImprintDiagnosticTests(unittest.TestCase):
                     # Formatted metadata is unnecessary even when the accepted
                     # declaration key only becomes hostile after class creation.
                     Name.armed = True
-                    with self.assertRaises(TagImprintError.Training) as caught:
-                        Trained(target)
+                    diagnostic = self.assert_training_warning(Trained, target)
+                    failure = diagnostic.failure
 
-                    self.assertIn("Training", str(caught.exception))
-                    self.assertIs(caught.exception.__cause__, original if kind == "failure" else None)
-                    self.assert_rogue(Trained, target)
+                    self.assertIn("Training", str(failure))
+                    if kind == "failure":
+                        self.assert_cause_snapshot(
+                                diagnostic, "RuntimeError", "training failed", "Training",
+                                )
+                    else:
+                        self.assertIsNone(failure.__cause__)
+                        self.assertIsNone(diagnostic.cause_type)
+                        self.assertEqual(diagnostic.traceback_summary, ())
+                    self.assert_admitted(Trained, target)
                     self.assertTrue(bool(target))
                     self.assertEqual(events, [])
                     if kind == "coroutine":

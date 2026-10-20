@@ -11,15 +11,17 @@ For each Tag in the Form (Bases first), in order:
     5. Every visible Postcondition is checked before the next Tag's Gate.
 
 A refusal in 1 leaves completed Tags and existing Gains in place. A
-failure in 2 or 3 retains acquired Gains and Posts, but never admits the
-unfinished Tag. A failure after 4 retains membership. Current Posts
-determine soundness; failures are not permanent defects. Python
-interruptions keep their original type and follow the same boundary.
+structural refusal in 2 leaves the unfinished Tag outside its Field.
+An ordinary Imprint failure in 3 reports a warning, continues later
+Imprints, and admits the Agent at 4. Current Posts determine soundness;
+failures are not permanent defects. Python interruptions stop later
+Imprints, retain Field entry, and keep their original type.
 """
 
 from __future__ import annotations
 
 from typing import Any
+import warnings
 
 from .contracts import _evaluate
 from .declarations import _Declarations
@@ -33,12 +35,15 @@ from .errors import TagCompositionError
 from .errors import TagImprintError
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
+from .errors import TagTrainingWarning
+from .errors import TaggingFailure
 from .fields import _field_of
 from .geometry import _form_of
 from .overlay import _install
 from .overlay import _gainings
 from .overlay import _quiet
 from .overlay import _preflight_ordinary_gains
+from .overlay import _WARNING_SKIP_PREFIXES
 from .state import STATE
 from .state import _Published
 from .state import _Snapshot
@@ -102,8 +107,52 @@ def _apply(
                 continue
 
             _gate(agent, state, member, inputs)
-            _apply_one(agent, state, member, inputs)
-            _inspect(agent)   # a failed Post keeps this membership, but stops the Form
+            training_warnings: list[TagTrainingWarning] = []
+            try:
+                interruptions, closing_errors = _apply_one(
+                        agent, state, member, inputs, training_warnings,
+                        )
+            except BaseException as error:
+                # A later service or snapshot failure cannot erase the
+                # diagnostics of Imprints that already ran.
+                _report_training(training_warnings, error)
+                raise
+            # Pop before re-raising: a traceback must not retain this frame
+            # through a local that still points at the same error and Agent.
+            post_failures: list[BaseException] = []
+            try:
+                _inspect(agent)   # a failed Post keeps this membership, but stops the Form
+            except BaseException as error:
+                post_failures.append(error)
+
+            _report_training(
+                    training_warnings,
+                    interruptions[0] if interruptions else (
+                        post_failures[0] if post_failures else (
+                            closing_errors[0][1] if closing_errors else None
+                            )
+                        ),
+                    )
+
+            if interruptions:
+                _note_secondary(
+                        interruptions[0], post_failures,
+                        "Post inspection after interruption also failed",
+                        )
+                _note_closing(interruptions[0], closing_errors)
+                post_failures.clear()
+                closing_errors.clear()
+                raise interruptions.pop()
+
+            if post_failures:
+                _note_closing(post_failures[0], closing_errors)
+                closing_errors.clear()
+                raise post_failures.pop()
+
+            if closing_errors:
+                _note_closing(closing_errors[0][1], closing_errors[1:])
+                del closing_errors[1:]
+                raise closing_errors.pop()[1]
     except BaseException:
         if (
                 entry_state is None
@@ -202,12 +251,14 @@ def _apply_one(
         state: _State,
         tag: type,
         inputs: dict[str, Any],
-        ) -> None:
+        training_warnings: list[TagTrainingWarning],
+        ) -> tuple[list[BaseException], list[tuple[str, BaseException]]]:
     declarations = _declarations_of(tag)
     deleted_before = set(state.deleted)
     state.training.add(tag)
     state.composing += 1
-    primary_failure: BaseException | None = None
+    interruption: BaseException | None = None
+    closing_errors: list[tuple[str, BaseException]] = []
 
     try:
         # Mechanical actualization precedes every builder and Imprint.
@@ -256,7 +307,9 @@ def _apply_one(
                 if declarations.rips else ()
                 )
 
-        _imprint(agent, declarations, inputs)
+        interruption = _imprint(
+                agent, tag, declarations, inputs, training_warnings,
+                )
 
         # Tag-scope services arrive with admission. A failed representation
         # must not replace the services of an already active Agency.
@@ -287,8 +340,10 @@ def _apply_one(
                     state.rips.pop(tag, None)
             raise
     except BaseException as error:
-        primary_failure = error
-        raise
+        if tag in state.active:
+            closing_errors.append(("Post-entry setup also failed", error))
+        else:
+            raise
     finally:
         try:
             if tag in state.active:
@@ -298,20 +353,15 @@ def _apply_one(
                             state,
                             )
                 except BaseException as closing_error:
-                    if primary_failure is None:
-                        raise
-                    try:
-                        BaseException.add_note(
-                                primary_failure,
-                                f"The {tag.__name__} view could not be captured after Write:"
-                                f" {type(closing_error).__name__}",
-                                )
-                    except BaseException:
-                        pass
+                    closing_errors.append((
+                            f"The {tag.__name__} view could not be captured after Write",
+                            closing_error,
+                            ))
         finally:
-            primary_failure = None
             state.training.discard(tag)
             state.composing -= 1
+
+    return ([] if interruption is None else [interruption]), closing_errors
 
 
 def _refuse_conditions_shadowed_by_the_agent(
@@ -347,7 +397,7 @@ def _refuse_conditions_shadowed_by_the_agent(
 def _inspect(
         agent: object,
         ) -> None:
-    """Judge every visible Post after this Tag enters its Field."""
+    """Judge every visible Post after admission, reporting one final error."""
 
     state = _state_of(agent)
 
@@ -357,14 +407,31 @@ def _inspect(
     state.composing += 1
 
     try:
-        _evaluate(
-                state.postconditions.items(),
-                agent,
-                {},
-                TagPostconditionError,
-                "Postcondition",
-                post=True,
-                )
+        failures: list[TagPostconditionError] = []
+        for name, check in tuple(state.postconditions.items()):
+            try:
+                _evaluate(
+                        ((name, check),),
+                        agent,
+                        {},
+                        TagPostconditionError,
+                        "Postcondition",
+                        post=True,
+                        )
+            except TagPostconditionError as error:
+                failures.append(error)
+
+        if len(failures) == 1:
+            failures[0].failed_posts = (failures[0].name,)
+            # Pop before raising: a raised error must not own an _inspect
+            # frame whose locals still contain that same error and Agent.
+            raise failures.pop()
+
+        if failures:
+            names = tuple(error.name for error in failures)
+            details = tuple(str(failure) for failure in failures)
+            failures.clear()
+            raise TaggingFailure(names, details)
     finally:
         state.composing -= 1
 
@@ -582,9 +649,11 @@ def _publish_into(
 
 def _imprint(
         agent: object,
+        tag: type,
         declarations: _Declarations,
         inputs: dict[str, Any],
-        ) -> None:
+        failures: list[TagTrainingWarning],
+        ) -> BaseException | None:
     for name, imprint in declarations.imprints:
         try:
             result = imprint(
@@ -593,19 +662,123 @@ def _imprint(
                     )
             lazy = _discard_lazy_result(result)
         except Exception as error:
-            raise TagImprintError.Named(name)(
-                    f"Imprint {str.__str__(name)!r} failed:"
-                    f" {_type_name(error)}: {_exception_text(error)}"
-                    ) from error
+            try:
+                cause_type = _type_name(error)
+                cause_text = _exception_text(error)
+                summary = _traceback_summary(error)
+                failure = TagImprintError.Named(name)(
+                        f"Imprint {str.__str__(name)!r} failed:"
+                        f" {cause_type}: {cause_text}"
+                        )
+                failures.append(
+                        TagTrainingWarning.Named(name)(
+                            "Imprint", tag, name, failure,
+                            cause_type=cause_type,
+                            cause_text=cause_text,
+                            traceback_summary=summary,
+                            )
+                        )
+            except BaseException as interruption:
+                return interruption
+            continue
+        except BaseException as interruption:
+            return interruption
 
         if lazy is not None:
             article = "an" if lazy == "async generator" else "a"
 
-            raise TagImprintError.Named(name)(
+            failure = TagImprintError.Named(name)(
                     f"Imprint {str.__str__(name)!r} returned {article}"
                     f" {lazy}; an Imprint must complete synchronously."
                     " TOP does not await or iterate application protocols."
                     )
+            failures.append(
+                    TagTrainingWarning.Named(name)(
+                        "Imprint", tag, name, failure,
+                        )
+                    )
+
+    return None
+
+
+def _traceback_summary(
+        error: BaseException,
+        ) -> tuple[tuple[str, int, str], ...]:
+    """Copy source coordinates without retaining traceback frames or Agents."""
+
+    frames: list[tuple[str, int, str]] = []
+    # A user Exception can override __getattribute__ and make an ordinary
+    # error in its own Imprint metadata look like a new interruption. Read the
+    # interpreter's traceback seat without dispatching through that override.
+    traceback = BaseException.__dict__["__traceback__"].__get__(error)
+    while traceback is not None:
+        code = traceback.tb_frame.f_code
+        frames.append((code.co_filename, traceback.tb_lineno, code.co_name))
+        traceback = traceback.tb_next
+    return tuple(frames)
+
+
+def _report_training(
+        failures: list[TagTrainingWarning],
+        primary: BaseException | None,
+        ) -> None:
+    """Report each failed step after admission, without masking Posts or interrupts."""
+
+    warning_errors: list[Exception] = []
+    for failure in failures:
+        try:
+            warnings.warn(
+                    failure,
+                    skip_file_prefixes=_WARNING_SKIP_PREFIXES,
+                    )
+        except Exception as error:
+            # Warning filters and custom reporting hooks run after Field
+            # entry. Neither may mask a failed Post or an interruption.
+            if primary is not None:
+                try:
+                    BaseException.add_note(primary, str(error))
+                except BaseException:
+                    pass
+            elif warning_errors:
+                try:
+                    BaseException.add_note(warning_errors[0], str(error))
+                except BaseException:
+                    pass
+            else:
+                warning_errors.append(error)
+
+    if failures:
+        del failure
+    failures.clear()
+    if warning_errors:
+        raise warning_errors.pop()
+
+
+def _note_secondary(
+        primary: BaseException,
+        others: list[BaseException],
+        label: str,
+        ) -> None:
+    """Keep secondary failures visible without retaining their tracebacks."""
+
+    for error in others:
+        try:
+            BaseException.add_note(
+                    primary,
+                    f"{label}: {_type_name(error)}: {_exception_text(error)}",
+                    )
+        except BaseException:
+            pass   # a diagnostic must not replace the primary failure
+
+
+def _note_closing(
+        primary: BaseException,
+        others: list[tuple[str, BaseException]],
+        ) -> None:
+    """Record each later post-entry error without keeping its traceback."""
+
+    for label, error in others:
+        _note_secondary(primary, [error], label)
 
 
 _NONE: frozenset[str] = frozenset()   # one empty set for every snapshot that needs none

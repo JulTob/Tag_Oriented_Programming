@@ -3,7 +3,7 @@
 import unittest
 
 from TopKit import (Action, Contract, Imprint, Post, Record, Tag, Tool,
-                    TagCompositionError, TagImprintError)
+                    TagCompositionError, TagTrainingWarning)
 
 
 class Host:
@@ -168,10 +168,10 @@ class ToolAdmissionTests(unittest.TestCase):
 
         agent = Host()
         sword = Sword()
-        with self.assertRaises(TagImprintError):
+        with self.assertWarns(TagTrainingWarning):
             Unfinished(agent, weapon=sword)
         self.assertIs(agent.weapon, sword)
-        self.assertNotIn(agent, Unfinished[:])
+        self.assertIn(agent, Unfinished[:])
         with self.assertRaises(TagCompositionError):
             agent.weapon = Shield()
         self.assertIs(agent.weapon, sword)
