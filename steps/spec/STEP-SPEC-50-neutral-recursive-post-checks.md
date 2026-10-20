@@ -38,7 +38,7 @@ The current runtime has three different answers to this situation. A
 recursive `bool(agent)` takes a broad `True` shortcut, a recursive sound
 population query raises Contract Failure, and a named Post or
 `Contract.Status(agent)` may repeatedly run the check. One neutral rule
-should replace those inconsistent paths and bound collective queries such
+should replace those inconsistent paths and cut recursive edges in queries such
 as a Post that asks `len(Group)` while each Group member asks the same
 question.
 
@@ -65,13 +65,13 @@ question.
    the other entries normally. A query of a different Agent proceeds
    normally until it too encounters an active check. This rule also
    applies to a future Tag-owned Post when its Tag is the checked receiver.
-4. **Bounded evaluation.** TOP must stop recursion at the active check and
-   avoid factorial replay of collective dependencies. It may reuse a
-   completed check's result within one outer contract or population query;
-   a result that depends on a neutral recursive edge must not be reused
-   under a different set of active checks, since that could change its
-   verdict. Any memo ends with that query and does not make a later truth
-   read stale. An interruption or raised check failure retains its existing
+4. **Bounded recursion, fresh reads.** TOP must stop recursion at the active
+   check. This Brief does not authorize caching a completed Post verdict:
+   read-only Posts may read a changing sensor or database, and a Secret door
+   may open and close within one outer query. Reusing an earlier verdict
+   could leak a result obtained inside that door or hide a fresh failure.
+   A separate performance design may define when reuse is sound. An
+   interruption or raised check failure retains its existing
    diagnostic and cause rather than becoming neutral. This does not grant
    permission for Posts to mutate TOP state; the observational-Post rule
    is proposed separately in [#346](https://github.com/JulTob/Tag_Oriented_Programming/pull/346)
@@ -108,18 +108,15 @@ element while the rest of the contract can still fail. Tracking check
 identity also respects layered same-name Posts: an upper Post may ask its
 lower check without being mistaken for a self-reference.
 
-An execution-local memo keeps collective predicates usable. Without one,
-an eight-member Field whose Posts each ask for the Field's sound size can
-execute a Post over 100,000 times in one query even when every direct cycle
-ends neutrally. A memo scoped to the current query bounds that work and is
-discarded before the next query. A Post's direct Python effects remain an
-authoring violation under STEP-SPEC-49; the memo does not license a check
-that changes the answer while being read.
-
-The active-check context can still produce exponentially many distinct
-evaluations for an arbitrary network of Posts. Bounding recursion and
-avoiding repeated work under the same context does not promise constant or
-linear time for every author-written predicate graph.
+Cutting a recursive edge guarantees termination for a finite, stable set
+of checks, but it need not make a dense collective predicate cheap. An
+eight-member Field whose Posts each ask for the Field's sound size can
+execute a Post over 100,000 times in one query. A query-local memo looked
+promising, but a Post can legally read a changing input or a Secret Record
+while a door is open. Reusing that verdict after the door closes would be
+wrong and could disclose the protected result. STEP-SPEC-49 blocks explicit
+TOP mutations inside a Post; it does not make arbitrary reads pure. A
+separate proposal must settle safe performance behavior for large cycles.
 
 ## Backwards compatibility
 
@@ -138,10 +135,9 @@ currently tests rejection of a collective cycle; it must be revised to
 test bounded neutral evaluation. Draft [#294](https://github.com/JulTob/Tag_Oriented_Programming/pull/294)
 and [#309](https://github.com/JulTob/Tag_Oriented_Programming/pull/309)
 also implement rejection and must not merge as written. The separate
-observational Post work in #348 is a useful runtime prerequisite for
-query-local memoization because it mechanically blocks explicit TOP acts
-from changing the contract during a check. Direct Python writes remain
-the author's responsibility.
+observational Post work in #348 mechanically blocks explicit TOP acts
+inside a check, but does not make all Post inputs stable. Direct Python
+writes remain the author's responsibility.
 
 ## Alternatives considered
 
@@ -150,7 +146,7 @@ the author's responsibility.
 | Raise Contract Failure on every recursive Post validity query | The Director replaced the earlier #216 choice with neutral `True` for every recursive cycle. |
 | Return `True` for the whole Agent whenever one Post is active | This can hide an independent broken Post in the nested answer. |
 | Re-run the active check until it returns or Python stops it | It may never terminate and lets diagnostics repeat arbitrary check code. |
-| Persist a memo beyond the current query | Later changes to Records, Reports, or the world must be observed by later validity checks. |
+| Cache a completed Post verdict in this query | Reads may change even within one query, and Secret access can end when a door closes; a separate performance design must specify safe reuse. |
 
 Pure Precondition cycles and mixed Pre/Post cycles require a separate
 decision. This STEP defines Post validity recursion and does not change a
@@ -165,8 +161,8 @@ Precondition's Gate result.
   recursive query, while raw Field membership remains readable.
 - Layered same-name Posts distinguish their exact calculations, and results
   reached under different active-check contexts are not incorrectly shared.
-- A collective Field query terminates without factorial replay; a later
-  independent query observes changed Records or outside read-only inputs.
+- A finite collective Field query terminates; separate reads observe changed
+  Records or outside inputs. Performance on dense cycles remains open.
 
 ---
 
