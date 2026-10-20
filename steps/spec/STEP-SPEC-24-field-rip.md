@@ -35,8 +35,10 @@ stopping this invocation at the first failure or interruption. The
 implementation may happen to follow the Field's current walk order, but
 that is not a deletion promise. A program may explicitly retry any pending
 member next, even if another member's cleanup failed earlier. Within one
-member's Rip, declared teardown order and completed-step progress still
-apply; a completed step is not replayed.
+member's Rip, declared teardown order and recorded progress still apply;
+a step whose completion was recorded is not replayed. The small
+interruption window after a callback returns but before TOP records its
+completion remains an open retry boundary.
 
 This narrow ruling supersedes the historical Summary, rule 1.3, and
 Alternatives table where they require join order, along with any proposed
