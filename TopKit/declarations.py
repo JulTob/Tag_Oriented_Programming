@@ -316,7 +316,7 @@ class _Check_Mark:
 Imprint = _Check_Mark(
         "imprint",
         TagImprintError,
-        "Work performed after the Tag has applied.",
+        "Training performed after Gainings and before Field admission.",
         )
 
 

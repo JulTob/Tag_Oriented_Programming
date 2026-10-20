@@ -432,6 +432,7 @@ def _inspect(
                 {},
                 TagPostconditionError,
                 "Postcondition",
+                post=True,
                 )
     finally:
         state.composing -= 1

@@ -53,13 +53,13 @@ def Run() -> None:
     car = Character(); car.complete = False; car.wheels = False
     try: Assembled(car); raise SystemExit("expected unfinished training")
     except TagImprintError.Assemble: pass
-    assert car in Territory and car not in Assembled and car.attempt == 1
+    assert car in Territory[:] and car not in Assembled and car.attempt == 1
     assert not isinstance(car, Assembled) and list(Assembled[:]) == []
     assert car.Has_Wheels is False and not bool(car)
     car.complete = True
     try: Assembled(car); raise SystemExit("expected deficient product")
     except TagPostconditionError.Has_Wheels: pass
-    assert car in Assembled and car in ~Assembled and car.attempt == 2
+    assert car in Assembled[:] and car in ~Assembled and car.attempt == 2
     car.wheels = True; assert car in list(Assembled)
 
     # 0.7 / 3.1 MI6
@@ -348,7 +348,7 @@ def Run() -> None:
     assert list(~cora.Trusts) == [rue] and bool(rue)     # a broken Pair, a sound Contact
     pair = cora.Trusts[rue]
     del cora.Knows[rue]
-    assert rue not in cora.Knows and rue in cora.Trusts
+    assert rue not in cora.Knows and rue in cora.Trusts[:]
     assert cora.Knows[rue] is pair and cora.Trusts[rue] is pair
     del cora.Trusts[rue]
     assert rue not in cora.Knows and isinstance(rue, cora.Knows)

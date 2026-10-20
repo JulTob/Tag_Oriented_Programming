@@ -70,7 +70,8 @@ class LinkTrainingTests(unittest.TestCase):
         Social(owner)
         with self.assertRaises(TagPostconditionError):
             owner.Knows(contact)
-        self.assertIn(contact, owner.Knows)
+        self.assertIn(contact, owner.Knows[:])
+        self.assertNotIn(contact, owner.Knows)
         self.assertIn(contact, ~owner.Knows)
         owner.Knows(contact)
         self.assertEqual(trained, [contact])

@@ -2474,19 +2474,19 @@ def _contact_holds(
     """The sound Contacts: those whose own contract holds and whose Pair
     holds (rule 7.3). A broken Pair never makes her defective elsewhere."""
 
-    from .contracts import _holds
+    from .contracts import _holds_for_population
 
     record = _record_of(link)
 
     def Holds(
             contact: object,
             ) -> bool:
-        if not _holds(contact):
+        if not _holds_for_population(contact):
             return False
 
         pair = record.family.Pair_Of(contact)
 
-        return pair is None or _holds(pair)
+        return pair is None or _holds_for_population(pair)
 
     return Holds
 

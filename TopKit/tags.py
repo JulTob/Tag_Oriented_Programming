@@ -4,7 +4,8 @@ TOP borrows the language's own syntax for Tag-level acts and leaves the
 Tag's dotted namespace to the program:
 
     Wizard(charlie)               apply (Bases first)
-    charlie in Wizard             active membership, sound or defective
+    charlie in Wizard             sound membership, as in the plain loop
+    charlie in Wizard[:]          active membership, sound or defective
     "Deprecated" in Wizard        a keyword: the Tag carries the Flag Pin Deprecated
     Wizard in charlie             the same, from the Agent's side
     "Wizard" in charlie           the same, by name
@@ -33,6 +34,7 @@ from .access import _keyword
 from .access import _refuse_host_truth
 from .access import _view_of
 from .contracts import _holds
+from .contracts import _holds_for_population
 from .declarations import _MISSING
 from .declarations import _check_constant_declarations
 from .declarations import _check_constant_shapes
@@ -238,8 +240,9 @@ class MetaTag(type):
             tag,
             candidate: object,
             ) -> bool:
-        """``agent in Wizard``: membership. ``"Deprecated" in Wizard``: a
-        keyword among the Tag's Flag Pins; a string is never a member."""
+        """``agent in Wizard``: sound membership, as in the plain loop.
+        ``agent in Wizard[:]`` is raw membership. A string asks for a
+        keyword among the Tag's Flag Pins, never Agent membership."""
 
         if tag._topkit_kind is not None:
             _refuse_relation(tag)   # a Relation or a Pair Tag; one attribute read for every other Tag
@@ -250,11 +253,16 @@ class MetaTag(type):
                     candidate,
                     )
 
-        state = _state_of(candidate)
-
+        field = _field_of(tag)
+        holds = (
+                _links()._contact_holds(tag)
+                if tag._topkit_kind == "link"
+                else _holds_for_population
+                )
         return (
-                state is not None
-                and tag in state.active
+                candidate in field
+                and holds(candidate)
+                and candidate in field
                 )
 
     def __instancecheck__(
