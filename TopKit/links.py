@@ -43,7 +43,6 @@ from inspect import isasyncgenfunction
 from inspect import iscoroutinefunction
 from inspect import isgeneratorfunction
 from inspect import signature
-from itertools import count
 from types import coroutine
 from typing import Any
 from typing import Callable
@@ -481,9 +480,8 @@ def _pair_tag(
         relation: type,
         ) -> type:
     """The Tag a Pair receives from ``relation``: the Relation's Pair-scope
-    declarations, each adapted to the two seats, with the Pair Tags of
-    the Relation's own Bases as its Bases. One per Relation, shared by
-    every Agent's Link: the Pair carries who it joins."""
+    declarations, each adapted to the two seats. Relation Bases have
+    their own Links and Pairs; they are not layers of this Pair."""
 
     memo_name = _memo_key(relation, "PAIR")
     cached = _memo_of(relation, memo_name)
@@ -491,11 +489,6 @@ def _pair_tag(
     if cached is not None:
         return cached
 
-    bases = tuple(
-            _pair_tag(base)
-            for base in relation.__bases__
-            if _is_relation(base)
-            ) or (Tag,)
     namespace: dict[str, Any] = {
             "__module__": relation.__module__,
             "__qualname__": relation.__qualname__,
@@ -517,7 +510,7 @@ def _pair_tag(
 
     pair_tag = MetaTag(
             relation.__name__,
-            bases,
+            (Tag,),
             namespace,
             )
     words = declarations.get(_FLAG)
@@ -1292,9 +1285,7 @@ def _ends_of(
 
 
 class _Family:
-    """The Links of one Agent that share Pairs: a Link and its Base Links
-    hold one Pair for each Contact (rule 5.3). Independent Links of one
-    Agent are separate families."""
+    """One Agent's one Link and its Pairs, one Pair per Contact."""
 
     __slots__ = (
             "pairs",
@@ -1401,7 +1392,7 @@ def _forget_pair(
 
     Admitted Contacts keep their Pair until their finalizer can run its
     teardowns, including cycles whose weak references clear first. A
-    family join can move the Pair, so use its current family here.
+    Link alone owns the Pair, including during a failed admission.
     """
 
     pair = pair_reference()
@@ -1431,7 +1422,6 @@ class _Link_Record:
             "name",
             "agent",
             "layers",
-            "gained",
             "family",
             "hook",
             "ending",
@@ -1449,10 +1439,6 @@ class _Link_Record:
         record.name = name
         record.agent = weakref.ref(agent)
         record.layers = layers
-        record.gained = {
-                relation: next(_gaining)
-                for relation in layers
-                }   # when the Agent gained each Layer: the order every Pair is overlaid in
         record.family = family
         record.hook = None
         record.ending = False
@@ -1461,7 +1447,6 @@ class _Link_Record:
 
 
 _RECORD = "_topkit_link_record"   # on the Link class itself: read on every Pair lookup
-_gaining = count(1)   # numbers the Layers in the order Agents gain them
 
 
 def _record_of(
@@ -1488,7 +1473,6 @@ def _grant(
         if link is None:
             link = _new_link(
                     agent,
-                    state,
                     name,
                     layers,
                     )
@@ -1519,21 +1503,15 @@ def _grant(
 
 def _new_link(
         agent: object,
-        state: _State,
         name: str,
         layers: tuple[type, ...],
         ) -> type:
-    """A distinct Tag for this Agent (rule 4.2), with this Agent's own
-    Links as its Bases (rule 2.4)."""
+    """A distinct Tag and Pair family for this Agent's declared Link."""
 
     _refuse_mixed_layers(
             list(layers),
             name,
             TagCompositionError,
-            )
-    bases = _base_links(
-            state,
-            layers,
             )
     namespace: dict[str, Any] = {
             "__module__": layers[0].__module__,
@@ -1551,16 +1529,13 @@ def _new_link(
     try:
         link = MetaTag(
                 name,
-                tuple(bases) or (Tag,),
+                (Tag,),
                 namespace,
                 )
     finally:
         tags_module._making_link -= 1
 
-    family = _family_for(
-            bases,
-            agent,
-            )
+    family = _Family()
     record = _Link_Record(
             name,
             agent,
@@ -1588,8 +1563,7 @@ def _base_links(
         state: _State,
         layers: tuple[type, ...],
         ) -> list[type]:
-    """The Agent's own Links for the Relations its Relations extend under
-    other names: Charlie's Trusts is a Shape of Charlie's Knows."""
+    """The actual Link named by each declared Relation Base, in order."""
 
     bases: list[type] = []
 
@@ -1612,14 +1586,7 @@ def _base_links(
             if held not in bases:
                 bases.append(held)
 
-    return [
-            base
-            for base in bases
-            if not any(
-                    other is not base and issubclass(other, base)
-                    for other in bases
-                    )
-            ]   # only the leaves: a consistent order for the language
+    return bases
 
 
 def _link_holding(
@@ -1631,71 +1598,6 @@ def _link_holding(
             return link
 
     return None
-
-
-def _family_for(
-        bases: list[type],
-        agent: object,
-        ) -> _Family:
-    """A Link joins the family of its Base Links; a Link with none starts
-    its own. Base Links from separate families are joined into one, after
-    checking that no Contact holds a Pair in two of them. A join gives no
-    Pair a Layer: the new Shape Link holds no Contact yet. A linking
-    under way moves its Pair with its family."""
-
-    families: list[_Family] = []
-
-    for base in bases:
-        for member in _form_of(base):
-            family = _record_of(member).family
-
-            if family not in families:
-                families.append(family)
-
-    if not families:
-        return _Family()
-
-    _refuse_shared_contacts(families)
-    kept = families[0]
-    for other in families[1:]:
-        _join(kept, other)
-
-    return kept
-
-
-def _refuse_shared_contacts(
-        families: list[_Family],
-        ) -> None:
-    """Two families joined would give one Contact two Pairs: refused,
-    before anything is joined."""
-
-    seen: set[int] = set()
-
-    for family in families:
-        if seen & family.pairs.keys():
-            raise TagCompositionError(
-                    "this Link would join Links that hold separate Pairs for"
-                    " one Contact; unlink her from one of them first"
-                    )
-
-        seen.update(family.pairs)
-
-
-def _join(
-        kept: _Family,
-        other: _Family,
-        ) -> None:
-    """Move ``other``'s Pairs and Links into ``kept``."""
-
-    for pair in other.pairs.values():
-        object.__getattribute__(pair, "__dict__")[_PAIR_ENDS].family = kept
-
-    kept.pairs.update(other.pairs)
-    other.pairs.clear()
-
-    for link in other.Links():
-        _record_of(link).family = kept
-        kept.links.append(weakref.ref(link))
 
 
 def _tag_scope_of(
@@ -2040,7 +1942,6 @@ def _extend(
 
     for layer in added:
         record.layers.append(layer)
-        record.gained[layer] = next(_gaining)
 
         for name, member in _tag_scope_of(layer).items():
             type.__setattr__(link, name, member)
@@ -2104,14 +2005,14 @@ def _published_names(
 def _pair_tags_of(
         relations: list[type],
         ) -> list[type]:
-    """The Pair Tags for ``relations``, Bases first, each once."""
+    """The Pair Tags declared by these Relation layers, each once."""
 
     form: list[type] = []
 
     for relation in relations:
-        for pair_tag in _form_of(_pair_tag(relation)):
-            if pair_tag not in form:
-                form.append(pair_tag)
+        pair_tag = _pair_tag(relation)
+        if pair_tag not in form:
+            form.append(pair_tag)
 
     return form
 
@@ -2119,41 +2020,14 @@ def _pair_tags_of(
 def _pair_form(
         link: type,
 ) -> list[type]:
-    """The Pair Tags available through this Link, in Layer arrival order.
-
-    Linking completes each Base Link before its Shape turn. Within each
-    turn this list supplies missing Layers; already completed Pair Tags
-    are skipped. A later extension applies its own Form on top of held
-    Pairs, so actual training history determines the top Layer (§1.2).
-    The memo is replaced whenever this family gains another Layer.
-    """
+    """Only this Link's Pair Tags, in its Relation layer arrival order."""
 
     record = _record_of(link)
 
     if record.pair_form is not None:
         return record.pair_form
 
-    gained: list[tuple[int, type]] = []
-
-    for member in _form_of(link):
-        member_record = _record_of(member)
-
-        for relation in member_record.layers:
-            gained.append(
-                    (
-                        member_record.gained[relation],
-                        relation,
-                        )
-                    )
-
-    gained.sort(key=_gaining_number)
-    relations: list[type] = []
-
-    for _number, relation in gained:
-        if relation not in relations:
-            relations.append(relation)
-
-    record.pair_form = _pair_tags_of(relations)
+    record.pair_form = _pair_tags_of(record.layers)
 
     return record.pair_form
 
@@ -2177,12 +2051,6 @@ def _train_pair_layers(
         _apply_form(pair, _form_of(tag), inputs, inspect=False, admitted=admitted)
 
 
-def _gaining_number(
-        entry: tuple[int, type],
-        ) -> int:
-    return entry[0]
-
-
 def _forget_pair_forms(
         family: "_Family",
         ) -> None:
@@ -2201,11 +2069,10 @@ def _link(
         contact: object,
         inputs: dict[str, Any],
         ) -> object:
-    """Train and admit each Link in its Form, Bases first.
+    """Apply declared Base Links, then train this Link's own Pair.
 
-    A failed turn keeps actual Pair Gains but never admits its Contact.
-    Completed earlier Links remain. Reapplying retries the unfinished
-    turn; current membership alone makes a linking a no-op.
+    Each actual Link keeps an independent Field and Pair. A Relation Base
+    is a separate Tagging of the Contact, completed before this turn.
     """
 
     record = _record_of(link)
@@ -2215,7 +2082,6 @@ def _link(
     if contact_state is not None and link in contact_state.active:
         return contact
 
-    form = _form_of(link)
     _refuse_inputs_in_seats(_pair_form(link), inputs)
     family = record.family
     pair = family.Pair_Of(contact)
@@ -2227,41 +2093,45 @@ def _link(
     for running in ends.flights:
         if running.current is link:
             return contact   # re-entering the same unfinished Tag is a no-op
-        if running.current in form:
-            raise TagCompositionError(
-                    f"{link.__name__} needs {running.current.__name__},"
-                    " whose linking has not finished"
-                    )
 
     flight = _Flight(link)
     ends.flights.append(flight)
     try:
-        for member in form:
-            contact_state = _state_of(contact)
-            if contact_state is not None and member in contact_state.active:
-                continue
-            flight.current = member
-            admitted: list[type] = []
-            try:
-                while True:
-                    pair_form = _pair_form(member)
-                    _refuse_inputs_in_seats(pair_form, inputs)
-                    _train_pair_layers(pair, pair_form, inputs, admitted)
-                    if pair_form is _pair_form(member):
-                        break
+        owner_state = _state_of(agent)
+        for base in _base_links(owner_state, tuple(record.layers)):
+            base_pair = _record_of(base).family.Pair_Of(contact)
+            if base_pair is not None and any(
+                    running.current is base
+                    for running in _pair_ends(base_pair).flights
+                    ):
+                raise TagCompositionError(
+                        f"{link.__name__} needs {base.__name__},"
+                        " whose Tagging has not finished"
+                        )
+            _link(base, contact, inputs)
 
-                try:
-                    _apply_form(contact, [member], {}, inspect=False)
-                finally:
-                    contact_state = _state_of(contact)
-                    if contact_state is not None and member in contact_state.active:
-                        _hook(contact, [member])
-                        ends.hooked = True
-            except BaseException:
+        flight.current = link
+        admitted: list[type] = []
+        try:
+            while True:
+                pair_form = _pair_form(link)
+                _refuse_inputs_in_seats(pair_form, inputs)
+                _train_pair_layers(pair, pair_form, inputs, admitted)
+                if pair_form is _pair_form(link):
+                    break
+
+            try:
+                _apply_form(contact, [link], {}, inspect=False)
+            finally:
                 contact_state = _state_of(contact)
-                if contact_state is None or member not in contact_state.active:
-                    _withdraw_pair_admission(pair, admitted)
-                raise
+                if contact_state is not None and link in contact_state.active:
+                    _hook(contact, [link])
+                    ends.hooked = True
+        except BaseException:
+            contact_state = _state_of(contact)
+            if contact_state is None or link not in contact_state.active:
+                _withdraw_pair_admission(pair, admitted)
+            raise
 
         _inspect(pair)
         _inspect(contact)
