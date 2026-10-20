@@ -376,8 +376,11 @@ def _evaluate(
                 raise
             # Verdicts and diagnostics can catch the immediate refusal.
             # The observation still names this Precondition's failed Gate.
-            raise failure.Named(name)(
-                    f"{phase} {name!r} raised {_type_name(error)}: {_exception_text(error)}"
+            # Observation has ended; a declaration name can be a str
+            # subclass whose __repr__ performs another TOP act.
+            plain_name = str.__str__(name)
+            raise failure.Named(plain_name)(
+                    f"{phase} {plain_name!r} raised {_type_name(error)}: {_exception_text(error)}"
                     ) from error
 
 
@@ -530,6 +533,10 @@ def _status_of(
 
     try:
         for name, check in getattr(state, scope).items():
+            # A str subclass key may run code from __hash__. The result
+            # dictionary is also written on the fallback path, after the
+            # observation has ended, so store only inert plain strings.
+            result_name = str.__str__(name)
             try:
                 observation = (
                         _checking_post(agent)
@@ -537,14 +544,14 @@ def _status_of(
                         else _pre_observation()
                         )
                 with observation:
-                    status[name] = _verdict(
+                    status[result_name] = _verdict(
                             check(agent, {}),
                             name,
                             )
             except _Recursive_Soundness:
                 raise
             except Exception:
-                status[name] = False
+                status[result_name] = False
     finally:
         state.composing -= 1
         state.checking = reentrant

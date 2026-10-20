@@ -408,6 +408,64 @@ class ObservationalPreconditionTests(unittest.TestCase):
         Both(Host())
         self.assertIn(doubly_checked, Checked[:])
 
+    def test_status_does_not_hash_a_declared_name_outside_observation(self):
+        class Mutated(Tag):
+            pass
+
+        other = Host()
+
+        class Name(str):
+            armed = False
+
+            def __hash__(self):
+                if self.armed:
+                    Mutated(other)
+                return str.__hash__(self)
+
+        name = Name("Ready")
+
+        def Ready(agent):
+            return True
+
+        Checked = type("Checked", (Tag,), {name: Pre(Ready)})
+        agent = Host()
+        Checked(agent)
+        Name.armed = True
+
+        self.assertEqual(Contract.Status(agent), {"Ready": True})
+        self.assertNotIn(other, Mutated[:])
+
+    def test_failure_name_repr_cannot_mutate_after_observation(self):
+        class Mutated(Tag):
+            pass
+
+        other = Host()
+
+        class Name(str):
+            armed = False
+            calls = 0
+
+            def __repr__(self):
+                if self.armed:
+                    type(self).calls += 1
+                    if type(self).calls >= 2:
+                        Mutated(other)
+                return str.__repr__(self)
+
+        name = Name("Ready")
+
+        def Ready(agent):
+            return False
+
+        Rejected = type("Rejected", (Tag,), {name: Pre(Ready)})
+        Name.armed = True
+
+        with self.assertRaises(Precondition.Ready) as caught:
+            Rejected(Host())
+
+        self.assertIsInstance(caught.exception.__cause__, TagCompositionError)
+        self.assertNotIn(other, Mutated[:])
+
 
 if __name__ == "__main__":
     unittest.main()
