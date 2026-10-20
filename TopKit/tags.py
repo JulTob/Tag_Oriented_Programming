@@ -75,6 +75,7 @@ class MetaTag(type):
             namespace: dict[str, Any],
             **kwargs: Any,
             ) -> "MetaTag":
+        _refuse_pre_mutation("create a Tag class")
         namespace.setdefault(
                 FIELD_SEAT,
                 _Field(),
