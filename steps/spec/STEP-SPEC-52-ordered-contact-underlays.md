@@ -25,8 +25,7 @@ resolves to the actual `owner.Knows` Tag at that call. An expression such as
 Relation declaration such as `Knows` is a blueprint and is never applied as
 though it were a Tag.
 
-The following Python-valid spelling is **provisional** and awaits one naming
-decision:
+The Director chose the following Python-valid spelling on 2026-10-20:
 
 ```python
 @Link(underlays=(Network, Agent.Knows, server.Registre))
@@ -34,9 +33,7 @@ class Trusts(Tag):
     pass
 ```
 
-`Agent` means "the Agent whose Link is being called". `Owner.Knows` is the
-other candidate spelling for the same selector; this Brief does not choose
-between `Agent` and `Owner`. The Director's conceptual
+`Agent` means "the Agent whose Link is being called". The Director's conceptual
 `class Trusts(agent, contact, Network, agent.Knows)` cannot be evaluated as
 Python class bases because neither runtime seat exists when Python creates
 the Relation. The modifier records the order while postponing only the
@@ -200,8 +197,8 @@ shared family membership or Python class bases need focused review.
 - A Relation accepts an ordinary Tag, an owner-relative actual-Link selector,
   and a particular Agent's actual Link in its ordered `underlays=` tuple. The
   selected actual Link is applied after all three; bare `@Link` remains valid.
-- `Agent.Knows` (or the finally chosen `Owner.Knows`) resolves through the
-  calling owner on every Link call; two owners reach different actual Links.
+- `Agent.Knows` resolves through the calling owner on every Link call; two
+  owners reach different actual Links.
   Bare `Knows` is refused because it is never a standalone Field.
 - `server.Registre` resolves softly through that Agent's current coordinate
   without keeping the Agent alive.
@@ -210,8 +207,8 @@ shared family membership or Python class bases need focused review.
   another membership.
 - A missing owner Link fails clearly before the selected Pair's training;
   completed earlier Tagging turns remain as ordinary TOP Taggings.
-- The Director chooses the owner-relative word, `Agent` or `Owner`, and
-  resolves the later-Relation-extension boundary before clearance.
+- The Director has chosen `Agent` as the owner-relative word. The
+  later-Relation-extension boundary remains open before clearance.
 - No reciprocal Contact Link appears unless an Imprint or other explicit
   program act requests it.
 - STEP-SPEC-22, tests, the Specification, and Link guides agree on the
@@ -221,4 +218,6 @@ shared family membership or Python class bases need focused review.
 
 ### Decision *(filled by the Director)*
 
-> Status set to **____** on YYYY-MM-DD, because ____.
+> **Brief.** The Director chose `Agent.Knows` as the owner-relative actual-Link
+> selector on 2026-10-20. Later-Relation extension remains open, and this STEP
+> changes no runtime by itself.
