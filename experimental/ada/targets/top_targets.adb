@@ -89,4 +89,37 @@ package body Top_Targets is
       end if;
       return Left.State.Id = Right.State.Id;
    end "=";
+
+   procedure Refuse_Read
+     (Stream : not null access Ada.Streams.Root_Stream_Type'Class;
+      Item : out Identity_Handle) is
+      pragma Unreferenced (Stream, Item);
+   begin
+      raise Program_Error with "Target identity handles cannot be streamed";
+   end Refuse_Read;
+
+   procedure Refuse_Write
+     (Stream : not null access Ada.Streams.Root_Stream_Type'Class;
+      Item : Identity_Handle) is
+      pragma Unreferenced (Stream, Item);
+   begin
+      raise Program_Error with "Target identity handles cannot be streamed";
+   end Refuse_Write;
+
+   function Refuse_Input
+     (Stream : not null access Ada.Streams.Root_Stream_Type'Class)
+      return Identity_Handle is
+      pragma Unreferenced (Stream);
+   begin
+      return (raise Program_Error with
+        "Target identity handles cannot be streamed");
+   end Refuse_Input;
+
+   procedure Refuse_Output
+     (Stream : not null access Ada.Streams.Root_Stream_Type'Class;
+      Item : Identity_Handle) is
+      pragma Unreferenced (Stream, Item);
+   begin
+      raise Program_Error with "Target identity handles cannot be streamed";
+   end Refuse_Output;
 end Top_Targets;

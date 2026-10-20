@@ -7,8 +7,8 @@ whenever the two disagree.
 ## Module map
 
 One idea per module, with 600 physical lines as the migration target. The
-target is not yet met: `access.py`, `declarations.py`, `overlay.py`, `state.py`,
-and `transactions.py` are the current exceptions.
+target is not yet met: `access.py`, `contracts.py`, `declarations.py`,
+`overlay.py`, `state.py`, and `transactions.py` are the current exceptions.
 [Issue #15](https://github.com/JulTob/Tag_Oriented_Programming/issues/15)
 tracks splitting them by idea without changing semantics.
 
@@ -21,17 +21,15 @@ tracks splitting them by idea without changing semantics.
 | `state.py` | the per-Agent state, bound Actions, the runtime type and its descriptors |
 | `overlay.py` | laying one Tag's declarations over a state; materializing Records |
 | `contracts.py` | strict verdicts, binding conditions, `Contract` |
+| `constants.py` | protecting Constant bindings without freezing their values |
+| `tools.py` | Tool slots and their admission and write checks |
+| `presence.py` | Contribution presence without evaluating values or conditions |
 | `transactions.py` | the tagging sequence and the call boundary |
 | `lifecycle.py` | Rip, teardown, `At_Exit` |
 | `access.py` | the hooks on the runtime type, Agent-bound views |
 | `tags.py` | `Tag` and its metaclass |
 | `queries.py` | `Apply`, `Form`, `Keyword`, `Tags`, `Outline` |
-
-`constants.py`, `tools.py`, and `presence.py` are planned modules, not files in
-the current implementation. Their proposed ideas are, respectively, protecting
-Constant bindings without freezing their values; Tool slots and their admission
-and write checks; and Contribution presence without evaluating values or
-conditions.
+| `memo.py` | owner-local Tag memos and snapshots of changing Tag namespaces |
 
 ## The access design
 
@@ -55,7 +53,14 @@ Actions; Agents are built once and play for a long time. So:
   `isinstance` is answered by the metaclass from the Agent's ever-set.
 - **Runtime types are shared** across every Agent whose host and
   type-level facts match, whatever Tags they carry. Ten thousand Agents of
-  one host normally share one type.
+  one host normally share one type. The cache has weak values and keys use
+  the Host's identity number, not the Host itself. A live runtime type owns
+  its Host through its bases, so that identity cannot be reused while the
+  entry is live. The cache cannot root a cycle from a transient Host's
+  methods or metaclass back to an Agent; Hosts with custom equality or
+  hashing still have independent identity-based entries. An Action body
+  that deliberately captures its Agent remains a strong owner: the weak
+  receiver binding does not undo references inside the function.
 - **Actualization is verified before Field entry.** The Target must retain
   its state and accept the exact runtime type the kit requested. Host
   `__setattr__` and `__init_subclass__` refusals, and metaclasses that
@@ -161,9 +166,10 @@ Python's priority for a right operand whose type is a subtype. A
 pinned Tag supports the query as an Agent; an unpinned Tag gains no TOP
 operator from this feature.
 
-Measured on Python 3.11 (`benchmarks/bench.py`), nanoseconds per
-operation: plain attribute read 42, Agent host-attribute read 65, Record
-read 64, plain method call 86, Action call 295, `agent in Tag` 291,
+Historical raw-membership measurements on Python 3.11
+(`benchmarks/bench.py`), nanoseconds per operation: plain attribute read 42,
+Agent host-attribute read 65, Record read 64, plain method call 86,
+Action call 295, `agent in Tag` 291 (before sound membership),
 `bool(agent)` with one Post about 1900. Tagging a Record-plus-Post Shape
 over a Base costs about 60 µs per Agent; an empty Tag about 22 µs. Peak
 memory about 6 KB per Agent with two Tags.
@@ -306,7 +312,8 @@ Tagging sequence or expand its rollback boundary.
 
 ## Judgment calls
 
-- **`in` vs `isinstance`.** `agent in Tag` is the is-now check; `isinstance`
+- **`in` vs `isinstance`.** `agent in Tag` is the sound is-now check;
+  `agent in Tag[:]` checks raw Field admission. `isinstance`
   is the has-been check and stays true after Rip. History is established at
   FieldAdding. A failed never-member may retain Gains while both checks are
   false; a Rogue who previously entered the Tag retains its has-been history.

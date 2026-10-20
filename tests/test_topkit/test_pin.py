@@ -209,7 +209,8 @@ class PinTests(unittest.TestCase):
         with self.assertRaises(Postcondition.Has_Members):
             Promised(Wizard)
 
-        self.assertIn(Wizard, Promised)
+        self.assertNotIn(Wizard, Promised)             # a defective pinned Tag is not sound
+        self.assertIn(Wizard, Promised[:])             # the Pin's Field still has it
         self.assertIn(Wizard, ~Promised)
         self.assertEqual(list(Promised), [])
 
