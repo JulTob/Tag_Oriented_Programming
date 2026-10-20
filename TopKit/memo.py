@@ -15,6 +15,7 @@ _type_namespace = type.__dict__["__dict__"]
 _type_mro = type.__dict__["__mro__"]
 _type_bases = type.__dict__["__bases__"]
 _type_name = type.__dict__["__name__"]
+_ABSENT = object()
 
 
 @dataclass(slots=True)
@@ -38,18 +39,75 @@ def _class_namespace(tag: type) -> Any:
     return _type_namespace.__get__(tag)
 
 
+def _physical_namespace_get(namespace: Any, name: str, default: Any = None) -> Any:
+    """Read a physical class slot without calling a stored key's methods.
+
+    A class dictionary can contain a ``str`` subclass key. Even looking up
+    an ordinary string may invoke that key's ``__hash__`` or ``__eq__``.
+    The Pin publication lock must never make such a callback.
+    """
+
+    if type(name) is not str:
+        name = str.__str__(name)
+
+    for key, value in namespace.items():
+        if type(key) is str:
+            actual = key
+        elif issubclass(type(key), str):
+            actual = str.__str__(key)
+        else:
+            continue
+        if actual == name:
+            return value
+    return default
+
+
+def _namespace_has_callback_keys(tag: type) -> bool:
+    """Whether publishing a class slot could call a stored key's Python code.
+
+    A string subclass with the built-in string hash and equality is safe to
+    retain. TOP uses such names in diagnostics, where its custom formatter
+    must remain untouched and the declaration name must keep its identity.
+    """
+
+    for layer in (tag, *_type_mro.__get__(type(tag))):
+        for key in _class_namespace(layer):
+            kind = type(key)
+            if kind is str:
+                continue
+            if (issubclass(kind, str)
+                    and _special_slot(kind, "__hash__") is str.__hash__
+                    and _special_slot(kind, "__eq__") is str.__eq__):
+                continue
+            return True
+    return False
+
+
+def _special_slot(kind: type, name: str) -> Any:
+    """Find a Python protocol slot through physical class dictionaries."""
+
+    for base in _type_mro.__get__(kind):
+        member = _physical_namespace_get(_class_namespace(base), name, _ABSENT)
+        if member is not _ABSENT:
+            return member
+    return _ABSENT
+
+
 def _metaclass_data_descriptor(tag: type, name: str) -> bool:
     """Whether publishing this class binding would call user descriptor code."""
 
     for meta in _type_mro.__get__(type(tag)):
         namespace = _class_namespace(meta)
-        if name not in namespace:
+        member = _physical_namespace_get(namespace, name, _ABSENT)
+        if member is _ABSENT:
             continue
-
-        member = namespace[name]
         return any(
-                "__set__" in _class_namespace(base)
-                or "__delete__" in _class_namespace(base)
+                _physical_namespace_get(
+                        _class_namespace(base), "__set__", _ABSENT,
+                        ) is not _ABSENT
+                or _physical_namespace_get(
+                        _class_namespace(base), "__delete__", _ABSENT,
+                        ) is not _ABSENT
                 for base in _type_mro.__get__(type(member))
                 )
 
@@ -57,7 +115,9 @@ def _metaclass_data_descriptor(tag: type, name: str) -> bool:
 
 
 def _metaclass_binding(tag: type, name: str) -> bool:
-    return any(name in _class_namespace(base)
+    return any(_physical_namespace_get(
+            _class_namespace(base), name, _ABSENT,
+            ) is not _ABSENT
                for base in _type_mro.__get__(type(tag)))
 
 
@@ -94,7 +154,7 @@ def _remember_memo(tag: type, name: str, value: Any) -> Any:
 
 def _forget_memo(tag: type, name: str) -> Any:
     with _publication:
-        memo = _class_namespace(tag).get(name)
+        memo = _physical_namespace_get(_class_namespace(tag), name)
         if type(memo) is _Tag_Memo and memo.owner is tag and memo.name == name:
             # Retire the value even when deleting the class binding would
             # call a program's metaclass descriptor. A later warm read
@@ -105,7 +165,7 @@ def _forget_memo(tag: type, name: str) -> Any:
             # callback that replaces the class binding. Delete only the
             # same wrapper we just retired.
             if (not _metaclass_binding(tag, name)
-                    and _class_namespace(tag).get(name) is memo):
+                    and _physical_namespace_get(_class_namespace(tag), name) is memo):
                 type.__delattr__(tag, name)
 
             return retired

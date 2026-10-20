@@ -50,6 +50,7 @@ from .declarations import _note_tag_kinds
 from .declarations import _pin_mark_lock
 from .declarations import _refuse_condition_dunder
 from .declarations import _refuse_truth_gain
+from .declarations import _tool_tag_kinds
 from .declarations import _tool_kind_of_static
 from .errors import TagCompositionError
 from .errors import TagDeclarationError
@@ -64,6 +65,8 @@ from .geometry import _is_tag
 from .lifecycle import _rip
 from .memo import _class_namespace
 from .memo import _metaclass_data_descriptor
+from .memo import _namespace_has_callback_keys
+from .memo import _physical_namespace_get
 from .observation import _refuse_observed_mutation
 from .state import Tagged
 from .state import _name_of
@@ -86,23 +89,6 @@ def _check_late_binding(tag: type, name: str, value: Any) -> None:
                 )
 
     _check_constant_shapes(tag, name)
-
-
-def _tool_tag_kinds(kind: Any) -> tuple[type, ...]:
-    """Freeze a Tool's Tag alternatives before entering the Pin lock."""
-
-    from .tools import _Kind
-
-    if type(kind) is not _Kind or type(kind.terms) is not tuple:
-        raise TagDeclarationError("a late @Tool has invalid kind metadata")
-
-    tags = []
-    for term in kind.terms:
-        if type(term) is not tuple:
-            raise TagDeclarationError("a late @Tool has invalid kind metadata")
-        tags.extend(alternative for alternative in term if _is_tag(alternative))
-
-    return tuple(tags)
 
 
 class MetaTag(type):
@@ -143,6 +129,10 @@ class MetaTag(type):
             name: str,
             value: Any,
             ) -> None:
+        # ``setattr`` also accepts str subclasses. Their comparison and hash
+        # hooks must not run while Pin publication owns its shared lock.
+        if type(name) is not str:
+            name = str.__str__(name)
         _refuse_observed_mutation("change an existing Tag class")
         tool_kind = _tool_kind_of_static(value)
 
@@ -155,14 +145,18 @@ class MetaTag(type):
         while True:
             # Hold the old binding strongly: replacing the class slot must
             # not run its finalizer while the shared Pin lock is held.
-            old = _class_namespace(tag).get(name, _MISSING)
+            old = _physical_namespace_get(_class_namespace(tag), name, _MISSING)
             _check_late_binding(tag, name, value)
 
             with _pin_mark_lock:
-                if _class_namespace(tag).get(name, _MISSING) is not old:
+                if _physical_namespace_get(
+                        _class_namespace(tag), name, _MISSING,
+                        ) is not old:
                     continue
 
-                if _metaclass_data_descriptor(tag, name):
+                if _namespace_has_callback_keys(tag):
+                    refusal = "namespace"
+                elif _metaclass_data_descriptor(tag, name):
                     refusal = "descriptor"
                 elif _is_pin(tag):
                     refusal = "pin"
@@ -178,10 +172,17 @@ class MetaTag(type):
                         # with its Tool-kind registration. Descriptor slots
                         # were refused above because they can run user code.
                         type.__setattr__(tag, name, value)
-                        if _class_namespace(tag).get(name) is value:
+                        if _physical_namespace_get(
+                                _class_namespace(tag), name,
+                                ) is value:
                             _note_tag_kinds(tag, tool_tags)
                         return
 
+            if refusal == "namespace":
+                raise TagDeclarationError(
+                        f"{tag.__name__}.{name}: a late @Tool cannot publish"
+                        " into a class namespace with custom key methods"
+                        )
             if refusal == "descriptor":
                 raise TagDeclarationError(
                         f"{tag.__name__}.{name}: a late @Tool cannot replace"

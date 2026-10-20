@@ -1418,6 +1418,238 @@ class Late_Pin_Tests(unittest.TestCase):
         self.assertFalse(second.is_alive())
         self.assertEqual(failures, [])
 
+    def test_forged_tool_kind_cannot_call_getter_under_pin_lock(self):
+        class Kind(Tag):
+            pass
+
+        class Peer(Tag):
+            pass
+
+        getter_entered = Event()
+        getter_release = Event()
+        peer_done = Event()
+        outcomes = []
+
+        class FakeKind:
+            @property
+            def terms(self):
+                getter_entered.set()
+                while not peer_done.is_set() and not getter_release.wait(0.01):
+                    pass
+                return ((Kind,),)
+
+        @Tool(Kind)
+        def prize(agent):
+            return None
+
+        prize.__topkit_tool__ = FakeKind()
+        marked_prize = prize
+
+        def declare():
+            try:
+                class Collector(Tag):
+                    prize = marked_prize
+            except TagDeclarationError:
+                outcomes.append("refused")
+            except BaseException as error:
+                outcomes.append(error)
+            else:
+                outcomes.append("accepted")
+
+        def mark_peer():
+            try:
+                Pin(Peer)
+            except BaseException as error:
+                outcomes.append(error)
+            finally:
+                peer_done.set()
+
+        first = Thread(target=declare)
+        second = Thread(target=mark_peer)
+        first.start()
+        try:
+            second.start()
+            self.assertTrue(peer_done.wait(1), "Pin blocked by forged kind getter")
+        finally:
+            getter_release.set()
+            first.join(2)
+            second.join(2)
+
+        self.assertFalse(first.is_alive())
+        self.assertFalse(second.is_alive())
+        self.assertFalse(getter_entered.is_set())
+        self.assertEqual(outcomes, ["refused"])
+
+    def test_malformed_real_kind_cannot_iterate_terms_under_pin_lock(self):
+        from TopKit.tools import _Kind
+
+        class Kind(Tag):
+            pass
+
+        class PoisonTerms:
+            def __iter__(self):
+                raise AssertionError("kind terms were iterated")
+
+        @Tool(Kind)
+        def prize(agent):
+            return None
+
+        prize.__topkit_tool__ = _Kind(PoisonTerms(), False)
+        with self.assertRaisesRegex(TagDeclarationError, "invalid kind metadata"):
+            class Collector(Tag):
+                held = prize
+
+    def test_pinned_kind_error_does_not_read_metaclass_name(self):
+        class Mask(MetaTag):
+            armed = False
+
+            def __getattribute__(cls, name):
+                if name == "__name__" and Mask.armed:
+                    raise AssertionError("Tag name was read through metaclass")
+                return super().__getattribute__(name)
+
+        class Kind(Tag, metaclass=Mask):
+            pass
+
+        @Tool(Kind)
+        def prize(agent):
+            return None
+
+        Pin(Kind)
+        Mask.armed = True
+        with self.assertRaisesRegex(TagDeclarationError, "now a Pin"):
+            class Collector(Tag):
+                held = prize
+
+    def test_late_tool_name_subclass_cannot_call_peer_under_lock(self):
+        import TopKit.declarations as declarations
+
+        class Kind(Tag):
+            pass
+
+        class Peer(Tag):
+            pass
+
+        class Collector(Tag):
+            pass
+
+        peer_done = Event()
+        under_lock = Event()
+        failures = []
+        peers = []
+
+        def mark_peer():
+            try:
+                Pin(Peer)
+            except BaseException as error:
+                failures.append(error)
+            finally:
+                peer_done.set()
+
+        class BlockingName(str):
+            def probe(self):
+                if not declarations._pin_mark_lock._is_owned() or under_lock.is_set():
+                    return
+                under_lock.set()
+                peer = Thread(target=mark_peer)
+                peers.append(peer)
+                peer.start()
+                if not peer_done.wait(0.5):
+                    failures.append(AssertionError("peer Pin blocked by attribute name"))
+
+            def __hash__(self):
+                self.probe()
+                return str.__hash__(self)
+
+            def __eq__(self, other):
+                self.probe()
+                return str.__eq__(self, other)
+
+        @Tool(Kind)
+        def prize(agent):
+            return None
+
+        setattr(Collector, BlockingName("prize"), prize)
+        for peer in peers:
+            peer.join(2)
+        self.assertFalse(under_lock.is_set())
+        self.assertEqual(failures, [])
+        self.assertIs(Collector.__dict__["prize"], prize)
+
+    def test_pin_and_tool_refuse_hostile_physical_namespace_keys(self):
+        import TopKit.declarations as declarations
+
+        class Kind(Tag):
+            pass
+
+        class Peer(Tag):
+            pass
+
+        peer_done = Event()
+        under_lock = Event()
+        failures = []
+        peers = []
+
+        def mark_peer():
+            try:
+                Pin(Peer)
+            except BaseException as error:
+                failures.append(error)
+            finally:
+                peer_done.set()
+
+        class BlockingName(str):
+            armed = False
+
+            def probe(self):
+                if (not self.armed or not declarations._pin_mark_lock._is_owned()
+                        or under_lock.is_set()):
+                    return
+                under_lock.set()
+                peer = Thread(target=mark_peer)
+                peers.append(peer)
+                peer.start()
+                if not peer_done.wait(0.5):
+                    failures.append(AssertionError("peer Pin blocked by class key"))
+
+            def __hash__(self):
+                self.probe()
+                return str.__hash__(self)
+
+            def __eq__(self, other):
+                self.probe()
+                return str.__eq__(self, other)
+
+        pin_key = BlockingName("misc")
+        Candidate = MetaTag(
+                "Candidate", (Tag,), {"__module__": __name__, pin_key: 1},
+                )
+        tool_key = BlockingName("prize")
+        Collector = MetaTag(
+                "Collector", (Tag,), {"__module__": __name__, tool_key: object()},
+                )
+        pin_key.armed = True
+        tool_key.armed = True
+
+        @Tool(Kind)
+        def prize(agent):
+            return None
+
+        with self.assertRaisesRegex(TagDeclarationError, "custom hash or equality"):
+            Pin(Candidate)
+        with self.assertRaisesRegex(TagDeclarationError, "custom key methods"):
+            Collector.prize = prize
+
+        for peer in peers:
+            peer.join(2)
+        self.assertFalse(under_lock.is_set())
+        self.assertEqual(failures, [])
+        self.assertNotIn("__topkit_pin__", Candidate.__dict__)
+        self.assertFalse(any(
+                type(name) is str and name == "prize"
+                for name in Collector.__dict__
+                ))
+
     def test_late_tool_checks_old_binding_outside_pin_lock(self):
         class Kind(Tag):
             pass
@@ -2011,13 +2243,13 @@ class Late_Pin_Tests(unittest.TestCase):
         marking = Event()
         declared = []
         outcome = []
-        note = declarations._note_kinds
+        note = declarations._note_tag_kinds
 
-        def pause(owner, kind):
+        def pause(owner, tags):
             registering.set()
             if not continue_registration.wait(2):
                 raise TimeoutError("Tool declaration did not resume")
-            note(owner, kind)
+            note(owner, tags)
 
         def declare():
             class Collector(Tag):
@@ -2036,7 +2268,7 @@ class Late_Pin_Tests(unittest.TestCase):
             else:
                 outcome.append("accepted")
 
-        with patch.object(declarations, "_note_kinds", pause):
+        with patch.object(declarations, "_note_tag_kinds", pause):
             owner_thread = Thread(target=declare)
             mark_thread = Thread(target=mark)
             owner_thread.start()
