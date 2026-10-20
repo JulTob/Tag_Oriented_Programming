@@ -12,18 +12,22 @@
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
 
-## Preservation and current review boundary — 2026-10-14
+## Preservation and current review boundary — 2026-10-15
 
 This file extracts the existing proposal from frozen [#26](https://github.com/JulTob/Tag_Oriented_Programming/pull/26),
 including [#77](https://github.com/JulTob/Tag_Oriented_Programming/pull/77)'s reconciliation where applicable. It stays
-**Brief**. No runtime code, current Specification amendment, or new Director
-clearance is included.
+**Brief**. No runtime code or current Specification amendment is included.
+The focused Report deletion ruling below does not clear the whole STEP.
 
-This recovered **Brief** retains #77's distinction between per-Agent failure, bulk continuation and interruption. Current main does not implement `del Tag[:]`, a Safehouse or triage. Whole-Field cleanup is tracked by [#35](https://github.com/JulTob/Tag_Oriented_Programming/issues/35), with STEP-24, STEP-26 and STEP-32 as design dependencies. The proposed failed-Rip arrest and ordered retry remain [#36](https://github.com/JulTob/Tag_Oriented_Programming/issues/36). In particular, continuation to another member, interrupted batches and reapplication followed by cleanup failure remain STEP-32 open questions 16, 17 and 14. Ending the initial memberships does not promise that the Field is empty after user cleanup code has run.
+This recovered **Brief** retains #77's distinction between per-Agent failure, bulk continuation and interruption. Current main does not implement `del Tag[:]`, a Safehouse or triage. Whole-Field cleanup is tracked by [#35](https://github.com/JulTob/Tag_Oriented_Programming/issues/35), with STEP-24 and STEP-32 as design dependencies. STEP-26's independent Base and Shape membership is now [Cleared](https://github.com/JulTob/Tag_Oriented_Programming/pull/206) and [implemented](https://github.com/JulTob/Tag_Oriented_Programming/pull/207): an active Shape does not refuse a Base Rip. The proposed failed-Rip arrest and ordered retry remain [#36](https://github.com/JulTob/Tag_Oriented_Programming/issues/36). [#218](https://github.com/JulTob/Tag_Oriented_Programming/pull/218) records the later Director choices in STEP-SPEC-32; they do not make the proposed protocol current behavior or clear this Brief.
 
-The Report-reset spelling is a separate decision: current [`del Tag.report`](https://github.com/JulTob/Tag_Oriented_Programming/blob/fcea45fd2535594fd82f54aee2af7e815e98e0ca/TopKit/tags.py) deletes an ordinary declaration and refuses deletion protected by Constant; it does not merely discard a cached Report value. Review proposed reset, inherited Reports and Constant protection explicitly before changing that behavior. Keep the no-latch, reusable-Tag proposal distinct from resetting Reports.
+**Report deletion decision — 2026-10-15.** The Director ruled: “`del Tag.report` deletes a report.” It removes that Tag's ordinary Report declaration; it does not discard only a cached value or rebuild the Report on the next read. Existing Constant protection still refuses deletion of a Constant Report. A missing Report is absent, not a Report whose value is `None`: if a queried scope has no visible Contribution of that name, its read raises `AttributeError` and its `@` presence query is false. If a later Report with the same name is deleted, the Agent's Overlay exposes the earlier current Report again.
 
-The historical implementation plan says `MetaTag` gains `__setattr__` and `__delattr__`; both hooks already exist on main. Any future Report reset or Tag-scope write rule must extend those hooks while preserving the existing Constant protections and the restrictions on condition dunder names and Agent truth.
+**Tag view clarification — 2026-10-20.** A `Tag[agent]` view reads that Tag's current Report first. If that Report is absent, it resolves the visible Overlay at that Tagging's point, including an earlier Report revealed by deletion; it does not keep a saved Report value. This records the Director's later view ruling without treating Report values as Agent-owned.
+
+A Shape directly owns only the Reports and Operations it declares; applying a Shape can still make its Base's publication visible through the Agent's Overlay and `Base[agent]`. Thus `del Shape.report` without a Shape declaration must raise `AttributeError` and leave `Base.report` intact. Current Python class lookup can still expose a Base Report directly on a Shape; that lookup needs its own implementation change and is not the intended TOP rule. The proposed Report reset in the historical Summary, section 4, Backwards compatibility and Acceptance requirements below is superseded. `del Tag[:]` concerns the Field and does not reset Reports. Keep the no-latch, reusable-Tag proposal distinct from Report deletion.
+
+The historical implementation plan says `MetaTag` gains `__setattr__` and `__delattr__`; both hooks already exist on main. Any future Tag-scope write or deletion rule must preserve the existing Constant protections and restrictions on condition dunder names and Agent truth.
 
 `del Tag` remains Python name deletion. Scope is [already retired](https://github.com/JulTob/Tag_Oriented_Programming/blob/fcea45fd2535594fd82f54aee2af7e815e98e0ca/steps/spec/STEP-SPEC-31-retire-scope.md); historical S19/Scope examples and speculative population spellings below are not current usage instructions.
 
