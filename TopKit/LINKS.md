@@ -390,6 +390,15 @@ If a Motorway must remain a Road, declare that requirement in a Post.
 The Post makes its Pair defective when Road membership ends; it does
 not secretly refuse the Rip.
 
+`del alicante.Road[:]` uses the ordinary whole-Field Rip. Every Contact
+present when it starts leaves Road and enters Road's Safehouse before any
+Pair teardown runs. Teardowns then run one Contact at a time. A failure
+stops the remaining work, which stays in Safehouse for explicit retry,
+for example `del alicante.Road[valencia]`. A Contact still in Motorway
+keeps that separate membership and its shared Pair. The declaration
+`Road` is only the Relation used to make each Agent's Link; it has no
+Field to Rip.
+
 ---
 
 ## 7. Using something up, and giving it back

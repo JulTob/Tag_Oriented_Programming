@@ -278,6 +278,9 @@ class Linking_Tests(unittest.TestCase):
         self.assertNotIn(ruth, charlie.Knows)
         pair = _record_of(charlie.Knows).family.Pair_Of(ruth)
         self.assertEqual(pair.attempts, 1)
+        del charlie.Knows[:]  # no admitted Contact means no Rip work to arrest
+        self.assertNotIn(ruth, charlie.Knows[...])
+        self.assertIs(_record_of(charlie.Knows).family.Pair_Of(ruth), pair)
         ready.append(True)
         charlie.Knows(ruth)
         self.assertIn(ruth, charlie.Knows)
@@ -782,16 +785,19 @@ class Base_Tests(unittest.TestCase):
         self.assertTrue(bool(pair))
         self.assertEqual(len(charlie.CIA), 1)
 
-    def test_base_field_rip_continues_after_a_pair_teardown_fails(self):
+    def test_base_field_rip_arrests_every_starting_contact_before_teardown(self):
         left = []
+        blocked = True
 
         class Stages(Tag):
             @Link
             class Candidate(Tag):
                 @Rip
                 def Leave(agent, contact):
+                    nonlocal blocked
                     left.append(contact.name)
-                    if contact.name == "Ruth":
+                    if blocked:
+                        blocked = False
                         raise ValueError("Ruth's teardown failed")
 
             @Link
@@ -806,14 +812,71 @@ class Base_Tests(unittest.TestCase):
         sam_pair = charlie.Candidate[sam]
 
         with self.assertRaises(TagCompositionError):
+            del Stages.Candidate[:]  # the Relation is a blueprint, not Charlie's Link
+        self.assertEqual(set(charlie.Candidate[:]), {ruth, sam})
+
+        with self.assertRaises(TagCompositionError):
             del charlie.Candidate[:]
 
-        self.assertEqual(left, ["Ruth", "Sam"])
+        self.assertEqual(len(left), 1)
+        failed = ruth if left[0] == "Ruth" else sam
+        later = sam if failed is ruth else ruth
         self.assertEqual(list(charlie.Candidate[:]), [])
+        self.assertIn(ruth, charlie.Candidate[...])
+        self.assertIn(sam, charlie.Candidate[...])
         self.assertEqual(list(charlie.CIA[:]), [ruth])
         self.assertIs(charlie.CIA[ruth], ruth_pair)
         self.assertFalse(_pair_ends(ruth_pair).ended)
-        self.assertTrue(_pair_ends(sam_pair).ended)
+        self.assertIs(_record_of(charlie.Candidate).family.Pair_Of(sam), sam_pair)
+        self.assertFalse(_pair_ends(sam_pair).ended)
+
+        # The failed Pair and its Contact both keep their saved Rip; the
+        # later Contact is held without starting its teardown yet.
+        from TopKit.arrest import _arrest_of
+        failed_pair = ruth_pair if failed is ruth else sam_pair
+        self.assertIsNotNone(_arrest_of(failed_pair))
+        self.assertIsNotNone(_arrest_of(failed))
+        self.assertIsNotNone(_arrest_of(later))
+
+        del charlie.Candidate[later]
+        self.assertEqual(left, [failed.name, later.name])
+        self.assertIn(failed, charlie.Candidate[...])
+        self.assertNotIn(later, charlie.Candidate[...])
+
+        del charlie.Candidate[failed]
+        self.assertEqual(left, [failed.name, later.name, failed.name])
+        self.assertEqual(len(left), 3)
+        self.assertNotIn(failed, charlie.Candidate[...])
+        self.assertIsNone(_arrest_of(failed_pair))
+        self.assertEqual(list(charlie.Candidate[:]), [])
+
+    def test_pair_teardown_stops_before_the_next_layer(self):
+        torn = []
+
+        class Circle(Tag):
+            @Link
+            class Knows(Tag):
+                @Rip
+                def Base_Leave(agent, contact):
+                    torn.append("base")
+
+        class Extended(Circle):
+            @Link
+            class Knows(Circle.Knows):
+                @Rip
+                def Added_Leave(agent, contact):
+                    torn.append("added")
+                    raise ValueError("the newer Pair Layer failed")
+
+        charlie, ruth = People("Charlie", "Ruth")
+        Circle(charlie)
+        charlie.Knows(ruth)
+        Extended(charlie)   # adds a later Layer to the held Link's Pair
+
+        with self.assertRaises(TagCompositionError):
+            del charlie.Knows[ruth]
+
+        self.assertEqual(torn, ["added"])
 
     def test_a_base_relation_from_a_base_of_the_declaring_tag(self):
         class Close(Social):
@@ -2282,20 +2345,33 @@ class Lifetime_Review_Tests(unittest.TestCase):
         self.assertEqual(ran, ["R1", "R2", "R3"])
         self.assertEqual(list(held[:]), [])
 
-    def test_an_interrupted_unlink_still_ends_her_pair(self):
+    def test_an_interrupted_unlink_keeps_her_pair_for_retry(self):
+        interrupted = True
+
         class Touchy(Tag):
             @Link
             class Knows(Tag):
                 @Rip
                 def Forget(agent, contact):
-                    raise KeyboardInterrupt
+                    nonlocal interrupted
+                    if interrupted:
+                        interrupted = False
+                        raise KeyboardInterrupt
 
         charlie, ruth = People("Charlie", "Ruth")
         Touchy(charlie)
         charlie.Knows(ruth)
+        pair = charlie.Knows[ruth]
         with self.assertRaises(KeyboardInterrupt):
             del charlie.Knows[ruth]
         self.assertNotIn(ruth, charlie.Knows)
+        self.assertIn(ruth, charlie.Knows[...])
+        self.assertIs(_record_of(charlie.Knows).family.Pair_Of(ruth), pair)
+        with self.assertRaises(TagResolutionError):
+            charlie.Knows[ruth]  # saved Pair work is not a live Contact view
+
+        del charlie.Knows[ruth]
+        self.assertNotIn(ruth, charlie.Knows[...])
         with self.assertRaises(TagResolutionError):
             charlie.Knows[ruth]
 

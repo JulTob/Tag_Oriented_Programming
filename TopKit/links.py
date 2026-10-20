@@ -52,6 +52,7 @@ import weakref
 
 from . import tags as tags_module
 from .access import _refuse_host_truth
+from .arrest import _arrest_of
 from .declarations import KIND
 from .declarations import Report
 from .declarations import _ACTION_CHAIN
@@ -87,6 +88,7 @@ from .errors import TagRogueAccessError
 from .geometry import _form_of
 from .geometry import _is_tag
 from .lifecycle import _rip
+from .rip_runs import _pending_run
 from .memo import _memo_key
 from .memo import _memo_of
 from .memo import _namespace_snapshot
@@ -2532,6 +2534,7 @@ def _leave(
     ends: _Ends = object.__getattribute__(pair, "__dict__")[_PAIR_ENDS]
     pair_state = _state_of(pair)
     first: BaseException | None = None
+    completed = False
     ends.held = (
             agent,
             contact,
@@ -2547,11 +2550,20 @@ def _leave(
                 else [_pair_tag(relation) for relation in reversed(record.layers)]
                 )
 
+        if ending_pair and (arrest := _arrest_of(pair)) is not None:
+            # A previous attempt may have revoked a Pair Tag before one
+            # teardown failed. It is absent from active, but its saved Rip
+            # must finish before later Pair Layers or the Pair's end.
+            pair_tags = [run.tag for run in arrest.runs] + pair_tags
+
         for pair_tag in pair_tags:
             if ending_pair and _still_held(family, state):
                 break   # a teardown linked her again: the newly held Pair keeps its remaining Tags
 
-            if pair_state is None or pair_tag not in pair_state.active:
+            if pair_state is None or (
+                    pair_tag not in pair_state.active
+                    and _pending_run(pair, pair_tag) is None
+                    ):
                 continue
 
             try:
@@ -2560,12 +2572,14 @@ def _leave(
                         pair_tag,
                         )   # runs that Layer's teardowns, with the Pair
             except TagCompositionError as error:
-                first = first or error
+                first = error
+                break   # do not start later Pair Layers after this failure
+        completed = first is None
     finally:
         ends.held = None
         state.composing = opened
 
-        if not ends.flights and not _still_held(
+        if completed and _arrest_of(pair) is None and not ends.flights and not _still_held(
                 family,
                 state,
                 ):
@@ -2590,43 +2604,6 @@ def _still_held(
             and link in state.rips
             for link in family.Links()
             )
-
-
-def _unlink_all(
-        link: type,
-        key: slice,
-        ) -> None:
-    """``del charlie.Knows[:]``: unlink every Contact (rule 8.2).
-    Every teardown runs, and the first failure is raised after."""
-
-    if key != slice(None):
-        raise TypeError(
-                "Link[:] is the whole Field; positional slices have no"
-                " meaning for a population"
-                )
-
-    contacts = list(link.__dict__["_topkit_field"])
-    first: BaseException | None = None
-
-    for contact in contacts:
-        if link not in _state_of(contact).active:
-            continue   # an earlier Contact's teardown already unlinked her
-
-        try:
-            _rip(
-                    contact,
-                    link,
-                    )
-        except TagCompositionError as error:
-            first = first or error
-
-    contacts = None   # the Contacts are not ours to keep
-
-    try:
-        if first is not None:
-            raise first
-    finally:
-        first = None   # never keep Agents alive through a traceback that holds this frame
 
 
 def _own_records(

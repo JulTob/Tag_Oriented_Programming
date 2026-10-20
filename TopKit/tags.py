@@ -398,13 +398,6 @@ class MetaTag(type):
         if _arrest_of(tag) is not None:
             _require_available(tag, "Rip")
 
-        if _is_link_tag(tag) and isinstance(agent, slice):
-            _links()._unlink_all(
-                    tag,
-                    agent,
-                    )
-            return
-
         if isinstance(agent, slice):
             if agent != slice(None):
                 raise TypeError(

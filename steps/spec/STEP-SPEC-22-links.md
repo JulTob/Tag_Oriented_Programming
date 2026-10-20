@@ -17,6 +17,10 @@
   also ruled that Ripping a Base after its Shape has entered the Field
   does not require the Shape to leave; dependency belongs in an explicit
   Post. See *Implementation, and the points it had to settle* below.
+  2026-10-20: the Director chose the same whole-Field Rip boundary for a
+  held Link as for an ordinary Tag. All starting Contacts leave the Link
+  Field and enter its Safehouse before the first teardown. A failure
+  stops later teardown work without restoring membership (issue #254).
   The STEP remains **Vetting**.
 - **Refs:** PR #26 (closed design history; STEP-SPEC-23, 24, 26 and 29 were
   extracted through PRs #188, #189, #191 and #194; STEP-SPEC-26's core
@@ -605,9 +609,12 @@ A Link is a Tag. Every Ring 0 act works on it:
    that case, what the Ripped Link gave the Pair stays on it, sticky
    (§0.7).
 2. **`del charlie.Knows[:]`** unlinks every Contact of that Link, as a
-   Field Rip (STEP-SPEC-24). Contacts also held by a Shape Link stay in
-   that Shape and keep their shared Pair; a Contact with no remaining
-   Link in the family loses its Pair after teardown.
+   Field Rip (STEP-SPEC-24). All starting Contacts leave that Field and
+   enter its Safehouse before any teardown; a failure stops later
+   teardowns, which remain available for retry. Contacts also held by a
+   Shape Link stay in that Shape and keep their shared Pair; a Contact
+   with no remaining Link in the family loses its Pair after successful
+   teardown.
 3. **The Agent's deletion ends its Links.**
    - Inside the Agent's finalizer (§3.2), after its own teardowns and
      before its `__del__` Layers, each of its Links is Field-Ripped, Shape
@@ -1194,11 +1201,13 @@ the Base is explicitly applied again. This follows ordinary Tagging.
 
 - STEP-SPEC-26's core Base Rip rule was chosen by the Director on
   2026-10-14. Its other questions remain open.
-- `del charlie.Knows[:]` is implemented for Links. It Rips only that
-  Link's Contacts, retaining any Shape membership and shared Pair,
-  runs all selected teardowns, and reports the first failure afterward.
-  This does not implement STEP-SPEC-24's proposal for ordinary
-  `del Wizard[:]`.
+- `del charlie.Knows[:]` uses the same whole-Field Rip as an ordinary
+  Tag. It revokes all starting Contacts and enters them in the Link's
+  Safehouse before running any teardown. A failed Pair Layer stops the
+  remaining work; the Pair and Contact stay reachable for retry. Any
+  Shape membership remains independent. The Field has no promised
+  deletion order. The older best-effort wording in rule 8.3 describes
+  finalization, not this explicit Field Rip.
 - Agent deletion ends its Links after its own teardowns, Shape Links first.
   Cleanup refuses new linkings through every Link of that ending Agent,
   including a Link gained by a teardown. It holds the dying Agent for the
