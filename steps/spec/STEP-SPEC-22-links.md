@@ -1173,7 +1173,7 @@ that unlinks her when she ends.
 
 **Admission and failure.** Each Base Link completes its own turn before
 its Shape begins: Gate, ordered Gainings, Imprints, Field entry, then
-Posts at the completed call's boundary. A failed Gaining or Imprint leaves
+Posts before the next Shape Link's Gate. A failed Gaining or Imprint leaves
 a Rogue Pair with the Gains and Posts actually acquired, without membership
 in the unfinished Link. Earlier Base memberships and independent Taggings
 remain. Another linking retries the unfinished turn from its Gate. A
