@@ -250,3 +250,60 @@ class SafehouseReleaseRipTests(unittest.TestCase):
         gc.collect()
         self.assertIsNone(reference())
 
+
+    def test_empty_rip_uses_memberships_left_after_field_removal_reenters(self):
+        class Earlier(Tag):
+            pass
+        class Later(Tag):
+            pass
+        agent = Host()
+        Earlier(agent)
+        Later(agent)
+        field = _field_of(Later)
+        remove = field._Remove
+
+        def Reenter(target):
+            del Earlier[target]
+            remove(target)
+
+        with patch.object(field, '_Remove', Reenter):
+            del Later[agent]
+        self.assertNotIn(agent, Earlier[:])
+        self.assertNotIn(agent, Later[:])
+        self.assertEqual(_state_of(agent).active, [])
+        self.assertIsNone(_arrest_of(agent))
+
+    def test_empty_rip_retries_custody_created_during_its_field_removal(self):
+        blocked = [True]
+        calls = []
+        class Older(Tag):
+            @Rip
+            def Clean(agent):
+                calls.append('older')
+                if blocked[0]:
+                    raise ValueError('cleanup blocked')
+        class Plain(Tag):
+            pass
+        agent = Host()
+        Older(agent)
+        Plain(agent)
+        field = _field_of(Plain)
+        remove = field._Remove
+
+        def Arrest(target):
+            try:
+                del Older[target]
+            except TagCompositionError:
+                pass
+            remove(target)
+
+        with patch.object(field, '_Remove', Arrest):
+            with self.assertRaises(TagCompositionError):
+                del Plain[agent]
+        self.assertNotIn(agent, Plain[:])
+        self.assertEqual(calls, ['older', 'older'])
+        self.assertIsNotNone(_arrest_of(agent))
+        blocked[0] = False
+        del Older[agent]
+        self.assertEqual(calls, ['older', 'older', 'older'])
+        self.assertIsNone(_arrest_of(agent))
