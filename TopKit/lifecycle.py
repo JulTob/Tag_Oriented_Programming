@@ -35,6 +35,24 @@ def _rip(
         agent: object,
         tag: type,
         ) -> object:
+    state, teardowns = _revoke_membership(agent, tag)
+
+    _teardown(
+            agent,
+            state,
+            tag,
+            teardowns,
+            )
+
+    return agent
+
+
+def _revoke_membership(
+        agent: object,
+        tag: type,
+        ) -> tuple[_State, tuple[tuple[str, Any], ...]]:
+    """End one membership and save its Rip chain before callbacks run."""
+
     state = _state_of(agent)
 
     if state is None or tag not in state.active:
@@ -67,23 +85,22 @@ def _rip(
             if type(agent) is not next_type:
                 _set_runtime_type(agent, next_type)
 
-    _teardown(
-            agent,
-            state,
-            tag,
-            )
-
-    return agent
+    return state, state.rips.pop(tag, ())
 
 
 def _teardown(
         agent: object,
         state: _State,
         tag: type,
+        teardowns: tuple[tuple[str, Any], ...],
         ) -> None:
-    """Run every @Rip teardown of ``tag`` once, then report failures."""
+    """Run every @Rip teardown of ``tag`` once, then report failures.
 
-    teardowns = state.rips.pop(tag, ())
+    ``teardowns`` is the chain ``_revoke_membership`` took out of the
+    state: the caller owns it, and passing the same tuple twice would
+    run the teardowns twice.
+    """
+
     failures: list[tuple[str, Exception]] = []
     state.composing += 1
 
