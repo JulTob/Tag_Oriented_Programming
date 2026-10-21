@@ -1040,6 +1040,17 @@ raw Python reflection remain outside this call boundary; the stronger
 opt-in Host guard is a separate design. An already-entered context may still
 finish its matching exit hook for resource cleanup, while custody remains.
 
+Rip leaves ordinary Action Gains on the Agent, so their existing access
+rules still apply. Tag-view and Pair-view calls, including Operations
+reached through them, keep their view membership credentials. After that
+membership ends, an already-started result may still finish its entered
+cleanup through `close()` or `aclose()`, just as an already-entered `with`
+block finishes its exit. This does not reopen the view for ordinary access
+or permit normal continuation without its view credential. Secret checks
+still apply, and if a receiver remains arrested, closing requires its Rip
+cleanup authority; the close itself grants none. The dated decision is
+recorded in [STEP-SPEC-32](../steps/spec/STEP-SPEC-32-the-arrest.md).
+
 **Watch out.** Python does not promise to run finalizers at shutdown, so
 `del agent` is best-effort. A Rip in a `finally` is the guaranteed path.
 

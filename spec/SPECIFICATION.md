@@ -1700,6 +1700,16 @@ If a Rip arrests an Agent inside an already-entered context, that context's
 permission belongs only to that entered exit; it does not clear custody or
 authorize unrelated ordinary acts afterward.
 
+In the Python profile, an already-started lazy result from a Tag-view or
+Pair-view call, including an Operation reached through that view, may finish
+its entered cleanup through `close()` or `aclose()` after that view's
+membership credential ends. This does not reopen the view for ordinary
+access or permit normal continuation without its view credential. Secret
+checks remain in force; if a receiver remains arrested, closing requires
+its active Rip cleanup authority and does not grant that authority itself.
+Ordinary Action Gains have their own lifetime: Rip does not remove them,
+so their existing access rules continue to apply.
+
 **The Agent's own finalizer is a member in Layers** (STEP-SPEC-18). The
 host's `__del__` is its first Layer, found as the language finds it. A
 Tag's `__del__` replaces the Layers beneath it, or with `@Underlay`
