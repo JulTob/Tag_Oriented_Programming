@@ -17,6 +17,30 @@ class Host:
 
 
 class PostNeutralCycleTests(unittest.TestCase):
+    def test_recursive_agents_do_not_use_host_equality_or_hashing(self):
+        armed = [False]
+
+        class IdentityHost:
+            def __eq__(agent, other):
+                raise AssertionError("a Post cycle must use Agent identity")
+
+            def __hash__(agent):
+                raise AssertionError("a Post cycle must not hash its Agent")
+
+        class Checked(Tag):
+            @Post
+            def Ready(agent):
+                return True if not armed[0] else agent.other.Ready
+
+        first, second = IdentityHost(), IdentityHost()
+        first.other, second.other = second, first
+        Checked(first)
+        Checked(second)
+        armed[0] = True
+        self.assertTrue(bool(first))
+        self.assertTrue(bool(second))
+        self.assertEqual(Contract.Status(first), {"Ready": True})
+
     def test_positive_self_queries_hold_across_truth_membership_status_and_name(self):
         for query in (
                 lambda agent, tag: bool(agent),
@@ -775,6 +799,26 @@ class PostNeutralCycleTests(unittest.TestCase):
         self.assertIsNone(task())
         self.assertIsNone(agent())
         self.assertTrue(contexts)
+
+    def test_reusing_a_saved_context_does_not_retain_earlier_query_carriers(self):
+        from TopKit.post_queries import _Session
+        latest = [None]
+
+        class Checked(Tag):
+            @Post
+            def Ready(agent):
+                latest[0] = copy_context()
+                return True
+
+        agent = Host()
+        Checked(agent)
+        gc.collect()
+        before = sum(type(value) is _Session for value in gc.get_objects())
+        for _ in range(30):
+            self.assertTrue(latest[0].run(bool, agent))
+        gc.collect()
+        after = sum(type(value) is _Session for value in gc.get_objects())
+        self.assertLessEqual(after, before + 1)
 
     def test_a_post_cannot_return_a_pre_arrest_verdict_after_concurrent_rip(self):
         from TopKit.arrest import _safehouse

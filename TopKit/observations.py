@@ -47,7 +47,9 @@ class _Observation:
             # A saved copy_context must retain neither authority nor an
             # exception traceback owning the observed Agent after exit.
             self.violation = None
-            _observation.reset(self.token)
+            token = self.token
+            self.token = None
+            _observation.reset(token)
         self.carrier = None
         if violation is not None and (error is None or isinstance(error, Exception)):
             raise violation
