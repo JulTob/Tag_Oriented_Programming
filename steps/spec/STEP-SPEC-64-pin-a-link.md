@@ -16,6 +16,8 @@
   (Brief), and the Link core in
   [PR #435](https://github.com/JulTob/Tag_Oriented_Programming/pull/435)
   (Draft)
+- **Pin spelling:** `class Rare(Pin)`, as the Director approved in [PR #426](https://github.com/JulTob/Tag_Oriented_Programming/pull/426).
+  `main` still spells `@Pin class Rare(Tag)`.
 
 > One STEP, one topic. This Brief says what a Pin's Target may be once Links
 > exist. A `@Link` declared inside a Pin's body, a Map, is STEP-SPEC-63's topic
@@ -33,7 +35,9 @@ Director. Is the Pin's Target the Relation blueprint, `Social.Knows`
 (**Option A**), or one Agent's actual Link, `ari.Knows` (**Option B**)? The
 two give different answers to where a Pin's members land, what `isinstance`
 reports, what Rip does and what keeps the Target alive. The Brief recommends
-Option B. It also names the existing rules the ruling amends.
+Option B. The §1.9 text proposed in [PR #426](https://github.com/JulTob/Tag_Oriented_Programming/pull/426) already lists "actual Link
+Tags" among a Pin's Targets, which matches Option B. The Decision is still
+the Director's to record. It also names the existing rules the ruling amends.
 
 Links are not on main. The Link core is a Draft port in PR #435, and that
 Draft refuses both Targets. This Brief changes no runtime and claims none.
@@ -255,7 +259,7 @@ B9. **Ending.** §3.2 says: "Deletion of an Agent Rips it from its active
 This Brief amends existing rules. It does not leave them as they are.
 
 1. **STEP-SPEC-9 §1, Vocabulary.** "Pin: A Tag declared `@Pin`. Its Targets
-   are Tags." Under the chosen option, the Targets include actual Links (B)
+   are Tags." (PR #426 respells the declaration `class Rare(Pin)`.) Under the chosen option, the Targets include actual Links (B)
    or Relations (A). "Pinned Tag: A Tag that belongs to at least one Pin."
    Under B, a pinned Link is a Pinned Tag. Under A, a pinned Relation is one,
    although it is not a Tag in play.
@@ -397,8 +401,7 @@ class Social(Tag):
         pass
 
 
-@Pin
-class Audited(Tag):
+class Audited(Pin):
 
     @Pre
     def Has_Contacts(tag):               # the Pin's gate receives the Link
@@ -446,8 +449,7 @@ fails inside the Pin's own gate, because `len(tag)` on a Relation is a
 Composition Failure. A Pin without such a gate would pin the blueprint:
 
 ```python
-@Pin
-class Symmetric(Tag):
+class Symmetric(Pin):
 
     @Record
     def converse(tag):
@@ -521,7 +523,7 @@ rule. It does not leave existing behaviour as it is.
 | A pinned Relation that reaches its Links | Membership does not inherit (STEP-SPEC-9 §3). Every Agent's Link would become a member without a pinning act. |
 | Pin the declaring Tag instead, `Rare(Social)` | Already legal, but it marks the whole Tag, not the connection, so it does not answer the ruling. |
 | Keep PR #435's refusal | Rejected by the Director's ruling. |
-| Let an ordinary Tag pin a Link, without `@Pin` | Ordinary Tags apply to objects. Fields would mix objects and classes, the reason STEP-SPEC-9 made `@Pin` opt-in. |
+| Let an ordinary Tag pin a Link, without declaring a Pin | Ordinary Tags apply to objects. Fields would mix objects and classes, the reason STEP-SPEC-9 made Pins a declared kind. |
 | Under B, publish a Pin's `@Public` members onto the Link's Contacts | Deferred. It crosses the Draft's barrier, in which a Contact receives only what the Relation publishes. |
 | Leave this as law 6 of the Maps Brief | It amends a Cleared STEP's Pin rules and does not depend on Maps. One STEP, one topic. |
 
