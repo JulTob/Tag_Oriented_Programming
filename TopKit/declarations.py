@@ -594,6 +594,10 @@ def Pin(
         raise TagDeclarationError(
                 "@Pin marks a Tag class"
                 )
+    if not _is_tag_base(tag):
+        raise TagDeclarationError(
+                "the root Tag cannot be a Pin"
+                )
 
     with _pin_publication():
         if _is_pin_physical(tag):

@@ -29,12 +29,44 @@ from TopKit import Tags
 from TopKit import Underlay
 
 from ._fixtures import Agent
+from ._fixtures import Run_Program
 
 
 class PinTests(unittest.TestCase):
     """STEP-SPEC-9: a Tag marked @Pin applies to Tags. The pinned Tag is
     the Pin's Agent; the receiver rule lands Records as Reports and
     Actions as Operations of that Tag."""
+
+    def test_root_tag_cannot_be_marked_as_a_pin(self) -> None:
+        lines, stderr = Run_Program("""
+from TopKit import Pin, Tag, TagDeclarationError
+
+try:
+    Pin(Tag)
+except TagDeclarationError:
+    pass
+else:
+    raise AssertionError("the root Tag became a Pin")
+
+class Ordinary(Tag):
+    pass
+
+class Host:
+    pass
+
+host = Host()
+print(Ordinary(host) is host)
+print(host in Ordinary[:])
+
+@Pin
+class Rare(Tag):
+    pass
+
+print(Rare(Ordinary) is Ordinary)
+print(Ordinary in Rare[:])
+""")
+        self.assertEqual(lines, ["True"] * 4)
+        self.assertEqual(stderr, "")
 
     def setUp(self) -> None:
         class Wizard(Tag):
