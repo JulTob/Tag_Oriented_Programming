@@ -16,12 +16,36 @@
   (Brief), and the Link core in
   [PR #435](https://github.com/JulTob/Tag_Oriented_Programming/pull/435)
   (Draft)
-- **Pin spelling:** `class Rare(Pin)`, as the Director approved in [PR #426](https://github.com/JulTob/Tag_Oriented_Programming/pull/426).
-  `main` still spells `@Pin class Rare(Tag)`.
+- **Pin spelling:** `class Rare(Pin)`, on `main` since [PR #426](https://github.com/JulTob/Tag_Oriented_Programming/pull/426)
+  (merged 2026-10-21).
+- **Target question settled on `main`:** since PR #426, STEP-SPEC-9 and
+  Specification §1.9 say a Pin applies to actual Link Tags such as
+  `ari.Carries`, and that a Link declaration is a blueprint, not a Target.
+  That is Option B below.
 
 > One STEP, one topic. This Brief says what a Pin's Target may be once Links
 > exist. A `@Link` declared inside a Pin's body, a Map, is STEP-SPEC-63's topic
 > and stays refused here.
+
+> **Update, 2026-10-21, after PR #426 merged.** `main` now answers this
+> Brief's open question. STEP-SPEC-9 (§1, *Confirmed category rule*; §2,
+> rules 1 and 4) and Specification §1.9 say that a Pin applies to Tags,
+> actual Link Tags such as `ari.Carries`, and Pins, and that a Link
+> declaration is a blueprint, not the actual Link Tag. That is **Option B**.
+> So:
+>
+> - Option A, pinning the Relation blueprint, is an alternative the ruling
+>   rejects. Its rules A1–A7 stay below only as the record of what was
+>   weighed.
+> - Section 3's items 1–3, the STEP-SPEC-9 and §1.9 wording, are already
+>   done on `main` in Option B's sense. Main's text supersedes the two
+>   proposed §1.9 paragraphs.
+> - What this Brief still adds is the mechanics of pinning an actual Link,
+>   rules B1–B9: where a Pin's Records and Actions land on a Link, what Rip
+>   and the pins format do, and what keeps the Target alive. B3, B4 and B9
+>   are this Brief's own proposals. The Director's Decision now covers these.
+> - Links are still not on `main` (`Link` is not exported), so none of this
+>   runs yet.
 
 ## Summary
 
@@ -34,10 +58,9 @@ The ruling leaves one question open, and this Brief puts it before the
 Director. Is the Pin's Target the Relation blueprint, `Social.Knows`
 (**Option A**), or one Agent's actual Link, `ari.Knows` (**Option B**)? The
 two give different answers to where a Pin's members land, what `isinstance`
-reports, what Rip does and what keeps the Target alive. The Brief recommends
-Option B. The §1.9 text proposed in [PR #426](https://github.com/JulTob/Tag_Oriented_Programming/pull/426) already lists "actual Link
-Tags" among a Pin's Targets, which matches Option B. The Decision is still
-the Director's to record. It also names the existing rules the ruling amends.
+reports, what Rip does and what keeps the Target alive. The Brief recommended
+Option B, and [PR #426](https://github.com/JulTob/Tag_Oriented_Programming/pull/426), merged on 2026-10-21, wrote Option B into
+STEP-SPEC-9 and §1.9 (see the update above). It also names the existing rules the ruling amends.
 
 Links are not on main. The Link core is a Draft port in PR #435, and that
 Draft refuses both Targets. This Brief changes no runtime and claims none.
