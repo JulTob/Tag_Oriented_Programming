@@ -20,7 +20,7 @@ from typing import Any, Protocol, runtime_checkable
 from TopKit import (Action, Constant, Contract, Delete, Imprint, Keyword,
                     Operation, Pin, Post, Pre, Public, Record, Report, Rip,
                     Secret, Tag, TagCompositionError, TagDeclarationError,
-                    TagImprintError, TagOverwriteWarning, TagPreconditionError, Tool)
+                    TagOverwriteWarning, TagTrainingWarning, Tool)
 
 
 class Character:
@@ -191,10 +191,10 @@ class Tag_Kind_Tests(unittest.TestCase):
                 return Sword("untagged")
 
         charlie = Character("Charlie")
-        with self.assertRaises(TagCompositionError) as refusal:
+        with self.assertWarns(TagTrainingWarning.weapon) as refusal:
             Careless(charlie)
-        self.assertIn("Tag it in the builder", str(refusal.exception))
-        self.assertNotIn(charlie, Careless)
+        self.assertIn("Tag it in the builder", str(refusal.warning.failure))
+        self.assertIn(charlie, Careless)
         self.assertFalse(hasattr(charlie, "weapon"))
         self.assertIsInstance(charlie, Character)       # actualized, without the failed Gain
         self.assertFalse("weapon" @ charlie)
@@ -284,8 +284,11 @@ class Class_Kind_Tests(unittest.TestCase):
             sam.weapon = staff                            # a Weapon, not a Sword
         self.assertIn("not a Sword now", str(refusal.exception))
         self.assertIs(sam.weapon, sword)
-        with self.assertRaises(TagCompositionError):
-            Armed(Character("Pat"), weapon=plain)         # the same at the gaining
+        pat = Character("Pat")
+        with self.assertWarns(TagTrainingWarning.weapon):
+            Armed(pat, weapon=plain)                      # failed initial value does not bind
+        self.assertIn(pat, Armed)
+        self.assertFalse("weapon" @ pat)
 
     def test_a_union_of_classes_admits_either(self):
         class Wielder(Tag):
@@ -369,7 +372,7 @@ class Class_Kind_Tests(unittest.TestCase):
         Holding(sam, thing=value)
         self.assertIs(sam.thing, value)
 
-    def test_a_failing_instance_test_is_a_named_composition_failure(self):
+    def test_a_failing_initial_instance_test_warns_and_direct_write_still_raises(self):
         failure = RuntimeError("the instance test refused")
 
         class CheckedMeta(type):
@@ -389,11 +392,13 @@ class Class_Kind_Tests(unittest.TestCase):
         rejected = Sword()
         rejected.reject = True
         sam = Character("Sam")
-        with self.assertRaises(TagCompositionError) as caught:
+        with self.assertWarns(TagTrainingWarning.weapon) as caught:
             Equipped(sam, weapon=rejected)
-        self.assertIs(caught.exception.__cause__, failure)
-        self.assertIn("Equipped.weapon", str(caught.exception))
-        self.assertNotIn(sam, Equipped[:])
+        self.assertIn(str(failure), caught.warning.cause_text)
+        self.assertIn("Equipped.weapon", str(caught.warning.failure))
+        self.assertIn(sam, Equipped[:])
+        self.assertFalse("weapon" @ sam)
+        del Equipped[sam]
         original = Sword()
         Equipped(sam, weapon=original)
         with self.assertRaises(TagCompositionError) as caught:
@@ -452,10 +457,10 @@ class Emptiness_Tests(unittest.TestCase):
                 return None
 
         charlie = Character("Charlie")
-        with self.assertRaises(TagCompositionError) as refusal:
+        with self.assertWarns(TagTrainingWarning.weapon) as refusal:
             Empty_Handed(charlie)
-        self.assertIn("returned None", str(refusal.exception))
-        self.assertNotIn(charlie, Empty_Handed)
+        self.assertIn("returned None", str(refusal.warning.failure))
+        self.assertIn(charlie, Empty_Handed)
         self.assertFalse(hasattr(charlie, "weapon"))
 
     def test_del_is_the_drop_and_the_kind_stays(self):
@@ -517,7 +522,7 @@ class Forge_Tests(unittest.TestCase):
         Swordsman(sam, weapon=plain)                      # admitted by class, still not Tagged
         self.assertNotIn(plain, Weapon[:])
 
-    def test_tool_gate_failure_in_imprint_keeps_its_name_and_refuses_the_bearer(self):
+    def test_tool_gate_failure_in_imprint_warns_and_admits_the_bearer(self):
         class Holy(Tag):
             @Pre
             def Blessed_Steel(tool):
@@ -535,10 +540,12 @@ class Forge_Tests(unittest.TestCase):
         dan = Character("Dan")
         stick = Sword("a stick")
         Weapon(stick)
-        with self.assertRaises(TagImprintError) as failure:
+        with self.assertWarns(TagTrainingWarning.Attempt_Blessing) as failure:
             Crusader(dan, weapon=stick)
-        self.assertIsInstance(failure.exception.__cause__, TagPreconditionError)
-        self.assertNotIn(dan, Crusader)
+        self.assertEqual(failure.warning.cause_type, "Blessed_Steel")
+        self.assertIn("Blessed_Steel", failure.warning.cause_text)
+        self.assertIn(dan, Crusader)
+        self.assertNotIn(stick, Holy[:])
         self.assertIs(dan.weapon, stick)                  # the Gain precedes the failed Imprint
 
     def test_a_later_imprint_failure_leaves_training_on_a_handed_in_object(self):
@@ -557,9 +564,9 @@ class Forge_Tests(unittest.TestCase):
 
         loan = Sword("a loan")
         dan = Character("Dan")
-        with self.assertRaises(TagImprintError):
+        with self.assertWarns(TagTrainingWarning.Drop_Weapon):
             Armed_With(dan, weapon=loan)
-        self.assertNotIn(dan, Armed_With)
+        self.assertIn(dan, Armed_With)
         self.assertIn(loan, Weapon[:])                    # the forge's act stands: Rip is not restoration
         del Weapon[loan]                                  # the caller's own compensation
         self.assertNotIn(loan, Weapon[:])

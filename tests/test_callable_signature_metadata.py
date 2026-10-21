@@ -6,7 +6,7 @@ import unittest
 
 from TopKit import Action, Imprint, Pin, Post, Pre, Record, Rip, Tag
 from TopKit import TagCompositionError, TagDeclarationError, TagImprintError
-from TopKit import TagResolutionError, Underlay
+from TopKit import TagResolutionError, TagTrainingWarning, Underlay
 from TopKit.declarations import _parameters_of, _wraps_callable
 
 
@@ -105,7 +105,7 @@ class CallableSignatureMetadataTests(unittest.TestCase):
                 self.assertEqual(events, ["first"])
                 self.assertEqual(failing.metadata_reads, [])
 
-    def test_failing_imprint_and_record_keep_declared_names_and_causes(self):
+    def test_failing_imprint_and_record_warnings_keep_declared_names_and_diagnostics(self):
         for pinned in (False, True):
             for mark in (Imprint, Record):
                 with self.subTest(pinned=pinned, mark=mark):
@@ -121,14 +121,18 @@ class CallableSignatureMetadataTests(unittest.TestCase):
                             if mark is Imprint else TagCompositionError
                             )
 
-                    with self.assertRaises(failure) as caught:
+                    with self.assertWarns(TagTrainingWarning.Training) as caught:
                         role(target)
 
-                    self.assertIs(caught.exception.__cause__, original)
-                    self.assertIn("Training", str(caught.exception))
+                    self.assertIsInstance(caught.warning.failure, failure)
+                    self.assertEqual(caught.warning.cause_type, "RuntimeError")
+                    self.assertEqual(caught.warning.cause_text, str(original))
+                    self.assertIn("Training", str(caught.warning.failure))
                     self.assertEqual(events, ["first"])
                     self.assertEqual(failing.metadata_reads, [])
-                    self.assertNotIn(target, role[:])
+                    self.assertIn(target, role[:])
+                    if mark is Record:
+                        self.assertFalse("Training" @ target)
 
     def test_valid_action_and_condition_underlays_never_read_names(self):
         for pinned in (False, True):

@@ -4,7 +4,7 @@ from contextvars import copy_context
 import unittest
 
 from TopKit import (Action, Contract, Pin, Post, Record, Tag,
-                    TagCompositionError, Tool)
+                    TagCompositionError, TagTrainingWarning, Tool)
 
 
 class Host:
@@ -53,11 +53,11 @@ class ObservationalRecordTests(unittest.TestCase):
 
         target = Host()
         Existing(target)
-        with self.assertRaises(TagCompositionError) as refusal:
+        with self.assertWarns(TagTrainingWarning.result) as refusal:
             Incomplete(target)
-        self.assertIn("Incomplete.result", str(refusal.exception))
+        self.assertIn("Incomplete.result", str(refusal.warning))
         self.assertIn(target, Existing[:])
-        self.assertNotIn(target, Incomplete[:])
+        self.assertIn(target, Incomplete[:])
         self.assertEqual(target.start, 7)
         self.assertFalse("result" @ target)
 
@@ -86,12 +86,16 @@ class ObservationalRecordTests(unittest.TestCase):
         class Target(Tag):
             pass
 
-        with self.assertRaises(TagCompositionError):
-            Ordinary(Host())
-        with self.assertRaises(TagCompositionError):
+        ordinary = Host()
+        with self.assertWarns(TagTrainingWarning.result):
+            Ordinary(ordinary)
+        with self.assertWarns(TagTrainingWarning.result):
             Pinned(Target)
         self.assertNotIn(other, Changed[:])
-        self.assertNotIn(Target, Pinned[:])
+        self.assertIn(ordinary, Ordinary[:])
+        self.assertIn(Target, Pinned[:])
+        self.assertFalse("result" @ ordinary)
+        self.assertFalse("result" @ Target)
 
     def test_called_action_cannot_mutate_then_hide_the_refusal(self):
         other = Host()
@@ -113,7 +117,7 @@ class ObservationalRecordTests(unittest.TestCase):
                 return "unusable"
 
         target = Host()
-        with self.assertRaises(TagCompositionError):
+        with self.assertWarns(TagTrainingWarning.result):
             Incomplete(target)
         self.assertNotIn(other, Changed[:])
         self.assertFalse("result" @ target)
@@ -136,7 +140,7 @@ class ObservationalRecordTests(unittest.TestCase):
 
         target = Host()
         Existing(target)
-        with self.assertRaises(TagCompositionError):
+        with self.assertWarns(TagTrainingWarning.result):
             Incomplete(target)
         self.assertEqual(Contract.Status(target), {"Ready": True})
 
@@ -156,9 +160,9 @@ class ObservationalRecordTests(unittest.TestCase):
             def result(target):
                 raise HostileError()
 
-        with self.assertRaises(TagCompositionError) as refusal:
+        with self.assertWarns(TagTrainingWarning.result) as refusal:
             Incomplete(Host())
-        self.assertIn("Incomplete.result", str(refusal.exception))
+        self.assertIn("Incomplete.result", str(refusal.warning))
         self.assertNotIn(other, Changed[:])
 
     def test_tool_value_validation_cannot_change_another_field(self):
@@ -181,7 +185,7 @@ class ObservationalRecordTests(unittest.TestCase):
                 return Invalid()
 
         target = Host()
-        with self.assertRaises(TagCompositionError):
+        with self.assertWarns(TagTrainingWarning.weapon):
             Equipped(target)
         self.assertNotIn(other, Changed[:])
         self.assertFalse("weapon" @ target)

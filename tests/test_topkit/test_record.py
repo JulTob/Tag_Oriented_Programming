@@ -9,6 +9,7 @@ from TopKit import Tag
 from TopKit import TagCompositionError
 from TopKit import TagOverwriteWarning
 from TopKit import Underlay
+from TopKit import TrainingWarning
 
 from ._fixtures import Agent
 from ._fixtures import Armed
@@ -126,7 +127,7 @@ class RecordTests(unittest.TestCase):
         self.assertNotIn(target, Vital)
         self.assertEqual(target.hp, 1)
 
-    def test_record_builder_failure_is_a_composition_error_naming_it(self) -> None:
+    def test_record_builder_failure_warns_by_name_and_leaves_value_absent(self) -> None:
         class Bad(Tag):
             @Record
             def hp(agent):
@@ -134,11 +135,12 @@ class RecordTests(unittest.TestCase):
 
         ari = Agent()
 
-        with self.assertRaises(TagCompositionError) as caught:
+        with self.assertWarns(TrainingWarning.hp) as caught:
             Bad(ari)
 
-        self.assertIn("Bad.hp", str(caught.exception))
-        self.assertNotIn(ari, Bad)
+        self.assertIn("Bad.hp", str(caught.warning))
+        self.assertIn(ari, Bad)
+        self.assertFalse("hp" @ ari)
 
     def test_independent_tags_cannot_share_a_name_across_kinds(self) -> None:
         class Data(Tag):

@@ -4,7 +4,7 @@ import unittest
 
 from TopKit import (Constant, Contract, Post, Pre, Record, Rip, Tag,
                     TagCompositionError, TagContractWarning,
-                    TagPreconditionError, Underlay)
+                    TagPreconditionError, TagTargetError, Underlay)
 
 
 class Host:
@@ -177,14 +177,23 @@ class ConditionLifetimeTests(unittest.TestCase):
                                 RuntimeError("no value"))),
                             },
                         )
-                agent = Host()
-                with self.assertRaises(TagCompositionError):
+                class UnsuitableHost:
+                    @property
+                    def value(self):
+                        return "host property"
+
+                agent = UnsuitableHost()
+                original_namespace = vars(agent)
+                with self.assertRaises(TagTargetError):
                     Broken(agent)
+                self.assertIs(type(agent), UnsuitableHost)
+                self.assertIs(vars(agent), original_namespace)
+                self.assertEqual(vars(agent), {})
                 self.assertNotIn(agent, Broken[:])
                 self.assertEqual(Contract.Status(agent), {})
                 self.assertFalse(hasattr(agent, "Ready"))
 
-    def test_failed_constant_attempt_restores_a_same_named_ordinary_post_gate(self):
+    def test_structural_refusal_keeps_a_same_named_ordinary_post(self):
         class Base(Tag):
             @Post
             def Ready(agent):
@@ -200,13 +209,21 @@ class ConditionLifetimeTests(unittest.TestCase):
             def value(agent):
                 raise RuntimeError("no value")
 
-        agent = Host()
+        class UnsuitableHost:
+            @property
+            def value(self):
+                return "host property"
+
+        agent = UnsuitableHost()
         agent.ready = True
         Base(agent)
 
-        with self.assertWarns(TagContractWarning):
-            with self.assertRaises(TagCompositionError):
-                Failed(agent)
+        with self.assertRaises(TagTargetError):
+            Failed(agent)
+        self.assertNotIn(agent, Failed[:])
+        agent.ready = False
+        self.assertFalse(agent.Ready)
+        agent.ready = True
 
         self.assertTrue(agent.Ready)
         with self.assertRaises(TagCompositionError):

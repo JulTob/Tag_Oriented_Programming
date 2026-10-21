@@ -40,6 +40,7 @@ from .observations import _refuse_observed_act
 from .errors import TagDeclarationError
 from .errors import TagCompositionError
 from .errors import TagImprintError
+from .errors import TagTrainingWarning
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
 from .geometry import _is_tag_class
@@ -1140,6 +1141,8 @@ def _name_checks(
         _refuse_truth_gain(owner, name, attribute)
         kind = _kind_of(attribute)
         _refuse_condition_dunder(owner, name, kind)
+        if kind in ("record", "imprint"):
+            TagTrainingWarning.Named(name)
 
         if kind == "condition":
             TagPreconditionError.Named(name)

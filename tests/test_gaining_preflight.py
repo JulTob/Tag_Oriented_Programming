@@ -8,7 +8,7 @@ from unittest import mock
 import TopKit.transactions as transactions
 from TopKit import (Action, Constant, Delete, Flag, Operation, Pin, Post, Pre,
                     Public, Record, Report, Rip, Secret, Tag,
-                    TagCompositionError, Tool, Underlay)
+                    TagCompositionError, TagTargetError, Tool, Underlay)
 from TopKit.declarations import _invalidate_declarations
 from TopKit.state import _State, _state_of
 
@@ -216,7 +216,7 @@ class HasRecord(Tag):
 
 
 def a_record_over_a_host_property():
-    return "occupied", Record(lambda agent: 1), TagCompositionError, "host"
+    return "occupied", Record(lambda agent: 1), TagTargetError, "host"
 
 
 def a_record_over_an_independent_action():
@@ -242,7 +242,7 @@ class GainingPreflightGuardTests(unittest.TestCase):
     """What the shortcut for ordinary Tags must keep, and where it must hand
     the Tag back to the full scratch check."""
 
-    def test_the_first_declared_refusal_is_the_one_reported(self):
+    def test_record_space_refusals_precede_overlay_clashes_in_declared_order(self):
         for first, second in itertools.permutations(WAYS_TO_BE_REFUSED, 2):
             with self.subTest(first=first.__name__, second=second.__name__):
                 members = {}
@@ -250,7 +250,9 @@ class GainingPreflightGuardTests(unittest.TestCase):
                 for make in (first, second):
                     name, member, error, text = make()
                     members[name] = member
-                    if expected is None:
+                    # Structural Record spaces are checked before Overlay
+                    # validation, even when a kind clash was declared first.
+                    if expected is None or error is TagTargetError:
                         expected = (name, error, text)
                 Arriving = type("Arriving", (Tag,), members)
 

@@ -148,7 +148,7 @@ class GainingOrderTests(unittest.TestCase):
         After(agent)
 
         self.assertIs(agent.observed, True)
-        self.assertEqual(calls, ["shape", "base"] * 3)
+        self.assertEqual(calls, ["base"] + ["shape", "base"] * 3)
 
     def test_actions_and_records_become_visible_in_declaration_order(self):
         observations = []
