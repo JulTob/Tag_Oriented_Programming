@@ -38,6 +38,8 @@ from .declarations import _has_flag
 from .declarations import _is_pin
 from .declarations import _kind_of
 from .declarations import _mark
+from .declarations import _tool_kind_of_static
+from .declarations import _tool_physical_dict
 from .errors import TagCompositionError
 from .errors import TagDeclarationError
 from .fields import _Population
@@ -305,6 +307,17 @@ def Tool(
                 kind,
                 )
 
+        # A callable can implement the mark as a custom descriptor whose
+        # getter later hides it. Keep a physical copy for Tag publication
+        # and Record gaining. A native slot is physical storage too.
+        if _tool_kind_of_static(member) is not kind:
+            namespace = _tool_physical_dict(member)
+            if namespace is None:
+                raise TagDeclarationError(
+                        "@Tool needs a physical mark on its callable"
+                        )
+            namespace[_TOOL] = kind
+
         return member
 
     return mark
@@ -383,7 +396,7 @@ def _advice(
         first = tags[0].__name__
 
         if built:
-            return f"Tag it in the builder, {first}(...)"
+            return f"Tag it before the builder runs, {first}(...)"
 
         return f"Tag it first, {first}(...), or hand over a {first}"
 

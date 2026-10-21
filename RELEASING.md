@@ -115,6 +115,17 @@ A version number, once uploaded, can be yanked but never reused. Bump
 `version` in `pyproject.toml` before any further upload; a second upload
 of the same number is refused.
 
+## Auditing the source archive
+
+The source archive includes the complete Python conformance suite and its
+supporting examples, benchmarks, guides and specification. After unpacking
+it, run `PYTHONPATH=. python3 -m unittest discover -s tests -t .` from the
+archive's root, as in a checkout. Comparing against historical Git refs
+with the differential fuzzer still requires a Git checkout.
+
+The wheel contains the runtime package and its license; the conformance
+assets stay in the source archive.
+
 ## Version numbers
 
 `0.2.0aN` while the Specification is still moving. The version rises

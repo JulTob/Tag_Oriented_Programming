@@ -151,6 +151,25 @@ def _revoke_membership(
     return state, run.teardowns
 
 
+def _teardown(
+        agent: object,
+        state: _State,
+        tag: type,
+        teardowns: tuple[tuple[str, Any], ...],
+        ) -> None:
+    """Run a detached application's supplied chain through saved cleanup.
+
+    Revocation already ended this application. The caller owns this tuple;
+    a fresh application of the same Tag must keep its membership and chain.
+    A failure saves this chain's cursor for the ordinary explicit Rip retry.
+    """
+
+    run = _RipRun(tag, teardowns)
+    run.revoked = True
+    _save_run(agent, run, hold_empty=True)
+    _run_one(agent, state, run)
+
+
 def _rip_field(tag: type) -> None:
     """Revoke the whole starting Field before invoking any Rip protocol.
 

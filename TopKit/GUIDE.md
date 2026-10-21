@@ -1326,5 +1326,7 @@ your Reports and Operations there.
 - [The Specification](../spec/SPECIFICATION.md): the laws, ring by ring.
 - [`examples/dnd_character.py`](../examples/dnd_character.py) and
   [`examples/biome.py`](../examples/biome.py): the long form.
+- [`examples/equipment.py`](../examples/equipment.py): checked Tools, weapon
+  wear and repair, swapping equipment, and explicit Action guards.
 - [`benchmarks/bench.py`](../benchmarks/bench.py): what it costs.
 - [`IMPLEMENTATION_NOTES.md`](IMPLEMENTATION_NOTES.md): how TopKit does it.

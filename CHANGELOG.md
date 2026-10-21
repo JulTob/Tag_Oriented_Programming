@@ -59,6 +59,15 @@
   remain outside the guarded call boundary. These are focused Python profile
   changes; they do not deploy the rest of STEP-SPEC-32.
 
+- **Pin publication preserves ordinary Tag and Tool use:** a late Pin mark
+  cannot change a Tag with members, Shapes, live Tool-kind declarations or
+  an ordinary Tagging underway. Tool-kind ownership is tracked weakly by
+  identity, and a departed Field alone does not bar a later Pin mark.
+  Repeating a Pin mark, including on an existing Pin Shape, is a no-op.
+  Tool declarations and late bindings are checked together with Pin marks;
+  callable metadata and retired bindings are handled outside shared locks.
+  Interrupted Taggings release only their own temporary reservations.
+
 - **Named failures release declaration-name objects:** the process-wide
   Precondition, Imprint and Postcondition failure registries keep plain
   identifier text, so a `str` subclass name cannot hold an Agent or Tag
@@ -342,6 +351,12 @@
   use `_sound` in its own namespace without changing its Field.
 
 ### Project
+
+- The build backend now requires setuptools 77.0.3 or later, matching the
+  SPDX license-expression metadata already declared by the package.
+- **Auditable source archives:** the sdist now includes the full Python
+  conformance suite, its helpers and runnable documentation assets. The
+  wheel remains limited to the runtime package and its license.
 
 - **Fixed:** resolving a Form deeper than Python's recursion limit raised
   `RecursionError`. Geometry now walks Bases iteratively, preserving the
