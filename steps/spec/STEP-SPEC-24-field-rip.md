@@ -21,9 +21,34 @@ including [#77](https://github.com/JulTob/Tag_Oriented_Programming/pull/77)'s re
 **Brief**. No runtime code, current Specification amendment, or new Director
 clearance is included.
 
-This is a recovered **Brief**, not clearance or an implementation claim. The retained text below includes #77's corrections. On current main, [`Tag[:]` reads the whole Field](https://github.com/JulTob/Tag_Oriented_Programming/blob/fcea45fd2535594fd82f54aee2af7e815e98e0ca/TopKit/tags.py), but `del Tag[:]` is not whole-Field cleanup. [#35](https://github.com/JulTob/Tag_Oriented_Programming/issues/35) tracks that requirement. Ordinary [Rip](https://github.com/JulTob/Tag_Oriented_Programming/blob/fcea45fd2535594fd82f54aee2af7e815e98e0ca/TopKit/lifecycle.py) still refuses to remove a Base required by an active Shape; after an allowed removal it attempts every teardown despite ordinary failures, without an arrest/retry ledger.
+This is a recovered **Brief**, not clearance or an implementation claim. The retained text below includes #77's corrections. On current main, [`Tag[:]` reads the whole Field](https://github.com/JulTob/Tag_Oriented_Programming/blob/fcea45fd2535594fd82f54aee2af7e815e98e0ca/TopKit/tags.py), but `del Tag[:]` is not whole-Field cleanup. [#35](https://github.com/JulTob/Tag_Oriented_Programming/issues/35) tracks that requirement. Ordinary Rip now allows a Base to leave while a Shape remains active ([#207](https://github.com/JulTob/Tag_Oriented_Programming/pull/207)); after removal it attempts every teardown despite ordinary failures, without an arrest/retry ledger.
 
-Review this proposal alongside STEP-26's independent memberships and STEP-32's proposed cleanup obligations ([#36](https://github.com/JulTob/Tag_Oriented_Programming/issues/36)). Cross-member continuation, interruptions and fresh Tagging during failed cleanup remain STEP-32 open questions 16, 17 and 14; #35's existing acceptance wording must not settle them by implication. Pin/Link failure and Tag finalization remain separate boundaries, including [#39](https://github.com/JulTob/Tag_Oriented_Programming/issues/39). The weak-Tag-retention and automatic Tag-end sections propose additional lifetime behavior; they are not consequences of supporting `del Tag[:]`. Preserve them for separate review before implementation. Historical S19 paths, line numbers and population spellings are supporting history, not current API guarantees.
+Review this proposal alongside STEP-26's independent memberships and STEP-32's proposed cleanup obligations ([#36](https://github.com/JulTob/Tag_Oriented_Programming/issues/36)). STEP-32's later Director decisions settle the ordinary Field Rip's stopping, interruption, fresh Tagging, and custody boundaries; #35's earlier acceptance wording did not settle them by implication. Pin/Link failure and Tag finalization remain separate boundaries, including [#39](https://github.com/JulTob/Tag_Oriented_Programming/issues/39). The weak-Tag-retention and automatic Tag-end sections propose additional lifetime behavior; they are not consequences of supporting `del Tag[:]`. Preserve them for separate review before implementation. Historical S19 paths, line numbers and population spellings are supporting history, not current API guarantees.
+
+### Director correction on Field cleanup order — 2026-10-20
+
+The Director supersedes the historical 2026-10-08 choice of join order or
+FIFO for **deletion**: a Field has no inherent cleanup order. Whole-Field
+Rip first revokes all starting memberships and puts their unfinished Rip
+work in Safehouse custody. It then attempts cleanup one member at a time,
+stopping this invocation at the first failure or interruption. The
+implementation may happen to follow the Field's current walk order, but
+that is not a deletion promise. A program may explicitly retry any pending
+member next, even if another member's cleanup failed earlier. Within one
+member's Rip, declared teardown order and recorded progress still apply;
+a step whose completion was recorded is not replayed. The small
+interruption window after a callback returns but before TOP records its
+completion remains an open retry boundary.
+
+This narrow ruling supersedes the historical Summary, rule 1.3, and
+Alternatives table where they require join order, along with any proposed
+ordered cross-member retry. It does not clear this entire Brief. The
+current TopKit Field **walk** saves its candidates in join order when that
+walk begins, as documented by STEP-SPEC-35. This describes today's walk
+mechanics, not a new ruling on future walk-order guarantees; deletion
+need not use them as its semantic order. STEP-SPEC-32's later Director
+decisions govern the stopping,
+custody, and retry boundaries.
 
 ### Provenance and dependencies
 
