@@ -16,6 +16,11 @@ from the inside out: a Ring 2 implementation also satisfies Rings 0 and 1.
 | **2 · Contracts** | strict boolean conditions; each Tag gates when its turn arrives and active Tags are not re-asked; a Precondition is a transient Tagging Service that never becomes Agent state; Post definitions are prepared in declaration order and join the Contract bond only at Field admission; an ordinary Post is an Agent Gain bound to that admitted application, while an admitted Constant Post is a lifetime Contract term; Imprints before FieldAdding; Postconditions once after the completed Form and re-checked later; Post failure preserves Field membership and current Posts determine soundness; Forward-Post, Backward-Pre with weakening diagnosed; defective Agents, reserved Agent truth including a Tag's own Pin Posts, no Posts meaning true even with an empty Field, conflicting host/Contribution truth refused and host `len` intact, sound and defective partitions with an absorbing `~` (`~~Tag` is `~Tag`), populations combined with `|`, `&`, `-` at every level; a visible Post read on the Agent by its name as a plain bool, its name refused to other kinds; a failure names its check (`except Precondition.X`); `@Pre` and `@Post` stacked as two roles from one body, in either order |
 | **3 · Lifecycle** | `@Rip` protocols after membership ends; the three deletion tiers (finalizer, `At_Exit`, and the program's own Rip in a `finally`); the Agent's `__del__` as Layers of its Overlay, after the teardowns, alone at interpreter exit |
 
+The Python equipment Link profile supplies independent per-Agent Fields
+and Pair Gains; its [executable guide](wiki/1.6-TopKit-Links.md) documents
+supported behavior and Python limits. This profile does not deploy the
+whole Links STEP or resolve its remaining design questions.
+
 Surface spellings may differ between languages. The **semantic laws** may
 not. Every failure in the failure model must stay distinct and named.
 
