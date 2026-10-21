@@ -11,6 +11,78 @@
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
 
+## Later Director amendment — 2026-10-21: Pinning is not conversion
+
+The Director clarified the distinction while reviewing late-Pin policy:
+
+> I understand that's just a pin tagging a T tag? Or is it the claude trying to make mutant Tag-Pins again? I don't want the metaclass of pins to mix with the class of tags. pinning a tag is normal behaviour in any condition, empty field or not. Converting a tag to a pin should not work. Tags pin objects, pins tag tags, links, and pins. Pins are organizational and relational. Tags are categories and agencies. Different stuff
+
+The following instruction was: **"fix the Pin-Tag confusion"**.
+
+### Confirmed category rule
+
+- **Applying an existing Pin is Pinning, not conversion.** In
+  `Organised(MyTag)`, `Organised` is already a Pin. `MyTag` becomes its
+  member and remains the same kind of Target. Its own Field may be empty
+  or populated; that does not make it an invalid category of Target.
+  Preconditions, Posts, contribution collisions and other ordinary
+  Pinning rules still apply.
+- **The receivers differ.** An ordinary Tag applies to object Targets.
+  A Pin applies to Tags, actual Link Tags such as `ari.Carries`, and
+  Pins. A Link declaration is a blueprint; it is not the actual Link Tag
+  named by `ari.Carries`. Pinning does not turn a Tag or Link into a Pin,
+  or turn a Pin into an ordinary Tag.
+- **An ordinary Tag never converts into a Pin.** This includes an unused
+  Tag, a Tag with current members, and a Tag whose members were Ripped.
+  The rule is about which category was declared, not how much history it
+  has accumulated. Permanent past-application or past-Tool-use marks are
+  not a substitute for defining that distinction.
+- **The conceptual distinction does not choose the Python machinery.**
+  The quoted metaclass concern does not prescribe a physical `MetaPin`
+  hierarchy, a particular MRO or an implementation of the declaration.
+
+This clarification replaces the earlier interpretation that an ordinary
+Tag could be reclassified as a Pin once its Field emptied. Applying an
+already-declared Pin to that Tag remains normal. It does not, by itself,
+clear #426's permanent historical-mark implementation or its additional
+past-use policies.
+
+### Declaration spelling and implementation boundary
+
+The Python declaration spelling is still open. `class Organised(Pin)`
+and `@Pin` on a plain Python class without a `Tag` Base are alternatives
+under review, not implemented APIs established by this amendment. Neither
+option authorizes `Pin(existing_ordinary_tag)` as category conversion.
+
+At the comparison checkpoint, `main` at `2f67565`, TopKit still uses
+`@Pin class Rare(Tag)` and a callable marking function. Its late-mark
+checks protect current Fields, live Tool owners and in-flight Tagging;
+they do not implement this new declaration-category rule. The original
+STEP and runnable Guide examples below describe that existing API. A
+focused implementation and accompanying Guide update must follow the
+chosen declaration spelling. This amendment records the category ruling;
+it does not claim that the new behavior is built or Deployed.
+
+### Acceptance for the focused follow-up
+
+1. Applying an existing Pin to an ordinary Tag works with either an empty
+   or populated Target Field, subject to the normal Pinning rules. The
+   Target remains an ordinary Tag and can still tag object Targets.
+2. Actual Link Tags and Pins are eligible Target categories for a Pin;
+   each retains its own category, Field and ordinary behavior.
+3. Ordinary Tags cannot be converted, including unused Tags and Tags
+   whose members have left. Historical-use marks cannot make an unused
+   ordinary Tag eligible for conversion.
+4. The chosen declaration spelling, its refusals and the existing
+   Pinning examples are tested together. Current atomicity, Tool-kind and
+   in-flight safeguards must be preserved where their underlying acts
+   remain available.
+
+The original **Cleared** header records the 2026-09-16 decision. This
+later section records the Director's new category clarification, while
+its public declaration syntax and implementation remain unfinished. It
+does not mark the revised behavior Deployed or clear unrelated changes.
+
 ## Summary
 
 A Tag may be the Target of another Tag. STEP-SPEC-1 named this act
