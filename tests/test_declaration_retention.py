@@ -68,8 +68,7 @@ class DeclarationRetentionTests(unittest.TestCase):
 
     def test_a_pin_scanned_at_declaration_does_not_keep_itself_alive(self):
         def create():
-            @Pin
-            class Ephemeral(Tag):
+            class Ephemeral(Pin):
                 def Owner(tag):
                     return __class__
 
@@ -78,13 +77,11 @@ class DeclarationRetentionTests(unittest.TestCase):
         self.assert_collected(create())
 
     def test_a_retained_empty_population_does_not_keep_its_pinned_tag_alive(self):
-        @Pin
-        class MetaPin(Tag):
+        class MetaPin(Pin):
             pass
 
         def create():
-            @Pin
-            class InnerPin(Tag):
+            class InnerPin(Pin):
                 def Owner(receiver):
                     return __class__
 
@@ -146,8 +143,7 @@ class DeclarationRetentionTests(unittest.TestCase):
         Base(existing)
         before = _declarations_of(Base)
 
-        @Pin
-        class Given(Tag):
+        class Given(Pin):
             @Public
             @Record
             def label(tag):
@@ -209,8 +205,7 @@ class DeclarationRetentionTests(unittest.TestCase):
         existing = Host()
         Base(existing)
 
-        @Pin
-        class Given(Tag):
+        class Given(Pin):
             @Public
             @Record
             def label(tag):
@@ -271,8 +266,7 @@ class DeclarationRetentionTests(unittest.TestCase):
         existing = Host()
         Base(existing)
 
-        @Pin
-        class Given(Tag):
+        class Given(Pin):
             @Public
             @Record
             def label(tag):
@@ -318,8 +312,7 @@ class DeclarationRetentionTests(unittest.TestCase):
         Fixed(existing)
         before = _declarations_of(Base)
 
-        @Pin
-        class Given(Tag):
+        class Given(Pin):
             @Public
             @Record
             def label(tag):

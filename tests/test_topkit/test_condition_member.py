@@ -73,8 +73,7 @@ class ConditionMemberTests(unittest.TestCase):
         class Wizard(Tag):
             pass
 
-        @Pin
-        class Promised(Tag):
+        class Promised(Pin):
             @Post
             def Has_Members(tag):
                 return bool(tag[:])

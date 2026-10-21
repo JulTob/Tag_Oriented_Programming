@@ -471,8 +471,8 @@ Tagging sequence or expand its rollback boundary.
   Tag; own or inherited program bindings are left untouched and trigger
   uncached recomputation. Namespace inspection uses a snapshot, so another
   thread publishing either memo cannot invalidate a scan's iterator.
-  The Tool checks in `Pin()` use that snapshot too, with callable metadata
-  inspected after releasing the helper lock.
+  Tool declaration checks use a namespace snapshot too, with callable
+  metadata inspected after releasing the helper lock.
   Pin publication invalidates only the receiving Tag's declaration memo.
   These ownership rules are not a blanket lifetime guarantee about
   arbitrary user values that refer back to Tags.
@@ -520,12 +520,30 @@ Tagging sequence or expand its rollback boundary.
   objects: called, they mark; read, they forward to their failure class.
   Per kind, not per Tag, on purpose: the handler reads the program's own
   word, and the Tag is already in the message.
+- **Pin declaration is separate from Pinning.** `class Rare(Pin)` declares
+  a concrete Pin; `Rare(Wizard)` applies that existing Pin to an eligible
+  Tag Target. An ordinary Tag cannot be converted with `Pin(Wizard)`,
+  independently of Field population or past use. The `Pin` declaration root
+  has no concrete application or own Field. Receiver checks use actual
+  Python types and keep ordinary Tag and Pin application Forms separate.
+  These are the category rules; they do not prescribe a particular internal
+  metaclass hierarchy. An ordinary object held in a Tool remains an object.
+  The Python implementation stamps each TOP metaclass with its fixed kind
+  at creation. The stamp owns only a weak reference back to that metaclass;
+  physical reads authenticate the owner without invoking program lookup
+  hooks. Public category-changing class and metaclass writes are refused,
+  including Base changes. A foreign ancestor's later Base changes cannot
+  change an existing TOP metaclass's declared kind. Each selected Form is
+  checked before preparation. Direct use of Python's raw mutation primitives
+  or modification of private framework state is outside this guarantee;
+  this is a declaration boundary, not a sandbox for arbitrary Python code.
 - **Pins reuse the whole sequence.** A pinned Tag is an Agent whose
   namespace is its class dictionary. `_namespace_of` hands the kernel a
   `_Class_Namespace` adapter (get, set, pop, keys) over the proxy, so
   Gate, Gainings, Imprints, FieldAdding and view capture use the same
   code path for objects and pinned Tags. The runtime type is a
-  `(MetaTag, Tagged)` metaclass from the same cache. A landed Action is a
+  category-preserving metaclass adapter from the same cache. A landed
+  Action is a
   `_Pinned_Operation` descriptor binding to the Tag it is read from (a
   Shape inherits it as it inherits a classmethod). Its public composing
   handle keeps the original callable as `__func__`, the receiving Tag as

@@ -75,7 +75,7 @@ class ImprintDiagnosticTests(unittest.TestCase):
                     protocol = Imprint(_Callable(fail, hostile_metadata))
                     original_namespace = dict(vars(protocol))
 
-                    class Trained(Tag):
+                    class Trained(Pin if pinned else Tag):
                         @Record
                         def badge(agent):
                             return "ready"
@@ -98,8 +98,6 @@ class ImprintDiagnosticTests(unittest.TestCase):
                         def Equipped(agent):
                             return agent.badge == "ready"
 
-                    if pinned:
-                        Trained = Pin(Trained)
                     target = _target(pinned)
 
                     with self.assertRaises(TagImprintError.Training) as caught:
@@ -153,11 +151,9 @@ class ImprintDiagnosticTests(unittest.TestCase):
                     events.append(value)
                     return 41
 
-                class Trained(Tag):
+                class Trained(Pin if pinned else Tag):
                     Training = Imprint(_Callable(calculate, True))
 
-                if pinned:
-                    Trained = Pin(Trained)
                 target = _target(pinned)
                 self.assertIs(Trained(target, value=23), target)
                 self.assertEqual(events, [23])
@@ -193,7 +189,7 @@ class ImprintDiagnosticTests(unittest.TestCase):
                             returned.append(result)
                             return result
 
-                        class Trained(Tag):
+                        class Trained(Pin if pinned else Tag):
                             @Record
                             def badge(agent):
                                 return "ready"
@@ -204,8 +200,6 @@ class ImprintDiagnosticTests(unittest.TestCase):
                             def Later(agent):
                                 events.append("later")
 
-                        if pinned:
-                            Trained = Pin(Trained)
                         target = _target(pinned)
 
                         with self.assertRaises(TagImprintError.Training) as failure:
@@ -261,15 +255,13 @@ class ImprintDiagnosticTests(unittest.TestCase):
                     lazy = Coroutine() if kind == "coroutine" else Generator()
                     lazy.send(None)
 
-                    class Trained(Tag):
+                    class Trained(Pin if pinned else Tag):
                         Training = Imprint(_Callable(lambda agent, value: lazy, True))
 
                         @Imprint
                         def Later(agent):
                             events.append("later")
 
-                    if pinned:
-                        Trained = Pin(Trained)
                     target = _target(pinned)
                     with self.assertRaises(TagImprintError.Training) as caught:
                         Trained(target)
@@ -290,7 +282,7 @@ class ImprintDiagnosticTests(unittest.TestCase):
                     def interrupt(agent, value):
                         raise original
 
-                    class Trained(Tag):
+                    class Trained(Pin if pinned else Tag):
                         @Record
                         def badge(agent):
                             return "ready"
@@ -301,8 +293,6 @@ class ImprintDiagnosticTests(unittest.TestCase):
                         def Later(agent):
                             events.append("later")
 
-                    if pinned:
-                        Trained = Pin(Trained)
                     target = _target(pinned)
                     with self.assertRaises(type(original)) as caught:
                         Trained(target)
@@ -323,15 +313,13 @@ class ImprintDiagnosticTests(unittest.TestCase):
                     def fail(agent, value):
                         raise original
 
-                    class Trained(Tag):
+                    class Trained(Pin if pinned else Tag):
                         Training = Imprint(_Callable(fail, True))
 
                         @Post
                         def Equipped(agent):
                             return ready
 
-                    if pinned:
-                        Trained = Pin(Trained)
                     target = _target(pinned)
                     with self.assertRaises(TagImprintError.Training):
                         Trained(target)
@@ -348,15 +336,13 @@ class ImprintDiagnosticTests(unittest.TestCase):
                     del agent.badge
                     raise original
 
-                class Trained(Tag):
+                class Trained(Pin if pinned else Tag):
                     @Record
                     def badge(agent):
                         return "optional"
 
                     Training = Imprint(_Callable(fail, True))
 
-                if pinned:
-                    Trained = Pin(Trained)
                 target = _target(pinned)
                 with self.assertRaises(TagImprintError.Training) as caught:
                     Trained(target)
@@ -394,11 +380,9 @@ class ImprintDiagnosticTests(unittest.TestCase):
                     def fail(agent, value):
                         raise original
 
-                    class Trained(Tag):
+                    class Trained(Pin if pinned else Tag):
                         Training = Imprint(_Callable(fail, True))
 
-                    if pinned:
-                        Trained = Pin(Trained)
                     target = _target(pinned)
                     with self.assertRaises(TagImprintError.Training) as caught:
                         Trained(target)
@@ -447,15 +431,13 @@ class ImprintDiagnosticTests(unittest.TestCase):
                     lazy = Coroutine() if kind == "coroutine" else Generator()
                     lazy.send(None)
 
-                    class Trained(Tag):
+                    class Trained(Pin if pinned else Tag):
                         Training = Imprint(_Callable(lambda agent, value: lazy, True))
 
                         @Imprint
                         def Later(agent):
                             events.append("later")
 
-                    if pinned:
-                        Trained = Pin(Trained)
                     target = _target(pinned)
                     with self.assertRaises(TagImprintError.Training) as caught:
                         Trained(target)
@@ -486,11 +468,9 @@ class ImprintDiagnosticTests(unittest.TestCase):
             with self.subTest(pinned=pinned):
                 result = Unprintable()
 
-                class Trained(Tag):
+                class Trained(Pin if pinned else Tag):
                     Training = Imprint(_Callable(lambda agent, value: result, True))
 
-                if pinned:
-                    Trained = Pin(Trained)
                 target = _target(pinned)
                 self.assertIs(Trained(target), target)
                 self.assertIn(target, Trained[:])
@@ -508,15 +488,13 @@ class ImprintDiagnosticTests(unittest.TestCase):
                     def fail(agent, value):
                         raise original
 
-                    class Trained(Tag):
+                    class Trained(Pin if pinned else Tag):
                         @Record
                         def badge(agent):
                             return "ready"
 
                         Training = Imprint(_Callable(fail, True))
 
-                    if pinned:
-                        Trained = Pin(Trained)
                     target = _target(pinned)
                     with self.assertRaises(type(interruption)) as caught:
                         Trained(target)
@@ -550,11 +528,9 @@ class ImprintDiagnosticTests(unittest.TestCase):
                 def fail(agent, value):
                     raise original
 
-                class Trained(Tag):
+                class Trained(Pin if pinned else Tag):
                     Training = Imprint(_Callable(fail, True))
 
-                if pinned:
-                    Trained = Pin(Trained)
                 target = _target(pinned)
                 with self.assertRaises(TagImprintError.Training) as caught:
                     Trained(target)
@@ -615,9 +591,7 @@ class ImprintDiagnosticTests(unittest.TestCase):
                         returned.append(result)
                         return result
 
-                    Trained = type("Role", (Tag,), {Name("Training"): Imprint(Training)})
-                    if pinned:
-                        Trained = Pin(Trained)
+                    Trained = type("Role", (Pin if pinned else Tag,), {Name("Training"): Imprint(Training)})
                     target = _target(pinned)
                     # Formatted metadata is unnecessary even when the accepted
                     # declaration key only becomes hostile after class creation.

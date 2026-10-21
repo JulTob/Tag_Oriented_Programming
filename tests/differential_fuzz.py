@@ -113,6 +113,16 @@ from TopKit import Tags
 from TopKit import Underlay
 
 
+# Compare the same declaration intent across the Pin-root migration.
+# New TopKit creates a Pin at class creation; old baselines used @Pin.
+# This adapter belongs only to generated comparison programs, not TopKit.
+_Pin_Base = Pin if isinstance(Pin, type) else Tag
+
+
+def _Pin_Declaration(declared):
+    return declared if isinstance(Pin, type) else Pin(declared)
+
+
 class Log:
     """The transcript, on standard output. Events wait for the end of
     their step; after "=== exit ===" they are written as they happen.
@@ -1008,7 +1018,8 @@ def Declare(
                 )
 
     if pin:
-        decorators.append("@Pin")
+        bases = ["_Pin_Base" if base == "Tag" else base for base in bases]
+        decorators.append("@_Pin_Declaration")
 
     plan.lines.extend(decorators)
     plan.lines.append(f"class {name}({', '.join(bases)}):")

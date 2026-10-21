@@ -486,8 +486,7 @@ that keyword is there.
 
 ```python
 @Flag
-@Pin
-class Red_Alert(Tag):
+class Red_Alert(Pin):
     """The ship's state, not the crew's."""
 
 
@@ -699,8 +698,7 @@ assert len(Quarantined[:]) == 0
 assert Quarantined                     # no Pin Posts: true even when empty
 
 
-@Pin
-class Certified(Tag):
+class Certified(Pin):
 
     @Pre
     @Post

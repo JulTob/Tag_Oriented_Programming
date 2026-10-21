@@ -1,8 +1,9 @@
-"""Ordinary Tagging reserves its Form until completion or interruption."""
+"""Tagging cancellation and reentry cannot change a declared category."""
 
 import gc
 import sys
 import unittest
+import weakref
 from threading import Event, Thread
 
 from TopKit import (
@@ -59,7 +60,8 @@ class PinTaggingReservationTests(unittest.TestCase):
             release_first.set()
             first_thread.join(2)
             self.assertFalse(first_thread.is_alive())
-            self.assertIs(Pin(First), First)
+            with self.assertRaises(TagDeclarationError):
+                Pin(First)
             with self.assertRaises(TagDeclarationError):
                 Pin(Second)
         finally:
@@ -74,7 +76,7 @@ class PinTaggingReservationTests(unittest.TestCase):
         self.assertIsInstance(failures[0], TagImprintError)
         self.assertIn(second, Second[:])
 
-    def test_interruption_after_extra_registration_releases_its_tags(self):
+    def test_interruption_after_form_preparation_releases_its_tags(self):
         class Old(Tag):
             pass
 
@@ -86,13 +88,10 @@ class PinTaggingReservationTests(unittest.TestCase):
 
         self.assertEqual(Form(Shape), (Old, Shape))
         Shape.__bases__ = (New,)
-        registrations = []
-
         def interrupt(frame, event, arg):
-            if frame.f_code.co_name == "_begin_ordinary_form" and event == "return":
-                registrations.append(True)
-                if len(registrations) == 2:
-                    raise KeyboardInterrupt("after extra registration")
+            if (frame.f_code.co_name == "_form_of" and event == "return"
+                    and frame.f_locals.get("tag") is Shape):
+                raise KeyboardInterrupt("after Form preparation")
             return interrupt
 
         before = sys.gettrace()
@@ -103,12 +102,18 @@ class PinTaggingReservationTests(unittest.TestCase):
         finally:
             sys.settrace(before)
 
-        self.assertIs(Pin(Old), Old)
-        del Shape
+        with self.assertRaises(TagDeclarationError):
+            Pin(Old)
+        with self.assertRaises(TagDeclarationError):
+            Pin(New)
+        old_ref, new_ref, shape_ref = weakref.ref(Old), weakref.ref(New), weakref.ref(Shape)
+        del Shape, Old, New
         gc.collect()
-        self.assertIs(Pin(New), New)
+        self.assertIsNone(old_ref())
+        self.assertIsNone(new_ref())
+        self.assertIsNone(shape_ref())
 
-    def test_interruption_before_nested_registration_preserves_outer_call(self):
+    def test_interruption_before_nested_application_preserves_outer_call(self):
         entered = []
         refused = []
 
@@ -120,8 +125,9 @@ class PinTaggingReservationTests(unittest.TestCase):
                 entered.append(agent)
 
                 def interrupt(frame, event, arg):
-                    if event == "call" and frame.f_code.co_name == "_begin_ordinary_form":
-                        raise KeyboardInterrupt("before nested registration")
+                    if (event == "call" and frame.f_code.co_name == "_apply"
+                            and frame.f_locals.get("tag") is Role):
+                        raise KeyboardInterrupt("before nested application")
                     return interrupt
 
                 before = sys.gettrace()
@@ -147,26 +153,23 @@ class PinTaggingReservationTests(unittest.TestCase):
         self.assertNotIn("__topkit_pin__", Role.__dict__)
         self.assertIn(agent, Role[:])
 
-    def test_a_cached_form_cannot_apply_a_base_already_converted_to_pin(self):
+    def test_a_cached_form_keeps_ordinary_bases_after_conversion_is_refused(self):
         class Old(Tag):
             pass
-
         class New(Tag):
             pass
-
         class Shape(Old):
             pass
-
         self.assertEqual(Form(Shape), (Old, Shape))
         Shape.__bases__ = (New,)
-        Pin(Old)
+        with self.assertRaises(TagDeclarationError):
+            Pin(Old)
         agent = Character("Ari")
-
-        with self.assertRaises(TagCompositionError):
-            Shape(agent)
-        self.assertNotIn(agent, Old[:])
+        self.assertIs(Shape(agent), agent)
+        # Existing cached Form timing remains unchanged by category refusal.
+        self.assertIn(agent, Old[:])
         self.assertNotIn(agent, New[:])
-        self.assertNotIn(agent, Shape[:])
+        self.assertIn(agent, Shape[:])
 
     def test_cold_form_hash_can_wait_for_a_concurrent_pin_refusal(self):
         armed = [False]
@@ -200,7 +203,7 @@ class PinTaggingReservationTests(unittest.TestCase):
         Candidate(ari)
 
         self.assertIn(True, outcomes)
-        self.assertTrue(any("Tagging is in flight" in item
+        self.assertTrue(any("declare class" in item
                             for item in outcomes if isinstance(item, str)))
         self.assertIn(ari, Candidate[:])
 
@@ -226,7 +229,7 @@ class PinTaggingReservationTests(unittest.TestCase):
         Candidate(ari)
 
         self.assertEqual(len(refusals), 1)
-        self.assertIn("Tagging is in flight", refusals[0])
+        self.assertIn("declare class", refusals[0])
         self.assertNotIn("__topkit_pin__", Candidate.__dict__)
         self.assertIn(ari, Candidate[:])
 
@@ -263,39 +266,40 @@ class PinTaggingReservationTests(unittest.TestCase):
             Candidate(Character("Ari"))
 
         self.assertIn(True, outcomes)
-        self.assertTrue(any("Tagging is in flight" in item
+        self.assertTrue(any("declare class" in item
                             for item in outcomes if isinstance(item, str)))
-        later = []
-        worker = Thread(target=lambda: later.append(Pin(Candidate)))
-        worker.start()
-        worker.join(2)
-        self.assertFalse(worker.is_alive())
-        self.assertEqual(later, [Candidate])
+        later = Character("later")
+        self.assertIs(Candidate(later), later)
+        self.assertIn(later, Candidate[:])
+        del Candidate[later]
+        candidate_ref = weakref.ref(Candidate)
+        del Candidate, later
+        gc.collect()
+        self.assertIsNone(candidate_ref())
 
-    def test_a_new_pin_base_during_form_calculation_refuses_ordinary_tagging(self):
-        armed = [False]
-
+    def test_a_pin_base_during_form_calculation_cannot_reclassify_a_tag(self):
+        armed, refusals = [False], []
         class Old(Tag):
             pass
-
-        class New(Tag):
-            pass
-
+        class New(Pin):
+            __slots__ = ()
         class Hashing(MetaTag):
             def __hash__(cls):
                 if armed[0]:
                     armed[0] = False
-                    Pin(New)
-                    type.__setattr__(cls, "__bases__", (New,))
+                    try:
+                        cls.__bases__ = (New,)
+                    except (TagCompositionError, TagDeclarationError, TypeError):
+                        refusals.append(True)
                 return type.__hash__(cls)
-
         class Shape(Old, metaclass=Hashing):
             pass
-
         armed[0] = True
         ari = Character("Ari")
-        with self.assertRaisesRegex(TagCompositionError, "Pin Base"):
-            Shape(ari)
+        self.assertIs(Shape(ari), ari)
+        self.assertEqual(refusals, [True])
+        self.assertIn(ari, Old[:])
+        self.assertIn(ari, Shape[:])
         self.assertNotIn(ari, New[:])
 
     def test_cached_form_base_stays_reserved_after_real_bases_change(self):
@@ -322,7 +326,7 @@ class PinTaggingReservationTests(unittest.TestCase):
         Shape(ari)
 
         self.assertEqual(len(refusals), 1)
-        self.assertIn("Tagging is in flight", refusals[0])
+        self.assertIn("declare class", refusals[0])
         self.assertNotIn("__topkit_pin__", Old.__dict__)
         self.assertIn(ari, Old[:])
 
@@ -341,7 +345,7 @@ class PinTaggingReservationTests(unittest.TestCase):
         ari = Character("Ari")
         Candidate(ari)
         self.assertEqual(len(refusals), 1)
-        self.assertIn("Tagging is in flight", refusals[0])
+        self.assertIn("declare class", refusals[0])
         self.assertNotIn("__topkit_pin__", Candidate.__dict__)
         self.assertIn(ari, Candidate[:])
 
@@ -373,7 +377,7 @@ class PinTaggingReservationTests(unittest.TestCase):
             self.assertTrue(entered.wait(2))
             with self.assertRaises(TagDeclarationError) as refusal:
                 Pin(Candidate)
-            self.assertIn("Tagging is in flight", str(refusal.exception))
+            self.assertIn("declare class", str(refusal.exception))
         finally:
             resume.set()
             worker.join(2)
@@ -399,6 +403,7 @@ class PinTaggingReservationTests(unittest.TestCase):
         with self.assertRaises(KeyboardInterrupt):
             Interrupted(Character("Bob"))
 
-        self.assertIs(Pin(Refused), Refused)
-        self.assertIs(Pin(Interrupted), Interrupted)
+        for tag in (Refused, Interrupted):
+            with self.subTest(tag=tag), self.assertRaises(TagDeclarationError):
+                Pin(tag)
 

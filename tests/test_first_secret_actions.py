@@ -13,7 +13,7 @@ class Host:
 
 class FirstSecretActionTests(unittest.TestCase):
     def receiver(self, pinned=False):
-        class Private(Tag):
+        class Private(Pin if pinned else Tag):
             @Secret
             @Record
             def code(agent):
@@ -24,7 +24,7 @@ class FirstSecretActionTests(unittest.TestCase):
             def SecretRead(agent):
                 return agent.code
 
-        class Reader(Tag):
+        class Reader(Pin if pinned else Tag):
             @Action
             def Read(agent):
                 """Read the current private Contribution."""
@@ -51,9 +51,6 @@ class FirstSecretActionTests(unittest.TestCase):
                 raise error
 
         if pinned:
-            Private = Pin(Private)
-            Reader = Pin(Reader)
-
             class Target(Tag):
                 pass
 

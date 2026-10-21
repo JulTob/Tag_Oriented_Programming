@@ -253,14 +253,12 @@ algebra sorts Tags:
 from TopKit import Flag, Pin
 
 
-@Pin
-class Combat(Tag):
+class Combat(Pin):
     pass
 
 
 @Flag
-@Pin
-class Deprecated(Tag):
+class Deprecated(Pin):
     pass
 
 

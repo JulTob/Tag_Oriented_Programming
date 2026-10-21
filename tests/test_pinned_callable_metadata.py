@@ -52,8 +52,7 @@ class PinnedCallableMetadataTests(unittest.TestCase):
         if secret_action:
             work = Secret(work)
 
-        @Pin
-        class Patch(Tag):
+        class Patch(Pin):
             Work = work
 
             @Action
@@ -68,8 +67,7 @@ class PinnedCallableMetadataTests(unittest.TestCase):
             pass
 
         if secret_record:
-            @Pin
-            class Private(Tag):
+            class Private(Pin):
                 @Secret
                 @Record
                 def code(tag):
@@ -104,12 +102,10 @@ class PinnedCallableMetadataTests(unittest.TestCase):
         def read(tag):
             return tag.code
 
-        @Pin
-        class Reader(Tag):
+        class Reader(Pin):
             Read = Action(partial(read))
 
-        @Pin
-        class Private(Tag):
+        class Private(Pin):
             @Secret
             @Record
             def code(tag):

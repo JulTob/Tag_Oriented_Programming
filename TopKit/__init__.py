@@ -7,7 +7,6 @@ from .declarations import Delete
 from .declarations import Flag
 from .declarations import Imprint
 from .declarations import Operation
-from .declarations import Pin
 from .declarations import Post
 from .declarations import Postcondition
 from .declarations import Pre
@@ -37,6 +36,7 @@ from .queries import Keyword
 from .queries import Outline
 from .queries import Tags
 from .tags import Tag
+from .tags import Pin
 from .tags import Tagged
 from .tools import Tool
 

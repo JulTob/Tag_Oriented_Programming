@@ -27,6 +27,7 @@ import weakref
 from .arrest import _arrest_of
 from .contracts import _holds_for_population
 from .errors import TagCompositionError
+from .errors import TagResolutionError
 from .geometry import _is_tag_class
 from .memo import _class_namespace
 
@@ -40,7 +41,14 @@ def _field_of(
     """The Tag's own Field, read from its class dictionary: never through
     attribute lookup, which the programmer's namespace could shadow."""
 
-    return _class_namespace(tag)[FIELD_SEAT]
+    try:
+        return _class_namespace(tag)[FIELD_SEAT]
+    except KeyError:
+        from .tags import Pin   # the declaration roots now exist
+
+        if tag is Pin:
+            raise TagResolutionError("Pin is a declaration root and has no Field") from None
+        raise
 
 
 def _sound_of(

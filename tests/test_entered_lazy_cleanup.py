@@ -294,8 +294,7 @@ class EnteredLazyCleanupTests(unittest.TestCase):
     def test_pin_view_cleanup_survives_rip(self):
         events = []
 
-        @Pin
-        class Protocol(Tag):
+        class Protocol(Pin):
             @Action
             def Work(tag):
                 try:

@@ -15,8 +15,7 @@ class PinGainingMemoTests(unittest.TestCase):
         class Receiver(Tag):
             pass
 
-        @Pin
-        class Established(Tag):
+        class Established(Pin):
             @Public
             def Read(tag, agent):
                 return "original"
@@ -35,8 +34,7 @@ class PinGainingMemoTests(unittest.TestCase):
         observed = []
         during_training = Host()
 
-        @Pin
-        class Unfinished(Tag):
+        class Unfinished(Pin):
             @Public
             def Read(tag, agent):
                 return "acquired", tag.marker
