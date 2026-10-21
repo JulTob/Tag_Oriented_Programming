@@ -750,10 +750,10 @@ def _inspect_link(pair: _Pair, contact: object) -> None:
         notes = tuple(note for failure in failures
                       for note in getattr(failure, "__notes__", ()))
         failures.clear()
-        failure = TaggingFailure(names, details)
+        failures.append(TaggingFailure(names, details))
         for note in notes:
-            BaseException.add_note(failure, note)
-        raise failure
+            BaseException.add_note(failures[0], note)
+        raise failures.pop()
 
 
 def _withdraw_pair_admission(pair: _Pair, tag: type) -> None:

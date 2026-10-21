@@ -1,6 +1,8 @@
 """Equipment Links use the same training boundary as ordinary Tagging."""
 
+import gc
 import unittest
+import weakref
 import warnings
 from unittest.mock import patch
 
@@ -87,6 +89,43 @@ class EquipmentLinkTrainingTests(unittest.TestCase):
         self.assertIn(item, owner.Carries[:])
         self.assertIn(item, ~owner.Carries)
         self.assertFalse(bool(item))
+
+    def test_aggregate_post_failure_does_not_retain_its_contact_traceback(self):
+        class Equipment(Tag):
+            @Post
+            def Charged(item):
+                return item.charge > 0
+
+        class Inventory(Tag):
+            @Link(agent, contact)
+            class Carries(Tag):
+                @Imprint
+                def Drain(owner, target):
+                    target.charge = 0
+
+                @Post
+                def Stored(owner, target):
+                    return False
+
+        owner, item = Host(), Host()
+        item.charge = 1
+        Equipment(item)
+        Inventory(owner)
+        reference = weakref.ref(item)
+        was_enabled = gc.isenabled()
+        gc.disable()
+        try:
+            try:
+                owner.Carries(item)
+            except TaggingFailure as error:
+                self.assertEqual(error.failed_posts, ("Stored", "Charged"))
+            else:
+                self.fail("both the Contact and Pair Posts fail")
+            del item
+            self.assertIsNone(reference())
+        finally:
+            if was_enabled:
+                gc.enable()
 
     def test_broken_contact_is_refused_before_header_gate_or_pair_creation(self):
         events = []
