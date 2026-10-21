@@ -135,4 +135,3 @@ class SafehouseReleaseLedgerTests(unittest.TestCase):
         _retry_arrested(agent, lambda run: None, Invoke)
         self.assertEqual(events, ["old", "new"])
         self.assertIsNone(_arrest_of(agent))
-
