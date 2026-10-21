@@ -1164,6 +1164,11 @@ def _tool_physical_dict(attribute: Any) -> dict[str, Any] | None:
     """Read an instance dictionary through its native seat, bypassing a
     callable's custom ``__getattribute__`` and Tool-mark descriptor."""
 
+    # A class has a namespace, not an instance dictionary. Static lookup
+    # can find its instances' native __dict__ seat, which cannot bind here.
+    if isinstance(attribute, type):
+        return None
+
     descriptor = getattr_static(attribute, "__dict__", None)
     if type(descriptor) is not GetSetDescriptorType:
         return None

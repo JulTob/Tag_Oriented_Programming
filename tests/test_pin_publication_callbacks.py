@@ -10,6 +10,22 @@ from tests.test_tools import Character
 
 class PinPublicationCallbackTests(unittest.TestCase):
 
+    def test_nested_tag_and_host_classes_keep_their_own_namespaces(self):
+        class Social(Tag):
+            class Nested(Tag):
+                pass
+
+            class Host:
+                pass
+
+        self.assertIsInstance(Social.Nested, MetaTag)
+        self.assertIsInstance(Social.Host, type)
+        self.assertNotIn("__topkit_tool__", Social.Nested.__dict__)
+        self.assertNotIn("__topkit_tool__", Social.Host.__dict__)
+        target = Character("nested")
+        Social(target)
+        self.assertIn(target, Social)
+
     def test_tool_getter_waiting_for_another_pin_does_not_deadlock(self):
         class Kind(Tag):
             pass
