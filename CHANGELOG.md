@@ -32,6 +32,11 @@
 
 ### TopKit
 
+- **Named failures release declaration-name objects:** the process-wide
+  Precondition, Imprint and Postcondition failure registries keep plain
+  identifier text, so a `str` subclass name cannot hold an Agent or Tag
+  alive after its declaration is gone.
+
 - **Post application ledgers implement the Contract lifetimes.** Post layers
   are keyed by fresh Tagging identity. Field admission commits that identity;
   a pre-admission failure discards its provisional Posts, and Rip removes its
