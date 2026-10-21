@@ -13,6 +13,7 @@ from typing import Any
 _publication = RLock()
 _type_namespace = type.__dict__["__dict__"]
 _type_mro = type.__dict__["__mro__"]
+_type_bases = type.__dict__["__bases__"]
 
 
 @dataclass(slots=True)
