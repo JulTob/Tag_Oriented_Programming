@@ -19,6 +19,7 @@ from .observations import _refuse_observed_act
 
 from .arrest import _arrest_of
 from .arrest import _may_act
+from .arrest import _safehouse
 from .declarations import STATE
 from .declarations import _parameters_of
 from .declarations import _action_chain
@@ -61,10 +62,13 @@ def _rip(
     _refuse_observed_act('Rip a Tag')
 
     state = _state_of(agent)
-    pending = _pending_run(agent, tag)
+    pending = _pending_run(agent, tag) if _safehouse else None
 
     if pending is None:
-        if state is None or not any(active is tag for active in state.active):
+        if state is None or not (
+                state.active and state.active[-1] is tag
+                or any(active is tag for active in state.active)
+                ):
             raise TagResolutionError(
                     f"{_tag_name(tag)} is not active on this Agent"
                     )
@@ -74,7 +78,7 @@ def _rip(
             # that can fail. Avoid allocating custody for its success path;
             # an injected interruption still records its exact Field seat.
             _rip_empty(agent, state, tag)
-            if retry_older and _arrest_of(agent) is not None and not _may_act(agent):
+            if retry_older and _safehouse and _arrest_of(agent) is not None and not _may_act(agent):
                 _retry_arrested(agent)
             return agent
 
@@ -86,7 +90,7 @@ def _rip(
 
     _run_one(agent, state, pending)
 
-    if retry_older and _arrest_of(agent) is not None and not _may_act(agent):
+    if retry_older and _safehouse and _arrest_of(agent) is not None and not _may_act(agent):
         _retry_arrested(agent)
 
     return agent
@@ -98,10 +102,13 @@ def _rip_empty(agent: object, state: _State, tag: type) -> None:
     words, snapshot = state.words, state.snapshots.get(tag)
     try:
         field._Remove(agent)
-        for index, active in enumerate(state.active):
-            if active is tag:
-                state.active.pop(index)
-                break
+        if state.active and state.active[-1] is tag:
+            state.active.pop()
+        else:
+            for index, active in enumerate(state.active):
+                if active is tag:
+                    state.active.pop(index)
+                    break
         state.words = None
         state.snapshots.pop(tag, None)
     except BaseException:
