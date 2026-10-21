@@ -13,11 +13,14 @@ from os.path import dirname
 from typing import Any
 from typing import Callable
 from typing import Iterator
+from types import FunctionType
 import warnings
 
 from .arrest import _require_available
 from .arrest import _safehouse
 from .lazy_guard import _guard_lazy_result
+from .observations import _observing
+from .observations import _ObservationViolation
 from . import state as state_module
 from .access import IN_SEAT
 from .access import _host_finalizer
@@ -27,6 +30,8 @@ from .contracts import _guarded
 from .constants import _constant_overlay
 from .constants import _refuse_constant
 from .declarations import _Declarations
+from .declarations import _Parameters
+from .declarations import _cached_parameters_of
 from .declarations import _ACTION_CHAIN
 from .declarations import _action_chain
 from .declarations import _discard_lazy_result
@@ -597,7 +602,6 @@ def _gainings(
             tool_kind = _tool_kind_of(function)
             if tool_kind is not None:
                 from .tools import _refuse_tool_value
-                from .observations import _observing
                 try:
                     with _observing("Record value validation"):
                         _refuse_tool_value(tag, tool_kind, name, value, agent, built=True)
@@ -707,12 +711,15 @@ def _refuse_stored_input_collision(
         builder: Function,
         inputs: dict[str, Any],
         name: str,
+        *,
+        parameters: _Parameters | None = None,
         ) -> None:
     """A Record's second positional parameter is the stored value. If it is
     named like a supplied input, the author almost certainly meant the
     input; say so rather than hand over the stored value in silence."""
 
-    second = _parameters_of(builder).named[1][0]
+    spec = _parameters_of(builder) if parameters is None else parameters
+    second = spec.named[1][0]
 
     if second in inputs:
         second = str.__str__(second)
@@ -1466,21 +1473,27 @@ def _record_value(
             ):
         stored = None
 
-    takes_stored = _takes_stored(builder)
+    # Native functions use their existing identity memo. Callable objects
+    # keep the separate metadata probes, which may have dynamic results.
+    parameters = _cached_parameters_of(builder) if type(builder) is FunctionType else None
+    takes_stored = (parameters.positional >= 2 if parameters is not None
+                    else _takes_stored(builder))
 
-    if takes_stored:
-        _refuse_stored_input_collision(builder, inputs, name)
+    if takes_stored and (inputs or parameters is None):
+        _refuse_stored_input_collision(builder, inputs, name, parameters=parameters)
 
     named = _protocol_inputs(
             builder,
             inputs,
             2 if takes_stored else 1,
+            parameters=parameters,
             )
 
     try:
-        from .observations import _observing
         with _observing("Record"):
-            if takes_stored:
+            if not named:
+                value = builder(agent, stored) if takes_stored else builder(agent)
+            elif takes_stored:
                 value = builder(agent, stored, **named)
             else:
                 value = builder(agent, **named)
@@ -1582,7 +1595,6 @@ def _record_training_warning(
 
     tag_name = str.__str__(type.__dict__["__name__"].__get__(tag))
     record_name = str.__str__(name)
-    from .observations import _observing, _ObservationViolation
     try:
         with _observing("Record diagnostic"):
             cause_type = _type_name(error)

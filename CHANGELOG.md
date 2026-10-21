@@ -32,6 +32,10 @@
 
 ### TopKit
 
+- **Record training overhead:** native Record functions reuse their existing
+  identity-checked parameter memo and avoid unused keyword expansion.
+  Uncached signatures and callable objects keep their separate metadata reads.
+
 - **Contract query allocations:** a simple Post query keeps its running
   check and first verdict in direct slots; nested checks and further
   outcomes allocate containers when needed. Finished observations release
