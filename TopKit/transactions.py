@@ -26,6 +26,7 @@ from typing import Any
 
 from .arrest import _require_available
 from .arrest import _safehouse
+from .observations import _refuse_observed_act
 from .contracts import _holds_for_population
 from .contracts import _bind_condition
 from .contracts import _evaluate
@@ -78,7 +79,6 @@ def _apply(
         ) -> object:
     """Apply ``tag`` and its missing Bases to ``agent`` as one call."""
 
-    from .observations import _refuse_observed_act
     _refuse_observed_act("Tagging")
 
     if _safehouse:

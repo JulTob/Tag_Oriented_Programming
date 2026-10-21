@@ -946,7 +946,7 @@ def _tool_kind_of(
     Looks through a classmethod, a staticmethod and a Report's builder, so
     a mark hidden under another declaration is still seen and refused."""
 
-    if isinstance(attribute, Report):
+    if type(attribute) is not FunctionType and isinstance(attribute, Report):
         attribute = attribute.builder
 
     function = getattr(
@@ -954,6 +954,9 @@ def _tool_kind_of(
             "__func__",
             attribute,
             )
+
+    if type(function) is FunctionType:
+        return dict.get(function.__dict__, _TOOL)
 
     return getattr(
             function,
@@ -1686,6 +1689,16 @@ class _Parameters:
 _parameter_cache: "dict[int, tuple[ref[Function], _Parameters]]" = {}
 
 
+def _cached_parameters_of(function: Function) -> _Parameters | None:
+    """Read a completed identity memo without inspecting new metadata."""
+
+    cached = _parameter_cache.get(id(function))
+    if cached is not None and cached[0]() is function:
+        return cached[1]
+    return None
+
+
+
 def _parameters_of(
         function: Function,
         ) -> _Parameters:
@@ -1776,6 +1789,8 @@ def _protocol_inputs(
         function: Function,
         inputs: dict[str, Any],
         skip: int,
+        *,
+        parameters: _Parameters | None = None,
         ) -> dict[str, Any]:
     """Bind application inputs to a protocol's named parameters.
 
@@ -1787,7 +1802,9 @@ def _protocol_inputs(
     ``**kwargs`` receives any remaining inputs.
     """
 
-    spec = _parameters_of(function)
+    spec = _parameters_of(function) if parameters is None else parameters
+    if not inputs and len(spec.named) <= skip:
+        return {}
     bound: dict[str, Any] = {}
 
     for index, (name, has_default) in enumerate(spec.named):

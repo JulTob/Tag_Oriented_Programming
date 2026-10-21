@@ -59,6 +59,63 @@ def _target(pinned):
 
 
 class CallableSignatureMetadataTests(unittest.TestCase):
+    def test_native_record_dictionary_subclasses_do_not_intercept_tool_reads(self):
+        class Metadata(dict):
+            def get(self, *args, **kwargs):
+                raise AssertionError("Python attribute lookup does not call dict.get overrides")
+
+        def Build(agent):
+            return 12
+
+        Build = Record(Build)
+        Build.__dict__ = Metadata(Build.__dict__)
+
+        class Checked(Tag):
+            value = Build
+
+        agent = Host()
+        Checked(agent)
+        self.assertEqual(agent.value, 12)
+
+
+    def test_uncached_native_record_signatures_keep_each_metadata_probe(self):
+        reads = []
+
+        class Name(str):
+            pass
+
+        final_parameters = Signature([
+                Parameter(Name("agent"), Parameter.POSITIONAL_OR_KEYWORD),
+                Parameter(Name("stored"), Parameter.POSITIONAL_OR_KEYWORD),
+                Parameter("extra", Parameter.KEYWORD_ONLY),
+                ]).parameters
+
+        class TrackedSignature(Signature):
+            @property
+            def parameters(self):
+                reads.append(True)
+                return final_parameters if len(reads) % 3 == 0 else super().parameters
+
+        def Build(agent, stored, *, extra="not supplied"):
+            return (stored or 0) + 1, extra
+
+        Build.__signature__ = TrackedSignature([
+                Parameter(Name("agent"), Parameter.POSITIONAL_OR_KEYWORD),
+                Parameter(Name("stored"), Parameter.POSITIONAL_OR_KEYWORD),
+                ])
+
+        class Checked(Tag):
+            value = Record(Build)
+
+        Checked(Host())
+        reads.clear()
+        agent = Host()
+        agent.value = 5
+        Checked(agent)
+        self.assertEqual(agent.value, (6, None))
+        self.assertEqual(len(reads), 3)
+
+
     def test_callable_kind_does_not_read_an_optional_instance_class(self):
         class HostileClass(_Hostile):
             @property
