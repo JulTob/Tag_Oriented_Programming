@@ -139,16 +139,6 @@
   transient Gate Services, not Gains.
 - Gate and candidate-Overlay evaluation now follow the Base-first Tag chain
   without removing completed Bases when a later Tag refuses or collides.
-- **Admission follows completed training (STEP-SPEC-39):** each Tag passes
-  its Gate, acquires Gains in declaration order, finishes its Imprints, then
-  enters the Field. Failed Gainings or Imprints retain actually acquired
-  non-Post Gains without admitting the unfinished Tag and discard that
-  attempt's provisional Posts. Earlier completed Tags stay; Tagging again
-  starts a fresh attempt. Posts judge the completed Form once and a failed
-  Post preserves membership. Tool gains use the same order:
-  their proposed kind is checked before replacing the prior binding or rule,
-  and an acquired Tool remains guarded on a Rogue.
-
 - **Invalid Rip declarations fail at declaration:** `@Rip` marks an Action,
   because a teardown remains an ordinary callable Action. Stacking it on
   a Record, condition, Imprint, Delete, Report, Operation, private name,
@@ -267,8 +257,8 @@
 - **Synchronous view Actions:** `Tag[agent].Action()` opens its bound
   Agent's composition door while the selected Action runs, including Pin
   views and Actions that introduce the first Secret Contribution. The
-  snapshot still selects the Action and exceptions close its door. A
-  captured Secret view Action requires an already-open door on that same
+  current application's snapshot selects the Action; exceptions close its door.
+  A captured Secret view Action requires an already-open door on that same
   Agent; a later public Layer does not remove its captured boundary.
 
 - **Field membership stays behind TOP's doors:** `Tag[:]` no longer
@@ -292,8 +282,8 @@
   Python dunder names at Tag declaration and before late assignment.
   Their computed boolean verdicts keep ordinary Contribution names.
 
-- **Computed conditions keep their names:** while a named Precondition or
-  Postcondition is visible, assigning or deleting that name is refused before
+- **Computed Posts keep their names:** while a named Postcondition is
+  visible, assigning or deleting that name is refused before
   a host setter runs. The name continues to compute its boolean on read;
   `Contract.Delete` ends the condition and returns the name to ordinary
   attribute behavior. The protection also covers Pins, custom host setters and
@@ -356,7 +346,8 @@
   suite.
 
 - **Presence by name:** `"name" @ agent` checks current contributions,
-  including host bindings; `"name" @ Tag[agent]` checks the captured view.
+  including host bindings; `"name" @ Tag[agent]` checks the Overlay at that
+  Tag's current application.
   False values and `None` count as present. The query respects Secret and
   publication boundaries without executing behaviour, getters or Posts.
   A Post can require the named Contribution; nonstring operands retain
