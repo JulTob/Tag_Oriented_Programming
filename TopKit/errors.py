@@ -106,7 +106,9 @@ class TagRogueAccessError(TagResolutionError):
 
 
 class TagPreconditionError(TagError, metaclass=_Named):
-    """A Precondition refused the Tagging. Nothing committed.
+    """A Precondition refused this Tag before its Gains began.
+
+    Refusal does not undo Tags completed earlier in the same chain.
 
     ``TagPreconditionError.Name`` is the subclass raised for the
     Precondition declared as ``Name``; ``error.name`` is that name.
@@ -118,7 +120,9 @@ class TagPreconditionError(TagError, metaclass=_Named):
 
 
 class TagImprintError(TagError, metaclass=_Named):
-    """An Imprint failed after the Tag applied. The Tag stays.
+    """An Imprint failed before this Tag's Field admission.
+
+    Gains already acquired during this application remain on the Agent.
 
     ``TagImprintError.Name`` is the subclass raised for the Imprint
     declared as ``Name``; ``error.name`` is that name.

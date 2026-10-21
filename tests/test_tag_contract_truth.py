@@ -45,7 +45,8 @@ class TagContractTruthTests(unittest.TestCase):
         self.assertEqual(calls, [])
         self.assertEqual(len(Agency), 0)
         self.assertNotEqual(calls, [])
-        self.assertIn(agent, Agency)
+        self.assertNotIn(agent, Agency)
+        self.assertIn(agent, Agency[:])
         self.assertIn(agent, ~Agency)
 
     def test_own_truth_and_field_cardinalities_are_independent(self):
@@ -88,12 +89,13 @@ class TagContractTruthTests(unittest.TestCase):
 
         # The Pin's Field filters Agency by Agency's contract; Agency's own
         # Field still filters its individual members by their contracts.
-        self.assertIn(Agency, Licensed)
+        self.assertNotIn(Agency, Licensed)
+        self.assertIn(Agency, Licensed[:])
         self.assertEqual(list(Licensed), [])
         self.assertEqual(list(~Licensed), [Agency])
         self.assertTrue(Licensed)
 
-    def test_pin_posts_survive_rip_until_explicitly_deleted(self):
+    def test_pin_posts_end_with_pin_field_membership(self):
         class Agency(Tag):
             ready = True
 
@@ -107,10 +109,11 @@ class TagContractTruthTests(unittest.TestCase):
         del Certified[Agency]
         Agency.ready = False
         self.assertNotIn(Agency, Certified)
-        self.assertFalse(Agency)
-        with self.assertRaises(TagPostconditionError.Ready):
-            Contract.Postconditions(Agency)
+        self.assertTrue(Agency)
+        self.assertEqual(Contract.Status(Agency), {})
+        self.assertFalse(hasattr(Agency, "Ready"))
 
+        # The older explicit cleanup spelling is safe after automatic end.
         Contract.Delete(Agency, "Ready")
         self.assertTrue(Agency)
         self.assertEqual(Contract.Status(Agency), {})
@@ -153,7 +156,8 @@ class TagContractTruthTests(unittest.TestCase):
         with self.assertRaises(TagPostconditionError.Ready):
             Certified(Agency)
         self.assertFalse(Agency)
-        self.assertIn(Agency, Certified)
+        self.assertNotIn(Agency, Certified)
+        self.assertIn(Agency, Certified[:])
         self.assertIn(Agency, ~Certified)
         Agency.ready = True
         self.assertTrue(Agency)
@@ -212,7 +216,7 @@ class TagContractTruthTests(unittest.TestCase):
 
         Admitted(Agency)
         Agency.ready = False
-        self.assertIs(Agency.Ready, False)
+        self.assertFalse(hasattr(Agency, "Ready"))
         self.assertTrue(Agency)
 
     def test_a_shapes_truth_does_not_inherit_the_bases_pin_contract(self):

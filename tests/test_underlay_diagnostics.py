@@ -178,8 +178,11 @@ class UnderlayDiagnosticTests(unittest.TestCase):
                         shape(target)
                         self.assertIn(target, base[:])
                         self.assertIn(target, shape[:])
-                        value = target.Work() if mark is Action else target.Work
-                        self.assertEqual(value, 42 if mark is Record else True)
+                        if mark is Pre:
+                            self.assertFalse(hasattr(target, "Work"))
+                        else:
+                            value = target.Work() if mark is Action else target.Work
+                            self.assertEqual(value, 42 if mark is Record else True)
 
     def test_pin_rip_underlay_keeps_its_receiver_and_order(self):
         events = []

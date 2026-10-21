@@ -108,7 +108,7 @@ class ToolAdmissionTests(unittest.TestCase):
         Equipped(agent, weapon=sword)
         self.assertIs(agent.same_weapon, sword)
 
-    def test_failed_admission_retains_earlier_gains_and_posts_without_entry(self):
+    def test_failed_admission_retains_gains_but_discards_provisional_posts(self):
         class Unfinished(Tag):
             @Record
             def first(agent):
@@ -132,7 +132,8 @@ class ToolAdmissionTests(unittest.TestCase):
         self.assertEqual(agent.first, "already gained")
         self.assertFalse("weapon" @ agent)
         self.assertFalse("later" @ agent)
-        self.assertEqual(Contract.Status(agent), {"Ready": False})
+        self.assertEqual(Contract.Status(agent), {})
+        self.assertFalse(hasattr(agent, "Ready"))
         self.assertNotIn(agent, Unfinished[:])
 
     def test_failed_replacement_preserves_the_previous_value_and_policy(self):
