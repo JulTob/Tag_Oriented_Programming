@@ -9,6 +9,7 @@
 - **Issue:** [#347](https://github.com/JulTob/Tag_Oriented_Programming/issues/347)
 - **Related draft:** [STEP-SPEC-22 / PR #171](https://github.com/JulTob/Tag_Oriented_Programming/pull/171)
 - **Ordered Form:** [STEP-SPEC-52](STEP-SPEC-52-ordered-link-underlays.md)
+- **Tag level:** [STEP-SPEC-63](STEP-SPEC-63-maps.md) lifts laws 1–5 to Maps
 
 > One STEP, one topic. This Brief says which actual Link owns a Field and a
 > Pair. The ordered application of other Tags from a Link declaration belongs
