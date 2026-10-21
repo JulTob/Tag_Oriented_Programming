@@ -78,7 +78,7 @@ class ReservedAgentTruthTests(unittest.TestCase):
         Admitted(agent)
         agent.ready = False
 
-        self.assertIs(agent.Ready, False)
+        self.assertFalse(hasattr(agent, "Ready"))
         self.assertTrue(agent)
 
     def test_explicit_host_truth_is_refused_before_any_tagging_effect(self):

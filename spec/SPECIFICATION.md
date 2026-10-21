@@ -104,7 +104,8 @@ class Wizard(Tag):
 
 Wizard(charlie)
 
-assert charlie in Wizard            # active membership
+assert charlie in Wizard            # sound member
+assert charlie in Wizard[:]         # in the Field, regardless of soundness
 for wizard in Wizard:               # the Field (its sound members, §2.5)
     Observe(wizard)
 ```
@@ -123,11 +124,13 @@ assert charlie in Human
 assert charlie in Mortal
 ```
 
-Membership is **monotonic by design**. Only Rip (§0.7) ends it, and Rip
-does not erase history: an Agent that has ever been a member of a Tag
+Field membership is **monotonic by design** until Rip (§0.7) ends it.
+Rip does not erase history: an Agent that has ever been in a Tag's Field
 remains *an instance* of that Tag. In Python, `isinstance(agent, Tag)` is
-that has-been check and stays true after Rip. `agent in Tag` is the is-now
-check.
+that has-been check and stays true after Rip. `agent in Tag[:]` asks
+whether it is in the Field now; `agent in Tag` asks whether it is there
+**and sound**. A broken Post changes the latter answer without Ripping
+the Agent.
 
 A Field **never keeps an Agent alive**. When an Agent ceases to exist it
 vanishes from every Field. Fields are indexed by identity: two equal but
@@ -194,11 +197,12 @@ Think of a factory line. For each missing Tag in the Form, in order:
    turns have finished stay applied.
 
 2. **Gainings.** That Tag's declarations are applied in order, top to bottom:
-   Actions, Records, condition definitions and deletions take effect at their
-   declared positions. Each acquired Gain or condition is visible to later
-   declarations. A Record builder may read earlier Actions and Records as
-   well as the value already stored under its own name. The Gate has already
-   evaluated all of this Tag's own Preconditions before Gainings begin.
+   Actions, Records, Post definitions and deletions take effect at their
+   declared positions. Each acquired Gain is visible to later declarations.
+   A Record builder may read earlier Actions and Records as well as the value
+   already stored under its own name. A Precondition is not a Gain: it is a
+   transient Tagging Service evaluated by the Gate and never installed on the
+   Agent.
 3. **Imprints.** That Tag's Imprints run, in declaration order, with the
    acquired Actions and Records available. The Agent is not yet in this Tag.
 4. **FieldAdding.** After its Imprints finish, the Agent enters the Tag's
@@ -216,33 +220,36 @@ The **call boundary** decides what a failure means:
 
 - A refusal in step 1 stops that Tag before its Gainings, Contributions, Field
   entry or Imprints. Earlier Tags completed during this call stay applied.
-- A failure in steps 2 or 3 **raises and preserves acquired Gains**, but the
-  Agent does not enter this Tag. It is a **Rogue Agent** with respect to this
-  Tag: it acquired something without completing admission. Earlier completed
-  Tags, including Tags applied by an Imprint, remain applied.
+- A failure in steps 2 or 3 **raises and preserves actually acquired Actions,
+  Records and other non-contract Gains**, but the Agent does not enter this
+  Tag. Its provisional Posts are discarded because no bond with this Tag was
+  admitted. It is a **Rogue Agent** with respect to this Tag: it acquired
+  something without completing admission. Earlier completed Tags, including
+  Tags applied by an Imprint, remain applied.
 - A failure in step 5 **raises, but membership stays**. The product left the
   line. A defective product is flagged, repaired, or Ripped (§2.5).
 
 | Outcome | Gains from this attempt | Membership in this Tag |
 | --- | --- | --- |
 | Gate refuses | none | absent |
-| Gainings or Imprints fail | actually acquired Gains remain | absent; Rogue |
+| Gainings or Imprints fail | actually acquired non-Post Gains remain; provisional Posts end | absent; Rogue |
 | Posts fail after admission | acquired Gains remain | present; defective while Posts fail |
 | Posts hold after admission | acquired Gains remain | present; sound |
 
 Calling `Tag(agent)` again after unfinished training starts a fresh attempt:
 the Gate judges the Agent's current state, ordinary Gains overlay that state,
 and Imprints start again. It does not resume at the failed instruction.
-Successfully established Constants remain protected (§1.5); a Constant Record
-whose builder never returned a value has no established binding to preserve.
+Successfully established non-Post Constants remain protected (§1.5); a
+Constant Record whose builder never returned a value has no established
+binding to preserve. Posts, including Constant Posts, become Contract terms
+only when the Agent enters this Tag's Field. Before admission they are
+provisional and disappear if this attempt fails.
 
-Acquired conditions also remain after unfinished training, including Posts
-and Constant Posts. As after Rip, being outside the Agency does not remove
-the Agent's established contracts. Place a safety Post before the Action
-that needs it, so the contract is present when that Action arrives. Ordinary
-Posts follow TOP's existing composition rules; Constant Posts cannot be
-replaced or deleted. Declaring a Post does not itself wrap ordinary Action
-calls: an Action that must enforce it can read its named condition before
+The **Contract** is the bond between an Agent and its Agencies. An ordinary
+Post is an Agent Gain in that bond, tied to the particular Tag application
+that admitted it. A Constant Post becomes a lifetime Contract term once that
+application is admitted. Declaring a Post does not itself wrap ordinary
+Action calls: an Action that must enforce it can read its named Post before
 effects, such as `if not agent.Insulated: raise PermissionError(...)`.
 
 The phase belongs to the call running the protocol. A nested refusal
@@ -269,7 +276,7 @@ Broken_Wizard(ari)                Form: Person, Broken_Wizard
     Person     Gate, Gainings, Imprints, FieldAdding
     Wizard     Gate, Gainings, Imprints, FieldAdding
     check      Has_Spellbook FAILS
-→ TagPostconditionError; ari in Person and ari in Wizard; bool(ari) == False
+→ TagPostconditionError; ari in Person[:] and ari in Wizard[:]; bool(ari) == False
 ```
 
 Preconditions judge by reading and querying. Record builders read and query
@@ -308,18 +315,16 @@ Rip is the only exit from a Field, and it obeys these laws:
   not run other Tags' protocols behind your back. If Wolf needs continuing
   Beast membership, its author states that dependency in a Postcondition;
   the Rip then leaves Wolf defective while that Post fails (§2.5).
-- **Conditions are sticky too** (STEP-SPEC-12). Rip does not touch a
-  Tag's Preconditions or Postconditions: a promise that outlives its
-  Tag fails loud, never silently. Rip does one thing, and it is the one
-  act nothing can roll back, so it is not the place for a second rule.
-  **The author ends a condition**, in one of two visible ways: a **guard
-  in the condition** (`if agent not in Wizard: return True`), which can
-  follow any membership at all, another Tag's, a keyword on a Tag, the
-  Tag under an Underlay; or an **explicit deletion from the Tag's own
-  `@Rip` protocol**, `Contract.Delete(agent, "Has_Book")`, one
-  deliberate name at a time. A name that is not a condition on the Agent
-  is a Resolution Failure. A Constant Post (§1.5) cannot be deleted;
-  any membership guard must be part of its original check.
+- **The Contract follows its declared lifetime (STEP-SPEC-61).** A Precondition is a
+  transient Tagging Service, so there is no Pre on the Agent for Rip to end.
+  An ordinary Post is a membership-bound Gain: removing this application
+  from the Field ends that Post layer immediately, before its `@Rip`
+  protocols run, and reveals any surviving lower layer of the same name.
+  A Constant Post is different. Once admitted it is an uncrushable lifetime
+  term, like an NDA that remains binding after leaving an Agency, and Rip does
+  not remove it. `Contract.Delete(agent, "Has_Book")` remains an explicit way
+  to clear a removable Post tower; an already absent name is already neutral
+  and the operation is harmless. A Constant Post (§1.5) cannot be deleted.
 - **Reapplying a Ripped Tag is a fresh Tagging.** Imprints run again;
   that Tag's ordinary Record builders run again. A builder without a second
   positional seat replaces the current binding; one with that seat receives
@@ -339,7 +344,8 @@ language, not a library's naming.
 | Act | Python spelling |
 | --- | --- |
 | apply | `Wizard(agent, **inputs)` |
-| active member? | `agent in Wizard` |
+| sound member now? | `agent in Wizard` |
+| in the Field now, sound or defective? | `agent in Wizard[:]` |
 | carries a keyword? (Flags, §1.8) | `"Undead" in ghoul`, `Undead in ghoul`, `Keyword(ghoul, "Undead")`; a Flag's words the same, `"Wolf" in howler` |
 | ever a member? | `isinstance(agent, Wizard)` |
 | the sound population | `for w in Wizard`, `len(Wizard)`, `if len(Wizard) > 0:` |
@@ -347,10 +353,10 @@ language, not a library's naming.
 | everyone in the Field | `Wizard[:]`, `if Wizard[:]:` |
 | the Tag's own Posts hold | `bool(Wizard)`, `if Wizard:`; no Posts means true, even with an empty Field |
 | populations combined (§2.5) | `Wizard \| Fighter`, `Wizard & Fighter`, `Wizard - Sworn`; the same on `Wizard[:]` and `~Wizard` |
-| one condition, read on the Agent (§2.5) | `agent.Has_Book` |
+| one Post Gain, read on the Agent (§2.5) | `agent.Has_Book` |
 | a named Contribution is present (§1.1) | `"Attack" @ agent`, `"Attack" @ Wizard[agent]` |
 | keep a Contribution's binding fixed (§1.5) | `@Constant` with `@Record`, `@Action`, `@Post`, `@Report` or `@Operation` |
-| a Record whose value is an object of a kind (§1.3) | `@Tool(Weapon)` for a member of the Tag, now; `@Tool(Sword)` for an instance of the class; `@Tool(Sword, Weapon)` for both; `@Tool(Weapon \| None)` when the slot may be empty |
+| a Record whose value is an object of a kind (§1.3) | `@Tool(Weapon)` for a Field member of the Tag, now; `@Tool(Sword)` for an instance of the class; `@Tool(Sword, Weapon)` for both; `@Tool(Weapon \| None)` when the slot may be empty |
 | the Agent-bound view | `Wizard[agent]` |
 | leave the Field (Rip) | `del Wizard[agent]` |
 | the Form, as Tags | `Form(Wizard)` |
@@ -358,7 +364,7 @@ language, not a library's naming.
 | an Agent's Tags, Outline, contract, as text | `f"{agent:tags}"`, `f"{agent:outline}"`, `f"{agent:contract}"` |
 | catch one check's failure (§2.6) | `except Precondition.Is_A_Caster:`, `except Postcondition.Has_Book:`, `except Imprint.Arm:` |
 | catch a Rogue Agent's access (§1.5) | `except TagRogueAccessError:` |
-| end a condition explicitly (§0.7), from a `@Rip` protocol | `Contract.Delete(agent, "Has_Book")` |
+| clear a removable Post tower explicitly (§0.7) | `Contract.Delete(agent, "Has_Book")` |
 | necessary to enter and to stay (§2.7) | `@Pre` + `@Post`, stacked on one function |
 | pin a Tag (§1.9), and every act above with a Tag in the Agent's seat | `Rare(Wizard)`, `Wizard in Rare`, `for tag in Rare`, `Rare[Wizard]`, `del Rare[Wizard]` |
 | a Tag carries a keyword? (Flag Pins, §1.9) | `"Deprecated" in Wizard`, `Keyword(Wizard, "Deprecated")` |
@@ -865,13 +871,14 @@ keeps its implementation and ordinary call behavior. Constant does not
 freeze mutable values or memoize behavior. Constant Reports have the
 single declaring-Tag initialization described in §1.4.
 
-A Constant Post keeps its check after Rip and cannot be replaced or
-deleted through `Contract.Delete`, a protocol or another Layer. Other
-Posts can be added under independent names; all applicable promises must
-hold. Constant does not change when contracts are checked or require a
-Post to return the same answer as the Agent changes. It locks the check's
-binding, but cannot restore `assert` instructions removed by optimized
-Python (§2.1).
+A Constant Post becomes established only when its Tag application enters the
+Field; a failed pre-admission attempt leaves no lifetime term. Once admitted,
+it keeps its check after Rip and cannot be replaced or deleted through
+`Contract.Delete`, a protocol or another Layer. Other Posts can be added
+under independent names; all applicable promises must hold. Constant does
+not change when contracts are checked or require a Post to return the same
+answer as the Agent changes. It locks the check's binding, but cannot restore
+`assert` instructions removed by optimized Python (§2.1).
 
 Applying an active Tag remains a no-op. Reapplying after Rip preserves
 the same declaration's Constants while rebuilding ordinary Records and
@@ -1136,9 +1143,11 @@ Field, a gate, a promise, a Rip that is an act, and a history
 `isinstance` remembers. A Tag says what something *is*; a Record says
 what it *has* right now.
 
-**The Tag's own contract.** `bool(Wizard)` checks its visible Pin Posts,
-including those retained after Rip; no Posts means true. The Tag's Field
-does not decide its truth. `len(Wizard) > 0` asks for a sound member (§0.8).
+**The Tag's own contract.** `bool(Wizard)` checks its visible Pin Posts;
+no Posts means true. An ordinary Pin Post belongs to that Pin application
+and ends when the Tag leaves the Pin's Field. An admitted Constant Pin Post
+remains a lifetime term. The Tag's own Field does not decide its truth.
+`len(Wizard) > 0` asks for a sound member (§0.8).
 A pinned Tag's promises can also be read from the Pin's side,
 `Wizard in ~Rare`, or inspected with `Contract.Display(Wizard)` and
 `f"{Wizard:contract}"`.
@@ -1150,9 +1159,11 @@ receive the Tag; a failed Gate leaves that Pin unapplied and its metaclass
 unchanged, while completed Base Pins stay. Postconditions are checked once per pinning and
 re-checked at later pinning boundaries of that Tag; a broken promise
 leaves the Tag pinned and defective (§2.5). Imprints run before FieldAdding;
-unfinished pinning leaves its acquired Gains without membership in the Pin.
-`del Rare[Wizard]` runs the Pin's Rip protocols; landed values and
-Operations stay, sticky, and `isinstance(Wizard, Rare)` stays True.
+unfinished pinning leaves its acquired non-Post Gains without membership in
+the Pin and discards its provisional Posts. `del Rare[Wizard]` ends that
+application's ordinary Posts before running the Pin's Rip protocols; landed
+values and Operations stay, sticky, and `isinstance(Wizard, Rare)` stays
+True.
 Pinning again after a Rip is a fresh pinning (§0.7).
 
 A Pin does not alter the pinned Tag's own gate over its Agents. A Tag
@@ -1163,7 +1174,9 @@ Precondition, reading its Pins.
 
 # Ring 2 · Contracts
 
-Conditions are TOP's quality control. They run at tagging boundaries, never
+Conditions are TOP's quality control. A Precondition is a transient Tagging
+Service at the Gate. A Postcondition is an Agent Gain in the Contract: the
+bond between the Agent and its Agencies. Conditions run when asked, never
 continuously during play, and they never wrap an ordinary Action call.
 
 ## 2.1 A condition is strictly boolean
@@ -1209,9 +1222,10 @@ in.
 
 A Shape cannot waive a missing Base's Gate: the Base must pass before the
 Shape has a turn. A same-named Precondition declared by the Shape controls
-the Shape's own Gate and the condition visible afterwards. `@Underlay`
-deliberately calls the condition visible before the Shape as part of the
-Shape's Gate.
+the Shape's own Gate. `@Underlay` deliberately calls the prior Pre Service
+from the current ordered Form as part of the Shape's Gate. The service ends
+with that Tagging attempt: it is not installed on the Agent, does not appear
+in its Contract or presence queries, and does not reserve its name there.
 
 Preconditions, like Record builders and Imprints, receive application
 inputs by name:
@@ -1229,10 +1243,11 @@ Coded(bond, code="007")  # applies
 A parameter the caller did not supply keeps its declared default, or is
 `None` when it has none.
 
-Preconditions overlay **backward** within the current Tag's Gate. A Shape
-may ask for less on its own turn, but it does not rewrite a Base's earlier
-turn. Override freely; compose with `@Underlay` when the Shape should ask
-the prior visible condition again:
+Preconditions compose **backward** as Services within the current Form. A
+Shape may ask for less on its own turn, but it does not rewrite a Base's
+earlier turn. Compose with `@Underlay` when the Shape should ask the prior
+service again. An unrelated Pre left by an earlier Tagging cannot become that
+Underlay, because Preconditions never live on the Agent:
 
 ```python
 class Founder(Guild):
@@ -1292,11 +1307,20 @@ Postcondition runs at step 5, **once per call, after the whole Form**, so a
 Base may promise what its Shape delivers. Postconditions take no inputs:
 they judge the Agent, not the materials.
 
-Its definition is acquired at its declaration position during Gainings.
-If a later Gain or Imprint fails, the acquired Post remains on the Rogue and
-participates in current contract queries and published-member guards. This
-does not establish membership in the unfinished Tag. A Constant Post retains
-its protection there just as it does after Rip.
+Its definition is prepared at its declaration position during Gainings, so
+later Gainings can see it during that attempt. The Post joins the Agent's
+Contract only when that Tag application enters the Field. If a later Gaining
+or Imprint prevents admission, every Post prepared by that attempt is
+discarded, including a Constant Post. Other Gains actually acquired by the
+Rogue keep their ordinary failure semantics (§0.6).
+
+After admission, an ordinary Post is a membership-bound Agent Gain. It stays
+in the bond while that particular Tag application stays in the Field and
+ends with its Field removal, before Rip teardown. A Constant Post becomes a
+lifetime Contract term at admission and therefore survives Rip. This
+lifetime distinction does not by itself change the existing rules for
+composing a same-named Constant; broader Constant-Post layering remains a
+separate design question.
 
 Every visible Postcondition is re-checked at each later tagging boundary,
 so a later completed Tagging can report an earlier Tag's broken promise.
@@ -1334,8 +1358,8 @@ The discipline in three lines:
 
 ## 2.5 Defective Agents
 
-A Tag whose Postcondition failed is **applied and defective**. The Agent is
-a member; its promise is broken; it must be repaired or Ripped.
+A Tag whose Postcondition failed is **applied and defective**. The Agent
+remains in its Field; its promise is broken; it must be repaired or Ripped.
 
 An Agent is **truthy exactly when every visible Postcondition holds**.
 `if` is the conditional and Post*conditions* are conditions:
@@ -1353,13 +1377,22 @@ Fields partition accordingly:
 for wizard in Wizard:        # the sound population: the ones fit to play
 for broken in ~Wizard:       # the defective population: repair them
 for anyone in Wizard[:]:     # everyone, sound or defective
-assert broken in Wizard      # a defective Agent is still a member
+assert broken not in Wizard  # not a sound member
+assert broken in Wizard[:]   # still in the Field
 ```
 
 The plain loop is the working population, and `len(Wizard) > 0` asks whether
-it contains a member. A broken Agent does not stop being a member (`in`), does not
-leave `Wizard[:]`, and waits in `~Wizard` for repair or Rip. Membership and the loop deliberately disagree for it:
-the loop is the line, and a defective product is off the line.
+it contains a sound member. A broken Agent does not leave `Wizard[:]`,
+but `agent in Wizard` becomes False and `agent in ~Wizard` becomes True.
+Membership queries and walks therefore select the same sound population;
+the whole Field remains available for diagnostics and cleanup.
+
+While a Post judges an Agent, a sound-population query that reaches that
+same Agent cannot judge its unfinished validity: `agent in Tag` (and a
+sound or defective population walk that reaches it) raises a Contract
+Failure. `agent in Tag[:]` asks only whether it entered that Field and is
+safe inside the Post. A Post may query another Agent's soundness when that
+Agent is not itself under judgment.
 
 `~` reads "broken", never "not". Broken twice is still broken, so `~`
 absorbs: `~~Wizard`, `~~~Wizard` and any longer run are `~Wizard`, the
@@ -1389,19 +1422,20 @@ must not be skipped merely because it was previously Ripped. TopKit's
 saved-turn ordering and lazy operand timing are documented in its
 [Field guide](../TopKit/FIELDS.md).
 
-**A condition is read on the Agent by its name** (STEP-SPEC-14).
+**A Post is read on the Agent by its name** (STEP-SPEC-14).
 `agent.Has_Book` is `True` while the promise called `Has_Book` holds and
 `False` when it does not: the language's boolean, computed on read, never
-stored, never callable. A Postcondition answers before a Precondition of
-the same name; a condition that raises reads `False`; a non-boolean is a
-Contract Failure on read, as always. Because the name is read on the
-Agent, a condition may not share its name with an Action, a Record, a
-member the host defines or a value the Agent already holds: the tagging
-is refused at the door with a Composition Failure, and so is an Action or
-a Record laid over a condition's name. Nothing is silently shadowed. A
-pinned Tag reads its own conditions the same way (`Wizard.Has_Members`).
-A condition that outlived its Tag (§0.7) still reads by name until the
-author ends it.
+stored, never callable. A Post that raises reads `False`; a non-boolean is a
+Contract Failure on read, as always. While visible, a Post may not share its
+name with an Action, a Record, a member the host defines or a value the Agent
+already holds: the tagging is refused at the door with a Composition Failure,
+and so is an Action or a Record laid over a Post's name. Nothing is silently
+shadowed. A pinned Tag reads its own Posts the same way
+(`Wizard.Has_Members`). An ordinary Post is visible only while its Tag
+application is in the Field; a Constant Post admitted into the Contract
+continues to read by name for the Agent's lifetime. A Precondition has no
+Agent member at all, so the same name remains available outside its transient
+Gate service.
 
 An ordinary object Agent with no visible Postcondition is truthy: it has
 no broken promise. A host's `__len__` keeps answering `len(agent)`; its
@@ -1454,26 +1488,26 @@ Rules:
 4. A check that raises instead of returning `False` is named the same way.
 
 `bool(agent)` is the verdict on a finished Agent. The `Contract` namespace
-names the promise that broke:
+inspects the live Posts in the Agent's bond and names the promise that broke:
 
 ```python
 Contract.Postconditions(agent)   # promises hold, or raise naming one
-Contract.Preconditions(agent)    # gates still hold, or raise
-Contract.Conditions(agent)       # both, Pre then Post
-Contract.Status(agent)           # {condition: holds?}, never raises
+Contract.Status(agent)           # {Post: holds?}, never raises
 print(Contract.Display(agent))
 # Hero[Wizard] contract:
-#   Pre:
-#     OK  Level_Over_Zero
 #   Post:
 #     XX  Has_Spellbook
 ```
 
+Preconditions cannot be queried here after Tagging: their Service has ended.
+Run a new Tagging to ask a Gate again.
+
 ## 2.7 Necessary to enter, necessary to stay
 
-`@Pre` and `@Post` stacked on one function make it a **condition**:
-checked at the door as a Precondition and kept as a Postcondition. It is
-one body, named once, and it fails under both names:
+`@Pre` and `@Post` stacked on one function declare two roles from one body:
+a transient Pre Service checked at the door, and a Post Gain that joins the
+Contract on Field admission. The declarations share a name and calculation,
+but not a lifetime, and fail under their respective names:
 
 ```python
 class Elf(Tag):
@@ -1485,16 +1519,17 @@ class Elf(Tag):
 
 
 Elf(dead)                     # refused: Precondition.Alive
-Elf(ari)                      # in; and from now on Ari must stay alive
+Elf(ari)                      # in; Alive is a Post while Ari remains an Elf
 ```
 
 Being alive is necessary to become an Elf and necessary to remain a sound
 one; it is not sufficient, since other living things are not Elves. A
 condition says *necessary*; membership says *is*.
 
-The order of the two marks changes nothing: `@Post` above `@Pre` is the
-same condition. The two marks are its only spelling, so the page shows
-that it is a gate and a promise.
+The order of the two marks changes nothing: `@Post` above `@Pre` declares
+the same two roles. Rip ends the ordinary Post with membership; the Pre was
+already gone when its Gate finished. Marking the Post `@Constant` instead
+makes that admitted promise a lifetime Contract term.
 
 The two failures keep their two names: `Precondition.Alive` at the
 door, `Postcondition.Alive` afterwards. A program repairs the two
@@ -1686,18 +1721,20 @@ A conforming implementation provides, ring by ring:
 
 **Ring 0**
 - stable object identity under tagging, and preserved host behaviour;
-- membership (`agent in Tag`) gained Base-first and thereafter independent,
-  with a has-been check that survives Rip;
+- Field membership (`agent in Tag[:]`) gained Base-first and thereafter
+  independent, with a has-been check that survives Rip; `agent in Tag`
+  selects its sound members;
 - non-owning, identity-indexed, iterable Fields;
 - Base-first Form application, each Base once, active reapply a no-op;
 - the five-step tagging sequence: each missing Tag's Gate, Gainings,
   Imprints and FieldAdding, then Posts once after the completed Form;
-  failed Gainings or Imprints leave acquired Gains without that Tag's
-  membership or history; earlier completed Tags stay, retry starts fresh,
-  and current Posts decide members' deficiency;
-- Rip: one membership ends without cascade, while acquired contributions
-  and conditions stay; the author ends a condition with a guard or
-  `Contract.Delete` from the `@Rip` protocol;
+  failed Gainings or Imprints leave actually acquired non-Post Gains without
+  that Tag's membership or history and discard its provisional Posts;
+  earlier completed Tags stay, retry starts fresh, and current Posts decide
+  members' deficiency;
+- Rip: one membership ends without cascade; Actions and Records stay, the
+  removed application stops supplying ordinary Posts before teardown, and
+  its admitted Constant Posts remain as lifetime Contract terms;
 - native spellings for every Tag-level act, leaving the Tag's dotted
   namespace to the program.
 
@@ -1722,12 +1759,13 @@ A conforming implementation provides, ring by ring:
 - published members answering members only, and only sound ones: a Rogue
   Access Failure on a Rogue Agent, the broken promise by name on a
   defective one, open again on membership or repair;
-- `@Pre` and `@Post` stacked on one function as one condition, in
-  either order;
+- `@Pre` and `@Post` stacked on one function as a transient Gate Service and
+  a membership-bound Contract Gain, in either decorator order;
 - populations combined with `|`, `&` and `-` at every level, lazily, a
   Tag in an operator seat meaning its sound population;
-- every condition read on the Agent by its name as a plain boolean, with
-  a condition's name refused to Actions, Records and host members;
+- every visible Post read on the Agent by its name as a plain boolean, with
+  its name refused to Actions, Records and host members while it is visible;
+  Preconditions never installed as Agent members;
 - Delete; the three access forms, with Agent-bound views as read-only
   snapshots requiring active membership.
 
@@ -1736,10 +1774,13 @@ A conforming implementation provides, ring by ring:
   inputs; Imprints before FieldAdding, with inputs; Postconditions once per
   call after the whole Form, re-checked at every later boundary, without
   inputs;
-- the contract direction, with weakened Postconditions diagnosed;
-- defective Agents: contract truthiness; the plain loop as the sound
-  population, `~Tag` the defective one, `Tag[:]` everyone, membership
-  unchanged; a namespace that names the culprit.
+- the Contract as the Agent--Agency bond: an ordinary Post lasting for its
+  admitted Field application and a Constant Post lasting for the Agent's
+  lifetime; the contract direction, with weakened Postconditions diagnosed;
+- defective Agents: contract truthiness; `agent in Tag` and the plain loop
+  select sound members, `~Tag` selects defective members, and `Tag[:]`
+  is the whole Field; a broken Post changes soundness without ending raw
+  Field membership; a namespace names the culprit.
 
 **Ring 3**
 - `@Rip` protocols run after membership ends, once, composed, failures

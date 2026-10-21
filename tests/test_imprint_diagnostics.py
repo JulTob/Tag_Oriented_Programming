@@ -314,7 +314,7 @@ class ImprintDiagnosticTests(unittest.TestCase):
                     self.assertEqual(target.badge, "ready")
                     self.assertTrue(bool(target))
 
-    def test_current_posts_not_the_imprint_failure_define_soundness(self):
+    def test_posts_are_discarded_when_imprint_failure_prevents_admission(self):
         for pinned in (False, True):
             for ready in (False, True):
                 with self.subTest(pinned=pinned, ready=ready):
@@ -336,7 +336,8 @@ class ImprintDiagnosticTests(unittest.TestCase):
                     with self.assertRaises(TagImprintError.Training):
                         Trained(target)
                     self.assert_rogue(Trained, target)
-                    self.assertEqual(bool(target), ready)
+                    self.assertTrue(bool(target))
+                    self.assertFalse(hasattr(target, "Equipped"))
 
     def test_a_missing_record_does_not_add_an_implicit_requirement(self):
         for pinned in (False, True):

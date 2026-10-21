@@ -27,8 +27,8 @@ an adjective, changeable. Wizard is a Tag. Hit points are a Record.
 
 ```python
 from TopKit import (
-        Action, Contract, Delete, Flag, Form, Imprint, Keyword, Operation,
-        Outline, Pin, Post, Postcondition, Pre, Precondition, Public,
+        Action, Constant, Contract, Delete, Flag, Form, Imprint, Keyword,
+        Operation, Outline, Pin, Post, Postcondition, Pre, Precondition, Public,
         Record, Report, Rip, Secret, Tag, Tags, Underlay,
         TagCompositionError, TagPostconditionError, TagPreconditionError,
         TagResolutionError,
@@ -150,7 +150,7 @@ takes a string name; other left operands keep their ordinary `@`
 behaviour. A pinned Tag can be queried as an Agent, but a bare, unpinned
 Tag has no TOP presence query.
 
-### A Tag can be taken away. What it gave stays.
+### A Tag can be taken away. Its training stays; its ordinary bond ends.
 
 ```python
 del Fighter[ari]                          # Rip: leave the Field
@@ -165,15 +165,16 @@ what it learned, but no active membership. If a Tag must clean up after
 itself, it says so with `@Rip` (pattern 9).
 
 Unfinished Tagging can also produce a Rogue: Gainings or Imprints failed
-before the Agent entered the Field, leaving its actual Gains without
-membership. Calling `Tag(agent)` again starts a fresh attempt. The Gate
-judges the Agent as it is now, ordinary Gains overlay it, and Imprints
-restart. Successfully established Constants stay protected. A failed
-attempt does not count as having been in the Tag for `isinstance`.
+before the Agent entered the Field, leaving its actually acquired non-Post
+Gains without membership. Calling `Tag(agent)` again starts a fresh attempt.
+The Gate judges the Agent as it is now, ordinary Gains overlay it, and
+Imprints restart. Successfully established non-Post Constants stay protected.
+A failed attempt does not count as having been in the Tag for `isinstance`.
 
-Acquired conditions remain too, including Posts and Constant Posts. They
-continue to judge the Rogue's current state, just as contracts stay after
-Rip. Constant Posts keep their protection against replacement and deletion.
+Posts have an admission boundary. Before Field entry they are provisional;
+a failed attempt discards them, including Constant Posts. After admission an
+ordinary Post is a membership-bound Agent Gain. A Constant Post is a lifetime
+term in the Agent's Contract, the bond with its Agencies.
 
 That is the whole kernel. The rest of this guide is patterns.
 
@@ -207,7 +208,7 @@ else:
 ```
 
 **Watch out.** `for creature in Undead` walks the *sound* population: the
-members whose conditions hold (pattern 6). `Undead[:]` is everyone, regardless of conditions.
+members whose Posts hold (pattern 6). `Undead[:]` is everyone, regardless of Posts.
 
 ### Pattern 2 · State that belongs to the role
 
@@ -356,6 +357,10 @@ in, or not. That look is a **Precondition**, written with `@Pre`. It is a
 function that receives the Agent and answers `True` (come in) or `False`
 (stay out).
 
+A Pre is a transient **Tagging Service**. It exists for this Gate, but it is
+never installed on the Agent, never appears in the Agent's Contract, and does
+not reserve its name after the Gate finishes.
+
 ```python
 class Wizard(Tag):
 
@@ -475,7 +480,7 @@ try:
 except Postcondition.Has_Spellbook:
     pass                                # the Tag stays; Newt is defective
 
-assert newt in Wizard                   # a member
+assert newt in Wizard[:]                # a member
 assert not newt                         # whose promise is broken
 assert newt in ~Wizard                  # waiting in the repair queue
 
@@ -552,8 +557,9 @@ assert ari in ~Elf
 Being alive is necessary to be an Elf, not sufficient: other living things
 are not Elves. That is the difference between a condition and a Tag.
 
-The order of the two marks does not matter: `@Post` above `@Pre` is the
-same condition. It fails under two names, because you repair the two
+The order of the two marks does not matter, but the lifetimes stay separate.
+The shared body is a transient Pre Service at the door and a Post Gain after
+Field admission. It fails under two names, because you repair the two
 differently: `Precondition.Alive` is someone who may not come in,
 `Postcondition.Alive` is an Elf already in and now broken.
 
@@ -774,14 +780,15 @@ assert guard not in Sentry
 ```
 
 Tagging proceeds **Gate → Gainings → Imprints → FieldAdding → Posts**.
-Actions, Records, condition definitions and deletions take effect top to
-bottom in declaration order, each visible to subsequent declarations. The
-Gate has already evaluated this Tag's own Preconditions. Imprints then train
-with acquired Gains, before entry in
-the Field. The Tag's published Reports and Operations and its Agent-bound
-view become available through the Agent after FieldAdding. Posts judge
-the finished Agent once after the whole Form: a broken promise leaves a
-defective member, rather than undoing membership.
+Actions, Records, Post definitions and deletions take effect top to bottom in
+declaration order, each visible to subsequent declarations. The Gate has
+already evaluated this Tag's transient Pre Services; they do not become
+Agent members. Imprints then train with acquired Gains before entry in the
+Field. The Tag's published Reports and Operations and its Agent-bound view
+become available through the Agent after FieldAdding. Field entry admits the
+Tag's Posts into the Contract bond. Posts judge the finished Agent once after
+the whole Form: a broken promise leaves a defective member, rather than
+undoing membership.
 
 `@Rip` runs after an admitted Agent leaves. A failed training attempt never
 joined the Field, so it triggers no automatic Rip and is outside `Tag[:]`.
@@ -792,8 +799,9 @@ Declare a safety Post before the Action that needs it. An Action can read
 its named condition before effects, such as
 `if not agent.Insulated: raise PermissionError(...)`. A Post definition does
 not automatically guard an ordinary Action call. `if agent:` asks current
-truthiness; combine it with membership when the operation needs a currently
-valid member of a specific Agency.
+truthiness across all visible Posts. `agent in Tag` asks whether the Agent
+is a sound member of that Tag; `agent in Tag[:]` asks whether it remains
+in its Field, including when defective.
 
 A role for a block is two acts you already know, the tagging and the Rip,
 joined by Python's own `try` and `finally`. The rule is the one Python
@@ -802,7 +810,8 @@ always runs when its `try` ends, whether the block finished or raised.
 
 Tag *before* the `try`, not inside it. A Gate refusal then raises before
 the block starts and leaves this Tag unstarted. Failed Gainings or Imprints
-leave actual Gains outside this Tag; a broken Post leaves it admitted.
+leave actually acquired non-Post Gains outside this Tag and discard the
+attempt's provisional Posts; a broken Post leaves it admitted.
 All are reported at the Tagging statement, before this `try`, so its
 `finally` never begins. An unconditional Rip in a `finally` covering failed
 Tagging could try to expel a never-member and obscure the original failure.
@@ -852,12 +861,13 @@ Candidate(ari)                    # explicit return: fresh Tagging
 assert ari in Candidate
 ```
 
-The Gains and Posts already acquired stay after a Rip. If an Officer
-really must remain a Candidate, the author can declare a Post on Officer
-that checks `agent in Candidate[:]`. Ripping Candidate then leaves Officer
-in its Field but defective while that Post fails. Guard the Post with
-Officer membership if the promise should stop mattering after Officer is
-also Ripped.
+Actions and Records already acquired stay after a Rip. An ordinary Post has
+a different lifetime: it belongs to the admitted application of its Tag, so
+Ripping Candidate ends Candidate's ordinary Post layers before its teardowns.
+Officer's own Posts remain while Officer remains in its Field. If an Officer
+really must remain a Candidate, declare that as an Officer Post checking
+`agent in Candidate[:]`; Ripping Candidate then leaves Officer in its Field
+but defective while that Post fails.
 
 This frees `with` for ordinary Python context protocols. A host or an
 Agent may still define `__enter__` and `__exit__` (or the asynchronous
@@ -871,11 +881,11 @@ execution context: an unrelated sibling task cannot read the Agent's
 Secrets merely because the hook is awaiting. Work the hook deliberately
 delegates into its context shares the door only until that hook closes it.
 
-A role's conditions do **not** leave with it on their own. What the
-Agent *became* stays (pattern 1's Rogue Agent), and so does what the role
-*required*: a promise that outlives its Tag fails loud, never silently.
-If a promise should end with the role, you say so, in the role's own
-`@Rip` protocol, one name at a time:
+An ordinary Post leaves with the Field application that supplied it. The
+membership is removed first, that application's ordinary Post layer ends,
+and only then do `@Rip` protocols run. What the Agent *became* through Actions
+and Records stays (pattern 1's Rogue Agent); what the role required does not
+silently bind an ex-member.
 
 ```python
 class Knight(Tag):
@@ -883,10 +893,6 @@ class Knight(Tag):
     @Post
     def Has_Sword(agent):
         return agent.sword is not None
-
-    @Rip
-    def Undub(agent):
-        Contract.Delete(agent, "Has_Sword")    # the promise ends here, visibly
 
     def Salute(agent):
         return f"{agent.name} salutes"
@@ -900,12 +906,32 @@ del Knight[lance]                       # dubbed no more
 lance.sword = None
 
 assert lance.Salute() == "Lance salutes"   # what he became: stays
-assert lance                               # what the role required: ended by you
+assert not hasattr(lance, "Has_Sword")    # the ordinary Post ended with membership
 ```
 
-The other way is a guard inside the promise, `if agent not in Knight:
-return True`, which lets the promise follow any membership you like; the
-Contracts Guide shows both.
+Use `@Constant @Post` for the exceptional promise that deliberately remains
+after Rip, like an NDA after employment. It becomes a lifetime Contract term
+only after successful Field admission and cannot be replaced or deleted:
+
+```python
+class Intelligence(Tag):
+
+    @Constant
+    @Post
+    def NDA(agent):
+        return agent.keeps_secret
+
+
+lance.keeps_secret = True
+Intelligence(lance)
+del Intelligence[lance]
+lance.keeps_secret = False
+assert lance.NDA is False                  # the lifetime term still binds
+```
+
+`Contract.Delete(agent, "Has_Sword")` remains an explicit early clear for a
+removable Post tower and is harmless if the name is already absent. Ordinary
+Rip does not need it.
 
 **Watch out.** Python does not promise to run finalizers at shutdown, so
 `del agent` is best-effort. A Rip in a `finally` is the guaranteed path.
@@ -1127,7 +1153,7 @@ assert kit.Drive() == "Engine v1 at 2"
 
 **Watch out.** A Pin may replace what a Tag *shares* (its Operations
 and Reports), never what its Agents *do* (its Actions, Records and
-conditions); TopKit refuses that at the gate, because on a class the two
+Posts); TopKit refuses that at the gate, because on a class the two
 live in one dictionary. `if Wizard:` asks whether Wizard's own visible
 Posts hold, including those received from Pins. `len(Wizard) > 0` asks
 whether anyone is a sound Wizard. A Pin applies only to Tags, and an
@@ -1143,7 +1169,8 @@ the architecture, with a Field to walk and a history that stays.
 
 | Question | Spelling |
 | --- | --- |
-| Is it a Wizard now? | `agent in Wizard` |
+| Is it a sound Wizard now? | `agent in Wizard` |
+| Is it in Wizard's Field, even if defective? | `agent in Wizard[:]` |
 | Was it ever? | `isinstance(agent, Wizard)` |
 | Does it carry the keyword? | `"Undead" in agent`, `Keyword(agent, "Undead")`, a Flag's words too |
 | Does it currently provide this name? | `"Attack" @ agent` |
@@ -1196,7 +1223,7 @@ your Reports and Operations there.
 | Expect a Rogue Agent to keep its own Actions and lose the Agency's published ones. | Check membership by hand inside every published Operation. |
 | Catch the named promise, repair what it names, retry. | Catch every failure in one handler and guess. |
 | Keep shared data in a `Report`, one copy. | Copy shared data into every Agent's Record. |
-| Ask `agent in Wizard`. | Ask `type(agent) is Character`; the type is wrapped. |
+| Ask `agent in Wizard` for sound membership, or `agent in Wizard[:]` for the whole Field. | Ask `type(agent) is Character`; the type is wrapped. |
 
 ---
 
