@@ -15,6 +15,8 @@
   and [STEP-SPEC-52](STEP-SPEC-52-ordered-link-underlays.md), the latter as
   corrected by [PR #406](https://github.com/JulTob/Tag_Oriented_Programming/pull/406)
 - **Related runtime draft:** [Links core on main / PR #435](https://github.com/JulTob/Tag_Oriented_Programming/pull/435) (Draft)
+- **Pin spelling:** `class Social(Pin)`, as the Director approved in [PR #426](https://github.com/JulTob/Tag_Oriented_Programming/pull/426).
+  `main` still spells `@Pin class Social(Tag)`.
 
 > One STEP, one topic. This Brief says what a Relation declared in a Pin's
 > body grants: a Map, a Link whose holder and Contacts are Tags. Whether a
@@ -85,7 +87,7 @@ each lift changes.
 
 | Maps law | Source | What the lift changes |
 | --- | --- | --- |
-| 1 | New. Replaces STEP-SPEC-22 rule 2.8's refusal of `@Link` inside a `@Pin` | — |
+| 1 | New. Replaces STEP-SPEC-22 rule 2.8's refusal of `@Link` inside a Pin | — |
 | 2 | STEP-SPEC-52 law 1 | The seats hold Tags |
 | 3 | §1.9, the receiver rule (STEP-SPEC-9 §3) | Applies the existing `tag` parameter convention to Map members |
 | 4 | STEP-SPEC-51 law 3, and the Pair scope of STEP-SPEC-22 rule 2.3 | The Pair connects two Tags |
@@ -119,7 +121,7 @@ paragraphs are numbered in that text's order.
    declared decides what it grants. A Relation in an ordinary Tag grants each
    tagged Agent an actual Link. A Relation in a Pin grants each pinned Tag an
    actual Map. This replaces the Links draft's refusal of `@Link` inside a
-   `@Pin` (STEP-SPEC-22 rule 2.8). A Relation that is itself a Pin is still
+   Pin (STEP-SPEC-22 rule 2.8). A Relation that is itself a Pin is still
    refused.
 2. **Every Map names its seats, with the Link's words.** A Relation in a Pin
    is declared `@Link(agent, contact)`, with the same seat words as in an
@@ -364,8 +366,7 @@ receiver (laws 1–12):
 from TopKit import Link, Pin, Record, Tag, agent, contact
 
 
-@Pin
-class Social(Tag):
+class Social(Pin):
 
     @Link(agent, contact)
     class Knows(Tag):
@@ -421,16 +422,14 @@ The second program is separate. It shows the ordered header (laws 13–24):
 from TopKit import Imprint, Link, Pin, Tag, agent, contact
 
 
-@Pin
-class Acquainted(Tag):
+class Acquainted(Pin):
 
     @Link(agent, contact)
     class Knows(Tag):
         pass
 
 
-@Pin
-class Registrar(Tag):
+class Registrar(Pin):
 
     @Link(agent, contact)
     class Listed(Tag):
@@ -503,8 +502,8 @@ Four points are particular to Maps:
   `Allies` does not make the Relation a Shape of `Acquainted`. If it did, the
   Relation would become a Pin, which law 1 refuses.
 - **The level is known at class use.** A Relation's class body runs before
-  its enclosing class exists, and `@Pin` marks that class after its body has
-  run. Whether a Relation is a Map template can therefore be settled only at
+  its enclosing class exists, so while it is made it cannot yet see that it
+  is declared in a Pin. Whether a Relation is a Map template can therefore be settled only at
   class use, once the enclosing class is known to be a Pin. The Declaration
   Failures of laws 8, 14 and 18 depend on it. This matches the Failure
   model, where a Declaration Failure takes effect at class use.
@@ -563,7 +562,7 @@ visible in an Imprint. It is not a direction inferred from a selector.
 
 This is a new capability, and no program that runs today declares a Map.
 `Link` does not exist in TopKit on `main`, so `from TopKit import Link`
-fails there. The Links draft refuses `@Link` inside a `@Pin`
+fails there. The Links draft refuses `@Link` inside a Pin
 (STEP-SPEC-22 rule 2.8), and the Draft port in PR #435 implements that
 refusal. Once the Links STEPs and this STEP are Cleared, this STEP replaces
 that one refusal with Maps. The refusal of a Relation that is itself a Pin
