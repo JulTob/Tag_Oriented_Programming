@@ -315,6 +315,12 @@
 
 ### Project
 
+- The build backend now requires setuptools 77.0.3 or later, matching the
+  SPDX license-expression metadata already declared by the package.
+- **Auditable source archives:** the sdist now includes the full Python
+  conformance suite, its helpers and runnable documentation assets. The
+  wheel remains limited to the runtime package and its license.
+
 - **Fixed:** resolving a Form deeper than Python's recursion limit raised
   `RecursionError`. Geometry now walks Bases iteratively, preserving the
   same Base-first, declaration-order, duplicate-free result.
