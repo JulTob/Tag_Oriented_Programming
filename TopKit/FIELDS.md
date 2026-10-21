@@ -97,6 +97,25 @@ roster has anyone, and `if ~Fighter` asks whether anyone needs repair.
 `~` reads "broken", never "not". It absorbs: `~~Fighter`,
 `~~~Fighter` and any longer run are `~Fighter`, the repair queue again.
 
+Unfinished Rip has a separate status: **arrested**. An arrested Agent is in
+neither the sound nor the broken view. An Agent arrested by another Tag
+can still belong to this Field; that raw membership stays visible.
+`bool(agent)` is False without running Posts.
+
+| View | Question |
+| --- | --- |
+| `Fighter` | Is this a free member whose Posts hold? |
+| `~Fighter` | Is this a free member whose Posts fail? |
+| `Fighter[:]` | Is this still an admitted Fighter, regardless of custody or Posts? |
+| `Fighter[...]` | Does Fighter have saved cleanup for this Agent? |
+
+The Safehouse is not a fourth partition of the Field: an Agent usually
+leaves Fighter's Field before Fighter's Rip can fail. It can remain in
+another Tag's raw Field while Fighter owes that cleanup. For that reason
+the sound and broken views need not exhaust a raw Field while some of its
+members are arrested. Retrying `del Fighter[agent]` resumes Fighter's saved
+work; successful cleanup restores the ordinary Post-based population rules.
+
 ---
 
 ## 2. The algebra: either, both, without

@@ -13,10 +13,12 @@ Preconditions are transient Tagging Services and never enter this state.
 from __future__ import annotations
 
 from contextvars import ContextVar
+from contextlib import nullcontext
 from dataclasses import dataclass
 from dataclasses import field
 from dataclasses import FrozenInstanceError
 from inspect import signature
+from inspect import getattr_static
 from itertools import chain
 from types import FunctionType
 from types import GetSetDescriptorType
@@ -29,7 +31,11 @@ from typing import Iterator
 from weakref import WeakValueDictionary
 import weakref
 
+from .arrest import _require_available
+from .arrest import _rip_door
+from .arrest import _safehouse
 from .declarations import STATE
+from .declarations import _Callable_Operation
 from .declarations import _MISSING
 from .declarations import _Words
 from .declarations import _is_dunder
@@ -37,6 +43,7 @@ from .declarations import _is_flag
 from .declarations import _wraps_callable
 from .errors import TagCompositionError
 from .memo import _namespace_snapshot
+from .lazy_guard import _guard_lazy_result
 
 Function = Callable[..., Any]
 Check = Callable[..., Any]
@@ -104,6 +111,9 @@ class _State:
     originals: dict[str, Any] = field(default_factory=dict)       # what a Pin patched, as declared
     constants: dict[str, tuple[type, str, Any]] = field(default_factory=dict)  # origin, kind, declaration
     tools: dict[str, tuple[type, Any]] = field(default_factory=dict)   # origin, kind: a Tool slot admits only its kind
+    arrestable: bool = False   # gained Rip keeps the Host gate after later Taggings
+    contexts: list[str] = field(default_factory=list)
+    view_identity: object | None = None
     composing: int = 0
     checking: bool = False
     words: _Words | None = None   # what its Flags answer to; None after its Tags change
@@ -117,7 +127,7 @@ class _State:
         that is rolled back closes them on this same object."""
 
         for name in state.__slots__:
-            if name not in ("composing", "checking", "training"):
+            if name not in ("composing", "checking", "training", "contexts", "view_identity"):
                 setattr(
                         state,
                         name,
@@ -153,6 +163,9 @@ class _State:
         copied.originals = state.originals.copy()
         copied.constants = state.constants.copy()
         copied.tools = state.tools.copy()
+        copied.arrestable = state.arrestable
+        copied.contexts = state.contexts.copy()
+        copied.view_identity = state.view_identity
         copied.composing = state.composing
         copied.checking = state.checking
         copied.words = state.words
@@ -673,11 +686,15 @@ class _Bound:
         if agent is None:
             raise ReferenceError("the Agent of this Action no longer exists")
 
-        return bound._function(
+        if _safehouse:
+            _require_available(agent, "Action")
+
+        result = bound._function(
                 agent,
                 *args,
                 **kwargs,
                 )
+        return _guard_lazy_result(result, agent, "Action", _require_available)
 
     @property
     def __name__(
@@ -820,11 +837,14 @@ class _Pinned_Bound:
         bound._doc = doc
 
     def __call__(bound, *args: Any, **kwargs: Any) -> Any:
+        if _safehouse:
+            _require_available(bound._owner, "Operation")
         state = bound._state
         state.composing += 1
 
         try:
-            return bound._function(bound._owner, *args, **kwargs)
+            result = bound._function(bound._owner, *args, **kwargs)
+            return _guard_lazy_result(result, bound._owner, "Operation", _require_available)
         finally:
             state.composing -= 1
 
@@ -861,6 +881,82 @@ class _Pinned_Bound:
     @property
     def __doc__(bound) -> str | None:
         return bound._doc
+
+
+class _Guarded_Tag_Operation:
+    """Keep a captured native Operation behind its Tag receiver's custody."""
+
+    __slots__ = ("_method", "_owner")
+
+    def __init__(self, method: Any, owner: type) -> None:
+        self._method = method
+        self._owner = owner
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        owner = self._owner
+        if _safehouse:
+            _require_available(owner, "Operation")
+        result = self._method(*args, **kwargs)
+        return _guard_lazy_result(result, owner, "Operation", _require_available)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._method, name)
+
+    @property
+    def __wrapped__(self) -> Any:
+        return self._method
+
+    @property
+    def __signature__(self) -> Any:
+        return signature(self._method)
+
+    @property
+    def __name__(self) -> str:
+        return self._method.__name__
+
+    def __getattribute__(self, name: str) -> Any:
+        if name in ("__qualname__", "__module__"):
+            return getattr(object.__getattribute__(self, "_method"), name)
+        return object.__getattribute__(self, name)
+
+    @property
+    def __doc__(self) -> str | None:
+        return self._method.__doc__
+
+    @property
+    def __self__(self) -> Any:
+        return self._method.__self__
+
+    @property
+    def __func__(self) -> Any:
+        return self._method.__func__
+
+    def __eq__(self, other: Any) -> Any:
+        if type(other) is _Guarded_Tag_Operation:
+            other = other._method
+        return self._method.__eq__(other)
+
+    def __hash__(self) -> int:
+        return hash(self._method)
+
+    def __repr__(self) -> str:
+        return repr(self._method)
+
+
+class _Guarded_Operation(_Callable_Operation):
+    def __get__(self, instance: object, owner: type | None = None) -> Any:
+        if owner is None:
+            owner = type(instance)
+        value = super().__get__(instance, owner)
+        return _Guarded_Tag_Operation(value, owner) if callable(value) else value
+
+
+def _guard_operation_declaration(member: Any) -> Any:
+    if issubclass(type(member), classmethod):
+        function = member.__func__
+        if getattr_static(function, "__topkit_kind__", None) == "operation":
+            return _Guarded_Operation(function)
+    return member
 
 
 class _Composing_Pinned_Operation(_Pinned_Operation):
@@ -952,15 +1048,18 @@ class _Composing_Bound(_Bound):
         if agent is None:
             raise ReferenceError("the Agent of this Action no longer exists")
 
+        if _safehouse:
+            _require_available(agent, "Action")
         state = _state_of(agent)
         state.composing += 1
 
         try:
-            return bound._function(
+            result = bound._function(
                     agent,
                     *args,
                     **kwargs,
                     )
+            return _guard_lazy_result(result, agent, "Action", _require_available)
         finally:
             state.composing -= 1
 
@@ -1217,10 +1316,11 @@ class _Published:
                 "Report",
                 )
 
-        return getattr(
+        value = getattr(
                 origin,
                 gate.name,
                 )
+        return value
 
     def __set__(
             gate,
@@ -1286,75 +1386,70 @@ _ASYNC_CONTEXT_ACTIONS = frozenset((
         ))
 
 
-def _context_action(
-        name: str,
-        function: Function,
-        ) -> Function:
-    """Run an Agent-authored context hook through its composition door.
+def _take_context(state: _State | None, name: str) -> bool:
+    if state is not None:
+        for index in range(len(state.contexts) - 1, -1, -1):
+            if state.contexts[index] == name:
+                state.contexts.pop(index)
+                return True
+    return False
 
-    Async hooks keep the door open while their result is awaited.  The
-    wrapper is made only after the runtime-type cache lookup, so the cache
-    continues to identify a composition by the selected Action itself.
-    """
+
+def _context_action(name: str, function: Function) -> Function:
+    """An entered context may finish cleanup without clearing its arrest."""
 
     if name in _ASYNC_CONTEXT_ACTIONS:
         @_wraps_callable(function)
-        async def Async_Context(
-                agent: object,
-                *args: Any,
-                **kwargs: Any,
-                ) -> Any:
+        async def Async_Context(agent: object, *args: Any, **kwargs: Any) -> Any:
             state = _state_of(agent)
-            door = _Async_Door(state)
-            _async_doors.set(
-                    tuple(
-                            active
-                            for active in _async_doors.get()
-                            if active.active
-                            ) + (door,),
-                    )
-
-            try:
-                return await function(
-                        agent,
-                        *args,
-                        **kwargs,
-                        )
-            finally:
-                door.Close()
-                # A suspended coroutine can be closed in another Context,
-                # or before another hook opened after it. Revoke its shared
-                # capability first, then keep the current Context's other
-                # live doors; a token reset assumes the original Context
-                # and stack order. Captured contexts retain only an inert
-                # door with no Agent state, pruned at their next entry.
-                _async_doors.set(tuple(
-                        active
-                        for active in _async_doors.get()
-                        if active.active
-                        ))
-
+            cleanup = name == "__aexit__" and _take_context(state, name)
+            with _rip_door(agent) if cleanup else nullcontext():
+                if _safehouse:
+                    _require_available(agent, name)
+                door = _Async_Door(state)
+                _async_doors.set(tuple(active for active in _async_doors.get() if active.active) + (door,))
+                try:
+                    result = await function(agent, *args, **kwargs)
+                    if name == "__aenter__" and state is not None:
+                        state.contexts.append("__aexit__")
+                    if _safehouse and not cleanup:
+                        _require_available(agent, name)
+                    return result
+                finally:
+                    door.Close()
+                    _async_doors.set(tuple(active for active in _async_doors.get() if active.active))
         return Async_Context
 
     @_wraps_callable(function)
-    def Context(
-            agent: object,
-            *args: Any,
-            **kwargs: Any,
-            ) -> Any:
+    def Context(agent: object, *args: Any, **kwargs: Any) -> Any:
         state = _state_of(agent)
-        state.composing += 1
-
-        try:
-            return function(
-                    agent,
-                    *args,
-                    **kwargs,
-                    )
-        finally:
-            state.composing -= 1
-
+        cleanup = name == "__exit__" and _take_context(state, name)
+        with _rip_door(agent) if cleanup else nullcontext():
+            if _safehouse:
+                _require_available(agent, name)
+            if state is not None:
+                state.composing += 1
+            try:
+                result = function(agent, *args, **kwargs)
+                if name == "__enter__" and state is not None:
+                    state.contexts.append("__exit__")
+                if _safehouse and not cleanup:
+                    _require_available(agent, name)
+                return result
+            finally:
+                if state is not None:
+                    state.composing -= 1
     return Context
+
+
+def _guard_dunder(function: Function) -> Function:
+    @_wraps_callable(function)
+    def Guard(agent: object, *args: Any, **kwargs: Any) -> Any:
+        if _safehouse:
+            _require_available(agent, "special Action")
+        result = function(agent, *args, **kwargs)
+        return _guard_lazy_result(result, agent, "special Action", _require_available)
+    return Guard
 
 
 def _runtime_dunder_actions(
@@ -1366,7 +1461,7 @@ def _runtime_dunder_actions(
             name: (
                     _context_action(name, function)
                     if name in _CONTEXT_ACTIONS
-                    else function
+                    else _guard_dunder(function)
                     )
             for name, function in selected.items()
             }
@@ -1394,6 +1489,7 @@ def _type_key_of(
                     ) if state.actions else (),
             _identifier_texts(state.constants) if state.constants else _EMPTY_NAMES,
             _identifier_texts(state.tools) if state.tools else _EMPTY_NAMES,
+            state.arrestable,
             )
 
 
@@ -1409,6 +1505,8 @@ def _runtime_type_for(
     if shared is not None:
         return shared
 
+    from .access import _arrest_read_hook
+    from .access import _arrest_write_hook
     from .access import _hooks_for   # access imports this module
     from .contracts import _Post_Gate
     from .presence import _presence_hook
@@ -1432,6 +1530,8 @@ def _runtime_type_for(
             )
     namespace: dict[str, Any] = dict(hooks)
     namespace.update(dunders)
+    if state.arrestable:
+        namespace["__getattribute__"] = _arrest_read_hook(host_type, namespace.get("__getattribute__", _MISSING))
 
     if not issubclass(host_type, type):
         # A Tag's gates are answered on its miss path, never by a data
@@ -1474,6 +1574,10 @@ def _runtime_type_for(
 
     if conditions or state.constants or state.tools or issubclass(host_type, type):
         _binding_write_hooks(namespace, host_type, force=ungated_tools)
+
+    if state.arrestable:
+        for writer in ("__setattr__", "__delattr__"):
+            namespace[writer] = _arrest_write_hook(host_type, writer, namespace.get(writer, _MISSING))
 
     if not issubclass(host_type, type):
         namespace["__bool__"] = hooks["__bool__"]   # the contract owns this seat

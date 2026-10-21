@@ -18,6 +18,7 @@ from .declarations import Report
 from .declarations import Rip
 from .declarations import Secret
 from .declarations import Underlay
+from .errors import TagArrestedAccessError
 from .errors import TagCompositionError
 from .errors import TagContractError
 from .errors import TagContractWarning
@@ -64,6 +65,7 @@ __all__ = [
         "Rip",
         "Secret",
         "Tag",
+        "TagArrestedAccessError",
         "TagCompositionError",
         "TagContractError",
         "TagContractWarning",

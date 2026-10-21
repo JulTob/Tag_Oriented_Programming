@@ -151,11 +151,14 @@ class TagCallablePublicationTests(unittest.TestCase):
             Work = Operation(work)
 
         self.assertEqual(Crew.score, 10)
-        self.assertIs(type(vars(Crew)["Work"]), classmethod)
+        self.assertIsInstance(vars(Crew)["Work"], classmethod)
         self.assertIs(vars(Crew)["Work"].__func__, work)
         self.assertEqual(vars(Crew)["score"].__name__, "builder")
         self.assertEqual(vars(Crew)["score"].__doc__, builder.__doc__)
         self.assertIs(Crew.Work.__func__, work)
+        self.assertIs(Crew.Work.__self__, Crew)
+        self.assertEqual(signature(Crew.Work), signature(MethodType(work, Crew)))
+        self.assertIs(Crew.Work(), Crew)
 
 
 if __name__ == "__main__":

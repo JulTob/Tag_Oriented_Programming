@@ -79,7 +79,7 @@ class CallableSignatureMetadataTests(unittest.TestCase):
         self.assertTrue(Wrapper(Host()))
         self.assertEqual(callable_object.metadata_reads, [])
 
-    def test_failing_rips_keep_the_original_and_later_teardowns(self):
+    def test_failing_rips_keep_the_original_and_save_later_teardowns(self):
         for pinned in (False, True):
             with self.subTest(pinned=pinned):
                 events = []
@@ -101,8 +101,8 @@ class CallableSignatureMetadataTests(unittest.TestCase):
                     del closing[target]
 
                 self.assertIs(caught.exception.__cause__, original)
-                self.assertEqual(str(caught.exception), "Closing teardown failed in: First")
-                self.assertEqual(events, ["first", "later"])
+                self.assertEqual(str(caught.exception), "Closing teardown failed in: First; the Agent is arrested")
+                self.assertEqual(events, ["first"])
                 self.assertEqual(failing.metadata_reads, [])
 
     def test_failing_imprint_and_record_keep_declared_names_and_causes(self):

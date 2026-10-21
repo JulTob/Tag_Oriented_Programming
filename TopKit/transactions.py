@@ -24,7 +24,8 @@ interruptions keep their original type and follow the same boundary.
 from __future__ import annotations
 
 from typing import Any
-
+from .arrest import _require_available
+from .arrest import _safehouse
 from .contracts import _bind_condition
 from .contracts import _evaluate
 from .declarations import _Declarations
@@ -70,6 +71,9 @@ def _apply(
         form: tuple[type, ...] | None = None,
         ) -> object:
     """Apply ``tag`` and its missing Bases to ``agent`` as one call."""
+
+    if _safehouse:
+        _require_available(agent, "Tagging")
 
     entry_state = _state_of(agent)
 
@@ -227,9 +231,13 @@ def _apply_one(
                 dict(_namespace_of(agent))
                 if first and state.pinned is not None else None
                 )
+        previous_arrestable = state.arrestable
+        if declarations.rips:
+            state.arrestable = True
         try:
             _actualize(agent, state, tag, declarations.header, entering=_is_flag(tag))
         except BaseException:
+            state.arrestable = previous_arrestable
             if entry_host is not None:
                 _restore_host_bindings(agent, entry_host)
             elif entry_namespace is not None:
@@ -483,6 +491,7 @@ def _actualize(
     changes_type = (
             "_TOPKIT_HOST_TYPE" not in type(agent).__dict__
             or declarations.runtime
+            or (state.arrestable and "__getattribute__" not in type(agent).__dict__)
             or (entering and _is_flag(tag))
             )
 

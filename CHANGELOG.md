@@ -32,6 +32,39 @@
 
 ### TopKit
 
+- **Entered lazy cleanup:** after Rip ends Tag-view membership, a started
+  generator, coroutine or async generator may finish through `close()` or
+  `aclose()`. Ordinary view continuation remains checked; cleanup retains
+  its Secret and Safehouse boundaries and grants no Rip authority. Completed
+  results release their execution receiver and remain safely disposable.
+
+- **Live Tag views:** a saved `MyTag[agent]` follows the Tag's current
+  application instead of owning an old snapshot. Rip closes access;
+  reTagging supplies the fresh Overlay. Reports read their origin Tag's
+  current value and view Operations resolve the current member on each
+  invocation, retaining call metadata. Reads, presence and saved calls
+  check custody before and after execution; an old view cannot bypass a
+  failed Rip.
+
+- **Saved explicit Rip:** protocols run sequentially and stop at the first
+  failure or interruption. The original application's cursor and remaining
+  composed protocols stay in Safehouse custody; retrying `del Tag[agent]`
+  resumes that work without replaying successful earlier steps. Whole-Field
+  Rip revokes every starting member before callbacks. Explicit member retries
+  have no Field-wide priority, and a fresh same-Tag application survives an
+  old application's retry. Ordinary Post removal remains application-bound;
+  admitted Constant Posts stay.
+
+- **Arrest guards:** unfinished cleanup excludes an Agent from both sound
+  and broken populations while leaving other raw Field memberships intact.
+  Ordinary access retries saved work, then raises `TagArrestedAccessError`
+  (a Resolution Failure) if it remains blocked. TOP handles and lazy-result
+  continuations check custody; lazy proxies retain iteration and awaiting
+  while changing native `inspect` type checks. An entered context may finish
+  its exit cleanup. Captured native Host methods and raw Python reflection
+  remain outside the guarded call boundary. These are focused Python profile
+  changes; they do not deploy the rest of STEP-SPEC-32.
+
 - **Pin publication preserves ordinary Tag and Tool use:** a late Pin mark
   cannot change a Tag with members, Shapes, live Tool-kind declarations or
   an ordinary Tagging underway. Tool-kind ownership is tracked weakly by
@@ -142,8 +175,9 @@
   generator and async-generator returns from Pre, Imprint, Post and Rip
   calls, including composed Rip Underlays. It attempts synchronous disposal
   without awaiting or iterating the work. Ordinary teardown failures retain
-  their declared names and original causes, and later Rip protocols still
-  run. Record, Imprint and Underlay diagnostics also use Contribution names
+  their declared names and original causes. Explicit Rip saves its suffix
+  and stops; best-effort finalizer cleanup still attempts later protocols.
+  Record, Imprint and Underlay diagnostics also use Contribution names
   rather than callable metadata; broken diagnostic formatting cannot hide
   the failure. Record values and ordinary Action returns are unchanged.
   This is the Python runtime boundary; STEP-SPEC-41 separately proposes a

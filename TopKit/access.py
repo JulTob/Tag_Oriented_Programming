@@ -10,12 +10,21 @@ Three access forms, three meanings:
 from __future__ import annotations
 
 from functools import partial
+from inspect import getattr_static
+from types import FunctionType
+from types import MethodType
 from typing import Any
 from typing import Callable
+from weakref import ref
 import operator
 import sys
 
 from . import declarations
+from . import state as state_module
+from .arrest import _arrest_of
+from .arrest import _require_available
+from .arrest import _safehouse
+from .lazy_guard import _guard_lazy_result
 from .contracts import _condition_member
 from .contracts import _holds
 from .errors import TagCompositionError
@@ -31,6 +40,7 @@ from .state import _Secret_Bound
 from .state import _Snapshot
 from .state import _State
 from .state import _is_composing
+from .state import _context_action
 from .state import _name_of
 from .state import _state_of
 
@@ -56,6 +66,120 @@ def _host_member(
             return member
 
     return None
+
+
+def _arrest_read_hook(host_type: type, installed: Any = _MISSING) -> Callable[[object, str], Any]:
+    """Keep the Host getter, while a Rip-trained Agent's reads stay gated."""
+
+    original = object.__getattribute__ if installed is _MISSING else installed
+
+    for owner in (() if installed is not _MISSING else type.__getattribute__(host_type, "__mro__")):
+        member = type.__getattribute__(owner, "__dict__").get(
+                "__getattribute__", _MISSING
+                )
+        if member is _MISSING:
+            continue
+        if (
+                isinstance(member, FunctionType)
+                and member.__dict__.get("_TOPKIT_ARREST_READ")
+                ):
+            continue
+        original = member
+        break
+
+    native = (
+            original is object.__getattribute__
+            or original is type.__getattribute__
+            or isinstance(original, FunctionType)
+            )
+    arrests = _safehouse
+    lookup_entry = dict.get
+    identity = id
+    kind = type
+    string_type = str
+    plain_str = str.__str__
+    lookup = getattr
+    require = _require_available
+
+    def Read(agent: object, name: str) -> Any:
+        # Normalize a str subclass before the custody exception check; its
+        # __eq__ or __ne__ cannot fake the Python identity seat.
+        ordinary = plain_str(name) if kind(name) is not string_type else name
+        arrest = lookup_entry(arrests, identity(agent))
+
+        if arrest is not None and arrest.agent is agent and arrest.runs:
+            if ordinary == "__class__":
+                return kind(agent)  # actual runtime type, never the Host getter
+            require(agent, f"read {ordinary!r}")
+
+        if native:
+            value = original(agent, name)
+        else:
+            getter = lookup(kind(original), "__get__", None)
+            bound = getter(original, agent, kind(agent)) if getter else original
+            value = bound(name)
+
+        # A Host getter can catch its own failed Rip and return a value.
+        # Recheck after it runs before that value escapes custody.
+        arrest = lookup_entry(arrests, identity(agent))
+        if arrest is not None and arrest.agent is agent and arrest.runs:
+            if ordinary == "__class__":
+                return kind(agent)
+            require(agent, f"read {ordinary!r}")
+        return value
+
+    Read._TOPKIT_ARREST_READ = True
+    return Read
+
+
+def _arrest_write_hook(
+        host_type: type,
+        name: str,
+        installed: Any = _MISSING,
+        ) -> Callable[..., Any]:
+    """Preserve the Host binding hook and gate it on saved Rip custody."""
+
+    fallback = installed
+    if fallback is _MISSING:
+        for owner in type.__getattribute__(host_type, "__mro__"):
+            members = type.__getattribute__(owner, "__dict__")
+            if name in members:
+                fallback = members[name]
+                break
+
+    native = (
+            isinstance(fallback, FunctionType)
+            or fallback is object.__setattr__
+            or fallback is object.__delattr__
+            or fallback is type.__setattr__
+            or fallback is type.__delattr__
+            )
+    arrests = _safehouse
+    lookup_entry = dict.get
+    identity = id
+    require = _require_available
+    kind = type
+    lookup = getattr
+
+    def Write(agent: object, target: str, *values: Any) -> Any:
+        arrest = lookup_entry(arrests, identity(agent))
+        if arrest is not None and arrest.agent is agent and arrest.runs:
+            require(agent, f"{name} binding")
+
+        if native:
+            result = fallback(agent, target, *values)
+        else:
+            getter = lookup(kind(fallback), "__get__", None)
+            bound = getter(fallback, agent, kind(agent)) if getter else fallback
+            result = bound(target, *values)
+
+        arrest = lookup_entry(arrests, identity(agent))
+        if arrest is not None and arrest.agent is agent and arrest.runs:
+            require(agent, f"{name} binding")
+        return result
+
+    Write._TOPKIT_ARREST_WRITE = True
+    return Write
 
 
 IN_SEAT = (
@@ -143,6 +267,16 @@ def _hooks_for(
 
     if not issubclass(host_type, type):
         hooks["__bool__"] = _agent_bool
+
+    for name in ("__enter__", "__exit__", "__aenter__", "__aexit__"):
+        original = _host_member(host_type, name)
+        if original is None:
+            continue
+        def Call(agent, *args, _original=original, **kwargs):
+            getter = getattr(type(_original), "__get__", None)
+            method = getter(_original, agent, type(agent)) if getter else _original
+            return method(*args, **kwargs)
+        hooks[name] = _context_action(name, Call)
 
     if _host_member(host_type, "__format__") is None:
         hooks["__format__"] = _agent_format
@@ -334,6 +468,9 @@ def _agent_bool(
     if state is None:
         return _host_truth(agent)
 
+    if _arrest_of(agent) is not None:
+        return False
+
     if not state.postconditions:
         return True   # nothing promised
 
@@ -501,111 +638,196 @@ def _agent_deepcopy(
 # ------------------------------------------------------------------
 
 
-class _Tag_View:
-    """The Overlay snapshot captured right after one Tag applied."""
+class _View_Call:
+    """A captured callable follows its selected Tag's current application."""
 
-    __slots__ = (
-            "_agent",
-            "_tag",
-            "_snapshot",
-            )
+    __slots__ = ("_view", "_name", "_secret")
 
-    def __init__(
-            view,
-            agent: object,
-            tag: type,
-            snapshot: _Snapshot,
-            ) -> None:
-        object.__setattr__(view, "_agent", agent)
-        object.__setattr__(view, "_tag", tag)
-        object.__setattr__(view, "_snapshot", snapshot)
+    def __init__(call, view: "_Tag_View", name: str, secret: bool) -> None:
+        call._view = view
+        call._name = str.__str__(name)
+        call._secret = secret
 
-    def __getattr__(
-            view,
-            name: str,
-            ) -> Any:
-        snapshot: _Snapshot = view._snapshot
-        agent = view._agent
-
-        if name in snapshot.deleted:
+    def _authorize(call, agent: object, act: str) -> None:
+        if _safehouse:
+            _require_available(agent, act)
+        _agent, snapshot = call._view._current()
+        if call._name in snapshot.operations and call._name in snapshot.actions:
+            origin = snapshot.operations[call._name][0]
+            state_module._require_membership(agent, origin, call._name, "Operation")
+        if (call._secret or call._name in snapshot.secrets) and not _is_composing(_state_of(agent)):
             raise AttributeError(
-                    f"{view._tag.__name__} deleted {name!r}"
+                    f"{call._name!r} was captured as a Secret member;"
+                    " it is reachable only through composition"
                     )
 
-        if name in snapshot.secrets and not _is_composing(_state_of(agent)):
-            raise AttributeError(
-                    f"{name!r} is a secret member of {view._tag.__name__}"
-                    )
+    def __call__(call, *args: Any, **kwargs: Any) -> Any:
+        agent, snapshot = call._view._current()
+        call._authorize(agent, "Tag-view call")
+        name = call._name
+        secret = call._secret or name in snapshot.secrets
 
-        if name in snapshot.actions:
-            if name in snapshot.secrets:
-                return _Secret_Bound(
-                        snapshot.actions[name],
-                        agent,
-                        name,
+        def Cleanup(receiver: object, act: str) -> None:
+            # The already-entered execution keeps its captured Secret
+            # boundary; ending membership does not prevent resource cleanup.
+            if _safehouse:
+                _require_available(receiver, act)
+            if secret and not _is_composing(_state_of(receiver)):
+                raise AttributeError(
+                        f"{name!r} was entered as a Secret member;"
+                        " cleanup requires composition"
                         )
 
-            return _Composing_Bound(
-                    snapshot.actions[name],
-                    agent,
-                    )
-
-        if name in snapshot.records:
-            return snapshot.records[name]
-
-        if name in snapshot.reports:
-            return snapshot.reports[name][1]
-
+        if name in snapshot.secrets and not _is_composing(_state_of(agent)):
+            raise AttributeError(f"{name!r} is a Secret member")
         if name in snapshot.operations:
-            origin, operation = snapshot.operations[name]
-
-            return partial(
-                    operation,
-                    origin,
-                    )
-
-        raise AttributeError(
-                f"{view._tag.__name__} view has no member {name!r}"
+            origin = snapshot.operations[name][0]
+            if _safehouse:
+                _require_available(origin, "Operation")
+            operation = getattr(origin, name)
+            if name in snapshot.actions:
+                result = operation(agent, *args, **kwargs)
+            else:
+                result = operation(*args, **kwargs)
+            result = _guard_lazy_result(result, origin, "Operation", _require_available)
+        else:
+            member = call._view._read(name, handles=False)
+            result = member(*args, **kwargs)
+        result = _guard_lazy_result(
+                result, agent, "Tag-view call", call._authorize,
+                cleanup_authorize=Cleanup,
                 )
+        call._authorize(agent, "Tag-view call")
+        return result
 
-    def __setattr__(
-            view,
-            name: str,
-            value: Any,
-            ) -> None:
-        raise AttributeError("a Tag view is a snapshot; it is read-only")
+    def __eq__(call, other: object) -> Any:
+        if type(other) is not _View_Call:
+            return NotImplemented
+        return (call._view._tag is other._view._tag
+                and call._view._identity is other._view._identity
+                and call._name == other._name)
 
-    def __rmatmul__(
-            view,
-            name: object,
-            ) -> bool:
-        """Ask about Contributions at this view's captured position."""
+    def __hash__(call) -> int:
+        return hash((id(call._view._tag), id(call._view._identity), call._name))
 
+    def __repr__(call) -> str:
+        tag = type.__dict__["__name__"].__get__(call._view._tag)
+        return f"<Tag-view call {tag}.{call._name}>"
+
+    def _binding(call) -> tuple[object, Any]:
+        agent, snapshot = call._view._current()
+        if call._name in snapshot.actions:
+            return agent, snapshot.actions[call._name]
+        if call._name in snapshot.operations:
+            origin = snapshot.operations[call._name][0]
+            current = getattr(origin, call._name)
+            return current.__self__, current.__func__
+        raise AttributeError(f"{call._name!r} is no longer a callable Contribution")
+
+    @property
+    def __self__(call) -> object:
+        return call._binding()[0]
+
+    @property
+    def __func__(call) -> Any:
+        return call._binding()[1]
+
+    @property
+    def __wrapped__(call) -> Any:
+        receiver, function = call._binding()
+        return MethodType(function, receiver)
+
+    @property
+    def __name__(call) -> str:
+        try:
+            return call.__func__.__name__
+        except Exception:
+            return call._name
+
+    @property
+    def __doc__(call) -> str | None:
+        return getattr(call.__func__, "__doc__", None)
+
+
+class _Tag_View:
+    """A soft reference to the Overlay at this Tag's current application."""
+
+    __slots__ = ("_reference", "_tag", "_identity")
+
+    def __init__(view, agent: object, tag: type) -> None:
+        state = _state_of(agent)
+        if state.view_identity is None:
+            state.view_identity = object()
+        object.__setattr__(view, "_reference", ref(agent))
+        object.__setattr__(view, "_tag", tag)
+        object.__setattr__(view, "_identity", state.view_identity)
+
+    def _current(view) -> tuple[object, _Snapshot]:
+        agent = view._reference()
+        if agent is None:
+            raise ReferenceError("the Agent of this Tag view no longer exists")
+        if _safehouse:
+            _require_available(agent, "Tag-view access")
+        state = _state_of(agent)
+        if state is None or view._tag not in state.active:
+            raise TagResolutionError(f"{view._tag.__name__} is not active on this Agent")
+        return agent, state.snapshots[view._tag]
+
+    def _read(view, name: str, *, handles: bool = True) -> Any:
+        agent, snapshot = view._current()
+        if name in snapshot.deleted:
+            raise AttributeError(f"{view._tag.__name__} deleted {name!r}")
+        if name in snapshot.secrets and not _is_composing(_state_of(agent)):
+            raise AttributeError(f"{name!r} is a Secret member of {view._tag.__name__}")
+        if name in snapshot.actions:
+            if handles:
+                result = _View_Call(view, name, name in snapshot.secrets)
+            elif name in snapshot.secrets:
+                result = _Secret_Bound(snapshot.actions[name], agent, name)
+            else:
+                result = _Composing_Bound(snapshot.actions[name], agent)
+        elif name in snapshot.records:
+            result = snapshot.records[name]
+        elif name in snapshot.reports:
+            origin = snapshot.reports[name][0]
+            result = getattr(origin, name)
+        elif name in snapshot.operations:
+            result = _View_Call(view, name, name in snapshot.secrets)
+        else:
+            raise AttributeError(f"{view._tag.__name__} view has no member {name!r}")
+        view._current()
+        return result
+
+    def __getattr__(view, name: str) -> Any:
+        return view._read(name)
+
+    def __setattr__(view, name: str, value: Any) -> None:
+        raise AttributeError("a Tag view is read-only")
+
+    def __rmatmul__(view, name: object) -> bool:
         if not issubclass(type(name), str):
             return NotImplemented
-
-        from .presence import _namespace
-
+        agent, snapshot = view._current()
         name = str.__str__(name)
-        snapshot = view._snapshot
-
         if name in snapshot.deleted:
-            return False
+            result = False
+        elif name in snapshot.secrets and not _is_composing(_state_of(agent)):
+            result = False
+        elif name in snapshot.reports:
+            origin = snapshot.reports[name][0]
+            result = getattr_static(origin, name, _MISSING) is not _MISSING
+        elif name in snapshot.operations:
+            origin = snapshot.operations[name][0]
+            result = getattr_static(origin, name, _MISSING) is not _MISSING
+        else:
+            result = name in snapshot.actions or name in snapshot.records
+        view._current()
+        return result
 
-        if name in snapshot.secrets and not _is_composing(_namespace(view._agent)[STATE]):
-            return False
-
-        return (
-                name in snapshot.actions
-                or name in snapshot.records
-                or name in snapshot.reports
-                or name in snapshot.operations
-                )
-
-    def __repr__(
-            view,
-            ) -> str:
-        return f"<{view._tag.__name__} view of {_name_of(view._agent)}>"
+    def __repr__(view) -> str:
+        agent = view._reference()
+        owner = _name_of(agent) if agent is not None else "<gone>"
+        return f"<{view._tag.__name__} view of {owner}>"
 
 
 def _view_of(
@@ -613,6 +835,8 @@ def _view_of(
         tag: type,
         state: _State | None = None,
         ) -> _Tag_View:
+    if _safehouse:
+        _require_available(agent, "Tag-view access")
     if state is None:
         state = _state_of(agent)
 
@@ -624,5 +848,4 @@ def _view_of(
     return _Tag_View(
             agent,
             tag,
-            state.snapshots[tag],
             )

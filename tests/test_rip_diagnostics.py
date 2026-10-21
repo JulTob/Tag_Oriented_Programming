@@ -14,9 +14,11 @@ from TopKit import Record
 from TopKit import Rip
 from TopKit import Tag
 from TopKit import TagCompositionError
+from TopKit import TagArrestedAccessError
 from TopKit import TagResolutionError
 from TopKit import Underlay
 from TopKit.lifecycle import _teardown_all
+from TopKit.arrest import _rip_door
 
 
 class Agent:
@@ -28,7 +30,7 @@ def _target(pinned: bool) -> object:
 
 
 class RipDiagnosticTests(unittest.TestCase):
-    def test_callable_failures_keep_the_cause_and_run_later_cleanup(self) -> None:
+    def test_callable_failures_keep_the_cause_and_save_later_cleanup(self) -> None:
         for pinned in (False, True):
             for hostile_metadata in (False, True):
                 with self.subTest(pinned=pinned, hostile_metadata=hostile_metadata):
@@ -66,28 +68,31 @@ class RipDiagnosticTests(unittest.TestCase):
                     with self.assertRaises(TagCompositionError) as failure:
                         del Closing[target]
 
-                    self.assertEqual(str(failure.exception), "Closing teardown failed in: First")
+                    self.assertEqual(str(failure.exception), "Closing teardown failed in: First; the Agent is arrested")
                     self.assertIs(failure.exception.__cause__, original)
-                    self.assertEqual(events, ["first", "later"])
+                    self.assertEqual(events, ["first"])
                     self.assertNotIn(target, Closing)
                     self.assertNotIn(target, Closing[:])
 
-                    with self.assertRaises(TagResolutionError):
+                    with self.assertRaises(TagCompositionError):
                         del Closing[target]
                     _teardown_all(target)
-                    self.assertEqual(events, ["first", "later"])
+                    self.assertEqual(events, ["first", "first"])
 
     def test_aliased_functions_report_declaration_names_in_order(self) -> None:
         events = []
         original = RuntimeError("first failure")
+        broken = {"First", "Second"}
 
         def Implementation(agent: object) -> None:
             events.append("first")
-            raise original
+            if "First" in broken:
+                raise original
 
         def Other_Implementation(agent: object) -> None:
             events.append("second")
-            raise ValueError("second failure")
+            if "Second" in broken:
+                raise ValueError("second failure")
 
         class Closing(Tag):
             First = Rip(Implementation)
@@ -102,9 +107,16 @@ class RipDiagnosticTests(unittest.TestCase):
         with self.assertRaises(TagCompositionError) as failure:
             del Closing[target]
 
-        self.assertEqual(str(failure.exception), "Closing teardown failed in: First, Second")
+        self.assertEqual(str(failure.exception), "Closing teardown failed in: First; the Agent is arrested")
         self.assertIs(failure.exception.__cause__, original)
-        self.assertEqual(events, ["first", "second", "later"])
+        self.assertEqual(events, ["first"])
+        broken.remove("First")
+        with self.assertRaisesRegex(TagCompositionError, "failed in: Second"):
+            del Closing[target]
+        self.assertEqual(events, ["first", "first", "second"])
+        broken.remove("Second")
+        del Closing[target]
+        self.assertEqual(events, ["first", "first", "second", "second", "later"])
         self.assertEqual(Implementation.__name__, "Implementation")
         self.assertEqual(Other_Implementation.__name__, "Other_Implementation")
 
@@ -158,7 +170,7 @@ class RipDiagnosticTests(unittest.TestCase):
                         self.assertIsInstance(cause, TagCompositionError)
                         self.assertIn("Rip protocol 'First' returned", str(cause))
                         self.assertIn(kind, str(cause))
-                        self.assertEqual(events, ["later"])
+                        self.assertEqual(events, [])
                         self.assertNotIn(target, Closing[:])
                         if kind == "coroutine":
                             self.assertIsNone(returned[0].cr_frame)
@@ -272,13 +284,23 @@ class RipDiagnosticTests(unittest.TestCase):
                 self.assertEqual(events, ["caught"])
                 self.assertIsNone(returned[0].gi_frame)
                 self.assertNotIn(target, Shape)
-                self.assertIn(target, Base)
+                self.assertIn(target, Base[:])
+                self.assertNotIn(target, Base)
+                self.assertNotIn(target, ~Base)
 
-                # A captured Underlay is not a teardown after the Rip guard closes.
-                values = captured[0]()
-                self.assertIsNotNone(values.gi_frame)
-                self.assertEqual(list(values), ["value"])
-                self.assertEqual(events, ["caught", "started"])
+                # A saved Underlay cannot act outside custody. The failed
+                # retry still names this same invalid Rip protocol.
+                with self.assertRaises(TagArrestedAccessError):
+                    captured[0]()
+                self.assertEqual(events, ["caught", "caught"])
+
+                # Inside an authorized Rip door, the old protocol-return
+                # guard is closed: this ordinary call can return a stream.
+                with _rip_door(target):
+                    values = captured[0]()
+                    self.assertIsNotNone(returned[-1].gi_frame)
+                    self.assertEqual(list(values), ["value"])
+                self.assertEqual(events, ["caught", "caught", "started"])
 
     def test_best_effort_cleanup_keeps_reverse_tag_order_and_does_not_repeat(self) -> None:
         for pinned in (False, True):
@@ -377,7 +399,7 @@ class RipDiagnosticTests(unittest.TestCase):
                 self.assertIs(cause.__cause__, original)
                 self.assertIn("Rip protocol 'Close' returned a lazy result", str(cause))
                 self.assertIn("Unprintable: <exception text unavailable>", str(cause))
-                self.assertEqual(events, ["caught", "later"])
+                self.assertEqual(events, ["caught"])
                 self.assertIsNone(value.gi_frame)
                 self.assertNotIn(target, Shape[:])
 

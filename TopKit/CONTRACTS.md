@@ -209,12 +209,15 @@ a host property's binding without evaluating its getter, and ignores
 names synthesized only by `__getattr__`.
 
 The actual Agent answers from its current contributions; `"kit" @
-Equipped_Crew[medic]` answers from the view captured when that Tag applied.
+Equipped_Crew[medic]` selects the Overlay after that Tag's current application.
 Secret names follow that Agent's composition door. Shared names count on
 the actual Agent through publication: a Report requires its active
 publisher, while an Operation's sticky Action can remain present after
-Rip even though using it is refused. Views check their captured shared
-contributions. Only string left operands ask this TOP
+Rip even though using it is refused. A saved view rechecks admission at
+every use, loses access on Rip, and follows a fresh application after
+reTagging. Shared names must still exist on their origin Tag, and a Report
+read uses that Tag's current value, including a present `False` or `None`.
+Only string left operands ask this TOP
 question; other operands retain ordinary `@` behaviour. A Tag receiving
 Pins is an Agent for this purpose; a bare, unpinned Tag is not.
 

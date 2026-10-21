@@ -13,6 +13,7 @@ import unittest
 
 from TopKit import Rip
 from TopKit import Tag
+from TopKit import TagCompositionError
 from TopKit.lifecycle import _revoke_membership
 from TopKit.lifecycle import _teardown
 from TopKit.state import _state_of
@@ -87,6 +88,45 @@ class RipSeamTests(unittest.TestCase):
                 Guarded[:],
                 "running the old chain does not touch the fresh membership",
                 )
+
+
+    def test_detached_failure_retries_old_chain_without_consuming_fresh_membership(self):
+        calls = []
+        blocked = [True]
+
+        class Guarded(Tag):
+            @Rip
+            def First(agent):
+                calls.append("first")
+
+            @Rip
+            def Verify(agent):
+                calls.append("verify")
+                if blocked[0]:
+                    raise ValueError("not ready")
+
+            @Rip
+            def Last(agent):
+                calls.append("last")
+
+        agent = Host()
+        Guarded(agent)
+        state, chain = _revoke_membership(agent, Guarded)
+        Guarded(agent)
+        fresh_chain = _state_of(agent).rips[Guarded]
+        with self.assertRaises(TagCompositionError):
+            _teardown(agent, state, Guarded, chain)
+        self.assertEqual(calls, ["first", "verify"])
+        self.assertIn(agent, Guarded[:])
+        self.assertIs(_state_of(agent).rips[Guarded], fresh_chain)
+
+        blocked[0] = False
+        del Guarded[agent]
+        self.assertEqual(calls, ["first", "verify", "verify", "last"])
+        self.assertIn(agent, Guarded[:])
+        self.assertIs(_state_of(agent).rips[Guarded], fresh_chain)
+        del Guarded[agent]
+        self.assertNotIn(agent, Guarded[:])
 
 
 if __name__ == "__main__":

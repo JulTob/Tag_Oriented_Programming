@@ -25,6 +25,10 @@ tracks splitting them by idea without changing semantics.
 | `presence.py` | Contribution presence without evaluating values or conditions |
 | `transactions.py` | the tagging sequence and the call boundary |
 | `lifecycle.py` | Rip, teardown, `At_Exit` |
+| `arrest.py` | identity-held cleanup custody and revocable Rip authority |
+| `rip_runs.py` | an application's saved protocol sequence and retry cursor |
+| `safehouses.py` | a Tag's live view of unfinished cleanup |
+| `lazy_guard.py` | custody checks at lazy Action and Operation continuations |
 | `access.py` | the hooks on the runtime type, Agent-bound views |
 | `tags.py` | `Tag` and its metaclass |
 | `queries.py` | `Apply`, `Form`, `Keyword`, `Tags`, `Outline` |
@@ -34,10 +38,11 @@ tracks splitting them by idea without changing semantics.
 The hot path is an Agent reading its own attributes and calling its
 Actions; Agents are built once and play for a long time. So:
 
-- **No `__getattribute__` override.** A Record is a plain value in the
-  Agent's instance dictionary. An Action is a small bound callable stored
-  in the same dictionary. Python's ordinary lookup finds both at native
-  speed.
+- **Ordinary bindings stay ordinary values.** Records and bound Actions live
+  in the Agent's instance dictionary. Once an Agent gains a Rip protocol,
+  its runtime type also gates Host reads and writes on saved custody. That
+  gate remains through later Taggings and Rip; Agents that have not gained
+  Rip retain Python's ordinary read path.
 - **Bound Actions hold the Agent weakly.** No reference cycle, so Fields
   (which hold Agents weakly) stay honest and finalizers run promptly. A
   handle whose Agent died raises `ReferenceError`.
@@ -109,14 +114,26 @@ Actions; Agents are built once and play for a long time. So:
   still propagate. Operation publication is a separate repair (#138).
 
 Synchronous Actions selected through an Agent-bound Tag view use the same
-composition door, even when that snapshot preceded the first Secret
-Contribution. The view still selects its captured Action; reads inside
-that Action resolve against the live Agent unless it explicitly uses a
-view. Bindings keep the Agent weakly. A Secret Action selected through a
+composition door, even when that application preceded the first Secret
+Contribution. A view stores weak Agent and exact Tag coordinates, not a
+captured snapshot object. Each read and saved call resolves the current
+application snapshot, so Rip closes access and reTagging supplies the new
+Overlay. Later independent Taggings do not change that selected Layer.
+Reads inside an Action resolve against the live Agent unless it explicitly
+uses a view. Bindings keep the Agent weakly. A Secret Action selected through a
 view requires that same Agent's door to be open before invocation, so a
 handle captured during composition cannot authorize itself afterward.
 The guard preserves the captured Secret boundary when a later Layer is
 public.
+
+View reads and named presence checks verify custody and admission both
+before lookup and before returning. A view Operation handle resolves the
+current member on its origin Tag at invocation and guards both the Agent
+credential and that Tag's custody, including lazy continuations. The
+coordinate handle preserves binding metadata, its readable name and
+signature, equality and hashing. A Report uses that origin Tag's current
+value on every read. Presence inspects its binding without running a lazy
+builder; `False` and `None` remain present, while a missing binding is absent.
 
 Ordinary object Agents also bind their current Secret Actions with this
 invocation guard, including Constant Actions. A synchronous call requires
@@ -156,8 +173,9 @@ An actual Agent counts shared Tag names only through publication. A
 published Report needs an active publisher; its descriptor supplies the
 binding without building the value. A published Operation follows its
 actual Action binding, which can remain after Rip although use is refused.
-A Tag-bound view checks its captured contributions,
-including captured shared entries. Secret names respect the underlying
+A Tag-bound view resolves the selected Tag's current application Overlay.
+Shared entries must still be provided by their origin Tag rather than
+merely appearing in an old stored value. Secret names respect the underlying
 Agent's composition door. The query never evaluates Posts, so a Post can
 require a name without recursively checking soundness.
 
@@ -309,9 +327,56 @@ original cause. Async generators are not driven through a new event loop.
 Scheduled Rips retain their declared names alongside the composed Actions.
 A flow-local guard checks only the selected teardown's Underlay chain and
 remembers a lazy-result failure even if user code catches it. Other Actions
-called during cleanup retain their ordinary return semantics. Ordinary
-failures are collected after remaining teardowns run; Python interruptions
-keep their propagation behavior. Best-effort deletion uses the same checks.
+called during cleanup retain their ordinary result protocol, with the lazy
+custody boundary below. Explicit Rip stops at its first failed protocol and
+saves that cursor; Python interruptions retain their original exception and
+pending work. Best-effort finalizer and `At_Exit` deletion still use the same
+synchronous-result checks without replacing explicit retry handling.
+
+## Saved Rip and custody
+
+`_RipRun` saves the original application's composed `(name, callable)` tuples,
+Field seat and STEP-SPEC-61 Post application identity. `_revoke` ends only that
+application's membership and ordinary Posts. Its identity checks preserve a
+fresh same-Tag membership established during old cleanup. Removed snapshots
+and Post bindings stay held until the run finishes, preventing their finalizers
+from observing an intermediate release of custody.
+
+`_rip_field` saves every initial member's run, revokes all of them, then starts
+callbacks. The invocation stops on its first failure or interruption. A run's
+cursor advances only after its declared protocol succeeds; a failing composed
+protocol restarts from that protocol, not from the middle of its Underlay.
+An explicit single-member Rip can select a later pending member independently.
+An explicit other-Tag Rip does its own work before retrying older work for that
+Agent. Simple applications with no Rip or Post update keep an allocation-free
+success path; an interrupted removal still saves their original Field seat.
+
+The private Safehouse ledger owns pending Agents by `id` and verifies `is`,
+without invoking Host hashing or equality. Each callback opens a revocable,
+Agent-specific `_rip_door`; copied contexts cannot retain authority after that
+callback exits. `_require_available` retries saved work before ordinary acts,
+then raises `TagArrestedAccessError` from the original failing protocol if it
+cannot clear custody. `bool(agent)` and sound/broken population queries instead
+return False while arrested; raw Field queries and Safehouse inspection remain
+available without evaluating Posts.
+
+TOP Action, Underlay and Operation handles recheck custody when invoked.
+Native lazy results are represented by protocol proxies that check each resume,
+send, throw or close, including before releasing a yielded or returned value.
+`inspect.isgenerator`, `inspect.iscoroutine` and `inspect.isasyncgen` therefore
+do not recognize these results as native objects; iteration and awaiting still
+work, and the coroutine proxy supports `asyncio.create_task`. A denied source
+stays suspended and held until cleanup allows it to proceed. Event-loop shutdown
+can still finalize a native async generator through Python's own registry.
+
+Host methods captured as native Python bound methods can bypass a later call
+guard, although ordinary Agent reads and writes inside their bodies are gated.
+Raw Python reflection can bypass TOP as well. This is not a Python sandbox;
+the stronger opt-in Host guard is a separate design. An already-entered Host or
+Agent context may finish its matching exit hook under cleanup authority without
+clearing the arrest. Root dynamic Agent queries, orphan Tag deletion and Fix
+protocols are not provided by this release profile. STEP-SPEC-32 remains an
+open proposal beyond these specifically implemented decisions.
 
 Record and Imprint failures, and invalid Underlay declarations, use their
 Contribution names instead of requiring callable naming metadata. Private
@@ -436,7 +501,9 @@ Tagging sequence or expand its rollback boundary.
   descriptor that runs its builder once per Tag on first read and caches
   the value per Tag (weakly). `Tag.r += 1` replaces the descriptor with a
   plain value on that class, which is the documented counter pattern.
-  Views snapshot the computed value; a published Report reads live.
+  Agent-bound views and published Reports both read the origin Tag's current
+  value. The application snapshot records which Tag supplied the Report,
+  not a permanent copy of its computed value.
 - **Failures name their check.** `TagPreconditionError`,
   `TagImprintError` and `TagPostconditionError` use the `_Named`
   metaclass: `Failure.Named("X")` makes, once, the subclass
