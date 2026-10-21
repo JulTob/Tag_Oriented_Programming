@@ -10,8 +10,7 @@ from TopKit import Action, Pin, Record, Secret, Tag
 
 class PinnedOperationIntrospectionTests(unittest.TestCase):
     def receiver(self, function):
-        @Pin
-        class Patch(Tag):
+        class Patch(Pin):
             Work = Action(function)
 
         class Target(Tag):
@@ -108,8 +107,7 @@ class PinnedOperationIntrospectionTests(unittest.TestCase):
         handle = target.Work
         expected = signature(MethodType(read, target))
 
-        @Pin
-        class Private(Tag):
+        class Private(Pin):
             @Secret
             @Record
             def code(tag):

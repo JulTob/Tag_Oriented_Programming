@@ -8,8 +8,7 @@ from TopKit import Action, Pin, Record, Secret, Tag, TagOverwriteWarning
 
 class PinnedHandleIdentityTests(unittest.TestCase):
     def receiver(self, function):
-        @Pin
-        class Patch(Tag):
+        class Patch(Pin):
             Work = Action(function)
 
         class Target(Tag):
@@ -50,8 +49,7 @@ class PinnedHandleIdentityTests(unittest.TestCase):
         self.assertNotEqual(original, Shape.Work)
         self.assertEqual(original, target.Work)
 
-        @Pin
-        class Replacement(Tag):
+        class Replacement(Pin):
             @Action
             def Work(tag):
                 return "replacement", tag
@@ -158,8 +156,7 @@ class PinnedHandleIdentityTests(unittest.TestCase):
         before = hash(early)
         handlers = {early: "registered"}
 
-        @Pin
-        class Private(Tag):
+        class Private(Pin):
             @Secret
             @Record
             def code(tag):

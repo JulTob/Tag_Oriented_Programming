@@ -71,8 +71,7 @@ class Courier(Flyer):
 # --- Pattern 1 · Hot-fix across a fleet ------------------------------
 
 
-@Pin
-class Firmware_2(Tag):
+class Firmware_2(Pin):
     """A patch is a Pin. Its Action replaces the Tag's Operation with the
     old one as Underlay; its Record replaces the Report with the old value
     in the stored seat. Every drone that flies through the Tag is
@@ -113,8 +112,7 @@ def pattern_hot_fix(fleet: list[Drone]) -> None:
 # --- Pattern 2 · Catalog: facts and keywords about Tags --------------
 
 
-@Pin
-class Certified(Tag):
+class Certified(Pin):
     """A fact about a Tag: who signed it off. Lands as a Report."""
 
     @Record
@@ -123,8 +121,7 @@ class Certified(Tag):
 
 
 @Flag
-@Pin
-class Retired(Tag):
+class Retired(Pin):
     """A keyword on a Tag. Membership, not a value: it has a Field to walk
     and a history, and Flyer's own gate reads it."""
 
@@ -156,8 +153,7 @@ def pattern_catalog() -> None:
 # --- Pattern 3 · Registry: a Pin that validates what it collects ------
 
 
-@Pin
-class Plugin(Tag):
+class Plugin(Pin):
     """A registry is a Field of Tags. Its gate is the contract every entry
     must meet; a Tag that does not is refused, and the registry never
     holds a half-valid entry."""
@@ -198,8 +194,7 @@ def pattern_registry() -> None:
 # --- Pattern 4 · Policy fan-out --------------------------------------
 
 
-@Pin
-class Audited(Tag):
+class Audited(Pin):
     """A policy published onto a Tag's Field: every present drone gets it
     at pinning, every future drone gets it through the Tag, and only
     members can use it. A drone that leaves the Tag loses the door."""

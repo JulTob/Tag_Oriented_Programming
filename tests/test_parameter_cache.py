@@ -67,14 +67,12 @@ class ParameterCacheTests(unittest.TestCase):
             with self.subTest(pinned=pinned):
                 gate, builder, imprint = NonWeakGate(), NonWeakRecord(), NonWeakImprint()
 
-                class Role(Tag):
+                class Role(Pin if pinned else Tag):
                     Ready = Pre(gate)
                     total = Record(builder)
                     Train = Imprint(imprint)
 
                 if pinned:
-                    Role = Pin(Role)
-
                     class Target(Tag):
                         total = 10
 
@@ -347,12 +345,10 @@ class ParameterCacheTests(unittest.TestCase):
                     self.assertEqual(calculate(Host(), **{name: 12}), 12)
                     self.assertIs(calculate.received_keys[0], name)
 
-                    class Role(Tag):
+                    class Role(Pin if pinned else Tag):
                         total = Record(calculate)
 
                     if pinned:
-                        Role = Pin(Role)
-
                         class First(Tag):
                             pass
 

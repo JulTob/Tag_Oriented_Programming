@@ -56,7 +56,7 @@ def _protocol_tag(
         ) -> type:
     tag = type(
             f"Lazy_{phase}_{kind.replace(' ', '_')}_{'Pin' if pinned else 'Tag'}",
-            (Tag,),
+            (Pin if pinned else Tag,),
             {
                 "Lazy": mark(
                         _lazy_protocol(
@@ -67,7 +67,7 @@ def _protocol_tag(
                 },
             )
 
-    return Pin(tag) if pinned else tag
+    return tag
 
 
 def _target(
@@ -342,14 +342,11 @@ class LazyProtocolTests(unittest.TestCase):
                     base = type(
                             f"Lazy_Rip_{kind.replace(' ', '_')}_Base_"
                             f"{'Pin' if pinned else 'Tag'}",
-                            (Tag,),
+                            (Pin if pinned else Tag,),
                             {
                                 "Close": Rip(prior),
                                 },
                             )
-
-                    if pinned:
-                        base = Pin(base)
 
                     def Close(target: object, underlay: Callable[[], Any]) -> None:
                         underlay()

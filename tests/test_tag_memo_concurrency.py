@@ -6,7 +6,7 @@ import unittest
 import weakref
 
 from TopKit import Form, Pin, Tag
-from TopKit.declarations import _declaration_key, _declarations_of
+from TopKit.declarations import _declaration_key, _declarations_of, _invalidate_declarations
 from TopKit.geometry import _form_key
 from TopKit.state import _Class_Namespace
 
@@ -93,31 +93,34 @@ class TagMemoConcurrencyTests(unittest.TestCase):
             self.assertIn(agent, candidate)
             self.assertEqual(agent.Work(), "ready")
 
-    def test_first_pin_validation_can_overlap_first_form_publication(self):
-        candidate, action = self.candidate()
-        pinned, form = self.interleave(action, lambda: Pin(candidate),
+    def test_first_pin_scan_can_overlap_first_form_publication(self):
+        action = PausingAction()
+        candidate = type(Pin)("Candidate", (Pin,), {"Work": action})
+        _invalidate_declarations(candidate)   # Pin creation eagerly validates its first scan
+        scanned, form = self.interleave(action, lambda: _declarations_of(candidate),
                                        lambda: Form(candidate))
-        self.assertIs(pinned, candidate)
+        self.assertIs(scanned, _declarations_of(candidate))
         self.assertEqual(form, (candidate,))
 
     def test_pin_tool_inspection_can_overlap_either_memo_publication(self):
         for kind in ("form", "declarations"):
             with self.subTest(kind=kind):
                 action = PausingToolInspectionAction()
-                candidate = type("Candidate", (Tag,), {"Work": action})
-                if kind == "form":
-                    publish = lambda: Form(candidate)
-                else:
-                    publish = lambda: _declarations_of(candidate)
-
-                pinned, _ = self.interleave(
-                    action, lambda: Pin(candidate), publish,
-                )
-                self.assertIs(pinned, candidate)
-
+                captured = []
+                class Base(Pin):
+                    def __init_subclass__(cls, **kwargs):
+                        super().__init_subclass__(**kwargs)
+                        captured.append(cls)
+                def declare():
+                    return type(Pin)("Candidate", (Base,), {"Work": action})
+                def publish():
+                    candidate = captured[0]
+                    return (Form(candidate) if kind == "form"
+                            else _declarations_of(candidate))
+                candidate, _ = self.interleave(action, declare, publish)
+                self.assertIs(candidate, captured[0])
                 class Receiver(Tag):
                     pass
-
                 candidate(Receiver)
                 self.assertIn(Receiver, candidate)
                 self.assertEqual(Receiver.Work(), "ready")

@@ -57,8 +57,7 @@ class TagContractTruthTests(unittest.TestCase):
             def Ready(agent):
                 return agent.ready
 
-        @Pin
-        class Licensed(Tag):
+        class Licensed(Pin):
             @Post
             def LicenseValid(tag):
                 return tag.licensed
@@ -99,8 +98,7 @@ class TagContractTruthTests(unittest.TestCase):
         class Agency(Tag):
             ready = True
 
-        @Pin
-        class Certified(Tag):
+        class Certified(Pin):
             @Post
             def Ready(tag):
                 return tag.ready
@@ -123,14 +121,12 @@ class TagContractTruthTests(unittest.TestCase):
         class Agency(Tag):
             ready = True
 
-        @Pin
-        class Original(Tag):
+        class Original(Pin):
             @Post
             def Ready(tag):
                 return tag.ready
 
-        @Pin
-        class Replacement(Tag):
+        class Replacement(Pin):
             @Post
             def Ready(tag):
                 return True
@@ -147,8 +143,7 @@ class TagContractTruthTests(unittest.TestCase):
         class Agency(Tag):
             ready = False
 
-        @Pin
-        class Certified(Tag):
+        class Certified(Pin):
             @Post
             def Ready(tag):
                 return tag.ready
@@ -167,8 +162,7 @@ class TagContractTruthTests(unittest.TestCase):
         class Agency(Tag):
             verdict = True
 
-        @Pin
-        class Certified(Tag):
+        class Certified(Pin):
             @Post
             def Ready(tag):
                 if isinstance(tag.verdict, Exception):
@@ -191,8 +185,7 @@ class TagContractTruthTests(unittest.TestCase):
         class Agency(Tag):
             ready = True
 
-        @Pin
-        class Reflective(Tag):
+        class Reflective(Pin):
             @Post
             def Ready(tag):
                 return bool(tag) and tag.ready
@@ -208,8 +201,7 @@ class TagContractTruthTests(unittest.TestCase):
         class Agency(Tag):
             ready = True
 
-        @Pin
-        class Admitted(Tag):
+        class Admitted(Pin):
             @Pre
             def Ready(tag):
                 return tag.ready
@@ -223,8 +215,7 @@ class TagContractTruthTests(unittest.TestCase):
         class Base(Tag):
             ready = True
 
-        @Pin
-        class Certified(Tag):
+        class Certified(Pin):
             @Post
             def Ready(tag):
                 return tag.ready

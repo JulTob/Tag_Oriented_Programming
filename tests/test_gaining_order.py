@@ -383,8 +383,7 @@ class GainingOrderTests(unittest.TestCase):
             def initial(tag):
                 return 4
 
-        @Pin
-        class Given(Tag):
+        class Given(Pin):
             @Record
             def first(tag):
                 return tag.initial

@@ -63,9 +63,7 @@ class RecordDiagnosticTests(unittest.TestCase):
                 with self.subTest(pinned=pinned, kind=factory.__name__):
                     value = factory()
                     builder = Record(_Builder(lambda agent, seed: value, True))
-                    prepared = type("Prepared", (Tag,), {"payload": builder})
-                    if pinned:
-                        prepared = Pin(prepared)
+                    prepared = type("Prepared", (Pin if pinned else Tag,), {"payload": builder})
                     target = _target(pinned)
                     try:
                         prepared(target)
@@ -96,16 +94,13 @@ class RecordDiagnosticTests(unittest.TestCase):
                     builder = Record(_Builder(fail, hostile))
                     original_namespace = dict(vars(builder))
 
-                    class Prepared(Tag):
+                    class Prepared(Pin if pinned else Tag):
                         balance = builder
 
                         @Record
                         def later(agent):
                             events.append("later")
                             return None
-
-                    if pinned:
-                        Prepared = Pin(Prepared)
 
                     with self.assertRaises(TagCompositionError) as caught:
                         Prepared(_target(pinned), seed=23)
@@ -154,11 +149,9 @@ class RecordDiagnosticTests(unittest.TestCase):
                         events.append(seed)
                         return value
 
-                    class Prepared(Tag):
+                    class Prepared(Pin if pinned else Tag):
                         balance = Record(_Builder(calculate, True))
 
-                    if pinned:
-                        Prepared = Pin(Prepared)
                     target = _target(pinned)
                     self.assertIs(Prepared(target), target)
                     self.assertIs(target.balance, value)
@@ -173,11 +166,9 @@ class RecordDiagnosticTests(unittest.TestCase):
                 def fail(agent, seed):
                     raise original
 
-                class Prepared(Tag):
+                class Prepared(Pin if pinned else Tag):
                     balance = Record(_Builder(fail, True))
 
-                if pinned:
-                    Prepared = Pin(Prepared)
                 with self.assertRaises(TagResolutionError) as caught:
                     Prepared(_target(pinned))
                 self.assertIs(caught.exception, original)
@@ -191,11 +182,9 @@ class RecordDiagnosticTests(unittest.TestCase):
                 def fail(agent, seed):
                     raise original
 
-                class Prepared(Tag):
+                class Prepared(Pin if pinned else Tag):
                     balance = Record(_Builder(fail, True))
 
-                if pinned:
-                    Prepared = Pin(Prepared)
                 with self.assertRaises(Stop) as caught:
                     Prepared(_target(pinned))
                 self.assertIs(caught.exception, original)
@@ -215,11 +204,9 @@ class RecordDiagnosticTests(unittest.TestCase):
                 def calculate(agent):
                     raise original
 
-                prepared = type("Prepared", (Tag,), {
+                prepared = type("Prepared", (Pin if pinned else Tag,), {
                         Name("balance"): Record(calculate),
                         })
-                if pinned:
-                    prepared = Pin(prepared)
                 with self.assertRaises(TagCompositionError) as caught:
                     prepared(_target(pinned))
                 self.assertIs(caught.exception.__cause__, original)
@@ -241,11 +228,9 @@ class RecordDiagnosticTests(unittest.TestCase):
                 def fail(agent, seed):
                     raise original
 
-                class Prepared(Tag):
+                class Prepared(Pin if pinned else Tag):
                     balance = Record(_Builder(fail, True))
 
-                if pinned:
-                    Prepared = Pin(Prepared)
                 with self.assertRaises(TagCompositionError) as caught:
                     Prepared(_target(pinned))
                 self.assertIs(caught.exception.__cause__, original)

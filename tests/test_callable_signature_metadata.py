@@ -89,11 +89,9 @@ class CallableSignatureMetadataTests(unittest.TestCase):
                 def Later(agent):
                     events.append("later")
 
-                closing = type("Closing", (Tag,), {
+                closing = type("Closing", (Pin if pinned else Tag,), {
                         "First": Rip(failing), "Later": Rip(Later),
                         })
-                if pinned:
-                    closing = Pin(closing)
                 target = _target(pinned)
                 closing(target)
 
@@ -112,9 +110,7 @@ class CallableSignatureMetadataTests(unittest.TestCase):
                     events = []
                     original = RuntimeError("original calculation failure")
                     failing = _Fail(original, events)
-                    role = type("Role", (Tag,), {"Training": mark(failing)})
-                    if pinned:
-                        role = Pin(role)
+                    role = type("Role", (Pin if pinned else Tag,), {"Training": mark(failing)})
                     target = _target(pinned)
                     failure = (
                             TagImprintError.Training
@@ -141,11 +137,9 @@ class CallableSignatureMetadataTests(unittest.TestCase):
                         calls.append(agent)
                         return True
 
-                    base = type("Base", (Tag,), {
+                    base = type("Base", (Pin if pinned else Tag,), {
                             "Work": mark(Check),
                             })
-                    if pinned:
-                        base = Pin(base)
                     shape = type("Shape", (base,), {
                             "Work": mark(Underlay(extending)),
                             })
@@ -172,20 +166,16 @@ class CallableSignatureMetadataTests(unittest.TestCase):
                     cases.append((_Extend(), TagResolutionError))
                 for member, failure in cases:
                     with self.subTest(pinned=pinned, mark=mark, failure=failure):
-                        role = type("Role", (Tag,), {
+                        role = type("Role", (Pin if pinned else Tag,), {
                                 "Work": mark(Underlay(member)),
                                 })
-                        if pinned:
-                            role = Pin(role)
                         with self.assertRaises(failure) as caught:
                             role(_target(pinned))
                         self.assertIn("Work", str(caught.exception))
                         self.assertEqual(member.metadata_reads, [])
 
             stored = _Stored()
-            role = type("Role", (Tag,), {"Work": Record(stored)})
-            if pinned:
-                role = Pin(role)
+            role = type("Role", (Pin if pinned else Tag,), {"Work": Record(stored)})
             with self.assertRaises(TagDeclarationError) as caught:
                 role(_target(pinned), stored=17)
             self.assertIn("Work", str(caught.exception))

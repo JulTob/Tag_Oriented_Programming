@@ -32,17 +32,16 @@
 
 ### TopKit
 
-- **A Pin is declared, not converted** (Director ruling, 2026-10-21): a class
-  that has ever been applied as an ordinary Tag never becomes a Pin, and
-  emptying its Field no longer reopens the door. This supersedes the earlier
-  allowance that an empty Field could be marked after its Agents left. Only a
-  completed ordinary application commits the class: a refused Gate or an
-  interrupted attempt commits nothing, and pinning a Tag is not ordinary use,
-  so restating `@Pin` on a Pin stays a no-op. The record is published in the
-  class's physical seat under the Pin mark lock, so a metaclass hook can
-  neither hide nor discard it, and the independent Field, Shape, in-flight and
-  Tool-kind refusals are unchanged — an occupied Field still reports its own
-  reason. Live Tool-owner lifetimes are unchanged by this ruling.
+- **Pin declarations and native Targets:** `class Rare(Pin)` declares a
+  concrete Pin. Ordinary Tags apply to object instances; named Pins apply
+  to actual TOP Tag classes, including other Pins and concrete Link Tags.
+  An ordinary Tag cannot be converted with `Pin(existing_tag)`, even if
+  unused or Ripped. The declaration root has no concrete application or
+  own Field. A presented `__class__` cannot change Target category. Each
+  selected Form is checked before preparation; supported category-changing
+  writes are refused at the write. Pinning a populated Tag preserves its own Field and
+  category; self/Base refusal compares class identity. This replaces the
+  `@Pin class Rare(Tag)` declaration API; no historical-use mark is needed.
 
 - **Entered lazy cleanup:** after Rip ends Tag-view membership, a started
   generator, coroutine or async generator may finish through `close()` or
@@ -77,14 +76,12 @@
   remain outside the guarded call boundary. These are focused Python profile
   changes; they do not deploy the rest of STEP-SPEC-32.
 
-- **Pin publication preserves ordinary Tag and Tool use:** a late Pin mark
-  cannot change a Tag with members, Shapes, live Tool-kind declarations or
-  an ordinary Tagging underway. Tool-kind ownership is tracked weakly by
-  identity, and a departed Field alone does not bar a later Pin mark.
-  Repeating a Pin mark, including on an existing Pin Shape, is a no-op.
-  Tool declarations and late bindings are checked together with Pin marks;
-  callable metadata and retired bindings are handled outside shared locks.
-  Interrupted Taggings release only their own temporary reservations.
+- **Pin publication preserves ordinary Tag and Tool use:** Tool
+  declarations and late bindings are validated against the declared Target
+  category; a Pin remains an invalid Tool kind. Callable metadata and
+  retired bindings are handled outside shared locks. The former mutable
+  Pin-mark API is replaced by the declaration Base above, so Field emptiness,
+  owner collection and completed-use history cannot reopen a conversion.
 
 - **Named failures release declaration-name objects:** the process-wide
   Precondition, Imprint and Postcondition failure registries keep plain
@@ -222,7 +219,7 @@
   program bindings. Invalidation retires an owned memo's value even when a
   metaclass descriptor blocks attribute deletion, so public Pin publication
   reaches future Agents and removing the collision cannot revive stale data.
-  Namespace scans, including the Tool checks in `Pin()`, use snapshots,
+  Namespace scans, including Tool declaration checks, use snapshots,
   so first Taggings of different Agents sharing a Tag cannot invalidate one another's
   class-dictionary iterators while publishing either memo. Base-first
   order, iterative traversal and ordinary-class Form behavior stay.
@@ -346,7 +343,7 @@
   `@Public` stack with it in either order; a later plain Record or
   Action replaces it as any Record, and `@Delete` frees it. The root
   `Tag`, `object`, a Pin, a population (`Weapon | Blessed`), a typing
-  construct, an instance, or `@Tool` inside a `@Pin` is a Declaration
+  construct, an instance, or `@Tool` inside a Pin is a Declaration
   Failure. A slot under a protocol name keeps the language's hook. The
   wiki page "Tools: what an Agent has" runs as one program under the
   suite.

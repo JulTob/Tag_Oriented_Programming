@@ -11,19 +11,100 @@
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
 
+## Later Director amendment — 2026-10-21: Pinning is not conversion
+
+The Director clarified the distinction while reviewing late-Pin policy:
+
+> I understand that's just a pin tagging a T tag? Or is it the claude trying to make mutant Tag-Pins again? I don't want the metaclass of pins to mix with the class of tags. pinning a tag is normal behaviour in any condition, empty field or not. Converting a tag to a pin should not work. Tags pin objects, pins tag tags, links, and pins. Pins are organizational and relational. Tags are categories and agencies. Different stuff
+
+The following instruction was: **"fix the Pin-Tag confusion"**. The
+Director then clarified the immediate implementation request:
+
+> I meant fix the code so there is a strong diference between tags and pins, so tags cannot tag tags, and pins cannot tag objects, only other tags(links, tools, tags or pins)
+
+### Confirmed category rule
+
+- **Applying an existing Pin is Pinning, not conversion.** In
+  `Organised(MyTag)`, `Organised` is already a Pin. `MyTag` becomes its
+  member and remains the same kind of Target. Its own Field may be empty
+  or populated; that does not make it an invalid category of Target.
+  Preconditions, Posts, contribution collisions and other ordinary
+  Pinning rules still apply.
+- **The receivers differ.** An ordinary Tag applies to object Targets.
+  A Pin applies to Tags, actual Link Tags such as `ari.Carries`, and
+  Pins. A Link declaration is a blueprint; it is not the actual Link Tag
+  named by `ari.Carries`. Pinning does not turn a Tag or Link into a Pin,
+  or turn a Pin into an ordinary Tag.
+- **An ordinary Tag never converts into a Pin.** This includes an unused
+  Tag, a Tag with current members, and a Tag whose members were Ripped.
+  The rule is about which category was declared, not how much history it
+  has accumulated. Permanent past-application or past-Tool-use marks are
+  not a substitute for defining that distinction.
+- **The conceptual distinction does not choose the Python machinery.**
+  The quoted metaclass concern does not prescribe a physical `MetaPin`
+  hierarchy, a particular MRO or an implementation of the declaration.
+
+This clarification replaces the earlier interpretation that an ordinary
+Tag could be reclassified as a Pin once its Field emptied. Applying an
+already-declared Pin to that Tag remains normal. It does not, by itself,
+clear #426's permanent historical-mark implementation or its additional
+past-use policies.
+
+### Approved declaration spelling and implementation boundary
+
+The Director subsequently approved **`class Rare(Pin)`**. `Pin` is the
+Python declaration Base for concrete Pins; it has no own Field or concrete
+application. `Rare(Wizard)` applies the already-declared Pin. Calling the
+root as `Pin(existing_ordinary_tag)` does not declare or convert anything
+and is refused. The former `@Pin class Rare(Tag)` spelling is replaced,
+not retained as a conversion route.
+
+At the comparison checkpoint, `main` at `2f67565`, TopKit still used the
+mutable `@Pin` marking function. This PR migrates that declaration API and
+its runnable examples to the approved Base. Receiver checks must use the
+Target's actual Python type, not an object-provided `__class__`
+presentation, and ordinary Tag and Pin Bases cannot mix in one application
+Form. The category rule and spelling do not prescribe a physical
+`MetaPin` hierarchy or a particular MRO. No permanent application-history
+or past-Tool-use mark supplies the distinction.
+
+The approved rule is recorded here; Deployed follows the implementation's
+merge and validation. Historical wording in other STEPs that shows
+`@Pin class P(Tag)` describes the former API and must be read with this
+migration note, rather than silently treated as a second declaration API.
+
+### Acceptance for the focused follow-up
+
+1. Applying an existing Pin to an ordinary Tag works with either an empty
+   or populated Target Field, subject to the normal Pinning rules. The
+   Target remains an ordinary Tag and can still tag object Targets.
+2. Actual Link Tags and Pins are eligible Target categories for a Pin;
+   each retains its own category, Field and ordinary behavior.
+3. Ordinary Tags cannot be converted, including unused Tags and Tags
+   whose members have left. Historical-use marks cannot make an unused
+   ordinary Tag eligible for conversion.
+4. `class Rare(Pin)`, root-call refusal and the existing Pinning examples
+   are tested together. Current atomicity, Tool-kind and in-flight
+   safeguards must be preserved where their underlying acts remain available.
+5. The `Pin` root has no Field or concrete application. An ordinary object
+   held in a Tool remains an object Target; `@Tool` is not a new Tag category.
+
+The original **Cleared** header records the 2026-09-16 decision. This
+later section records the Director's category clarification and approved
+Python declaration spelling. It does not mark the revised behavior
+Deployed before its implementation merges or clear unrelated changes.
+
 ## Summary
 
-A Tag may be the Target of another Tag. STEP-SPEC-1 named this act
-**pinning** and gave it its one law: the receiver decides the scope, so a
-Pin's Agent-scope members land in the pinned Tag's **Tag scope**. This STEP
-makes that law observable. A Tag declared `@Pin` applies to Tags and to
-nothing else; its Field is a population of Tags; membership, contracts,
-views and Rip work exactly as they do for objects, with the Tag as the
-Agent. Ordinary Tags keep refusing classes, loudly.
+A Pin applies to Tags. STEP-SPEC-1 named this act **pinning** and gave
+it its one law: the receiver decides the scope, so a Pin's Agent-scope
+members land in the pinned Tag's **Tag scope**. Declare a Pin with
+`class Rare(Pin)`. Its Field is a population of Tags and Pins; membership,
+contracts, views and Rip use the same rules, with the Target as the Pin's
+Agent. Ordinary Tags categorize object Targets and keep refusing classes.
 
 ```python
-@Pin
-class Rare(Tag):
+class Rare(Pin):
 
     @Record
     def rarity(tag):                     # lands as Wizard.rarity, a Report
@@ -69,12 +150,13 @@ and tested.
 
 | Term | Meaning |
 | --- | --- |
-| **Pin** | A Tag declared `@Pin`. Its Targets are Tags. |
+| **Pin** | Declared with `class Rare(Pin)`. Its Targets are TOP Tags, actual Link Tags and Pins. |
 | **Pinning** | Applying a Pin to a Tag: `Rare(Wizard)`. |
 | **Pinned Tag** | A Tag that belongs to at least one Pin. It is the Agent of that Pin. |
 
-`Pin` is a mark on the Tag class, like `@Flag`. It is not a Base and does
-not appear in the Form.
+`Pin` is a declaration Base, not a concrete Pin with its own Field or
+application. It is not a Layer in a concrete Pin's application Form.
+`@Flag` may still mark a concrete Pin declaration.
 
 ### 2. Who may be a Target
 
@@ -82,9 +164,13 @@ not appear in the Form.
    Composition Failure: "Rare is a Pin: apply it to a Tag".
 2. An ordinary Tag applies to objects only. `Wizard(Elf)` stays refused,
    as today.
-3. A Pin is a Tag, so a Pin may be pinned: `Meta(Rare)`. A Pin may not be
-   its own Target; `Rare(Rare)` is refused.
-4. A Pin's Field holds Tags only. Fields never mix Agents and Tags.
+3. A Pin may itself be pinned: `Meta(Rare)`. A Pin may not be its own
+   Target; `Rare(Rare)` is refused. Pinning preserves the Target's category.
+4. A Pin's Field holds TOP Tag classes, including actual Link Tags and
+   other Pins. It never admits an ordinary object or plain Python class.
+   An eligible Target's own Field may be empty or populated.
+5. An ordinary Tag cannot convert into a Pin, even before its first use
+   or after its last Rip. `Pin(existing_tag)` is refused.
 
 ### 3. The receiver rule (from STEP-SPEC-1)
 
@@ -244,10 +330,11 @@ rollback cover the Tag's namespace the way they cover an Agent's.
 
 ## Rationale
 
-**`@Pin`, not "any Tag on any class".** Fields are the query surface of
-the paradigm; `for w in Wizard` must never yield a class. An opt-in mark
-keeps every Field homogeneous, keeps the refusal on ordinary Tags loud,
-and follows the precedent of `@Flag`: name the concept, contain the risk.
+**A declared Pin, not "any Tag on any class".** Fields are the query
+surface of the paradigm; `for w in Wizard` must never yield a class.
+`class Rare(Pin)` declares the different receiver domain explicitly and
+keeps ordinary Tags separate. Applying `Rare(Wizard)` is normal Pinning,
+not a change to Wizard's category.
 
 **The receiver rule, not a third scope.** Two scopes were enough because
 the receiver decides. A Pin does not introduce "meta scope"; it is a Tag
@@ -267,12 +354,19 @@ Report uses to publish (§5).
 
 ## Backwards compatibility
 
-No existing program changes. Ordinary Tags keep refusing classes with the
-same error. `@Pin` is new. `Contract` and format specs gain a Tag receiver.
-STEP-SPEC-1's Pin sentence returns to the Specification under §1.1 with a
-pointer to this STEP.
+The 2026-10-21 declaration migration replaces `@Pin class Rare(Tag)`
+with `class Rare(Pin)`. Existing applications of named Pins keep the same
+receiver rule and scope. The former `Pin(existing_tag)` marking operation
+is refused, including on unused and Ripped ordinary Tags; it is not a
+compatibility alias. Applying an existing Pin to an empty or populated
+Tag remains normal. The original 2026-09-16 decision below records the
+first API; this later amendment records its replacement.
 
 ## Alternatives considered
+
+This table preserves the alternatives considered for the original
+2026-09-16 declaration API. The 2026-10-21 amendment above replaces the
+mark-based spelling with the explicitly approved `Pin` declaration Base.
 
 | Alternative | Verdict |
 | --- | --- |
@@ -306,6 +400,10 @@ To be covered by `tests/test_topkit.py::PinTests`:
 6. Every Guide and Specification block for Pins runs.
 
 ## TopKit notes
+
+**Historical implementation, 0.2.0a3.** This describes the original
+mark-based API, before the 2026-10-21 declaration migration. It does not
+prescribe the internal metaclass arrangement of the new `Pin` Base.
 
 Built on the 0.2 kernel without a new mechanism (0.2.0a3): the runtime
 type of a pinned Tag is a `(MetaTag, Tagged)` metaclass assigned through
@@ -341,53 +439,3 @@ membership check got faster (`_state_of` reads the dictionary directly).
 >
 > Deployed follows the merge of the pull request that carries §1.9 of the
 > Specification.
-
----
-
-## Amendment — 2026-10-21: a Pin is declared, not converted
-
-**Status of this amendment:** proposed with the pull request that carries it.
-The STEP's `Cleared` header above does not clear this new restriction; it
-takes effect only when the Director clears this amendment.
-
-**Ruling.** A Tag and a Pin are different kinds of metatag, fixed when the
-class is built. A Tag's Field holds Agents (objects); a Pin's Field holds Tags
-and Pins. A Pin points to sets, never to an object, so a Tag does not *become*
-a Pin: that is a category error, not a transition.
-
-**What changes.** §8 above kept the class's identity but left open whether a
-formerly used Tag with an emptied Field could still be marked. It could, under
-the earlier reading recorded in `_refuse_late_pin` ("an empty Field may be
-marked even if it held Agents before"). That allowance is **withdrawn**: a
-class that has ever been applied as an ordinary Tag never becomes a Pin,
-whatever its Field now holds.
-
-**What does not change.**
-
-1. Only a **completed** ordinary application commits the class. An attempt the
-   Gate refused, or one an interruption ended, trains nothing and commits
-   nothing; the Form reservation that protects an in-flight Tagging is
-   released as before.
-2. Pinning a Tag is not ordinary use, so a Pin that has pinned Tags still
-   restates its own mark as a no-op, Shapes of Pins included.
-3. The independent refusals stand on their own and keep their own reasons: an
-   occupied ordinary Field, a declared Shape, an in-flight ordinary Tagging,
-   and a Tool kind naming the Tag. An occupied Field still reports the Field.
-4. **Tool-owner lifetime is untouched by this amendment.** A live Tool owner
-   blocks the mark and a collected owner stops blocking, exactly as before.
-   Making Tool naming a permanent commitment is a separate decision and is
-   *not* taken here.
-
-**Deliberate limits, for the Director to confirm or change.**
-
-- A **collected Shape** does not commit its Base. The Shape refusal reads the
-  live Shapes of the class, so a Shape that no longer exists leaves no record.
-  Only application commits permanently.
-- A **rejected Tool declaration** follows the unchanged Tool-owner rule above,
-  not this amendment.
-
-**Implementation.** The record is published in the class's own physical seat
-while the caller holds the Pin mark lock, and read back through the same
-physical seat, so a metaclass hook can neither hide nor discard it. It is
-defence in depth rather than a replacement: the physical Field check remains
-the independent guard against an occupied ordinary Field.

@@ -122,9 +122,9 @@ def _parts_of(
 def _is_root_tag(
         part: Any,
         ) -> bool:
-    from .tags import Tag   # tags imports this module's neighbours
+    from .tags import Pin, Tag   # tags imports this module's neighbours
 
-    return part is Tag
+    return part is Tag or part is Pin
 
 
 def _is_typing_construct(
@@ -158,7 +158,7 @@ def _refuse_as_kind(
 
     if _is_root_tag(part):
         raise TagDeclarationError(
-                "@Tool(Tag): the root Tag names no kind; name the Tag the"
+                f"@Tool({part.__name__}): a declaration root names no kind; name the Tag the"
                 " held thing is, @Tool(Weapon)"
                 )
 

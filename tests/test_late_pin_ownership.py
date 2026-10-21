@@ -1,36 +1,31 @@
-"""Live Tool kinds and Field use constrain late Pin conversion."""
+"""Fixed categories keep Tool kinds and Field membership independent."""
 
 import gc
 import unittest
 import weakref
 
-from TopKit import (Delete, Pin, Pre, Tag, TagDeclarationError,
-                    TagPreconditionError, Tool)
+from TopKit import Delete, Pin, Tag, TagDeclarationError, Tool
 from TopKit.tags import MetaTag
 from tests.test_tools import Character, Equip, Sword, Weapon
 
 
 class LatePinOwnershipTests(unittest.TestCase):
 
-    def test_restating_a_pin_shape_with_members_and_shapes_changes_nothing(self):
-        @Pin
-        class Base(Tag):
+    def test_root_pin_refuses_existing_shapes_without_changing_their_fields(self):
+        class Base(Pin):
             pass
-
         class Shape(Base):
             pass
-
         class Further(Shape):
             pass
-
         class Target(Tag):
             pass
-
         Shape(Target)
-        self.assertIs(Pin(Shape), Shape)
-        self.assertIs(Pin(Further), Further)
+        for pin in (Shape, Further):
+            with self.subTest(pin=pin), self.assertRaises(TagDeclarationError):
+                Pin(pin)
         self.assertIn(Target, Shape[:])
-        self.assertNotIn("__topkit_pin__", Shape.__dict__)
+        self.assertIs(Shape(Target), Target)
 
     def test_a_tag_with_a_shape_is_not_marked_a_pin_later(self):
         class Order(Tag):
@@ -43,7 +38,7 @@ class LatePinOwnershipTests(unittest.TestCase):
 
         with self.assertRaises(TagDeclarationError) as refusal:
             Pin(Order)                                    # the Shape's Tool would land on Tags
-        self.assertIn("already has the Shape Knight_Order", str(refusal.exception))
+        self.assertIn("declare class", str(refusal.exception))
         charlie = Character("Charlie")
         Equip(Knight_Order, charlie)                      # nothing changed: still an ordinary Tag
         self.assertIn(charlie.weapon, Weapon[:])
@@ -56,51 +51,23 @@ class LatePinOwnershipTests(unittest.TestCase):
         Noted(charlie)
         with self.assertRaises(TagDeclarationError) as refusal:
             Pin(Noted)                                    # its Field would mix objects and Tags
-        self.assertIn("already has Agents", str(refusal.exception))
+        self.assertIn("declare class", str(refusal.exception))
         self.assertIn(charlie, Noted)
 
-    def test_a_tag_whose_agents_left_is_still_not_marked_a_pin(self):
-        #-- A Pin is declared, not converted (Director ruling, 2026-10-21):
-        #-- emptying the Field does not reopen the door.
+    def test_a_tag_with_an_empty_field_stays_ordinary_after_its_agents_leave(self):
         class Noted(Tag):
             pass
-
+        class RecordOf(Tag):
+            pass
         charlie = Character("Charlie")
         Noted(charlie)
         del Noted[charlie]
-        self.assertNotIn(charlie, Noted[:])
-
-        with self.assertRaises(TagDeclarationError) as refusal:
+        with self.assertRaises(TagDeclarationError):
             Pin(Noted)
-        self.assertIn("already been applied", str(refusal.exception))
-        self.assertNotIn("__topkit_pin__", Noted.__dict__)
-
-    def test_a_refused_ordinary_attempt_does_not_commit_the_tag(self):
-        #-- Only a completed ordinary application commits the class. A Gate
-        #-- refusal trains nothing, so the class may still be declared a Pin.
-        class Guarded(Tag):
-            @Pre
-            def Never(agent):
-                return False
-
-        with self.assertRaises(TagPreconditionError):
-            Guarded(Character("Hopeful"))
-
-        self.assertIs(Pin(Guarded), Guarded)
-
-    def test_applying_a_pin_does_not_commit_it_as_an_ordinary_tag(self):
-        #-- Pinning a Tag is not ordinary use, so restating the mark on a
-        #-- Pin that has pinned Tags stays a no-op.
-        @Pin
-        class Rare(Tag):
-            pass
-
-        class Wizard(Tag):
-            pass
-
-        Rare(Wizard)
-        self.assertIs(Pin(Rare), Rare)
-        self.assertIn(Wizard, Rare[:])
+        with self.assertRaises(TypeError):
+            Noted(RecordOf)
+        self.assertNotIn(charlie, Noted[:])
+        self.assertIs(Noted(charlie), charlie)
 
     def test_a_tag_named_as_a_tool_kind_is_not_marked_a_pin_later(self):
         class Prize(Tag):
@@ -113,7 +80,7 @@ class LatePinOwnershipTests(unittest.TestCase):
 
         with self.assertRaises(TagDeclarationError) as refusal:
             Pin(Prize)                                    # the slot would admit Tags
-        self.assertIn("a @Tool already names Prize", str(refusal.exception))
+        self.assertIn("declare class", str(refusal.exception))
         collector = Character("Collector")
         Collector(collector)
         trophy = Sword("a trophy")
@@ -121,30 +88,25 @@ class LatePinOwnershipTests(unittest.TestCase):
         collector.prize = trophy
         self.assertIs(collector.prize, trophy)
 
-    def test_equal_but_distinct_tag_classes_have_separate_kind_history(self):
+    def test_equal_but_distinct_tag_classes_both_keep_their_ordinary_category(self):
         class Equal_Meta(MetaTag):
             def __eq__(cls, other):
                 return isinstance(other, Equal_Meta)
-
             def __hash__(cls):
                 return 17
-
         class Prize(Tag, metaclass=Equal_Meta):
             pass
-
         class Other(Tag, metaclass=Equal_Meta):
             pass
-
         class Collector(Tag):
             @Tool(Prize)
             def prize(agent):
                 return None
-
         self.assertIsNot(Prize, Other)
         self.assertEqual(Prize, Other)
-        self.assertIs(Pin(Other), Other)                   # only Prize was named
-        with self.assertRaises(TagDeclarationError):
-            Pin(Prize)
+        for kind in (Prize, Other):
+            with self.subTest(kind=kind), self.assertRaises(TagDeclarationError):
+                Pin(kind)
 
     def test_named_tool_kinds_are_tracked_weakly(self):
         def declare():
@@ -163,22 +125,22 @@ class LatePinOwnershipTests(unittest.TestCase):
         self.assertIsNone(collector())
         self.assertIsNone(prize())
 
-    def test_a_dead_tool_owner_does_not_forever_bar_a_live_kind(self):
+    def test_a_dead_tool_owner_does_not_change_a_live_kinds_category(self):
         class Prize(Tag):
             pass
-
         def declare():
             class Collector(Tag):
                 @Tool(Prize)
                 def prize(agent):
                     return None
-
             return weakref.ref(Collector)
-
         collector = declare()
         gc.collect()
         self.assertIsNone(collector())
-        self.assertIs(Pin(Prize), Prize)
+        with self.assertRaises(TagDeclarationError):
+            Pin(Prize)
+        trophy = Sword("a trophy")
+        self.assertIs(Prize(trophy), trophy)
 
     def test_a_tool_marked_before_the_pin_is_checked_at_class_creation(self):
         class Prize(Tag):
@@ -192,7 +154,7 @@ class LatePinOwnershipTests(unittest.TestCase):
 
                 Pin(Prize)                             # after the decorator, before Collector exists
 
-        self.assertIn("now a Pin", str(refusal.exception))
+        self.assertIn("declare class", str(refusal.exception))
 
     def test_a_late_tool_binding_also_prevents_a_late_pin(self):
         class Prize(Tag):
@@ -210,8 +172,7 @@ class LatePinOwnershipTests(unittest.TestCase):
             Pin(Prize)
 
     def test_a_late_tool_binding_on_a_pin_is_refused(self):
-        @Pin
-        class Rare(Tag):
+        class Rare(Pin):
             pass
 
         class Prize(Tag):
@@ -250,7 +211,7 @@ class LatePinOwnershipTests(unittest.TestCase):
         Mixed(charlie)                                    # still an ordinary Tag
         self.assertIn(charlie, Mixed)
 
-    def test_a_pin_scanned_before_its_mark_is_validated_at_the_mark(self):
+    def test_scanning_and_collecting_members_does_not_enable_conversion(self):
         class Plain(Tag):
             @Delete
             def name(agent):
@@ -259,18 +220,17 @@ class LatePinOwnershipTests(unittest.TestCase):
         Plain(Character("Charlie"))                       # scanned as an ordinary Tag; the Agent dies at once
         gc.collect()
         with self.assertRaises(TagDeclarationError) as refusal:
-            Pin(Plain)                                    # the earlier scan is not taken as a Pin's
-        self.assertIn("@Delete of name", str(refusal.exception))
+            Pin(Plain)                                    # no declaration scan can change its category
+        self.assertIn("declare class", str(refusal.exception))
 
-    def test_restating_the_mark_changes_nothing(self):
-        @Pin
-        class Rare(Tag):
+    def test_reapplying_a_declared_pin_changes_no_existing_membership(self):
+        class Rare(Pin):
             pass
-
         class Wizard(Tag):
             pass
-
         Rare(Wizard)
-        self.assertIs(Pin(Rare), Rare)
+        self.assertIs(Rare(Wizard), Wizard)
+        with self.assertRaises(TagDeclarationError):
+            Pin(Rare)
         self.assertIn(Wizard, Rare)
 
