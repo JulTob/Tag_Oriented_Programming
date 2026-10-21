@@ -15,7 +15,9 @@ import unittest
 import warnings
 import weakref
 from dataclasses import dataclass
+from threading import Event, Thread
 from typing import Any, Protocol, runtime_checkable
+from unittest.mock import patch
 
 from TopKit import (Action, Constant, Contract, Delete, Imprint, Keyword,
                     Operation, Pin, Post, Pre, Public, Record, Report, Rip,
@@ -1553,6 +1555,62 @@ class Late_Pin_Tests(unittest.TestCase):
         Collector.prize = prize
         self.assertNotIn("prize", Collector.__dict__)
         self.assertIs(Pin(Prize), Prize)
+
+    def test_a_concurrent_pin_cannot_pass_while_a_tool_owner_is_registering(self):
+        import TopKit.declarations as declarations
+
+        class Prize(Tag):
+            pass
+
+        registering = Event()
+        continue_registration = Event()
+        marking = Event()
+        declared = []
+        outcome = []
+        note = declarations._note_kinds
+
+        def pause(owner, kind):
+            registering.set()
+            if not continue_registration.wait(2):
+                raise TimeoutError("Tool declaration did not resume")
+            note(owner, kind)
+
+        def declare():
+            class Collector(Tag):
+                @Tool(Prize)
+                def prize(agent):
+                    return None
+
+            declared.append(Collector)
+
+        def mark():
+            marking.set()
+            try:
+                Pin(Prize)
+            except TagDeclarationError:
+                outcome.append("refused")
+            else:
+                outcome.append("accepted")
+
+        with patch.object(declarations, "_note_kinds", pause):
+            owner_thread = Thread(target=declare)
+            mark_thread = Thread(target=mark)
+            owner_thread.start()
+            try:
+                self.assertTrue(registering.wait(2))
+                mark_thread.start()
+                self.assertTrue(marking.wait(2))
+                mark_thread.join(0.02)
+                self.assertEqual(outcome, [])          # mark waits for registration
+            finally:
+                continue_registration.set()
+                owner_thread.join(2)
+                if mark_thread.ident is not None:
+                    mark_thread.join(2)
+
+        self.assertEqual(outcome, ["refused"])
+        self.assertTrue(declared)
+        self.assertNotIn("__topkit_pin__", Prize.__dict__)
 
     def test_a_refused_pin_leaves_no_mark(self):
         class Odd(Tag):
