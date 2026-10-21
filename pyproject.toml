@@ -1,6 +1,6 @@
 [build-system]
 requires = [
-        "setuptools>=68",
+        "setuptools>=77.0.3",
         "wheel",
         ]
 build-backend = "setuptools.build_meta"
@@ -36,6 +36,7 @@ Specification = "https://github.com/JulTob/Tag_Oriented_Programming/blob/main/sp
 Issues = "https://github.com/JulTob/Tag_Oriented_Programming/issues"
 
 [tool.setuptools]
+include-package-data = false
 packages = [
         "TopKit",
         ]

@@ -193,7 +193,7 @@ class Tag_Kind_Tests(unittest.TestCase):
         charlie = Character("Charlie")
         with self.assertRaises(TagCompositionError) as refusal:
             Careless(charlie)
-        self.assertIn("Tag it in the builder", str(refusal.exception))
+        self.assertIn("Tag it before the builder runs", str(refusal.exception))
         self.assertNotIn(charlie, Careless)
         self.assertFalse(hasattr(charlie, "weapon"))
         self.assertIsInstance(charlie, Character)       # actualized, without the failed Gain

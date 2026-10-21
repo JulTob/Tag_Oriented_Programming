@@ -38,6 +38,17 @@ class ExampleTests(unittest.TestCase):
     def test_biome(self) -> None:
         self.run_example("biome.py")
 
+    def test_equipment(self) -> None:
+        output = self.run_example("equipment.py")
+
+        self.assertIn("Ari strikes with longsword for 6", output)
+        self.assertIn("worn weapon: attack refused", output)
+        self.assertIn("repaired: Ari strikes with longsword for 6", output)
+        self.assertIn("wrong kind: assignment refused", output)
+        self.assertIn("swapped: Ari strikes with shortsword for 4", output)
+        self.assertIn("empty hand: attack refused", output)
+        self.assertIn("equipped again: shortsword", output)
+
     def test_fleet_patching(self) -> None:
         output = self.run_example("fleet_patching.py")
 
