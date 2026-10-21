@@ -204,7 +204,7 @@ class PostPopulationRecursionTests(unittest.TestCase):
         with self.assertRaises(TagPostconditionError.PreStillHolds):
             Checking(refused)
 
-    def test_bool_inside_its_own_post_keeps_the_existing_shortcut(self):
+    def test_bool_inside_its_own_post_cannot_certify_itself(self):
         class Checking(Tag):
             @Post
             def Standing(agent):
@@ -212,12 +212,14 @@ class PostPopulationRecursionTests(unittest.TestCase):
 
         agent = Host()
         agent.ready = True
-        Checking(agent)
-        self.assertTrue(agent)
+        with self.assertRaisesRegex(TagContractError, "Standing.*Tag\\[:\\]"):
+            Checking(agent)
+        self.assertIn(agent, Checking[:])
 
         agent.ready = False
-        self.assertFalse(agent)
-        with self.assertRaises(TagPostconditionError.Standing):
+        with self.assertRaisesRegex(TagContractError, "Tag\\[:\\]"):
+            bool(agent)
+        with self.assertRaisesRegex(TagContractError, "Tag\\[:\\]"):
             Contract.Postconditions(agent)
 
     def test_copied_post_context_does_not_keep_the_agent_alive(self):

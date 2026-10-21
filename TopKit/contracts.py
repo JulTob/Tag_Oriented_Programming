@@ -39,7 +39,7 @@ Check = Callable[[object, dict[str, Any]], Any]
 
 
 class _Recursive_Soundness(TagContractError):
-    """A Post asked the sound population to judge its own Agent."""
+    """A Post asked for its own Agent's unfinished soundness."""
 
 
 class _Post_Check:
@@ -82,6 +82,15 @@ def _is_checking_post(agent: object) -> bool:
     return False
 
 
+def _refuse_recursive_soundness(agent: object) -> None:
+    if _is_checking_post(agent):
+        raise _Recursive_Soundness(
+                "a Post cannot ask whether its own Agent is sound while"
+                " that Post is running; use Tag[:] to ask about Field"
+                " membership"
+                )
+
+
 def _holds_for_population(agent: object) -> bool:
     """Soundness may not depend on a Post that is still judging this Agent."""
 
@@ -90,11 +99,7 @@ def _holds_for_population(agent: object) -> bool:
     if state is None or not state.postconditions:
         return True
 
-    if _is_checking_post(agent):
-        raise _Recursive_Soundness(
-                "a Post cannot ask whether its own Agent is sound in a"
-                " Tag population; use Tag[:] to ask about Field membership"
-                )
+    _refuse_recursive_soundness(agent)
 
     return _holds(agent, state)
 
@@ -372,15 +377,19 @@ def _guarded(
         ) -> bool:
     """Run one scope of the Agent's visible conditions on demand.
 
-    Re-entering this named diagnostic remains a shortcut. The Post marker
-    used by sound population queries is separate from that shortcut.
+    A Post cannot use this named diagnostic to certify its own unfinished
+    verdict. Precondition recursion retains its existing shortcut.
     """
 
     state = _state_of(agent)
 
-    if state is None or state.checking or (
-            scope == "postconditions" and _is_checking_post(agent)
-            ):
+    if state is None:
+        return True
+
+    if scope == "postconditions" and state.postconditions:
+        _refuse_recursive_soundness(agent)
+
+    if state.checking:
         return True
 
     reentrant = state.checking
@@ -428,8 +437,10 @@ def _holds(
     if state is None:
         state = _state_of(agent)
 
-    if state is None or not state.postconditions or _is_checking_post(agent):
-        return True   # nothing promised, or asked from inside its own Post
+    if state is None or not state.postconditions:
+        return True
+
+    _refuse_recursive_soundness(agent)
 
     state.composing += 1
 
