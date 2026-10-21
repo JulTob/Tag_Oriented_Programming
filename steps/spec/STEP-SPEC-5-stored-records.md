@@ -8,6 +8,11 @@
 - **Created:** 2026-09-04
 - **Deployed:** 2026-09-05
 
+> **Later Action ruling:** STEP-SPEC-44 supersedes only specification item 5
+> below. A first Action `@Underlay` now receives a callable null Action.
+> This STEP's Record stored-value rules remain unchanged. The original item
+> is preserved here as the decision made when this STEP was deployed.
+
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
 

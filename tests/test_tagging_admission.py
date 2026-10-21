@@ -397,7 +397,7 @@ class TaggingAdmissionTests(unittest.TestCase):
         self.assertTrue("outer_value" @ agent)
         self.assertIs(agent.outer_value, False)
 
-    def test_acquired_safety_post_protects_the_rogue_and_existing_agency(self):
+    def test_unadmitted_safety_post_ends_but_sticky_actions_fail_closed(self):
         class Existing(Tag):
             @Public
             @Operation
@@ -461,14 +461,13 @@ class TaggingAdmissionTests(unittest.TestCase):
         self.assert_not_admitted(Safe, agent)
         self.assertTrue("before_safety" @ agent)
         self.assertTrue("after_safety" @ agent)
-        self.assertIs(agent.SafetyChecks, False)
-        self.assertFalse(bool(agent))
+        self.assertFalse(hasattr(agent, "SafetyChecks"))
+        self.assertTrue(bool(agent))
         self.assertIn(agent, Existing[:])
-        self.assertNotIn(agent, list(Existing))
-        self.assertIn(agent, ~Existing)
-        with self.assertRaises(TagPostconditionError.SafetyChecks):
-            agent.Use()
-        with self.assertRaises(AssertionError):
+        self.assertIn(agent, list(Existing))
+        self.assertNotIn(agent, ~Existing)
+        self.assertEqual(agent.Use(), "existing service")
+        with self.assertRaises(AttributeError):
             agent.TurnOnBattery()
         # Ordinary Actions can still read the Rogue's state. Performative
         # Actions establish their own guards, as TurnOnBattery does above.
@@ -476,8 +475,7 @@ class TaggingAdmissionTests(unittest.TestCase):
         self.assertIs(agent.battery_on, False)
 
         agent.can_train = True
-        with self.assertWarns(TagContractWarning):
-            Safe(agent)
+        Safe(agent)
         self.assertTrue(agent.insulated)
         self.assertIs(agent.SafetyChecks, True)
         self.assertTrue(bool(agent))

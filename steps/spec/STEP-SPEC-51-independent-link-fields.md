@@ -3,11 +3,12 @@
 - **STEP:** SPEC-51
 - **Desk:** spec
 - **Title:** Independent Link Fields and Pairs
-- **Author:** Codex, recording the Director's 2026-10-20 ruling
+- **Author:** Codex, recording the Director's 2026-10-20 and 2026-10-21 rulings
 - **Status:** Brief
 - **Created:** 2026-10-20
 - **Issue:** [#347](https://github.com/JulTob/Tag_Oriented_Programming/issues/347)
 - **Related draft:** [STEP-SPEC-22 / PR #171](https://github.com/JulTob/Tag_Oriented_Programming/pull/171)
+- **Ordered Form:** [STEP-SPEC-52](STEP-SPEC-52-ordered-link-underlays.md)
 
 > One STEP, one topic. This Brief says which actual Link owns a Field and a
 > Pair. The ordered application of other Tags from a Link declaration belongs
@@ -38,8 +39,9 @@ held by a Base Link. Those effects contradict the independence of Tags.
 
 ## Specification
 
-1. **The Relation is a declaration.** `@Link class Knows(Tag)` inside a
-   declaring Tag is a Relation blueprint. `Knows` alone is not an actual
+1. **The Relation is a declaration.** `@Link(agent, contact)` on
+   `class Knows(Tag)` inside a declaring Tag is a Relation blueprint.
+   `Knows` alone is not an actual
    Contact Tag and has no Contact Field. For a tagged Agent `ari`,
    `ari.Knows` is an actual Link Tag with its own Field.
 2. **One Field per actual Link.** Applying a declaring Tag grants its own
@@ -49,7 +51,7 @@ held by a Base Link. Those effects contradict the independence of Tags.
    Link does not add a Contact.
 3. **One Pair per Link and Contact.** If the same Contact is admitted into
    two actual Links of one Agent, each Link holds a different Pair. Their
-   Actions, Records, conditions, and saved Rip work remain independent.
+   Actions, Records, Posts, and saved Rip work remain independent.
    Tagging a Contact in one Link does not automatically admit her to the
    other Link. An explicit Link call, or an ordered underlay declared by a
    later Link under the separate proposal, is required for that admission.
@@ -69,23 +71,33 @@ held by a Base Link. Those effects contradict the independence of Tags.
    reTag, it reaches the newly current Pair. It never follows the Agent's
    name Overlay to a different same-name Link.
 
-For example, this proposed behavior distinguishes two same-name Links:
+For example, this proposed behavior distinguishes two same-name Links. This
+is the intended language, not a runnable example on current main:
 
 ```python
+from TopKit import Link, Record, Tag, agent, contact
+
+
 class Social(Tag):
-    @Link
+    @Link(agent, contact)
     class Knows(Tag):
         @Record
         def since(agent, contact, *, since=None):
             return since
 
 class Spy(Social):
-    @Link
+    @Link(agent, contact)
     class Knows(Tag):
         @Record
         def cover(agent, contact, *, cover=None):
             return cover
 
+class Host:
+    pass
+
+
+ari, ruth = Host(), Host()
+Social(ruth)
 Spy(ari)
 base_link = Social[ari].Knows
 spy_link = ari.Knows
@@ -101,17 +113,19 @@ assert base_link[ruth].since == 2024
 assert spy_link[ruth].cover == "colleague"
 ```
 
-Neither Relation in this example names the other as an underlay. A separate
-proposal defines how a Relation may name an earlier Relation as an ordered
-Contact underlay without sharing either actual Link's Field or Pair.
+Neither Relation in this example names the other as an underlay.
+STEP-SPEC-52 separately defines the ordered class-header Form: each selected
+Tag applies to the same Contact without sharing either actual Link's Field
+or Pair.
 
 ## Rationale
 
 The selected Link is visible in TOP syntax. Its Field and Pair should be
 just as explicit as an ordinary Tag's Field and Agent Gains. Independent
 membership also lets a programmer deliberately connect Links, including
-reciprocal Links, through an Imprint. A Relation's Python Base can describe
-an ordered underlay without making two actual Fields into one Field.
+reciprocal Links, through an Imprint. A Relation's class header can describe
+an ordered TOP underlay without making two actual Fields into one Field or
+granting Python base lookup.
 
 ## Backwards compatibility
 

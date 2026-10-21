@@ -14,6 +14,12 @@ Unfinished training leaves actual Gains without membership; completed
 training admits the Agent, and Posts determine its current soundness.
 This supersedes the training and admission boundaries of STEP-SPEC-4.
 
+> **Condition-lifetime amendment, 2026-10-20:**
+> [STEP-SPEC-61](STEP-SPEC-61-condition-lifetimes.md) replaces this STEP's
+> condition-retention statements. Actions and Records actually acquired by an
+> unfinished attempt keep the Rogue behavior below, but every provisional
+> Post from that attempt is discarded. Pres are transient Gate Services.
+
 ## Motivation
 
 A car is a car after assembly. A broken assembled car belongs to that
