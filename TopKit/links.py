@@ -19,6 +19,7 @@ from weakref import ref
 
 from .arrest import _arrest_of
 from .arrest import _hold_lazy_result
+from .arrest import _may_act
 from .arrest import _require_available
 from .arrest import _rip_door
 from .access import _refuse_host_truth
@@ -50,6 +51,7 @@ from .fields import FIELD_SEAT
 from .fields import _Field
 from .fields import _field_of
 from .lazy_guard import _guard_lazy_result
+from .lazy_guard import _lazy_finished
 from .lazy_guard import _lazy_kind_of
 from .lazy_guard import _register_lazy_proxy_types
 from .lifecycle import _rip
@@ -90,7 +92,7 @@ _MACHINERY = frozenset((
         ))
 _MARKS = (_KIND, _UNDERLAY, _RIP, _SECRET, _PUBLIC, _CONSTANT, _TOOL,
           _ACTION_CHAIN)
-_current_pairs: ContextVar[tuple[_Ends, ...]] = ContextVar(
+_current_pairs: ContextVar[tuple[_Pair_Door, ...]] = ContextVar(
         "topkit_current_link_pairs", default=(),
         )
 
@@ -145,14 +147,14 @@ class _Ends:
         ends.admitted = False
         ends.dying_contact: object | None = None
 
-    def Resolve(ends) -> tuple[object, object]:
+    def Resolve(ends, *, cleanup: bool = False) -> tuple[object, object]:
         if ends.held is not None:
             return ends.held
         owner = ends.owner()
         if owner is None:
             owner = ends.data.dying
         contact = ends.contact()
-        if owner is None or contact is None or ends.ended:
+        if owner is None or contact is None or (ends.ended and not cleanup):
             raise TagResolutionError("this Link Pair has ended")
         return owner, contact
 
@@ -466,11 +468,11 @@ class _Tag_Ends:
     def __init__(ends, data: _Link_Data) -> None:
         ends.data = data
 
-    def Resolve(ends) -> tuple[object, None]:
+    def Resolve(ends, *, cleanup: bool = False) -> tuple[object, None]:
         owner = ends.data.owner()
         if owner is None:
             owner = ends.data.dying
-        if owner is None or ends.data.ended:
+        if owner is None or (ends.data.ended and not cleanup):
             raise TagResolutionError("this Link's Agent no longer exists")
         return owner, None
 
@@ -512,24 +514,24 @@ def _tag_function(function: Any, data: _Link_Data, name: str) -> Any:
 
 
 @contextmanager
-def _during(ends: _Ends, *, ripping: bool = False):
+def _during(ends: _Ends, *, ripping: bool = False, cleanup: bool = False):
     """A Link's code has its owner's door, not its Contact's authority."""
     from .link_forms import _seat_context
 
-    owner, contact = ends.Resolve()
-    pair = ends.pair() if isinstance(ends, _Ends) else None
+    owner, contact = ends.Resolve(cleanup=cleanup)
+    pair = _execution_pair(ends)
     subjects = tuple(subject for subject in (owner, contact, pair) if subject is not None)
     with ExitStack() as custody:
         if isinstance(ends, _Operation_Ends):
-            custody.enter_context(ends.Credential())
+            custody.enter_context(ends.Credential(cleanup=cleanup))
         if ripping:
             for subject in subjects:
                 custody.enter_context(_rip_door(subject))
         else:
             for subject in subjects:
                 _require_available(subject, "Link protocol")
-            ends.Resolve()   # a retry may have ended this very Pair
-        with _during_seats(ends, owner, contact):
+            ends.Resolve(cleanup=cleanup)   # a retry may have ended this very Pair
+        with _during_seats(ends, owner, contact, pair):
             try:
                 yield
             except (StopIteration, StopAsyncIteration):
@@ -546,14 +548,32 @@ def _during(ends: _Ends, *, ripping: bool = False):
                         _require_available(subject, "Link protocol result")
 
 
+def _execution_pair(ends: _Ends) -> _Pair | None:
+    return ends.pair() if isinstance(ends, (_Ends, _Operation_Ends)) else None
+
+
+class _Pair_Door:
+    """A protocol's original Pair seat, revoked after each execution step."""
+
+    __slots__ = ("data", "contact", "pair")
+
+    def __init__(door, ends: _Ends, contact: object, pair: _Pair) -> None:
+        door.data, door.contact, door.pair = ends.data, contact, pair
+
+    def Close(door) -> None:
+        door.data = door.contact = door.pair = None
+
+
 @contextmanager
-def _during_seats(ends: _Ends, owner: object, contact: object):
+def _during_seats(ends: _Ends, owner: object, contact: object, pair: _Pair | None):
     from .link_forms import _seat_context
     owner_state = _state_of(owner)
     contacts = (
             tuple(_field_of(ends.data.link()))
             if isinstance(ends, _Tag_Ends) else (contact,)
             )
+    if contact is not None and all(target is not contact for target in contacts):
+        contacts = (*contacts, contact)
     saved = []
     for target in contacts:
         contact_state = _state_of(target)
@@ -566,21 +586,26 @@ def _during_seats(ends: _Ends, owner: object, contact: object):
             door for door in _async_doors.get()
             if door.active and all(door.state is not state for state, _ in saved)
             ))
-    pairs_token = _current_pairs.set(
-            (*_current_pairs.get(), ends)
-            if isinstance(ends, _Ends) else _current_pairs.get(),
-            )
-    if owner_state is not None:
-        owner_state.composing += 1
+    door = None if pair is None else _Pair_Door(ends, contact, pair)
+    pairs_token = None
+    composing = None if owner_state is None else owner_state.composing
     try:
+        pairs_token = _current_pairs.set(
+                (*_current_pairs.get(), door) if door is not None else _current_pairs.get(),
+                )
+        if owner_state is not None:
+            owner_state.composing = composing + 1
         with _seat_context(owner, contact):
             yield
     finally:
+        if door is not None:
+            door.Close()
         if owner_state is not None:
-            owner_state.composing -= 1
+            owner_state.composing = composing
         for state, composing in saved:
             state.composing = composing
-        _current_pairs.reset(pairs_token)
+        if pairs_token is not None:
+            _current_pairs.reset(pairs_token)
         _async_doors.reset(token)
 
 
@@ -598,27 +623,39 @@ def _stepped(result: Any, ends: _Ends) -> Any:
 def _park_result(ends: _Ends, source: Any, hold = _hold_lazy_result) -> None:
     """Do not let an abandoned continuation finalize during Rip custody."""
     try:
-        owner, contact = ends.Resolve()
+        owner, contact = ends.Resolve(cleanup=True)
     except Exception:
         return
     for subject in (owner, contact):
         if subject is not None:
             hold(subject, source)
-    if isinstance(ends, _Ends):
-        pair = ends.pair()
-        if pair is not None:
-            hold(pair, source)
-    elif isinstance(ends, _Operation_Ends):
-        pair = ends.data.Pair(contact)
-        if pair is not None:
-            hold(pair, source)
+    pair = _execution_pair(ends)
+    if pair is not None:
+        hold(pair, source)
+
+
+
+def _finished_pair_is_free(ends: _Ends) -> bool:
+    # Releasing a completed seat must not retry or hide the original error.
+    # Custody retains it until a subsequent authorized cleanup succeeds.
+    try:
+        owner, contact = ends.Resolve(cleanup=True)
+    except Exception:
+        return False
+    return all(subject is None or _may_act(subject)
+               for subject in (owner, contact, _execution_pair(ends)))
 
 
 class _Generator:
-    __slots__ = ("native", "ends", "__name__", "__qualname__")
+    __slots__ = ("native", "ends", "pair", "cleanup", "container", "__name__", "__qualname__")
 
-    def __init__(result, native: Any, ends: _Ends) -> None:
+    def __init__(result, native: Any, ends: _Ends, *, cleanup: bool = False,
+                 container: _Async_Generator | None = None) -> None:
         result.native, result.ends = native, ends
+        # The outer canonical guard holds this Pair weakly. Keep the
+        # original execution seat until the native continuation finishes.
+        result.pair, result.cleanup = _execution_pair(ends), cleanup
+        result.container = container
         result.__name__ = getattr(native, "__name__", "<Link continuation>")
         result.__qualname__ = getattr(native, "__qualname__", result.__name__)
 
@@ -628,29 +665,56 @@ class _Generator:
     def __next__(result):
         return result.send(None)
 
-    def _resume(result, method, *args, _cancellation=None):
+    def _resume(result, method, *args, _cancellation=None, _cleanup=False):
         entered = False
+        completed = 0
         try:
-            with _during(result.ends):
+            with _during(result.ends, cleanup=result.cleanup or _cleanup):
                 entered = True
                 try:
-                    return _seat_value(method(*args))
+                    value = _seat_value(method(*args))
+                    if _cleanup:
+                        completed = 1
+                    return value
+                except StopAsyncIteration:
+                    completed = 2
+                    raise
                 except StopIteration as stopped:
+                    completed = 1
                     value = _seat_value(stopped.value)
                     if value is not stopped.value:
                         raise StopIteration(value) from None
                     raise
         except TagArrestedAccessError:
+            completed = (1 if entered
+                         and (_lazy_finished(result.native)
+                              or (result.container is not None
+                                  and _lazy_finished(result.container.native)))
+                         and _finished_pair_is_free(result.ends) else 0)
             _park_result(result.ends, result.native)
             if not entered and _cancellation is not None:
                 raise _cancellation from None
             raise
-        except BaseException:
+        except BaseException as error:
+            if not isinstance(error, (StopIteration, StopAsyncIteration)):
+                completed = (1 if entered
+                             and (_lazy_finished(result.native)
+                                  or (result.container is not None
+                                      and _lazy_finished(result.container.native)))
+                             and _finished_pair_is_free(result.ends) else 0)
             # Park before returning control to the caller: cyclic GC may
             # already schedule the native finalizer before a proxy's own
             # __del__ runs. Destructor-only custody is too late.
             _park_result(result.ends, result.native)
             raise
+        finally:
+            if completed:
+                result.pair = None
+                container = result.container
+                if (container is not None and not _cleanup
+                        and _lazy_finished(container.native)):
+                    container.pair = None
+                result.container = None
 
     def send(result, value):
         return result._resume(result.native.send, value)
@@ -659,7 +723,7 @@ class _Generator:
         return result._resume(result.native.throw, *args)
 
     def close(result):
-        return result._resume(result.native.close)
+        return result._resume(result.native.close, _cleanup=True)
 
     def __del__(result, park = _park_result):
         park(result.ends, result.native)
@@ -679,10 +743,11 @@ class _Coroutine(_Generator, Coroutine):
 
 
 class _Async_Generator:
-    __slots__ = ("native", "ends", "__name__", "__qualname__")
+    __slots__ = ("native", "ends", "pair", "__name__", "__qualname__")
 
     def __init__(result, native: Any, ends: _Ends) -> None:
         result.native, result.ends = native, ends
+        result.pair = _execution_pair(ends)
         result.__name__ = getattr(native, "__name__", "<Link continuation>")
         result.__qualname__ = getattr(native, "__qualname__", result.__name__)
 
@@ -692,9 +757,9 @@ class _Async_Generator:
     def __anext__(result):
         return result.asend(None)
 
-    def _start(result, method, *args):
-        with _during(result.ends):
-            return _Coroutine(method(*args), result.ends)
+    def _start(result, method, *args, cleanup=False):
+        with _during(result.ends, cleanup=cleanup):
+            return _Coroutine(method(*args), result.ends, cleanup=cleanup, container=result)
 
     def asend(result, value):
         return result._start(result.native.asend, value)
@@ -703,13 +768,15 @@ class _Async_Generator:
         return result._start(result.native.athrow, *args)
 
     def aclose(result):
-        return result._start(result.native.aclose)
+        return result._start(result.native.aclose, cleanup=True)
 
     def __del__(result, park = _park_result):
         park(result.ends, result.native)
 
 
-_register_lazy_proxy_types(_Generator, _Coroutine, _Async_Generator)
+_register_lazy_proxy_types(
+        _Generator, _Coroutine, _Async_Generator, source_attribute="native",
+        )
 
 
 def _link(link: type, contact: object, inputs: dict[str, Any]) -> object:
@@ -924,11 +991,9 @@ def _current_pair(link: type, contact: object) -> _Pair:
     else:
         # Only this Pair's own running protocol can inspect its earlier
         # Gains before admission or during its Rip after Field removal.
-        for ends in reversed(_current_pairs.get()):
-            if ends.data is data and ends.Resolve()[1] is contact:
-                pair = ends.pair()
-                if pair is not None:
-                    return pair
+        for door in reversed(_current_pairs.get()):
+            if door.data is data and door.contact is contact:
+                return door.pair
     raise TagResolutionError(f"the Contact is not admitted to {link.__name__}")
 
 
@@ -1068,45 +1133,47 @@ class _Pair_Call:
 class _Operation_Ends(_Tag_Ends):
     """A Tag Operation reached through one live Pair view."""
 
-    __slots__ = ("view", "name", "secret")
+    __slots__ = ("view", "name", "secret", "pair")
 
     def __init__(ends, view: _Pair_View, name: str, secret: bool) -> None:
-        view._current()
+        pair = view._current()
         link = object.__getattribute__(view, "_link")()
         super().__init__(_data_of(link))
-        ends.view, ends.name, ends.secret = view, name, secret
+        ends.view, ends.name, ends.secret, ends.pair = view, name, secret, ref(pair)
 
-    def Resolve(ends) -> tuple[object, object]:
-        owner, _ = super().Resolve()
+    def Resolve(ends, *, cleanup: bool = False) -> tuple[object, object]:
+        owner, _ = super().Resolve(cleanup=cleanup)
         contact = object.__getattribute__(ends.view, "_contact")()
         if contact is None:
             raise TagResolutionError("the Contact of this Pair view has ended")
         return owner, contact
 
-    def Check(ends) -> None:
-        ends.view._current()
+    def Check(ends, *, cleanup: bool = False) -> None:
+        if not cleanup:
+            ends.view._current()
         link = ends.data.link()
         _require_available(link, "Link-view Operation")
         declaration = getattr_static(link, ends.name, _MISSING)
-        if _kind_of(declaration) != "operation":
+        if not cleanup and _kind_of(declaration) != "operation":
             raise AttributeError(f"{ends.name!r} is no longer an Operation")
         if ends.secret or _has_flag(declaration, _SECRET):
             _require_owner_door(ends.data, ends.name)
-        _owner, contact = ends.Resolve()
-        if ends.name in _state_of(contact).snapshots[link].actions:
-            _require_membership(contact, link, ends.name, "Operation")
-        ends.view._current()
+        if not cleanup:
+            _owner, contact = ends.Resolve()
+            if ends.name in _state_of(contact).snapshots[link].actions:
+                _require_membership(contact, link, ends.name, "Operation")
+            ends.view._current()
 
     @contextmanager
-    def Credential(ends):
-        ends.Check()
+    def Credential(ends, *, cleanup: bool = False):
+        ends.Check(cleanup=cleanup)
         try:
             yield
         except (StopIteration, StopAsyncIteration):
-            ends.Check()
+            ends.Check(cleanup=cleanup)
             raise
         else:
-            ends.Check()
+            ends.Check(cleanup=cleanup)
 
 
 class _Pair_Operation(_Pair_Call):
