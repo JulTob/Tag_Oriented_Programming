@@ -680,8 +680,9 @@ class _View_Call:
         else:
             member = call._view._read(name, handles=False)
             result = member(*args, **kwargs)
+        result = _guard_lazy_result(result, agent, "Tag-view call", call._authorize)
         call._authorize(agent, "Tag-view call")
-        return _guard_lazy_result(result, agent, "Tag-view call", call._authorize)
+        return result
 
     def __eq__(call, other: object) -> Any:
         if type(other) is not _View_Call:

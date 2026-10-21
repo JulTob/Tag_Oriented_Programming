@@ -401,6 +401,38 @@ class ArrestGuardTests(unittest.TestCase):
             saved()
         self.assertNotIn(agent, Role[:])
 
+    def test_view_operation_parks_started_result_before_arrest_denies_return(self):
+        events = []
+        Arresting, flag = self.Role()
+        agent = Host()
+        class Role(Tag):
+            @Operation
+            def Started(tag):
+                def Source():
+                    try:
+                        yield 1
+                        yield 2
+                    finally:
+                        events.append("closed")
+                source = Source()
+                next(source)
+                try:
+                    del Arresting[agent]
+                except TagCompositionError:
+                    pass
+                return source
+        Role(agent)
+        Arresting(agent)
+        saved = Role[agent].Started
+        with self.assertRaises(TagArrestedAccessError):
+            saved()
+        gc.collect()
+        self.assertEqual(events, [])
+        flag["fail"] = False
+        _retry_arrested(agent)
+        gc.collect()
+        self.assertEqual(events, ["closed"])
+
     def test_saved_view_operation_checks_agent_and_tag_on_lazy_resume(self):
         class Role(Tag):
             @Operation
