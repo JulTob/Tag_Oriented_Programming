@@ -1156,6 +1156,9 @@ print(Outline(ari))
 
 ### Pattern 11 · Categories of categories
 
+The [Pins wiki guide](../wiki/1.7-TopKit-Pins.md) walks through equipment
+categories, populated Target Fields, Pin-on-Pin membership and Rip.
+
 **When you want** to say something about a Tag itself: this class is
 *rare*, that species is *homebrew*, this rule is *deprecated*. A Tag is an
 object, so a Tag can be tagged. A Tag marked `@Pin` applies to Tags, and
