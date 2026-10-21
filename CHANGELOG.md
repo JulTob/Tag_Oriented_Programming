@@ -271,8 +271,9 @@
   Field would mix objects and Tags), or a place as a Tool's kind (the
   slot would admit Tags). A refused mark no longer stays on the class,
   and a Tag scanned before its mark is validated as a Pin at the mark.
-  Tool kinds are tracked weakly by Tag identity. Restating the mark is a
-  no-op. An empty Tag may be marked even if it previously trained Agents
+  Tool kinds and their declaring Tags are tracked weakly by identity; a
+  kind is free if every Tag that named it has gone. Restating the mark is
+  a no-op. An empty Tag may be marked even if it previously trained Agents
   that have since left its Field.
 
 - **Presence by name:** `"name" @ agent` checks current contributions,

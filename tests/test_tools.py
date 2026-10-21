@@ -1470,6 +1470,23 @@ class Late_Pin_Tests(unittest.TestCase):
         self.assertIsNone(collector())
         self.assertIsNone(prize())
 
+    def test_a_dead_tool_owner_does_not_forever_bar_a_live_kind(self):
+        class Prize(Tag):
+            pass
+
+        def declare():
+            class Collector(Tag):
+                @Tool(Prize)
+                def prize(agent):
+                    return None
+
+            return weakref.ref(Collector)
+
+        collector = declare()
+        gc.collect()
+        self.assertIsNone(collector())
+        self.assertIs(Pin(Prize), Prize)
+
     def test_a_refused_pin_leaves_no_mark(self):
         class Odd(Tag):
             @Delete
