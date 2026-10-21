@@ -518,8 +518,13 @@ class ArrestGuardTests(unittest.TestCase):
         class Type(type):
             def __eq__(kind, other):
                 raise AssertionError("returning a value must not compare its type")
+            def __hash__(kind):
+                raise AssertionError("returning a value must not hash its type")
         class Result(metaclass=Type):
-            pass
+            def __getattribute__(value, name):
+                if name == "__class__":
+                    raise AssertionError("returning a value must not inspect its class")
+                return object.__getattribute__(value, name)
         result = Result()
         class Role(Tag):
             def Value(agent):
@@ -528,6 +533,25 @@ class ArrestGuardTests(unittest.TestCase):
         Role(agent)
         self.assertIs(agent.Value(), result)
 
+
+    def test_ordinary_action_results_do_not_retain_unknown_classes(self):
+        def Return_Unknown():
+            class Result:
+                pass
+            reference = weakref.ref(Result)
+            class Role(Tag):
+                @Action
+                def Value(agent):
+                    return Result()
+            agent = Host()
+            Role(agent)
+            value = agent.Value()
+            self.assertIs(type(value), Result)
+            return reference
+
+        reference = Return_Unknown()
+        gc.collect()
+        self.assertIsNone(reference())
 
     def test_pair_view_forwards_to_current_pair_at_tag_and_contract_boundaries(self):
         class Inventory(Tag):
