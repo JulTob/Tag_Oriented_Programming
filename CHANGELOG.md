@@ -32,6 +32,14 @@
 
 ### TopKit
 
+- **Entered Link cleanup:** a Link Action or Pair-view Operation result may
+  finish `close()` or `aclose()` after its Contact leaves. Cleanup retains
+  its original Pair resources only while needed, rechecks Secret and custody
+  permission on every step, and leaves normal Pair views and resumes subject
+  to current admission. Closing a cleanup awaitable does not dispose its
+  unfinished parent generator; completed and failed native bodies release
+  their private Pair without requiring the caller to discard the proxy.
+
 - **Equipment Links:** `@Link(agent, contact)` declares a blueprint that
   gives each Agent an independent Tag of Contacts. Ordered Form entries
   Tag the Contact before relationship training; each admitted Contact has
