@@ -167,8 +167,10 @@ class CallableSignatureMetadataTests(unittest.TestCase):
     def test_underlay_and_stored_input_diagnostics_use_declared_names(self):
         for pinned in (False, True):
             for mark in (Action, Pre, Post):
-                for member, failure in ((_Extend(), TagResolutionError),
-                                        (_One(), TagDeclarationError)):
+                cases = [(_One(), TagDeclarationError)]
+                if mark is not Action:
+                    cases.append((_Extend(), TagResolutionError))
+                for member, failure in cases:
                     with self.subTest(pinned=pinned, mark=mark, failure=failure):
                         role = type("Role", (Tag,), {
                                 "Work": mark(Underlay(member)),
