@@ -36,6 +36,25 @@
   refuse explicit TOP mutations, including a refusal caught inside the check.
   Query Actions remain available. Python writes and finalization are outside
   this authoring boundary; finalizer cleanup cannot poison an unrelated read.
+  A copied context cannot end a still-running calculation's guard, and ended
+  observations release their Context reset tokens.
+
+- **Pin declarations and native Targets:** `class Rare(Pin)` declares a
+  concrete Pin. Ordinary Tags apply to object instances; named Pins apply
+  to actual TOP Tag classes, including other Pins and concrete Link Tags.
+  An ordinary Tag cannot be converted with `Pin(existing_tag)`, even if
+  unused or Ripped. The declaration root has no concrete application or
+  own Field. A presented `__class__` cannot change Target category. Each
+  selected Form is checked before preparation; supported category-changing
+  writes are refused at the write. Pinning a populated Tag preserves its own Field and
+  category; self/Base refusal compares class identity. This replaces the
+  `@Pin class Rare(Tag)` declaration API; no historical-use mark is needed.
+
+- **Entered lazy cleanup:** after Rip ends Tag-view membership, a started
+  generator, coroutine or async generator may finish through `close()` or
+  `aclose()`. Ordinary view continuation remains checked; cleanup retains
+  its Secret and Safehouse boundaries and grants no Rip authority. Completed
+  results release their execution receiver and remain safely disposable.
 
 - **Live Tag views:** a saved `MyTag[agent]` follows the Tag's current
   application instead of owning an old snapshot. Rip closes access;
@@ -63,6 +82,13 @@
   its exit cleanup. Captured native Host methods and raw Python reflection
   remain outside the guarded call boundary. These are focused Python profile
   changes; they do not deploy the rest of STEP-SPEC-32.
+
+- **Pin publication preserves ordinary Tag and Tool use:** Tool
+  declarations and late bindings are validated against the declared Target
+  category; a Pin remains an invalid Tool kind. Callable metadata and
+  retired bindings are handled outside shared locks. The former mutable
+  Pin-mark API is replaced by the declaration Base above, so Field emptiness,
+  owner collection and completed-use history cannot reopen a conversion.
 
 - **Named failures release declaration-name objects:** the process-wide
   Precondition, Imprint and Postcondition failure registries keep plain
@@ -200,7 +226,7 @@
   program bindings. Invalidation retires an owned memo's value even when a
   metaclass descriptor blocks attribute deletion, so public Pin publication
   reaches future Agents and removing the collision cannot revive stale data.
-  Namespace scans, including the Tool checks in `Pin()`, use snapshots,
+  Namespace scans, including Tool declaration checks, use snapshots,
   so first Taggings of different Agents sharing a Tag cannot invalidate one another's
   class-dictionary iterators while publishing either memo. Base-first
   order, iterative traversal and ordinary-class Form behavior stay.
@@ -324,7 +350,7 @@
   `@Public` stack with it in either order; a later plain Record or
   Action replaces it as any Record, and `@Delete` frees it. The root
   `Tag`, `object`, a Pin, a population (`Weapon | Blessed`), a typing
-  construct, an instance, or `@Tool` inside a `@Pin` is a Declaration
+  construct, an instance, or `@Tool` inside a Pin is a Declaration
   Failure. A slot under a protocol name keeps the language's hook. The
   wiki page "Tools: what an Agent has" runs as one program under the
   suite.
@@ -347,6 +373,12 @@
   use `_sound` in its own namespace without changing its Field.
 
 ### Project
+
+- The build backend now requires setuptools 77.0.3 or later, matching the
+  SPDX license-expression metadata already declared by the package.
+- **Auditable source archives:** the sdist now includes the full Python
+  conformance suite, its helpers and runnable documentation assets. The
+  wheel remains limited to the runtime package and its license.
 
 - **Fixed:** resolving a Form deeper than Python's recursion limit raised
   `RecursionError`. Geometry now walks Bases iteratively, preserving the

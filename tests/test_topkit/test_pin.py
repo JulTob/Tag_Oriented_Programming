@@ -32,7 +32,7 @@ from ._fixtures import Agent
 
 
 class PinTests(unittest.TestCase):
-    """STEP-SPEC-9: a Tag marked @Pin applies to Tags. The pinned Tag is
+    """STEP-SPEC-9: a class declared from Pin applies to Tags. The pinned Tag is
     the Pin's Agent; the receiver rule lands Records as Reports and
     Actions as Operations of that Tag."""
 
@@ -52,8 +52,7 @@ class PinTests(unittest.TestCase):
         class War_Caster(Wizard):
             pass
 
-        @Pin
-        class Rare(Tag):
+        class Rare(Pin):
             @Record
             def rarity(tag):
                 return "rare"
@@ -133,8 +132,7 @@ class PinTests(unittest.TestCase):
         with self.assertRaises(TagCompositionError):
             Rare(Rare)                                                # itself
 
-        @Pin
-        class Loud(Tag):
+        class Loud(Pin):
             @Action
             def Attack(tag):                                          # the Tag's own Agent-scope member
                 return "shout"
@@ -148,8 +146,7 @@ class PinTests(unittest.TestCase):
         self.assertNotIn(Wizard, Loud)
 
 
-        @Pin
-        class Named(Tag):
+        class Named(Pin):
             def mro(tag):
                 return 1
 
@@ -157,8 +154,7 @@ class PinTests(unittest.TestCase):
             Named(Wizard)                                             # what every Tag answers
 
         with self.assertRaises(TagDeclarationError):
-            @Pin
-            class Loudspeaker(Tag):
+            class Loudspeaker(Pin):
                 @Public
                 @Report
                 def x(tag):                                           # a Pin's own Report: nowhere to publish
@@ -175,8 +171,7 @@ class PinTests(unittest.TestCase):
         Wizard = self.Wizard
         before = dict(vars(Wizard))
 
-        @Pin
-        class Gated(Tag):
+        class Gated(Pin):
             @Pre
             def Has_Members(tag):
                 return bool(tag[:])
@@ -200,8 +195,7 @@ class PinTests(unittest.TestCase):
     def test_a_failed_promise_leaves_the_tag_pinned_and_defective(self) -> None:
         Wizard = self.Wizard
 
-        @Pin
-        class Promised(Tag):
+        class Promised(Pin):
             @Post
             def Has_Members(tag):
                 return bool(tag[:])
@@ -221,7 +215,6 @@ class PinTests(unittest.TestCase):
     def test_rip_is_sticky_and_repinning_is_fresh(self) -> None:
         Wizard, Rare = self.Wizard, self.Rare
 
-        @Pin
         class Checked(Rare):
             @Post
             def Fine(tag):
@@ -256,8 +249,7 @@ class PinTests(unittest.TestCase):
         self.assertEqual((War_Caster.source, War_Caster.rarity), ("mine", "rare"))
         self.assertNotIn(Wizard, Rare)
 
-        @Pin
-        class Meta(Tag):
+        class Meta(Pin):
             @Record
             def level(tag):
                 return 2
@@ -283,8 +275,7 @@ class PinTests(unittest.TestCase):
         Caller(ari)
         self.assertEqual(ari.Hail(), "Wizard:all")
 
-        @Pin
-        class Patch(Tag):
+        class Patch(Pin):
             @Action
             @Underlay
             def Greet(tag, underlay, who):
@@ -311,8 +302,7 @@ class PinTests(unittest.TestCase):
         existing = Agent()
         Wizard(existing)
 
-        @Pin
-        class Broken(Tag):
+        class Broken(Pin):
             @Action
             def Greet(tag, who):
                 return "patched"
@@ -341,8 +331,7 @@ class PinTests(unittest.TestCase):
         Wizard(ari)
 
         @Flag
-        @Pin
-        class Deprecated(Tag):
+        class Deprecated(Pin):
             pass
 
         Rare(Wizard)
@@ -360,8 +349,7 @@ class PinTests(unittest.TestCase):
     def test_a_secret_pin_member_is_pin_private_state_on_the_tag(self) -> None:
         Wizard = self.Wizard
 
-        @Pin
-        class Licensed(Tag):
+        class Licensed(Pin):
             @Secret
             @Record
             def key(tag):
@@ -393,8 +381,7 @@ class PinTests(unittest.TestCase):
         cal = Agent()
         War_Caster(cal)
 
-        @Pin
-        class Engine(Tag):
+        class Engine(Pin):
             @Public
             @Record
             def firmware(tag):
@@ -441,8 +428,7 @@ class PinTests(unittest.TestCase):
 
         Holder(ari)                                                   # an independent Record of that name
 
-        @Pin
-        class Engine(Tag):
+        class Engine(Pin):
             @Public
             @Action
             def Greet(tag, agent):
@@ -476,8 +462,7 @@ class PinTests(unittest.TestCase):
         ari = Agent()
         Wizard(ari)
 
-        @Pin
-        class Patch(Tag):
+        class Patch(Pin):
             @Action
             @Underlay
             def Greet(tag, underlay, who):
@@ -504,8 +489,7 @@ class PinTests(unittest.TestCase):
     def test_a_pins_teardown_without_the_seat_leaves_the_patch(self) -> None:
         Wizard = self.Wizard
 
-        @Pin
-        class Patch(Tag):
+        class Patch(Pin):
             @Action
             def Greet(tag, who):
                 return "patched"

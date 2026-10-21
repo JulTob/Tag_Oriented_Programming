@@ -7,12 +7,14 @@ whenever the two disagree.
 ## Module map
 
 One idea per module, with 600 physical lines as the migration target. The
-target is not yet met: `declarations.py`, `overlay.py`, and `state.py` are the
-current exceptions. [Issue #15](https://github.com/JulTob/Tag_Oriented_Programming/issues/15)
+target is not yet met: `access.py`, `contracts.py`, `declarations.py`,
+`overlay.py`, `state.py`, and `transactions.py` are the current exceptions.
+[Issue #15](https://github.com/JulTob/Tag_Oriented_Programming/issues/15)
 tracks splitting them by idea without changing semantics.
 
 | Module | Idea |
 | --- | --- |
+| `__init__.py` | the public TopKit names and their exports |
 | `errors.py` | the failure types |
 | `declarations.py` | the marks (`@Action`, `@Record`, `Report`, `Public`, `@Secret`, …), scanning a Tag class once, binding parameters |
 | `geometry.py` | Bases, Shapes, Forms, leaves |
@@ -21,7 +23,7 @@ tracks splitting them by idea without changing semantics.
 | `overlay.py` | laying one Tag's declarations over a state; materializing Records |
 | `contracts.py` | strict verdicts, transient Pre Services, bound Post Gains, `Contract` |
 | `constants.py` | protecting Constant bindings without freezing their values |
-| `tools.py` | Tool slots: a Record's kind, a Tag or a class, admission at the gaining and at every write |
+| `tools.py` | Tool slots and their admission and write checks |
 | `presence.py` | Contribution presence without evaluating values or conditions |
 | `transactions.py` | the tagging sequence and the call boundary |
 | `lifecycle.py` | Rip, teardown, `At_Exit` |
@@ -32,6 +34,7 @@ tracks splitting them by idea without changing semantics.
 | `access.py` | the hooks on the runtime type, Agent-bound views |
 | `tags.py` | `Tag` and its metaclass |
 | `queries.py` | `Apply`, `Form`, `Keyword`, `Tags`, `Outline` |
+| `memo.py` | owner-local Tag memos and snapshots of changing Tag namespaces |
 
 ## The access design
 
@@ -244,6 +247,39 @@ fallback, so ordinary classes and builtins gain no attributes. Form
 order, iterative traversal and lazy caching are unchanged; mutation of
 `__bases__` remains a separate design question (#97).
 
+## Read-only calculations
+
+A Pre is a transient Tagging Service, a Post is a computed Contract check,
+and a Record builder calculates an initial value. `observations._observing`
+bounds each calculation. Reading Gains, population queries and Actions that
+retrieve or calculate values remain available. Explicit TOP mutations check
+`_refuse_observed_act` before changing TOP state: Tagging or Pinning, Rip and
+saved-Rip retry, Contract deletion, Tag or Pin creation, declaration edits and
+modifiers, and `At_Exit` registration.
+
+The context follows the current execution flow, including nested query
+calls. A refused act records a violation on the outer observation, so catching
+its immediate exception cannot make that calculation succeed. On exit the
+context is restored and its active flag is revoked; a saved copied context
+cannot keep a completed observation active or retain its failure traceback.
+Completed observations release their reset tokens as well, so a saved context
+does not keep an earlier ambient context alive. Checks run synchronously:
+same-thread nesting shares the enclosing refusal, while a calculation started
+in a copied context on another thread owns its own active frame. Finishing
+the parent check cannot remove the guard from that still-running calculation.
+
+The guard intercepts TOP acts, not ordinary Python assignment, mutation of
+contained values or I/O. It neither copies the Target nor supplies rollback
+for arbitrary Python effects; avoiding those effects is an authoring rule.
+Existing Python finalization runs through `_unobserved_cleanup`, which
+suspends this observation for that cleanup and restores it afterward. An
+unrelated Agent's collection therefore does not fail the calculation or
+leave its subsequent TOP acts unguarded. This does not change the existing
+finalization protocol or make TOP a Python sandbox.
+Explicit calls to the existing `agent.__del__()` finalizer take that same
+Python cleanup path; this exemption is not authority for a query Action to
+perform cleanup. Authors must keep finalizer calls out of calculations.
+
 ## The tagging sequence
 
 `transactions._apply` walks the missing Tags in Base-first Form order.
@@ -306,8 +342,9 @@ removed: completed independent Tags and acquired Gains are not restored away.
 An in-progress Tagging is tracked separately from membership so applying the
 same Tag to the same Agent during its Imprint is a no-op. There is no automatic
 Rip for an unfinished never-member and no automatic rollback of training
-effects. Preconditions and Record builders are observational authoring
-contracts, not sandboxes for arbitrary Python effects.
+effects. Preconditions, Posts and Record builders guard explicit TOP
+mutations as described above; arbitrary Python effects remain the author's
+responsibility.
 
 ## Synchronous protocol results
 
@@ -468,8 +505,8 @@ Tagging sequence or expand its rollback boundary.
   Tag; own or inherited program bindings are left untouched and trigger
   uncached recomputation. Namespace inspection uses a snapshot, so another
   thread publishing either memo cannot invalidate a scan's iterator.
-  The Tool checks in `Pin()` use that snapshot too, with callable metadata
-  inspected after releasing the helper lock.
+  Tool declaration checks use a namespace snapshot too, with callable
+  metadata inspected after releasing the helper lock.
   Pin publication invalidates only the receiving Tag's declaration memo.
   These ownership rules are not a blanket lifetime guarantee about
   arbitrary user values that refer back to Tags.
@@ -517,12 +554,30 @@ Tagging sequence or expand its rollback boundary.
   objects: called, they mark; read, they forward to their failure class.
   Per kind, not per Tag, on purpose: the handler reads the program's own
   word, and the Tag is already in the message.
+- **Pin declaration is separate from Pinning.** `class Rare(Pin)` declares
+  a concrete Pin; `Rare(Wizard)` applies that existing Pin to an eligible
+  Tag Target. An ordinary Tag cannot be converted with `Pin(Wizard)`,
+  independently of Field population or past use. The `Pin` declaration root
+  has no concrete application or own Field. Receiver checks use actual
+  Python types and keep ordinary Tag and Pin application Forms separate.
+  These are the category rules; they do not prescribe a particular internal
+  metaclass hierarchy. An ordinary object held in a Tool remains an object.
+  The Python implementation stamps each TOP metaclass with its fixed kind
+  at creation. The stamp owns only a weak reference back to that metaclass;
+  physical reads authenticate the owner without invoking program lookup
+  hooks. Public category-changing class and metaclass writes are refused,
+  including Base changes. A foreign ancestor's later Base changes cannot
+  change an existing TOP metaclass's declared kind. Each selected Form is
+  checked before preparation. Direct use of Python's raw mutation primitives
+  or modification of private framework state is outside this guarantee;
+  this is a declaration boundary, not a sandbox for arbitrary Python code.
 - **Pins reuse the whole sequence.** A pinned Tag is an Agent whose
   namespace is its class dictionary. `_namespace_of` hands the kernel a
   `_Class_Namespace` adapter (get, set, pop, keys) over the proxy, so
   Gate, Gainings, Imprints, FieldAdding and view capture use the same
   code path for objects and pinned Tags. The runtime type is a
-  `(MetaTag, Tagged)` metaclass from the same cache. A landed Action is a
+  category-preserving metaclass adapter from the same cache. A landed
+  Action is a
   `_Pinned_Operation` descriptor binding to the Tag it is read from (a
   Shape inherits it as it inherits a classmethod). Its public composing
   handle keeps the original callable as `__func__`, the receiving Tag as

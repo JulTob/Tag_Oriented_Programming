@@ -121,8 +121,7 @@ class ViewActionTests(unittest.TestCase):
         self.assert_closed(agent, Private, "code")
 
     def test_a_pin_view_action_opens_the_pinned_tags_composition(self):
-        @Pin
-        class Sealed(Tag):
+        class Sealed(Pin):
             @Secret
             @Record
             def code(tag):
@@ -333,8 +332,7 @@ class ViewActionTests(unittest.TestCase):
     def test_a_captured_secret_pin_view_action_also_requires_an_open_door(self):
         captured = []
 
-        @Pin
-        class Private(Tag):
+        class Private(Pin):
             @Secret
             @Action
             def Read(tag):

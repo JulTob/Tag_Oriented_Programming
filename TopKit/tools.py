@@ -30,6 +30,8 @@ from typing import Union
 from typing import get_args
 from typing import get_origin
 
+from .observations import _refuse_observed_act
+
 from .declarations import Report
 from .declarations import _MISSING
 from .declarations import _RIP
@@ -38,6 +40,8 @@ from .declarations import _has_flag
 from .declarations import _is_pin
 from .declarations import _kind_of
 from .declarations import _mark
+from .declarations import _tool_kind_of_static
+from .declarations import _tool_physical_dict
 from .errors import TagCompositionError
 from .errors import TagDeclarationError
 from .fields import _Population
@@ -120,9 +124,9 @@ def _parts_of(
 def _is_root_tag(
         part: Any,
         ) -> bool:
-    from .tags import Tag   # tags imports this module's neighbours
+    from .tags import Pin, Tag   # tags imports this module's neighbours
 
-    return part is Tag
+    return part is Tag or part is Pin
 
 
 def _is_typing_construct(
@@ -156,7 +160,7 @@ def _refuse_as_kind(
 
     if _is_root_tag(part):
         raise TagDeclarationError(
-                "@Tool(Tag): the root Tag names no kind; name the Tag the"
+                f"@Tool({part.__name__}): a declaration root names no kind; name the Tag the"
                 " held thing is, @Tool(Weapon)"
                 )
 
@@ -274,6 +278,8 @@ def Tool(
     def mark(
             member: Any,
             ) -> Any:
+        _refuse_observed_act('change a declaration mark')
+
         if (
                 isinstance(member, (classmethod, staticmethod, Report))
                 or not callable(member)
@@ -304,6 +310,17 @@ def Tool(
                 _TOOL,
                 kind,
                 )
+
+        # A callable can implement the mark as a custom descriptor whose
+        # getter later hides it. Keep a physical copy for Tag publication
+        # and Record gaining. A native slot is physical storage too.
+        if _tool_kind_of_static(member) is not kind:
+            namespace = _tool_physical_dict(member)
+            if namespace is None:
+                raise TagDeclarationError(
+                        "@Tool needs a physical mark on its callable"
+                        )
+            namespace[_TOOL] = kind
 
         return member
 
@@ -383,7 +400,7 @@ def _advice(
         first = tags[0].__name__
 
         if built:
-            return f"Tag it in the builder, {first}(...)"
+            return f"Tag it before the builder runs, {first}(...)"
 
         return f"Tag it first, {first}(...), or hand over a {first}"
 

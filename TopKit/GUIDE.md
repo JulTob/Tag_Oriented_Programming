@@ -419,14 +419,23 @@ Three things to notice.
   check, so a Tag can require another Tag. That is how synergies are
   written: the second Tag needs the first.
 
-Preconditions, Posts and Record initializers read and query; they may call
-Actions that calculate values. TOP refuses explicit state changes during these
-calculations: Tagging, Rip, Contract deletion, Tag creation and declaration
-modifiers. Catching the refusal inside the calculation does not make it pass.
-Use an Imprint for TOP preparation. This is an authoring boundary, not a Python
-sandbox: ordinary Python writes, I/O and finalization remain the author's
-responsibility. Python finalizers run their cleanup separately, then restore
-the observation; calling `__del__` explicitly follows that same cleanup path.
+A Pre is a transient Tagging Service; a Post computes a Contract check;
+a Record builder calculates its initial value. All three may read information,
+query populations and call Actions that retrieve or calculate values. While
+those calculations run, TOP refuses explicit mutations: applying a Tag or
+Pin, Rip, Contract deletion, creating a Tag or Pin, changing declarations or
+modifiers, and registering an `At_Exit` teardown. The guard follows nested
+query calls. Catching a refusal inside the calculation does not make it pass.
+Use an Imprint or an Action outside the check for TOP preparation and effects.
+
+This guard does not freeze or copy Python objects, or roll back the world.
+Python writes to the Agent or other existing objects, changes inside mutable
+values and I/O remain the author's responsibility; calculations must avoid
+those world effects. Local calculations and temporary values remain ordinary
+Python.
+Python's existing finalization path runs its cleanup independently of the
+calculation, then restores the observation. This preserves resource cleanup;
+it does not turn the check into a Python sandbox.
 
 Each missing Tag passes its own Gate. A Shape cannot waive a missing Base's
 Gate by overriding a same-named Precondition: the Base must enter first. If
@@ -1161,14 +1170,23 @@ print(Outline(ari))
 ### Pattern 11 · Categories of categories
 
 **When you want** to say something about a Tag itself: this class is
-*rare*, that species is *homebrew*, this rule is *deprecated*. A Tag is an
-object, so a Tag can be tagged. A Tag marked `@Pin` applies to Tags, and
-the Tag it is applied to becomes its Agent: it joins a Field, it can be
-gated, it can promise, it can leave.
+*rare*, that species is *homebrew*, this rule is *deprecated*. Declare a
+Pin with `class Rare(Pin)`. A named Pin organizes TOP Tags and Pins: the
+Tag it applies to becomes its Agent, joins that Pin's Field, can be gated,
+can promise, and can leave. The Target retains its own category and Field.
+
+Ordinary Tags apply to object instances; Pins apply to actual TOP Tag
+classes, including other Pins and concrete Link Tags. A plain Python
+class or an object's presented `__class__` is not a Tag credential.
+Applying `Rare(Wizard)` does not convert Wizard into a Pin and does not
+depend on whether Wizard's own Field is empty. Declaring `class Rare(Pin)`
+is separate from applying that named Pin. An ordinary Tag never becomes a
+Pin, even if unused or Ripped. `Pin(existing_tag)` is refused; the `Pin`
+root is a declaration Base, with no concrete application or own Field.
+Tools held by Agents remain object Targets; `@Tool` does not make them Tags.
 
 ```python
-@Pin
-class Rare(Tag):
+class Rare(Pin):
 
     @Record
     def rarity(tag):                        # the receiver is the Tag
@@ -1217,8 +1235,7 @@ Engine(kit)
 assert kit.Drive() == "Engine v1 at 2"
 
 
-@Pin
-class Firmware_2(Tag):
+class Firmware_2(Pin):
 
     @Action
     @Underlay
@@ -1310,7 +1327,7 @@ your Reports and Operations there.
 | Extend an Action with `@Underlay`. | Call `agent.Attack()` from inside `Attack` (that recurses). |
 | Gate with `@Pre`; promise with `@Post`; repair through `~Tag`. | Roll your own validation after the fact. |
 | Mark word-like Tags `@Flag` and write rules as data. | Match every Tag by name. Only Flags are words. |
-| Say things about a Tag with a `@Pin`. | Keep a side table of Tags outside TOP. |
+| Say things about a Tag with a named Pin. | Keep a side table of Tags outside TOP. |
 | Clean up with `@Rip`; for a block, tag before `try` and Rip in `finally`. | Rely on `del agent` for anything that matters. |
 | Rip, then Tag again when the Record builder should rebuild its value. | Assume Rip itself erases Contributions, or reapply an active Tag hoping it rebuilds. |
 | Expect a Rogue Agent to keep its own Actions and lose the Agency's published ones. | Check membership by hand inside every published Operation. |
@@ -1330,5 +1347,7 @@ your Reports and Operations there.
 - [The Specification](../spec/SPECIFICATION.md): the laws, ring by ring.
 - [`examples/dnd_character.py`](../examples/dnd_character.py) and
   [`examples/biome.py`](../examples/biome.py): the long form.
+- [`examples/equipment.py`](../examples/equipment.py): checked Tools, weapon
+  wear and repair, swapping equipment, and explicit Action guards.
 - [`benchmarks/bench.py`](../benchmarks/bench.py): what it costs.
 - [`IMPLEMENTATION_NOTES.md`](IMPLEMENTATION_NOTES.md): how TopKit does it.

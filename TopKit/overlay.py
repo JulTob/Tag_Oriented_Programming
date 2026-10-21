@@ -53,6 +53,7 @@ from .declarations import STATE
 from .declarations import Report
 from .declarations import _declarations_of
 from .geometry import _is_base_of
+from .geometry import _is_class
 from .geometry import _is_tag_class
 from .geometry import _related
 from .declarations import _MISSING
@@ -1390,10 +1391,10 @@ def _record_value(
         ) -> Any:
     """Calculate a Record's initial value without changing its binding."""
 
-    tag_name = type.__dict__["__name__"].__get__(tag)
+    tag_name = str.__str__(type.__dict__["__name__"].__get__(tag))
     record_name = str.__str__(name)
     with _observing(f"Record {tag_name}.{record_name} builder"):
-        if isinstance(agent, type):
+        if _is_class(agent):
             stored = _state_of(agent).secret_values.get(name, _MISSING)
 
             if stored is _MISSING:
@@ -1452,7 +1453,7 @@ def _store_record(
         ) -> None:
     namespace = _namespace_of(agent)
 
-    if isinstance(agent, type) and name in secrets:
+    if _is_class(agent) and name in secrets:
         namespace.pop(name, None)
         _state_of(agent).secret_values[name] = value
     else:

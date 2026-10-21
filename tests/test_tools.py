@@ -193,7 +193,7 @@ class Tag_Kind_Tests(unittest.TestCase):
         charlie = Character("Charlie")
         with self.assertRaises(TagCompositionError) as refusal:
             Careless(charlie)
-        self.assertIn("Tag it in the builder", str(refusal.exception))
+        self.assertIn("Tag it before the builder runs", str(refusal.exception))
         self.assertNotIn(charlie, Careless)
         self.assertFalse(hasattr(charlie, "weapon"))
         self.assertIsInstance(charlie, Character)       # actualized, without the failed Gain
@@ -327,8 +327,7 @@ class Class_Kind_Tests(unittest.TestCase):
         class Listed(Tag):
             pass
 
-        @Pin
-        class Checked(Tag):
+        class Checked(Pin):
             @Record
             def approved(tag):
                 return True
@@ -611,9 +610,11 @@ class Declaration_Tests(unittest.TestCase):
         self.assertIn("parentheses", str(refusal.exception))
 
     def test_the_roots_name_no_kind(self):
-        with self.assertRaises(TagDeclarationError) as refusal:
-            Tool(Tag)
-        self.assertIn("root Tag", str(refusal.exception))
+        for root in (Tag, Pin):
+            with self.subTest(root=root):
+                with self.assertRaises(TagDeclarationError) as refusal:
+                    Tool(root)
+                self.assertIn("declaration root", str(refusal.exception))
         with self.assertRaises(TagDeclarationError) as refusal:
             Tool(object)
         self.assertIn("plain @Record", str(refusal.exception))
@@ -645,8 +646,7 @@ class Declaration_Tests(unittest.TestCase):
             Tool(type(None))
 
     def test_a_pin_is_not_a_kind(self):
-        @Pin
-        class Rare(Tag):
+        class Rare(Pin):
             pass
 
         with self.assertRaises(TagDeclarationError) as refusal:
@@ -686,15 +686,13 @@ class Declaration_Tests(unittest.TestCase):
 
     def test_tool_inside_a_pin_is_refused(self):
         with self.assertRaises(TagDeclarationError) as refusal:
-            @Pin
-            class Armory(Tag):
+            class Armory(Pin):
                 @Tool(Weapon)
                 def standard(tag):
                     return Forge(tag)
         self.assertIn("a shared tool is a Report", str(refusal.exception))
 
-        @Pin
-        class Collection(Tag):
+        class Collection(Pin):
             pass
 
         with self.assertRaises(TagDeclarationError):

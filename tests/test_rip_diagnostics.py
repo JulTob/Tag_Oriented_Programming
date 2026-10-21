@@ -53,15 +53,13 @@ class RipDiagnosticTests(unittest.TestCase):
                             events.append("first")
                             raise original
 
-                    class Closing(Tag):
+                    class Closing(Pin if pinned else Tag):
                         First = Rip(Failing())
 
                         @Rip
                         def Later(agent: object) -> None:
                             events.append("later")
 
-                    if pinned:
-                        Closing = Pin(Closing)
                     target = _target(pinned)
                     Closing(target)
 
@@ -151,15 +149,13 @@ class RipDiagnosticTests(unittest.TestCase):
                                 returned.append(result)
                                 return result
 
-                        class Closing(Tag):
+                        class Closing(Pin if pinned else Tag):
                             First = Rip(Lazy())
 
                             @Rip
                             def Later(agent: object) -> None:
                                 events.append("later")
 
-                        if pinned:
-                            Closing = Pin(Closing)
                         target = _target(pinned)
                         Closing(target)
 
@@ -194,21 +190,16 @@ class RipDiagnosticTests(unittest.TestCase):
                         underlay()
                         events.append("shape")
 
-                class Base(Tag):
+                class Base(Pin if pinned else Tag):
                     Close = Earlier()
-
-                if pinned:
-                    Base = Pin(Base)
 
                 class Shape(Base):
                     Close = Rip(Underlay(Added()))
 
-                class Later(Tag):
+                class Later(Pin if pinned else Tag):
                     def Close(agent: object) -> None:
                         events.append("replacement")
 
-                if pinned:
-                    Later = Pin(Later)
                 target = _target(pinned)
                 Shape(target)
                 with warnings.catch_warnings():
@@ -228,8 +219,7 @@ class RipDiagnosticTests(unittest.TestCase):
             def __call__(self, tag: type, original) -> None:
                 tag.colour = original.colour
 
-        @Pin
-        class Patch(Tag):
+        class Patch(Pin):
             @Record
             def colour(tag: type, stored: str) -> str:
                 return stored + "-patched"
@@ -258,11 +248,8 @@ class RipDiagnosticTests(unittest.TestCase):
                         returned.append(result)
                         return result
 
-                class Base(Tag):
+                class Base(Pin if pinned else Tag):
                     Close = Rip(Lazy())
-
-                if pinned:
-                    Base = Pin(Base)
 
                 class Shape(Base):
                     @Rip
@@ -312,20 +299,18 @@ class RipDiagnosticTests(unittest.TestCase):
                         events.append("first")
                         raise RuntimeError("best effort")
 
-                class Earlier(Tag):
+                class Earlier(Pin if pinned else Tag):
                     @Rip
                     def Earlier_End(agent: object) -> None:
                         events.append("earlier")
 
-                class Later(Tag):
+                class Later(Pin if pinned else Tag):
                     First = Rip(Failing())
 
                     @Rip
                     def End(agent: object) -> None:
                         events.append("later")
 
-                if pinned:
-                    Earlier, Later = Pin(Earlier), Pin(Later)
                 target = _target(pinned)
                 Earlier(target)
                 Later(target)
@@ -370,11 +355,8 @@ class RipDiagnosticTests(unittest.TestCase):
                     def __call__(self, agent: object) -> Any:
                         return self.value
 
-                class Base(Tag):
+                class Base(Pin if pinned else Tag):
                     Close = Rip(Lazy(value))
-
-                if pinned:
-                    Base = Pin(Base)
 
                 class Shape(Base):
                     @Rip
@@ -426,9 +408,7 @@ class RipDiagnosticTests(unittest.TestCase):
                             returned.append(value)
                             return value
 
-                    closing = type("Closing", (Tag,), {name: Rip(Lazy())})
-                    if pinned:
-                        closing = Pin(closing)
+                    closing = type("Closing", (Pin if pinned else Tag,), {name: Rip(Lazy())})
 
                     if composed:
                         def Implementation(agent: object, underlay) -> None:

@@ -58,8 +58,7 @@ class PopulationWalkTests(unittest.TestCase):
                 self.assertEqual(self.walked(population, Rip_Cal), [ari, bo])
 
     def test_a_pin_walk_skips_a_tag_ripped_before_its_turn(self) -> None:
-        @Pin
-        class School(Tag):
+        class School(Pin):
             pass
 
         class Mage(Tag):

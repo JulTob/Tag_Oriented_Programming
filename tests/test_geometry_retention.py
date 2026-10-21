@@ -188,8 +188,7 @@ class GeometryRetentionTests(unittest.TestCase):
 
         before = Form(Shape)
 
-        @Pin
-        class Labelled(Tag):
+        class Labelled(Pin):
             @Public
             @Record
             def label(tag):

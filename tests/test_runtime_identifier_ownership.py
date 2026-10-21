@@ -143,9 +143,9 @@ class RuntimeIdentifierOwnershipTests(unittest.TestCase):
 
     def test_pin_target_keeps_published_name_behavior(self):
         name = Name("signal")
-        pin = Pin(type("Given", (Tag,), {
+        pin = type("Given", (Pin,), {
                 name: Public(Record(lambda tag: 41)),
-                }))
+                })
         target = type("Target", (Tag,), {})
         pin(target)
         self.assertEqual(target.signal, 41)
@@ -159,9 +159,9 @@ class RuntimeIdentifierOwnershipTests(unittest.TestCase):
             target = type("Target", (Tag,), {})
             name = Name("signal")
             name.owner = target
-            pin = Pin(type("Given", (Tag,), {
+            pin = type("Given", (Pin,), {
                     name: Public(Record(lambda tag: 41)),
-                    }))
+                    })
             pin(target)
             self.assertEqual(target.signal, 41)
             return target[:], (

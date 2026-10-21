@@ -1,14 +1,14 @@
 """Conditions query TOP without changing its Tags, Fields or contracts."""
 
-from contextvars import copy_context
+from contextvars import Context, ContextVar, copy_context
 import gc
 from threading import Thread
 import unittest
 import weakref
 
 from TopKit import (Action, At_Exit, Constant, Contract, Flag, Imprint,
-                    Pin, Post, Pre, Precondition, Public, Report, Tag,
-                    TagCompositionError, TagPostconditionError)
+                    Pin, Post, Pre, Precondition, Public, Record, Report, Rip, Tag,
+                    TagCompositionError, TagPostconditionError, Tool)
 from TopKit.observations import _observing, _refuse_observed_act
 from TopKit import lifecycle
 
@@ -51,12 +51,99 @@ class ObservationalContractTests(unittest.TestCase):
             def Ready(target):
                 return target.Twice() == 6 and target in Reader[:]
 
+            @Post
+            def Correct(target):
+                return target.Twice() == 6 and target in Reader[:]
+
         target = Host()
         target.value = 3
         Reader(target)
         Accepted(target)
         self.assertIn(target, Accepted[:])
+        self.assertTrue(target.Correct)
+        self.assertEqual(Contract.Status(target), {"Correct": True})
         self.assertFalse("Ready" @ target)  # Pres never become Agent Gains.
+
+    def test_pin_conditions_can_call_query_actions_on_the_target_tag(self):
+        class Counted(Pin):
+            @Action
+            def Count(target):
+                return len(target[:])
+
+        class Checked(Pin):
+            @Pre
+            def Populated(target):
+                return target.Count() == 1
+
+            @Post
+            def Stable(target):
+                return target.Count() == 1
+
+        class Target(Tag):
+            pass
+
+        member = Host()
+        Target(member)
+        Counted(Target)
+        Checked(Target)
+        self.assertTrue(Target.Stable)
+        self.assertEqual(list(Target[:]), [member])
+        self.assertIn(Target, Checked[:])
+
+    def test_caught_mutation_inside_an_action_still_refuses_the_condition(self):
+        for mark, failure in ((Pre, Precondition), (Post, TagPostconditionError)):
+            with self.subTest(mark=mark):
+                other, target = Host(), Host()
+                caught = []
+
+                class Changed(Tag):
+                    pass
+
+                class Queries(Tag):
+                    @Action
+                    def Attempt(target):
+                        try:
+                            Changed(other)
+                        except TagCompositionError:
+                            caught.append("refused")
+                        return True
+
+                checked = type("Checked", (Tag,), {
+                        "Ready": mark(lambda target: target.Attempt()),
+                        })
+                Queries(target)
+                with self.assertRaises(failure.Ready) as refusal:
+                    checked(target)
+                self.assertIsInstance(refusal.exception.__cause__, TagCompositionError)
+                self.assertEqual(caught, ["refused"])
+                self.assertNotIn(other, Changed[:])
+                self.assertIn(target, Queries[:])
+                self.assertEqual(target in checked[:], mark is Post)
+
+    def test_a_post_cannot_rip_an_earlier_tag_in_its_completed_form(self):
+        released = []
+
+        class Earlier(Tag):
+            @Rip
+            def Release(target):
+                released.append(target)
+
+        class Later(Earlier):
+            @Post
+            def Ready(target):
+                try:
+                    del Earlier[target]
+                except TagCompositionError:
+                    pass
+                return True
+
+        target = Host()
+        with self.assertRaises(TagPostconditionError.Ready) as refusal:
+            Later(target)
+        self.assertIsInstance(refusal.exception.__cause__, TagCompositionError)
+        self.assertEqual(released, [])
+        self.assertIn(target, Earlier[:])
+        self.assertIn(target, Later[:])
 
     def test_pre_cannot_apply_a_tag_to_another_target(self):
         other = Host()
@@ -128,9 +215,6 @@ class ObservationalContractTests(unittest.TestCase):
         self.assertNotIn(target, Refused[:])
 
     def test_top_mutations_are_refused_before_declaration_or_registry_changes(self):
-        class Empty(Tag):
-            pass
-
         class Existing(Tag):
             note = "original"
 
@@ -151,7 +235,7 @@ class ObservationalContractTests(unittest.TestCase):
                 lambda target: delattr(Existing, "note"),
                 lambda target: Contract.Delete(target, "Ready"),
                 lambda target: Flag(Existing),
-                lambda target: Pin(Empty),
+                lambda target: type("NewPin", (Pin,), {}),
                 lambda target: Public(report),
                 lambda target: Constant(Existing.Work),
                 lambda target: At_Exit(target),
@@ -159,6 +243,7 @@ class ObservationalContractTests(unittest.TestCase):
         target = Host()
         Existing(target)
         exits = lifecycle._exit_count
+        pins = tuple(type.__subclasses__(Pin))
         for act in acts:
             with self.subTest(act=act):
                 class Refused(Tag):
@@ -175,7 +260,7 @@ class ObservationalContractTests(unittest.TestCase):
         self.assertEqual(Existing.note, "original")
         self.assertFalse(report.public)
         self.assertNotIn("__topkit_constant__", vars(Existing.Work))
-        self.assertNotIn("__topkit_pin__", vars(Empty))
+        self.assertEqual(tuple(type.__subclasses__(Pin)), pins)
         self.assertNotIn("__topkit_flag__", vars(Existing))
         self.assertEqual(lifecycle._exit_count, exits)
         self.assertTrue(target.Ready)
@@ -194,6 +279,90 @@ class ObservationalContractTests(unittest.TestCase):
         with self.assertRaises(Precondition.Ready):
             Refused(Host())
         self.assertEqual(created, [])
+
+    def test_conditions_cannot_declare_a_new_pin_even_if_they_catch_the_refusal(self):
+        for mark, failure in ((Pre, Precondition), (Post, TagPostconditionError)):
+            with self.subTest(mark=mark):
+                created = []
+
+                def Ready(target):
+                    try:
+                        class Temporary(Pin):
+                            pass
+                    except TagCompositionError:
+                        pass
+                    else:
+                        created.append(Temporary)
+                    return True
+
+                checked = type("Checked", (Tag,), {"Ready": mark(Ready)})
+                before = tuple(type.__subclasses__(Pin))
+                target = Host()
+                with self.assertRaises(failure.Ready) as refusal:
+                    checked(target)
+                self.assertIsInstance(refusal.exception.__cause__, TagCompositionError)
+                self.assertEqual(created, [])
+                self.assertEqual(tuple(type.__subclasses__(Pin)), before)
+                self.assertEqual(target in checked[:], mark is Post)
+
+    def test_observations_cannot_create_or_change_top_metaclasses(self):
+        for base in (type(Tag), type(Pin)):
+            meta = type(base)("CustomMeta", (base,), {"note": "original"})
+            acts = (
+                    lambda: type(meta)("CreatedMeta", (meta,), {}),
+                    lambda: setattr(meta, "note", "changed"),
+                    lambda: delattr(meta, "note"),
+                    )
+            for mark, failure in (
+                    (Pre, Precondition),
+                    (Post, TagPostconditionError),
+                    (Record, TagCompositionError),
+                    ):
+                for act in acts:
+                    with self.subTest(base=base, mark=mark, act=act):
+                        def Ready(target):
+                            try:
+                                act()
+                            except TagCompositionError:
+                                pass
+                            return True
+
+                        checked = type("Checked", (Tag,), {"Ready": mark(Ready)})
+                        expected = failure if mark is Record else failure.Ready
+                        with self.assertRaises(expected):
+                            checked(Host())
+                        self.assertEqual(meta.note, "original")
+                        self.assertEqual(type.__subclasses__(meta), [])
+
+    def test_refused_modifiers_do_not_read_their_targets_metadata(self):
+        for modifier in (Constant, Rip, Tool(Host)):
+            with self.subTest(modifier=modifier):
+                reads = []
+
+                class Callable:
+                    def __call__(self, target):
+                        return True
+
+                    def __getattribute__(self, name):
+                        reads.append(name)
+                        raise AssertionError("a refused modifier inspected its target")
+
+                supplied = Callable()
+
+                class Refused(Tag):
+                    @Pre
+                    def Ready(target):
+                        try:
+                            modifier(supplied)
+                        except TagCompositionError:
+                            pass
+                        return True
+
+                with self.assertRaises(Precondition.Ready) as refusal:
+                    Refused(Host())
+                self.assertIsInstance(refusal.exception.__cause__, TagCompositionError)
+                self.assertEqual(reads, [])
+                self.assertEqual(object.__getattribute__(supplied, "__dict__"), {})
 
     def test_nested_declarations_and_imprint_tag_creation_remain_allowed(self):
         created = []
@@ -285,6 +454,37 @@ class ObservationalContractTests(unittest.TestCase):
         Accepted(target)
         saved[0].run(Known, other)
         self.assertIn(other, Known[:])
+
+    def test_saved_context_releases_old_ambient_values_after_observation(self):
+        for mark in (Pre, Post, Record):
+            with self.subTest(mark=mark):
+                saved = []
+                ambient = ContextVar("observation_ambient")
+                ambient_value = Host()
+                reference = weakref.ref(ambient_value)
+                context = Context()
+                context.run(ambient.set, ambient_value)
+
+                def Ready(target):
+                    saved.append(copy_context())
+                    return True
+
+                checked = type("Checked", (Tag,), {"Ready": mark(Ready)})
+                target = Host()
+                context.run(checked, target)
+                self.assertEqual(len(saved), 1)
+                saved[0].run(ambient.set, None)
+                del ambient_value, context
+                gc.collect()
+                gc.collect()
+                self.assertIsNone(reference())
+
+                class Known(Tag):
+                    pass
+
+                other = Host()
+                saved[0].run(Known, other)
+                self.assertIn(other, Known[:])
 
     def test_saved_context_does_not_keep_an_observed_agent_alive_after_failure(self):
         saved = []

@@ -85,7 +85,7 @@ Imprints.
 | **Layer** | One Tag's position in an Agent's composition. |
 | **Overlay** | The currently visible result of all active Layers. |
 | **Underlay** | The prior visible contribution of a name, captured for a later Layer to extend. An Action with no prior Action receives a callable null Action. |
-| **Pin** | A Tag marked `@Pin`, whose Targets are Tags (§1.9). |
+| **Pin** | Declared with `class Rare(Pin)`; its Targets are TOP Tags, actual Link Tags and Pins (§1.9). |
 | **Pinning** | Applying a Pin to a Tag: `Rare(Wizard)`. The pinned Tag is the Pin's Agent. |
 | **Tool** | A Record whose value is an object of a declared kind, a specific Tag or a Python class (§1.3). Something you *have* (*tener*): what it is stays its own. |
 
@@ -675,12 +675,14 @@ Three laws govern the slot:
    `del agent.weapon`, and `@Delete` at the name frees the slot (§1.6).
    A Constant slot refuses both (§1.5).
 3. **The slot never Tags.** The kit applies no Tag to what the builder
-   returns or to what is assigned. The forge Tags the object in plain
-   sight, or the object arrives already Tagged. A tagging inside the
-   builder is an ordinary call on another Target with its own §0.6
-   boundary: its failure keeps its own name and refuses the bearer's
-   gaining; a Tag it applied to a pre-existing object stays applied,
-   since Rip is not restoration (§0.7).
+   returns or to what is assigned. A Tool builder, like any Record
+   builder, reads, calculates and returns an initial value. Applying or
+   Ripping Tags belongs in an Action or Imprint, outside the builder; a held
+   object that needs a Tag kind at admission must already belong to that
+   Tag when the builder returns. An Imprint in a prior Tagging turn may
+   prepare it (§0.6);
+   this Tag's Imprints run only after its Record builders. Nested Tagging
+   follows its own §0.6 failure boundary; Rip is not restoration (§0.7).
 
 The rule belongs to the effective Record declaration, as Overlay already
 says (§1.2). A later Layer that redeclares the name as a Tool brings its
@@ -699,7 +701,7 @@ alone, a bare `@Tool` on the builder, the root `Tag`, `object`, a Pin
 `~Weapon`, `Weapon[:]`: §2.5's Field algebra, not a kind; the refusal
 shows `@Tool(Weapon, Blessed)` for both and a common Base Tag for
 either), an instance, a typing construct with no plain instance test,
-`@Tool` over any other kind of declaration, or `@Tool` inside a `@Pin`
+`@Tool` over any other kind of declaration, or `@Tool` inside a Pin
 (a Pin's Records land as Reports, §1.9) is a Declaration Failure at
 class use. A slot under a protocol name (`__rmatmul__`) keeps the
 language's own hook: its ordinary writes are checked, and a kernel write
@@ -1081,13 +1083,12 @@ meaning membership once a Flag lands.
 
 Categories have categories. A game marks Tags as *Rare* or *Homebrew*; a
 rules engine keeps Tags by *School*; a program walks every Tag that is
-*Deprecated*. A Tag marked `@Pin` applies to Tags, and the pinned Tag is
-its Agent in every sense of Ring 0: membership, a Field to walk, a gate,
+*Deprecated*. A Pin declared with `class Rare(Pin)` applies to Tags. The
+pinned Tag is its Agent in every sense of Ring 0: membership, a Field to walk, a gate,
 a promise, a view, a Rip.
 
 ```python
-@Pin
-class Rare(Tag):
+class Rare(Pin):
 
     @Record
     def rarity(tag):                     # lands as Wizard.rarity: a Report
@@ -1107,12 +1108,21 @@ assert Wizard.Describe() == "Wizard is rare"
 assert not hasattr(charlie, "rarity")    # never on the Tag's Agents
 ```
 
-**Who may be a Target.** A Pin applies to Tags only; on an object it
-fails with a Composition Failure. An ordinary Tag applies to objects only;
-on a class it is refused, as before. A Pin may not pin itself or any Tag
-of its own Form. A Shape of a Pin is a Pin, and one Form is all Pins or
-no Pins: mixing them is a Declaration Failure. Fields therefore never mix
-Agents and Tags.
+**Who may be a Target.** An ordinary Tag applies to object instances;
+a named Pin applies to actual TOP Tag classes, including actual Link Tags
+and other Pins. A plain Python class and an object's presented `__class__`
+do not supply that credential. Applying a Pin to a Tag with an empty or
+populated Field does not change the Target's category, identity or Field.
+A Pin may not pin itself or any Tag of its own Form. A Shape of a Pin is
+a Pin; ordinary Tag and Pin Bases cannot mix in one application Form.
+
+**Declaration is not conversion.** `class Rare(Pin)` declares a concrete
+Pin. Ordinary Tags never become Pins, including unused Tags and Tags whose
+Agents were Ripped. Calling the declaration root as `Pin(existing_tag)` is
+refused. The `Pin` root has no concrete application or own Field. A Tool's
+ordinary held object remains an object Target; `@Tool` does not create a
+new Tag category. Pins keep their normal Preconditions, Posts and
+contribution rules when applied to eligible Targets.
 
 **The receiver rule** (§1.1). The first parameter of a Pin's Agent-scope
 member is the pinned Tag; write it `tag`. A Pin's Record lands as a

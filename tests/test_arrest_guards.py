@@ -127,8 +127,7 @@ class ArrestGuardTests(unittest.TestCase):
             @Operation
             def Work(tag, amount=1):
                 return amount
-        @Pin
-        class Registered(Tag):
+        class Registered(Pin):
             @Rip
             def Leave(tag):
                 raise ValueError("registry blocked")
@@ -375,8 +374,7 @@ class ArrestGuardTests(unittest.TestCase):
             @Operation
             def Work(tag, amount=1):
                 return "original", tag, amount
-        @Pin
-        class Patch(Tag):
+        class Patch(Pin):
             @Action
             def Work(tag, amount=1):
                 return "replacement", tag, amount
@@ -454,8 +452,7 @@ class ArrestGuardTests(unittest.TestCase):
         flag["fail"] = False
         _retry_arrested(agent)
 
-        @Pin
-        class Registry(Tag):
+        class Registry(Pin):
             @Rip
             def Leave(tag):
                 raise ValueError("registry blocked")

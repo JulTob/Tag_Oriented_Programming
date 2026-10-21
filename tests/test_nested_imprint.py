@@ -51,14 +51,12 @@ class NestedImprintTests(unittest.TestCase):
         class Receiver(Tag):
             pass
 
-        @Pin
-        class Inner(Tag):
+        class Inner(Pin):
             @Action
             def Cleanup(tag):
                 calls.append("inner")
 
-        @Pin
-        class Outer(Tag):
+        class Outer(Pin):
             @Rip
             def Cleanup(tag):
                 calls.append("outer")

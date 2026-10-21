@@ -5,7 +5,9 @@ their Action or Operation call returns. A protocol proxy checks the receiver
 before *each* resumption, including send, throw and close. It also checks
 after send and throw, so a result cannot escape if that continuation arrests
 its receiver. Denying a resume leaves the source suspended, so a saved Rip
-can resume it through its door.
+can resume it through its door. An entered view may finish close/aclose
+after membership ends, using a separate cleanup authorizer. Secret and
+custody checks still apply on every cleanup step.
 
 These are Python protocol objects, not native generator/coroutine objects:
 ``inspect.isgenerator`` and ``inspect.iscoroutine`` therefore return False.
@@ -43,27 +45,43 @@ from .errors import TagArrestedAccessError
 
 _Check = Callable[[object, str], None]
 
+# Only fixed native and private framework classes enter this table. Strong
+# class references prevent ID reuse; identity guards avoid host type hooks.
+# Looking up an ordinary return value never adds its type to the table.
+_framework_lazy_types: dict[int, tuple[type, int, str | None]] = {}
+
+
+def _register_lazy_proxy_types(
+        generator: type, coroutine: type, async_generator: type, *,
+        source_attribute: str | None = None,
+        ) -> None:
+    for kind, category in ((generator, 0), (coroutine, 1), (async_generator, 2)):
+        _framework_lazy_types[id(kind)] = kind, category, source_attribute
+
 
 class _Guard:
-    __slots__ = ("receiver", "act", "authorize", "hold")
+    __slots__ = ("receiver", "act", "authorize", "cleanup_authorize", "hold")
 
     def __init__(
             self,
             receiver: object,
             act: str,
             authorize: _Check,
+            cleanup_authorize: _Check | None = None,
             ) -> None:
         self.receiver = ref(receiver)
         self.act = act
         self.authorize = authorize
+        self.cleanup_authorize = authorize if cleanup_authorize is None else cleanup_authorize
         self.hold = _hold_lazy_result
 
-    def check(self, source: Any) -> None:
+    def check(self, source: Any, *, cleanup: bool = False) -> None:
         receiver = self.receiver()
         if receiver is None:
             raise ReferenceError("the receiver of this lazy TOP act no longer exists")
         try:
-            self.authorize(receiver, self.act)
+            authorize = self.cleanup_authorize if cleanup else self.authorize
+            authorize(receiver, self.act)
         except BaseException:
             # A denied continuation leaves the source suspended. Keep that
             # source in the same Safehouse entry as its unfinished Rip so
@@ -71,6 +89,14 @@ class _Guard:
             # Python interruptions in the retry path need the same rule.
             self.hold(receiver, source)
             raise
+
+    def for_cleanup(self) -> _Guard:
+        """Authorize only the returned close awaitable's continuation steps."""
+
+        receiver = self.receiver()
+        if receiver is None:
+            raise ReferenceError("the receiver of this lazy TOP act no longer exists")
+        return _Guard(receiver, self.act, self.cleanup_authorize)
 
     def park(self, source: Any) -> None:
         """Dropping a started lazy result must not finalize it in custody."""
@@ -80,26 +106,38 @@ class _Guard:
             self.hold(receiver, source)
 
 
-def _checked_resume(guard: _Guard, source: Any, resume: Callable, *args: Any) -> Any:
+def _checked_resume(
+        guard: _Guard, source: Any, resume: Callable, *args: Any,
+        cleanup: bool = False,
+        ) -> Any:
     """Do not release a continuation result if it arrested its receiver."""
 
+    # Like an executing bound call, retain its receiver through the postcheck.
+    # A Link may release its completed private Pair inside this continuation.
+    receiver = guard.receiver()
+    if receiver is None:
+        guard.check(source, cleanup=cleanup)
     try:
-        result = resume(*args)
-    except (StopIteration, StopAsyncIteration):
-        # A completed generator or coroutine can carry a return value in
-        # StopIteration. That value belongs behind the same custody check.
-        guard.check(source)
-        raise
-    guard.check(source)
-    return result
+        try:
+            result = resume(*args)
+        except (StopIteration, StopAsyncIteration):
+            # A terminal value belongs behind the same custody check.
+            guard.check(source, cleanup=cleanup)
+            raise
+        guard.check(source, cleanup=cleanup)
+        return result
+    finally:
+        # A saved exception traceback must not keep the receiver alive.
+        receiver = None
 
 
 class _Guarded_Generator(Generator):
-    __slots__ = ("_source", "_guard", "__name__", "__qualname__")
+    __slots__ = ("_source", "_guard", "_closed", "__name__", "__qualname__")
 
     def __init__(self, source: Any, guard: _Guard) -> None:
         self._source = source
         self._guard = guard
+        self._closed = False
         self.__name__ = source.__name__
         self.__qualname__ = source.__qualname__
 
@@ -112,19 +150,43 @@ class _Guarded_Generator(Generator):
 
     def send(self, value):
         self._guard.check(self._source)
-        return _checked_resume(
-                self._guard, self._source, self._source.send, value
-                )
+        try:
+            return _checked_resume(self._guard, self._source, self._source.send, value)
+        except (StopIteration, StopAsyncIteration):
+            self._closed = True
+            raise
+        except BaseException:
+            if _lazy_finished(self._source):
+                self._closed = True
+            raise
 
     def throw(self, *args):
         self._guard.check(self._source)
-        return _checked_resume(
-                self._guard, self._source, self._source.throw, *args
-                )
+        try:
+            return _checked_resume(self._guard, self._source, self._source.throw, *args)
+        except (StopIteration, StopAsyncIteration):
+            self._closed = True
+            raise
+        except BaseException:
+            if _lazy_finished(self._source):
+                self._closed = True
+            raise
 
     def close(self):
-        self._guard.check(self._source)
-        return _checked_resume(self._guard, self._source, self._source.close)
+        if self._guard.receiver() is None and (
+                self._closed or _lazy_finished(self._source)):
+            return None   # disposal already completed; no receiver or code remains
+        self._guard.check(self._source, cleanup=True)
+        try:
+            result = _checked_resume(
+                    self._guard, self._source, self._source.close, cleanup=True,
+                    )
+        except BaseException:
+            if _lazy_finished(self._source):
+                self._closed = True
+            raise
+        self._closed = True
+        return result
 
     def __del__(self):
         self._guard.park(self._source)
@@ -133,14 +195,36 @@ class _Guarded_Generator(Generator):
 class _Guarded_Coroutine(Coroutine):
     """Guard every resumption of a native coroutine."""
 
-    __slots__ = ("_source", "_iterator", "_guard", "__name__", "__qualname__")
+    __slots__ = ("_source", "_iterator", "_guard", "_closed", "_on_complete",
+                 "_completion_source", "__name__", "__qualname__")
 
-    def __init__(self, source: Any, guard: _Guard) -> None:
+    def __init__(
+            self, source: Any, guard: _Guard, *,
+            on_complete: Callable[[bool], None] | None = None,
+            completion_source: Any = None,
+            ) -> None:
         self._source = source
         self._iterator = None
         self._guard = guard
+        self._closed = False
+        self._on_complete = on_complete
+        self._completion_source = completion_source
         self.__name__ = getattr(source, "__name__", "<async continuation>")
         self.__qualname__ = getattr(source, "__qualname__", self.__name__)
+
+    def _finished(self, exhausted: bool) -> None:
+        self._closed = True
+        completed = self._on_complete
+        self._on_complete = None
+        self._completion_source = None
+        if completed is not None:
+            completed(exhausted)
+
+    def _failed(self) -> None:
+        parent_closed = (self._completion_source is not None
+                         and _lazy_finished(self._completion_source))
+        if parent_closed or _lazy_finished(self._source):
+            self._finished(parent_closed)
 
     def _step(self):
         if self._iterator is None:
@@ -159,9 +243,14 @@ class _Guarded_Coroutine(Coroutine):
 
     def send(self, value):
         self._guard.check(self._source)
-        return _checked_resume(
-                self._guard, self._source, self._step().send, value
-                )
+        try:
+            return _checked_resume(self._guard, self._source, self._step().send, value)
+        except (StopIteration, StopAsyncIteration) as stopped:
+            self._finished(isinstance(stopped, StopAsyncIteration))
+            raise
+        except BaseException:
+            self._failed()
+            raise
 
     def throw(self, *args):
         try:
@@ -177,28 +266,49 @@ class _Guarded_Coroutine(Coroutine):
             if isinstance(cancellation, CancelledError):
                 raise cancellation from None
             raise
-        return _checked_resume(
-                self._guard, self._source, self._step().throw, *args
-                )
+        try:
+            return _checked_resume(self._guard, self._source, self._step().throw, *args)
+        except (StopIteration, StopAsyncIteration) as stopped:
+            self._finished(isinstance(stopped, StopAsyncIteration))
+            raise
+        except BaseException:
+            self._failed()
+            raise
 
     def close(self):
-        self._guard.check(self._source)
+        if self._guard.receiver() is None and (
+                self._closed or _lazy_finished(self._source)):
+            return None
+        self._guard.check(self._source, cleanup=True)
         iterator = self._iterator
         if iterator is None:
-            # A native coroutine has a side-effect-free close before entry.
-            iterator = self._step()
-        return _checked_resume(self._guard, self._source, iterator.close)
+            # Disposing an unstarted coroutine must not enter a nested
+            # proxy's ordinary __await__ permission path merely to close it.
+            iterator = self._source
+        try:
+            result = _checked_resume(
+                    self._guard, self._source, iterator.close, cleanup=True,
+                    )
+        except BaseException:
+            self._failed()
+            raise
+        self._closed = True
+        # Closing an unfinished asend awaitable does not close its generator.
+        self._on_complete = None
+        self._completion_source = None
+        return result
 
     def __del__(self):
         self._guard.park(self._source)
 
 
 class _Guarded_AsyncGenerator:
-    __slots__ = ("_source", "_guard", "__name__", "__qualname__")
+    __slots__ = ("_source", "_guard", "_closed", "__name__", "__qualname__")
 
     def __init__(self, source: Any, guard: _Guard) -> None:
         self._source = source
         self._guard = guard
+        self._closed = False
         self.__name__ = source.__name__
         self.__qualname__ = source.__qualname__
 
@@ -208,22 +318,83 @@ class _Guarded_AsyncGenerator:
 
     def __anext__(self):
         self._guard.check(self._source)
-        return _Guarded_Coroutine(self._source.__anext__(), self._guard)
+        return _Guarded_Coroutine(
+                self._source.__anext__(), self._guard, on_complete=self._step_finished,
+                completion_source=self._source,
+                )
 
     def asend(self, value):
         self._guard.check(self._source)
-        return _Guarded_Coroutine(self._source.asend(value), self._guard)
+        return _Guarded_Coroutine(
+                self._source.asend(value), self._guard, on_complete=self._step_finished,
+                completion_source=self._source,
+                )
 
     def athrow(self, *args):
         self._guard.check(self._source)
-        return _Guarded_Coroutine(self._source.athrow(*args), self._guard)
+        return _Guarded_Coroutine(
+                self._source.athrow(*args), self._guard, on_complete=self._step_finished,
+                completion_source=self._source,
+                )
 
     def aclose(self):
-        self._guard.check(self._source)
-        return _Guarded_Coroutine(self._source.aclose(), self._guard)
+        if self._guard.receiver() is None and (
+                self._closed or _lazy_finished(self._source)):
+            return _finished_cleanup()
+        self._guard.check(self._source, cleanup=True)
+        return _Guarded_Coroutine(
+                self._source.aclose(), self._guard.for_cleanup(),
+                on_complete=self._close_finished,
+                completion_source=self._source,
+                )
+
+    def _step_finished(self, exhausted: bool) -> None:
+        if exhausted:
+            self._closed = True
+
+    def _close_finished(self, exhausted: bool) -> None:
+        self._closed = True
 
     def __del__(self):
         self._guard.park(self._source)
+
+
+async def _finished_cleanup() -> None:
+    """Repeated disposal of a completed result has no user body to execute."""
+
+
+_register_lazy_proxy_types(GeneratorType, CoroutineType, AsyncGeneratorType)
+_register_lazy_proxy_types(
+        _Guarded_Generator, _Guarded_Coroutine, _Guarded_AsyncGenerator,
+        source_attribute="_source",
+        )
+
+
+def _lazy_kind_of(result: Any) -> int | None:
+    """Recognize fixed trusted classes without calling host type hooks."""
+    kind = type(result)
+    entry = _framework_lazy_types.get(id(kind))
+    return entry[1] if entry is not None and entry[0] is kind else None
+
+
+def _lazy_finished(source: Any) -> bool:
+    """Inspect closed frames only through fixed trusted private adapters."""
+    while True:
+        kind = type(source)
+        if kind is GeneratorType:
+            return source.gi_frame is None
+        if kind is CoroutineType:
+            return source.cr_frame is None
+        if kind is AsyncGeneratorType:
+            return source.ag_frame is None
+        entry = _framework_lazy_types.get(id(kind))
+        if entry is None or entry[0] is not kind or entry[2] is None:
+            return False
+        if (kind is _Guarded_Generator or kind is _Guarded_Coroutine
+                or kind is _Guarded_AsyncGenerator):
+            if object.__getattribute__(source, "_closed"):
+                return True
+        source = object.__getattribute__(source, entry[2])
 
 
 def _guard_lazy_result(
@@ -231,6 +402,8 @@ def _guard_lazy_result(
         receiver: object,
         act: str,
         authorize: _Check,
+        *,
+        cleanup_authorize: _Check | None = None,
         ) -> Any:
     """Check the receiver after its call and guard supported lazy results.
 
@@ -241,10 +414,9 @@ def _guard_lazy_result(
     """
 
     kind = type(result)
-    generator = kind is GeneratorType or kind is _Guarded_Generator
-    coroutine = kind is CoroutineType or kind is _Guarded_Coroutine
-    async_generator = kind is AsyncGeneratorType or kind is _Guarded_AsyncGenerator
-    lazy = generator or coroutine or async_generator
+    entry = _framework_lazy_types.get(id(kind))
+    category = entry[1] if entry is not None and entry[0] is kind else None
+    lazy = category is not None
     if _safehouse:
         try:
             authorize(receiver, act)
@@ -256,9 +428,9 @@ def _guard_lazy_result(
     if not lazy:
         return result
 
-    guard = _Guard(receiver, act, authorize)
-    if generator:
+    guard = _Guard(receiver, act, authorize, cleanup_authorize)
+    if category == 0:
         return _Guarded_Generator(result, guard)
-    if async_generator:
+    if category == 2:
         return _Guarded_AsyncGenerator(result, guard)
     return _Guarded_Coroutine(result, guard)

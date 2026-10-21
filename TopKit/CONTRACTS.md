@@ -102,10 +102,14 @@ Each missing Tag passes its own Gate when its turn arrives. A Shape cannot
 override away a missing Base's Gate: the Base must pass first. An already
 active Base is not asked again when the Shape arrives.
 
-Preconditions judge by reading and querying. Record builders read and query
-to calculate their initial returned values. Applying or Ripping Tags and
-performing world effects belong to Imprints. These rules do not provide a
-sandbox for arbitrary Python effects.
+Preconditions, computed Posts and Record builders read and query; they may
+call Actions that retrieve or calculate values. TOP refuses explicit mutating
+acts while these calculations run, including Tagging, Rip, Contract deletion
+and declaration changes. Catching that refusal does not make the calculation
+succeed. Use an Imprint or an Action outside the check for preparation and
+effects. Ordinary Python writes, changes inside mutable values and I/O remain
+the author's responsibility: this guard is not a Python sandbox. Existing
+Python finalization still performs its cleanup independently.
 
 After the Gate, Actions, Records, Post definitions and deletions take effect
 in declaration order, top to bottom, with each provisional or acquired Gain
@@ -486,8 +490,7 @@ that keyword is there.
 
 ```python
 @Flag
-@Pin
-class Red_Alert(Tag):
+class Red_Alert(Pin):
     """The ship's state, not the crew's."""
 
 
@@ -699,8 +702,7 @@ assert len(Quarantined[:]) == 0
 assert Quarantined                     # no Pin Posts: true even when empty
 
 
-@Pin
-class Certified(Tag):
+class Certified(Pin):
 
     @Pre
     @Post

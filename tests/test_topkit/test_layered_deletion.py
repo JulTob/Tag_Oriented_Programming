@@ -326,14 +326,12 @@ class LayeredDeletionTests(unittest.TestCase):
         program = """
 from TopKit import Tag, Pin, Flag, Record
 
-@Pin
-class Rare(Tag):
+class Rare(Pin):
     @Record
     def rarity(tag): return "rare"
 
 @Flag
-@Pin
-class Deprecated(Tag): pass
+class Deprecated(Pin): pass
 
 class Wizard(Tag): pass
 

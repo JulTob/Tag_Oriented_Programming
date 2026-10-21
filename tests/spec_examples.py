@@ -258,8 +258,7 @@ def Run() -> None:
     assert "Beast" in walker and walker not in Beast and Beast not in walker   # a word, not membership
 
     # 1.9 Pins
-    @Pin
-    class Rare(Tag):
+    class Rare(Pin):
         @Record
         def rarity(tag): return "rare"
         @Action
@@ -278,9 +277,8 @@ def Run() -> None:
     del Rare[Wizard]; assert Wizard not in Rare and isinstance(Wizard, Rare) and Wizard.rarity == "rare"
     with warnings.catch_warnings():
         warnings.simplefilter("error"); Rare(Wizard)
-    @Pin
     @Flag("Obsolete")
-    class Deprecated(Tag): pass
+    class Deprecated(Pin): pass
     Deprecated(Wizard)
     assert "Deprecated" in Wizard and "Obsolete" in Wizard and Keyword(Wizard, "Obsolete")
 

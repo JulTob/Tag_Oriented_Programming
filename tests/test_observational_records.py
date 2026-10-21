@@ -73,8 +73,7 @@ class ObservationalRecordTests(unittest.TestCase):
                 Changed(other)
                 return 1
 
-        @Pin
-        class Pinned(Tag):
+        class Pinned(Pin):
             @Record
             def result(target):
                 try:

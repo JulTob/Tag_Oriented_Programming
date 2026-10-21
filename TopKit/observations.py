@@ -8,6 +8,7 @@ the author's responsibility. This is not an object sandbox.
 from __future__ import annotations
 
 from contextvars import ContextVar
+from threading import get_ident
 
 from .errors import TagCompositionError
 
@@ -17,7 +18,7 @@ class _ObservationViolation(TagCompositionError):
 
 
 class _Observation:
-    __slots__ = ("phase", "active", "carrier", "violation", "token")
+    __slots__ = ("phase", "active", "carrier", "violation", "token", "owner")
 
     def __init__(self, phase: str) -> None:
         self.phase = phase
@@ -27,9 +28,14 @@ class _Observation:
 
     def __enter__(self) -> _Observation:
         previous = _observation.get()
-        if previous is not None and previous.active:
+        owner = get_ident()
+        if previous is not None and previous.active and previous.owner == owner:
             self.carrier = previous
             return previous
+        # Checks complete synchronously: same-thread nesting is lexical.
+        # A copied Context in another thread needs its own lifetime, so an
+        # outer check ending there cannot make this calculation writable.
+        self.owner = owner
         self.active = True
         self.token = _observation.set(self)
         return self
@@ -46,7 +52,9 @@ class _Observation:
             # A saved copy_context must retain neither authority nor an
             # exception traceback owning the observed Agent after exit.
             self.violation = None
-            _observation.reset(self.token)
+            token = self.token
+            self.token = None
+            _observation.reset(token)
         if violation is not None and (error is None or isinstance(error, Exception)):
             raise violation
 
@@ -65,7 +73,9 @@ class _UnobservedCleanup:
         self.token = flow.set(None)
 
     def __exit__(self, error_type, error, traceback, flow=_observation) -> None:
-        flow.reset(self.token)
+        token = self.token
+        self.token = None
+        flow.reset(token)
 
 
 def _unobserved_cleanup(cleanup=_UnobservedCleanup) -> _UnobservedCleanup:

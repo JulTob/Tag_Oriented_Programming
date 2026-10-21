@@ -167,8 +167,7 @@ class OverlayTests(unittest.TestCase):
         class Shape(Base):
             pass
 
-        @Pin
-        class Patch(Tag):
+        class Patch(Pin):
             @Action
             @Underlay
             def Work(tag, prior, value):

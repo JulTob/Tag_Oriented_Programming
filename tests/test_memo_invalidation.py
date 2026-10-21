@@ -39,8 +39,7 @@ class MemoInvalidationTests(unittest.TestCase):
         return name, calls
 
     def publish_label(self, receiver):
-        @Pin
-        class Given(Tag):
+        class Given(Pin):
             @Public
             @Record
             def label(tag):
@@ -104,8 +103,7 @@ class MemoInvalidationTests(unittest.TestCase):
         middle = Host()
         receiver(middle)
 
-        @Pin
-        class Later(Tag):
+        class Later(Pin):
             @Public
             @Record
             def revision(tag):

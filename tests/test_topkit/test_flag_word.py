@@ -222,9 +222,8 @@ class FlagWordTests(unittest.TestCase):
             self.assertFalse(Keyword(bag, "Mark"))
 
     def test_a_flag_pin_answers_to_its_words_on_the_tag(self) -> None:
-        @Pin
         @Flag("Obsolete")
-        class Deprecated(Tag):
+        class Deprecated(Pin):
             pass
 
         class Wizard(Tag):

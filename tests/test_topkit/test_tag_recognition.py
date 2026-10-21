@@ -69,8 +69,7 @@ class TagRecognitionTests(unittest.TestCase):
         class HostMixin(HostBase):
             pass
 
-        @Pin
-        class Pinned(Tag):
+        class Pinned(Pin):
             pass
 
         class Shape(HostMixin, Pinned):
@@ -86,8 +85,7 @@ class TagRecognitionTests(unittest.TestCase):
         class Victim(HostMixin, Tag):
             pass
 
-        @Pin
-        class Patch(Tag):
+        class Patch(Pin):
             @Record
             def status(tag):
                 return "pin record"
