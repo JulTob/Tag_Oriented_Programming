@@ -7,12 +7,14 @@ whenever the two disagree.
 ## Module map
 
 One idea per module, with 600 physical lines as the migration target. The
-target is not yet met: `declarations.py`, `overlay.py`, and `state.py` are the
-current exceptions. [Issue #15](https://github.com/JulTob/Tag_Oriented_Programming/issues/15)
+target is not yet met: `access.py`, `contracts.py`, `declarations.py`,
+`overlay.py`, `state.py`, and `transactions.py` are the current exceptions.
+[Issue #15](https://github.com/JulTob/Tag_Oriented_Programming/issues/15)
 tracks splitting them by idea without changing semantics.
 
 | Module | Idea |
 | --- | --- |
+| `__init__.py` | the public TopKit names and their exports |
 | `errors.py` | the failure types |
 | `declarations.py` | the marks (`@Action`, `@Record`, `Report`, `Public`, `@Secret`, …), scanning a Tag class once, binding parameters |
 | `geometry.py` | Bases, Shapes, Forms, leaves |
@@ -21,7 +23,7 @@ tracks splitting them by idea without changing semantics.
 | `overlay.py` | laying one Tag's declarations over a state; materializing Records |
 | `contracts.py` | strict verdicts, transient Pre Services, bound Post Gains, `Contract` |
 | `constants.py` | protecting Constant bindings without freezing their values |
-| `tools.py` | Tool slots: a Record's kind, a Tag or a class, admission at the gaining and at every write |
+| `tools.py` | Tool slots and their admission and write checks |
 | `presence.py` | Contribution presence without evaluating values or conditions |
 | `transactions.py` | the tagging sequence and the call boundary |
 | `lifecycle.py` | Rip, teardown, `At_Exit` |
@@ -32,6 +34,7 @@ tracks splitting them by idea without changing semantics.
 | `access.py` | the hooks on the runtime type, Agent-bound views |
 | `tags.py` | `Tag` and its metaclass |
 | `queries.py` | `Apply`, `Form`, `Keyword`, `Tags`, `Outline` |
+| `memo.py` | owner-local Tag memos and snapshots of changing Tag namespaces |
 
 ## The access design
 
