@@ -13,6 +13,7 @@ from TopKit import (
     Tag,
     TagCompositionError,
     TagDeclarationError,
+    TagImprintError,
     TagPreconditionError,
 )
 from TopKit.tags import MetaTag
@@ -20,6 +21,58 @@ from tests.test_tools import Character
 
 
 class PinTaggingReservationTests(unittest.TestCase):
+
+    def test_one_failed_call_does_not_release_another_calls_reservation(self):
+        first_entered, second_entered = Event(), Event()
+        release_first, release_second = Event(), Event()
+        failures = []
+
+        class First(Tag):
+            @Imprint
+            def Train(agent):
+                first_entered.set()
+                if not release_first.wait(2):
+                    raise TimeoutError("first training did not resume")
+                raise ValueError("first training failed")
+
+        class Second(Tag):
+            @Imprint
+            def Train(agent):
+                second_entered.set()
+                if not release_second.wait(2):
+                    raise TimeoutError("second training did not resume")
+
+        def train(tag, agent):
+            try:
+                tag(agent)
+            except Exception as error:
+                failures.append(error)
+
+        second = Character("second")
+        first_thread = Thread(target=train, args=(First, Character("first")))
+        second_thread = Thread(target=train, args=(Second, second))
+        first_thread.start()
+        try:
+            self.assertTrue(first_entered.wait(2))
+            second_thread.start()
+            self.assertTrue(second_entered.wait(2))
+            release_first.set()
+            first_thread.join(2)
+            self.assertFalse(first_thread.is_alive())
+            self.assertIs(Pin(First), First)
+            with self.assertRaises(TagDeclarationError):
+                Pin(Second)
+        finally:
+            release_first.set()
+            release_second.set()
+            first_thread.join(2)
+            if second_thread.ident is not None:
+                second_thread.join(2)
+
+        self.assertFalse(second_thread.is_alive())
+        self.assertEqual(len(failures), 1)
+        self.assertIsInstance(failures[0], TagImprintError)
+        self.assertIn(second, Second[:])
 
     def test_interruption_after_extra_registration_releases_its_tags(self):
         class Old(Tag):

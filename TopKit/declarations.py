@@ -1343,6 +1343,9 @@ def _end_ordinary_form(form: tuple[type, ...]) -> None:
     A cancellation just before the append has nothing to release."""
 
     with _pin_mark_lock:
+        if _ordinary_inflight and _ordinary_inflight[-1] is form:
+            _ordinary_inflight.pop()
+            return
         for index, pending in enumerate(_ordinary_inflight):
             if pending is form:
                 del _ordinary_inflight[index]
