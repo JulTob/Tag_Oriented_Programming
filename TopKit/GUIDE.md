@@ -175,15 +175,16 @@ That last line surprises people. TOP calls this a **Rogue Agent**: it has
 what it learned, but no active membership. If a Tag must clean up after
 itself, it says so with `@Rip` (pattern 9).
 
-Unfinished Tagging can also produce a Rogue: Gainings or Imprints failed
-before the Agent entered the Field, leaving its actually acquired non-Post
-Gains without membership. Calling `Tag(agent)` again starts a fresh attempt.
-The Gate judges the Agent as it is now, ordinary Gains overlay it, and
-Imprints restart. Successfully established non-Post Constants stay protected.
-A failed attempt does not count as having been in the Tag for `isinstance`.
+A structural failure that prevents admission can also produce a Rogue: Gains
+were acquired but this Tag could not enter its Field. Ordinary Record
+initializer and Imprint failures instead warn, continue training, and admit
+an Agent for its Posts to judge. A never-admitted attempt contributes no
+has-been history. Any new Tagging still needs the Agent's current Posts to hold;
+TOP does not implicitly repair a broken source Agent.
 
 Posts have an admission boundary. Before Field entry they are provisional;
-a failed attempt discards them, including Constant Posts. After admission an
+a structural failure that prevents admission discards them, including Constant
+Posts. After admission an
 ordinary Post is a membership-bound Agent Gain. A Constant Post is a lifetime
 term in the Agent's Contract, the bond with its Agencies.
 
@@ -475,19 +476,23 @@ a refusal.
 **Protocol work finishes now.** In TopKit's current Python runtime,
 `@Pre`, `@Imprint`, `@Post` and `@Rip` are synchronous. A native coroutine,
 generator or async generator returned by a protocol is rejected without
-awaiting or iterating it. Put async or streaming behavior in Actions or
+awaiting or iterating it. An Imprint reports that rejection as a named
+training warning and continues; conditions fail their checks, while a Rip
+saves its unfinished cleanup. Put async or streaming behavior in Actions or
 Operations; a Record may also store such an object as its value.
 
 ### Pattern 6 · Promise, then repair
 
 **When you want** a Tag to guarantee something about the finished Agent.
-Postconditions inspect the product after everything applied.
+Postconditions inspect the admitted Agent after each Tag's own training
+attempt, before the next Tag begins.
 
 Posts can refer to other Posts. An exact recursive reference contributes
 neutral True while the surrounding check continues to judge the other
 promises. One complete query reuses its first completed verdicts; a new
 query reads again. See the [Post queries guide](../wiki/1.7-TopKit-Post-Queries.md)
 for examples, collective checks and the access boundaries.
+
 
 ```python
 class Wizard(Tag):
@@ -804,44 +809,47 @@ assert not guard.on_duty
 assert guard not in Sentry
 ```
 
-Tagging proceeds **Gate → Gainings → Imprints → FieldAdding → Posts**.
-Actions, Records, Post definitions and deletions take effect top to bottom in
-declaration order, each visible to subsequent declarations. The Gate has
-already evaluated this Tag's transient Pre Services; they do not become
-Agent members. Imprints then train with acquired Gains before entry in the
-Field. The Tag's published Reports and Operations and its Agent-bound view
-become available through the Agent after FieldAdding. Field entry admits the
-Tag's Posts into the Contract bond. Posts judge the finished Agent once after
-the whole Form: a broken promise leaves a defective member, rather than
-undoing membership.
+Tagging proceeds **Gate → Gainings → Imprints → FieldAdding → Posts**, for
+each missing Tag before the next one starts. An existing Agent must satisfy
+its current Posts before a new Tag's Gate. Structural preparation checks all
+Record spaces before any Gain or initializer runs; an unsuitable Target is
+refused with `TagTargetError`. Preconditions are transient Pre Services, not
+Agent names.
 
-`@Rip` runs after an admitted Agent leaves. A failed training attempt never
-joined the Field, so it triggers no automatic Rip and is outside `Tag[:]`.
-The program handles cleanup of that attempt's resources with ordinary
-Python error handling.
+Gainings become visible top to bottom. If a Record initializer raises an
+ordinary exception, the previous value or absence remains and a named
+`TrainingWarning` records that failure; later Gainings continue. Imprints
+likewise warn individually and continue after ordinary failures. FieldAdding
+admits the Agent after that attempt. Current Posts then judge it: passing Posts
+return the sound Agent, while failing Posts raise a final Postcondition Failure
+and keep the defective member in its Field. Several failed Posts are named in
+`TaggingFailure.failed_posts`; a single failure keeps its named Post exception.
+Published Reports, Operations and the bound view become available after entry.
+
+A Python interruption stops later training, but TOP still attempts admission
+and checks Posts before re-raising the original interruption. It never silently
+converts `KeyboardInterrupt` or `SystemExit` into a training warning. A structural
+failure that prevents admission removes provisional Posts; it does not undo
+acquired non-Post Gains or world effects.
 
 Declare a safety Post before the Action that needs it. An Action can read
 its named condition before effects, such as
-`if not agent.Insulated: raise PermissionError(...)`. A Post definition does
-not automatically guard an ordinary Action call. `if agent:` asks current
-truthiness across all visible Posts. `agent in Tag` asks whether the Agent
-is a sound member of that Tag; `agent in Tag[:]` asks whether it remains
-in its Field, including when defective.
+`if not agent.Insulated: raise PermissionError(...)`. Posts do not automatically
+guard ordinary Action calls. `if agent:` asks whether all current visible
+Posts hold; `agent in Tag` also requires membership; `agent in Tag[:]` asks
+raw admission even for a defective member.
 
-A role for a block is two acts you already know, the tagging and the Rip,
-joined by Python's own `try` and `finally`. The rule is the one Python
-teaches for a lock: **tag before `try`, Rip in `finally`.** A `finally`
-always runs when its `try` ends, whether the block finished or raised.
+For a block whose Tagging succeeds, use **Tag before `try`, Rip in `finally`**.
+A Gate or Target refusal never admitted this Tag, so an unconditional Rip
+covering that refused Tagging could hide the original failure. A failed Post,
+however, leaves an admitted member even though Tagging raised before the
+`try`; handle that case explicitly, using `agent in Tag[:]` to decide cleanup.
+Training warnings with passing Posts return normally and enter the `try`.
+TOP never undoes external training effects.
 
-Tag *before* the `try`, not inside it. A Gate refusal then raises before
-the block starts and leaves this Tag unstarted. Failed Gainings or Imprints
-leave actually acquired non-Post Gains outside this Tag and discard the
-attempt's provisional Posts; a broken Post leaves it admitted.
-All are reported at the Tagging statement, before this `try`, so its
-`finally` never begins. An unconditional Rip in a `finally` covering failed
-Tagging could try to expel a never-member and obscure the original failure.
-Handle unfinished training effects separately with ordinary Python error
-handling.
+An already active Tag call is a no-op, not implicit recovery. Repair existing
+Gains first; Rip and reTag if new training is wanted. A new unrelated Tag
+cannot be used to bypass the source Agent's broken Posts.
 
 If the Agent may carry the Tag already, take away only what the block
 gave:
