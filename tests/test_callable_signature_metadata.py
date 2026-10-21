@@ -135,8 +135,14 @@ class CallableSignatureMetadataTests(unittest.TestCase):
             for mark in (Action, Pre, Post):
                 with self.subTest(pinned=pinned, mark=mark):
                     extending = _Extend()
+                    calls = []
+
+                    def Check(agent):
+                        calls.append(agent)
+                        return True
+
                     base = type("Base", (Tag,), {
-                            "Work": mark(lambda agent: True),
+                            "Work": mark(Check),
                             })
                     if pinned:
                         base = Pin(base)
@@ -147,9 +153,15 @@ class CallableSignatureMetadataTests(unittest.TestCase):
 
                     shape(target)
                     self.assertIn(target, shape[:])
-                    self.assertTrue(
-                            target.Work() if mark is Action else target.Work,
-                            )
+                    if mark is Pre:
+                        self.assertEqual(calls, [target, target])
+                        self.assertFalse("Work" @ target)
+                        with self.assertRaises(AttributeError):
+                            target.Work
+                    else:
+                        self.assertTrue(
+                                target.Work() if mark is Action else target.Work,
+                                )
                     self.assertEqual(extending.metadata_reads, [])
 
     def test_underlay_and_stored_input_diagnostics_use_declared_names(self):
