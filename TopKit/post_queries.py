@@ -38,12 +38,23 @@ def _execution() -> tuple[int, Any]:
 
 
 class _Session:
-    __slots__ = ("active", "owner", "running", "nested", "first", "results", "sensitive")
+    __slots__ = (
+            "active", "owner", "running", "running_check", "nested", "first",
+            "results", "sensitive", "owns", "token",
+            )
 
-    def __init__(session) -> None:
+    def __enter__(session) -> _Session:
+        session.owns = False
+        existing = _session()
+        if existing is not None:
+            return existing
+
+        # Only an owning scope enters the ContextVar; initialize every
+        # observable field before publishing it there.
         session.active = True
         session.owner = _execution()
-        session.running: tuple[int, int] | None = None
+        session.running: object | None = None
+        session.running_check: Callable[..., Any] | None = None
         session.nested: set[tuple[int, int]] | None = None
         # Most queries ask one Post. Keep its result without allocating a
         # table; additional distinct checks use the identity-indexed table.
@@ -51,10 +62,21 @@ class _Session:
         session.first: tuple[Any, ...] | None = None
         session.results: dict[tuple[int, int], tuple[Any, ...]] | None = None
         session.sensitive = False
+        session.owns = True
+        session.token = _post_query.set(session)
+        return session
+
+    def __exit__(session, error_type: Any, error: Any, traceback: Any) -> None:
+        if session.owns:
+            token = session.token
+            session.token = None
+            session.Close()
+            _post_query.reset(token)
 
     def Close(session) -> None:
         session.active = False
         session.running = None
+        session.running_check = None
         session.nested = None
         session.first = None
         session.results = None
@@ -76,25 +98,8 @@ def _session() -> _Session | None:
     return None
 
 
-class _Post_Evaluation:
-    __slots__ = ("session", "token", "owns")
-
-    def __enter__(scope) -> _Session:
-        scope.session = _session()
-        scope.owns = scope.session is None
-        if scope.owns:
-            scope.session = _Session()
-            scope.token = _post_query.set(scope.session)
-        return scope.session
-
-    def __exit__(scope, error_type: Any, error: Any, traceback: Any) -> None:
-        if scope.owns:
-            scope.session.Close()
-            _post_query.reset(scope.token)
-
-
 # The private constructor is itself the context-manager factory.
-_post_evaluation = _Post_Evaluation
+_post_evaluation = _Session
 
 
 def _taint_post_memo() -> None:
@@ -152,9 +157,14 @@ def _verdict_in_session(
     if check_custody and _safehouse and not _may_act(agent):
         return False
 
-    key = id(agent), id(check)
-    if key == session.running or (session.nested is not None and key in session.nested):
+    if agent is session.running and check is session.running_check:
         return not (check_custody and _safehouse and not _may_act(agent))
+
+    key = None
+    if session.nested is not None:
+        key = id(agent), id(check)
+        if key in session.nested:
+            return not (check_custody and _safehouse and not _may_act(agent))
 
     custody = _arrest_of(agent) if _safehouse else None
     saved = None
@@ -163,6 +173,8 @@ def _verdict_in_session(
         if first is not None and first[0] is agent and first[1] is check:
             saved = first
         elif session.results is not None:
+            if key is None:
+                key = id(agent), id(check)
             saved = session.results.get(key)
     if (saved is not None and saved[0] is agent and saved[1] is check
             and saved[2] is custody):
@@ -170,8 +182,11 @@ def _verdict_in_session(
     else:
         first_running = session.running is None
         if first_running:
-            session.running = key
+            session.running = agent
+            session.running_check = check
         else:
+            if key is None:
+                key = id(agent), id(check)
             if session.nested is None:
                 session.nested = set()
             session.nested.add(key)
@@ -183,6 +198,7 @@ def _verdict_in_session(
         finally:
             if first_running:
                 session.running = None
+                session.running_check = None
             else:
                 session.nested.remove(key)
 
@@ -195,6 +211,8 @@ def _verdict_in_session(
             else:
                 if session.results is None:
                     session.results = {}
+                if key is None:
+                    key = id(agent), id(check)
                 session.results[key] = outcome
 
     if check_custody and _safehouse and not _may_act(agent):

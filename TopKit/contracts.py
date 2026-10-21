@@ -175,6 +175,12 @@ def _verdict(
         result: Any,
         label: str,
         ) -> bool:
+    if result is True or result is None:
+        return True
+
+    if result is False:
+        return False
+
     try:
         lazy = _discard_lazy_result(result)
     except Exception as error:
@@ -191,12 +197,6 @@ def _verdict(
                 " complete synchronously. TOP does not await or iterate"
                 " application protocols."
                 )
-
-    if result is True or result is None:
-        return True
-
-    if result is False:
-        return False
 
     raise TagContractError(
             f"{label} returned {_result_repr(result)} ({_type_name(result)}); a"
