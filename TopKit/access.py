@@ -665,6 +665,19 @@ class _View_Call:
         agent, snapshot = call._view._current()
         call._authorize(agent, "Tag-view call")
         name = call._name
+        secret = call._secret or name in snapshot.secrets
+
+        def Cleanup(receiver: object, act: str) -> None:
+            # The already-entered execution keeps its captured Secret
+            # boundary; ending membership does not prevent resource cleanup.
+            if _safehouse:
+                _require_available(receiver, act)
+            if secret and not _is_composing(_state_of(receiver)):
+                raise AttributeError(
+                        f"{name!r} was entered as a Secret member;"
+                        " cleanup requires composition"
+                        )
+
         if name in snapshot.secrets and not _is_composing(_state_of(agent)):
             raise AttributeError(f"{name!r} is a Secret member")
         if name in snapshot.operations:
@@ -680,7 +693,10 @@ class _View_Call:
         else:
             member = call._view._read(name, handles=False)
             result = member(*args, **kwargs)
-        result = _guard_lazy_result(result, agent, "Tag-view call", call._authorize)
+        result = _guard_lazy_result(
+                result, agent, "Tag-view call", call._authorize,
+                cleanup_authorize=Cleanup,
+                )
         call._authorize(agent, "Tag-view call")
         return result
 

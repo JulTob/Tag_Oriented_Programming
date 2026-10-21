@@ -32,6 +32,12 @@
 
 ### TopKit
 
+- **Entered lazy cleanup:** after Rip ends Tag-view membership, a started
+  generator, coroutine or async generator may finish through `close()` or
+  `aclose()`. Ordinary view continuation remains checked; cleanup retains
+  its Secret and Safehouse boundaries and grants no Rip authority. Completed
+  results release their execution receiver and remain safely disposable.
+
 - **Live Tag views:** a saved `MyTag[agent]` follows the Tag's current
   application instead of owning an old snapshot. Rip closes access;
   reTagging supplies the fresh Overlay. Reports read their origin Tag's
