@@ -217,6 +217,84 @@ class LinkViewOperationTests(unittest.TestCase):
         self.assertEqual(owner.Advance(result), 2)
         owner.Finish(result)
 
+    def test_direct_secret_operation_result_keeps_owners_door(self):
+        class Inventory(Tag):
+            @Link(agent, contact)
+            class Carries(Tag):
+                @Secret
+                @Operation
+                def Hidden(link):
+                    yield "secret"
+
+            @Action
+            def Start(owner):
+                return owner.Carries.Hidden()
+
+            @Action
+            def Advance(owner, result):
+                return next(result)
+
+            @Action
+            def Finish(owner, result):
+                result.close()
+
+        owner = Host()
+        Inventory(owner)
+        result = owner.Start()
+        with self.assertRaises(AttributeError):
+            next(result)
+        self.assertEqual(owner.Advance(result), "secret")
+        owner.Finish(result)
+
+    def test_secret_pair_action_result_keeps_owners_door(self):
+        class Inventory(Tag):
+            @Link(agent, contact)
+            class Carries(Tag):
+                @Secret
+                @Action
+                def Hidden(owner, target):
+                    yield "secret"
+
+            @Action
+            def Start(owner, item):
+                return owner.Carries[item].Hidden()
+
+            @Action
+            def Advance(owner, result):
+                return next(result)
+
+            @Action
+            def Finish(owner, result):
+                result.close()
+
+        owner, item = Host(), Host()
+        Inventory(owner)
+        owner.Carries(item)
+        result = owner.Start(item)
+        with self.assertRaises(AttributeError):
+            next(result)
+        self.assertEqual(owner.Advance(result), "secret")
+        owner.Finish(result)
+
+    def test_secret_operation_presence_uses_owners_door(self):
+        class Inventory(Tag):
+            @Link(agent, contact)
+            class Carries(Tag):
+                @Secret
+                @Operation
+                def Hidden(link):
+                    return "secret"
+
+            @Action
+            def Knows(owner, item):
+                return "Hidden" @ owner.Carries[item]
+
+        owner, item = Host(), Host()
+        Inventory(owner)
+        owner.Carries(item)
+        self.assertFalse("Hidden" @ owner.Carries[item])
+        self.assertTrue(owner.Knows(item))
+
     def test_operation_checks_owner_custody_before_body_runs(self):
         fail = [True]
         class Cleanup(Tag):

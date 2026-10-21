@@ -49,6 +49,7 @@ from .errors import TaggingFailure
 from .fields import FIELD_SEAT
 from .fields import _Field
 from .fields import _field_of
+from .lazy_guard import _guard_lazy_result
 from .lazy_guard import _lazy_kind_of
 from .lazy_guard import _register_lazy_proxy_types
 from .lifecycle import _rip
@@ -491,7 +492,11 @@ def _tag_function(function: Any, data: _Link_Data, name: str) -> Any:
             _require_owner_door(data, name)
         with _during(ends):
             result = _seat_value(function(*((link,) if positional else ()), *args, **kwargs))
-        return _stepped(result, ends) if _kind_of(function) == "operation" else result
+        if _kind_of(function) == "operation":
+            result = _stepped(result, ends)
+            if secret_operation:
+                result = _secret_result(result, data, name)
+        return result
 
     On_Tag.__name__ = str.__str__(name)
     On_Tag.__qualname__ = str.__str__(name)
@@ -993,6 +998,11 @@ class _Pair_View:
         except AttributeError:
             return False
         declaration = getattr_static(link, name, _MISSING)
+        if _kind_of(declaration) == "operation" and _has_flag(declaration, _SECRET):
+            try:
+                _require_owner_door(_data_of(link), name)
+            except AttributeError:
+                return False
         return present or (
                 declaration is not _MISSING
                 and type(declaration) is not _Pair_Record_Line
@@ -1014,8 +1024,11 @@ class _Pair_Call:
 
     def __call__(call, *args: Any, **kwargs: Any) -> Any:
         pair = call.view._current()
+        secret = call.secret or call.name in _state_of(pair).secrets
         with _pair_access(pair, call.name, secret=call.secret):
-            return getattr(pair, call.name)(*args, **kwargs)
+            result = getattr(pair, call.name)(*args, **kwargs)
+        return (_secret_result(result, _ends_of(pair).data, call.name)
+                if secret else result)
 
     @property
     def __name__(call) -> str:
@@ -1139,6 +1152,19 @@ def _require_owner_door(data: _Link_Data, name: str) -> None:
         raise AttributeError(
                 f"{name!r} is a Secret of this Link's Agent; its door is closed"
                 )
+
+
+def _secret_result(result: Any, data: _Link_Data, name: str) -> Any:
+    """A captured Secret continuation needs its caller's current owner door."""
+    owner = data.owner()
+    if owner is None:
+        owner = data.dying
+
+    def Authorize(receiver: object, act: str) -> None:
+        _require_available(receiver, act)
+        _require_owner_door(data, name)
+
+    return _guard_lazy_result(result, owner, "Secret Link continuation", Authorize)
 
 
 @contextmanager
