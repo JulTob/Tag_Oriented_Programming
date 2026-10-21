@@ -31,6 +31,8 @@ from .declarations import _ACTION_CHAIN
 from .declarations import _action_chain
 from .declarations import _discard_lazy_result
 from .declarations import _is_flag
+from .declarations import _is_link
+from .declarations import _is_relation
 from .declarations import _lazy_rip_guard
 from .declarations import _parameters_of
 from .declarations import _protocol_inputs
@@ -397,7 +399,21 @@ def _install(
             )
 
     for name in declarations.deletions:
+        _refuse_member_over_link(
+                state,
+                tag,
+                name,
+                "a @Delete",
+                )
         _delete(state, name)
+
+    for name, relation in declarations.links:
+        _install_link(
+                state,
+                tag,
+                name,
+                relation,
+                )
 
     for name, _function in declarations.postconditions:
         _refuse_condition_collision(
@@ -453,14 +469,35 @@ def _install(
                         ),
                 )
 
+    link_tag = _is_link(tag)   # a Link applied to its Contact: only what it publishes lands on her (STEP-SPEC-22 rule 3.7)
+
     for name, report, public in declarations.reports:
+        if link_tag and not public:
+            continue
+
+        if public:
+            _refuse_member_over_link(
+                    state,
+                    tag,
+                    name,
+                    "a published Report",
+                    )
+
+        if link_tag:
+            _check_published_by_a_link(
+                    state,
+                    tag,
+                    name,
+                    )
+
         state.reports[name] = (tag, report)
 
         if public:
             state.published.add(name)
 
     for name, operation, public in declarations.operations:
-        state.operations[name] = (tag, operation)
+        if not link_tag:
+            state.operations[name] = (tag, operation)   # on a Contact, never: a view would hand her the Link
 
         if public:
             _install_action(
@@ -519,8 +556,9 @@ def _preflight_ordinary_gains(
     """
 
     if (
-            declarations.runtime   # includes every public Report (_runtime_facts)
-            or any(public for _name, _operation, public in declarations.operations)   # installs an Agent Action
+            declarations.runtime
+            or declarations.links
+            or any(public for _name, _operation, public in declarations.operations)
             or state.constants
             or state.pinned is not None
             or _is_flag(tag)
@@ -634,6 +672,10 @@ def _gainings(
                 _restore_namespace(agent, previous_namespace)
                 state.Restore(previous)
             raise
+
+        if kind == "link":
+            from .links import _grant
+            _grant(agent, state, tag, one, inputs)
 
         if state.pinned is not None:
             from .declarations import _invalidate_declarations
@@ -958,8 +1000,10 @@ def _own_declaration(
 
         if any(name == n for n, _f in declarations.actions) or any(
                 name == n for n, _f in declarations.records
+                ) or any(
+                name == n for n, _r in declarations.links
                 ):
-            return (klass, "agent", declared)
+            return (klass, "agent", declared)   # a Relation is Agent scope too: each Agent's Link (STEP-SPEC-22)
 
         if (
                 any(name == n for n, _f in declarations.preconditions)
@@ -1128,7 +1172,9 @@ def _refuse_condition_collision(
 
     taken = None
 
-    if name in state.actions:
+    if name in state.links:
+        taken = "a Link"
+    elif name in state.actions:
         taken = "an Action"
     elif name in state.records:
         taken = "a Record"
@@ -1174,12 +1220,133 @@ def _host_declares(
     return False
 
 
+def _refuse_member_over_link(
+        state: _State,
+        tag: type,
+        name: str,
+        kind: str,
+        ) -> None:
+    """One name, one Link (STEP-SPEC-22 rule 4.4): a held Link's slot is
+    closed to every other Agent-scope contribution, in either order."""
+
+    if name in state.links:
+        raise TagCompositionError(
+                f"{tag.__name__}.{name} is {kind}, but {name!r} holds a Link"
+                " on this Agent; a Link's name is its own, and a Link is"
+                " never replaced"
+                )
+
+
+def _check_published_by_a_link(
+        state: _State,
+        tag: type,
+        name: str,
+        ) -> None:
+    """A Link publishes a Pair Record line or a Report onto its Contact
+    (STEP-SPEC-22 rule 2.7). Over her Action it is refused, as an Action
+    line over her Record is; over a visible Record or another published
+    member it replaces it, with the usual Overwrite Warning."""
+
+    action_origin = state.action_origins.get(name)
+
+    if action_origin is not None and _independent(tag, action_origin):
+        raise TagCompositionError(
+                f"{tag.__name__}.{name} is a published Record but"
+                f" {action_origin.__name__} already contributes an Action of"
+                " that name; independent Tags cannot share one Agent name"
+                " across kinds"
+                )
+
+    if name in state.records:
+        prior = state.records[name]
+        kind = "the Record"
+    elif name in state.published and name in state.reports:
+        prior = state.reports[name][0]
+        kind = "the published member"
+    else:
+        return
+
+    if prior is not tag and _independent(tag, prior) and not _quiet.get():
+        warnings.warn(
+                f"{tag.__name__}.{name} replaces {kind} of independent Tag"
+                f" {prior.__name__}",
+                TagOverwriteWarning,
+                skip_file_prefixes=_WARNING_SKIP_PREFIXES,
+                )
+
+
+def _install_link(
+        state: _State,
+        tag: type,
+        name: str,
+        relation: type,
+        ) -> None:
+    """Give this declaring Tag its own Link; select it as the visible Overlay.
+
+    Another Tag's Link of the same name keeps its own Field and Pair.
+    Reapplying this Tag selects its existing Link again. A non-Link Agent
+    name still prevents the Link from arriving.
+    """
+
+    owned = state.owned_links.get(tag, {})
+    slot = owned.get(name)
+
+    if slot is None and name not in state.links:
+        taken = None
+
+        if name in state.actions:
+            taken = "an Action"
+        elif name in state.records:
+            taken = "a Record"
+        elif name in state.postconditions:   # a Pre reserves no Agent name (STEP-SPEC-61)
+            taken = "a condition"
+        elif name in state.published:
+            taken = "a published member"   # Tag scope does not collide with Agent scope (rule 4.4)
+        elif (
+                state.pinned is None
+                and _host_declares(state.host_type, name)
+                ):
+            taken = f"a member of the host {state.host_type.__name__}"
+
+        if taken is not None:
+            raise TagCompositionError(
+                    f"{tag.__name__}.{name} is a Link, but {name!r} is"
+                    f" already {taken} on this Agent; a Link's name is its"
+                    " own"
+                    )
+
+    if slot is None:
+        slot = (None, (relation,))
+    elif relation not in slot[1]:
+        link, layers = slot
+        relation_bases = [
+                base
+                for base in relation.__bases__
+                if _is_relation(base)
+                ]
+        if not relation_bases or not all(base in layers for base in relation_bases):
+            raise TagCompositionError(
+                    f"{tag.__name__}.{name} cannot replace its own Link"
+                    " with an unrelated Relation"
+                    )
+        slot = (link, layers + (relation,))
+
+    state.Own_Link(tag, name, slot)
+    state.links[name] = slot
+
+
 def _refuse_action(
         state: _State,
         tag: type,
         name: str,
         ) -> None:
     _refuse_constant(state, name)
+    _refuse_member_over_link(
+            state,
+            tag,
+            name,
+            "an Action",
+            )
     _refuse_member_over_condition(
             state,
             tag,
@@ -1282,6 +1449,12 @@ def _refuse_record(
         name: str,
         ) -> None:
     _refuse_constant(state, name)
+    _refuse_member_over_link(
+            state,
+            tag,
+            name,
+            "a Record",
+            )
     _refuse_member_over_condition(
             state,
             tag,

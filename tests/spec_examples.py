@@ -323,3 +323,38 @@ def Run() -> None:
     for root in (Tag, object):
         try: Tool(root); raise SystemExit("the roots name no kind")
         except TagDeclarationError: pass
+
+    # 1.10 Links
+    class Social(Tag):
+        @Link
+        class Knows(Tag):
+            @Pre
+            def Not_Oneself(agent, contact): return contact is not agent
+            @Record
+            def since(agent, contact, *, since=None): return since
+            def Greet(agent, contact): return f"{agent.name} waves at {contact.name}"
+        @Link
+        class Trusts(Knows):
+            @Post
+            def Still_Honest(agent, contact): return contact.honest
+    cora, dean, rue = Character("Cora"), Character("Dean"), Character("Rue")
+    rue.honest = True
+    Social(cora); Social(dean)
+    cora.Knows(rue, since=2010)
+    assert rue in cora.Knows and rue not in dean.Knows
+    assert cora.Knows[rue].since == 2010 and cora.Knows[rue].Greet() == "Cora waves at Rue"
+    assert Tags(rue) == () and not hasattr(rue, "since")          # nothing lands on the Contact
+    cora.Trusts(rue)
+    assert cora.Knows[rue] is cora.Trusts[rue]                     # one Pair across the Form
+    rue.honest = False
+    assert list(~cora.Trusts) == [rue] and bool(rue)     # a broken Pair, a sound Contact
+    pair = cora.Trusts[rue]
+    del cora.Knows[rue]
+    assert rue not in cora.Knows and rue in cora.Trusts[:]
+    assert cora.Knows[rue] is pair and cora.Trusts[rue] is pair
+    del cora.Trusts[rue]
+    assert rue not in cora.Knows and isinstance(rue, cora.Knows)
+    try: cora.Knows = 1; raise SystemExit("a held Link is read-only")
+    except TagCompositionError: pass
+    try: Social.Knows(rue); raise SystemExit("a Relation is a template")
+    except TagCompositionError: pass

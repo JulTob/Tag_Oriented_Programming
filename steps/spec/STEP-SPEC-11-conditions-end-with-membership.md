@@ -11,6 +11,12 @@
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
 
+> **Historical boundary (2026-10-14):** This STEP is Redacted. Its §4 and
+> later discussion assumed that an active Shape prevented its Base's Rip.
+> [STEP-SPEC-26](STEP-SPEC-26-a-shape-keeps-no-base-hostage.md) has since
+> cleared Base Rip without expelling the Shape. The old refusal below
+> remains part of this rejected proposal's history, not current law.
+
 ## Summary
 
 A Tag's gates and promises are the Tag's. When an Agent leaves the Tag's

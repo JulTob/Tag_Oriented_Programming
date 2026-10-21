@@ -46,11 +46,23 @@ def _field_of(
 def _sound_of(
         tag: type,
         ) -> "_Partition":
-    """The Tag's sound population."""
+    """The Tag's sound population. A Link also checks each Contact's Pair."""
+
+    kind = tag._topkit_kind
+    if kind is not None:
+        # Relations and Pair Tags are templates, never populations.  Import
+        # here because tags.py uses this helper during ordinary Tag algebra.
+        from .tags import _refuse_relation
+        _refuse_relation(tag)
+
+    holds = _holds_for_population
+    if kind == "link":
+        from .tags import _links
+        holds = _links()._contact_holds(tag)
 
     return _Partition(
             _field_of(tag),
-            _holds_for_population,
+            holds,
             "sound",
             )
 
