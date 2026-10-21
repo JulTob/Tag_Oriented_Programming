@@ -469,13 +469,13 @@ def _agent_bool(
     if state is None:
         return _host_truth(agent)
 
-    if _arrest_of(agent) is not None:
+    if _safehouse and _arrest_of(agent) is not None:
         return False
 
     if not state.postconditions:
         return True   # nothing promised
 
-    return _holds(agent)
+    return _holds(agent, state)
 
 
 def _host_truth(

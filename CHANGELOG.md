@@ -32,6 +32,12 @@
 
 ### TopKit
 
+- **Contract query allocations:** a simple Post query keeps its running
+  check and first verdict in direct slots; nested checks and further
+  outcomes allocate containers when needed. Finished observations release
+  without waiting for cyclic GC. Sound membership retains its admission
+  and custody checks around Post evaluation and state-lookup callbacks.
+
 - **Read-only calculations:** Preconditions, Posts and Record initializers
   refuse explicit TOP mutations, including a refusal caught inside the check.
   Query Actions remain available. Python writes and finalization are outside

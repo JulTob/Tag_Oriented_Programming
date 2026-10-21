@@ -33,6 +33,7 @@ from typing import Iterator
 from .observations import _refuse_observed_act
 
 from .arrest import _arrest_of
+from .arrest import _safehouse
 from .access import _keyword
 from .access import _refuse_host_truth
 from .access import _view_of
@@ -189,14 +190,23 @@ class MetaTag(type):
                     candidate,
                     )
 
-        field = _field_of(tag)
-        return (
-                candidate in field
-                and _arrest_of(candidate) is None
-                and _holds_for_population(candidate)
-                and candidate in field
-                and _arrest_of(candidate) is None
-                )
+        # A concrete Tag's Field has native identity entries. Read them
+        # before and after judging Posts, with callbacks between the checks.
+        members = _field_of(tag)._members
+        identity = id(candidate)
+        reference = members.get(identity)
+        if reference is None or reference() is not candidate:
+            return False
+        if _safehouse and _arrest_of(candidate) is not None:
+            return False
+        state = _state_of(candidate)
+        if state is not None and state.postconditions and not _holds_for_population(candidate):
+            return False
+        # A Post or a physical dictionary callback may change admission.
+        # Keep the second identity check, including a leave-and-rejoin.
+        reference = members.get(identity)
+        return (reference is not None and reference() is candidate
+                and (not _safehouse or _arrest_of(candidate) is None))
 
     def __instancecheck__(
             tag,
