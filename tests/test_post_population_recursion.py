@@ -14,6 +14,35 @@ class Host:
 
 
 class PostPopulationRecursionTests(unittest.TestCase):
+    def test_collective_soundness_cycle_stops_before_factorial_replay(self):
+        armed = [False]
+        calls = [0]
+
+        class Group(Tag):
+            @Post
+            def Everyone_Is_Sound(agent):
+                if not armed[0]:
+                    return True
+
+                calls[0] += 1
+                return len(Group) == len(Group[:])
+
+        members = [Host() for _ in range(8)]
+
+        for member in members:
+            Group(member)
+
+        armed[0] = True
+        self.assertEqual(len(Group[:]), len(members))
+
+        with self.assertRaisesRegex(TagContractError, "Tag\\[:\\]"):
+            len(Group)
+
+        # This question once called the Post 109,600 times for eight members.
+        self.assertGreater(calls[0], 0)
+        self.assertLessEqual(calls[0], len(members))
+        self.assertEqual(len(Group[:]), len(members))
+
     def test_same_agent_sound_membership_fails_during_post_and_named_reads(self):
         class Existing(Tag):
             pass
