@@ -1157,10 +1157,17 @@ print(Outline(ari))
 ### Pattern 11 · Categories of categories
 
 **When you want** to say something about a Tag itself: this class is
-*rare*, that species is *homebrew*, this rule is *deprecated*. A Tag is an
-object, so a Tag can be tagged. A Tag marked `@Pin` applies to Tags, and
+*rare*, that species is *homebrew*, this rule is *deprecated*. A Pin
+organizes TOP Tags and Pins. A Tag marked `@Pin` applies to Tags, and
 the Tag it is applied to becomes its Agent: it joins a Field, it can be
 gated, it can promise, it can leave.
+
+Ordinary Tags apply to object instances; Pins apply to actual TOP Tag
+classes, including other Pins and concrete Link Tags. A plain Python
+class or an object's presented `__class__` is not a Tag credential.
+Applying `Rare(Wizard)` does not convert Wizard into a Pin and does not
+depend on whether Wizard's own Field is empty. This application rule is
+separate from the existing `@Pin` declaration modifier.
 
 ```python
 @Pin

@@ -29,6 +29,7 @@ from .arrest import _safehouse
 from .contracts import _bind_condition
 from .contracts import _evaluate
 from .declarations import _Declarations
+from .declarations import _check_application_target
 from .declarations import _discard_lazy_result
 from .declarations import _declarations_of
 from .declarations import _is_flag
@@ -41,6 +42,7 @@ from .errors import TagPostconditionError
 from .errors import TagPreconditionError
 from .fields import _field_of
 from .geometry import _form_of
+from .geometry import _is_tag_class
 from .overlay import _install
 from .overlay import _gainings
 from .overlay import _remove_post_application
@@ -72,6 +74,9 @@ def _apply(
         ) -> object:
     """Apply ``tag`` and its missing Bases to ``agent`` as one call."""
 
+    if not _is_tag_class(tag):
+        raise TypeError("Tagging requires a Tag or Pin receiver")
+
     if _safehouse:
         _require_available(agent, "Tagging")
 
@@ -80,10 +85,16 @@ def _apply(
     if entry_state is not None and (
             tag in entry_state.active or tag in entry_state.training
             ):
+        _check_application_target(tag, agent)
         return agent
 
     if form is None:
         form = _form_of(tag)
+
+    # A cached Form may predate a physical Base/category change. Refuse
+    # the entire selected Form before allocating state or beginning Gates.
+    for member in form:
+        _check_application_target(member, agent)
 
     if entry_state is not None:
         for member in form:
@@ -113,6 +124,8 @@ def _apply(
             if member in state.active:
                 continue
 
+            # An earlier protocol can change a later turn's Bases.
+            _check_application_target(member, agent)
             _gate(agent, state, member, inputs)
             _apply_one(agent, state, member, inputs)
 
@@ -236,6 +249,9 @@ def _apply_one(
             state.arrestable = True
         try:
             _actualize(agent, state, tag, declarations.header, entering=_is_flag(tag))
+            # Both the Gate and the Host's actualization hooks may change
+            # Bases. Refuse before builders, with mechanical rollback.
+            _check_application_target(tag, agent)
         except BaseException:
             state.arrestable = previous_arrestable
             if entry_host is not None:
@@ -524,7 +540,12 @@ def _enter_field(
     if state.pinned is not None and declarations.published:
         plans = _publication_plans(state.pinned, declarations.published)
 
-    _field_of(tag)._Add(agent)
+    # Training and publication planning can call Python code that changes
+    # the receiver's Bases. Acquired Gains stay, but a changed category must
+    # never admit an object to a Pin Field or a class to an ordinary Field.
+    field = _field_of(tag)
+    _check_application_target(tag, agent)
+    field._Add(agent)
     state.active.append(tag)
     post_names = tuple(
             name

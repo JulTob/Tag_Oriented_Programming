@@ -45,6 +45,7 @@ from .errors import TagCompositionError
 from .errors import TagImprintError
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
+from .geometry import _is_class
 from .geometry import _is_tag
 from .geometry import _is_tag_class
 from .memo import _Tag_Memo
@@ -768,6 +769,33 @@ def _is_pin(
             _class_namespace(layer).get(_PIN) is True
             for layer in _type_mro.__get__(tag)
             )
+
+
+def _check_application_target(
+        tag: type,
+        target: object,
+        ) -> None:
+    """Ordinary Tags take objects; Pins take actual, concrete TOP classes.
+
+    Class identity comes from the native metaclass, never a Target's
+    ``__class__`` property. Pin actualization may subclass that metaclass
+    without changing the Target's category or its own Field.
+    """
+
+    if not _is_tag_class(tag):
+        raise TypeError("Tagging requires a Tag or Pin receiver")
+
+    if _is_pin(tag):
+        if not _is_tag(target):
+            target_type = target if _is_class(target) else type(target)
+            raise TagCompositionError(
+                    f"{_type_name.__get__(tag)} is a Pin: apply it to a Tag,"
+                    f" not to {_type_name.__get__(target_type)}"
+                    )
+    elif _is_class(target):
+        raise TypeError(
+                f"{_type_name.__get__(tag)} is applied to objects, not classes"
+                )
 
 
 def _is_tag_base(

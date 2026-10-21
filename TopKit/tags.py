@@ -38,6 +38,7 @@ from .contracts import _holds
 from .contracts import _holds_for_population
 from .declarations import _MISSING
 from .declarations import _begin_ordinary_form
+from .declarations import _check_application_target
 from .declarations import _check_constant_declarations
 from .declarations import _check_constant_shapes
 from .declarations import _check_pin_bases
@@ -68,7 +69,8 @@ from .fields import _field_of
 from .fields import _population_of
 from .fields import _sound_of
 from .geometry import _form_of
-from .geometry import _is_tag
+from .geometry import _is_class
+from .geometry import _is_tag_class
 from .lifecycle import _rip
 from .lifecycle import _rip_field
 from .memo import _class_namespace
@@ -275,6 +277,9 @@ class MetaTag(type):
             /,
             **inputs: Any,
             ) -> object:
+        if not _is_tag_class(tag):
+            raise TypeError("Tagging requires a Tag or Pin receiver")
+
         if target is _MISSING:
             raise TypeError(
                     f"{tag.__name__} is a Tag: apply it to a Target,"
@@ -314,7 +319,7 @@ class MetaTag(type):
                                 "an ordinary Form gained a Pin Base"
                                 " while it was being prepared"
                                 )
-                if isinstance(target, type):
+                if _is_class(target):
                     raise TypeError(
                             f"{tag.__name__} is applied to objects, not classes"
                             )
@@ -497,13 +502,9 @@ def _check_pin_target(
         pin: type,
         target: object,
         ) -> None:
-    if not _is_tag(target):
-        raise TagCompositionError(
-                f"{pin.__name__} is a Pin: apply it to a Tag, not to"
-                f" {_name_of(target)}"
-                )
+    _check_application_target(pin, target)
 
-    if target in _form_of(pin):
+    if any(target is member for member in _form_of(pin)):
         raise TagCompositionError(
                 f"{pin.__name__} cannot pin itself"
                 )

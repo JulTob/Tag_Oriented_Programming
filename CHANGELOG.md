@@ -32,6 +32,14 @@
 
 ### TopKit
 
+- **Native Tag and Pin Targets:** ordinary Tags apply to object instances;
+  Pins apply to actual TOP Tag classes, including other Pins and concrete
+  Link Tags. A presented `__class__` cannot change this distinction. Each
+  selected Form is checked before preparation and checked again around
+  protocol callbacks and admission. Pinning a populated Tag preserves its
+  own Field and category; self/Base refusal compares class identity. The
+  existing `@Pin` declaration syntax is unchanged.
+
 - **Entered lazy cleanup:** after Rip ends Tag-view membership, a started
   generator, coroutine or async generator may finish through `close()` or
   `aclose()`. Ordinary view continuation remains checked; cleanup retains

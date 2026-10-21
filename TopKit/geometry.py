@@ -56,10 +56,21 @@ def _tag_classes(
 def _is_tag_class(
         candidate: object,
         ) -> bool:
-    """A class made by ``MetaTag``, the root ``Tag`` included. A Tag is
-    identified by its metaclass, never by a lookalike name."""
+    """A native class made by ``MetaTag``, the root ``Tag`` included.
 
-    return isinstance(candidate, _tag_metaclass())
+    A metaclass subtype created by Pin actualization remains valid; a
+    presented ``__class__`` or lookalike name does not grant this category.
+    """
+
+    return issubclass(type(candidate), _tag_metaclass())
+
+
+def _is_class(
+        candidate: object,
+        ) -> bool:
+    """A native Python class, independently of a presented ``__class__``."""
+
+    return issubclass(type(candidate), type)
 
 
 def _is_tag(
