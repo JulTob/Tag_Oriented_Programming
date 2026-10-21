@@ -95,7 +95,7 @@ class TagContractTruthTests(unittest.TestCase):
         self.assertEqual(list(~Licensed), [Agency])
         self.assertTrue(Licensed)
 
-    def test_pin_posts_survive_rip_until_explicitly_deleted(self):
+    def test_pin_posts_end_with_pin_field_membership(self):
         class Agency(Tag):
             ready = True
 
@@ -109,10 +109,11 @@ class TagContractTruthTests(unittest.TestCase):
         del Certified[Agency]
         Agency.ready = False
         self.assertNotIn(Agency, Certified)
-        self.assertFalse(Agency)
-        with self.assertRaises(TagPostconditionError.Ready):
-            Contract.Postconditions(Agency)
+        self.assertTrue(Agency)
+        self.assertEqual(Contract.Status(Agency), {})
+        self.assertFalse(hasattr(Agency, "Ready"))
 
+        # The older explicit cleanup spelling is safe after automatic end.
         Contract.Delete(Agency, "Ready")
         self.assertTrue(Agency)
         self.assertEqual(Contract.Status(Agency), {})
@@ -215,7 +216,7 @@ class TagContractTruthTests(unittest.TestCase):
 
         Admitted(Agency)
         Agency.ready = False
-        self.assertIs(Agency.Ready, False)
+        self.assertFalse(hasattr(Agency, "Ready"))
         self.assertTrue(Agency)
 
     def test_a_shapes_truth_does_not_inherit_the_bases_pin_contract(self):

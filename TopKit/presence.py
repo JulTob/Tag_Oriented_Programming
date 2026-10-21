@@ -15,7 +15,7 @@ from .state import _Secret_Gate
 from .state import _real_namespace_of
 from .state import _is_composing
 from .constants import _Constant_Gate
-from .contracts import _Condition_Gate
+from .contracts import _Post_Gate
 from .tools import _Tool_Gate
 
 
@@ -87,11 +87,8 @@ def _present(
             return name in namespace
         member = member.member
 
-    if issubclass(type(member), _Condition_Gate):
-        if state is not None and (
-                name in state.preconditions
-                or name in state.postconditions
-                ):
+    if issubclass(type(member), _Post_Gate):
+        if state is not None and name in state.postconditions:
             return False
         if member.member is _MISSING:
             return name in namespace

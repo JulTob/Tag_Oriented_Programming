@@ -84,10 +84,17 @@ class ConditionDunderTests(unittest.TestCase):
 
                 agent = Host()
                 ordinary(agent)
-                self.assertIs(agent.Ready, True)
+                lasting = Post in marks
+                if lasting:
+                    self.assertIs(agent.Ready, True)
+                else:
+                    self.assertFalse(hasattr(agent, "Ready"))
                 self.assertTrue(bool(agent))
                 agent.ready = False
-                self.assertIs(agent.Ready, False)
+                if lasting:
+                    self.assertIs(agent.Ready, False)
+                else:
+                    self.assertFalse(hasattr(agent, "Ready"))
 
     def test_allowed_action_protocols_still_work(self):
         events = []
