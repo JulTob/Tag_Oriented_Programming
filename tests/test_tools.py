@@ -15,7 +15,9 @@ import unittest
 import warnings
 import weakref
 from dataclasses import dataclass
+from threading import Event, Thread
 from typing import Any, Protocol, runtime_checkable
+from unittest.mock import patch
 
 from TopKit import (Action, Constant, Contract, Delete, Imprint, Keyword,
                     Operation, Pin, Post, Pre, Public, Record, Report, Rip,
@@ -1486,6 +1488,129 @@ class Late_Pin_Tests(unittest.TestCase):
         gc.collect()
         self.assertIsNone(collector())
         self.assertIs(Pin(Prize), Prize)
+
+    def test_a_tool_marked_before_the_pin_is_checked_at_class_creation(self):
+        class Prize(Tag):
+            pass
+
+        with self.assertRaises(TagDeclarationError) as refusal:
+            class Collector(Tag):
+                @Tool(Prize)
+                def prize(agent):
+                    return None
+
+                Pin(Prize)                             # after the decorator, before Collector exists
+
+        self.assertIn("now a Pin", str(refusal.exception))
+
+    def test_a_late_tool_binding_also_prevents_a_late_pin(self):
+        class Prize(Tag):
+            pass
+
+        class Collector(Tag):
+            pass
+
+        @Tool(Prize)
+        def prize(agent):
+            return None
+
+        Collector.prize = prize
+        with self.assertRaises(TagDeclarationError):
+            Pin(Prize)
+
+    def test_a_late_tool_binding_on_a_pin_is_refused(self):
+        @Pin
+        class Rare(Tag):
+            pass
+
+        class Prize(Tag):
+            pass
+
+        @Tool(Prize)
+        def prize(tag):
+            return None
+
+        with self.assertRaises(TagDeclarationError):
+            Rare.prize = prize
+        self.assertNotIn("prize", Rare.__dict__)
+
+    def test_a_metaclass_interception_does_not_register_a_tool_owner(self):
+        class Absorb:
+            def __set__(self, owner, value):
+                pass
+
+        class Meta(MetaTag):
+            prize = Absorb()
+
+        class Prize(Tag):
+            pass
+
+        class Collector(Tag, metaclass=Meta):
+            pass
+
+        @Tool(Prize)
+        def prize(agent):
+            return None
+
+        Collector.prize = prize
+        self.assertNotIn("prize", Collector.__dict__)
+        self.assertIs(Pin(Prize), Prize)
+
+    def test_a_concurrent_pin_cannot_pass_while_a_tool_owner_is_registering(self):
+        import TopKit.declarations as declarations
+
+        class Prize(Tag):
+            pass
+
+        registering = Event()
+        continue_registration = Event()
+        marking = Event()
+        declared = []
+        outcome = []
+        note = declarations._note_kinds
+
+        def pause(owner, kind):
+            registering.set()
+            if not continue_registration.wait(2):
+                raise TimeoutError("Tool declaration did not resume")
+            note(owner, kind)
+
+        def declare():
+            class Collector(Tag):
+                @Tool(Prize)
+                def prize(agent):
+                    return None
+
+            declared.append(Collector)
+
+        def mark():
+            marking.set()
+            try:
+                Pin(Prize)
+            except TagDeclarationError:
+                outcome.append("refused")
+            else:
+                outcome.append("accepted")
+
+        with patch.object(declarations, "_note_kinds", pause):
+            owner_thread = Thread(target=declare)
+            mark_thread = Thread(target=mark)
+            owner_thread.start()
+            try:
+                self.assertTrue(registering.wait(2))
+                mark_thread.start()
+                self.assertTrue(marking.wait(2))
+                mark_thread.join(0.02)
+                self.assertEqual(outcome, [])          # mark waits for registration
+            finally:
+                continue_registration.set()
+                owner_thread.join(2)
+                if mark_thread.ident is not None:
+                    mark_thread.join(2)
+
+        self.assertEqual(outcome, ["refused"])
+        self.assertTrue(declared)
+        self.assertNotIn("__topkit_pin__", Prize.__dict__)
 
     def test_a_refused_pin_leaves_no_mark(self):
         class Odd(Tag):

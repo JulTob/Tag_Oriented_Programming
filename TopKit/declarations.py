@@ -20,6 +20,7 @@ from functools import partialmethod
 from inspect import Parameter
 from inspect import getattr_static
 from inspect import signature
+from threading import RLock
 from types import AsyncGeneratorType
 from types import CoroutineType
 from types import GeneratorType
@@ -516,28 +517,29 @@ def Pin(
                 "@Pin marks a Tag class"
                 )
 
-    if tag.__dict__.get(_PIN, False):
-        return tag   # restating the mark changes nothing
+    with _pin_mark_lock:
+        if tag.__dict__.get(_PIN, False):
+            return tag   # restating the mark changes nothing
 
-    _refuse_late_pin(tag)
-    _refuse_tools_on_a_pin(
-            tag,
-            _namespace_snapshot(tag),
-            )
-    setattr(
-            tag,
-            _PIN,
-            True,
-            )
+        _refuse_late_pin(tag)
+        _refuse_tools_on_a_pin(
+                tag,
+                _namespace_snapshot(tag),
+                )
+        setattr(
+                tag,
+                _PIN,
+                True,
+                )
 
-    try:
-        _check_pin_bases(tag)
-        _invalidate_declarations(tag)   # a scan made before the mark never validated it as a Pin
-        _declarations_of(tag)        # validate the members now, not at first pinning
-    except BaseException:
-        delattr(tag, _PIN)           # refused: nothing changed
-        _invalidate_declarations(tag)
-        raise
+        try:
+            _check_pin_bases(tag)
+            _invalidate_declarations(tag)   # a scan made before the mark never validated it as a Pin
+            _declarations_of(tag)        # validate the members now, not at first pinning
+        except BaseException:
+            delattr(tag, _PIN)           # refused: nothing changed
+            _invalidate_declarations(tag)
+            raise
 
     return tag
 
@@ -926,6 +928,21 @@ def _tool_kind_of(
             )
 
 
+def _tool_kind_of_static(attribute: Any) -> Any:
+    """Read a late Tool mark without running a Host object's lookup hooks."""
+
+    actual_type = type(attribute)
+
+    if issubclass(actual_type, Report):
+        attribute = attribute.builder
+    elif issubclass(actual_type, (classmethod, staticmethod)):
+        attribute = attribute.__func__
+    elif not callable(attribute):
+        return None
+
+    return getattr_static(attribute, _TOOL, None)
+
+
 def _is_constant(
         member: Any,
         ) -> bool:
@@ -1049,6 +1066,9 @@ def _refuse_tools_on_a_pin(
                     )
 
 
+# A late Pin mark and a Tool owner's declaration must see one another.
+# The lock owns no Tag; the registry below keeps only weak references.
+_pin_mark_lock = RLock()
 _kinds_named: dict[int, tuple[ref[type], WeakValueDictionary[int, type]]] = {}
 
 
@@ -1090,13 +1110,27 @@ def _note_kinds(
                 continue
 
             def Forget(expired: ref[type], key: int = key) -> None:
-                entry = _kinds_named.get(key)
-                if entry is not None and entry[0] is expired:
-                    del _kinds_named[key]
+                with _pin_mark_lock:
+                    entry = _kinds_named.get(key)
+                    if entry is not None and entry[0] is expired:
+                        del _kinds_named[key]
 
             owners: WeakValueDictionary[int, type] = WeakValueDictionary()
             owners[id(owner)] = owner
             _kinds_named[key] = (ref(alternative, Forget), owners)
+
+
+def _refuse_pin_tool_kind(owner: type, name: str, kind: Any) -> None:
+    """A Tool marked before its kind became a Pin must still be refused
+    when the declaring Tag is made or gains that Tool later."""
+
+    for term in kind.terms:
+        for alternative in term:
+            if _is_tag(alternative) and _is_pin(alternative):
+                raise TagDeclarationError(
+                        f"{owner.__name__}.{name}: @Tool cannot name"
+                        f" {alternative.__name__}, now a Pin (§1.3)"
+                        )
 
 
 def _check_tool_declarations(
@@ -1130,11 +1164,17 @@ def _check_tool_declarations(
                 namespace,
                 )
 
-    for member in namespace.values():
-        kind = _tool_kind_of(member)
+    tools = [
+            (name, kind)
+            for name, member in namespace.items()
+            if (kind := _tool_kind_of(member)) is not None
+            ]
 
-        if kind is not None:
-            _note_kinds(tag, kind)
+    for name, kind in tools:
+        _refuse_pin_tool_kind(tag, name, kind)
+
+    for _name, kind in tools:
+        _note_kinds(tag, kind)
 
 
 _NAMED_FAILURES: dict[str, type] = {

@@ -27,6 +27,7 @@ for tag in Rare, Rare[Wizard], del Rare[Wizard], f"{Wizard:pins}".
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from typing import Any
 from typing import Iterator
 
@@ -46,8 +47,13 @@ from .declarations import _is_dunder
 from .declarations import _is_pin
 from .declarations import _kind_of
 from .declarations import _name_checks
+from .declarations import _note_kinds
+from .declarations import _pin_mark_lock
 from .declarations import _refuse_condition_dunder
+from .declarations import _refuse_pin_tool_kind
+from .declarations import _refuse_tools_on_a_pin
 from .declarations import _refuse_truth_gain
+from .declarations import _tool_kind_of_static
 from .errors import TagCompositionError
 from .fields import FIELD_SEAT
 from .fields import _Field
@@ -58,6 +64,7 @@ from .fields import _sound_of
 from .geometry import _form_of
 from .geometry import _is_tag
 from .lifecycle import _rip
+from .memo import _class_namespace
 from .observation import _refuse_observed_mutation
 from .state import Tagged
 from .state import _name_of
@@ -94,7 +101,8 @@ class MetaTag(type):
                 )
         _check_pin_bases(tag)
         _check_constant_declarations(tag, namespace)
-        _check_tool_declarations(tag, namespace)
+        with _pin_mark_lock:
+            _check_tool_declarations(tag, namespace)
 
         return tag
 
@@ -104,19 +112,30 @@ class MetaTag(type):
             value: Any,
             ) -> None:
         _refuse_observed_mutation("change an existing Tag class")
-        _refuse_truth_gain(tag.__name__, name, value)
-        if _is_dunder(name):
-            _refuse_condition_dunder(tag.__name__, name, _kind_of(value))
-        owner = _constant_owner(tag, name)
+        tool_kind = _tool_kind_of_static(value)
 
-        if owner is not None:
-            raise TagCompositionError(
-                    f"{tag.__name__}.{name} is Constant from"
-                    f" {owner.__name__}; it cannot be overwritten"
-                    )
+        with (_pin_mark_lock if tool_kind is not None else nullcontext()):
+            if tool_kind is not None:
+                if _is_pin(tag):
+                    _refuse_tools_on_a_pin(tag, {name: value})
+                _refuse_pin_tool_kind(tag, name, tool_kind)
 
-        _check_constant_shapes(tag, name)
-        super().__setattr__(name, value)
+            _refuse_truth_gain(tag.__name__, name, value)
+            if _is_dunder(name):
+                _refuse_condition_dunder(tag.__name__, name, _kind_of(value))
+            owner = _constant_owner(tag, name)
+
+            if owner is not None:
+                raise TagCompositionError(
+                        f"{tag.__name__}.{name} is Constant from"
+                        f" {owner.__name__}; it cannot be overwritten"
+                        )
+
+            _check_constant_shapes(tag, name)
+            super().__setattr__(name, value)
+
+            if tool_kind is not None and _class_namespace(tag).get(name) is value:
+                _note_kinds(tag, tool_kind)
 
     def __delattr__(
             tag,
