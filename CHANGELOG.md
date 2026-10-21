@@ -32,6 +32,13 @@
 
 ### TopKit
 
+- **Read-only calculations:** Preconditions, Posts and Record initializers
+  refuse explicit TOP mutations, including a refusal caught inside the check.
+  Query Actions remain available. Python writes and finalization are outside
+  this authoring boundary; finalizer cleanup cannot poison an unrelated read.
+  A copied context cannot end a still-running calculation's guard, and ended
+  observations release their Context reset tokens.
+
 - **Pin declarations and native Targets:** `class Rare(Pin)` declares a
   concrete Pin. Ordinary Tags apply to object instances; named Pins apply
   to actual TOP Tag classes, including other Pins and concrete Link Tags.

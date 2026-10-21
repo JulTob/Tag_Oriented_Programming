@@ -15,6 +15,8 @@ from typing import Callable
 from typing import Iterator
 import warnings
 
+from .observations import _observing
+
 from . import state as state_module
 from .arrest import _require_available
 from .arrest import _safehouse
@@ -584,10 +586,6 @@ def _gainings(
             value = _record_value(
                     agent, tag, name, function, deleted_before, inputs,
                     )
-            tool_kind = _tool_kind_of(function)
-            if tool_kind is not None:
-                from .tools import _refuse_tool_value
-                _refuse_tool_value(tag, tool_kind, name, value, agent, built=True)
         elif kind == "condition" and not (one.preconditions or one.postconditions):
             continue
 
@@ -1393,50 +1391,58 @@ def _record_value(
         ) -> Any:
     """Calculate a Record's initial value without changing its binding."""
 
-    if _is_class(agent):
-        stored = _state_of(agent).secret_values.get(name, _MISSING)
+    tag_name = str.__str__(type.__dict__["__name__"].__get__(tag))
+    record_name = str.__str__(name)
+    with _observing(f"Record {tag_name}.{record_name} builder"):
+        if _is_class(agent):
+            stored = _state_of(agent).secret_values.get(name, _MISSING)
 
-        if stored is _MISSING:
-            stored = _pinned_stored(agent, name)
-    else:
-        stored = _namespace_of(agent).get(name)
-
-    if name in deleted_before or isinstance(
-            stored,
-            (
-                _Bound,
-                _Pinned_Operation,
-            ),
-            ):
-        stored = None
-
-    takes_stored = _takes_stored(builder)
-
-    if takes_stored:
-        _refuse_stored_input_collision(builder, inputs, name)
-
-    named = _protocol_inputs(
-            builder,
-            inputs,
-            2 if takes_stored else 1,
-            )
-
-    try:
-        if takes_stored:
-            value = builder(agent, stored, **named)
+            if stored is _MISSING:
+                stored = _pinned_stored(agent, name)
         else:
-            value = builder(agent, **named)
-    except TagError:
-        raise
-    except Exception as error:
-        tag_name = str.__str__(type.__dict__["__name__"].__get__(tag))
-        record_name = str.__str__(name)
-        raise TagCompositionError(
-                f"Record {tag_name}.{record_name} could not be"
-                f" materialized: {_type_name(error)}: {_exception_text(error)}"
-                ) from error
+            stored = _namespace_of(agent).get(name)
 
-    return value
+        if name in deleted_before or isinstance(
+                stored,
+                (
+                    _Bound,
+                    _Pinned_Operation,
+                ),
+                ):
+            stored = None
+
+        takes_stored = _takes_stored(builder)
+
+        if takes_stored:
+            _refuse_stored_input_collision(builder, inputs, name)
+
+        named = _protocol_inputs(
+                builder,
+                inputs,
+                2 if takes_stored else 1,
+                )
+
+        try:
+            if takes_stored:
+                value = builder(agent, stored, **named)
+            else:
+                value = builder(agent, **named)
+        except TagError:
+            raise
+        except Exception as error:
+            tag_name = str.__str__(type.__dict__["__name__"].__get__(tag))
+            record_name = str.__str__(name)
+            raise TagCompositionError(
+                    f"Record {tag_name}.{record_name} could not be"
+                    f" materialized: {_type_name(error)}: {_exception_text(error)}"
+                    ) from error
+
+        tool_kind = _tool_kind_of(builder)
+        if tool_kind is not None:
+            from .tools import _refuse_tool_value
+            _refuse_tool_value(tag, tool_kind, name, value, agent, built=True)
+
+        return value
 
 
 def _store_record(

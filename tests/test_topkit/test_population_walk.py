@@ -5,6 +5,8 @@ from __future__ import annotations
 import gc
 import unittest
 import weakref
+from unittest.mock import patch
+from TopKit.contracts import _holds_for_population
 from TopKit import Pin
 from TopKit import Post
 from TopKit import Tag
@@ -205,11 +207,7 @@ class PopulationWalkTests(unittest.TestCase):
                 def Standing(agent):
                     checks.append(agent)
 
-                    if changing[0] and agent is pair[0]:
-                        del Enemy[pair[1]]
-                        return False
-
-                    return True
+                    return not (changing[0] and agent is pair[0])
 
             pair[:] = [Agent(), Agent()]
             Enemy(pair[0])
@@ -217,7 +215,15 @@ class PopulationWalkTests(unittest.TestCase):
             checks.clear()
             changing[0] = True
 
-            return question(Enemy), checks, pair
+            def judge(member):
+                verdict = _holds_for_population(member)
+                if member is pair[0]:
+                    del Enemy[pair[1]]
+                return verdict
+
+            # Simulate a change after the read-only Post has completed.
+            with patch("TopKit.fields._holds_for_population", side_effect=judge):
+                return question(Enemy), checks, pair
 
         questions = (
                 ("population truth", lambda population: bool(population & population), False),
@@ -238,9 +244,6 @@ class PopulationWalkTests(unittest.TestCase):
         class Wizard(Tag):
             @Post
             def Ready(agent):
-                if ripping[0]:
-                    del Wizard[agent]
-
                 return True
 
         class Fighter(Tag):
@@ -251,21 +254,32 @@ class PopulationWalkTests(unittest.TestCase):
         Wizard(bo)
         ripping[0] = True
 
-        self.assertEqual([member for member in Wizard], [])
+        def judge(member):
+            verdict = _holds_for_population(member)
+            if ripping[0]:
+                del Wizard[member]
+            return verdict
+
+        # Mutation occurs at the population-query boundary, outside Posts.
+        with patch("TopKit.fields._holds_for_population", side_effect=judge), \
+                patch("TopKit.tags._holds_for_population", side_effect=judge):
+            self.assertEqual([member for member in Wizard], [])
         self.assertNotIn(ari, Wizard[:])
 
         cal = Agent()
         ripping[0] = False
         Wizard(cal)
         ripping[0] = True
-        self.assertNotIn(cal, Wizard | Fighter)
+        with patch("TopKit.fields._holds_for_population", side_effect=judge):
+            self.assertNotIn(cal, Wizard | Fighter)
         self.assertNotIn(cal, Wizard[:])
 
         dee = Agent()
         ripping[0] = False
         Wizard(dee)
         ripping[0] = True
-        self.assertNotIn(dee, Wizard)                            # direct Tag membership also rechecks
+        with patch("TopKit.tags._holds_for_population", side_effect=judge):
+            self.assertNotIn(dee, Wizard)  # direct membership also rechecks
         self.assertNotIn(dee, Wizard[:])
 
     def test_a_defective_view_rechecks_membership_after_its_postcondition(self) -> None:
@@ -274,9 +288,6 @@ class PopulationWalkTests(unittest.TestCase):
         class Wizard(Tag):
             @Post
             def Ready(agent):
-                if ripping[0]:
-                    del Wizard[agent]
-
                 return not ripping[0]
 
         ari, bo = Agent(), Agent()
@@ -284,14 +295,22 @@ class PopulationWalkTests(unittest.TestCase):
         Wizard(bo)
         ripping[0] = True
 
-        self.assertEqual([member for member in ~Wizard], [])
+        def judge(member):
+            verdict = _holds_for_population(member)
+            if ripping[0]:
+                del Wizard[member]
+            return verdict
+
+        with patch("TopKit.fields._holds_for_population", side_effect=judge):
+            self.assertEqual([member for member in ~Wizard], [])
         self.assertNotIn(ari, Wizard[:])
 
         cal = Agent()
         ripping[0] = False
         Wizard(cal)
         ripping[0] = True
-        self.assertNotIn(cal, ~Wizard)
+        with patch("TopKit.fields._holds_for_population", side_effect=judge):
+            self.assertNotIn(cal, ~Wizard)
         self.assertNotIn(cal, Wizard[:])
 
     def test_retagging_while_judging_soundness_keeps_the_member(self) -> None:
@@ -301,11 +320,6 @@ class PopulationWalkTests(unittest.TestCase):
         class Wizard(Tag):
             @Post
             def Ready(agent):
-                if ripping[0] and not reapplied[0]:
-                    reapplied[0] = True
-                    del Wizard[agent]
-                    Wizard(agent)
-
                 return True
 
         class Fighter(Tag):
@@ -315,14 +329,25 @@ class PopulationWalkTests(unittest.TestCase):
         Wizard(ari)
         ripping[0] = True
 
-        self.assertEqual([member for member in Wizard], [ari])
+        def judge(member):
+            verdict = _holds_for_population(member)
+            if ripping[0] and not reapplied[0]:
+                reapplied[0] = True
+                del Wizard[member]
+                Wizard(member)
+            return verdict
+
+        with patch("TopKit.fields._holds_for_population", side_effect=judge):
+            self.assertEqual([member for member in Wizard], [ari])
 
         reapplied[0] = False
-        self.assertIn(ari, Wizard | Fighter)
+        with patch("TopKit.fields._holds_for_population", side_effect=judge):
+            self.assertIn(ari, Wizard | Fighter)
         self.assertIn(ari, Wizard[:])
 
         reapplied[0] = False
-        self.assertIn(ari, Wizard)                               # re-tagging keeps it sound
+        with patch("TopKit.tags._holds_for_population", side_effect=judge):
+            self.assertIn(ari, Wizard)  # reTagging keeps it sound
         self.assertIn(ari, Wizard[:])
 
     def test_a_one_pass_materialization_uses_a_comprehension(self) -> None:

@@ -419,10 +419,23 @@ Three things to notice.
   check, so a Tag can require another Tag. That is how synergies are
   written: the second Tag needs the first.
 
-Preconditions read and query; they do not prepare the Agent or change the
-world. Record builders likewise read and query to calculate an initial
-value. Applying or Ripping Tags is an Imprint's work. These are authoring
-rules, not a claim that TOP sandboxes arbitrary Python code.
+A Pre is a transient Tagging Service; a Post computes a Contract check;
+a Record builder calculates its initial value. All three may read information,
+query populations and call Actions that retrieve or calculate values. While
+those calculations run, TOP refuses explicit mutations: applying a Tag or
+Pin, Rip, Contract deletion, creating a Tag or Pin, changing declarations or
+modifiers, and registering an `At_Exit` teardown. The guard follows nested
+query calls. Catching a refusal inside the calculation does not make it pass.
+Use an Imprint or an Action outside the check for TOP preparation and effects.
+
+This guard does not freeze or copy Python objects, or roll back the world.
+Python writes to the Agent or other existing objects, changes inside mutable
+values and I/O remain the author's responsibility; calculations must avoid
+those world effects. Local calculations and temporary values remain ordinary
+Python.
+Python's existing finalization path runs its cleanup independently of the
+calculation, then restores the observation. This preserves resource cleanup;
+it does not turn the check into a Python sandbox.
 
 Each missing Tag passes its own Gate. A Shape cannot waive a missing Base's
 Gate by overriding a same-named Precondition: the Base must enter first. If

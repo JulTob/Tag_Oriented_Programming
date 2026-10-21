@@ -1,0 +1,107 @@
+"""Read-only TOP observations follow the current execution flow.
+
+Preconditions, Posts and Record calculations may query and call Actions.
+Explicit TOP mutations are refused; ordinary Python writes and I/O remain
+the author's responsibility. This is not an object sandbox.
+"""
+
+from __future__ import annotations
+
+from contextvars import ContextVar
+from threading import get_ident
+
+from .errors import TagCompositionError
+
+
+class _ObservationViolation(TagCompositionError):
+    """A TOP mutation attempted inside a read-only calculation."""
+
+
+class _Observation:
+    __slots__ = ("phase", "active", "carrier", "violation", "token", "owner")
+
+    def __init__(self, phase: str) -> None:
+        self.phase = phase
+        self.active = False
+        self.carrier = self
+        self.violation: _ObservationViolation | None = None
+
+    def __enter__(self) -> _Observation:
+        previous = _observation.get()
+        owner = get_ident()
+        if previous is not None and previous.active and previous.owner == owner:
+            self.carrier = previous
+            return previous
+        # Checks complete synchronously: same-thread nesting is lexical.
+        # A copied Context in another thread needs its own lifetime, so an
+        # outer check ending there cannot make this calculation writable.
+        self.owner = owner
+        self.active = True
+        self.token = _observation.set(self)
+        return self
+
+    def __exit__(
+            self,
+            error_type: type[BaseException] | None,
+            error: BaseException | None,
+            traceback: object,
+            ) -> None:
+        violation = self.carrier.violation
+        if self.active:
+            self.active = False
+            # A saved copy_context must retain neither authority nor an
+            # exception traceback owning the observed Agent after exit.
+            self.violation = None
+            token = self.token
+            self.token = None
+            _observation.reset(token)
+        if violation is not None and (error is None or isinstance(error, Exception)):
+            raise violation
+
+
+_observation: ContextVar[_Observation | None] = ContextVar(
+        "topkit_read_observation", default=None,
+        )
+
+
+class _UnobservedCleanup:
+    """Python finalization has its own cleanup, unrelated to the reader."""
+
+    __slots__ = ("token",)
+
+    def __enter__(self, flow=_observation) -> None:
+        self.token = flow.set(None)
+
+    def __exit__(self, error_type, error, traceback, flow=_observation) -> None:
+        token = self.token
+        self.token = None
+        flow.reset(token)
+
+
+def _unobserved_cleanup(cleanup=_UnobservedCleanup) -> _UnobservedCleanup:
+    """Suspend the observation only for Python's best-effort finalizer.
+
+    Context and factory defaults also keep finalization independent of module
+    globals being cleared at interpreter shutdown.
+    """
+
+    return cleanup()
+
+
+def _observing(phase: str) -> _Observation:
+    """A caught mutation still fails the outer observation on exit."""
+
+    return _Observation(phase)
+
+
+def _refuse_observed_act(act: str) -> None:
+    """Reject an explicit TOP mutation before changing any TOP state."""
+
+    flow = _observation.get()
+    if flow is None or not flow.active:
+        return
+    if flow.violation is None:
+        flow.violation = _ObservationViolation(
+                f"{flow.phase} may read and query, but cannot {act}"
+                )
+    raise flow.violation

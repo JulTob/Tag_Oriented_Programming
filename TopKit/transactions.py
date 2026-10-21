@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from typing import Any
 from .arrest import _require_available
+from .observations import _refuse_observed_act
 from .arrest import _safehouse
 from .contracts import _bind_condition
 from .contracts import _evaluate
@@ -74,6 +75,7 @@ def _apply(
         ) -> object:
     """Apply ``tag`` and its missing Bases to ``agent`` as one call."""
 
+    _refuse_observed_act("apply a Tag or Pin")
     if not _is_tag_class(tag):
         raise TypeError("Tagging requires a Tag or Pin receiver")
 

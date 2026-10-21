@@ -30,6 +30,8 @@ from typing import Union
 from typing import get_args
 from typing import get_origin
 
+from .observations import _refuse_observed_act
+
 from .declarations import Report
 from .declarations import _MISSING
 from .declarations import _RIP
@@ -276,6 +278,8 @@ def Tool(
     def mark(
             member: Any,
             ) -> Any:
+        _refuse_observed_act('change a declaration mark')
+
         if (
                 isinstance(member, (classmethod, staticmethod, Report))
                 or not callable(member)

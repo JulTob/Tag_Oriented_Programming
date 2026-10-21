@@ -15,6 +15,8 @@ from typing import Any
 from types import MappingProxyType
 import atexit
 
+from .observations import _refuse_observed_act
+
 from .arrest import _arrest_of
 from .arrest import _may_act
 from .arrest import _safehouse
@@ -56,6 +58,8 @@ def _rip(
     same Tag. An explicit different-Tag Rip does its own work first, then
     retries older saved work for this Agent.
     """
+
+    _refuse_observed_act('Rip a Tag')
 
     state = _state_of(agent)
     pending = _pending_run(agent, tag) if _safehouse else None
@@ -178,6 +182,8 @@ def _rip_field(tag: type) -> None:
     Field members; the Field defines no cleanup-order obligation.
     """
 
+    _refuse_observed_act('Rip a Field')
+
     pending = []
     for agent in _field_of(tag):
         state = _rip_state(agent)
@@ -207,6 +213,8 @@ def _retry_arrested(
         orphaned_only: bool = False,
         ) -> object:
     """Finish saved work without starting a fresh Tagging or Rip."""
+
+    _refuse_observed_act('retry saved Rip work')
 
     state = _rip_state(agent)
     if state is None:
@@ -395,6 +403,8 @@ def At_Exit(
     Registration is weak: it never keeps the Agent alive, and it leaves
     the registry when the Agent dies.
     """
+
+    _refuse_observed_act('register an At_Exit teardown')
 
     global _exit_count
 

@@ -213,7 +213,7 @@ class NativePinTargetTests(unittest.TestCase):
         target = Host()
         with self.assertRaises(TagPreconditionError.Permit) as caught:
             Role(target)
-        self.assertIsInstance(caught.exception.__cause__, TagDeclarationError)
+        self.assertIsInstance(caught.exception.__cause__, TagCompositionError)
         self.assertEqual(events, ["Gate"])
         self.assertEqual(Role.__bases__, (Tag,))
         self.assertFalse(_is_pin(Role))

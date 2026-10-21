@@ -1,5 +1,6 @@
 """Concurrent publication cannot turn ordinary Tags into Pins."""
 
+import gc
 import unittest
 from threading import Event, Thread
 from unittest.mock import patch
@@ -136,18 +137,28 @@ class PinPublicationRaceTests(unittest.TestCase):
                 refused.set()
             except BaseException as error:
                 failures.append(error)
-        with patch.object(declarations, "_note_tag_kinds", pause):
-            owner_thread, conversion_thread = Thread(target=declare), Thread(target=convert)
-            owner_thread.start()
-            try:
-                self.assertTrue(entered.wait(2))
-                conversion_thread.start()
-                self.assertTrue(refused.wait(1), "root refusal waited for a mutable owner ledger")
-            finally:
-                release.set()
-                owner_thread.join(2)
-                if conversion_thread.ident is not None:
-                    conversion_thread.join(2)
+        # Measure the refusal itself. Event.set() can trigger cyclic GC
+        # after Pin has already raised, running an unrelated weak callback
+        # that waits for the publication lock deliberately held here.
+        gc.collect()
+        gc_was_enabled = gc.isenabled()
+        gc.disable()
+        try:
+            with patch.object(declarations, "_note_tag_kinds", pause):
+                owner_thread, conversion_thread = Thread(target=declare), Thread(target=convert)
+                owner_thread.start()
+                try:
+                    self.assertTrue(entered.wait(2))
+                    conversion_thread.start()
+                    self.assertTrue(refused.wait(1), "root refusal waited for a mutable owner ledger")
+                finally:
+                    release.set()
+                    owner_thread.join(2)
+                    if conversion_thread.ident is not None:
+                        conversion_thread.join(2)
+        finally:
+            if gc_was_enabled:
+                gc.enable()
         self.assertFalse(owner_thread.is_alive())
         self.assertFalse(conversion_thread.is_alive())
         self.assertEqual(failures, [])

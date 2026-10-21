@@ -258,7 +258,7 @@ class NestedImprintTests(unittest.TestCase):
         self.assertNotIn(agent, Unfinished[:])
         self.assertFalse(isinstance(agent, Unfinished))
 
-    def test_record_failure_uses_its_own_phase_despite_nested_post_failure(self):
+    def test_record_cannot_start_tagging_before_a_nested_post_failure(self):
         class Inner(Tag):
             @Post
             def Ready(agent):
@@ -271,12 +271,12 @@ class NestedImprintTests(unittest.TestCase):
                 return "not built"
 
         agent = Host()
-        with self.assertRaises(TagPostconditionError.Ready):
+        with self.assertRaises(TagCompositionError) as refusal:
             Outer(agent)
-        self.assertIn(agent, Inner[:])
+        self.assertIn("Record Outer.item", str(refusal.exception))
+        self.assertNotIn(agent, Inner[:])
         self.assertNotIn(agent, Outer[:])
-        self.assertTrue(isinstance(agent, Inner))
-        self.assertIn(agent, ~Inner)
+        self.assertFalse(isinstance(agent, Inner))
         self.assertFalse("item" @ agent)
 
     def test_later_record_failure_preserves_the_completed_form_prefix(self):

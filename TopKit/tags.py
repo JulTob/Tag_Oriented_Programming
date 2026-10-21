@@ -31,6 +31,8 @@ from __future__ import annotations
 from typing import Any
 from typing import Iterator
 
+from .observations import _refuse_observed_act
+
 from .arrest import _arrest_of
 from .access import _keyword
 from .access import _refuse_host_truth
@@ -135,6 +137,8 @@ class _CategoryMeta(type):
     """Preserve the declaration identity of TOP's Python metaclasses."""
 
     def __new__(meta, name, bases, namespace, **kwargs):
+        _refuse_observed_act('create a TOP metaclass')
+
         root = kwargs.pop("_topkit_meta_root", None)
         if root is _TAG_KIND and name == "MetaTag" and "MetaTag" not in globals() and bases == (type,):
             kind = _TAG_KIND
@@ -155,6 +159,8 @@ class _CategoryMeta(type):
         return super().__new__(meta, name, bases, declared, **kwargs)
 
     def __setattr__(meta, name, value):
+        _refuse_observed_act('change a TOP metaclass declaration')
+
         if type(name) is not str:
             name = str.__str__(name)
         if name == _META_KIND or name == "__class__":
@@ -169,6 +175,8 @@ class _CategoryMeta(type):
         super().__setattr__(name, value)
 
     def __delattr__(meta, name):
+        _refuse_observed_act('delete a TOP metaclass declaration')
+
         if type(name) is not str:
             name = str.__str__(name)
         if name == _META_KIND:
@@ -186,6 +194,8 @@ class MetaTag(type, metaclass=_CategoryMeta, _topkit_meta_root=_TAG_KIND):
             namespace: dict[str, Any],
             **kwargs: Any,
             ) -> "MetaTag":
+        _refuse_observed_act('create a Tag')
+
         if _metaclass_kind(meta) is None:
             raise TagDeclarationError("a Tag or Pin needs a declared TOP metaclass")
         pin_root = kwargs.pop("_topkit_pin_root", False)
@@ -239,6 +249,8 @@ class MetaTag(type, metaclass=_CategoryMeta, _topkit_meta_root=_TAG_KIND):
             name: str,
             value: Any,
             ) -> None:
+        _refuse_observed_act('change a Tag declaration')
+
         # ``setattr`` also accepts str subclasses. Their comparison and hash
         # hooks must not run while Pin publication owns its shared lock.
         if type(name) is not str:
@@ -333,6 +345,8 @@ class MetaTag(type, metaclass=_CategoryMeta, _topkit_meta_root=_TAG_KIND):
             tag,
             name: str,
             ) -> None:
+        _refuse_observed_act('delete a Tag declaration')
+
         owner = _constant_owner(tag, name)
 
         if owner is not None:
@@ -349,6 +363,8 @@ class MetaTag(type, metaclass=_CategoryMeta, _topkit_meta_root=_TAG_KIND):
             /,
             **inputs: Any,
             ) -> object:
+        _refuse_observed_act('apply a Tag or Pin')
+
         kind = _class_kind(tag)
         if kind is None:
             raise TypeError("Tagging requires a Tag or Pin receiver")
@@ -504,6 +520,8 @@ class MetaTag(type, metaclass=_CategoryMeta, _topkit_meta_root=_TAG_KIND):
             tag,
             agent: object,
             ) -> None:
+        _refuse_observed_act('Rip a Tag')
+
         if isinstance(agent, slice):
             if agent != slice(None):
                 raise TypeError("del Tag[:] Rips the whole Field; positional slices are unavailable")

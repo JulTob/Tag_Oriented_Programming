@@ -247,6 +247,39 @@ fallback, so ordinary classes and builtins gain no attributes. Form
 order, iterative traversal and lazy caching are unchanged; mutation of
 `__bases__` remains a separate design question (#97).
 
+## Read-only calculations
+
+A Pre is a transient Tagging Service, a Post is a computed Contract check,
+and a Record builder calculates an initial value. `observations._observing`
+bounds each calculation. Reading Gains, population queries and Actions that
+retrieve or calculate values remain available. Explicit TOP mutations check
+`_refuse_observed_act` before changing TOP state: Tagging or Pinning, Rip and
+saved-Rip retry, Contract deletion, Tag or Pin creation, declaration edits and
+modifiers, and `At_Exit` registration.
+
+The context follows the current execution flow, including nested query
+calls. A refused act records a violation on the outer observation, so catching
+its immediate exception cannot make that calculation succeed. On exit the
+context is restored and its active flag is revoked; a saved copied context
+cannot keep a completed observation active or retain its failure traceback.
+Completed observations release their reset tokens as well, so a saved context
+does not keep an earlier ambient context alive. Checks run synchronously:
+same-thread nesting shares the enclosing refusal, while a calculation started
+in a copied context on another thread owns its own active frame. Finishing
+the parent check cannot remove the guard from that still-running calculation.
+
+The guard intercepts TOP acts, not ordinary Python assignment, mutation of
+contained values or I/O. It neither copies the Target nor supplies rollback
+for arbitrary Python effects; avoiding those effects is an authoring rule.
+Existing Python finalization runs through `_unobserved_cleanup`, which
+suspends this observation for that cleanup and restores it afterward. An
+unrelated Agent's collection therefore does not fail the calculation or
+leave its subsequent TOP acts unguarded. This does not change the existing
+finalization protocol or make TOP a Python sandbox.
+Explicit calls to the existing `agent.__del__()` finalizer take that same
+Python cleanup path; this exemption is not authority for a query Action to
+perform cleanup. Authors must keep finalizer calls out of calculations.
+
 ## The tagging sequence
 
 `transactions._apply` walks the missing Tags in Base-first Form order.
@@ -309,8 +342,9 @@ removed: completed independent Tags and acquired Gains are not restored away.
 An in-progress Tagging is tracked separately from membership so applying the
 same Tag to the same Agent during its Imprint is a no-op. There is no automatic
 Rip for an unfinished never-member and no automatic rollback of training
-effects. Preconditions and Record builders are observational authoring
-contracts, not sandboxes for arbitrary Python effects.
+effects. Preconditions, Posts and Record builders guard explicit TOP
+mutations as described above; arbitrary Python effects remain the author's
+responsibility.
 
 ## Synchronous protocol results
 
