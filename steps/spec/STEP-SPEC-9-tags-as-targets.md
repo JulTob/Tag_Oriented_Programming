@@ -17,7 +17,10 @@ The Director clarified the distinction while reviewing late-Pin policy:
 
 > I understand that's just a pin tagging a T tag? Or is it the claude trying to make mutant Tag-Pins again? I don't want the metaclass of pins to mix with the class of tags. pinning a tag is normal behaviour in any condition, empty field or not. Converting a tag to a pin should not work. Tags pin objects, pins tag tags, links, and pins. Pins are organizational and relational. Tags are categories and agencies. Different stuff
 
-The following instruction was: **"fix the Pin-Tag confusion"**.
+The following instruction was: **"fix the Pin-Tag confusion"**. The
+Director then clarified the immediate implementation request:
+
+> I meant fix the code so there is a strong diference between tags and pins, so tags cannot tag tags, and pins cannot tag objects, only other tags(links, tools, tags or pins)
 
 ### Confirmed category rule
 
@@ -59,9 +62,14 @@ At the comparison checkpoint, `main` at `2f67565`, TopKit still uses
 checks protect current Fields, live Tool owners and in-flight Tagging;
 they do not implement this new declaration-category rule. The original
 STEP and runnable Guide examples below describe that existing API. A
-focused implementation and accompanying Guide update must follow the
-chosen declaration spelling. This amendment records the category ruling;
-it does not claim that the new behavior is built or Deployed.
+focused runtime fix can retain this declaration spelling while enforcing
+which Targets an existing Tag or Pin accepts. It must use the Target's
+actual Python type, not an object-provided `__class__` presentation, and
+must reject mixed ordinary/Pin application Forms. That work does not
+resolve the separate declaration-versus-conversion limitation. A future
+declaration migration and its Guide update still need an agreed spelling.
+This amendment records the category ruling; it does not claim that either
+implementation is built or Deployed.
 
 ### Acceptance for the focused follow-up
 
