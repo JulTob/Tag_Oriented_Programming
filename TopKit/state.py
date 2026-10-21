@@ -1335,7 +1335,7 @@ class _Published:
                 origin,
                 gate.name,
                 )
-        return value.Read(agent) if isinstance(value, _Line) else value
+        return value.Read(agent) if issubclass(type(value), _Line) else value
 
     def __set__(
             gate,

@@ -68,6 +68,30 @@ class LinkModifierPublicationTests(unittest.TestCase):
         hero.Carries(sword, position="belt")
         self.assertEqual(view.position, "belt")
 
+    def test_opaque_report_values_are_not_probed_for_their_class(self):
+        class Opaque:
+            def __getattribute__(value, name):
+                if name == "__class__":
+                    raise AssertionError("reading a Report must not inspect its value")
+                return object.__getattribute__(value, name)
+
+        opaque = Opaque()
+
+        class Publisher(Tag):
+            @Public
+            @Report
+            def payload(tag):
+                return opaque
+
+        class Inspected(Tag):
+            pass
+
+        target = Host()
+        Publisher(target)
+        Inspected(target)
+        self.assertIs(target.payload, opaque)
+        self.assertIs(Inspected[target].payload, opaque)
+
     def test_constant_public_action_binding_is_protected_on_contact(self):
         class Inventory(Tag):
             @Link(agent, contact)

@@ -788,7 +788,7 @@ class _Tag_View:
         elif name in snapshot.reports:
             origin = snapshot.reports[name][0]
             result = getattr(origin, name)
-            if isinstance(result, _Line):
+            if issubclass(type(result), _Line):
                 result = result.Read(agent)
         elif name in snapshot.operations:
             result = _View_Call(view, name, name in snapshot.secrets)
