@@ -36,6 +36,7 @@ Specification = "https://github.com/JulTob/Tag_Oriented_Programming/blob/main/sp
 Issues = "https://github.com/JulTob/Tag_Oriented_Programming/issues"
 
 [tool.setuptools]
+include-package-data = false
 packages = [
         "TopKit",
         ]
