@@ -41,11 +41,14 @@ from .errors import TagImprintError
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
 from .geometry import _is_tag_class
+from .memo import _class_namespace
 from .memo import _forget_memo
 from .memo import _memo_key
 from .memo import _memo_of
 from .memo import _namespace_snapshot
 from .memo import _remember_memo
+from .memo import _type_bases
+from .memo import _type_mro
 
 
 _KIND = "__topkit_kind__"
@@ -597,14 +600,12 @@ def Pin(
 def _is_pin(
         tag: type,
         ) -> bool:
-    """A Shape of a Pin is a Pin."""
+    """A Shape of a Pin is a Pin. Read physical marks in the actual Form;
+    a metaclass hook must not hide or invent the declaration."""
 
-    return bool(
-            getattr(
-                    tag,
-                    _PIN,
-                    False,
-                    )
+    return any(
+            _class_namespace(layer).get(_PIN) is True
+            for layer in _type_mro.__get__(tag)
             )
 
 
@@ -616,7 +617,7 @@ def _is_tag_base(
 
     return _is_tag_class(base) and any(
             _is_tag_class(deeper)
-            for deeper in base.__bases__
+            for deeper in _type_bases.__get__(base)
             )
 
 
@@ -627,7 +628,7 @@ def _check_pin_bases(
 
     bases = tuple(
             base
-            for base in tag.__bases__
+            for base in _type_bases.__get__(tag)
             if _is_tag_base(base)
             )
     pins = [
@@ -635,7 +636,7 @@ def _check_pin_bases(
             for base in bases
             if _is_pin(base)
             ]
-    marked = bool(tag.__dict__.get(_PIN, False))
+    marked = _class_namespace(tag).get(_PIN) is True
 
     if not bases or len(pins) == len(bases):
         return
@@ -1096,7 +1097,7 @@ def _check_tool_declarations(
 
     if any(
             _is_pin(base)
-            for base in tag.__mro__[1:]
+            for base in _type_mro.__get__(tag)[1:]
             ):
         _refuse_tools_on_a_pin(
                 tag,
