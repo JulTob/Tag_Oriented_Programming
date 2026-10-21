@@ -37,6 +37,14 @@
   Query Actions remain available. Python writes and finalization are outside
   this authoring boundary; finalizer cleanup cannot poison an unrelated read.
 
+- **Neutral Post cycles:** an exact recursive Agent/Post reference
+  contributes True while the other visible Posts still run. One complete
+  query reuses each first completed verdict, then releases its outcomes;
+  separate questions recheck. Task/thread ownership, Secret-door
+  invalidation and custody checks prevent cached authority from escaping
+  its execution. `Contract.Status` remains a Post diagnostic while arrested
+  Agent truth stays False. The Post queries wiki page explains the rule.
+
 - **Live Tag views:** a saved `MyTag[agent]` follows the Tag's current
   application instead of owning an old snapshot. Rip closes access;
   reTagging supplies the fresh Overlay. Reports read their origin Tag's
@@ -84,8 +92,9 @@
 - **Sound membership:** `agent in Tag` now asks whether the Agent is still
   in that Field and its visible Posts hold, matching `for agent in Tag`.
   `agent in Tag[:]` asks for raw Field membership, including defective
-  Agents. A Post that asks for its own Agent's sound membership raises a
-  Contract Failure; use `Tag[:]` when the Post needs raw admission.
+  Agents. An exact recursive Agent/Post edge contributes neutral True;
+  the other visible Posts still judge soundness. Use `Tag[:]` when the
+  Post needs raw admission rather than validity.
 
 - **Runtime type cache does not own Hosts:** keys use Host identity rather
   than a strong Host reference. Transient Host/Agent cycles can collect,

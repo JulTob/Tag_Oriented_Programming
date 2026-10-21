@@ -26,6 +26,7 @@ import weakref
 
 from .arrest import _arrest_of
 from .contracts import _holds_for_population
+from .post_queries import _post_evaluation
 from .errors import TagCompositionError
 from .geometry import _is_tag_class
 from .memo import _class_namespace
@@ -75,18 +76,20 @@ class _Population:
     def __len__(
             population,
             ) -> int:
-        return sum(
-                1
-                for _ in population
-                )
+        with _post_evaluation():
+            return sum(
+                    1
+                    for _ in population
+                    )
 
     def __bool__(
             population,
             ) -> bool:
-        return any(
-                True
-                for _ in population
-                )
+        with _post_evaluation():
+            return any(
+                    True
+                    for _ in population
+                    )
 
     def __or__(
             population,
@@ -216,7 +219,8 @@ class _Combined(_Population):
             combined,
             agent: object,
             ) -> bool:
-        return _contains_combined(combined, agent)
+        with _post_evaluation():
+            return _contains_combined(combined, agent)
 
 
 def _uses_combined_method(population: _Population, name: str) -> bool:
@@ -511,10 +515,11 @@ class _Partition(_Population):
             ) -> bool:
         """Anyone? Stops at the first member that counts (``while ~Enemy:``)."""
 
-        return any(
-                True
-                for _ in partition
-                )
+        with _post_evaluation():
+            return any(
+                    True
+                    for _ in partition
+                    )
 
     def __invert__(
             partition,

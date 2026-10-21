@@ -20,6 +20,7 @@ tracks splitting them by idea without changing semantics.
 | `state.py` | the per-Agent state, bound Actions, the runtime type and its descriptors |
 | `overlay.py` | laying one Tag's declarations over a state; materializing Records |
 | `contracts.py` | strict verdicts, transient Pre Services, bound Post Gains, `Contract` |
+| `post_queries.py` | neutral recursive Post edges and first-verdict reuse within one question |
 | `constants.py` | protecting Constant bindings without freezing their values |
 | `tools.py` | Tool slots: a Record's kind, a Tag or a class, admission at the gaining and at every write |
 | `presence.py` | Contribution presence without evaluating values or conditions |
@@ -589,8 +590,18 @@ Tagging sequence or expand its rollback boundary.
   combinations all route through that walk. No kernel state changes.
 - **Post members** (STEP-SPEC-14): an ordinary Agent answers a visible Post
   by name through `_Post_Gate`; a pinned Tag keeps the metaclass miss path.
-  Both call `contracts._condition_member`, which
-  evaluates under the re-entrancy guard and returns a plain bool. The
+  Both call `contracts._condition_member`, which returns a plain bool.
+  `post_queries.py` tracks Agent/check identity: only the exact running
+  edge contributes neutral True, while other Posts are still evaluated.
+  Complete truth, status, population-length and combined-membership questions
+  share their first completed verdicts; each independent question starts
+  fresh. Session owners distinguish Tasks and threads, and closing clears
+  the retained Agent/check outcomes so copied contexts cannot retain them.
+  Secret permission probes invalidate reuse, and custody is checked before
+  and after dispatch. `Contract.Status` diagnoses Posts without granting
+  access to an arrested Agent. The optional non-raising asyncio loop probe
+  on supported CPython versions has a public-API fallback.
+  The
   data gate and `_Binding_Write` refuse assignment
   or deletion before a host hook runs; `Contract.Delete` rebuilds the
   runtime type without the ended name, returning it to ordinary

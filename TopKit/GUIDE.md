@@ -483,6 +483,12 @@ Operations; a Record may also store such an object as its value.
 **When you want** a Tag to guarantee something about the finished Agent.
 Postconditions inspect the product after everything applied.
 
+Posts can refer to other Posts. An exact recursive reference contributes
+neutral True while the surrounding check continues to judge the other
+promises. One complete query reuses its first completed verdicts; a new
+query reads again. See the [Post queries guide](../wiki/1.7-TopKit-Post-Queries.md)
+for examples, collective checks and the access boundaries.
+
 ```python
 class Wizard(Tag):
 
