@@ -709,7 +709,7 @@ def _refuse_late_pin(
     if type(field) is not _Field:
         raise TagDeclarationError(
                 f"@Pin cannot mark {tag_name}: its private Field seat"
-                " is not a TOP Field"
+                " is not an ordinary TOP Field"
                 )
     agents = list(field)
 
