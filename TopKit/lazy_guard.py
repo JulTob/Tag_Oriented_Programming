@@ -43,18 +43,17 @@ from .errors import TagArrestedAccessError
 
 _Check = Callable[[object, str], None]
 
-# Only private framework adapters opt in here. Dispatch always compares class
-# identity, so opaque host values never run metaclass equality or hashing.
-_framework_lazy_types: tuple[tuple[type, int], ...] = ()
+# Only fixed native and private framework classes enter this table. Strong
+# class references prevent ID reuse; identity guards avoid host type hooks.
+# Looking up an ordinary return value never adds its type to the table.
+_framework_lazy_types: dict[int, tuple[type, int]] = {}
 
 
 def _register_lazy_proxy_types(
         generator: type, coroutine: type, async_generator: type,
         ) -> None:
-    global _framework_lazy_types
     for kind, category in ((generator, 0), (coroutine, 1), (async_generator, 2)):
-        if not any(kind is known for known, _ in _framework_lazy_types):
-            _framework_lazy_types += ((kind, category),)
+        _framework_lazy_types[id(kind)] = kind, category
 
 
 class _Guard:
@@ -239,19 +238,15 @@ class _Guarded_AsyncGenerator:
         self._guard.park(self._source)
 
 
+_register_lazy_proxy_types(GeneratorType, CoroutineType, AsyncGeneratorType)
+_register_lazy_proxy_types(_Guarded_Generator, _Guarded_Coroutine, _Guarded_AsyncGenerator)
+
+
 def _lazy_kind_of(result: Any) -> int | None:
-    """Recognize native continuations and exact trusted framework proxies."""
+    """Recognize fixed trusted classes without calling host type hooks."""
     kind = type(result)
-    if kind is GeneratorType or kind is _Guarded_Generator:
-        return 0
-    if kind is CoroutineType or kind is _Guarded_Coroutine:
-        return 1
-    if kind is AsyncGeneratorType or kind is _Guarded_AsyncGenerator:
-        return 2
-    for proxy, category in _framework_lazy_types:
-        if kind is proxy:
-            return category
-    return None
+    entry = _framework_lazy_types.get(id(kind))
+    return entry[1] if entry is not None and entry[0] is kind else None
 
 
 def _guard_lazy_result(
@@ -268,7 +263,9 @@ def _guard_lazy_result(
     return: dropping it otherwise runs its finalizer outside the Rip door.
     """
 
-    category = _lazy_kind_of(result)
+    kind = type(result)
+    entry = _framework_lazy_types.get(id(kind))
+    category = entry[1] if entry is not None and entry[0] is kind else None
     lazy = category is not None
     if _safehouse:
         try:
