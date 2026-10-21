@@ -139,15 +139,21 @@
   transient Gate Services, not Gains.
 - Gate and candidate-Overlay evaluation now follow the Base-first Tag chain
   without removing completed Bases when a later Tag refuses or collides.
-- **Admission follows completed training (STEP-SPEC-39):** each Tag passes
-  its Gate, acquires Gains in declaration order, finishes its Imprints, then
-  enters the Field. Failed Gainings or Imprints retain actually acquired
-  non-Post Gains without admitting the unfinished Tag and discard that
-  attempt's provisional Posts. Earlier completed Tags stay; Tagging again
-  starts a fresh attempt. Posts judge the completed Form once and a failed
-  Post preserves membership. Tool gains use the same order:
-  their proposed kind is checked before replacing the prior binding or rule,
-  and an acquired Tool remains guarded on a Rogue.
+- **Best-effort training and per-Tag Contracts:** an existing Agent must pass
+  its current Posts before a new Tag's Gate. All Record spaces are preflighted
+  before Gains; an unsuitable Target raises `TagTargetError`, a Composition
+  Failure. Record initializer and Imprint exceptions produce one named
+  `TrainingWarning` per failed step and later training continues. Successful
+  Gains stay, failed Records retain their previous binding or absence, and
+  Field entry follows the attempt. All current Posts are checked before the
+  next Tag: one failure keeps its named Post error, several use
+  `TaggingFailure.failed_posts`. Passing Posts return a sound Agent despite
+  training warnings. Python interruptions stop training, attempt admission
+  and Post checks, then propagate unchanged. Active reTagging stays a no-op;
+  unrelated new Tagging cannot implicitly repair a broken Agent.
+- Recursive Post edges contribute neutral `True`, while the other Posts still
+  run. Completed verdicts may be reused within one outer check; a later check
+  starts fresh, and Secret or custody changes invalidate protected reuse.
 
 - **Invalid Rip declarations fail at declaration:** `@Rip` marks an Action,
   because a teardown remains an ordinary callable Action. Stacking it on

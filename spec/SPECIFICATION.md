@@ -189,106 +189,102 @@ how to evolve it. As in §1.3, an absent, deleted or Action binding supplies
 
 ## 0.6 The tagging sequence
 
-Think of a factory line. For each missing Tag in the Form, in order:
+Think of a factory line. Each missing Tag in the Form takes its own turn,
+in order. A Form describes layering; it does not postpone a Base's contract
+until a later Shape arrives.
 
-1. **Gate.** That Tag's declarations are checked against the current
-   Overlay, then its own Preconditions inspect the Agent and the inputs.
-   A failed check or Precondition stops before that Tag begins; Tags whose
-   turns have finished stay applied.
-
-2. **Gainings.** That Tag's declarations are applied in order, top to bottom:
-   Actions, Records, Post definitions and deletions take effect at their
-   declared positions. Each acquired Gain is visible to later declarations.
-   A Record builder may read earlier Actions and Records as well as the value
-   already stored under its own name. A Precondition is not a Gain: it is a
-   transient Tagging Service evaluated by the Gate and never installed on the
-   Agent.
-3. **Imprints.** That Tag's Imprints run, in declaration order, with the
-   acquired Actions and Records available. The Agent is not yet in this Tag.
-4. **FieldAdding.** After its Imprints finish, the Agent enters the Tag's
-   Field. Membership and history are established together. The Tag's
-   published Reports and Operations become accessible through the Agent,
-   and its Agent-bound view is captured.
-
-Then, once for the whole call:
-
-5. **Posts.** Every visible Postcondition inspects the finished Agent.
-   Checking once after the completed Form lets a Base promise what a later
-   Shape supplies.
-
-The **call boundary** decides what a failure means:
-
-- A refusal in step 1 stops that Tag before its Gainings, Contributions, Field
-  entry or Imprints. Earlier Tags completed during this call stay applied.
-- A failure in steps 2 or 3 **raises and preserves actually acquired Actions,
-  Records and other non-contract Gains**, but the Agent does not enter this
-  Tag. Its provisional Posts are discarded because no bond with this Tag was
-  admitted. It is a **Rogue Agent** with respect to this Tag: it acquired
-  something without completing admission. Earlier completed Tags, including
-  Tags applied by an Imprint, remain applied.
-- A failure in step 5 **raises, but membership stays**. The product left the
-  line. A defective product is flagged, repaired, or Ripped (§2.5).
+1. **Source and Gate.** An existing Agent's current Posts must hold before
+   a new Tag's Gate begins. Structural preparation checks all that Tag's
+   Record spaces before any Gain or initializer runs. A Target that cannot
+   carry them is refused with `TagTargetError`, a Composition Failure;
+   failed initial host preparation restores its original representation.
+   The declarations are checked against the current Overlay, then this
+   Tag's own Preconditions inspect the Target and inputs. A refusal stops
+   this turn before Gains or Field entry. Earlier completed Tags stay.
+2. **Gainings.** Actions, Records, Post definitions and deletions take effect
+   top to bottom in declaration order. Each acquired Gain is visible to later
+   declarations. A Record initializer calculates its initial value using
+   earlier Actions and Records and its own previous stored value. An ordinary
+   exception while calculating or applying that value produces a named
+   `TrainingWarning` and leaves the previous binding, or absence, unchanged;
+   later declarations continue. A Pre is a transient Tagging Service, never
+   an Agent Gain.
+3. **Imprints.** Imprints run in declaration order, with acquired Gains
+   available but no membership in this Tag yet. Each ordinary failure produces
+   its own named training warning; subsequent Imprints still run.
+4. **FieldAdding.** The Agent enters this Tag's Field after the training
+   attempt, even when an initializer or Imprint failed. Membership and history
+   are established together. This Tag's Posts join its Contract; its published
+   Reports, Operations and Agent-bound view become available through the Agent.
+5. **Posts.** All current visible Posts judge the Agent before the next Tag's
+   turn. Training warnings are reported individually. If Posts hold, the call
+   returns the sound Agent despite those warnings. Failed Posts leave an
+   admitted defective member and produce one final Postcondition Failure:
+   the named failure for one Post, or `TaggingFailure` naming all failed Posts
+   in evaluation order (§2.6).
 
 | Outcome | Gains from this attempt | Membership in this Tag |
 | --- | --- | --- |
-| Gate refuses | none | absent |
-| Gainings or Imprints fail | actually acquired non-Post Gains remain; provisional Posts end | absent; Rogue |
-| Posts fail after admission | acquired Gains remain | present; defective while Posts fail |
-| Posts hold after admission | acquired Gains remain | present; sound |
+| Source, structural preparation or Gate refuses | none from this Tag | absent |
+| Record initializer or Imprint raises an ordinary exception | successful Gains remain; failed Record retains its previous binding or absence | present; current Posts judge validity |
+| Posts fail after admission | acquired Gains and Posts remain | present; defective while Posts fail |
+| Posts hold after admission | acquired Gains and Posts remain | present; sound, with a warning for each failed training step |
 
-Calling `Tag(agent)` again after unfinished training starts a fresh attempt:
-the Gate judges the Agent's current state, ordinary Gains overlay that state,
-and Imprints start again. It does not resume at the failed instruction.
-Successfully established non-Post Constants remain protected (§1.5); a
-Constant Record whose builder never returned a value has no established
-binding to preserve. Posts, including Constant Posts, become Contract terms
-only when the Agent enters this Tag's Field. Before admission they are
-provisional and disappear if this attempt fails.
+An initializer or Imprint that raises `KeyboardInterrupt`, `SystemExit` or
+another Python interruption stops subsequent training immediately. TOP still
+attempts admission and checks the current Posts, then re-raises that original
+interruption without replacing it with a warning or a Post failure. Posts not
+reached before the interruption are not silently invented. Structural failure
+that prevents admission remains a separate boundary; provisional Posts from
+an unadmitted attempt are discarded, including Constant Posts. Acquired
+non-Post Gains and external effects are not a world transaction.
+
+Calling an already active Tag on its Agent is a no-op, including a defective
+member; it does not implicitly repair or retrain. Repair existing Gains first.
+Rip and a later Tagging make a fresh training attempt, provided the Agent's
+remaining Posts hold. Successfully established Constants remain protected
+(§1.5); a failed initializer establishes no new Constant Record binding.
 
 The **Contract** is the bond between an Agent and its Agencies. An ordinary
-Post is an Agent Gain in that bond, tied to the particular Tag application
-that admitted it. A Constant Post becomes a lifetime Contract term once that
-application is admitted. Declaring a Post does not itself wrap ordinary
-Action calls: an Action that must enforce it can read its named Post before
-effects, such as `if not agent.Insulated: raise PermissionError(...)`.
+Post is a membership-bound Agent Gain in that bond; an admitted Constant Post
+is a lifetime term. Current Posts determine validity: a missing optional Gain
+is not itself a hidden failure. Express required Gains in Posts, for example
+`return "engine" @ agent`; use `@Constant` to protect a required Post.
+Declaring a Post does not automatically wrap ordinary Action calls. An Action
+can read its named Post before effects, such as
+`if not agent.Insulated: raise PermissionError(...)`.
 
-The phase belongs to the call running the protocol. A nested refusal
-inside an Imprint is that Imprint's failure, with the refusal as its cause;
-a failure in a Record builder is a Gainings failure, not a Gate refusal.
-Python interruptions follow the same boundary and propagate unchanged.
-Before FieldAdding they leave acquired Gains without membership; after
-FieldAdding they preserve membership. Failure to capture an admitted Tag's
-view also preserves its membership.
-
-An exceptional return does not itself make an Agent permanently defective.
-Its current visible Postconditions determine soundness (§2.5), so a finished
-Agent whose promises hold is sound. A Rogue may also satisfy its visible
-Posts; soundness does not establish membership or complete unfinished
-training.
+A nested refusal inside an Imprint is that Imprint's failed training step.
+A nested Tagging also needs a valid source Agent; it cannot silently repair
+an unrelated Tag's broken contract. Earlier completed independent Taggings
+remain. Failure to capture an admitted Tag's view also preserves membership.
 
 ```text
 Citadel(ari)                      Form: Territory, Citadel
-    Territory  Gate, Gainings, Imprints, FieldAdding
+    Territory  Gate, Gainings, Imprints, FieldAdding, Posts PASS
     Citadel    gate: Has_Charter FAILS
 → TagPreconditionError; ari in Territory == True, ari in Citadel == False
 
-Broken_Wizard(ari)                Form: Person, Broken_Wizard
-    Person     Gate, Gainings, Imprints, FieldAdding
-    Wizard     Gate, Gainings, Imprints, FieldAdding
-    check      Has_Spellbook FAILS
-→ TagPostconditionError; ari in Person[:] and ari in Wizard[:]; bool(ari) == False
+Car(ari)
+    Gate       PASS
+    Record     engine raises → TrainingWarning.engine; later Gains continue
+    Imprint    Assemble raises → TrainingWarning.Assemble; later Imprints continue
+    FieldAdding
+    Posts      Has_Engine FAILS
+→ named TagPostconditionError; ari in Car[:]; ari in ~Car; bool(ari) == False
 ```
 
-Preconditions judge by reading and querying. Record builders read and query
-to calculate their initial returned values. Applying or Ripping Tags and
-changing the world belong to Imprints, not Preconditions or Record builders.
-These authoring rules are not a Python sandbox: automatic copies cannot undo
-arbitrary Python or external effects.
+Preconditions, Postconditions and Record calculations read and query.
+Explicit TOP acts such as Tagging, Rip, contract deletion and Tag creation
+are refused while those checks or calculations run. Actions called to obtain
+values obey the same restriction. This is not a Python sandbox: direct Python
+writes, mutable values and external effects remain the author's responsibility.
+Imprints perform the world-changing training work.
 
-Unfinished training does not trigger Rip: the Agent never entered that Tag.
-It is outside `Tag[:]`, and `del Tag[agent]` cannot expel a nonmember. The
-program owns cleanup of resources acquired during that attempt, using
-ordinary Python error handling. TOP does not undo Imprint effects.
+A failed training step alone does not trigger automatic Rip. Once admitted,
+the Agent can be inspected and repaired, or explicitly Ripped through the
+ordinary cleanup protocol (§3.1). A structural refusal that never admits it
+has no membership to Rip. TOP does not undo external training effects.
 
 ## 0.7 Rip
 
@@ -371,7 +367,7 @@ language, not a library's naming.
 | the Form, as Tags | `Form(Wizard)` |
 | the Form, as text | `f"{Wizard:form}"` |
 | an Agent's Tags, Outline, contract, as text | `f"{agent:tags}"`, `f"{agent:outline}"`, `f"{agent:contract}"` |
-| catch one check's failure (§2.6) | `except Precondition.Is_A_Caster:`, `except Postcondition.Has_Book:`, `except Imprint.Arm:` |
+| identify a condition or training failure (§2.6) | `except Precondition.Is_A_Caster:`, `except Postcondition.Has_Book:`, `TrainingWarning.Arm` |
 | catch a Rogue Agent's access (§1.5) | `except TagRogueAccessError:` |
 | clear a removable Post tower explicitly (§0.7) | `Contract.Delete(agent, "Has_Book")` |
 | necessary to enter and to stay (§2.7) | `@Pre` + `@Post`, stacked on one function |
@@ -658,8 +654,9 @@ Three laws govern the slot:
 1. **The slot has a kind, checked at admission.** Admission is asked when
    the slot is gained, on what the builder returns, and at every write
    to it, `object.__setattr__` included. A refusal is a Composition
-   Failure: at the gaining it is a Record failure of §0.6; at a write
-   nothing changes. Admission is a gate, never re-asked: a seated tool
+   Failure: while calculating the initial Gain it produces a named training
+   warning and keeps the prior value or absence (§0.6); a later write raises
+   and changes nothing. Admission is a gate, never re-asked: a seated tool
    that later leaves its Tag stays in hand, a Rogue, and the bearer's
    own promise notices it (§2.4); a Tag kind refuses such a Rogue only
    if it is seated again, and a class kind admits it. Admission never
@@ -667,9 +664,10 @@ Three laws govern the slot:
    current membership (`agent.weapon in Weapon[:]`) and soundness
    (`bool(agent.weapon)`, once it is known to be an Agent) stay three
    questions. An untagged value retains ordinary Python truth.
-2. **The slot is never empty, unless its kind says so.** With a kind of
-   Tags and classes alone, a builder that returns `None` and an
-   assignment of `None` are Composition Failures. A kind written with
+2. **A successfully seated value obeys the slot's kind.** With Tags and
+   classes alone, an initializer returning `None` produces a training
+   warning and establishes no new value; an assignment of `None` raises a
+   Composition Failure. A kind written with
    `| None` admits `None` at the gaining and at the write: the empty hand
    is declared where readers see it. In both cases the drop is
    `del agent.weapon`, and `@Delete` at the name frees the slot (§1.6).
@@ -1186,11 +1184,12 @@ by name, on the same miss-path rule as `charlie.Wizard`.
 
 **Contracts, Imprints, Rip.** A Pin's Preconditions gate its own turn and
 receive the Tag; a failed Gate leaves that Pin unapplied and its metaclass
-unchanged, while completed Base Pins stay. Postconditions are checked once per pinning and
-re-checked at later pinning boundaries of that Tag; a broken promise
-leaves the Tag pinned and defective (§2.5). Imprints run before FieldAdding;
-unfinished pinning leaves its acquired non-Post Gains without membership in
-the Pin and discards its provisional Posts. `del Rare[Wizard]` ends that
+unchanged, while completed Base Pins stay. The pinned Target's current Posts
+must hold before a new Pin's Gate. Posts are checked after each Pin's admission;
+a broken promise leaves the Tag pinned and defective (§2.5). Record initializers
+and Imprints follow the same best-effort warning rule before FieldAdding.
+Structural failure that prevents admission instead discards provisional Posts;
+ordinary training failure does not prevent admission. `del Rare[Wizard]` ends that
 application's ordinary Posts before running the Pin's Rip protocols; landed
 values and Operations stay, sticky, and `isinstance(Wizard, Rare)` stays
 True.
@@ -1323,26 +1322,29 @@ class MI6(Tag):
         agent.status = "Full"
 ```
 
-An Imprint may apply further Tags to the same Agent; those are independent
-Taggings. Applying the same Tag to this Agent while its training is already
-underway is a no-op, rather than recursive training. If an Imprint fails,
-the call raises its named Imprint Failure. Actual Gains and completed
-Taggings stay, but the unfinished Tag is absent. Another `Tag(agent)` makes
-a fresh attempt, including its Gate, Gainings and Imprints.
+An Imprint may apply further Tags to the same Agent; those independent
+Taggings require its current Posts to hold before their own Gates. Applying
+the same Tag while it is already active or training is a no-op. An ordinary
+Imprint failure produces `TrainingWarning.<protocol_name>` and later Imprints
+continue. FieldAdding and all current Posts follow the attempt. A valid Agent
+returns with warnings; a defective admitted Agent raises a final Post error.
+A Python interruption stops later training, attempts admission and Post
+inspection, and propagates unchanged (§0.6). ReTagging an active member does
+not run an implicit repair protocol.
 
 ## 2.4 Postconditions: the promise
 
-A Postcondition inspects the **finished product**. Every visible
-Postcondition runs at step 5, **once per call, after the whole Form**, so a
-Base may promise what its Shape delivers. Postconditions take no inputs:
-they judge the Agent, not the materials.
+A Postcondition inspects the admitted Agent. Every current visible Post runs
+at step 5 **after each Tag's admission and before the next Tag's Gate**. A
+Base must meet its own promises without relying on later Shape training.
+Postconditions take no application inputs: they judge the Agent as it is.
 
 Its definition is prepared at its declaration position during Gainings, so
 later Gainings can see it during that attempt. The Post joins the Agent's
-Contract only when that Tag application enters the Field. If a later Gaining
-or Imprint prevents admission, every Post prepared by that attempt is
-discarded, including a Constant Post. Other Gains actually acquired by the
-Rogue keep their ordinary failure semantics (§0.6).
+Contract only when that Tag application enters the Field. Ordinary Record
+initializer and Imprint failures do not prevent that admission. A structural
+failure that does prevent it discards every provisional Post from the attempt,
+including Constants; acquired non-Post Gains keep their phase semantics (§0.6).
 
 After admission, an ordinary Post is a membership-bound Agent Gain. It stays
 in the bond while that particular Tag application stays in the Field and
@@ -1426,12 +1428,14 @@ Agents whose saved Rip work belongs to Wizard; these Agents ordinarily
 already left Wizard's Field. Once all their saved cleanup succeeds, their
 current Posts determine soundness again.
 
-While a Post judges an Agent, a sound-population query that reaches that
-same Agent cannot judge its unfinished validity: `agent in Tag` (and a
-sound or defective population walk that reaches it) raises a Contract
-Failure. `agent in Tag[:]` asks only whether it entered that Field and is
-safe inside the Post. A Post may query another Agent's soundness when that
-Agent is not itself under judgment.
+A recursive reference to a Post already running contributes neutral `True`
+for that edge. Other Posts still run: a Post reading `bool(agent)` does not
+make an independently failing safety Post pass. Within one outer check, a
+completed verdict may be reused; the next outer check starts fresh. This
+rule contains cycles rather than solving arbitrary contradictory contracts.
+Secret and custody changes invalidate protected reuse, and permission is
+checked before returning a verdict. `agent in Tag[:]` asks only admission
+and needs no validity calculation.
 
 `~` reads "broken", never "not". Broken twice is still broken, so `~`
 absorbs: `~~Wizard`, `~~~Wizard` and any longer run are `~Wizard`, the
@@ -1496,13 +1500,10 @@ their population meanings (§0.8).
 
 ## 2.6 Naming the culprit
 
-A failed check raises a failure that **carries the check's name**, as a
-subclass of the general failure: the Precondition declared as
-`Is_A_Caster` refuses with `TagPreconditionError.Is_A_Caster`, an
-Imprint called `Arm` fails with `TagImprintError.Arm`, a Postcondition
-called `Has_Book` with `TagPostconditionError.Has_Book`. The marks are
-the short spelling of the same classes, so a program catches a refusal in
-its own words:
+A failed condition carries its declared name: `Is_A_Caster` refuses with
+`TagPreconditionError.Is_A_Caster`, and one failed Post `Has_Book` raises
+`TagPostconditionError.Has_Book`. The marks are short spellings of those
+failure classes, so a program catches a refusal in its own words:
 
 ```python
 try:
@@ -1525,6 +1526,24 @@ Rules:
    share `Precondition.Ready`. A program that needs to tell them apart
    reads `f"{agent:contract}"` or names the checks differently.
 4. A check that raises instead of returning `False` is named the same way.
+
+An ordinary failed Record initializer or Imprint instead emits a named
+`TrainingWarning`, also exported as `TagTrainingWarning`. For example,
+`TrainingWarning.Arm` identifies protocol `Arm`; `warning.tag_name` and
+`warning.kind` identify its Tag and training kind. `warning.failure` retains
+the named TOP diagnostic, such as `TagImprintError.Arm`; copied cause type,
+text and source coordinates describe the original exception without retaining
+its live traceback. There is one warning per failed step, in training order.
+Warnings are reported after admission and Post inspection; promoting them to
+errors with Python's warning filters does not roll back membership.
+
+Every visible Post is checked at the Tagging boundary. For one failed Post,
+the named Post exception has `failed_posts == (name,)`; several failures use
+`TaggingFailure`, a `TagPostconditionError` subtype, whose `failed_posts`
+tuple and `failure_texts` name them in evaluation order. Layer provenance
+identifies the Tag responsible, including a retained Constant Post after Rip.
+A non-boolean Post result remains a Contract Failure; Python interruptions
+are preserved rather than aggregated into training warnings.
 
 `bool(agent)` is the verdict on a finished Agent. The `Contract` namespace
 inspects the live Posts in the Agent's bond and names the promise that broke:
@@ -1678,10 +1697,12 @@ finally:
 ```
 
 A Gate refusal raises before the `try`, so the block never runs and there
-is no Tag to Rip. An Imprint failure before admission leaves a Rogue, while
-a broken Post leaves an admitted member (§0.6). Both are reported at the
-Tagging statement before the `try`. A Rip in a `finally` that fails raises
-and saves the unfinished cleanup (§3.1).
+is no Tag to Rip. Ordinary training failures warn and continue; passing Posts
+enter the `try` normally. Failed Posts or Python interruptions can instead
+leave an admitted member while raising at the Tagging statement, before this
+`try` starts (§0.6). Handle that case separately and use raw membership to
+choose cleanup. A Rip in a `finally` that fails raises and saves unfinished
+cleanup (§3.1).
 If the block was raising too, the language keeps the block's error inside
 the Rip's failure, as its context, and shows both.
 TOP adds nothing to this. Each step is a line the program writes: a
@@ -1758,10 +1779,12 @@ What TOP does not promise, stated so nobody has to discover it.
 - **Python optimization.** Assertion-style conditions need assertions
   enabled; §2.1 describes optimized execution and return-based checks.
 - **Host descriptors.** A Record cannot share a name with a host property
-  or slot; the Tagging fails with a Composition Failure.
-- **Raw side effects.** Rollback restores TOP-managed state and the Agent's
-  attributes at call entry. It cannot undo an in-place mutation of a
-  pre-existing mutable value.
+  or slot; Record-space preflight raises `TagTargetError` before Gains.
+- **Raw side effects.** Structural preparation restores the initial host
+  representation on refusal. Training is not a whole-call transaction and
+  cannot undo Python mutations or external effects. Pre/Post checks and
+  Record calculations mechanically refuse explicit TOP acts; direct Python
+  writes remain the author's responsibility.
 - **Operations and the door.** An Operation called directly on the Tag is
   outside composition unless it was reached from an Action, Imprint,
   condition or Rip of the Agent whose secrets it reads.
@@ -1776,13 +1799,14 @@ types but must keep these distinct.
 | Failure | Meaning | Effect |
 | --- | --- | --- |
 | **Tag Declaration Failure** | A Tag is written wrong: illegal mark combination, `@Underlay` without a parameter to receive it. | at class use |
-| **Tag Composition Failure** | Contributions cannot form the Overlay: cross-kind collision, Record over a host descriptor, a Record builder or teardown that failed, a Target that cannot carry state. | before FieldAdding: current Tag absent, acquired Gains and earlier turns stay; after admission: membership stays; a teardown failure is reported after its Rip ends membership |
+| **Tag Composition Failure** | Contributions cannot form an Overlay, or a Rip teardown failed. | Gate collision: current Tag absent, earlier turns stay; teardown failure: membership already ended and saved work remains |
+| **Tag Target Failure** | Structural preparation cannot provide this Tag's Record spaces or initial Agent representation; `TagTargetError` is a Composition Failure subtype. | this Tag gains nothing and stays absent; failed initial host preparation is restored; earlier Tags stay |
 | **Tag Resolution Failure** | A condition's required Underlay, view, or membership is unavailable. An Action's absent Underlay instead uses the null Action (§1.2). | use refused; during Tagging, follows the current phase boundary |
 | **Tag Rogue Access Failure** | A Rogue Agent reached a published member of a Tag it has left or never entered. A Resolution Failure, and a TOP failure only: never dressed as a host-language attribute failure. | use refused |
 | **Tag Arrested Access Failure** | An ordinary act reached an Agent whose saved Rip still fails. A Resolution Failure; the original protocol failure is its cause. | cleanup retried, then use refused while custody remains |
 | **Tag Precondition Failure** | A Gate refused the incoming Agent. | that Tag does not apply; earlier turns stay |
-| **Tag Imprint Failure** | An Imprint failed before FieldAdding. | acquired Gains and completed Tags stay; unfinished Tag absent |
-| **Tag Postcondition Failure** | The finished Agent breaks a promise. | Tags stay, Agent defective |
+| **Training Warning** | A Record initializer or Imprint raised an ordinary exception, or an Imprint returned an unsupported lazy result; the named warning carries its Record/Imprint diagnostic. | failed Record keeps its prior binding or absence; later training continues, Field entry and Posts follow |
+| **Tag Postcondition Failure** | An admitted Agent breaks one or more current promises. One failed Post is named; several use `TaggingFailure`. | membership stays; each failed Post is named in evaluation order |
 | **Tag Contract Failure** | A condition returned a non-boolean. | Gate: that Tag does not apply; quality check: Tags stay, Agent defective |
 | **Overwrite Warning** | An independent Tag replaced a visible Action or Record without an Underlay. | diagnostic |
 | **Contract Warning** | A Tag replaced another Tag’s visible Postcondition without an Underlay (Base, Shape, or independent Tag). | diagnostic |
@@ -1800,12 +1824,13 @@ A conforming implementation provides, ring by ring:
   selects its sound members;
 - non-owning, identity-indexed, iterable Fields;
 - Base-first Form application, each Base once, active reapply a no-op;
-- the five-step tagging sequence: each missing Tag's Gate, Gainings,
-  Imprints and FieldAdding, then Posts once after the completed Form;
-  failed Gainings or Imprints leave actually acquired non-Post Gains without
-  that Tag's membership or history and discard its provisional Posts;
-  earlier completed Tags stay, retry starts fresh, and current Posts decide
-  members' deficiency;
+- the five-step tagging sequence for each missing Tag: valid source and
+  structural Record-space preparation, Gate, ordered Gainings, Imprints,
+  FieldAdding and current Posts before the next Tag starts; ordinary Record
+  initializer and Imprint failures warn individually and continue, failed
+  Records retain their previous binding or absence, and admitted Posts
+  determine deficiency; Python interruptions stop training, attempt admission
+  and Post inspection, and propagate unchanged; earlier completed Tags stay;
 - Rip: one membership ends without cascade; Actions and Records stay, the
   removed application stops supplying ordinary Posts before teardown, and
   its admitted Constant Posts remain as lifetime Contract terms;
@@ -1845,8 +1870,8 @@ A conforming implementation provides, ring by ring:
 
 **Ring 2**
 - strict boolean conditions; each Tag gating when its turn arrives, with
-  inputs; Imprints before FieldAdding, with inputs; Postconditions once per
-  call after the whole Form, re-checked at every later boundary, without
+  inputs; best-effort Imprints before FieldAdding, with inputs; all current
+  Postconditions checked after each Tag and at every later boundary, without
   inputs;
 - the Contract as the Agent--Agency bond: an ordinary Post lasting for its
   admitted Field application and a Constant Post lasting for the Agent's

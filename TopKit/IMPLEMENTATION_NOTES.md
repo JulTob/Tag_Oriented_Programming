@@ -20,6 +20,7 @@ tracks splitting them by idea without changing semantics.
 | `state.py` | the per-Agent state, bound Actions, the runtime type and its descriptors |
 | `overlay.py` | laying one Tag's declarations over a state; materializing Records |
 | `contracts.py` | strict verdicts, transient Pre Services, bound Post Gains, `Contract` |
+| `observations.py` | refusing explicit TOP acts during Pre/Post checks and Record calculations |
 | `post_queries.py` | neutral recursive Post edges and first-verdict reuse within one question |
 | `constants.py` | protecting Constant bindings without freezing their values |
 | `tools.py` | Tool slots: a Record's kind, a Tag or a class, admission at the gaining and at every write |
@@ -72,8 +73,10 @@ Actions; Agents are built once and play for a long time. So:
 - **Actualization is verified before Field entry.** The Target must retain
   its state and accept the exact runtime type the kit requested. Host
   `__setattr__` and `__init_subclass__` refusals, and metaclasses that
-  substitute another type, become Composition Failures. Rollback restores
-  the host type through the kernel path, not through the refusing hook.
+  substitute another type, are refused. Initial Target preparation uses
+  `TagTargetError`, a Composition Failure subtype; a Record application rejected
+  during training instead warns and restores that binding. Rollback uses the
+  kernel path rather than the refusing hook.
 - **The composition door** uses a counter on the Agent's state for
   synchronous protocols. Agent-authored context Actions use that door;
   host-authored context hooks keep ordinary host behavior. Entry closes
@@ -247,68 +250,72 @@ order, iterative traversal and lazy caching are unchanged; mutation of
 
 ## The tagging sequence
 
-`transactions._apply` walks the missing Tags in Base-first Form order.
-Before each turn, `_gate` checks only that Tag against the current Overlay.
-When a Tag can use the shortcut, `overlay._preflight_ordinary_gains` checks
-its ordinary Action and Record names against the live State one by one,
-without copying it. An internal Report or Operation does not by itself
-require a scratch copy; a public one does. Tags needing full composition
-are laid over a scratch copy of the current Overlay. Their composed
-Posts and other Gains are validated there. `_precondition_services` binds the
-current Tag's Preconditions separately over its Base-first Form. Those checks
-judge the live Agent and are then discarded: a Pre is a transient Tagging
-Service, never `_State` and never an Agent name. A refusal does not remove
-Tags whose turns already finished.
-Gainings apply Actions, Records, Post definitions and deletions incrementally
-in declaration order, top to bottom, establishing each before the next
-declaration runs. The Gate has already evaluated this Tag's own Pre Services.
-Imprints run after Gainings and before FieldAdding. The Tag's published
-members remain guarded by membership during this training interval.
+`transactions._apply` walks missing Tags in Base-first Form order. Before
+**each** turn, `_require_sound_source` checks the existing Agent's visible
+Posts. A broken source cannot start an unrelated new Tag's Gate. `_gate`
+preflights every declared Record space before any initializer or Gain runs;
+a host property or slot in that space raises `TagTargetError`. Failed initial
+host preparation restores the original class, physical dictionary and
+Python slot bindings. Earlier completed Tags remain.
 
-`overlay._gainings` walks the scan's ordered declarations. `_record_value`
-calculates a Record's returned value before installing its declaration or
-Constant lock; a failed builder leaves the previous binding available.
-`transactions._actualize` prepares the acquired runtime behaviour independently
-of membership. Tag-scope published services are prepared after Imprints.
+`overlay._preflight_ordinary_gains` checks eligible ordinary Action and
+Record names against the live State without a copy. An unmarked Report or
+Operation does not alone need scratch composition; a public one does. Other
+Tags compose against a scratch State to validate the Overlay. Transient Pre
+Services bind separately and judge the live Agent; no Pre enters `_State` or
+an Agent's names. None of these preparations runs a Record initializer.
 
-A Gain needing runtime protection is acquired only when its representation
-can be installed. If a Secret or Constant guard cannot be prepared, that
-candidate Gain does not stick; the previous binding and earlier acquired
-Gains remain. Admission-time shared services are also prepared separately:
-if their representation fails before entry, they do not replace services of
-an already active Agency. Acquired Gains and completed Imprint effects remain.
-The initial host boundary follows Cleared
-[STEP-SPEC-37](../steps/spec/STEP-SPEC-37-host-actualization.md): failed
-preparation restores the original class, physical dictionary and declared
-Python slot bindings. It does not undo mutable value contents, external
-effects or later training. Acquired Gains follow STEP-SPEC-39.
+`overlay._gainings` applies declarations top to bottom, exposing each acquired
+Gain before the next declaration. `_record_value` calculates an initializer's
+returned value before replacing its binding or installing a Constant lock.
+An ordinary calculation, Tool-kind or value-application failure records a
+named `TagTrainingWarning` and leaves the previous binding or absence intact.
+Later Gainings continue. A Python interruption stops this sequence.
 
-FieldAdding establishes active membership, history and the Field together,
-then captures the admitted Tag's view. Each `_apply_one` creates a private
-application token. `_gainings` records every provisional Post in
-`state.post_layers` with that token; `_enter_field` records the token and its
-Post-name index in `state.post_applications` only at admission. `_inspect` runs visible Posts
-once after the completed Form.
+`_imprint` then runs the Imprints in declaration order. Ordinary failures are
+recorded individually and later Imprints continue; an interruption stops
+later training. Published services of this Tag stay unavailable through the
+Agent until admission. Acquired Actions are not automatically Post-guarded.
+A new nested Tagging must itself pass the sound-source check.
 
-A Gainings or Imprint failure leaves actually acquired non-Post Gains and
-completed Tags in place without admitting the unfinished Tag.
-`_remove_post_application(..., keep_constants=False)` discards all Posts from
-that unadmitted attempt, including Constant Posts. A Post failure after
-admission preserves membership; current Posts determine soundness, not a
-permanent failure marker. Retry passes a fresh Gate, overlays ordinary Gains
-and restarts Imprints, retaining established non-Post Constants. Ordinary
-Actions are not automatically wrapped in Post checks.
+A Gain needing a runtime guard is acquired only if its representation can be
+installed; an uninstalled Secret or Constant must never be exposed. A
+structural failure that still prevents admission is distinct from a failed
+training step: provisional Posts from that unadmitted application are removed,
+including Constants. This does not roll back acquired non-Post Gains or world
+effects. Admission-time shared services are prepared separately so failure
+cannot replace an existing Agency's services.
 
-`_enter_field` admits only after training. For a Pin, `_publication_plans`
-preflights every current Field recipient before admission; `_publish_to_field`
-then applies the admitted publication. The old whole-call rollback path is
-removed: completed independent Tags and acquired Gains are not restored away.
+FieldAdding establishes membership, history and the Field after the training
+**attempt**, including ordinary failed Record initializers and Imprints.
+Each `_apply_one` uses a private application token. Provisional Post layers
+carry that token; `_enter_field` records its Post-name index only on admission.
+`_inspect` then checks all current visible Posts before the next Form turn.
+One failed Post retains its named failure; several produce `TaggingFailure`
+with every failed name in evaluation order. A failed Post preserves membership.
+No declaration is implicitly required merely because its initializer failed.
 
-An in-progress Tagging is tracked separately from membership so applying the
-same Tag to the same Agent during its Imprint is a no-op. There is no automatic
-Rip for an unfinished never-member and no automatic rollback of training
-effects. Preconditions and Record builders are observational authoring
-contracts, not sandboxes for arbitrary Python effects.
+`_report_training` reports one named warning per failed step after admission
+and Post inspection. Its copied cause type, text and traceback coordinates
+do not retain an Agent-bearing Python traceback. A warning filter promoted
+to an error cannot undo admission or replace a primary Post failure or Python
+interruption. After an interruption TOP attempts admission and Post inspection,
+then preserves the original interruption, attaching secondary failures as notes.
+
+An active or in-progress same-Tag call remains a no-op. There is no implicit
+Fix protocol. After repair, explicit Rip followed by a new Tagging reruns the
+training, subject to the remaining Posts and established Constants. A Pin uses
+the same admission boundary; `_publication_plans` still preflights every
+current recipient before its admitted publication is installed.
+
+Pre, Post and Record calculations run under `observations._observing`.
+Explicit TOP acts are refused there, including a nested Tag creation. Ordinary
+Python writes and external effects are authoring violations rather than a
+sandbox promise. `post_queries` gives each outer validity check one query
+context: an exact recursive Post edge contributes neutral `True`, other Posts
+still run, and completed verdicts may be reused within that query. Later
+queries start fresh; Secret/custody changes invalidate protected reuse, and
+access permission is checked again before returning a saved verdict.
 
 ## Synchronous protocol results
 
@@ -392,8 +399,9 @@ Tagging sequence or expand its rollback boundary.
   is the has-been check and stays true after Rip. History is established at
   FieldAdding. A failed never-member may retain Gains while both checks are
   false; a Rogue who previously entered the Tag retains its has-been history.
-- **Records over host descriptors** are refused with a Composition Failure
-  rather than silently bypassing a property.
+- **Records over host descriptors** are refused in Record-space preflight
+  with `TagTargetError`, a Composition Failure subtype, before any initializer
+  or Gain runs, rather than silently bypassing a property.
 - **The Tag's dotted namespace is the program's.** Every Tag-level act is
   language syntax on the metaclass: `in`, `for`, `~`, `len`, `bool`,
   `[:]`, `[agent]`, `del Tag[agent]`, `format`. The population handle is
@@ -506,7 +514,7 @@ Tagging sequence or expand its rollback boundary.
   value. The application snapshot records which Tag supplied the Report,
   not a permanent copy of its computed value.
 - **Failures name their check.** `TagPreconditionError`,
-  `TagImprintError` and `TagPostconditionError` use the `_Named`
+  `TagImprintError`, `TagPostconditionError` and `TagTrainingWarning` use the `_Named`
   metaclass: `Failure.Named("X")` makes, once, the subclass
   `Failure.X` with `name = "X"`, and attribute access answers only names
   that were declared. Names are registered in `MetaTag.__new__`
@@ -517,7 +525,10 @@ Tagging sequence or expand its rollback boundary.
   `Precondition`, `Postcondition` and `Imprint` are `_Check_Mark`
   objects: called, they mark; read, they forward to their failure class.
   Per kind, not per Tag, on purpose: the handler reads the program's own
-  word, and the Tag is already in the message.
+  word, and the Tag is already in the message. Ordinary training errors are
+  warning payloads rather than raised Imprint failures; the final exception
+  comes from current Posts. `TaggingFailure` aggregates several failed Posts
+  in their evaluation order, while one retains its named Post error.
 - **Pins reuse the whole sequence.** A pinned Tag is an Agent whose
   namespace is its class dictionary. `_namespace_of` hands the kernel a
   `_Class_Namespace` adapter (get, set, pop, keys) over the proxy, so
