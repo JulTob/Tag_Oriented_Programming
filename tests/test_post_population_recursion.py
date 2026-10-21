@@ -1,4 +1,4 @@
-"""A Post cannot use a sound population to judge its own Agent."""
+"""Population queries share neutral recursive Post edges."""
 
 from contextvars import copy_context
 import gc
@@ -14,7 +14,7 @@ class Host:
 
 
 class PostPopulationRecursionTests(unittest.TestCase):
-    def test_same_agent_sound_membership_fails_during_post_and_named_reads(self):
+    def test_same_agent_sound_membership_uses_a_neutral_recursive_edge(self):
         class Existing(Tag):
             pass
 
@@ -26,19 +26,14 @@ class PostPopulationRecursionTests(unittest.TestCase):
         agent = Host()
         Existing(agent)
 
-        with self.assertRaisesRegex(TagContractError, "Standing.*Tag\\[:\\]"):
-            Checking(agent)
+        Checking(agent)
 
-        # Admission happened before the failed Post, and raw Field questions
-        # remain available for repair and inspection.
         self.assertIn(agent, Existing[:])
         self.assertIn(agent, Checking[:])
-        with self.assertRaisesRegex(TagContractError, "Tag\\[:\\]"):
-            agent.Standing
-        with self.assertRaisesRegex(TagContractError, "Tag\\[:\\]"):
-            Contract.Status(agent)
+        self.assertTrue(agent.Standing)
+        self.assertEqual(Contract.Status(agent), {"Standing": True})
 
-    def test_all_sound_population_spellings_reject_the_same_post_cycle(self):
+    def test_sound_population_spellings_allow_the_same_post_cycle(self):
         class Existing(Tag):
             pass
 
@@ -61,8 +56,10 @@ class PostPopulationRecursionTests(unittest.TestCase):
                 agent = Host()
                 Existing(agent)
 
-                with self.assertRaises(TagContractError):
-                    Checking(agent)
+                Checking(agent)
+                self.assertTrue(agent.Standing)
+                self.assertTrue(bool(agent))
+                del Existing[agent]
 
     def test_raw_field_and_other_agents_soundness_can_be_read_from_a_post(self):
         class Existing(Tag):
@@ -160,7 +157,7 @@ class PostPopulationRecursionTests(unittest.TestCase):
         with self.assertRaises(TagPostconditionError.AllowedStillHolds):
             Checking(refused)
 
-    def test_bool_inside_its_own_post_keeps_the_existing_shortcut(self):
+    def test_bool_inside_its_own_post_uses_neutrality_then_checks_its_data(self):
         class Checking(Tag):
             @Post
             def Standing(agent):

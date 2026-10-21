@@ -32,6 +32,7 @@ from weakref import WeakValueDictionary
 import weakref
 
 from .arrest import _require_available
+from .post_queries import _taint_post_memo
 from .arrest import _rip_door
 from .arrest import _safehouse
 from .declarations import STATE
@@ -204,6 +205,8 @@ def _is_composing(
         state: _State,
         ) -> bool:
     """Whether this execution, rather than merely this Agent, has a door."""
+
+    _taint_post_memo()
 
     if state.composing:
         return True
