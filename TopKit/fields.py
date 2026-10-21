@@ -34,6 +34,9 @@ from .memo import _class_namespace
 
 
 FIELD_SEAT = "_topkit_field"   # the kit's own seat on every Tag class; MetaTag.__new__ fills it
+_link_agent = object()
+_link_contact = object()
+_link_pair_view = object()
 
 
 def _field_of(
@@ -50,9 +53,10 @@ def _sound_of(
         ) -> "_Partition":
     """The Tag's sound population."""
 
+    field = _field_of(tag)
     return _Partition(
-            _field_of(tag),
-            _holds_for_population,
+            field,
+            getattr(field, "_Holds", _holds_for_population),
             "sound",
             )
 
@@ -418,6 +422,10 @@ class _Field(_Population):
             field,
             agent: object,
             ) -> bool:
+        if agent is _link_agent or agent is _link_contact:
+            agent = agent._current()
+        elif type(agent) is _link_pair_view:
+            agent = agent._current()
         reference = field._members.get(id(agent))
 
         return (
@@ -485,6 +493,7 @@ class _Partition(_Population):
         partition._field = field
         partition._holds = holds
         partition._label = label
+        partition._free = getattr(field, "_Free", _free_member)
 
     def __iter__(
             partition,
@@ -494,10 +503,10 @@ class _Partition(_Population):
         return (
                 agent
                 for agent in field
-                if (not _safehouse or _arrest_of(agent) is None)
+                if partition._free(agent)
                 and partition._holds(agent)
                 and agent in field
-                and (not _safehouse or _arrest_of(agent) is None)
+                and partition._free(agent)
                 )
 
     def __contains__(
@@ -508,10 +517,10 @@ class _Partition(_Population):
 
         return (
                 agent in field
-                and (not _safehouse or _arrest_of(agent) is None)
+                and partition._free(agent)
                 and partition._holds(agent)
                 and agent in field
-                and (not _safehouse or _arrest_of(agent) is None)
+                and partition._free(agent)
                 )
 
     def __bool__(
@@ -539,7 +548,10 @@ class _Partition(_Population):
 
         return _Partition(
                 partition._field,
-                lambda agent: (not _safehouse or _arrest_of(agent) is None)
-                and not holds(agent),
+                lambda agent: not holds(agent),
                 "defective",
                 )
+
+
+def _free_member(agent: object) -> bool:
+    return not _safehouse or _arrest_of(agent) is None

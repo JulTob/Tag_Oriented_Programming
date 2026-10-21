@@ -8,6 +8,8 @@ decorator then keeps only its own declaration namespace in the blueprint.
 
 from __future__ import annotations
 
+from .observations import _refuse_observed_act
+
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -80,6 +82,9 @@ class _Seat:
     def __bool__(seat) -> bool:
         return bool(seat._current())
 
+    def __rmatmul__(seat, name: object) -> Any:
+        return name @ seat._current()
+
     def __repr__(seat) -> str:
         if _current_seats.get() is None:
             return f"<Link seat {seat._name}>"
@@ -89,12 +94,15 @@ class _Seat:
 
 agent = _Seat(0, "agent")
 contact = _Seat(1, "contact")
+_pair_view_type: type | None = None
 
 
 def _resolve_seat(value: Any) -> Any:
     """Unwrap the two protocol symbols at public TOP Target boundaries."""
 
     if value is agent or value is contact:
+        return value._current()
+    if type(value) is _pair_view_type:
         return value._current()
 
     return value
@@ -171,6 +179,8 @@ class _Header_Meta(MetaTag):
             namespace: dict[str, Any],
             **kwargs: Any,
             ) -> _Captured_Header:
+        _refuse_observed_act('create a Link declaration')
+
         if kwargs:
             raise TagDeclarationError(
                     f"{name}: a Link Form does not accept class keywords"
@@ -253,6 +263,8 @@ def Link(
                 )
 
     def Declare(given: Any) -> _Relation:
+        _refuse_observed_act('create a Link declaration')
+
         if isinstance(given, _Captured_Header):
             name, header, namespace = given.name, given.header, given.namespace
         elif _is_tag_class(given):

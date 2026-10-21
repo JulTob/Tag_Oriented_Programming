@@ -515,6 +515,8 @@ class Contract:
     def Postconditions(
             agent: object,
             ) -> bool:
+        from .link_forms import _resolve_seat
+        agent = _resolve_seat(agent)
         return _guarded(
                 agent,
                 True,
@@ -536,6 +538,8 @@ class Contract:
 
         _refuse_observed_act('delete a Post')
 
+        from .link_forms import _resolve_seat
+        agent = _resolve_seat(agent)
         state = _state_of(agent)
 
         from .constants import _refuse_constant
@@ -565,6 +569,8 @@ class Contract:
         """Verdicts for visible conditions. Ordinary check errors become
         False; an exact recursive Post edge contributes neutral True."""
 
+        from .link_forms import _resolve_seat
+        agent = _resolve_seat(agent)
         return {
                 **_status_of(agent),
                 }
@@ -573,6 +579,8 @@ class Contract:
     def Display(
             agent: object,
             ) -> str:
+        from .link_forms import _resolve_seat
+        agent = _resolve_seat(agent)
         title = _title_of(agent)
         post = _status_of(agent)
 

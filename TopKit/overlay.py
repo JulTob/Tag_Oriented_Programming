@@ -50,6 +50,7 @@ from .errors import TagOverwriteWarning
 from .errors import TagPostconditionError
 from .errors import TagRogueAccessError
 from .errors import TagContractWarning
+from .fields import _field_of
 from .declarations import STATE
 from .declarations import Report
 from .declarations import _declarations_of
@@ -326,6 +327,11 @@ def _require_membership(
                 "Postcondition",
                 )
 
+    # A Link's admission belongs to its Contact while relationship Posts
+    # belong to its Pair. Both make up the published membership credential.
+    inspect_pair = getattr(_field_of(tag), "_Inspect", None)
+    if inspect_pair is not None:
+        inspect_pair(agent)
 
 
 state_module._require_membership = _require_membership   # a published Report's read needs it; state cannot import this module
@@ -402,6 +408,10 @@ def _install(
 
     for name in declarations.deletions:
         _delete(state, name)
+
+    for name, _relation in declarations.links:
+        _refuse_record(state, tag, name)
+        state.records[name] = tag
 
     for name, _function in declarations.postconditions:
         _refuse_condition_collision(
@@ -577,6 +587,18 @@ def _gainings(
         else:
             one, locks = _constant_overlay(state, tag, planned)
         name = one.gain_order[0]
+
+        if kind == "link":
+            from .links import _grant
+            _refuse_record(state, tag, name)
+            link = _grant(agent, state, tag, name, one.links[0][1])
+            state.records[name] = tag
+            state.actions.pop(name, None)
+            state.action_origins.pop(name, None)
+            state.tools.pop(name, None)
+            _restore(state, name)
+            _store_record(agent, name, link, one.secrets)
+            continue
 
         if kind == "action":
             if not one.actions:
@@ -1177,6 +1199,7 @@ def _delete(
     state.published.discard(name)
     state.secrets.discard(name)
     state.tools.pop(name, None)   # Delete frees the slot: the tool is dropped (§1.6)
+    state.links.pop(name, None)
     state.deleted.add(name)
 
 
@@ -1316,6 +1339,7 @@ def _install_action(
         function: Function,
         ) -> None:
     _refuse_action(state, tag, name)
+    state.links.pop(name, None)
     state.records.pop(name, None)
     underlay = _action_underlay(state, name)
     origin = _action_replacement(state, tag, name, function, underlay)
@@ -1399,6 +1423,7 @@ def _install_record(
         defer_warning: bool = False,
         ) -> type | None:
     _refuse_record(state, tag, name)
+    state.links.pop(name, None)
     if name in state.action_origins:
         state.actions.pop(name)
         state.action_origins.pop(name)
@@ -1528,6 +1553,7 @@ def _record_entry(
             state.action_origins.get(name, _MISSING),
             state.records.get(name, _MISSING),
             state.tools.get(name, _MISSING),
+            state.links.get(name, _MISSING),
             name in state.deleted,
             state.restored,
             name in state.published,
@@ -1542,7 +1568,7 @@ def _restore_record_entry(
         ) -> None:
     """Undo one failed ordinary Record write without undoing earlier Gains."""
 
-    (namespace, value, action, origin, record, tool,
+    (namespace, value, action, origin, record, tool, link,
      deleted, restored, published) = entry
     if value is _MISSING:
         dict.pop(namespace, name, None)
@@ -1554,6 +1580,7 @@ def _restore_record_entry(
             (state.action_origins, origin),
             (state.records, record),
             (state.tools, tool),
+            (state.links, link),
             ):
         if prior is _MISSING:
             mapping.pop(name, None)
@@ -1622,6 +1649,8 @@ def _warn_record_replacement(tag: type, name: str, prior: type) -> None:
 
 def _preflight_record_spaces(state: _State, tag: type, declarations: _Declarations) -> None:
     for name, _builder in declarations.records:
+        _refuse_record_space(state, tag, name)
+    for name, _relation in declarations.links:
         _refuse_record_space(state, tag, name)
 
 

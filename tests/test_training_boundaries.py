@@ -8,7 +8,7 @@ from TopKit import (Action, Constant, Imprint, Post, Pre, Record, Tag,
                     TagCompositionError, TagPostconditionError,
                     TagPreconditionError, TagTargetError, TagTrainingWarning)
 from TopKit.state import _state_of
-from TopKit.transactions import _inspect
+from TopKit.transactions import _apply, _inspect
 
 
 class Host:
@@ -268,6 +268,59 @@ class TrainingBoundaryTests(unittest.TestCase):
                          (('NDA', True, False, False),))
         self.assertIn('Constant Post underlay retained after Rip: NDA',
                       '\n'.join(raised.exception.__notes__))
+
+    def test_internal_admission_callback_precedes_posts_and_training_warning(self):
+        events = []
+
+        class Car(Tag):
+            @Imprint
+            def Train(agent):
+                events.append('train')
+                raise ValueError('unavailable')
+
+            @Post
+            def Ready(agent):
+                events.append('post')
+                return agent.external_admission
+
+        target = Host()
+        target.external_admission = False
+
+        def admit():
+            self.assertIn(target, Car[:])
+            target.external_admission = True
+            events.append('admit')
+
+        def warn(*args, **kwargs):
+            self.assertIn(target, Car[:])
+            self.assertTrue(target.external_admission)
+            events.append('warning')
+
+        with patch('warnings.warn', warn):
+            self.assertIs(_apply(target, Car, {}, after_training=admit), target)
+        self.assertEqual(events, ['train', 'admit', 'post', 'warning'])
+
+
+    def test_training_interruption_wins_over_internal_admission_failure(self):
+        stop = KeyboardInterrupt('stop training')
+
+        class Car(Tag):
+            @Imprint
+            def Train(agent):
+                raise stop
+
+        def refuse():
+            raise LookupError('external admission refused')
+
+        target = Host()
+        with self.assertRaises(KeyboardInterrupt) as raised:
+            _apply(target, Car, {}, after_training=refuse)
+        self.assertIs(raised.exception, stop)
+        self.assertIn(target, Car[:])
+        self.assertTrue(any('external admission refused' in note
+                            for note in stop.__notes__))
+
+
 
 
 if __name__ == '__main__':

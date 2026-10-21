@@ -36,6 +36,7 @@ from .declarations import _words_of
 from .lifecycle import _teardown_all
 from .observations import _unobserved_cleanup
 from .state import _Composing_Bound
+from .state import _Line
 from .state import _Pinned_Operation
 from .state import _Secret_Bound
 from .state import _Snapshot
@@ -602,6 +603,15 @@ def _agent_del(
                 pass   # best effort (§3.2)
             except BaseException as error:
                 interrupted = error   # Ctrl-C in a teardown: the __del__ Layers still run
+            if state.owned_links:
+                from .links import _end_links
+                try:
+                    _end_links(agent)
+                except Exception:
+                    pass   # finalization makes the same best effort as ordinary Rip
+                except BaseException as error:
+                    if interrupted is None:
+                        interrupted = error
 
         try:
             layer = state.actions.get("__del__")
@@ -778,6 +788,8 @@ class _Tag_View:
         elif name in snapshot.reports:
             origin = snapshot.reports[name][0]
             result = getattr(origin, name)
+            if issubclass(type(result), _Line):
+                result = result.Read(agent)
         elif name in snapshot.operations:
             result = _View_Call(view, name, name in snapshot.secrets)
         else:
@@ -802,7 +814,10 @@ class _Tag_View:
             result = False
         elif name in snapshot.reports:
             origin = snapshot.reports[name][0]
-            result = getattr_static(origin, name, _MISSING) is not _MISSING
+            declaration = getattr_static(origin, name, _MISSING)
+            result = (declaration.Present(agent)
+                      if issubclass(type(declaration), _Line)
+                      else declaration is not _MISSING)
         elif name in snapshot.operations:
             origin = snapshot.operations[name][0]
             result = getattr_static(origin, name, _MISSING) is not _MISSING

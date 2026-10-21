@@ -23,6 +23,7 @@ from __future__ import annotations
 import warnings
 
 from typing import Any
+from typing import Callable
 
 from .arrest import _require_available
 from .arrest import _safehouse
@@ -75,6 +76,12 @@ def _apply(
         agent: object,
         tag: type,
         inputs: dict[str, Any],
+        *,
+        check_posts: bool = True,
+        check_source: bool = True,
+        after_training: Callable[[], None] | None = None,
+        before_gains: Callable[[], None] | None = None,
+        post_inspector: Callable[[], None] | None = None,
         ) -> object:
     """Apply ``tag`` and its missing Bases to ``agent`` as one call."""
 
@@ -124,14 +131,19 @@ def _apply(
             if member in state.active:
                 continue
 
-            _require_sound_source(agent, member)
+            if check_source:
+                _require_sound_source(agent, member)
             _gate(agent, state, member, inputs)
+            if before_gains is not None:
+                before_gains()
             failures: list[TagTrainingWarning] = []
             interruptions: list[BaseException] | None = None
             try:
                 interruptions, closing_errors = _apply_one(
                         agent, state, member, inputs, failures,
                         )
+                if after_training is not None:
+                    after_training()
             except BaseException as error:
                 primary = interruptions[0] if interruptions else error
                 _report_training(failures, primary)
@@ -143,15 +155,22 @@ def _apply(
             if not failures and not interruptions and not closing_errors:
                 # Successful training needs no warning or failure containers.
                 # Keep the same admission and per-Tag Post boundary.
-                if state.postconditions:
-                    _inspect(agent)
+                if check_posts:
+                    if post_inspector is not None:
+                        post_inspector()
+                    elif state.postconditions:
+                        _inspect(agent)
                 continue
 
             post_errors: list[BaseException] = []
-            try:
-                _inspect(agent)
-            except BaseException as error:
-                post_errors.append(error)
+            if check_posts:
+                try:
+                    if post_inspector is None:
+                        _inspect(agent)
+                    else:
+                        post_inspector()
+                except BaseException as error:
+                    post_errors.append(error)
             primary = (interruptions[0] if interruptions else (
                     post_errors[0] if post_errors else (
                         closing_errors[0][1] if closing_errors else None)))
@@ -840,6 +859,7 @@ def _snapshot(
             operations=dict(state.operations),
             deleted=frozenset(state.deleted) if state.deleted else _NONE,
             secrets=frozenset(state.secrets) if state.secrets else _NONE,
+            links=dict(state.links),
             )
 
 

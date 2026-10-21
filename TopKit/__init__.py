@@ -43,6 +43,20 @@ from .queries import Tags
 from .tags import Tag
 from .tags import Tagged
 from .tools import Tool
+from .link_forms import Link
+from .link_forms import agent
+from .link_forms import contact
+from .links import _Pair_View
+
+# The two language seats are recognized by identity, keeping ordinary
+# membership queries free of descriptor or proxy metadata lookups.
+from . import fields as _fields
+from . import tags as _tags
+from . import link_forms as _link_forms
+_fields._link_agent = _tags._link_agent = agent
+_fields._link_contact = _tags._link_contact = contact
+_fields._link_pair_view = _tags._link_pair_view = _Pair_View
+_link_forms._pair_view_type = _Pair_View
 
 
 __all__ = [
@@ -55,6 +69,7 @@ __all__ = [
         "Flag",
         "Form",
         "Keyword",
+        "Link",
         "Imprint",
         "Operation",
         "Outline",
@@ -89,4 +104,6 @@ __all__ = [
         "Tags",
         "Tool",
         "Underlay",
+        "agent",
+        "contact",
         ]
