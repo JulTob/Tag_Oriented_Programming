@@ -1336,6 +1336,8 @@ your Reports and Operations there.
 
 ## Where next
 
+- [Links: one Agent's Tag of Contacts](../wiki/1.6-TopKit-Links.md):
+  independent Fields and Pairs, ordered Contact Taggings, live views and Rip.
 - [The Contracts Guide](CONTRACTS.md): gates, promises and error control,
   aboard a starship; and one promise read by its name, `agent.Has_Oath`.
 - [The Fields Guide](FIELDS.md): populations, partitions and the algebra.
@@ -1344,5 +1346,9 @@ your Reports and Operations there.
 - [The Specification](../spec/SPECIFICATION.md): the laws, ring by ring.
 - [`examples/dnd_character.py`](../examples/dnd_character.py) and
   [`examples/biome.py`](../examples/biome.py): the long form.
+- [`examples/equipment.py`](../examples/equipment.py): checked Tools, weapon
+  wear and repair, swapping equipment, and explicit Action guards.
+- [`examples/equipment_links.py`](../examples/equipment_links.py): independent
+  carrying Links, Pair Records, live views and an explicit equipment contract.
 - [`benchmarks/bench.py`](../benchmarks/bench.py): what it costs.
 - [`IMPLEMENTATION_NOTES.md`](IMPLEMENTATION_NOTES.md): how TopKit does it.

@@ -32,6 +32,14 @@
 
 ### TopKit
 
+- **Equipment Links:** `@Link(agent, contact)` declares a blueprint that
+  gives each Agent an independent Tag of Contacts. Ordered Form entries
+  Tag the Contact before relationship training; each admitted Contact has
+  its own Pair Gains. Saved Pair views resolve current membership and
+  reLinking, Reports stay on the actual Link, and explicit Rip uses the
+  ordinary Safehouse cleanup. The executable Links guide and equipment
+  examples cover checked Tools, carrying positions, repair and guards.
+
 - **Contract query allocations:** a simple Post query keeps its running
   check and first verdict in direct slots; nested checks and further
   outcomes allocate containers when needed. Finished observations release

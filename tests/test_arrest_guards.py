@@ -6,7 +6,8 @@ import inspect
 import unittest
 import weakref
 
-from TopKit import Action, Contract, Operation, Pin, Post, Record, Report, Rip, Tag
+from TopKit import Action, Contract, Link, Operation, Pin, Post, Record, Report, Rip, Tag
+from TopKit import agent as agent_seat, contact as contact_seat
 from TopKit.arrest import _arrest_of, _rip_door, _safehouse
 from TopKit import TagArrestedAccessError, TagCompositionError
 from TopKit.lifecycle import _retry_arrested
@@ -511,6 +512,52 @@ class ArrestGuardTests(unittest.TestCase):
         del Role[first]
         self.assertEqual(list(Role[...]), [])
 
+
+
+    def test_an_ordinary_action_result_does_not_run_type_equality(self):
+        class Type(type):
+            def __eq__(kind, other):
+                raise AssertionError("returning a value must not compare its type")
+        class Result(metaclass=Type):
+            pass
+        result = Result()
+        class Role(Tag):
+            def Value(agent):
+                return result
+        agent = Host()
+        Role(agent)
+        self.assertIs(agent.Value(), result)
+
+
+    def test_pair_view_forwards_to_current_pair_at_tag_and_contract_boundaries(self):
+        class Inventory(Tag):
+            @Link(agent_seat, contact_seat)
+            class Carries(Tag):
+                pass
+        class Checked(Tag):
+            @Record
+            def marker(pair):
+                return 7
+            @Post
+            def Ready(pair):
+                return pair.marker == 7
+
+        hero, sword = Host(), Host()
+        Inventory(hero)
+        hero.Carries(sword)
+        view = hero.Carries[sword]
+        Checked(view)
+        self.assertIn(view, Checked)
+        self.assertIn(view, Checked[:])
+        self.assertIsInstance(view, Checked)
+        self.assertEqual(Checked[view].marker, 7)
+        self.assertTrue(Contract.Postconditions(view))
+        self.assertEqual(Contract.Status(view), {"Ready": True})
+        self.assertIn("Ready", Contract.Display(view))
+        Contract.Delete(view, "Ready")
+        self.assertEqual(Contract.Status(view), {})
+        del Checked[view]
+        self.assertNotIn(view, Checked[:])
 
 
 if __name__ == "__main__":

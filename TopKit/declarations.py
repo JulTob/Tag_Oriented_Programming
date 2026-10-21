@@ -591,6 +591,14 @@ def Pin(
                 "@Pin marks a Tag class"
                 )
 
+    from .fields import _Field, _field_of
+
+    if type(_field_of(tag)) is not _Field:
+        raise TagDeclarationError(
+                f"@Pin cannot mark {tag.__name__}: its private Field seat"
+                " is not an ordinary TOP Field"
+                )
+
     _refuse_tools_on_a_pin(
             tag,
             _namespace_snapshot(tag),
@@ -812,6 +820,7 @@ class _Declarations:
             default=(), compare=False, repr=False,
             )
     tools: frozenset[str] = frozenset()   # Records marked @Tool: their slots admit only their kind
+    links: tuple[tuple[str, Any], ...] = ()   # each Relation grants this Agent its own actual Link
 
 
 def _declarations_of(
@@ -1187,6 +1196,7 @@ def _scan(
     published: set[str] = set()
     constants: set[str] = set()
     tools: set[str] = set()
+    links: list[tuple[str, Any]] = []
     namespace = _namespace_snapshot(tag)
     managed = namespace.get(STATE)   # names a Pin landed here
 
@@ -1236,6 +1246,14 @@ def _scan(
 
         kind = _kind_of(attribute)
         _refuse_condition_dunder(tag.__name__, name, kind)
+        if kind == "relation":
+            if _is_pin(tag) or _is_dunder(name):
+                raise TagDeclarationError(
+                        f"{tag.__name__}.{name}: a Link belongs to an ordinary Agent"
+                        )
+            links.append((name, attribute))
+            gain_order.append(name)
+            continue
         secret = _has_flag(attribute, _SECRET)
         public = _has_flag(attribute, _PUBLIC)
 
@@ -1360,6 +1378,7 @@ def _scan(
             published=frozenset(published),
             constants=frozenset(constants),
             tools=frozenset(tools),
+            links=tuple(links),
             )
 
     if _is_pin(tag):
@@ -1391,12 +1410,14 @@ def _prepare_declarations(
             dunders=declarations.dunders - names,
             tools=declarations.tools - names,
             rips=(),
+            links=(),
             )
     header = replace(header, runtime=_runtime_facts(header))
     actions = dict(declarations.actions)
     records = dict(declarations.records)
     preconditions = dict(declarations.preconditions)
     postconditions = dict(declarations.postconditions)
+    links = dict(declarations.links)
     steps = []
 
     for name in declarations.gain_order:
@@ -1404,6 +1425,7 @@ def _prepare_declarations(
                 "action" if name in actions
                 else "record" if name in records
                 else "condition" if name in preconditions or name in postconditions
+                else "link" if name in links
                 else "delete"
                 )
         selected = frozenset((name,))
@@ -1423,6 +1445,7 @@ def _prepare_declarations(
                 operations=(),
                 imprints=(),
                 rips=(),
+                links=((name, links[name]),) if name in links else (),
                 )
         one = replace(one, runtime=_runtime_facts(one))
         steps.append((kind, one))
@@ -1439,6 +1462,7 @@ def _runtime_facts(declarations: _Declarations) -> bool:
             or declarations.constants
             or declarations.postconditions
             or declarations.tools
+            or declarations.links
             or any(public for _name, _report, public in declarations.reports)
             )
 

@@ -23,6 +23,8 @@ tracks splitting them by idea without changing semantics.
 | `post_queries.py` | neutral recursive Post edges and first-verdict reuse within one question |
 | `constants.py` | protecting Constant bindings without freezing their values |
 | `tools.py` | Tool slots: a Record's kind, a Tag or a class, admission at the gaining and at every write |
+| `link_forms.py` | Link blueprints, contextual Agent/Contact references and ordered header capture |
+| `links.py` | each Agent's actual Link Tag, Contact admission, Pair Gains, live views and cleanup |
 | `presence.py` | Contribution presence without evaluating values or conditions |
 | `transactions.py` | the tagging sequence and the call boundary |
 | `lifecycle.py` | Rip, teardown, `At_Exit` |

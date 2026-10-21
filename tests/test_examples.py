@@ -59,5 +59,27 @@ class ExampleTests(unittest.TestCase):
         self.assertIn("Veteran.Alive guards its own Underlay", output)
 
 
+    def test_equipment(self) -> None:
+        output = self.run_example("equipment.py")
+
+        self.assertIn("Ari strikes with longsword for 6", output)
+        self.assertIn("worn weapon: attack refused", output)
+        self.assertIn("repaired: Ari strikes with longsword for 6", output)
+        self.assertIn("wrong kind: assignment refused", output)
+        self.assertIn("swapped: Ari strikes with shortsword for 4", output)
+        self.assertIn("empty hand: attack refused", output)
+        self.assertIn("equipped again: shortsword", output)
+
+
+    def test_equipment_links(self) -> None:
+        output = self.run_example("equipment_links.py")
+
+        self.assertIn("distinct Pairs: Ari's hand; Bob's pack", output)
+        self.assertIn("broken carrying Post: attack refused", output)
+        self.assertIn("Reports belong to each actual Carries Tag", output)
+        self.assertIn("Ripped: saved Pair view refuses absent membership", output)
+        self.assertIn("reLinked: saved view and Action follow Ari's current Pair", output)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -63,6 +63,7 @@ class _Snapshot:
     operations: dict[str, tuple[type, Function]]
     deleted: frozenset[str]
     secrets: frozenset[str]
+    links: dict[str, type] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,6 +113,8 @@ class _State:
     originals: dict[str, Any] = field(default_factory=dict)       # what a Pin patched, as declared
     constants: dict[str, tuple[type, str, Any]] = field(default_factory=dict)  # origin, kind, declaration
     tools: dict[str, tuple[type, Any]] = field(default_factory=dict)   # origin, kind: a Tool slot admits only its kind
+    links: dict[str, type] = field(default_factory=dict)
+    owned_links: dict[tuple[int, str], tuple[type, type]] = field(default_factory=dict)
     arrestable: bool = False   # gained Rip keeps the Host gate after later Taggings
     contexts: list[str] = field(default_factory=list)
     view_identity: object | None = None
@@ -164,6 +167,8 @@ class _State:
         copied.originals = state.originals.copy()
         copied.constants = state.constants.copy()
         copied.tools = state.tools.copy()
+        copied.links = state.links.copy()
+        copied.owned_links = state.owned_links.copy()
         copied.arrestable = state.arrestable
         copied.contexts = state.contexts.copy()
         copied.view_identity = state.view_identity
@@ -1291,6 +1296,13 @@ _require_membership: Callable[..., None] | None = None
 # module, so it hands the check over when it loads (see overlay.py).
 
 
+class _Line:
+    """A Tag-owned publication whose read depends on its receiving Agent."""
+
+    def Read(line, agent: object) -> Any:
+        raise NotImplementedError
+
+
 class _Published:
     """A published Report: reads the Tag-scope value, read-only on the Agent."""
 
@@ -1323,7 +1335,7 @@ class _Published:
                 origin,
                 gate.name,
                 )
-        return value
+        return value.Read(agent) if isinstance(value, _Line) else value
 
     def __set__(
             gate,

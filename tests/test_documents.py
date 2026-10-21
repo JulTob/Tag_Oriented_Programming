@@ -82,5 +82,9 @@ class DocumentTests(unittest.TestCase):
         self.assertGreater(Run_Blocks(ROOT / "TopKit" / "CONSTANTS.md"), 5)
 
 
+    def test_the_links_wiki_page(self) -> None:
+        self.assertGreater(Run_Blocks(ROOT / "wiki" / "1.6-TopKit-Links.md"), 5)
+
+
 if __name__ == "__main__":
     unittest.main()

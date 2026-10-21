@@ -58,6 +58,14 @@ Read [`TopKit/GUIDE.md`](https://github.com/JulTob/Tag_Oriented_Programming/blob
 `examples/fleet_patching.py` and `examples/crew_access.py` for the design
 patterns Pins and published members give you.
 
+For GenLegend equipment, run
+[`examples/equipment.py`](https://github.com/JulTob/Tag_Oriented_Programming/blob/main/examples/equipment.py):
+prepare a Weapon, equip it through a Tool, and guard attacks while it needs repair.
+[`examples/equipment_links.py`](https://github.com/JulTob/Tag_Oriented_Programming/blob/main/examples/equipment_links.py)
+adds independent carrying Links and per-character equipment positions.
+The [Links guide](https://github.com/JulTob/Tag_Oriented_Programming/blob/main/wiki/1.6-TopKit-Links.md)
+explains the declaration, ordered Form entries, live Pair views and cleanup.
+
 ## Installing
 
 ```

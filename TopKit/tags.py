@@ -70,6 +70,11 @@ from .state import _state_of
 from .transactions import _apply
 
 
+_link_agent = object()
+_link_contact = object()
+_link_pair_view = object()
+
+
 class MetaTag(type):
     """Metaclass of every Tag: the Tag-level acts, in language syntax."""
 
@@ -152,6 +157,10 @@ class MetaTag(type):
             ) -> object:
         _refuse_observed_act('apply a Tag or Pin')
 
+        if target is _link_agent or target is _link_contact:
+            target = target._current()
+        elif type(target) is _link_pair_view:
+            target = target._current()
         if target is _MISSING:
             raise TypeError(
                     f"{tag.__name__} is a Tag: apply it to a Target,"
@@ -184,6 +193,10 @@ class MetaTag(type):
         ``agent in Wizard[:]`` is raw membership. A string asks for a
         keyword among the Tag's Flag Pins, never Agent membership."""
 
+        if candidate is _link_agent or candidate is _link_contact:
+            candidate = candidate._current()
+        elif type(candidate) is _link_pair_view:
+            candidate = candidate._current()
         if isinstance(candidate, str):
             return _keyword(
                     tag,
@@ -212,6 +225,10 @@ class MetaTag(type):
             tag,
             candidate: object,
             ) -> bool:
+        if candidate is _link_agent or candidate is _link_contact:
+            candidate = candidate._current()
+        elif type(candidate) is _link_pair_view:
+            candidate = candidate._current()
         state = _state_of(candidate)
 
         if state is not None and tag in state.ever:
@@ -289,6 +306,10 @@ class MetaTag(type):
             tag,
             key: Any,
             ) -> Any:
+        if key is _link_agent or key is _link_contact:
+            key = key._current()
+        elif type(key) is _link_pair_view:
+            key = key._current()
         if key is Ellipsis:
             from .safehouses import _Safehouse
             return _Safehouse(tag)
@@ -312,6 +333,10 @@ class MetaTag(type):
             ) -> None:
         _refuse_observed_act('Rip a Tag')
 
+        if agent is _link_agent or agent is _link_contact:
+            agent = agent._current()
+        elif type(agent) is _link_pair_view:
+            agent = agent._current()
         if isinstance(agent, slice):
             if agent != slice(None):
                 raise TypeError("del Tag[:] Rips the whole Field; positional slices are unavailable")
