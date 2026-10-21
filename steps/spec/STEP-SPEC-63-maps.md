@@ -1,11 +1,13 @@
-# STEP-SPEC-61: Maps — Links between Tags
+# STEP-SPEC-63: Maps — Links between Tags
 
-- **STEP:** SPEC-61
+- **STEP:** SPEC-63
 - **Desk:** spec
 - **Title:** Maps: a Link declared on a Pin connects Tags
 - **Author:** Claude, recording the Director's 2026-10-20 direction
 - **Status:** Brief
 - **Created:** 2026-10-20
+- **Renumbered:** 2026-10-21, from SPEC-61 — that number is held by the
+  Deployed STEP-SPEC-61 (Condition Lifetimes)
 
 > One STEP, one topic. If this grows a second purpose, split it into another STEP.
 
@@ -59,6 +61,15 @@ to say yes:
    laws as Links, one level up.
 5. A Map template is never itself a Pin, and a Map's Field never holds
    Agents; a Link's Field never holds Tags.
+6. **A Pin may pin a Link** (Director, 2026-10-21: *"pins should also be
+   able to tag links"*). A Pin's Field admits Tags, Pins **and Links**, so a
+   Link is a legitimate Pin Target and a Map can therefore be classified,
+   gated and Ripped by a Pin exactly as a Tag is. This is the one place the
+   level rule widens: a Pin is the *set pointer*, and it may point at a set
+   (a Tag), at another pointer (a Pin), or at a connection (a Link). It
+   still may never point at an object — that remains the category error of
+   §1.9. When Maps are built, `_check_pin_target` must admit a Link
+   alongside Tags and Pins.
 
 ## Rationale
 
