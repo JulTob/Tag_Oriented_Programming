@@ -372,6 +372,24 @@ work, and the coroutine proxy supports `asyncio.create_task`. A denied source
 stays suspended and held until cleanup allows it to proceed. Event-loop shutdown
 can still finalize a native async generator through Python's own registry.
 
+Membership and Action lifetime are separate. Rip leaves ordinary Action
+Gains on the Agent; their existing continuation rules still apply. Tag-view
+and Pair-view calls, including Operations reached through them, recheck
+their view membership credentials on continuation. After that membership
+ends, an already-started result may still receive `close()` or `aclose()`
+to finish the cleanup it entered, using that result's execution context.
+This is the same cleanup purpose as an entered context's exit, not
+permission to resume ordinary work without its view credential, make a
+fresh call or reopen a saved view for ordinary access. The cleanup path
+still checks its Secret boundary and every receiver's custody. If a
+receiver remains arrested, only its active Rip authority permits the close;
+closing does not create that authority or clear the arrest. A Link's cleanup
+can read its entered Pair's earlier Gains only within a revocable cleanup
+step. Returning or suspending ends that authority; ordinary saved Pair views
+continue to resolve current membership and the current Pair. A finished,
+free continuation releases its retained Pair instead of keeping the old
+Gains alive.
+
 Host methods captured as native Python bound methods can bypass a later call
 guard, although ordinary Agent reads and writes inside their bodies are gated.
 Raw Python reflection can bypass TOP as well. This is not a Python sandbox;

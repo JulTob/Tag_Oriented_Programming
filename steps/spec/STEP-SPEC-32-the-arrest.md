@@ -90,6 +90,38 @@ implementation review. `Tag(agent)` was suggested as a way to actualize a
 host without Field admission; its exact behavior remains a separate root
 Tag decision in STEP-SPEC-46.
 
+### Later Director decision — 2026-10-21: closing started work
+
+During the Python release review, the Director was asked:
+
+> After Rip ends membership, should an already-started Action be allowed
+> to finish its cleanup through close() or aclose()?
+
+The Director's answer, verbatim:
+
+> I'd say yes. Actions live in the tag, so they are independent of the Field status of the agent.
+
+This records the answer as a narrow cleanup decision within this
+STEP's act-interception boundary. It permits already-entered cleanup;
+normal continuation and access keep their existing checks.
+
+**Python implementation clarification.** Ordinary Action Gains survive Rip
+and retain their existing access rules. Tag-view and Pair-view calls,
+including Operations reached through those views, retain their normal
+membership and Secret checks. An already-started result may receive
+`close()` or `aclose()` to finish its entered cleanup after that view's
+membership ends. This does not reopen the view for ordinary access or
+permit normal continuation without its view credential. Secret boundaries
+remain in force; if any receiver remains arrested, closing requires its
+active Rip cleanup authority and grants no authority itself. A Link's
+entered Pair Gains may be read only during a revocable cleanup step;
+ordinary saved views still ask for current membership and the current Pair.
+
+This dated ruling does not clear or deploy the whole STEP, resolve its
+remaining open questions, or change the preserved historical proposal.
+The 2026-10-15 current-law comparisons above describe the pinned extraction
+commit; the focused implementation and guide update carry this later rule.
+
 ### Provenance and dependencies
 
 - [Original #26 text](https://github.com/JulTob/Tag_Oriented_Programming/blob/1947490209d8eddf158c2bc6c0e6b538ddb6f9e0/steps/spec/STEP-SPEC-32-the-arrest.md) and [reconciled source](https://github.com/JulTob/Tag_Oriented_Programming/blob/7802fd75c07165aa4ea61267df290ba1fa2ff57f/steps/spec/STEP-SPEC-32-the-arrest.md) are pinned to their exact source commits.
