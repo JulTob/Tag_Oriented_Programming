@@ -57,6 +57,9 @@ Read [`TopKit/GUIDE.md`](https://github.com/JulTob/Tag_Oriented_Programming/blob
 `examples/dnd_character.py` and `examples/biome.py` for the long form;
 `examples/fleet_patching.py` and `examples/crew_access.py` for the design
 patterns Pins and published members give you.
+For GenLegend equipment, run
+[`examples/equipment.py`](https://github.com/JulTob/Tag_Oriented_Programming/blob/main/examples/equipment.py):
+prepare a Weapon, equip it through a Tool, and guard attacks while it needs repair.
 
 ## Installing
 
