@@ -10,6 +10,12 @@
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
 
+> **Pre-lifetime amendment, 2026-10-20:**
+> [STEP-SPEC-61](STEP-SPEC-61-condition-lifetimes.md) limits this member law
+> to visible Posts. A Pre is a transient Tagging Service and never becomes an
+> Agent member or reserves an Agent name. The historical text below records
+> the earlier combined-condition model.
+
 ## Summary
 
 Every condition on an Agent can be read on the Agent by its own name, as

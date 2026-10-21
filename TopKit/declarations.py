@@ -301,7 +301,7 @@ class _Check_Mark:
 Imprint = _Check_Mark(
         "imprint",
         TagImprintError,
-        "Work performed after the Tag has applied.",
+        "Training performed after Gainings and before Field admission.",
         )
 
 
@@ -781,7 +781,7 @@ class Report:
 class _Declarations:
     actions: tuple[tuple[str, Function], ...]
     records: tuple[tuple[str, Function], ...]
-    gain_order: tuple[str, ...]   # Agent declarations, including conditions and deletions
+    gain_order: tuple[str, ...]   # Agent declarations, including Posts and deletions
     secrets: frozenset[str]
     imprints: tuple[tuple[str, Function], ...]
     preconditions: tuple[tuple[str, Function], ...]
@@ -1247,7 +1247,11 @@ def _scan(
         if not callable(attribute):
             continue
 
-        if public:
+        # Public is an Agent/Tag publication modifier.  A condition already
+        # has its language-defined visibility: a Pre is a transient Service
+        # and a Post is an Agent Contract Gain.  Do not retain a meaningless
+        # publication seat for either one (especially on a pinned Tag).
+        if public and kind not in _CONDITION_KINDS:
             published.add(name)
 
         if kind == "record":
@@ -1293,8 +1297,12 @@ def _scan(
                         )
                     )
 
-        if kind in _CONDITION_KINDS:
+        # A Pre is a Tagging Service, not an Agent Gain.  A declaration
+        # carrying both marks still gains its Post half at this position.
+        if kind in ("postcondition", "condition"):
             gain_order.append(name)
+
+        if kind in _CONDITION_KINDS:
             continue
 
         if kind == "delete":
@@ -1414,7 +1422,6 @@ def _runtime_facts(declarations: _Declarations) -> bool:
             or declarations.dunders
             or declarations.published
             or declarations.constants
-            or declarations.preconditions
             or declarations.postconditions
             or declarations.tools
             or any(public for _name, _report, public in declarations.reports)
