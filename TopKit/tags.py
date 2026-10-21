@@ -55,6 +55,9 @@ from .fields import _Partition
 from .fields import _field_of
 from .fields import _population_of
 from .fields import _sound_of
+from .form_warnings import _collisions_of
+from .form_warnings import _current
+from .form_warnings import _declared_collisions
 from .geometry import _form_of
 from .geometry import _is_tag
 from .lifecycle import _rip
@@ -94,6 +97,9 @@ class MetaTag(type):
         _check_pin_bases(tag)
         _check_constant_declarations(tag, namespace)
         _check_tool_declarations(tag, namespace)
+        if any(isinstance(base, MetaTag) for base in bases):
+            # The root Tag is still being built, so Geometry cannot bind it.
+            _declared_collisions(tag)
 
         return tag
 
@@ -154,11 +160,15 @@ class MetaTag(type):
         else:
             _refuse_host_truth(target)
 
-        return _apply(
-                target,
-                tag,
-                inputs,
-                )
+        current = _current.set(_collisions_of(tag))
+        try:
+            return _apply(
+                    target,
+                    tag,
+                    inputs,
+                    )
+        finally:
+            _current.reset(current)
 
     def __contains__(
             tag,

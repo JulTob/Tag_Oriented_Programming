@@ -47,6 +47,7 @@ from .errors import TagContractWarning
 from .declarations import STATE
 from .declarations import Report
 from .declarations import _declarations_of
+from .form_warnings import _diagnosed
 from .geometry import _is_base_of
 from .geometry import _is_tag_class
 from .geometry import _related
@@ -410,6 +411,7 @@ def _install(
                 and origin is not tag
                 and not underlay
                 and not _quiet.get()
+                and not _diagnosed(tag, origin, "Postcondition", name)
                 ):
             warnings.warn(
                     _replaced_promise(
@@ -1246,7 +1248,11 @@ def _install_action(
     underlay = _action_underlay(state, name)
     origin = _action_replacement(state, tag, name, function, underlay)
 
-    if origin is not None and not _quiet.get():
+    if (
+            origin is not None
+            and not _quiet.get()
+            and not _diagnosed(tag, origin, "Action", name)
+            ):
         warnings.warn(
                 f"{tag.__name__}.{name} replaces the Action of independent"
                 f" Tag {origin.__name__}",
@@ -1334,7 +1340,11 @@ def _install_record(
 
     kind, prior = _record_overlay(state, tag, name, builder)
 
-    if prior is not None and not _quiet.get():
+    if (
+            prior is not None
+            and not _quiet.get()
+            and not _diagnosed(tag, prior, "Record", name)
+            ):
         warnings.warn(
                 f"{tag.__name__}.{name} replaces the Record of independent"
                 f" Tag {prior.__name__}",
