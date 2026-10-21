@@ -20,8 +20,7 @@ class PinnedSecretHandleTests(unittest.TestCase):
                 if constant:
                     declaration = Constant(declaration)
 
-                @Pin
-                class Private(Tag):
+                class Private(Pin):
                     Read = declaration
 
                     @Secret
@@ -55,8 +54,7 @@ class PinnedSecretHandleTests(unittest.TestCase):
                 self.assert_closed(Target, "Read", "code")
 
     def test_a_pure_secret_body_is_guarded_without_a_secret_record_dependency(self):
-        @Pin
-        class Private(Tag):
+        class Private(Pin):
             @Secret
             @Action
             def Read(tag):
@@ -76,8 +74,7 @@ class PinnedSecretHandleTests(unittest.TestCase):
         self.assert_closed(Target, "Read")
 
     def test_another_pinned_tags_door_does_not_authorize_the_operation(self):
-        @Pin
-        class Private(Tag):
+        class Private(Pin):
             @Secret
             @Action
             def Read(tag):
@@ -108,8 +105,7 @@ class PinnedSecretHandleTests(unittest.TestCase):
         self.assert_closed(Other, "Read")
 
     def test_different_pins_on_the_same_target_share_the_targets_authority(self):
-        @Pin
-        class Private(Tag):
+        class Private(Pin):
             @Secret
             @Action
             def Read(tag):
@@ -119,8 +115,7 @@ class PinnedSecretHandleTests(unittest.TestCase):
             def Capture(tag):
                 return tag.Read
 
-        @Pin
-        class Caller(Tag):
+        class Caller(Pin):
             @Action
             def Invoke(tag, operation):
                 return operation()
@@ -146,8 +141,7 @@ class PinnedSecretHandleTests(unittest.TestCase):
                 if constant:
                     declaration = Constant(declaration)
 
-                @Pin
-                class Private(Tag):
+                class Private(Pin):
                     Read = declaration
 
                     @Action
@@ -175,8 +169,7 @@ class PinnedSecretHandleTests(unittest.TestCase):
                 self.assert_closed(Target, "Read")
 
     def test_public_shadow_and_its_deletion_do_not_authorize_a_secret_capture(self):
-        @Pin
-        class Private(Tag):
+        class Private(Pin):
             @Secret
             @Action
             def Read(tag):
@@ -209,8 +202,7 @@ class PinnedSecretHandleTests(unittest.TestCase):
         self.assert_closed(Target, "Read")
 
     def test_a_constant_secret_operation_refuses_a_public_class_shadow(self):
-        @Pin
-        class Private(Tag):
+        class Private(Pin):
             @Secret
             @Constant
             @Action
@@ -233,14 +225,12 @@ class PinnedSecretHandleTests(unittest.TestCase):
         self.assert_closed(Target, "Read")
 
     def test_a_refused_pinning_preserves_authority_for_the_same_target(self):
-        @Pin
-        class Refused(Tag):
+        class Refused(Pin):
             @Pre
             def No(tag):
                 return False
 
-        @Pin
-        class Private(Tag):
+        class Private(Pin):
             @Secret
             @Action
             def Read(tag):
@@ -271,8 +261,7 @@ class PinnedSecretHandleTests(unittest.TestCase):
     def test_secret_operation_failure_preserves_only_the_callers_open_door(self):
         for error in (LookupError("stop"), KeyboardInterrupt(), SystemExit(7)):
             with self.subTest(error=type(error).__name__):
-                @Pin
-                class Private(Tag):
+                class Private(Pin):
                     @Secret
                     @Record
                     def code(tag):
@@ -312,8 +301,7 @@ class PinnedSecretHandleTests(unittest.TestCase):
                 self.assert_closed(Target, "Fail", "code")
 
     def test_captured_pin_operation_keeps_its_existing_strong_receiver_ownership(self):
-        @Pin
-        class Private(Tag):
+        class Private(Pin):
             @Secret
             @Action
             def Read(tag):
@@ -338,8 +326,7 @@ class PinnedSecretHandleTests(unittest.TestCase):
         self.assertIsNone(reference())
 
     def test_a_pin_field_without_a_captured_operation_still_holds_targets_weakly(self):
-        @Pin
-        class Private(Tag):
+        class Private(Pin):
             @Secret
             @Action
             def Read(tag):

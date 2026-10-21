@@ -1160,14 +1160,23 @@ The [Pins wiki guide](../wiki/1.7-TopKit-Pins.md) walks through equipment
 categories, populated Target Fields, Pin-on-Pin membership and Rip.
 
 **When you want** to say something about a Tag itself: this class is
-*rare*, that species is *homebrew*, this rule is *deprecated*. A Tag is an
-object, so a Tag can be tagged. A Tag marked `@Pin` applies to Tags, and
-the Tag it is applied to becomes its Agent: it joins a Field, it can be
-gated, it can promise, it can leave.
+*rare*, that species is *homebrew*, this rule is *deprecated*. Declare a
+Pin with `class Rare(Pin)`. A named Pin organizes TOP Tags and Pins: the
+Tag it applies to becomes its Agent, joins that Pin's Field, can be gated,
+can promise, and can leave. The Target retains its own category and Field.
+
+Ordinary Tags apply to object instances; Pins apply to actual TOP Tag
+classes, including other Pins and concrete Link Tags. A plain Python
+class or an object's presented `__class__` is not a Tag credential.
+Applying `Rare(Wizard)` does not convert Wizard into a Pin and does not
+depend on whether Wizard's own Field is empty. Declaring `class Rare(Pin)`
+is separate from applying that named Pin. An ordinary Tag never becomes a
+Pin, even if unused or Ripped. `Pin(existing_tag)` is refused; the `Pin`
+root is a declaration Base, with no concrete application or own Field.
+Tools held by Agents remain object Targets; `@Tool` does not make them Tags.
 
 ```python
-@Pin
-class Rare(Tag):
+class Rare(Pin):
 
     @Record
     def rarity(tag):                        # the receiver is the Tag
@@ -1216,8 +1225,7 @@ Engine(kit)
 assert kit.Drive() == "Engine v1 at 2"
 
 
-@Pin
-class Firmware_2(Tag):
+class Firmware_2(Pin):
 
     @Action
     @Underlay
@@ -1309,7 +1317,7 @@ your Reports and Operations there.
 | Extend an Action with `@Underlay`. | Call `agent.Attack()` from inside `Attack` (that recurses). |
 | Gate with `@Pre`; promise with `@Post`; repair through `~Tag`. | Roll your own validation after the fact. |
 | Mark word-like Tags `@Flag` and write rules as data. | Match every Tag by name. Only Flags are words. |
-| Say things about a Tag with a `@Pin`. | Keep a side table of Tags outside TOP. |
+| Say things about a Tag with a named Pin. | Keep a side table of Tags outside TOP. |
 | Clean up with `@Rip`; for a block, tag before `try` and Rip in `finally`. | Rely on `del agent` for anything that matters. |
 | Rip, then Tag again when the Record builder should rebuild its value. | Assume Rip itself erases Contributions, or reapply an active Tag hoping it rebuilds. |
 | Expect a Rogue Agent to keep its own Actions and lose the Agency's published ones. | Check membership by hand inside every published Operation. |

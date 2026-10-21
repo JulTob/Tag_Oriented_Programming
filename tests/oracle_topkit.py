@@ -125,7 +125,7 @@ def Direct_Bases(
     return tuple(
             base
             for base in tag.__bases__
-            if isinstance(base, type(Tag)) and base is not Tag
+            if isinstance(base, type(Tag)) and base is not Tag and base is not Pin
             )
 
 
@@ -244,13 +244,14 @@ def Family(
             name: str,
             bases: tuple[type, ...],
             ) -> type:
-        made = type(
+        if pinned and bases == (Tag,):
+            bases = (Pin,)
+
+        return type(
                 f"{prefix}_{name}",
                 bases,
                 {},
                 )
-
-        return Pin(made) if pinned and bases == (Tag,) else made
 
     def Words(
             tag: type,

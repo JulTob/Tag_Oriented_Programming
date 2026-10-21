@@ -9,14 +9,13 @@ from TopKit.geometry import _form_of
 
 class PhysicalPinMarkTests(unittest.TestCase):
     def test_a_metaclass_cannot_hide_a_real_pin_mark(self):
-        class Mask(type(Tag)):
+        class Mask(type(Pin)):
             def __getattribute__(tag, name):
                 if name == "__topkit_pin__":
                     return False
                 return super().__getattribute__(name)
 
-        @Pin
-        class Rare(Tag, metaclass=Mask):
+        class Rare(Pin, metaclass=Mask):
             @Record
             def label(tag):
                 return "rare"
@@ -48,7 +47,7 @@ class PhysicalPinMarkTests(unittest.TestCase):
         self.assertIn(agent, Role[:])
 
     def test_a_metaclass_cannot_hide_the_pin_base_from_a_shape(self):
-        class Mask(type(Tag)):
+        class Mask(type(Pin)):
             def __getattribute__(tag, name):
                 if name == "__mro__":
                     return (tag,)
@@ -56,8 +55,7 @@ class PhysicalPinMarkTests(unittest.TestCase):
                     return ()
                 return super().__getattribute__(name)
 
-        @Pin
-        class Base(Tag, metaclass=Mask):
+        class Base(Pin, metaclass=Mask):
             pass
 
         class Shape(Base):
@@ -75,14 +73,13 @@ class PhysicalPinMarkTests(unittest.TestCase):
                     return Kind()
 
     def test_a_mixed_form_is_refused_even_if_metaclass_hides_bases(self):
-        class Mask(type(Tag)):
+        class Mask(type(Pin)):
             def __getattribute__(tag, name):
                 if name == "__bases__":
                     return ()
                 return super().__getattribute__(name)
 
-        @Pin
-        class Mark(Tag, metaclass=Mask):
+        class Mark(Pin, metaclass=Mask):
             pass
 
         class Ordinary(Tag):
@@ -95,10 +92,11 @@ class PhysicalPinMarkTests(unittest.TestCase):
     def test_physical_mark_does_not_call_arbitrary_truth(self):
         class Truth:
             def __bool__(self):
-                raise AssertionError("a physical Pin mark is exactly True")
+                raise AssertionError("a presented mark does not decide the native category")
 
         class Ordinary(Tag):
             pass
 
-        type.__setattr__(Ordinary, "__topkit_pin__", Truth())
-        self.assertFalse(_is_pin(Ordinary))
+        for mark in (True, Truth()):
+            type.__setattr__(Ordinary, "__topkit_pin__", mark)
+            self.assertFalse(_is_pin(Ordinary))

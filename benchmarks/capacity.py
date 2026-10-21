@@ -471,12 +471,10 @@ def Pin_Cycles(
         ) -> None:
     """Apply and Rip reciprocal Pins repeatedly without retaining membership."""
 
-    @Pin
-    class First(Tag):
+    class First(Pin):
         pass
 
-    @Pin
-    class Second(Tag):
+    class Second(Pin):
         pass
 
     started = time.perf_counter()

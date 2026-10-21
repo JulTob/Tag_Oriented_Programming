@@ -250,8 +250,7 @@ class Armed(Tag):
 
 
 @Flag
-@Pin
-class Red_Alert(Tag):
+class Red_Alert(Pin):
     """A keyword on the Bridge itself: the ship's state, not the crew's."""
 
 

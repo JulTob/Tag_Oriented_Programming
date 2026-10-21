@@ -261,8 +261,7 @@ class ConditionBindingTests(unittest.TestCase):
         class Guild(Tag):
             pass
 
-        @Pin
-        class Governed(Tag):
+        class Governed(Pin):
             @Constant
             @Record
             def token(tag):

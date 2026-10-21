@@ -658,8 +658,7 @@ class ContributionPresenceTests(unittest.TestCase):
         self.assertEqual(agent.InspectAgain(), (True, True))
 
     def test_a_pin_answers_as_the_agent_without_executing_its_operation(self):
-        @Pin
-        class Given(Tag):
+        class Given(Pin):
             @Record
             def value(tag):
                 return None

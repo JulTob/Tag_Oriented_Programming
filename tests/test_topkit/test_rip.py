@@ -155,8 +155,7 @@ class RipTests(unittest.TestCase):
         self.assertEqual(list(Operative), [ari])
 
     def test_ripping_a_base_pin_keeps_its_shape_pin(self) -> None:
-        @Pin
-        class Basic(Tag):
+        class Basic(Pin):
             pass
 
         class Special(Basic):

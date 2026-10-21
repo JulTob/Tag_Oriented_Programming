@@ -79,17 +79,15 @@ class UnderlayDiagnosticTests(unittest.TestCase):
     def build(self, mark, seats, mode, pinned, prior=False, name="Work"):
         events = []
         member = implementation(events, seats, mode, record=mark is Record)
-        role = type("Proposed", (Tag,), {
+        role = type("Proposed", (Pin if pinned else Tag,), {
                 name: mark(member if mark is Record else Underlay(member)),
                 })
-        role = Pin(role) if pinned else role
         target = type("Receiver", (Tag,), {}) if pinned else Host()
         previous = None
         if prior:
             def Previous(agent):
                 return True
-            previous = type("Previous", (Tag,), {name: mark(Previous)})
-            previous = Pin(previous) if pinned else previous
+            previous = type("Previous", (Pin if pinned else Tag,), {name: mark(Previous)})
             previous(target)
         return role, target, events, previous, member
 
@@ -181,8 +179,7 @@ class UnderlayDiagnosticTests(unittest.TestCase):
                     with self.subTest(mark=mark, pinned=pinned, mode=mode):
                         def Previous(agent):
                             return 41 if mark is Record else True
-                        base = type("Base", (Tag,), {"Work": mark(Previous)})
-                        base = Pin(base) if pinned else base
+                        base = type("Base", (Pin if pinned else Tag,), {"Work": mark(Previous)})
                         member = implementation([], 2, mode, record=mark is Record,
                                                 extend=mark is not Record)
                         shape = type("Shape", (base,), {
@@ -200,21 +197,20 @@ class UnderlayDiagnosticTests(unittest.TestCase):
 
     def test_pin_rip_underlay_keeps_its_receiver_and_order(self):
         events = []
-        class Base(Tag):
+        class Base(Pin):
             @Rip
             def Close(agent):
                 events.append(("Base", agent))
-        base = Pin(Base)
         class Added:
             def __call__(self, agent, prior):
                 prior()
                 events.append(("Shape", agent))
-        shape = type("Shape", (base,), {"Close": Rip(Underlay(Added()))})
+        shape = type("Shape", (Base,), {"Close": Rip(Underlay(Added()))})
         target = type("Receiver", (Tag,), {})
         shape(target)
         del shape[target]
         self.assertEqual(events, [("Base", target), ("Shape", target)])
-        self.assertIn(target, base[:])
+        self.assertIn(target, Base[:])
         self.assertNotIn(target, shape[:])
 
 

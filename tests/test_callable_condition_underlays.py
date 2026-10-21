@@ -46,9 +46,7 @@ class CallableConditionUnderlayTests(unittest.TestCase):
         def Deferred_Prior(agent):
             return prior(agent) if ready else True
 
-        base = type("Base", (Tag,), {"Work": mark(Deferred_Prior)})
-        if pinned:
-            base = Pin(base)
+        base = type("Base", (Pin if pinned else Tag,), {"Work": mark(Deferred_Prior)})
         shape = type("Shape", (base,), {"Work": mark(Underlay(Added if ordinary else Added()))})
         target = type("Target", (Tag,), {}) if pinned else Host()
         # Test the Underlay after the Base passed its own neutral Gate/Posts.

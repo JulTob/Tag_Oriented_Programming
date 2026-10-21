@@ -1,258 +1,157 @@
-"""Pin marks and Tool declarations publish atomically across threads."""
+"""Concurrent publication cannot turn ordinary Tags into Pins."""
 
 import unittest
 from threading import Event, Thread
 from unittest.mock import patch
 
-from TopKit import Pin, Tag, TagDeclarationError, Tool
+from TopKit import Pin, Tag, TagCompositionError, TagDeclarationError, Tool
+from tests.test_tools import Character
 
 
 class PinPublicationRaceTests(unittest.TestCase):
+    def run_conversion_while(self, kind, entered, release, build):
+        outcomes, built = [], []
+        def declare():
+            try:
+                built.append(build())
+            except BaseException as error:
+                outcomes.append(error)
+        worker = Thread(target=declare)
+        worker.start()
+        try:
+            self.assertTrue(entered.wait(2))
+            with self.assertRaises(TagDeclarationError):
+                Pin(kind)
+        finally:
+            release.set()
+            worker.join(2)
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(outcomes, [])
+        return built[0]
 
-    def test_shape_creation_rechecks_pin_bases_after_a_concurrent_mark(self):
-        import TopKit.declarations as declarations
-        import TopKit.tags as tags
-
+    def test_shape_creation_cannot_race_an_ordinary_base_into_a_pin(self):
+        entered, release = Event(), Event()
         class Base(Tag):
-            pass
-
+            def __init_subclass__(cls, **kwargs):
+                super().__init_subclass__(**kwargs)
+                entered.set()
+                if not release.wait(2):
+                    raise TimeoutError("Shape declaration did not resume")
         class Ordinary(Tag):
             pass
+        def build():
+            class Shape(Base, Ordinary):
+                pass
+            return Shape
+        shape = self.run_conversion_while(Base, entered, release, build)
+        target = Character("ordinary")
+        shape(target)
+        self.assertIn(target, Base[:])
+        self.assertIn(target, Ordinary[:])
+        self.assertIn(target, shape[:])
 
-        mark_checked = Event()
-        shape_checked = Event()
-        release_mark = Event()
-        outcomes = []
-        original_refuse = declarations._refuse_late_pin
-        original_check = tags._check_pin_bases
-
-        def pause_mark(tag):
-            original_refuse(tag)
-            if tag is Base:
-                mark_checked.set()
-                if not release_mark.wait(2):
-                    raise TimeoutError("Shape did not reach its Base check")
-
-        def note_shape(tag, **kwargs):
-            result = original_check(tag, **kwargs)
-            if tag.__name__ == "Mixed" and not kwargs.get("physical"):
-                shape_checked.set()
-            return result
-
-        def mark():
-            try:
-                Pin(Base)
-            except BaseException as error:
-                outcomes.append(error)
-            else:
-                outcomes.append("marked")
-
-        def make_shape():
-            try:
-                class Mixed(Base, Ordinary):
-                    pass
-            except TagDeclarationError as error:
-                outcomes.append(str(error))
-            except BaseException as error:
-                outcomes.append(error)
-            else:
-                outcomes.append(Mixed)
-
-        with (patch.object(declarations, "_refuse_late_pin", pause_mark),
-              patch.object(tags, "_check_pin_bases", note_shape)):
-            marker = Thread(target=mark)
-            builder = Thread(target=make_shape)
-            marker.start()
-            try:
-                self.assertTrue(mark_checked.wait(2))
-                builder.start()
-                self.assertTrue(shape_checked.wait(2))
-            finally:
-                release_mark.set()
-                marker.join(2)
-                if builder.ident is not None:
-                    builder.join(2)
-
-        self.assertFalse(marker.is_alive())
-        self.assertFalse(builder.is_alive())
-        self.assertEqual(outcomes[0], "marked")
-        self.assertIn("mixes Pins and Tags", outcomes[1])
-
-    def test_shape_tool_rechecks_base_after_a_concurrent_pin_mark(self):
-        import TopKit.declarations as declarations
-        import TopKit.tags as tags
-
+    def test_shape_tool_stays_an_object_gain_during_a_conversion_attempt(self):
+        entered, release = Event(), Event()
         class Base(Tag):
-            pass
-
+            def __init_subclass__(cls, **kwargs):
+                super().__init_subclass__(**kwargs)
+                entered.set()
+                if not release.wait(2):
+                    raise TimeoutError("Tool Shape declaration did not resume")
         class Kind(Tag):
             pass
-
-        @Tool(Kind)
+        @Tool(Kind | None)
         def prize(agent):
             return None
+        def build():
+            class Shape(Base):
+                held = prize
+            return Shape
+        shape = self.run_conversion_while(Base, entered, release, build)
+        target = Character("collector")
+        shape(target)
+        with self.assertRaises(TagCompositionError):
+            target.held = object()
+        item = Character("prize")
+        Kind(item)
+        target.held = item
+        self.assertIs(target.held, item)
 
-        mark_checked = Event()
-        shape_checked = Event()
-        release_mark = Event()
-        outcomes = []
-        original_refuse = declarations._refuse_late_pin
-        original_check = tags._check_pin_bases
-
-        def pause_mark(tag):
-            original_refuse(tag)
-            if tag is Base:
-                mark_checked.set()
-                if not release_mark.wait(2):
-                    raise TimeoutError("Shape did not reach its Base check")
-
-        def note_shape(tag, **kwargs):
-            result = original_check(tag, **kwargs)
-            if tag.__name__ == "Shape" and not kwargs.get("physical"):
-                shape_checked.set()
-            return result
-
-        def mark():
-            try:
-                Pin(Base)
-            except BaseException as error:
-                outcomes.append(error)
-            else:
-                outcomes.append("marked")
-
-        def make_shape():
-            try:
-                class Shape(Base):
-                    held = prize
-            except TagDeclarationError as error:
-                outcomes.append(str(error))
-            except BaseException as error:
-                outcomes.append(error)
-            else:
-                outcomes.append(Shape)
-
-        with (patch.object(declarations, "_refuse_late_pin", pause_mark),
-              patch.object(tags, "_check_pin_bases", note_shape)):
-            marker = Thread(target=mark)
-            builder = Thread(target=make_shape)
-            marker.start()
-            try:
-                self.assertTrue(mark_checked.wait(2))
-                builder.start()
-                self.assertTrue(shape_checked.wait(2))
-            finally:
-                release_mark.set()
-                marker.join(2)
-                if builder.ident is not None:
-                    builder.join(2)
-
-        self.assertFalse(marker.is_alive())
-        self.assertFalse(builder.is_alive())
-        self.assertEqual(outcomes[0], "marked")
-        self.assertIn("shared tool is a Report", outcomes[1])
-
-    def test_pin_rechecks_when_a_tool_lands_during_unlocked_scan(self):
-        import TopKit.declarations as declarations
-
+    def test_late_tool_binding_remains_valid_during_a_conversion_attempt(self):
+        entered, release = Event(), Event()
         class Kind(Tag):
             pass
-
+        class Old:
+            armed = False
+            def __call__(self, agent):
+                return None
+            def __getattribute__(self, name):
+                if name == "__topkit_constant__" and object.__getattribute__(self, "armed"):
+                    entered.set()
+                    if not release.wait(2):
+                        raise TimeoutError("late Tool binding did not resume")
+                return object.__getattribute__(self, name)
+        old = Old()
         class Candidate(Tag):
-            pass
-
-        entered = Event()
-        resume = Event()
-        outcome = []
-        original = declarations._validate_pin
-
-        def pause_once(tag, scanned):
-            original(tag, scanned)
-            if not entered.is_set():
-                entered.set()
-                if not resume.wait(2):
-                    raise TimeoutError("Tool write could not finish")
-
-        def mark():
-            try:
-                Pin(Candidate)
-            except TagDeclarationError:
-                outcome.append("refused")
-            except BaseException as error:
-                outcome.append(error)
-            else:
-                outcome.append("accepted")
-
-        @Tool(Kind)
-        def tool(agent):
+            prize = old
+        @Tool(Kind | None)
+        def prize(agent):
             return None
+        old.armed = True
+        def bind():
+            Candidate.prize = prize
+            return Candidate
+        self.assertIs(self.run_conversion_while(Kind, entered, release, bind), Candidate)
+        self.assertIs(Candidate.__dict__["prize"], prize)
+        target = Character("collector")
+        Candidate(target)
+        with self.assertRaises(TagCompositionError):
+            target.prize = object()
 
-        with patch.object(declarations, "_validate_pin", pause_once):
-            worker = Thread(target=mark)
-            worker.start()
-            try:
-                self.assertTrue(entered.wait(2))
-                Candidate.tool = tool
-            finally:
-                resume.set()
-                worker.join(2)
-
-        self.assertFalse(worker.is_alive())
-        self.assertEqual(outcome, ["refused"])
-        self.assertNotIn("__topkit_pin__", Candidate.__dict__)
-
-    def test_a_concurrent_pin_cannot_pass_while_a_tool_owner_is_registering(self):
+    def test_conversion_refusal_does_not_wait_for_tool_owner_registration(self):
         import TopKit.declarations as declarations
-
         class Prize(Tag):
             pass
-
-        registering = Event()
-        continue_registration = Event()
-        marking = Event()
-        declared = []
-        outcome = []
-        note = declarations._note_tag_kinds
-
+        entered, release, refused = Event(), Event(), Event()
+        failures, declared = [], []
+        original = declarations._note_tag_kinds
         def pause(owner, tags):
-            registering.set()
-            if not continue_registration.wait(2):
+            entered.set()
+            if not release.wait(2):
                 raise TimeoutError("Tool declaration did not resume")
-            note(owner, tags)
-
+            original(owner, tags)
         def declare():
-            class Collector(Tag):
-                @Tool(Prize)
-                def prize(agent):
-                    return None
-
-            declared.append(Collector)
-
-        def mark():
-            marking.set()
+            try:
+                class Collector(Tag):
+                    @Tool(Prize | None)
+                    def prize(agent):
+                        return None
+                declared.append(Collector)
+            except BaseException as error:
+                failures.append(error)
+        def convert():
             try:
                 Pin(Prize)
             except TagDeclarationError:
-                outcome.append("refused")
-            else:
-                outcome.append("accepted")
-
+                refused.set()
+            except BaseException as error:
+                failures.append(error)
         with patch.object(declarations, "_note_tag_kinds", pause):
-            owner_thread = Thread(target=declare)
-            mark_thread = Thread(target=mark)
+            owner_thread, conversion_thread = Thread(target=declare), Thread(target=convert)
             owner_thread.start()
             try:
-                self.assertTrue(registering.wait(2))
-                mark_thread.start()
-                self.assertTrue(marking.wait(2))
-                mark_thread.join(0.02)
-                self.assertEqual(outcome, [])          # mark waits for registration
+                self.assertTrue(entered.wait(2))
+                conversion_thread.start()
+                self.assertTrue(refused.wait(1), "root refusal waited for a mutable owner ledger")
             finally:
-                continue_registration.set()
+                release.set()
                 owner_thread.join(2)
-                if mark_thread.ident is not None:
-                    mark_thread.join(2)
-
-        self.assertEqual(outcome, ["refused"])
-        self.assertTrue(declared)
-        self.assertNotIn("__topkit_pin__", Prize.__dict__)
-
+                if conversion_thread.ident is not None:
+                    conversion_thread.join(2)
+        self.assertFalse(owner_thread.is_alive())
+        self.assertFalse(conversion_thread.is_alive())
+        self.assertEqual(failures, [])
+        self.assertEqual(len(declared), 1)
+        target = Character("collector")
+        declared[0](target)
+        self.assertIsNone(target.prize)

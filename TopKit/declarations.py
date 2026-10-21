@@ -45,21 +45,20 @@ from .errors import TagCompositionError
 from .errors import TagImprintError
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
+from .geometry import _is_class
+from .geometry import _PIN_KIND
+from .geometry import _class_kind
 from .geometry import _is_tag
 from .geometry import _is_tag_class
-from .memo import _Tag_Memo
 from .memo import _class_namespace
 from .memo import _forget_memo
 from .memo import _keep_physical_snapshots
 from .memo import _memo_key
 from .memo import _memo_of
-from .memo import _metaclass_data_descriptor
-from .memo import _namespace_has_callback_keys
 from .memo import _namespace_snapshot
 from .memo import _physical_namespace_get
 from .memo import _publication as _memo_publication
 from .memo import _remember_memo
-from .memo import _retain_physical_snapshot
 from .memo import _type_bases
 from .memo import _type_mro
 from .memo import _type_name
@@ -71,7 +70,6 @@ _RIP = "__topkit_rip__"
 _SECRET = "__topkit_secret__"
 _PUBLIC = "__topkit_public__"
 _FLAG = "__topkit_flag__"
-_PIN = "__topkit_pin__"
 _CONSTANT = "__topkit_constant__"
 _TOOL = "__topkit_tool__"   # a Record's kind: the Tags its slot admits (tools._Kind)
 _ACTION_CHAIN = "__topkit_action_chain__"
@@ -579,207 +577,57 @@ def _is_flag(
     return tag.__dict__.get(_FLAG) is not None
 
 
-def Pin(
-        tag: type,
-        ) -> type:
-    """Mark a Tag whose Targets are Tags (STEP-SPEC-9).
-
-    ``Rare(Wizard)`` makes the Tag ``Wizard`` an Agent of ``Rare``: its
-    Records land on ``Wizard`` as Reports, its Actions as Operations, and
-    the Field of ``Rare`` is a population of Tags. A Pin applies to
-    nothing else, and its Bases must be Pins.
-    """
-
-    if not _is_tag_class(tag):
-        raise TagDeclarationError(
-                "@Pin marks a Tag class"
-                )
-
-    with _pin_publication():
-        if _is_pin_physical(tag):
-            return tag   # Shapes of Pins already have this category too
-        if _namespace_has_callback_keys(tag):
-            raise TagDeclarationError(
-                    f"@Pin cannot mark {_type_name.__get__(tag)}:"
-                    " a class namespace key has custom hash or equality"
-                    )
-
-    while True:
-        # These scans may call a program's metadata getters. Another thread
-        # must be able to mark a Pin while one of those getters is running.
-        namespace = _namespace_snapshot(tag)
-        _refuse_tools_on_a_pin(tag, namespace)
-        _validate_pin(tag, _declarations_of(tag))
-
-        with _pin_publication():
-            if _is_pin_physical(tag):
-                return tag   # restating the mark changes nothing
-
-            # A Tool assignment can land while the unlocked scan runs. The
-            # setter uses this same lock; retry on its new namespace.
-            current = _retain_physical_snapshot(_namespace_snapshot(tag))
-            if _pin_namespace_changed(namespace, current):
-                continue
-
-            if _namespace_has_callback_keys(tag):
-                refusal = "namespace"
-                break
-
-            if _metaclass_data_descriptor(tag, _PIN):
-                refusal = "descriptor"
-                break
-
-            _refuse_late_pin(tag)
-            type.__setattr__(tag, _PIN, True)
-
-            try:
-                _check_pin_bases(tag, locked=True)
-                # A retired memo can be the last owner of a program value.
-                # Keep it alive until after the Pin lock is released.
-                retired = _invalidate_declarations(tag)
-            except BaseException:
-                type.__delattr__(tag, _PIN)  # refused: nothing changed
-                retired_after = _invalidate_declarations(tag)
-                raise
-
-            return tag
-
-    if refusal == "namespace":
-        raise TagDeclarationError(
-                f"@Pin cannot mark {_type_name.__get__(tag)}:"
-                " a class namespace key has custom hash or equality"
-                )
-    raise TagDeclarationError(
-            f"@Pin cannot mark {_type_name.__get__(tag)}:"
-            " its metaclass has a data descriptor for the Pin mark"
-            )
-
-
-def _pin_namespace_changed(before: dict[str, Any], after: dict[str, Any]) -> bool:
-    """Ignore only internal memo publication when retrying Pin preflight."""
-
-    old = {_pin_snapshot_key(name): value for name, value in before.items()
-           if type(value) is not _Tag_Memo}
-    new = {_pin_snapshot_key(name): value for name, value in after.items()
-           if type(value) is not _Tag_Memo}
-    return old.keys() != new.keys() or any(
-            old[name] is not new[name] for name in old
-            )
-
-
-def _pin_snapshot_key(name: Any) -> str | int:
-    """Compare class keys without calling a stored key's Python methods."""
-
-    if type(name) is str:
-        return name
-    if issubclass(type(name), str):
-        return str.__str__(name)
-    return id(name)
-
-
-def _refuse_late_pin(
-        tag: type,
-        ) -> None:
-    """Refuse a late mark that would change current ordinary-Tag use:
-    Shapes would become Pins, the Field could mix objects and Tags, or
-    a declared Tool kind would start admitting Tags (§1.3, §1.9).
-    An empty Field may be marked even if it held Agents before."""
-
-    if any(member is tag for form in _ordinary_inflight for member in form):
-        raise TagDeclarationError(
-                f"@Pin cannot mark {_type_name.__get__(tag)} while its ordinary"
-                " Tagging is in flight"
-                )
-
-    tag_name = _type_name.__get__(tag)
-    shapes = type.__subclasses__(tag)
-
-    if shapes:
-        shape_name = _type_name.__get__(shapes[0])
-        raise TagDeclarationError(
-                f"@Pin marks {tag_name} at its declaration, and it"
-                f" already has the Shape {shape_name}: a Shape of a"
-                f" Pin is a Pin. Write @Pin over class {tag_name},"
-                " before its Shapes"
-                )
-
-    from .fields import FIELD_SEAT, _Field   # fields imports declarations through contracts
-
-    field = _physical_namespace_get(_class_namespace(tag), FIELD_SEAT)
-    if type(field) is not _Field:
-        raise TagDeclarationError(
-                f"@Pin cannot mark {tag_name}: its private Field seat"
-                " is not an ordinary TOP Field"
-                )
-    agents = list(field)
-
-    if agents:
-        raise TagDeclarationError(
-                f"@Pin marks {tag_name} at its declaration, and it"
-                " already has Agents: a Pin's Field holds Tags, never"
-                " objects (§1.9)"
-                )
-
-    owner = _tool_owner_naming(tag)
-
-    if owner is not None:
-        owner_name = _type_name.__get__(owner)
-        raise TagDeclarationError(
-                f"@Pin marks {tag_name} at its declaration, and a @Tool"
-                f" already names {tag_name} as its kind"
-                f" ({owner_name}): a Pin is no"
-                " Tool kind, its Agents are Tags (§1.3)"
-                )
-
-
 def _is_pin_locked(tag: type) -> bool:
-    """The same check while Pin publication owns its shared lock."""
+    """Physical fixed-kind inspection cannot execute class-key callbacks."""
 
-    for layer in _type_mro.__get__(tag):
-        if _namespace_has_callback_keys(layer):
-            raise TagDeclarationError(
-                    f"{_type_name.__get__(layer)} has a class namespace key"
-                    " with custom hash or equality"
-                    )
-    return _is_pin_physical(tag)
+    return _is_pin(tag)
 
 
 def _is_pin_physical(tag: type) -> bool:
-    """Read Pin marks under the publication lock without class-key callbacks.
+    """A Pin's authenticated metaclass fixes its kind at declaration."""
 
-    Class creation must recheck its Bases against a concurrent late Pin mark.
-    It may do so even when a Base has an unrelated custom namespace key:
-    that key is not a Pin mark and must not change the Shape's validity.
+    return _is_pin(tag)
+
+
+def _is_pin(tag: type) -> bool:
+    """A class of the fixed Pin kind, including runtime metaclass adapters."""
+
+    return _class_kind(tag) is _PIN_KIND
+
+
+def _check_application_target(
+        tag: type,
+        target: object,
+        ) -> None:
+    """Ordinary Tags take objects; Pins take actual, concrete TOP classes.
+
+    Class identity comes from the native metaclass, never a Target's
+    ``__class__`` property. Pin actualization may subclass that metaclass
+    without changing the Target's category or its own Field.
     """
 
-    return any(
-            _physical_namespace_get(_class_namespace(layer), _PIN) is True
-            for layer in _type_mro.__get__(tag)
-            )
+    kind = _class_kind(tag)
+    if kind is None:
+        raise TypeError("Tagging requires a Tag or Pin receiver")
 
-
-def _is_pin(
-        tag: type,
-        ) -> bool:
-    """A Shape of a Pin is a Pin. Read physical marks in the actual Form;
-    a metaclass hook must not hide or invent the declaration."""
-
-    return any(
-            _class_namespace(layer).get(_PIN) is True
-            for layer in _type_mro.__get__(tag)
-            )
-
-
-def _is_tag_base(
-        base: type,
-        ) -> bool:
-    """A Tag class other than the root ``Tag`` (the root is the only Tag
-    with no Tag among its own bases)."""
-
-    return _is_tag_class(base) and any(
-            _is_tag_class(deeper)
-            for deeper in _type_bases.__get__(base)
-            )
+    if kind is _PIN_KIND:
+        if not _is_tag(tag):
+            proposed = _type_name.__get__(target) if _is_class(target) else "YourPin"
+            raise TagDeclarationError(
+                    f"Pin is a declaration root: declare class {proposed}(Pin),"
+                    " then apply that named Pin to a Tag; Pin(existing)"
+                    " cannot convert an ordinary Tag"
+                    )
+        if not _is_tag(target):
+            target_type = target if _is_class(target) else type(target)
+            raise TagCompositionError(
+                    f"{_type_name.__get__(tag)} is a Pin: apply it to a Tag,"
+                    f" not to {_type_name.__get__(target_type)}"
+                    )
+    elif _is_class(target):
+        raise TypeError(
+                f"{_type_name.__get__(tag)} is applied to objects, not classes"
+                )
 
 
 def _check_pin_bases(
@@ -787,35 +635,22 @@ def _check_pin_bases(
         *,
         locked: bool = False,
         physical: bool = False,
+        bases: tuple[type, ...] | None = None,
         ) -> None:
-    """One Form is all Pins or no Pins."""
+    """A class keeps its declared category; its TOP Bases have that category.
 
-    bases = tuple(
-            base
-            for base in _type_bases.__get__(tag)
-            if _is_tag_base(base)
-            )
-    check = _is_pin_physical if physical else (_is_pin_locked if locked else _is_pin)
-    pins = [
-            base
-            for base in bases
-            if check(base)
-            ]
-    namespace = _class_namespace(tag)
-    marked = (
-            _physical_namespace_get(namespace, _PIN)
-            if locked or physical else namespace.get(_PIN)
-            ) is True
+    Include declaration roots in this check, although Forms omit them.
+    Physical fixed-kind inspection is safe inside publication locks.
+    """
 
-    if not bases or len(pins) == len(bases):
-        return
-
-    if not pins and not marked:
-        return
-
-    raise TagDeclarationError(
-                f"{_type_name.__get__(tag)} mixes Pins and Tags in one Form; a Pin's"
-                " Bases must be Pins (STEP-SPEC-9 §2)"
+    if bases is None:
+        bases = _type_bases.__get__(tag)
+    pin = _is_pin(tag)
+    if any(_is_pin(base) != pin for base in bases if _is_tag_class(base)):
+        raise TagDeclarationError(
+                f"{_type_name.__get__(tag)} mixes Pins and Tags in one Form;"
+                " a Pin's Bases must be Pins and an ordinary Tag's Bases"
+                " must be ordinary Tags (STEP-SPEC-9 §2)"
                 )
 
 
@@ -1121,7 +956,7 @@ def _tool_kind_of(
     # An ordinary function has no custom lookup hook, and is the hot path.
     # For callable objects, a dynamic getter can conceal an actual @Tool
     # mark after class publication. The physical mark remains authoritative
-    # at Record gaining, just as it is for late Pin validation.
+    # at Record gaining, just as it is for Tool declaration validation.
     if type(function) is FunctionType:
         return observed
 
@@ -1332,31 +1167,6 @@ _pin_mark_lock = RLock()
 _kinds_named: dict[int, tuple[ref[type], WeakValueDictionary[int, type]]] = {}
 
 
-_ordinary_inflight: list[tuple[type, ...]] = []
-
-
-def _begin_ordinary_form(form: tuple[type, ...]) -> None:
-    """Reserve every Tag in an ordinary Form before user code can run.
-    The caller holds ``_pin_mark_lock`` across the Pin check and this
-    reservation. Each live call owns one distinct tuple."""
-
-    _ordinary_inflight.append(form)
-
-
-def _end_ordinary_form(form: tuple[type, ...]) -> None:
-    """Release exactly this call's Form, even after an interruption.
-    A cancellation just before the append has nothing to release."""
-
-    with _pin_mark_lock:
-        if _ordinary_inflight and _ordinary_inflight[-1] is form:
-            _ordinary_inflight.pop()
-            return
-        for index, pending in enumerate(_ordinary_inflight):
-            if pending is form:
-                del _ordinary_inflight[index]
-                return
-
-
 def _declared_tool_kind(member: Any) -> Any:
     """Read a Tool mark once, keeping an actual @Tool mark authoritative.
 
@@ -1381,16 +1191,18 @@ def _pin_publication():
     with _keep_physical_snapshots():
         # Memo invalidation during Pin publication takes _publication. The
         # reverse order can deadlock when a memo read invokes a class-key
-        # callback that attempts to mark another Pin.
+        # callback that attempts another Tool declaration.
         with _memo_publication:
             with _pin_mark_lock:
                 yield
 
 
 def _tool_owner_naming(tag: type) -> type | None:
-    """A live Tool-owning Tag can veto a late Pin mark. Acquired Tool rules
-    can outlive a declaration edit; dead owners leave no such rule. The
-    named kind and owner are both held weakly and compared by identity."""
+    """Find a live Tool declaration owner in the existing ownership ledger.
+
+    This metadata grants no conversion permission. The named kind and
+    owner are both held weakly and compared by identity.
+    """
 
     entry = _kinds_named.get(id(tag))
 
@@ -1435,14 +1247,13 @@ def _refuse_pin_tool_kinds(
         name: str,
         tags: tuple[type, ...],
         ) -> None:
-    """A Tool marked before its kind became a Pin must still be refused
-    when the declaring Tag is made or gains that Tool later."""
+    """Check prepared Tool kinds against their fixed declaration category."""
 
     for alternative in tags:
         if _is_pin_locked(alternative):
             raise TagDeclarationError(
                     f"{_type_name.__get__(owner)}.{name}: @Tool cannot name"
-                    f" {_type_name.__get__(alternative)}, now a Pin (§1.3)"
+                    f" {_type_name.__get__(alternative)}, a Pin (§1.3)"
                     )
 
 

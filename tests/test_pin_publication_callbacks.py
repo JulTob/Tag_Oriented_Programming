@@ -26,83 +26,58 @@ class PinPublicationCallbackTests(unittest.TestCase):
         Social(target)
         self.assertIn(target, Social)
 
-    def test_tool_getter_waiting_for_another_pin_does_not_deadlock(self):
+    def test_tool_getter_waiting_for_a_pin_declaration_does_not_deadlock(self):
         class Kind(Tag):
             pass
-
-        class Peer(Tag):
-            pass
-
-        entered = Event()
-        release = Event()
-
+        entered, release, peer_done = Event(), Event(), Event()
+        failures, declared = [], []
         class Builder:
             armed = False
-
             def __call__(self, agent):
                 return None
-
             def __getattribute__(self, name):
                 if name == "__topkit_tool__" and object.__getattribute__(self, "armed"):
                     entered.set()
                     if not release.wait(2):
                         raise TimeoutError("peer Pin could not finish")
                 return object.__getattribute__(self, name)
-
-        builder = Tool(Kind)(Builder())
-
-        class Collector(Tag):
-            prize = builder
-
+        builder = Tool(Kind | None)(Builder())
         builder.armed = True
-        failures = []
-        peer_done = Event()
-
-        def mark_collector():
+        def declare_collector():
             try:
-                Pin(Collector)
-            except TagDeclarationError:
-                return
+                declared.append(type("Collector", (Tag,), {"prize": builder}))
             except BaseException as error:
                 failures.append(error)
-            else:
-                failures.append(AssertionError("Tool owner became a Pin"))
-
-        def mark_peer():
+        def declare_pin():
             try:
-                Pin(Peer)
+                declared.append(type(Pin)("PeerPin", (Pin,), {}))
             except BaseException as error:
                 failures.append(error)
             finally:
                 peer_done.set()
-
-        first = Thread(target=mark_collector)
-        second = Thread(target=mark_peer)
+        first, second = Thread(target=declare_collector), Thread(target=declare_pin)
         first.start()
         try:
             self.assertTrue(entered.wait(2))
             second.start()
-            self.assertTrue(peer_done.wait(1), "Pin blocked behind user getter")
+            self.assertTrue(peer_done.wait(1), "Pin declaration blocked behind user getter")
         finally:
             release.set()
             first.join(2)
             if second.ident is not None:
                 second.join(2)
-
         self.assertFalse(first.is_alive())
         self.assertFalse(second.is_alive())
         self.assertEqual(failures, [])
+        self.assertEqual(len(declared), 2)
 
-    def test_one_tool_kind_snapshot_registers_an_alternating_getter(self):
+    def test_one_tool_kind_snapshot_guards_an_alternating_getter(self):
         class Kind(Tag):
             pass
-
         class Builder:
             reads = 0
-
             def __call__(self, agent):
-                return None
-
+                return object()
             def __getattribute__(self, name):
                 if name == "__topkit_tool__":
                     reads = object.__getattribute__(self, "reads") + 1
@@ -110,30 +85,22 @@ class PinPublicationCallbackTests(unittest.TestCase):
                     if reads == 2:
                         return None
                 return object.__getattribute__(self, name)
-
         builder = Tool(Kind | None)(Builder())
         builder.reads = 0
-
         class Collector(Tag):
             prize = builder
-
-        # Class publication must register the same physical Tool mark that
-        # it validated, even if a getter reports different values on reads.
-        with self.assertRaises(TagDeclarationError):
-            Pin(Kind)
-        self.assertNotIn("__topkit_pin__", Kind.__dict__)
+        # A disappearing observed mark must not remove the physical Tool rule.
+        with self.assertRaises(TagCompositionError):
+            Collector(Character())
         self.assertIs(Collector.__dict__["prize"], builder)
 
     def test_physical_tool_mark_survives_a_getter_hiding_its_first_read(self):
         class Kind(Tag):
             pass
-
         class Builder:
             reads = 0
-
             def __call__(self, agent):
-                return None
-
+                return object()
             def __getattribute__(self, name):
                 if name == "__topkit_tool__":
                     reads = object.__getattribute__(self, "reads") + 1
@@ -141,17 +108,13 @@ class PinPublicationCallbackTests(unittest.TestCase):
                     if reads == 1:
                         return None
                 return object.__getattribute__(self, name)
-
         builder = Tool(Kind | None)(Builder())
         builder.reads = 0
-
         class Collector(Tag):
             prize = builder
-
-        self.assertEqual(builder.reads, 1)  # one observed read, then the physical mark wins
-        with self.assertRaises(TagDeclarationError):
-            Pin(Kind)
-        self.assertNotIn("__topkit_pin__", Kind.__dict__)
+        self.assertEqual(builder.reads, 1)
+        with self.assertRaises(TagCompositionError):
+            Collector(Character())
         self.assertIs(Collector.__dict__["prize"], builder)
 
     def test_descriptor_tool_mark_still_guards_gaining_after_getter_hides_it(self):
@@ -182,8 +145,6 @@ class PinPublicationCallbackTests(unittest.TestCase):
         builder.value = object()
         with self.assertRaises(TagCompositionError):
             Owner(Character())
-        with self.assertRaises(TagDeclarationError):
-            Pin(Kind)
 
     def test_dynamic_only_tool_metadata_still_guards_gaining(self):
         class Kind(Tag):
@@ -236,8 +197,6 @@ class PinPublicationCallbackTests(unittest.TestCase):
         with self.assertRaises(TagCompositionError):
             Owner(Character())
 
-        with self.assertRaises(TagDeclarationError):
-            Pin(Kind)
 
     def test_malformed_real_kind_cannot_iterate_terms_under_pin_lock(self):
         from TopKit.tools import _Kind
@@ -258,7 +217,7 @@ class PinPublicationCallbackTests(unittest.TestCase):
             class Collector(Tag):
                 held = prize
 
-    def test_pin_and_tool_refuse_hostile_physical_namespace_keys(self):
+    def test_late_tool_refuses_hostile_physical_namespace_keys(self):
         import TopKit.declarations as declarations
 
         class Kind(Tag):
@@ -274,7 +233,7 @@ class PinPublicationCallbackTests(unittest.TestCase):
 
         def mark_peer():
             try:
-                Pin(Peer)
+                type(Pin)("PeerPin", (Pin,), {})
             except BaseException as error:
                 failures.append(error)
             finally:
@@ -302,23 +261,16 @@ class PinPublicationCallbackTests(unittest.TestCase):
                 self.probe()
                 return str.__eq__(self, other)
 
-        pin_key = BlockingName("misc")
-        Candidate = MetaTag(
-                "Candidate", (Tag,), {"__module__": __name__, pin_key: 1},
-                )
         tool_key = BlockingName("prize")
         Collector = MetaTag(
                 "Collector", (Tag,), {"__module__": __name__, tool_key: object()},
                 )
-        pin_key.armed = True
         tool_key.armed = True
 
         @Tool(Kind)
         def prize(agent):
             return None
 
-        with self.assertRaisesRegex(TagDeclarationError, "custom hash or equality"):
-            Pin(Candidate)
         with self.assertRaisesRegex(TagDeclarationError, "custom key methods"):
             Collector.prize = prize
 
@@ -326,7 +278,6 @@ class PinPublicationCallbackTests(unittest.TestCase):
             peer.join(2)
         self.assertFalse(under_lock.is_set())
         self.assertEqual(failures, [])
-        self.assertNotIn("__topkit_pin__", Candidate.__dict__)
         self.assertFalse(any(
                 type(name) is str and name == "prize"
                 for name in Collector.__dict__
@@ -377,7 +328,7 @@ class PinPublicationCallbackTests(unittest.TestCase):
 
         def mark_kind():
             try:
-                Pin(Kind)
+                type(Pin)("PeerPin", (Pin,), {})
             except BaseException as error:
                 outcomes.append(error)
             finally:
@@ -398,12 +349,11 @@ class PinPublicationCallbackTests(unittest.TestCase):
 
         self.assertFalse(first.is_alive())
         self.assertFalse(second.is_alive())
-        self.assertEqual(outcomes, ["refused"])
-        self.assertIs(Collector.__dict__["prize"], old)
+        self.assertEqual(outcomes, ["accepted"])
+        self.assertIs(Collector.__dict__["prize"], prize)
 
     def test_late_tool_on_pin_does_not_read_callable_mark_under_lock(self):
-        @Pin
-        class Rare(Tag):
+        class Rare(Pin):
             pass
 
         class Kind(Tag):
@@ -439,7 +389,7 @@ class PinPublicationCallbackTests(unittest.TestCase):
 
         def mark_peer():
             try:
-                Pin(Peer)
+                type(Pin)("PeerPin", (Pin,), {})
             except BaseException as error:
                 failures.append(error)
             finally:
@@ -466,59 +416,21 @@ class PinPublicationCallbackTests(unittest.TestCase):
         self.assertTrue(peer_done.is_set())
         self.assertEqual(failures, [])
 
-    def test_a_metaclass_descriptor_cannot_run_under_pin_lock(self):
-        setter_entered = Event()
-        setter_release = Event()
-        peer_done = Event()
-        outcomes = []
-
+    def test_a_metaclass_mark_descriptor_cannot_reclassify_a_declared_pin(self):
+        setters = []
         class Blocking:
+            def __get__(self, owner, klass=None):
+                raise AssertionError("native Pin category must not read a mark descriptor")
             def __set__(self, owner, value):
-                setter_entered.set()
-                if not setter_release.wait(2):
-                    raise TimeoutError("peer Pin blocked behind mark descriptor")
-
-        class Meta(MetaTag):
+                setters.append(value)
+                raise AssertionError("native Pin category must not write a mark descriptor")
+        class Meta(type(Pin)):
             __topkit_pin__ = Blocking()
-
-        class Candidate(Tag, metaclass=Meta):
+        class Candidate(Pin, metaclass=Meta):
             pass
-
-        class Peer(Tag):
+        class Target(Tag):
             pass
-
-        def mark_candidate():
-            try:
-                Pin(Candidate)
-            except TagDeclarationError:
-                outcomes.append("refused")
-            except BaseException as error:
-                outcomes.append(error)
-            else:
-                outcomes.append("accepted")
-
-        def mark_peer():
-            try:
-                Pin(Peer)
-            except BaseException as error:
-                outcomes.append(error)
-            finally:
-                peer_done.set()
-
-        first = Thread(target=mark_candidate)
-        second = Thread(target=mark_peer)
-        first.start()
-        try:
-            second.start()
-            self.assertTrue(peer_done.wait(1), "Pin blocked by mark descriptor")
-        finally:
-            setter_release.set()
-            first.join(2)
-            second.join(2)
-
-        self.assertFalse(first.is_alive())
-        self.assertFalse(second.is_alive())
-        self.assertFalse(setter_entered.is_set())
-        self.assertEqual(outcomes, ["refused"])
-        self.assertNotIn("__topkit_pin__", Candidate.__dict__)
+        self.assertIs(Candidate(Target), Target)
+        self.assertIn(Target, Candidate[:])
+        self.assertEqual(setters, [])
 

@@ -498,8 +498,7 @@ class TaggingAdmissionTests(unittest.TestCase):
         self.assertEqual(Receiver.Work(), "declared operation")
         self.assertFalse("Work" @ existing)
 
-        @Pin
-        class Unfinished(Tag):
+        class Unfinished(Pin):
             @Action
             def Work(tag):
                 return "pinned operation"

@@ -349,14 +349,12 @@ class GainingPreflightGuardTests(unittest.TestCase):
             def info(agent):
                 return 1
 
-        @Pin
-        class Warm(Tag):
+        class Warm(Pin):
             @Record
             def unrelated(tag):
                 return 0
 
-        @Pin
-        class Bad(Tag):
+        class Bad(Pin):
             def strike(tag, *words):   # patches the Operation first ...
                 return "patched"
 
@@ -382,8 +380,7 @@ class GainingPreflightGuardTests(unittest.TestCase):
 
         seen = []
 
-        @Pin
-        class Warm(Tag):
+        class Warm(Pin):
             @Record
             def unrelated(tag):
                 return 0
@@ -392,8 +389,7 @@ class GainingPreflightGuardTests(unittest.TestCase):
             def Unpatch(tag, original):
                 seen.append(sorted(original))
 
-        @Pin
-        class Bad(Tag):
+        class Bad(Pin):
             def strike(tag, *words):
                 return "patched"
 
@@ -514,8 +510,7 @@ class GainingPreflightFallbackTests(unittest.TestCase):
         class Target(Tag):
             pass
 
-        @Pin
-        class Patch(Tag):
+        class Patch(Pin):
             @Record
             def extra(agent):
                 return 2

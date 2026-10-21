@@ -37,9 +37,7 @@ class LazyProtocolBoundaryTests(unittest.TestCase):
         def Complete(agent):
             return value
 
-        role = type("Role", (Tag,), {"Complete": mark(Complete)})
-        if pinned:
-            role = Pin(role)
+        role = type("Role", (Pin if pinned else Tag,), {"Complete": mark(Complete)})
         target = target_for(pinned)
         if mark in (Pre, Post):
             with self.assertRaises(TagContractError):
@@ -82,9 +80,7 @@ class LazyProtocolBoundaryTests(unittest.TestCase):
                 return 17
 
         mark = Rip if teardown else lambda function: function
-        base = type("Base", (Tag,), {"Complete": mark(Prior())})
-        if pinned:
-            base = Pin(base)
+        base = type("Base", (Pin if pinned else Tag,), {"Complete": mark(Prior())})
 
         def Complete(agent, underlay):
             return underlay() + 1
@@ -131,9 +127,7 @@ class LazyProtocolBoundaryTests(unittest.TestCase):
                         def __call__(self, agent):
                             calls.append("complete")
 
-                    role = type("Role", (Tag,), {"Complete": Rip(Complete())})
-                    if pinned:
-                        role = Pin(role)
+                    role = type("Role", (Pin if pinned else Tag,), {"Complete": Rip(Complete())})
                     target = target_for(pinned)
                     role(target)
                     if interruption is None:
@@ -148,9 +142,7 @@ class LazyProtocolBoundaryTests(unittest.TestCase):
 
     def check_rip_underlay(self, prior, pinned):
         caught = []
-        base = type("Base", (Tag,), {"Close": Rip(prior)})
-        if pinned:
-            base = Pin(base)
+        base = type("Base", (Pin if pinned else Tag,), {"Close": Rip(prior)})
 
         def Close(agent, underlay):
             try:

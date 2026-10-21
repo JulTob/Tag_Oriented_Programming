@@ -10,6 +10,12 @@
 > One STEP, one topic. If this grows a second purpose, split it into another
 > STEP.
 
+> **Pin declaration migration — 2026-10-21.** The Pin spelling below is
+> historical. The approved declaration is `class Deprecated(Pin)`, with
+> `@Flag("Obsolete")` above it; applying `Deprecated(Wizard)` is unchanged.
+> This changes no Flag-word rule. See the amendment to
+> [STEP-SPEC-9](STEP-SPEC-9-tags-as-targets.md).
+
 ## Summary
 
 `@Flag` takes the words a Tag also answers to. `@Flag("Wolf",

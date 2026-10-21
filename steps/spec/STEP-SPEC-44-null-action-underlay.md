@@ -7,6 +7,12 @@
 - **Status:** Cleared
 - **Created:** 2026-10-15
 
+> **Pin declaration migration — 2026-10-21.** The example below preserves
+> its original Pin declaration. Under the approved API, replace
+> `@Pin class Patch(Tag)` with `class Patch(Pin)`; `Patch(Shape)` and the
+> null Action Underlay rule are unchanged. See the amendment to
+> [STEP-SPEC-9](STEP-SPEC-9-tags-as-targets.md).
+
 ## Summary
 
 An `@Underlay` Action can be the first Action of its name. Its prior Action

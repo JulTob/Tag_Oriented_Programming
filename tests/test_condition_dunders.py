@@ -20,8 +20,7 @@ class ConditionDunderTests(unittest.TestCase):
         return Readiness
 
     def test_tag_and_pin_condition_dunders_fail_at_declaration(self):
-        @Pin
-        class Pinned(Tag):
+        class Pinned(Pin):
             pass
 
         for base in (Tag, Pinned):
@@ -122,8 +121,7 @@ class ConditionDunderTests(unittest.TestCase):
         self.assertEqual(events, ["enter", "exit"])
 
     def test_late_condition_dunders_leave_existing_namespace_intact(self):
-        @Pin
-        class Pinned(Tag):
+        class Pinned(Pin):
             pass
 
         for base in (Tag, Pinned):

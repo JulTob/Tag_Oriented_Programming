@@ -278,8 +278,7 @@ class ReservedAgentTruthTests(unittest.TestCase):
         class Agency(Tag):
             ready = True
 
-        @Pin
-        class Certified(Tag):
+        class Certified(Pin):
             @Post
             def Ready(tag):
                 return tag.ready

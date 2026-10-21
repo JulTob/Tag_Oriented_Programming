@@ -597,8 +597,7 @@ class ConstantTests(unittest.TestCase):
         shaped = Host()
         Shape(shaped)
 
-        @Pin
-        class Given(Tag):
+        class Given(Pin):
             @Public
             @Constant
             @Record
@@ -650,13 +649,11 @@ class ConstantTests(unittest.TestCase):
             @Operation
             def Work(tag): return "original"
 
-        @Pin
-        class Replace_Report(Tag):
+        class Replace_Report(Pin):
             @Record
             def label(tag): return "replacement"
 
-        @Pin
-        class Replace_Operation(Tag):
+        class Replace_Operation(Pin):
             def Work(tag): return "replacement"
 
         for pin in (Replace_Report, Replace_Operation):
@@ -666,8 +663,7 @@ class ConstantTests(unittest.TestCase):
         self.assertEqual((Given.label, Given.Work()), ("original", "original"))
 
     def test_pin_constants_stay_inherited_and_locked_after_rip(self):
-        @Pin
-        class Given(Tag):
+        class Given(Pin):
             @Constant
             @Record
             def label(tag):
@@ -701,14 +697,12 @@ class ConstantTests(unittest.TestCase):
                 label = None
 
     def test_a_later_pin_cannot_shadow_an_inherited_pin_constant(self):
-        @Pin
-        class Given(Tag):
+        class Given(Pin):
             @Constant
             @Record
             def label(tag): return "original"
 
-        @Pin
-        class Replace(Tag):
+        class Replace(Pin):
             @Record
             def label(tag): return "changed"
 
@@ -757,8 +751,7 @@ class ConstantTests(unittest.TestCase):
             def label(tag):
                 return "existing"
 
-        @Pin
-        class Given(Tag):
+        class Given(Pin):
             @Constant
             @Record
             def label(tag):
@@ -782,8 +775,7 @@ class ConstantTests(unittest.TestCase):
         class Shape(Earlier, Base):
             pass
 
-        @Pin
-        class Given(Tag):
+        class Given(Pin):
             @Constant
             @Record
             def label(tag): return "fixed"
@@ -807,8 +799,7 @@ class ConstantTests(unittest.TestCase):
                 class Shape(Base, Other):
                     pass
 
-                @Pin
-                class Existing(Tag):
+                class Existing(Pin):
                     @Record
                     def anchor(tag): return object()
 
@@ -826,7 +817,7 @@ class ConstantTests(unittest.TestCase):
                     declaration = Record(label)
                     if variant == "Constant Pin":
                         declaration = Constant(declaration)
-                    Candidate = Pin(type("Candidate", (Tag,), {"label": declaration}))
+                    Candidate = type("Candidate", (Pin,), {"label": declaration})
                     with self.assertRaises(TagError):
                         Candidate(Base)
                     self.assertEqual(list(Candidate[:]), [])
@@ -855,8 +846,7 @@ class ConstantTests(unittest.TestCase):
                 if variant == "assignment":
                     Base.label = "ordinary"
                 else:
-                    @Pin
-                    class Given(Tag):
+                    class Given(Pin):
                         @Record
                         def label(tag): return "ordinary"
 

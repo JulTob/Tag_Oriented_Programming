@@ -350,9 +350,8 @@ class InSeatTests(unittest.TestCase):
         self.assertIn("Wolf", second)
 
     def test_a_pin_is_untouched(self) -> None:
-        @Pin
         @Flag("Obsolete")
-        class Deprecated(Tag):
+        class Deprecated(Pin):
             pass
 
         class Wizard(Tag):
