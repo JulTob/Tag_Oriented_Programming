@@ -25,6 +25,7 @@ from typing import Iterator
 import weakref
 
 from .arrest import _arrest_of
+from .arrest import _safehouse
 from .contracts import _holds_for_population
 from .post_queries import _post_evaluation
 from .errors import TagCompositionError
@@ -493,7 +494,10 @@ class _Partition(_Population):
         return (
                 agent
                 for agent in field
-                if _arrest_of(agent) is None and partition._holds(agent) and agent in field and _arrest_of(agent) is None
+                if (not _safehouse or _arrest_of(agent) is None)
+                and partition._holds(agent)
+                and agent in field
+                and (not _safehouse or _arrest_of(agent) is None)
                 )
 
     def __contains__(
@@ -504,10 +508,10 @@ class _Partition(_Population):
 
         return (
                 agent in field
-                and _arrest_of(agent) is None
+                and (not _safehouse or _arrest_of(agent) is None)
                 and partition._holds(agent)
                 and agent in field
-                and _arrest_of(agent) is None
+                and (not _safehouse or _arrest_of(agent) is None)
                 )
 
     def __bool__(
@@ -535,6 +539,7 @@ class _Partition(_Population):
 
         return _Partition(
                 partition._field,
-                lambda agent: _arrest_of(agent) is None and not holds(agent),
+                lambda agent: (not _safehouse or _arrest_of(agent) is None)
+                and not holds(agent),
                 "defective",
                 )

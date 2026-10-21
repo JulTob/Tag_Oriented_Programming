@@ -17,6 +17,7 @@ from .observations import _observing
 from .observations import _ObservationViolation
 from .post_queries import _post_evaluation
 from .post_queries import _post_verdict
+from .post_queries import _verdict_in_session
 from .post_queries import _Session
 
 from .arrest import _arrest_of
@@ -39,6 +40,7 @@ from .state import _state_of
 
 
 Check = Callable[[object, dict[str, Any]], Any]
+_NO_INPUTS: dict[str, Any] = {}   # Post wrappers never receive named inputs
 
 
 def _holds_for_population(agent: object) -> bool:
@@ -240,6 +242,7 @@ def _bind_condition(
                 ) -> Any:
             return function(agent)   # holds no prior binding: re-applying cannot pile up
 
+        Plain_Check.__topkit_post_label__ = (str.__str__(name), f"Postcondition {str.__str__(name)!r}")
         return Plain_Check
 
     if not uses_underlay:
@@ -285,6 +288,7 @@ def _bind_condition(
                 **named,
                 )
 
+    Check.__topkit_post_label__ = (str.__str__(name), f"Postcondition {str.__str__(name)!r}")
     return Check
 
 
@@ -363,18 +367,21 @@ def _read_post(
         ) -> bool:
     """Read one Post, observing its calculation only when it actually runs."""
 
-    plain_name = str.__str__(name)
-    label = f"Postcondition {plain_name!r}"
+    plain_name, label = check.__topkit_post_label__
 
     def Evaluate() -> bool:
         with _observing(label):
             return _checked_result(
-                    agent, plain_name, check, {}, label, TagPostconditionError,
+                    agent, plain_name, check, _NO_INPUTS, label, TagPostconditionError,
                     )
 
+    if query is not None:
+        return _verdict_in_session(
+                query, agent, check, _NO_INPUTS, Evaluate, check_custody,
+                )
     return _post_verdict(
-            agent, check, {}, Evaluate,
-            check_custody=check_custody, _query=query,
+            agent, check, _NO_INPUTS, Evaluate,
+            check_custody=check_custody,
             )
 
 

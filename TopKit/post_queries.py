@@ -38,21 +38,26 @@ def _execution() -> tuple[int, Any]:
 
 
 class _Session:
-    __slots__ = ("active", "owner", "running", "results", "sensitive")
+    __slots__ = ("active", "owner", "running", "nested", "first", "results", "sensitive")
 
     def __init__(session) -> None:
         session.active = True
         session.owner = _execution()
-        session.running: set[tuple[int, int]] = set()
-        # Strong identity guards prevent id reuse during this one query.
-        # An outcome is (Agent, check, custody, verdict, exception).
-        session.results: dict[tuple[int, int], tuple[Any, ...]] = {}
+        session.running: tuple[int, int] | None = None
+        session.nested: set[tuple[int, int]] | None = None
+        # Most queries ask one Post. Keep its result without allocating a
+        # table; additional distinct checks use the identity-indexed table.
+        # Every outcome strongly guards Agent/check identity until Close.
+        session.first: tuple[Any, ...] | None = None
+        session.results: dict[tuple[int, int], tuple[Any, ...]] | None = None
         session.sensitive = False
 
     def Close(session) -> None:
         session.active = False
-        session.running.clear()
-        session.results.clear()
+        session.running = None
+        session.nested = None
+        session.first = None
+        session.results = None
         session.owner = None   # a saved Context must not retain its Task
 
 
@@ -88,10 +93,8 @@ class _Post_Evaluation:
             _post_query.reset(scope.token)
 
 
-def _post_evaluation() -> _Post_Evaluation:
-    """Share first completed verdicts through one complete Post question."""
-
-    return _Post_Evaluation()
+# The private constructor is itself the context-manager factory.
+_post_evaluation = _Post_Evaluation
 
 
 def _taint_post_memo() -> None:
@@ -105,7 +108,8 @@ def _taint_post_memo() -> None:
     session = _post_query.get()
     if session is not None and session.active:
         session.sensitive = True
-        session.results.clear()
+        session.first = None
+        session.results = None
 
 
 def _post_verdict(
@@ -149,27 +153,49 @@ def _verdict_in_session(
         return False
 
     key = id(agent), id(check)
-    if key in session.running:
+    if key == session.running or (session.nested is not None and key in session.nested):
         return not (check_custody and _safehouse and not _may_act(agent))
 
     custody = _arrest_of(agent) if _safehouse else None
-    saved = None if inputs or session.sensitive else session.results.get(key)
+    saved = None
+    if not inputs and not session.sensitive:
+        first = session.first
+        if first is not None and first[0] is agent and first[1] is check:
+            saved = first
+        elif session.results is not None:
+            saved = session.results.get(key)
     if (saved is not None and saved[0] is agent and saved[1] is check
             and saved[2] is custody):
         verdict, failure = saved[3], saved[4]
     else:
-        session.running.add(key)
+        first_running = session.running is None
+        if first_running:
+            session.running = key
+        else:
+            if session.nested is None:
+                session.nested = set()
+            session.nested.add(key)
         verdict, failure = False, None
         try:
             verdict = evaluate()
         except Exception as error:
             failure = error
         finally:
-            session.running.remove(key)
+            if first_running:
+                session.running = None
+            else:
+                session.nested.remove(key)
 
         if (not inputs and not session.sensitive
                 and (_arrest_of(agent) if _safehouse else None) is custody):
-            session.results[key] = agent, check, custody, verdict, failure
+            outcome = agent, check, custody, verdict, failure
+            first = session.first
+            if first is None or (first[0] is agent and first[1] is check):
+                session.first = outcome
+            else:
+                if session.results is None:
+                    session.results = {}
+                session.results[key] = outcome
 
     if check_custody and _safehouse and not _may_act(agent):
         return False

@@ -22,7 +22,7 @@ class _Observation:
     def __init__(self, phase: str) -> None:
         self.phase = phase
         self.active = False
-        self.carrier = self
+        self.carrier = None
         self.violation: _ObservationViolation | None = None
 
     def __enter__(self) -> _Observation:
@@ -30,6 +30,7 @@ class _Observation:
         if previous is not None and previous.active:
             self.carrier = previous
             return previous
+        self.carrier = self
         self.active = True
         self.token = _observation.set(self)
         return self
@@ -47,6 +48,7 @@ class _Observation:
             # exception traceback owning the observed Agent after exit.
             self.violation = None
             _observation.reset(self.token)
+        self.carrier = None
         if violation is not None and (error is None or isinstance(error, Exception)):
             raise violation
 
@@ -78,10 +80,8 @@ def _unobserved_cleanup(cleanup=_UnobservedCleanup) -> _UnobservedCleanup:
     return cleanup()
 
 
-def _observing(phase: str) -> _Observation:
-    """A caught mutation still fails the outer observation on exit."""
-
-    return _Observation(phase)
+# The private constructor is itself the context-manager factory.
+_observing = _Observation
 
 
 def _refuse_observed_act(act: str) -> None:
