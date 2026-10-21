@@ -419,10 +419,14 @@ Three things to notice.
   check, so a Tag can require another Tag. That is how synergies are
   written: the second Tag needs the first.
 
-Preconditions read and query; they do not prepare the Agent or change the
-world. Record builders likewise read and query to calculate an initial
-value. Applying or Ripping Tags is an Imprint's work. These are authoring
-rules, not a claim that TOP sandboxes arbitrary Python code.
+Preconditions, Posts and Record initializers read and query; they may call
+Actions that calculate values. TOP refuses explicit state changes during these
+calculations: Tagging, Rip, Contract deletion, Tag creation and declaration
+modifiers. Catching the refusal inside the calculation does not make it pass.
+Use an Imprint for TOP preparation. This is an authoring boundary, not a Python
+sandbox: ordinary Python writes, I/O and finalization remain the author's
+responsibility. Python finalizers run their cleanup separately, then restore
+the observation; calling `__del__` explicitly follows that same cleanup path.
 
 Each missing Tag passes its own Gate. A Shape cannot waive a missing Base's
 Gate by overriding a same-named Precondition: the Base must enter first. If

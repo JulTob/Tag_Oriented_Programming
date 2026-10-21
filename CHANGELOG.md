@@ -32,6 +32,11 @@
 
 ### TopKit
 
+- **Read-only calculations:** Preconditions, Posts and Record initializers
+  refuse explicit TOP mutations, including a refusal caught inside the check.
+  Query Actions remain available. Python writes and finalization are outside
+  this authoring boundary; finalizer cleanup cannot poison an unrelated read.
+
 - **Live Tag views:** a saved `MyTag[agent]` follows the Tag's current
   application instead of owning an old snapshot. Rip closes access;
   reTagging supplies the fresh Overlay. Reports read their origin Tag's

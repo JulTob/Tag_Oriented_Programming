@@ -30,6 +30,8 @@ from __future__ import annotations
 from typing import Any
 from typing import Iterator
 
+from .observations import _refuse_observed_act
+
 from .arrest import _arrest_of
 from .access import _keyword
 from .access import _refuse_host_truth
@@ -77,6 +79,8 @@ class MetaTag(type):
             namespace: dict[str, Any],
             **kwargs: Any,
             ) -> "MetaTag":
+        _refuse_observed_act('create a Tag')
+
         namespace.setdefault(
                 FIELD_SEAT,
                 _Field(),
@@ -107,6 +111,8 @@ class MetaTag(type):
             name: str,
             value: Any,
             ) -> None:
+        _refuse_observed_act('change a Tag declaration')
+
         _refuse_truth_gain(tag.__name__, name, value)
         if _is_dunder(name):
             _refuse_condition_dunder(tag.__name__, name, _kind_of(value))
@@ -125,6 +131,8 @@ class MetaTag(type):
             tag,
             name: str,
             ) -> None:
+        _refuse_observed_act('delete a Tag declaration')
+
         owner = _constant_owner(tag, name)
 
         if owner is not None:
@@ -141,6 +149,8 @@ class MetaTag(type):
             /,
             **inputs: Any,
             ) -> object:
+        _refuse_observed_act('apply a Tag or Pin')
+
         if target is _MISSING:
             raise TypeError(
                     f"{tag.__name__} is a Tag: apply it to a Target,"
@@ -290,6 +300,8 @@ class MetaTag(type):
             tag,
             agent: object,
             ) -> None:
+        _refuse_observed_act('Rip a Tag')
+
         if isinstance(agent, slice):
             if agent != slice(None):
                 raise TypeError("del Tag[:] Rips the whole Field; positional slices are unavailable")

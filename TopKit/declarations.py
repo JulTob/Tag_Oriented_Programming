@@ -35,6 +35,8 @@ from typing import NamedTuple
 from weakref import WeakKeyDictionary
 from weakref import ref
 
+from .observations import _refuse_observed_act
+
 from .errors import TagDeclarationError
 from .errors import TagCompositionError
 from .errors import TagImprintError
@@ -119,6 +121,8 @@ def _mark(
     """Mark a function with its kind. ``@Pre`` and ``@Post`` stacked on one
     function make it a *condition*: necessary to enter and to stay."""
 
+    _refuse_observed_act('change a declaration mark')
+
     existing = getattr(
             function,
             _KIND,
@@ -146,6 +150,8 @@ def _flag(
         target: Any,
         name: str,
         ) -> Any:
+    _refuse_observed_act('change a declaration modifier')
+
     if isinstance(target, Report):
         function = target.builder
     else:
@@ -429,6 +435,8 @@ def Public(
     its second input. Stacks with ``@Report`` / ``@Operation`` in either
     order."""
 
+    _refuse_observed_act('publish a contribution')
+
     if isinstance(member, Report):
         member.public = True
 
@@ -486,6 +494,8 @@ def _mark_flag(
         tag: type,
         aliases: frozenset[str],
         ) -> type:
+    _refuse_observed_act('mark a Tag as a Flag')
+
     if not _is_tag_class(tag):
         raise TagDeclarationError(
                 "@Flag marks a Tag class"
@@ -572,6 +582,8 @@ def Pin(
     the Field of ``Rare`` is a population of Tags. A Pin applies to
     nothing else, and its Bases must be Pins.
     """
+
+    _refuse_observed_act('mark a Tag as a Pin')
 
     if not _is_tag_class(tag):
         raise TagDeclarationError(

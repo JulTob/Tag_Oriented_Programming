@@ -15,6 +15,10 @@ from typing import Callable
 from typing import Iterable
 from typing import Iterator
 
+from .observations import _refuse_observed_act
+from .observations import _observing
+from .observations import _ObservationViolation
+
 from .arrest import _arrest_of
 from .declarations import _MISSING
 from .declarations import _protocol_inputs
@@ -347,26 +351,44 @@ def _evaluate(
     """Run conditions; raise ``failure`` naming the first that does not hold."""
 
     for name, check in checks:
-        with _checking_post(agent) if post else nullcontext():
-            try:
-                result = check(agent, inputs)
-            except _Recursive_Soundness as error:
-                raise _Recursive_Soundness(
-                        f"{phase} {name!r} failed: {_exception_text(error)}"
-                        ) from error
-            except TagContractError as error:
-                raise TagContractError(
-                        f"{phase} {name!r} failed: {_exception_text(error)}"
-                        ) from error
-            except Exception as error:
-                raise failure.Named(name)(
-                        f"{phase} {name!r} raised {_type_name(error)}: {_exception_text(error)}"
-                        ) from error
+        name = str.__str__(name)
+        try:
+            with (_checking_post(agent) if post else nullcontext()), _observing(
+                    f"{phase} {name!r}",
+                    ):
+                try:
+                    result = check(agent, inputs)
+                except _Recursive_Soundness as error:
+                    raise _Recursive_Soundness(
+                            f"{phase} {name!r} failed: {_exception_text(error)}"
+                            ) from error
+                except TagContractError as error:
+                    raise TagContractError(
+                            f"{phase} {name!r} failed: {_exception_text(error)}"
+                            ) from error
+                except Exception as error:
+                    raise failure.Named(name)(
+                            f"{phase} {name!r} raised {_type_name(error)}: {_exception_text(error)}"
+                            ) from error
 
-            if not _verdict(result, f"{phase} {name!r}"):
-                raise failure.Named(name)(
-                        f"{phase} {name!r} failed"
-                        )
+                if not _verdict(result, f"{phase} {name!r}"):
+                    raise failure.Named(name)(
+                            f"{phase} {name!r} failed"
+                            )
+        except _ObservationViolation as error:
+            # Refusal remains visible even if the check, verdict renderer or
+            # exception renderer caught the attempted mutation itself.
+            raise failure.Named(name)(
+                    f"{phase} {name!r} raised {_type_name(error)}: {_exception_text(error)}"
+                    ) from error
+
+
+def _read_post(agent: object, name: str, check: Check) -> bool:
+    """Read and validate a Post without permitting explicit TOP mutations."""
+
+    name = str.__str__(name)
+    with _observing(f"Postcondition {name!r}"):
+        return _verdict(check(agent, {}), name)
 
 
 def _guarded(
@@ -407,7 +429,7 @@ def _guarded(
         for name, check in checks:
             with _checking_post(agent):
                 try:
-                    if not _verdict(check(agent, {}), name):
+                    if not _read_post(agent, name, check):
                         return False
                 except _Recursive_Soundness:
                     raise
@@ -441,7 +463,7 @@ def _holds(
         for name, check in tuple(state.postconditions.items()):
             with _checking_post(agent):
                 try:
-                    if not _verdict(check(agent, {}), name):
+                    if not _read_post(agent, name, check):
                         return False
                 except _Recursive_Soundness:
                     raise
@@ -474,10 +496,7 @@ def _condition_member(
     try:
         with _checking_post(agent):
             try:
-                return _verdict(
-                        check(agent, {}),
-                        name,
-                        )
+                return _read_post(agent, name, check)
             except TagContractError:
                 raise
             except Exception:
@@ -502,10 +521,7 @@ def _status_of(
         for name, check in tuple(state.postconditions.items()):
             with _checking_post(agent):
                 try:
-                    status[name] = _verdict(
-                            check(agent, {}),
-                            name,
-                            )
+                    status[name] = _read_post(agent, name, check)
                 except _Recursive_Soundness:
                     raise
                 except Exception:
@@ -562,6 +578,8 @@ class Contract:
         no-op.  This also keeps older Rip protocols safe when they explicitly
         end a Post that Field removal has just ended automatically.
         """
+
+        _refuse_observed_act("delete a Post")
 
         state = _state_of(agent)
 

@@ -34,6 +34,7 @@ from .declarations import _MISSING
 from .declarations import _is_flag
 from .declarations import _words_of
 from .lifecycle import _teardown_all
+from .observations import _unobserved_cleanup
 from .state import _Composing_Bound
 from .state import _Pinned_Operation
 from .state import _Secret_Bound
@@ -570,6 +571,7 @@ def _agent_del(
         state_key: str = STATE,
         host_finalizer: Callable[[object], None] = _host_finalizer,
         read: Callable[[object, str], Any] = object.__getattribute__,
+        cleanup_context: Callable[[], Any] = _unobserved_cleanup,
         ) -> None:
     """Deletion (§3.2, STEP-SPEC-18). The teardowns still due run, best
     effort; then the Agent's ``__del__`` runs as its Overlay shows it: the
@@ -584,37 +586,38 @@ def _agent_del(
     default, or found on the Agent. The Agent is read as Python reads it,
     never through the host's own ``__getattribute__``."""
 
-    state = read(agent, "__dict__").get(state_key)
+    with cleanup_context():
+        state = read(agent, "__dict__").get(state_key)
 
-    if state is None:
-        host_finalizer(agent)   # built from an Agent's runtime type, never tagged: a plain host
-        return
+        if state is None:
+            host_finalizer(agent)   # built from an Agent's runtime type, never tagged: a plain host
+            return
 
-    interrupted = None
+        interrupted = None
 
-    if not finalizing():
-        try:
-            _teardown_all(agent)
-        except Exception:
-            pass   # best effort (§3.2)
-        except BaseException as error:
-            interrupted = error   # Ctrl-C in a teardown: the __del__ Layers still run
-
-    try:
-        layer = state.actions.get("__del__")
-
-        if layer is not None:
-            state.composing += 1   # a Tag's Layer runs inside the composition door (§1.5)
-
+        if not finalizing():
             try:
-                layer(agent)
-            finally:
-                state.composing -= 1
-        elif "__del__" not in state.deleted:
-            host_finalizer(agent)
-    finally:
-        if interrupted is not None:
-            raise interrupted   # reported after the Layers, whatever they raised
+                _teardown_all(agent)
+            except Exception:
+                pass   # best effort (§3.2)
+            except BaseException as error:
+                interrupted = error   # Ctrl-C in a teardown: the __del__ Layers still run
+
+        try:
+            layer = state.actions.get("__del__")
+
+            if layer is not None:
+                state.composing += 1   # a Tag's Layer runs inside the composition door (§1.5)
+
+                try:
+                    layer(agent)
+                finally:
+                    state.composing -= 1
+            elif "__del__" not in state.deleted:
+                host_finalizer(agent)
+        finally:
+            if interrupted is not None:
+                raise interrupted   # reported after the Layers, whatever they raised
 
 
 def _agent_copy(
