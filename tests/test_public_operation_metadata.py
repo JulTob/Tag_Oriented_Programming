@@ -3,7 +3,7 @@
 import unittest
 
 from TopKit import (Operation, Post, Postcondition, Public, Tag,
-                    TagRogueAccessError)
+                    TagRogueAccessError, TagResolutionError)
 
 
 class Host:
@@ -89,8 +89,12 @@ class PublicOperationMetadataTests(unittest.TestCase):
 
         self.assertNotIn(agent, Agency[:])
         self.assertIsInstance(agent, Agency)
-        for call in (agent.Work, view.Work, captured, captured_view):
+        for call in (agent.Work, captured):
             with self.assertRaises(TagRogueAccessError):
+                call()
+        # A saved view is the same live lookup as a fresh Agency[agent].
+        for call in (lambda: view.Work(), captured_view):
+            with self.assertRaises(TagResolutionError):
                 call()
         self.assertEqual(Agency.Work(), (Agency, None, 0))
 

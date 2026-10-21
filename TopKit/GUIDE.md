@@ -106,9 +106,18 @@ assert ari.Attack() == "Ari cuts with a blade."       # Fighter came last
 assert ari.Wizard.Attack() == "Ari casts a spell"   # the view after Wizard
 ```
 
-`ari.Wizard` is a **view**: the sheet as it was right after Wizard applied.
-It never changes, whatever comes later. `Wizard[ari]` is the same view by
-class, exact even if two Tags share a name.
+`ari.Wizard` is a **view** of the Overlay after Wizard's current application.
+A later independent Tag does not change which Layer it selects.
+`Wizard[ari]` selects the same view by class, exact even if two Tags share a
+name. Saving `view = Wizard[ari]` saves that question, not a copy of the
+sheet: every use checks current membership, refuses access after Rip, and
+follows Wizard's fresh application after reTagging. The view holds Ari weakly.
+
+Reports always read their origin Tag's current value; they are never stored
+on the Agent or frozen inside a saved view. A saved view Operation likewise
+resolves that Tag's current Operation when called. Views are read-only,
+and an admitted broken Agent may use them for inspection; an arrested
+Agent must finish its saved cleanup before the view can answer.
 
 ### Ask whether a named Contribution is present
 
@@ -129,7 +138,7 @@ assert "note" @ ari                       # None is still a stored value
 
 del ari.spell_slots
 assert not ("spell_slots" @ ari)           # the current Agent lost it
-assert "spell_slots" @ Wizard[ari]         # the view kept its captured value
+assert "spell_slots" @ Wizard[ari]         # Wizard's application still supplies it
 
 ari.spell_slots = 0
 assert "spell_slots" @ ari                # zero is present too
@@ -144,7 +153,9 @@ from Action to Record or back and still be present.
 On the actual Agent, shared names count through publication. A published
 Report requires an active publishing Tag; a published Operation's Action
 can remain present after Rip, with its use still checked separately. A
-Tag-bound view checks its captured shared contributions. Secret names
+Tag-bound view selects its current application Overlay; shared names must
+still be provided by their origin Tag. A Report whose current value is
+`False` or `None` is present, while a missing binding is absent. Secret names
 obey the Agent's composition door. The query
 takes a string name; other left operands keep their ordinary `@`
 behaviour. A pinned Tag can be queried as an Agent, but a bare, unpinned
@@ -339,7 +350,8 @@ assert ari.Elf.Attack() == "With elven grace, Attack!"
 ```
 
 `@Underlay` hands you the Action as it was just before yours. It is captured
-when the Tag applies and never changes, so every view stays true.
+when the Tag applies and never changes during that application. A Tag
+view selects the Underlay from that Tag's current application.
 If this is the first Action of that name, its Underlay is a callable null
 Action: `underlay()` returns `None` and does nothing. Check that result if
 your new Action needs a value from the earlier one.
@@ -935,6 +947,80 @@ assert lance.NDA is False                  # the lifetime term still binds
 `Contract.Delete(agent, "Has_Sword")` remains an explicit early clear for a
 removable Post tower and is harmless if the name is already absent. Ordinary
 Rip does not need it.
+
+**A failed Rip saves cleanup.** Explicit Rip runs protocols in declaration
+order and stops at the first failure. The Agent has already left the Field;
+its acquired Gains stay, but ordinary acts are unavailable until cleanup
+finishes. Inspect the Tag's Safehouse with `MyTag[...]` and retry with the
+same deletion spelling:
+
+```python
+cleanup_log = []
+cleanup_ready = {"release": False}
+
+
+class Archive(Tag):
+    @Rip
+    def Save(agent):
+        cleanup_log.append("save")
+
+    @Rip
+    def Release(agent):
+        cleanup_log.append("release")
+        if not cleanup_ready["release"]:
+            raise RuntimeError("the external resource is busy")
+
+    @Rip
+    def Finish(agent):
+        cleanup_log.append("finish")
+
+
+archivist = Character("Archivist")
+Archive(archivist)
+try:
+    del Archive[archivist]
+except TagCompositionError as failure:
+    assert isinstance(failure.__cause__, RuntimeError)
+
+assert archivist not in Archive[:]
+assert archivist in Archive[...]
+assert not archivist
+assert cleanup_log == ["save", "release"]
+
+cleanup_ready["release"] = True           # repair the external resource
+del Archive[archivist]                     # retry saved cleanup, not a new Rip
+assert cleanup_log == ["save", "release", "release", "finish"]
+assert archivist not in Archive[...]
+assert archivist.name == "Archivist"       # ordinary acts are available again
+```
+
+A successful earlier protocol is not replayed. The failed protocol itself
+starts again, including its Underlay, so cleanup should tolerate partial
+effects from its earlier attempt. Python interruptions also leave the saved
+work pending and re-raise the original interruption immediately.
+
+An ordinary read, write or TOP Action call first retries the Agent's saved
+cleanup. If it still fails, `TagArrestedAccessError`, a kind of
+`TagResolutionError`, refuses the act and keeps the original Rip failure as
+its cause. Truth and population inspection do not trigger this retry:
+`bool(agent)` is False while arrested, sound and broken populations both
+exclude it, and any remaining raw memberships stay visible through `Tag[:]`.
+
+`del Archive[:]` revokes its whole starting Field before the first callback.
+If cleanup stops, every unfinished member remains in custody, including
+members whose protocols have not started. A Field gives no member priority
+over another: `del Archive[other]` may retry a different member immediately.
+An explicit Rip of another Tag runs its own cleanup before retrying older
+saved work for that Agent.
+
+Streaming and async TOP Action or Operation results use guarding protocol
+objects. They still iterate or await, and coroutines work with
+`asyncio.create_task`; Python's `inspect.isgenerator`, `inspect.iscoroutine`
+and `inspect.isasyncgen` do not identify them as native results. Each later
+resume checks custody too. Native Python Host methods captured earlier and
+raw Python reflection remain outside this call boundary; the stronger
+opt-in Host guard is a separate design. An already-entered context may still
+finish its matching exit hook for resource cleanup, while custody remains.
 
 **Watch out.** Python does not promise to run finalizers at shutdown, so
 `del agent` is best-effort. A Rip in a `finally` is the guaranteed path.

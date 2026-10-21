@@ -98,9 +98,12 @@ PYTHONPATH=. python3 -m unittest discover -s tests -t .
 PYTHONPATH=. python3 benchmarks/bench.py
 ```
 
-Python 3.12 or later, no dependencies. TopKit is built so that an Agent's
-attribute reads and Action calls cost what they cost on a plain object;
-tagging is the slower, rarer act.
+Python 3.12 or later, no dependencies. Records retain ordinary Python
+bindings; Agents that gain Rip also receive read/write custody checks.
+TOP Action and Operation handles check saved cleanup at use, including lazy
+continuations. Tagging remains the slower, rarer act; the
+[implementation notes](https://github.com/JulTob/Tag_Oriented_Programming/blob/main/TopKit/IMPLEMENTATION_NOTES.md)
+describe those access boundaries and their Python compatibility costs.
 
 ## Conformance
 

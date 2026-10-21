@@ -30,6 +30,7 @@ from __future__ import annotations
 from typing import Any
 from typing import Iterator
 
+from .arrest import _arrest_of
 from .access import _keyword
 from .access import _refuse_host_truth
 from .access import _view_of
@@ -58,7 +59,9 @@ from .fields import _sound_of
 from .geometry import _form_of
 from .geometry import _is_tag
 from .lifecycle import _rip
+from .lifecycle import _rip_field
 from .state import Tagged
+from .state import _guard_operation_declaration
 from .state import _name_of
 from .state import _state_of
 from .transactions import _apply
@@ -83,6 +86,8 @@ class MetaTag(type):
                 namespace,
                 )
         _name_checks(namespace, name)
+        for member_name, member in tuple(namespace.items()):
+            namespace[member_name] = _guard_operation_declaration(member)
 
         tag = super().__new__(
                 meta,
@@ -177,8 +182,10 @@ class MetaTag(type):
         field = _field_of(tag)
         return (
                 candidate in field
+                and _arrest_of(candidate) is None
                 and _holds_for_population(candidate)
                 and candidate in field
+                and _arrest_of(candidate) is None
                 )
 
     def __instancecheck__(
@@ -262,6 +269,9 @@ class MetaTag(type):
             tag,
             key: Any,
             ) -> Any:
+        if key is Ellipsis:
+            from .safehouses import _Safehouse
+            return _Safehouse(tag)
         if isinstance(key, slice):
             if key != slice(None):
                 raise TypeError(
@@ -280,6 +290,11 @@ class MetaTag(type):
             tag,
             agent: object,
             ) -> None:
+        if isinstance(agent, slice):
+            if agent != slice(None):
+                raise TypeError("del Tag[:] Rips the whole Field; positional slices are unavailable")
+            _rip_field(tag)
+            return
         _rip(
                 agent,
                 tag,

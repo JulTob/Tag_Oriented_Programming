@@ -14,9 +14,11 @@ from TopKit import Record
 from TopKit import Rip
 from TopKit import Tag
 from TopKit import TagCompositionError
+from TopKit import TagArrestedAccessError
 from TopKit import TagResolutionError
 from TopKit import Underlay
 from TopKit.lifecycle import _teardown_all
+from TopKit.arrest import _rip_door
 
 
 class Agent:
@@ -282,13 +284,23 @@ class RipDiagnosticTests(unittest.TestCase):
                 self.assertEqual(events, ["caught"])
                 self.assertIsNone(returned[0].gi_frame)
                 self.assertNotIn(target, Shape)
-                self.assertIn(target, Base)
+                self.assertIn(target, Base[:])
+                self.assertNotIn(target, Base)
+                self.assertNotIn(target, ~Base)
 
-                # A captured Underlay is not a teardown after the Rip guard closes.
-                values = captured[0]()
-                self.assertIsNotNone(values.gi_frame)
-                self.assertEqual(list(values), ["value"])
-                self.assertEqual(events, ["caught", "started"])
+                # A saved Underlay cannot act outside custody. The failed
+                # retry still names this same invalid Rip protocol.
+                with self.assertRaises(TagArrestedAccessError):
+                    captured[0]()
+                self.assertEqual(events, ["caught", "caught"])
+
+                # Inside an authorized Rip door, the old protocol-return
+                # guard is closed: this ordinary call can return a stream.
+                with _rip_door(target):
+                    values = captured[0]()
+                    self.assertIsNotNone(returned[-1].gi_frame)
+                    self.assertEqual(list(values), ["value"])
+                self.assertEqual(events, ["caught", "caught", "started"])
 
     def test_best_effort_cleanup_keeps_reverse_tag_order_and_does_not_repeat(self) -> None:
         for pinned in (False, True):

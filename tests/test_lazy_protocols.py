@@ -84,6 +84,17 @@ def _target(
     return Agent()
 
 
+def _has_physical_binding(target: object, name: str) -> bool:
+    """Inspect whether a rejected lazy body wrote, without asking it to act."""
+
+    namespace = (
+            type.__getattribute__(target, "__dict__")
+            if issubclass(type(target), type)
+            else object.__getattribute__(target, "__dict__")
+            )
+    return name in namespace
+
+
 class LazyProtocolTests(unittest.TestCase):
     kinds = (
             "coroutine",
@@ -309,7 +320,7 @@ class LazyProtocolTests(unittest.TestCase):
                                 kind,
                                 str(failure.exception.__cause__),
                                 )
-                        self.assertFalse(hasattr(target, marker))
+                        self.assertFalse(_has_physical_binding(target, marker))
                         self.assertNotIn(target, tag)
 
             gc.collect()
@@ -369,9 +380,11 @@ class LazyProtocolTests(unittest.TestCase):
                                 kind,
                                 str(failure.exception.__cause__),
                                 )
-                        self.assertFalse(hasattr(target, marker))
+                        self.assertFalse(_has_physical_binding(target, marker))
                         self.assertNotIn(target, shape)
-                        self.assertIn(target, base)
+                        self.assertIn(target, base[:])
+                        self.assertNotIn(target, base)
+                        self.assertNotIn(target, ~base)
 
             gc.collect()
 
@@ -405,7 +418,7 @@ class LazyProtocolTests(unittest.TestCase):
 
             gc.collect()
 
-        self.assertFalse(hasattr(target, "started"))
+        self.assertFalse(_has_physical_binding(target, "started"))
         self.assertNotIn(target, Top)
         self.assert_no_unawaited(caught)
 

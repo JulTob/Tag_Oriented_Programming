@@ -164,7 +164,9 @@ class LazyProtocolBoundaryTests(unittest.TestCase):
         with self.assertRaises(TagCompositionError) as raised:
             del shape[target]
         self.assertNotIn(target, shape)
-        self.assertIn(target, base)
+        self.assertIn(target, base[:])
+        self.assertNotIn(target, base)
+        self.assertNotIn(target, ~base)
         failure = raised.exception.__cause__
         self.assertIsInstance(failure, TagCompositionError)
         self.assertEqual(caught, [failure])

@@ -198,7 +198,11 @@ class SafehouseReleaseRipTests(unittest.TestCase):
             with self.assertRaises(KeyboardInterrupt):
                 del Role[agent]
         self.assertNotIn(agent, Role[:])
-        Role(agent)
+        # Ordinary Tagging would first drain the old arrest. A Rip callback
+        # may instead create a fresh application while its old work remains.
+        from TopKit.arrest import _rip_door
+        with _rip_door(agent):
+            Role(agent)
         fresh = _state_of(agent).post_applications[Role]
         del Role[agent]
         self.assertIn(agent, Role[:])

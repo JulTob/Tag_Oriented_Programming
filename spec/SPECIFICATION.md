@@ -311,8 +311,9 @@ Rip is the only exit from a Field, and it obeys these laws:
   useful.
 - **Each membership stands alone.** `del Beast[wolf]` ends Beast membership
   even while `Wolf` remains active. Beast's teardowns run; Wolf stays in its
-  Field, with its acquired Actions and Records. Rip never cascades: TOP does
-  not run other Tags' protocols behind your back. If Wolf needs continuing
+  Field, with its acquired Actions and Records. Rip never cascades into
+  removing other memberships. Previously saved cleanup may still be retried
+  under §3.1. If Wolf needs continuing
   Beast membership, its author states that dependency in a Postcondition;
   the Rip then leaves Wolf defective while that Post fails (§2.5).
 - **The Contract follows its declared lifetime (STEP-SPEC-61).** A Precondition is a
@@ -332,6 +333,11 @@ Rip is the only exit from a Field, and it obeys these laws:
   application (§1.3).
   Established Constant bindings stay intact; their builders do not run
   again for the same declaration.
+- **Unfinished cleanup arrests the Agent.** Field removal is not undone
+  when a Rip protocol fails. The original application's remaining work is
+  saved for retry (§3.1). Until it finishes, the Agent is unavailable for
+  ordinary acts and belongs to neither a sound nor a defective population.
+  Any other raw Field membership remains visible through `OtherTag[:]`.
 
 ## 0.8 Spellings
 
@@ -359,6 +365,9 @@ language, not a library's naming.
 | a Record whose value is an object of a kind (§1.3) | `@Tool(Weapon)` for a Field member of the Tag, now; `@Tool(Sword)` for an instance of the class; `@Tool(Sword, Weapon)` for both; `@Tool(Weapon \| None)` when the slot may be empty |
 | the Agent-bound view | `Wizard[agent]` |
 | leave the Field (Rip) | `del Wizard[agent]` |
+| retry that Tag's saved Rip, if one remains | `del Wizard[agent]` |
+| Rip the whole starting Field | `del Wizard[:]` |
+| Agents with unfinished cleanup owed to this Tag | `Wizard[...]` |
 | the Form, as Tags | `Form(Wizard)` |
 | the Form, as text | `f"{Wizard:form}"` |
 | an Agent's Tags, Outline, contract, as text | `f"{agent:tags}"`, `f"{agent:outline}"`, `f"{agent:contract}"` |
@@ -453,8 +462,11 @@ bindings. Tag-scope names count there through publication. A published
 Report requires its active publishing Tag; a lazy Report need not have
 been read to be present. A published Operation's sticky Action can remain
 present after Rip even though its use is refused (§1.5).
-`"name" @ Wizard[agent]` instead checks that Agent-bound view's captured
-contributions, including its captured shared contributions. Both forms
+`"name" @ Wizard[agent]` instead selects the Overlay after Wizard's current
+application. Its shared names must still be provided by their origin Tag;
+a missing Report is absent, while a present `False` or `None` still counts.
+A saved view rechecks active membership and follows a fresh application
+after Rip and reTagging. Both forms
 respect the receiver Agent's composition door for Secret names (§1.5).
 Presence does not evaluate soundness.
 
@@ -921,19 +933,31 @@ agent.Attack()
 agent.weapon
 ```
 
-**Agent-bound Tag access**: the Overlay **as it was immediately after that
-Tag applied** to this Agent, including prior independent Tags. It does not
-change when a later Tag actualizes the same name. It is a snapshot: read
-only. Two spellings:
+**Agent-bound Tag access**: the Overlay **immediately after that Tag's
+current application** to this Agent, including prior independent Tags.
+A later independent Tag actualizing the same name does not change which
+Layer the view selects. The view is read-only. Two spellings:
 
 ```python
 agent.Paladin.Attack()       # by name: the last active Tag called Paladin
 Paladin[agent].Attack()      # by class: exact, even when names collide
 ```
 
-Agent-bound access requires **active** membership; a Rogue Agent keeps its
-sticky members but loses the view. Secret members obey the same door in a
-view.
+Agent-bound access requires **active** membership at every use; a Rogue
+Agent keeps its sticky members but loses the view. A saved view is a weak
+coordinate to the Agent and exact Tag, not a copy of its application. It
+refuses access after Rip and resolves the new application after reTagging.
+An admitted broken Agent may inspect it; an arrested Agent must complete
+saved cleanup before it can answer. Reads and saved calls check custody
+and admission before execution and before releasing a result. Secret
+members obey the same door in a view.
+
+A Report read always asks its origin Tag for its current value. It is not
+a value stored on the Agent or frozen in the view; if its origin Tag no
+longer provides that name, access is absent. `False` or `None` remains a
+present value. A saved view Operation likewise resolves the current
+Operation on its origin Tag when
+invoked, while preserving its name, binding and signature metadata.
 
 **Direct Tag access**: the Tag itself.
 
@@ -1367,7 +1391,9 @@ The discipline in three lines:
 A Tag whose Postcondition failed is **applied and defective**. The Agent
 remains in its Field; its promise is broken; it must be repaired or Ripped.
 
-An Agent is **truthy exactly when every visible Postcondition holds**.
+An Agent is **truthy when it is free of unfinished Rip custody and every
+visible Postcondition holds**. Arrest makes its truth False without
+evaluating Posts or automatically retrying cleanup.
 `if` is the conditional and Post*conditions* are conditions:
 
 ```python
@@ -1382,7 +1408,7 @@ Fields partition accordingly:
 ```python
 for wizard in Wizard:        # the sound population: the ones fit to play
 for broken in ~Wizard:       # the defective population: repair them
-for anyone in Wizard[:]:     # everyone, sound or defective
+for anyone in Wizard[:]:     # every raw member, including arrested ones
 assert broken not in Wizard  # not a sound member
 assert broken in Wizard[:]   # still in the Field
 ```
@@ -1392,6 +1418,13 @@ it contains a sound member. A broken Agent does not leave `Wizard[:]`,
 but `agent in Wizard` becomes False and `agent in ~Wizard` becomes True.
 Membership queries and walks therefore select the same sound population;
 the whole Field remains available for diagnostics and cleanup.
+
+An arrested Agent is separate from a defective one: cleanup, rather than
+Post repair, must finish first. It is in neither `Wizard` nor `~Wizard`,
+even if it still belongs to `Wizard[:]`. `Wizard[...]` instead locates
+Agents whose saved Rip work belongs to Wizard; these Agents ordinarily
+already left Wizard's Field. Once all their saved cleanup succeeds, their
+current Posts determine soundness again.
 
 While a Post judges an Agent, a sound-population query that reaches that
 same Agent cannot judge its unfinished validity: `agent in Tag` (and a
@@ -1583,12 +1616,38 @@ del MI6[bond]
 bond.status          # "Former MI6 Agent"
 ```
 
-Teardowns run **after** membership has ended, in declaration order, every
-one of them; failures are collected and reported once as a Composition
-Failure. A `@Rip` Action with an `@Underlay` runs composed, like any Action.
+Explicit Rip runs **after** membership and its ordinary Post layers have
+ended. Its declared protocols run sequentially, stopping at the first
+failure. A Composition Failure names that protocol and preserves its
+original exception as the cause. An interruption stops immediately and
+retains its original Python exception. In both cases the Agent is kept in
+the Tag's Safehouse, `MyTag[...]`, with its original unfinished Rip work.
 
-Ripping a Tag may apply another Tag, even itself. That is outside good TOP
-use: it could keep an Agent from ever leaving a Field.
+`del MyTag[agent]` retries that saved application, starting at the failed
+protocol; successful earlier protocols are not replayed. The cursor advances
+only when a declared protocol returns normally. An `@Underlay` chain is
+part of that protocol, so its partial effects may run again on retry.
+Cleanup must tolerate that retry. A new declaration or fresh Tagging does
+not replace saved work from the old application.
+
+`del MyTag[:]` first removes every starting member and its ordinary Post
+layers, saving their cleanup before the first Rip callback. It then attempts
+the saved protocols and stops on the first failure or interruption. A member
+whose turn has not run stays in custody too. Fields impose no cleanup
+priority: the program may explicitly retry another member while an earlier
+attempt remains blocked. Agents admitted during cleanup belong to a fresh
+application and are outside this initial Field Rip.
+
+Ordinary access to an arrested Agent first retries its saved work. If it
+still fails, `TagArrestedAccessError`, a Resolution Failure, refuses the act
+with the original protocol failure as its cause. An explicit Rip of another
+Tag may run its own cleanup first, then retry older work. Calls made inside
+the Agent's active Rip protocol are permitted to perform cleanup. Completing
+one run releases only that run; custody ends after all saved work succeeds.
+
+A Rip protocol may explicitly apply another Tag, even itself. A fresh
+same-Tag application keeps its new membership and Contract when an old
+application's later cleanup fails or is retried.
 
 ## 3.2 Deleting an Agent
 
@@ -1602,7 +1661,9 @@ third; the program writes the second.
 | **`del Tag[agent]` in a `finally`** | guaranteed: the language runs a `finally` whenever its block ends, by finishing or by raising |
 | **`At_Exit(agent)`** | opt-in: teardowns also run at normal interpreter exit; registration is weak |
 
-Every teardown runs at most once, whichever tier reaches it first.
+Successful steps of an explicit saved Rip are not replayed; a failed step
+may be retried (§3.1). Finalizer and `At_Exit` teardown remain best effort,
+rather than a substitute for handling an explicit Rip failure.
 
 **A block that holds a Tag** (STEP-SPEC-31) is a tagging and a Rip,
 joined by the language's own `try` and `finally`. The rule: **tag before
@@ -1617,9 +1678,10 @@ finally:
 ```
 
 A Gate refusal raises before the `try`, so the block never runs and there
-is no Tag to Rip. An Imprint failure or broken Post is reported at the
-Tagging statement too, before the `try`, but the Tag has landed and stays
-(§0.6). A Rip in a `finally` that fails raises, as every Rip does (§3.1).
+is no Tag to Rip. An Imprint failure before admission leaves a Rogue, while
+a broken Post leaves an admitted member (§0.6). Both are reported at the
+Tagging statement before the `try`. A Rip in a `finally` that fails raises
+and saves the unfinished cleanup (§3.1).
 If the block was raising too, the language keeps the block's error inside
 the Rip's failure, as its context, and shows both.
 TOP adds nothing to this. Each step is a line the program writes: a
@@ -1632,6 +1694,11 @@ context protocols remain ordinary Contributions or host behavior: a host,
 or an Agent with `__enter__` / `__exit__` (or their asynchronous forms),
 may still follow `with` without changing membership unless its own code
 does so explicitly.
+
+If a Rip arrests an Agent inside an already-entered context, that context's
+`__exit__` or `__aexit__` may still finish its resource cleanup. This
+permission belongs only to that entered exit; it does not clear custody or
+authorize unrelated ordinary acts afterward.
 
 **The Agent's own finalizer is a member in Layers** (STEP-SPEC-18). The
 host's `__del__` is its first Layer, found as the language finds it. A
@@ -1712,6 +1779,7 @@ types but must keep these distinct.
 | **Tag Composition Failure** | Contributions cannot form the Overlay: cross-kind collision, Record over a host descriptor, a Record builder or teardown that failed, a Target that cannot carry state. | before FieldAdding: current Tag absent, acquired Gains and earlier turns stay; after admission: membership stays; a teardown failure is reported after its Rip ends membership |
 | **Tag Resolution Failure** | A condition's required Underlay, view, or membership is unavailable. An Action's absent Underlay instead uses the null Action (§1.2). | use refused; during Tagging, follows the current phase boundary |
 | **Tag Rogue Access Failure** | A Rogue Agent reached a published member of a Tag it has left or never entered. A Resolution Failure, and a TOP failure only: never dressed as a host-language attribute failure. | use refused |
+| **Tag Arrested Access Failure** | An ordinary act reached an Agent whose saved Rip still fails. A Resolution Failure; the original protocol failure is its cause. | cleanup retried, then use refused while custody remains |
 | **Tag Precondition Failure** | A Gate refused the incoming Agent. | that Tag does not apply; earlier turns stay |
 | **Tag Imprint Failure** | An Imprint failed before FieldAdding. | acquired Gains and completed Tags stay; unfinished Tag absent |
 | **Tag Postcondition Failure** | The finished Agent breaks a promise. | Tags stay, Agent defective |
@@ -1773,7 +1841,7 @@ A conforming implementation provides, ring by ring:
   its name refused to Actions, Records and host members while it is visible;
   Preconditions never installed as Agent members;
 - Delete; the three access forms, with Agent-bound views as read-only
-  snapshots requiring active membership.
+  references to the Tag's current application, requiring active membership.
 
 **Ring 2**
 - strict boolean conditions; each Tag gating when its turn arrives, with
@@ -1789,8 +1857,10 @@ A conforming implementation provides, ring by ring:
   Field membership; a namespace names the culprit.
 
 **Ring 3**
-- `@Rip` protocols run after membership ends, once, composed, failures
-  reported; the three deletion tiers, the finalizer and `At_Exit` from
+- explicit `@Rip` protocols run after membership ends, sequentially and
+  composed, with saved retry after failure; whole-Field Rip revokes its
+  starting members before callbacks; arrested Agents stay outside sound and
+  defective populations; the three deletion tiers, the finalizer and `At_Exit` from
   the implementation, and the guaranteed one written by the program, a
   Rip in a `finally`; the Agent's `__del__` as Layers of its Overlay,
   run after the teardowns, and alone at interpreter exit.

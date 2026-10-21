@@ -16,6 +16,9 @@ from typing import Iterator
 import warnings
 
 from . import state as state_module
+from .arrest import _require_available
+from .arrest import _safehouse
+from .lazy_guard import _guard_lazy_result
 from .access import IN_SEAT
 from .access import _host_finalizer
 from .access import _host_in_seat
@@ -166,6 +169,12 @@ def _compose(
     if not uses_underlay:
         return function
 
+    # The finalizer's Underlay may run after Python has closed its import
+    # machinery. Keep these helpers with the composed callable.
+    guard_result = _guard_lazy_result
+    arrests = _safehouse
+    require_available = _require_available
+
     if underlay is None:
         underlay = _nothing_beneath
 
@@ -184,6 +193,8 @@ def _compose(
                 *next_args: Any,
                 **next_kwargs: Any,
                 ) -> Any:
+            if arrests:
+                require_available(agent, "Action Underlay")
             if next_args or next_kwargs:
                 result = underlay(
                         agent,
@@ -228,7 +239,7 @@ def _compose(
 
                     raise failure
 
-            return result
+            return guard_result(result, agent, "Action Underlay", require_available)
 
         return function(
                 agent,
