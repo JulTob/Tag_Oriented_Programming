@@ -13,9 +13,13 @@
   (Cleared), and §1.9 of the [Specification](../../spec/SPECIFICATION.md),
   *Who may be a Target*
 - **Design dependency:** [STEP-SPEC-51](STEP-SPEC-51-independent-link-fields.md)
-  (Brief), and the Link core in
-  [PR #435](https://github.com/JulTob/Tag_Oriented_Programming/pull/435)
-  (Draft)
+  (Brief), and a Links core: [PR #423](https://github.com/JulTob/Tag_Oriented_Programming/pull/423), which a
+  2026-10-21 comparison recommends, or [PR #435](https://github.com/JulTob/Tag_Oriented_Programming/pull/435).
+  Both are Draft.
+- **Code notes:** the notes on code below were written against PR #435. If
+  the Director chooses #423, they must be re-checked against it. On #423
+  merged with `main`, `class Rare(Pin)` already pins an actual Link Tag
+  (`ari.Knows in Rare`), and `Pin(link)` is refused.
 - **Pin spelling:** `class Rare(Pin)`, on `main` since [PR #426](https://github.com/JulTob/Tag_Oriented_Programming/pull/426)
   (merged 2026-10-21).
 - **Target question settled on `main`:** since PR #426, STEP-SPEC-9 and
@@ -552,9 +556,9 @@ rule. It does not leave existing behaviour as it is.
 
 ## Dependencies and status gate
 
-1. **The Link core comes first.** PR #435 is a Draft and, by its own
-   description, does not yet pass its Link tests. No part of this STEP can
-   be implemented on main.
+1. **The Link core comes first.** Two Draft cores compete, PR #423
+   (recommended) and PR #435. Neither is on main, so no part of this STEP
+   can be implemented there yet.
 2. **STEP-SPEC-51 is Brief.** Option B relies on its actual Links and
    same-name layers. If STEP-SPEC-51 changes, B1 changes with it.
 3. **STEP-SPEC-22 rules cited here are Draft text in PR #435**: rules 2.3,
@@ -564,7 +568,7 @@ rule. It does not leave existing behaviour as it is.
    proceed or not.
 
 The Director is asked to choose an option and clear the design. The
-implementation follows in a focused pull request after PR #435, or inside it.
+implementation follows in a focused pull request after the chosen Links core.
 
 ## Acceptance requirements
 
