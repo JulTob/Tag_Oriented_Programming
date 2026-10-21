@@ -36,19 +36,30 @@ from .access import _view_of
 from .contracts import _holds
 from .contracts import _holds_for_population
 from .declarations import _MISSING
+from .declarations import _begin_ordinary_form
 from .declarations import _check_constant_declarations
 from .declarations import _check_constant_shapes
 from .declarations import _check_pin_bases
 from .declarations import _check_rip_declarations
 from .declarations import _check_tool_declarations
 from .declarations import _constant_owner
+from .declarations import _end_ordinary_form
 from .declarations import _is_dunder
 from .declarations import _is_pin
+from .declarations import _is_pin_locked
+from .declarations import _is_pin_physical
 from .declarations import _kind_of
 from .declarations import _name_checks
+from .declarations import _note_tag_kinds
+from .declarations import _pin_mark_lock
+from .declarations import _pin_publication
+from .declarations import _publish_tool_kinds
 from .declarations import _refuse_condition_dunder
 from .declarations import _refuse_truth_gain
+from .declarations import _tool_kind_of_static
+from .declarations import _tool_tag_kinds
 from .errors import TagCompositionError
+from .errors import TagDeclarationError
 from .fields import FIELD_SEAT
 from .fields import _Field
 from .fields import _Partition
@@ -58,10 +69,55 @@ from .fields import _sound_of
 from .geometry import _form_of
 from .geometry import _is_tag
 from .lifecycle import _rip
+from .memo import _class_namespace
+from .memo import _metaclass_data_descriptor
+from .memo import _namespace_has_callback_keys
+from .memo import _physical_namespace_get
+from .memo import _type_mro
+from .memo import _type_name
 from .state import Tagged
 from .state import _name_of
 from .state import _state_of
 from .transactions import _apply
+
+
+def _check_late_binding(tag: type, name: str, value: Any) -> None:
+    """Run declaration and Constant checks without holding the Pin lock."""
+
+    _refuse_truth_gain(tag.__name__, name, value)
+    if _is_dunder(name):
+        _refuse_condition_dunder(tag.__name__, name, _kind_of(value))
+    owner = _constant_owner(tag, name)
+
+    if owner is not None:
+        raise TagCompositionError(
+                f"{tag.__name__}.{name} is Constant from"
+                f" {owner.__name__}; it cannot be overwritten"
+                )
+
+    _check_constant_shapes(tag, name)
+
+
+def _metaclass_setattr_tail(tag: type) -> bool:
+    """Whether ``super()`` after MetaTag would run a program's setter.
+
+    A late Tool cannot call that setter while Pin publication is locked.
+    Refuse the declaration rather than silently bypassing the hook.
+    """
+
+    after_meta_tag = False
+    for meta in _type_mro.__get__(type(tag)):
+        if meta is MetaTag:
+            after_meta_tag = True
+            continue
+        if not after_meta_tag:
+            continue
+        member = _physical_namespace_get(
+                _class_namespace(meta), "__setattr__", _MISSING,
+                )
+        if member is not _MISSING:
+            return member is not type.__setattr__
+    return False
 
 
 class MetaTag(type):
@@ -93,7 +149,22 @@ class MetaTag(type):
                 )
         _check_pin_bases(tag)
         _check_constant_declarations(tag, namespace)
-        _check_tool_declarations(tag, namespace)
+        tools = _check_tool_declarations(tag, namespace)
+
+        # ``type.__new__`` publishes the Shape before declaration checks.
+        # A concurrent late Pin may have checked for Shapes just before that
+        # publication, so decide the completed class against current Base
+        # marks under the same lock that publishes Pin marks.  No program
+        # metadata is read inside this final critical section.
+        with _pin_publication():
+            _check_pin_bases(tag, physical=True)
+            if tools and _is_pin_physical(tag):
+                raise TagDeclarationError(
+                        f"{_type_name.__get__(tag)}.{tools[0][0]}: a Pin's"
+                        " Records land as Reports of the pinned Tag;"
+                        " a shared tool is a Report (§1.9)"
+                        )
+            _publish_tool_kinds(tag, tools)
 
         return tag
 
@@ -102,19 +173,82 @@ class MetaTag(type):
             name: str,
             value: Any,
             ) -> None:
-        _refuse_truth_gain(tag.__name__, name, value)
-        if _is_dunder(name):
-            _refuse_condition_dunder(tag.__name__, name, _kind_of(value))
-        owner = _constant_owner(tag, name)
+        # ``setattr`` also accepts str subclasses. Their comparison and hash
+        # hooks must not run while Pin publication owns its shared lock.
+        if type(name) is not str:
+            name = str.__str__(name)
+        tool_kind = _tool_kind_of_static(value)
 
-        if owner is not None:
-            raise TagCompositionError(
-                    f"{tag.__name__}.{name} is Constant from"
-                    f" {owner.__name__}; it cannot be overwritten"
+        if tool_kind is None:
+            _check_late_binding(tag, name, value)
+            super().__setattr__(name, value)
+            return
+
+        tool_tags = _tool_tag_kinds(tool_kind)
+        while True:
+            # Hold the old binding strongly: replacing the class slot must
+            # not run its finalizer while the shared Pin lock is held.
+            old = _physical_namespace_get(_class_namespace(tag), name, _MISSING)
+            _check_late_binding(tag, name, value)
+
+            with _pin_publication():
+                if _physical_namespace_get(
+                        _class_namespace(tag), name, _MISSING,
+                        ) is not old:
+                    continue
+
+                if _namespace_has_callback_keys(tag):
+                    refusal = "namespace"
+                elif _metaclass_data_descriptor(tag, name):
+                    refusal = "descriptor"
+                elif _metaclass_setattr_tail(tag):
+                    refusal = "metaclass"
+                elif _is_pin_locked(tag):
+                    refusal = "pin"
+                else:
+                    pinned_kind = next(
+                            (kind for kind in tool_tags if _is_pin_locked(kind)),
+                            None,
+                            )
+                    if pinned_kind is not None:
+                        refusal = "kind"
+                    else:
+                        # A plain class-dictionary slot publishes together
+                        # with its Tool-kind registration. Descriptor slots
+                        # were refused above because they can run user code.
+                        type.__setattr__(tag, name, value)
+                        if _physical_namespace_get(
+                                _class_namespace(tag), name,
+                                ) is value:
+                            _note_tag_kinds(tag, tool_tags)
+                        return
+
+            if refusal == "namespace":
+                raise TagDeclarationError(
+                        f"{tag.__name__}.{name}: a late @Tool cannot publish"
+                        " into a class namespace with custom key methods"
+                        )
+            if refusal == "descriptor":
+                raise TagDeclarationError(
+                        f"{tag.__name__}.{name}: a late @Tool cannot replace"
+                        " a metaclass data descriptor"
+                        )
+            if refusal == "metaclass":
+                raise TagDeclarationError(
+                        f"{tag.__name__}.{name}: a late @Tool cannot use"
+                        " a cooperative metaclass __setattr__ while Pin"
+                        " publication is locked"
+                        )
+            if refusal == "pin":
+                raise TagDeclarationError(
+                        f"{tag.__name__}.{name}: a Pin's Records land as"
+                        " Reports of the pinned Tag; a shared tool is a"
+                        " Report (§1.9)"
+                        )
+            raise TagDeclarationError(
+                    f"{tag.__name__}.{name}: @Tool cannot name"
+                    f" {pinned_kind.__name__}, now a Pin (§1.3)"
                     )
-
-        _check_constant_shapes(tag, name)
-        super().__setattr__(name, value)
 
     def __delattr__(
             tag,
@@ -142,23 +276,50 @@ class MetaTag(type):
                     f" {tag.__name__}(target)"
                     )
 
-        if _is_pin(tag):
-            _check_pin_target(
-                    tag,
-                    target,
-                    )
-        elif isinstance(target, type):
-            raise TypeError(
-                    f"{tag.__name__} is applied to objects, not classes"
-                    )
-        else:
-            _refuse_host_truth(target)
+        # Reserve physical lineage before Form or mark inspection can call
+        # program hooks. The lock only protects this identity ledger; all
+        # user inspection and training runs after it is released.
+        # Each call owns a distinct tuple, including nested calls on this
+        # same Tag. Cancellation before append must never release an outer
+        # call's reservation during the finally cleanup.
+        provisional = (*_type_mro.__get__(tag),)
+        pending_tags = None
+        selected_form = None
+        try:
+            with _pin_mark_lock:
+                _begin_ordinary_form(provisional)
 
-        return _apply(
-                target,
-                tag,
-                inputs,
-                )
+            if _is_pin(tag):
+                _check_pin_target(tag, target)
+            else:
+                computed = (*_form_of(tag),)
+                selected_form = computed
+                # A one-Tag Form is already covered by its own lineage.
+                if len(computed) > 1 and not all(
+                        any(member is ancestor for ancestor in provisional)
+                        for member in computed
+                        ):
+                    pending_tags = computed
+                    with _pin_mark_lock:
+                        _begin_ordinary_form(computed)
+                    # A changed Form can contain a Base absent from the
+                    # original lineage. Reserve it before reading its mark.
+                    if any(_is_pin(member) for member in computed):
+                        raise TagCompositionError(
+                                "an ordinary Form gained a Pin Base"
+                                " while it was being prepared"
+                                )
+                if isinstance(target, type):
+                    raise TypeError(
+                            f"{tag.__name__} is applied to objects, not classes"
+                            )
+                _refuse_host_truth(target)
+
+            return _apply(target, tag, inputs, form=selected_form)
+        finally:
+            if pending_tags is not None:
+                _end_ordinary_form(pending_tags)
+            _end_ordinary_form(provisional)
 
     def __contains__(
             tag,

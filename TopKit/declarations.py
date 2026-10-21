@@ -12,6 +12,7 @@ A Tag class is scanned once; the result is cached per class.
 from __future__ import annotations
 
 from contextvars import ContextVar
+from contextlib import contextmanager
 from dataclasses import dataclass
 from dataclasses import field
 from dataclasses import replace
@@ -23,9 +24,12 @@ from inspect import Parameter
 from inspect import getattr_static
 from inspect import signature
 from sys import version_info
+from threading import RLock
 from types import AsyncGeneratorType
 from types import CoroutineType
 from types import GeneratorType
+from types import GetSetDescriptorType
+from types import MemberDescriptorType
 from types import BuiltinFunctionType
 from types import FunctionType
 from types import MethodType
@@ -33,6 +37,7 @@ from typing import Any
 from typing import Callable
 from typing import NamedTuple
 from weakref import WeakKeyDictionary
+from weakref import WeakValueDictionary
 from weakref import ref
 
 from .errors import TagDeclarationError
@@ -40,15 +45,24 @@ from .errors import TagCompositionError
 from .errors import TagImprintError
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
+from .geometry import _is_tag
 from .geometry import _is_tag_class
+from .memo import _Tag_Memo
 from .memo import _class_namespace
 from .memo import _forget_memo
+from .memo import _keep_physical_snapshots
 from .memo import _memo_key
 from .memo import _memo_of
+from .memo import _metaclass_data_descriptor
+from .memo import _namespace_has_callback_keys
 from .memo import _namespace_snapshot
+from .memo import _physical_namespace_get
+from .memo import _publication as _memo_publication
 from .memo import _remember_memo
+from .memo import _retain_physical_snapshot
 from .memo import _type_bases
 from .memo import _type_mro
+from .memo import _type_name
 
 
 _KIND = "__topkit_kind__"
@@ -581,20 +595,167 @@ def Pin(
                 "@Pin marks a Tag class"
                 )
 
-    _refuse_tools_on_a_pin(
-            tag,
-            _namespace_snapshot(tag),
-            )
-    setattr(
-            tag,
-            _PIN,
-            True,
+    with _pin_publication():
+        if _is_pin_physical(tag):
+            return tag   # Shapes of Pins already have this category too
+        if _namespace_has_callback_keys(tag):
+            raise TagDeclarationError(
+                    f"@Pin cannot mark {_type_name.__get__(tag)}:"
+                    " a class namespace key has custom hash or equality"
+                    )
+
+    while True:
+        # These scans may call a program's metadata getters. Another thread
+        # must be able to mark a Pin while one of those getters is running.
+        namespace = _namespace_snapshot(tag)
+        _refuse_tools_on_a_pin(tag, namespace)
+        _validate_pin(tag, _declarations_of(tag))
+
+        with _pin_publication():
+            if _is_pin_physical(tag):
+                return tag   # restating the mark changes nothing
+
+            # A Tool assignment can land while the unlocked scan runs. The
+            # setter uses this same lock; retry on its new namespace.
+            current = _retain_physical_snapshot(_namespace_snapshot(tag))
+            if _pin_namespace_changed(namespace, current):
+                continue
+
+            if _namespace_has_callback_keys(tag):
+                refusal = "namespace"
+                break
+
+            if _metaclass_data_descriptor(tag, _PIN):
+                refusal = "descriptor"
+                break
+
+            _refuse_late_pin(tag)
+            type.__setattr__(tag, _PIN, True)
+
+            try:
+                _check_pin_bases(tag, locked=True)
+                # A retired memo can be the last owner of a program value.
+                # Keep it alive until after the Pin lock is released.
+                retired = _invalidate_declarations(tag)
+            except BaseException:
+                type.__delattr__(tag, _PIN)  # refused: nothing changed
+                retired_after = _invalidate_declarations(tag)
+                raise
+
+            return tag
+
+    if refusal == "namespace":
+        raise TagDeclarationError(
+                f"@Pin cannot mark {_type_name.__get__(tag)}:"
+                " a class namespace key has custom hash or equality"
+                )
+    raise TagDeclarationError(
+            f"@Pin cannot mark {_type_name.__get__(tag)}:"
+            " its metaclass has a data descriptor for the Pin mark"
             )
 
-    _check_pin_bases(tag)
-    _declarations_of(tag)   # validate the members now, not at first pinning
 
-    return tag
+def _pin_namespace_changed(before: dict[str, Any], after: dict[str, Any]) -> bool:
+    """Ignore only internal memo publication when retrying Pin preflight."""
+
+    old = {_pin_snapshot_key(name): value for name, value in before.items()
+           if type(value) is not _Tag_Memo}
+    new = {_pin_snapshot_key(name): value for name, value in after.items()
+           if type(value) is not _Tag_Memo}
+    return old.keys() != new.keys() or any(
+            old[name] is not new[name] for name in old
+            )
+
+
+def _pin_snapshot_key(name: Any) -> str | int:
+    """Compare class keys without calling a stored key's Python methods."""
+
+    if type(name) is str:
+        return name
+    if issubclass(type(name), str):
+        return str.__str__(name)
+    return id(name)
+
+
+def _refuse_late_pin(
+        tag: type,
+        ) -> None:
+    """Refuse a late mark that would change current ordinary-Tag use:
+    Shapes would become Pins, the Field could mix objects and Tags, or
+    a declared Tool kind would start admitting Tags (§1.3, §1.9).
+    An empty Field may be marked even if it held Agents before."""
+
+    if any(member is tag for form in _ordinary_inflight for member in form):
+        raise TagDeclarationError(
+                f"@Pin cannot mark {_type_name.__get__(tag)} while its ordinary"
+                " Tagging is in flight"
+                )
+
+    tag_name = _type_name.__get__(tag)
+    shapes = type.__subclasses__(tag)
+
+    if shapes:
+        shape_name = _type_name.__get__(shapes[0])
+        raise TagDeclarationError(
+                f"@Pin marks {tag_name} at its declaration, and it"
+                f" already has the Shape {shape_name}: a Shape of a"
+                f" Pin is a Pin. Write @Pin over class {tag_name},"
+                " before its Shapes"
+                )
+
+    from .fields import FIELD_SEAT, _Field   # fields imports declarations through contracts
+
+    field = _physical_namespace_get(_class_namespace(tag), FIELD_SEAT)
+    if type(field) is not _Field:
+        raise TagDeclarationError(
+                f"@Pin cannot mark {tag_name}: its private Field seat"
+                " is not an ordinary TOP Field"
+                )
+    agents = list(field)
+
+    if agents:
+        raise TagDeclarationError(
+                f"@Pin marks {tag_name} at its declaration, and it"
+                " already has Agents: a Pin's Field holds Tags, never"
+                " objects (§1.9)"
+                )
+
+    owner = _tool_owner_naming(tag)
+
+    if owner is not None:
+        owner_name = _type_name.__get__(owner)
+        raise TagDeclarationError(
+                f"@Pin marks {tag_name} at its declaration, and a @Tool"
+                f" already names {tag_name} as its kind"
+                f" ({owner_name}): a Pin is no"
+                " Tool kind, its Agents are Tags (§1.3)"
+                )
+
+
+def _is_pin_locked(tag: type) -> bool:
+    """The same check while Pin publication owns its shared lock."""
+
+    for layer in _type_mro.__get__(tag):
+        if _namespace_has_callback_keys(layer):
+            raise TagDeclarationError(
+                    f"{_type_name.__get__(layer)} has a class namespace key"
+                    " with custom hash or equality"
+                    )
+    return _is_pin_physical(tag)
+
+
+def _is_pin_physical(tag: type) -> bool:
+    """Read Pin marks under the publication lock without class-key callbacks.
+
+    Class creation must recheck its Bases against a concurrent late Pin mark.
+    It may do so even when a Base has an unrelated custom namespace key:
+    that key is not a Pin mark and must not change the Shape's validity.
+    """
+
+    return any(
+            _physical_namespace_get(_class_namespace(layer), _PIN) is True
+            for layer in _type_mro.__get__(tag)
+            )
 
 
 def _is_pin(
@@ -623,6 +784,9 @@ def _is_tag_base(
 
 def _check_pin_bases(
         tag: type,
+        *,
+        locked: bool = False,
+        physical: bool = False,
         ) -> None:
     """One Form is all Pins or no Pins."""
 
@@ -631,12 +795,17 @@ def _check_pin_bases(
             for base in _type_bases.__get__(tag)
             if _is_tag_base(base)
             )
+    check = _is_pin_physical if physical else (_is_pin_locked if locked else _is_pin)
     pins = [
             base
             for base in bases
-            if _is_pin(base)
+            if check(base)
             ]
-    marked = _class_namespace(tag).get(_PIN) is True
+    namespace = _class_namespace(tag)
+    marked = (
+            _physical_namespace_get(namespace, _PIN)
+            if locked or physical else namespace.get(_PIN)
+            ) is True
 
     if not bases or len(pins) == len(bases):
         return
@@ -645,7 +814,7 @@ def _check_pin_bases(
         return
 
     raise TagDeclarationError(
-                f"{tag.__name__} mixes Pins and Tags in one Form; a Pin's"
+                f"{_type_name.__get__(tag)} mixes Pins and Tags in one Form; a Pin's"
                 " Bases must be Pins (STEP-SPEC-9 §2)"
                 )
 
@@ -943,11 +1112,95 @@ def _tool_kind_of(
             attribute,
             )
 
-    return getattr(
+    observed = getattr(
             function,
             _TOOL,
             None,
             )
+
+    # An ordinary function has no custom lookup hook, and is the hot path.
+    # For callable objects, a dynamic getter can conceal an actual @Tool
+    # mark after class publication. The physical mark remains authoritative
+    # at Record gaining, just as it is for late Pin validation.
+    if type(function) is FunctionType:
+        return observed
+
+    physical = _tool_kind_of_static(attribute)
+    if physical is not None:
+        from .tools import _Kind
+        if type(physical) is _Kind:
+            return physical
+
+    return observed
+
+
+def _tool_kind_of_static(attribute: Any) -> Any:
+    """Read a late Tool mark without running a Host object's lookup hooks."""
+
+    actual_type = type(attribute)
+
+    if issubclass(actual_type, Report):
+        attribute = attribute.builder
+    elif issubclass(actual_type, (classmethod, staticmethod)):
+        attribute = attribute.__func__
+    elif not callable(attribute):
+        return None
+
+    physical_dict = _tool_physical_dict(attribute)
+    if physical_dict is not None and _TOOL in physical_dict:
+        return physical_dict[_TOOL]
+
+    physical = getattr_static(attribute, _TOOL, None)
+    if type(physical) is MemberDescriptorType:
+        try:
+            return physical.__get__(attribute, type(attribute))
+        except AttributeError:
+            return None
+
+    return physical
+
+
+def _tool_physical_dict(attribute: Any) -> dict[str, Any] | None:
+    """Read an instance dictionary through its native seat, bypassing a
+    callable's custom ``__getattribute__`` and Tool-mark descriptor."""
+
+    # A class has a namespace, not an instance dictionary. Static lookup
+    # can find its instances' native __dict__ seat, which cannot bind here.
+    if isinstance(attribute, type):
+        return None
+
+    descriptor = getattr_static(attribute, "__dict__", None)
+    if type(descriptor) is not GetSetDescriptorType:
+        return None
+    try:
+        namespace = descriptor.__get__(attribute, type(attribute))
+    except AttributeError:
+        return None
+    return namespace if type(namespace) is dict else None
+
+
+def _tool_tag_kinds(kind: Any) -> tuple[type, ...]:
+    """Validate a Tool mark and freeze the Tag kinds before Pin locking."""
+
+    from .tools import _Kind
+
+    if (type(kind) is not _Kind
+            or type(kind.terms) is not tuple
+            or type(kind.empty) is not bool
+            or not kind.terms):
+        raise TagDeclarationError("@Tool has invalid kind metadata")
+
+    tags = []
+    for term in kind.terms:
+        if type(term) is not tuple or not term:
+            raise TagDeclarationError("@Tool has invalid kind metadata")
+        for alternative in term:
+            if not isinstance(alternative, type):
+                raise TagDeclarationError("@Tool has invalid kind metadata")
+            if _is_tag(alternative):
+                tags.append(alternative)
+
+    return tuple(tags)
 
 
 def _is_constant(
@@ -1066,23 +1319,169 @@ def _refuse_tools_on_a_pin(
     on the Tag, which is Tag-scope having and not a Tool."""
 
     for name, member in namespace.items():
-        if _tool_kind_of(member) is not None:
+        if _declared_tool_kind(member) is not None:
             raise TagDeclarationError(
                     f"{tag.__name__}.{name}: a Pin's Records land as Reports"
                     " of the pinned Tag; a shared tool is a Report (§1.9)"
                     )
 
 
+_pin_mark_lock = RLock()
+
+
+_kinds_named: dict[int, tuple[ref[type], WeakValueDictionary[int, type]]] = {}
+
+
+_ordinary_inflight: list[tuple[type, ...]] = []
+
+
+def _begin_ordinary_form(form: tuple[type, ...]) -> None:
+    """Reserve every Tag in an ordinary Form before user code can run.
+    The caller holds ``_pin_mark_lock`` across the Pin check and this
+    reservation. Each live call owns one distinct tuple."""
+
+    _ordinary_inflight.append(form)
+
+
+def _end_ordinary_form(form: tuple[type, ...]) -> None:
+    """Release exactly this call's Form, even after an interruption.
+    A cancellation just before the append has nothing to release."""
+
+    with _pin_mark_lock:
+        if _ordinary_inflight and _ordinary_inflight[-1] is form:
+            _ordinary_inflight.pop()
+            return
+        for index, pending in enumerate(_ordinary_inflight):
+            if pending is form:
+                del _ordinary_inflight[index]
+                return
+
+
+def _declared_tool_kind(member: Any) -> Any:
+    """Read a Tool mark once, keeping an actual @Tool mark authoritative.
+
+    A callable's getter may expose or hide metadata on successive reads.
+    A descriptor that merely supplies ``__topkit_tool__`` and returns None
+    is not itself a Tool mark.
+    """
+
+    observed = _tool_kind_of(member)
+    physical = _tool_kind_of_static(member)
+    if physical is not None:
+        from .tools import _Kind
+        if type(physical) is _Kind:
+            return physical
+    return observed
+
+
+@contextmanager
+def _pin_publication():
+    """Keep class snapshots alive until after Pin's shared lock exits."""
+
+    with _keep_physical_snapshots():
+        # Memo invalidation during Pin publication takes _publication. The
+        # reverse order can deadlock when a memo read invokes a class-key
+        # callback that attempts to mark another Pin.
+        with _memo_publication:
+            with _pin_mark_lock:
+                yield
+
+
+def _tool_owner_naming(tag: type) -> type | None:
+    """A live Tool-owning Tag can veto a late Pin mark. Acquired Tool rules
+    can outlive a declaration edit; dead owners leave no such rule. The
+    named kind and owner are both held weakly and compared by identity."""
+
+    entry = _kinds_named.get(id(tag))
+
+    if entry is None or entry[0]() is not tag:
+        return None
+
+    # Keep only the owner being reported. Temporarily owning every other
+    # weak owner could run its finalizer when the tuple is released here,
+    # while Pin publication is still locked.
+    owner = next(iter(entry[1].values()), None)
+
+    if owner is None and _kinds_named.get(id(tag)) is entry:
+        del _kinds_named[id(tag)]
+
+    return owner
+
+
+def _note_tag_kinds(owner: type, tags: tuple[type, ...]) -> None:
+    """Remember frozen Tag kinds while Pin publication is locked."""
+
+    for alternative in tags:
+        key = id(alternative)
+        current = _kinds_named.get(key)
+
+        if current is not None and current[0]() is alternative:
+            current[1][id(owner)] = owner
+            continue
+
+        def Forget(expired: ref[type], key: int = key) -> None:
+            with _pin_publication():
+                entry = _kinds_named.get(key)
+                if entry is not None and entry[0] is expired:
+                    del _kinds_named[key]
+
+        owners: WeakValueDictionary[int, type] = WeakValueDictionary()
+        owners[id(owner)] = owner
+        _kinds_named[key] = (ref(alternative, Forget), owners)
+
+
+def _refuse_pin_tool_kinds(
+        owner: type,
+        name: str,
+        tags: tuple[type, ...],
+        ) -> None:
+    """A Tool marked before its kind became a Pin must still be refused
+    when the declaring Tag is made or gains that Tool later."""
+
+    for alternative in tags:
+        if _is_pin_locked(alternative):
+            raise TagDeclarationError(
+                    f"{_type_name.__get__(owner)}.{name}: @Tool cannot name"
+                    f" {_type_name.__get__(alternative)}, now a Pin (§1.3)"
+                    )
+
+
+def _publish_tool_kinds(
+        tag: type,
+        tools: tuple[tuple[str, tuple[type, ...]], ...],
+        ) -> None:
+    """Check and register prepared Tool kinds under Pin publication."""
+
+    for name, kinds in tools:
+        _refuse_pin_tool_kinds(tag, name, kinds)
+    for _name, kinds in tools:
+        _note_tag_kinds(tag, kinds)
+
+
 def _check_tool_declarations(
         tag: type,
         namespace: dict[str, Any],
-        ) -> None:
-    """A ``@Tool`` marks a Record, whatever the order of its decorators,
-    and never a member of a Pin."""
+        ) -> tuple[tuple[str, tuple[type, ...]], ...]:
+    """Inspect user declaration metadata before locking Pin publication.
 
+    Only the final kind check and registry update need the shared lock.
+    A callable metadata getter can wait for another Pin thread, which must
+    be able to take that lock while the getter is running.
+    """
+
+    marked = []
     for name, member in namespace.items():
-        if _tool_kind_of(member) is None:
+        # Read user metadata once, outside publication. A later read may
+        # disagree without any change to the Tag's class namespace.
+        kind = _declared_tool_kind(member)
+        if kind is None:
             continue
+
+        marked.append((name, member, kind))
+
+        if not issubclass(type(name), str):
+            raise TagDeclarationError("@Tool needs a string Record name")
+        name = str.__str__(name)
 
         if (
                 _is_private(name)
@@ -1095,14 +1494,22 @@ def _check_tool_declarations(
                     f" has, a Record; {name} is not one here"
                     )
 
-    if any(
+    if marked and any(
             _is_pin(base)
             for base in _type_mro.__get__(tag)[1:]
             ):
-        _refuse_tools_on_a_pin(
-                tag,
-                namespace,
+        name, _member, _kind = marked[0]
+        raise TagDeclarationError(
+                f"{tag.__name__}.{name}: a Pin's Records land as Reports"
+                " of the pinned Tag; a shared tool is a Report (§1.9)"
                 )
+
+    tools = [
+            (str.__str__(name), _tool_tag_kinds(kind))
+            for name, _member, kind in marked
+            ]
+
+    return tuple(tools)
 
 
 _NAMED_FAILURES: dict[str, type] = {
