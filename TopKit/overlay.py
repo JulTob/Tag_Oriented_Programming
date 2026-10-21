@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from contextvars import ContextVar
 from dataclasses import replace
-from functools import wraps
 from os import sep
 from os.path import dirname
 from typing import Any
@@ -35,6 +34,7 @@ from .declarations import _protocol_inputs
 from .declarations import _takes_stored
 from .declarations import _tool_kind_of
 from .declarations import _takes_underlay
+from .declarations import _wraps_callable
 from .errors import _exception_text
 from .errors import _type_name
 from .errors import TagCompositionError
@@ -121,7 +121,7 @@ def _host_function(
         if not callable(attribute):
             return None
 
-        @wraps(attribute)
+        @_wraps_callable(attribute)
         def Host_Action(
                 agent: object,
                 *args: Any,
@@ -174,7 +174,7 @@ def _compose(
     if chain is None:
         chain = object()
 
-    @wraps(function)
+    @_wraps_callable(function)
     def Call(
             agent: object,
             *args: Any,
@@ -1037,7 +1037,7 @@ def _pinned_host_function(
 
     operation = found[2].__func__
 
-    @wraps(operation)
+    @_wraps_callable(operation)
     def Host_Operation(
             tag: type,
             *args: Any,
