@@ -341,3 +341,53 @@ membership check got faster (`_state_of` reads the dictionary directly).
 >
 > Deployed follows the merge of the pull request that carries §1.9 of the
 > Specification.
+
+---
+
+## Amendment — 2026-10-21: a Pin is declared, not converted
+
+**Status of this amendment:** proposed with the pull request that carries it.
+The STEP's `Cleared` header above does not clear this new restriction; it
+takes effect only when the Director clears this amendment.
+
+**Ruling.** A Tag and a Pin are different kinds of metatag, fixed when the
+class is built. A Tag's Field holds Agents (objects); a Pin's Field holds Tags
+and Pins. A Pin points to sets, never to an object, so a Tag does not *become*
+a Pin: that is a category error, not a transition.
+
+**What changes.** §8 above kept the class's identity but left open whether a
+formerly used Tag with an emptied Field could still be marked. It could, under
+the earlier reading recorded in `_refuse_late_pin` ("an empty Field may be
+marked even if it held Agents before"). That allowance is **withdrawn**: a
+class that has ever been applied as an ordinary Tag never becomes a Pin,
+whatever its Field now holds.
+
+**What does not change.**
+
+1. Only a **completed** ordinary application commits the class. An attempt the
+   Gate refused, or one an interruption ended, trains nothing and commits
+   nothing; the Form reservation that protects an in-flight Tagging is
+   released as before.
+2. Pinning a Tag is not ordinary use, so a Pin that has pinned Tags still
+   restates its own mark as a no-op, Shapes of Pins included.
+3. The independent refusals stand on their own and keep their own reasons: an
+   occupied ordinary Field, a declared Shape, an in-flight ordinary Tagging,
+   and a Tool kind naming the Tag. An occupied Field still reports the Field.
+4. **Tool-owner lifetime is untouched by this amendment.** A live Tool owner
+   blocks the mark and a collected owner stops blocking, exactly as before.
+   Making Tool naming a permanent commitment is a separate decision and is
+   *not* taken here.
+
+**Deliberate limits, for the Director to confirm or change.**
+
+- A **collected Shape** does not commit its Base. The Shape refusal reads the
+  live Shapes of the class, so a Shape that no longer exists leaves no record.
+  Only application commits permanently.
+- A **rejected Tool declaration** follows the unchanged Tool-owner rule above,
+  not this amendment.
+
+**Implementation.** The record is published in the class's own physical seat
+while the caller holds the Pin mark lock, and read back through the same
+physical seat, so a metaclass hook can neither hide nor discard it. It is
+defence in depth rather than a replacement: the physical Field check remains
+the independent guard against an occupied ordinary Field.

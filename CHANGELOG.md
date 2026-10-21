@@ -32,6 +32,18 @@
 
 ### TopKit
 
+- **A Pin is declared, not converted** (Director ruling, 2026-10-21): a class
+  that has ever been applied as an ordinary Tag never becomes a Pin, and
+  emptying its Field no longer reopens the door. This supersedes the earlier
+  allowance that an empty Field could be marked after its Agents left. Only a
+  completed ordinary application commits the class: a refused Gate or an
+  interrupted attempt commits nothing, and pinning a Tag is not ordinary use,
+  so restating `@Pin` on a Pin stays a no-op. The record is published in the
+  class's physical seat under the Pin mark lock, so a metaclass hook can
+  neither hide nor discard it, and the independent Field, Shape, in-flight and
+  Tool-kind refusals are unchanged — an occupied Field still reports its own
+  reason. Live Tool-owner lifetimes are unchanged by this ruling.
+
 - **Entered lazy cleanup:** after Rip ends Tag-view membership, a started
   generator, coroutine or async generator may finish through `close()` or
   `aclose()`. Ordinary view continuation remains checked; cleanup retains

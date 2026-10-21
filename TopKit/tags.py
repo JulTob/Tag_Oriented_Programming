@@ -43,6 +43,7 @@ from .declarations import _check_constant_shapes
 from .declarations import _check_pin_bases
 from .declarations import _check_rip_declarations
 from .declarations import _check_tool_declarations
+from .declarations import _commit_ordinary_use
 from .declarations import _constant_owner
 from .declarations import _end_ordinary_form
 from .declarations import _is_dunder
@@ -320,7 +321,16 @@ class MetaTag(type):
                             )
                 _refuse_host_truth(target)
 
-            return _apply(target, tag, inputs, form=selected_form)
+            agent = _apply(target, tag, inputs, form=selected_form)
+
+            if not _is_pin(tag):
+                # A completed ordinary application commits the Tag for good:
+                # a Pin is declared, not converted. A refused or interrupted
+                # attempt commits nothing, and a Pin application never does.
+                with _pin_mark_lock:
+                    _commit_ordinary_use(tag)
+
+            return agent
         finally:
             if pending_tags is not None:
                 _end_ordinary_form(pending_tags)

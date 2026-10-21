@@ -1116,6 +1116,20 @@ of its own Form. A Shape of a Pin is a Pin, and one Form is all Pins or
 no Pins: mixing them is a Declaration Failure. Fields therefore never mix
 Agents and Tags.
 
+**A Pin is declared, not converted.** `@Pin` belongs to a class's own
+declaration; it is not an operation that turns a Tag into a Pin later. A
+Tag and a Pin are different kinds of metatag, fixed when the class is
+built: a Tag's Field holds Agents (objects), a Pin's Field holds Tags and
+Pins. A Pin points to sets, never to an object, so a Tag does not *become*
+a Pin — that is a category error, not a transition. A class that has ever
+been applied as an ordinary Tag therefore never becomes a Pin, and
+emptying its Field does not reopen the door. Only a **completed** ordinary
+application commits the class: an attempt the Gate refused, or one an
+interruption ended, trains nothing and commits nothing, and pinning a Tag
+is not ordinary use, so restating `@Pin` on a Pin stays a no-op. The
+record lives in the class's own physical seat, so a metaclass hook can
+neither hide nor discard it.
+
 **The receiver rule** (§1.1). The first parameter of a Pin's Agent-scope
 member is the pinned Tag; write it `tag`. A Pin's Record lands as a
 Report of the pinned Tag: one value, held on the Tag, inherited by its

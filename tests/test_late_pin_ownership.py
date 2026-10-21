@@ -4,7 +4,8 @@ import gc
 import unittest
 import weakref
 
-from TopKit import Delete, Pin, Tag, TagDeclarationError, Tool
+from TopKit import (Delete, Pin, Pre, Tag, TagDeclarationError,
+                    TagPreconditionError, Tool)
 from TopKit.tags import MetaTag
 from tests.test_tools import Character, Equip, Sword, Weapon
 
@@ -58,11 +59,10 @@ class LatePinOwnershipTests(unittest.TestCase):
         self.assertIn("already has Agents", str(refusal.exception))
         self.assertIn(charlie, Noted)
 
-    def test_a_tag_with_an_empty_field_may_be_marked_after_its_agents_leave(self):
+    def test_a_tag_whose_agents_left_is_still_not_marked_a_pin(self):
+        #-- A Pin is declared, not converted (Director ruling, 2026-10-21):
+        #-- emptying the Field does not reopen the door.
         class Noted(Tag):
-            pass
-
-        class RecordOf(Tag):
             pass
 
         charlie = Character("Charlie")
@@ -70,10 +70,37 @@ class LatePinOwnershipTests(unittest.TestCase):
         del Noted[charlie]
         self.assertNotIn(charlie, Noted[:])
 
-        self.assertIs(Pin(Noted), Noted)
-        Noted(RecordOf)
-        self.assertIn(RecordOf, Noted[:])
-        self.assertNotIn(charlie, Noted[:])
+        with self.assertRaises(TagDeclarationError) as refusal:
+            Pin(Noted)
+        self.assertIn("already been applied", str(refusal.exception))
+        self.assertNotIn("__topkit_pin__", Noted.__dict__)
+
+    def test_a_refused_ordinary_attempt_does_not_commit_the_tag(self):
+        #-- Only a completed ordinary application commits the class. A Gate
+        #-- refusal trains nothing, so the class may still be declared a Pin.
+        class Guarded(Tag):
+            @Pre
+            def Never(agent):
+                return False
+
+        with self.assertRaises(TagPreconditionError):
+            Guarded(Character("Hopeful"))
+
+        self.assertIs(Pin(Guarded), Guarded)
+
+    def test_applying_a_pin_does_not_commit_it_as_an_ordinary_tag(self):
+        #-- Pinning a Tag is not ordinary use, so restating the mark on a
+        #-- Pin that has pinned Tags stays a no-op.
+        @Pin
+        class Rare(Tag):
+            pass
+
+        class Wizard(Tag):
+            pass
+
+        Rare(Wizard)
+        self.assertIs(Pin(Rare), Rare)
+        self.assertIn(Wizard, Rare[:])
 
     def test_a_tag_named_as_a_tool_kind_is_not_marked_a_pin_later(self):
         class Prize(Tag):

@@ -72,6 +72,7 @@ _SECRET = "__topkit_secret__"
 _PUBLIC = "__topkit_public__"
 _FLAG = "__topkit_flag__"
 _PIN = "__topkit_pin__"
+_APPLIED = "__topkit_applied__"   # applied as an ordinary Tag, once and for good
 _CONSTANT = "__topkit_constant__"
 _TOOL = "__topkit_tool__"   # a Record's kind: the Tags its slot admits (tools._Kind)
 _ACTION_CHAIN = "__topkit_action_chain__"
@@ -680,10 +681,15 @@ def _pin_snapshot_key(name: Any) -> str | int:
 def _refuse_late_pin(
         tag: type,
         ) -> None:
-    """Refuse a late mark that would change current ordinary-Tag use:
-    Shapes would become Pins, the Field could mix objects and Tags, or
-    a declared Tool kind would start admitting Tags (§1.3, §1.9).
-    An empty Field may be marked even if it held Agents before."""
+    """Refuse a late mark that would change ordinary-Tag use: the class has
+    already been applied as an ordinary Tag, Shapes would become Pins, the
+    Field could mix objects and Tags, or a declared Tool kind would start
+    admitting Tags (§1.3, §1.9).
+
+    A Pin is declared, not converted (Director ruling, 2026-10-21): a Tag
+    and a Pin are different kinds of metatag, fixed when the class is built.
+    A class that has ever been applied as an ordinary Tag never becomes a
+    Pin, so an emptied Field does not reopen the door."""
 
     if any(member is tag for form in _ordinary_inflight for member in form):
         raise TagDeclarationError(
@@ -718,6 +724,13 @@ def _refuse_late_pin(
                 f"@Pin marks {tag_name} at its declaration, and it"
                 " already has Agents: a Pin's Field holds Tags, never"
                 " objects (§1.9)"
+                )
+
+    if _was_applied_ordinarily(tag):
+        raise TagDeclarationError(
+                f"@Pin marks {tag_name} at its declaration, and {tag_name}"
+                " has already been applied as an ordinary Tag: a Tag never"
+                " becomes a Pin, even once its Field is empty again (§1.9)"
                 )
 
     owner = _tool_owner_naming(tag)
@@ -1341,6 +1354,27 @@ def _begin_ordinary_form(form: tuple[type, ...]) -> None:
     reservation. Each live call owns one distinct tuple."""
 
     _ordinary_inflight.append(form)
+
+
+def _commit_ordinary_use(tag: type) -> None:
+    """Record for good that this Tag was applied as an ordinary Tag.
+
+    A Pin is declared, not converted, so the record never lapses: the Field
+    may empty again, but the class stays an ordinary Tag. The caller holds
+    ``_pin_mark_lock``, so the record lands before any Pin mark can be
+    checked. ``type.__setattr__`` writes the actual class seat, so a
+    metaclass hook can neither hide nor discard it."""
+
+    if _physical_namespace_get(_class_namespace(tag), _APPLIED) is True:
+        return
+
+    type.__setattr__(tag, _APPLIED, True)
+
+
+def _was_applied_ordinarily(tag: type) -> bool:
+    """Read that permanent record from the actual class seat."""
+
+    return _physical_namespace_get(_class_namespace(tag), _APPLIED) is True
 
 
 def _end_ordinary_form(form: tuple[type, ...]) -> None:
