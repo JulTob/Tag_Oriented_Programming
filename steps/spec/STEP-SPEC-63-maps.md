@@ -15,8 +15,8 @@
   and [STEP-SPEC-52](STEP-SPEC-52-ordered-link-underlays.md), the latter as
   corrected by [PR #406](https://github.com/JulTob/Tag_Oriented_Programming/pull/406)
 - **Related runtime draft:** [Links core on main / PR #435](https://github.com/JulTob/Tag_Oriented_Programming/pull/435) (Draft)
-- **Pin spelling:** `class Social(Pin)`, as the Director approved in [PR #426](https://github.com/JulTob/Tag_Oriented_Programming/pull/426).
-  `main` still spells `@Pin class Social(Tag)`.
+- **Pin spelling:** `class Social(Pin)`, on `main` since [PR #426](https://github.com/JulTob/Tag_Oriented_Programming/pull/426)
+  (merged 2026-10-21).
 
 > One STEP, one topic. This Brief says what a Relation declared in a Pin's
 > body grants: a Map, a Link whose holder and Contacts are Tags. Whether a
@@ -165,10 +165,10 @@ paragraphs are numbered in that text's order.
    Field holds Agents and refuses a Tag, as §1.9 refuses an ordinary Tag on a
    class. A Pin is a Tag (STEP-SPEC-9 §2, rule 3), so a Pin may be a Contact.
    Nothing a Map holds is projected onto either Tag's Agents. This STEP admits
-   no Contact kind beyond the Tags that §1.9 admits as Pin Targets.
-   STEP-SPEC-64 separately asks whether an actual Link, itself a Tag the kit
-   builds, may be pinned. This STEP decides that question neither for Pins nor
-   for Maps. **Left open:** whether an actual Map may itself be a Map's
+   as Contacts the Tags and Pins that §1.9 admits as Pin Targets. Since PR
+   #426, §1.9 also admits actual Link Tags as Pin Targets; STEP-SPEC-64
+   specifies how pinning one works. Whether an actual Link may also be a
+   Map's Contact this STEP does not decide. **Left open:** whether an actual Map may itself be a Map's
    Contact, or be pinned. Both follow from STEP-SPEC-64's answer for an
    actual Link, and this STEP proposes neither.
 7. **An actual Map is not a Pin.** It is a Tag the kit builds from a
