@@ -127,7 +127,7 @@ def _apply(
             _require_sound_source(agent, member)
             _gate(agent, state, member, inputs)
             failures: list[TagTrainingWarning] = []
-            interruptions: list[BaseException] = []
+            interruptions: list[BaseException] | None = None
             try:
                 interruptions, closing_errors = _apply_one(
                         agent, state, member, inputs, failures,
@@ -139,6 +139,13 @@ def _apply(
                     _note_secondary(interruptions[0], [error], "Admission also failed")
                     raise interruptions.pop()
                 raise
+
+            if not failures and not interruptions and not closing_errors:
+                # Successful training needs no warning or failure containers.
+                # Keep the same admission and per-Tag Post boundary.
+                if state.postconditions:
+                    _inspect(agent)
+                continue
 
             post_errors: list[BaseException] = []
             try:
@@ -263,7 +270,7 @@ def _apply_one(
         tag: type,
         inputs: dict[str, Any],
         failures: list[TagTrainingWarning],
-        ) -> tuple[list[BaseException], list[tuple[str, BaseException]]]:
+        ) -> tuple[list[BaseException] | None, list[tuple[str, BaseException]]]:
     declarations = _declarations_of(tag)
     deleted_before = set(state.deleted)
     application = object()
@@ -309,7 +316,7 @@ def _apply_one(
                     refresh=needs_runtime,
                     )
 
-        acquired_rips: list[tuple[str, Any]] = []
+        acquired_rips: list[tuple[str, Any]] | None = [] if declarations.rips else None
         interruption = _gainings(
                 agent,
                 state,
@@ -325,7 +332,7 @@ def _apply_one(
 
         # A nested Imprint may lay another Action over a Rip name. Remember
         # this Tag's acquired layer before training can change the Overlay.
-        rip_actions = tuple(acquired_rips)
+        rip_actions = tuple(acquired_rips) if acquired_rips else ()
 
         if interruption is None:
             interruption = _imprint(agent, tag, declarations, inputs, failures)
@@ -410,7 +417,7 @@ def _apply_one(
             state.composing -= 1
 
 
-    return ([] if interruption is None else [interruption]), closing_errors
+    return (None if interruption is None else [interruption]), closing_errors
 
 def _precondition_services(
         tag: type,

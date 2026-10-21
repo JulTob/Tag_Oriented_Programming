@@ -558,7 +558,7 @@ def _gainings(
         prepare: Callable[[_Declarations, bool], None],
         application: object,
         failures: list[TagTrainingWarning],
-        acquired_rips: list[tuple[str, Function]],
+        acquired_rips: list[tuple[str, Function]] | None,
         ) -> BaseException | None:
     """Attach each actual Gain before proceeding to the next declaration.
 
@@ -697,7 +697,7 @@ def _gainings(
                 return error
             raise
 
-        if kind == "action" and name in declarations.rips:
+        if acquired_rips is not None and kind == "action" and name in declarations.rips:
             acquired_rips.append((name, state.actions[name]))
 
     return None
