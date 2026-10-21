@@ -221,11 +221,12 @@ class DefectiveTaggingTests(unittest.TestCase):
             warnings.simplefilter("ignore")
             Bruiser(ari)
 
-        del Bruiser[ari]
+        # Keep the Shape active while its Base leaves. Reapplying the Base
+        # now replaces the still-live Shape Post, rather than a sticky ghost.
         del Capped[ari]
 
         with self.assertWarns(TagContractWarning) as caught:
-            Capped(ari)                                               # over Bruiser's sticky promise
+            Capped(ari)                                               # over Bruiser's live promise
 
         message = str(caught.warning)
         self.assertIn("Capped.Strength_Capped", message)

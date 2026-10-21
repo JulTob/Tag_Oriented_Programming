@@ -17,8 +17,7 @@ from ._fixtures import Agent
 
 
 class ConditionMemberTests(unittest.TestCase):
-    """STEP-SPEC-14: a condition is read on the Agent by its name, as a
-    plain bool, computed on read. Nothing lands on the Agent."""
+    """A Post is read on the Agent; a Pre is a transient Tag Service."""
 
     def test_a_condition_reads_as_a_bool_on_the_agent(self) -> None:
         class Wizard(Tag):
@@ -35,9 +34,12 @@ class ConditionMemberTests(unittest.TestCase):
         Wizard(ari)
 
         self.assertIs(ari.Has_Book, True)
-        self.assertIs(ari.Is_Awake, True)
         self.assertTrue(hasattr(ari, "Has_Book"))
+        self.assertFalse(hasattr(ari, "Is_Awake"))
         self.assertNotIn("Has_Book", vars(ari))                       # computed on read, not stored
+
+        ari.Is_Awake = "ordinary Agent value"
+        self.assertEqual(ari.Is_Awake, "ordinary Agent value")
 
         ari.book = None
         self.assertIs(ari.Has_Book, False)

@@ -39,9 +39,10 @@ def Run() -> None:
     try: Citadel(ari); raise SystemExit("expected failure")
     except TagPreconditionError: pass
     assert ari in Territory and ari not in Citadel and ari.banner == "raised"
+    assert not hasattr(ari, "Has_Charter") and Contract.Status(ari) == {}
 
-    # 0.6 unfinished production leaves Gains; a completed broken product
-    # belongs to its Tag and is judged by its Posts.
+    # 0.6 unfinished production leaves Action/Record Gains, but no Contract;
+    # a completed broken product belongs to its Tag and is judged by its Posts.
     class Assembled(Territory):
         @Record
         def attempt(agent, stored): return (stored or 0) + 1
@@ -55,7 +56,8 @@ def Run() -> None:
     except TagImprintError.Assemble: pass
     assert car in Territory[:] and car not in Assembled and car.attempt == 1
     assert not isinstance(car, Assembled) and list(Assembled[:]) == []
-    assert car.Has_Wheels is False and not bool(car)
+    assert not hasattr(car, "Has_Wheels") and Contract.Status(car) == {}
+    assert bool(car)   # Base membership has no Post; Car never reached its Field
     car.complete = True
     try: Assembled(car); raise SystemExit("expected deficient product")
     except TagPostconditionError.Has_Wheels: pass

@@ -4,6 +4,19 @@
 
 ### Specification
 
+- **Null Action Underlay (STEP-SPEC-44):** an `@Underlay` Action with no
+  earlier Action now receives a callable no-op returning `None`. The rule
+  also covers Pin, Rip and special-method Actions; conditions retain their
+  existing Underlay requirement.
+
+- **Condition lifetimes (STEP-SPEC-61):** a Precondition is a
+  transient Tagging Service and never Agent state; an ordinary Post is an
+  Agent Gain bound to the Tag application that admitted it into the Field;
+  an admitted Constant Post is a lifetime term in the Contract, the bond
+  between an Agent and its Agencies. A failed pre-admission attempt leaves no
+  Post term, including no Constant Post. Rip ends that application's ordinary
+  Posts before teardown and leaves its admitted Constant Posts binding.
+
 - **A Shape keeps no Base hostage (STEP-SPEC-26):** applying a Shape still
   brings in missing Bases first. Later, `del Base[agent]` ends only that
   Base's membership and runs its teardowns; the Shape stays, with acquired
@@ -19,6 +32,23 @@
 
 ### TopKit
 
+- **Named failures release declaration-name objects:** the process-wide
+  Precondition, Imprint and Postcondition failure registries keep plain
+  identifier text, so a `str` subclass name cannot hold an Agent or Tag
+  alive after its declaration is gone.
+
+- **Post application ledgers implement the Contract lifetimes.** Post layers
+  are keyed by fresh Tagging identity. Field admission commits that identity;
+  a pre-admission failure discards its provisional Posts, and Rip removes its
+  ordinary layers before teardown without touching a same-Tag application
+  created by the teardown. Surviving Underlays are rebound and a missing
+  lower Post contributes neutral `True`. Pre Services are bound only for the
+  current Gate and no longer occupy Agent state, presence, collision or
+  diagnostic APIs. `Contract.Postconditions`, `Status` and `Display` inspect
+  the live Post bond; `Contract.Preconditions` and `Contract.Conditions` are
+  removed. Explicit `Contract.Delete` remains for removable Post towers and
+  is idempotent when the name is already absent.
+
 - **Sound membership:** `agent in Tag` now asks whether the Agent is still
   in that Field and its visible Posts hold, matching `for agent in Tag`.
   `agent in Tag[:]` asks for raw Field membership, including defective
@@ -29,6 +59,10 @@
   than a strong Host reference. Transient Host/Agent cycles can collect,
   distinct Hosts with custom equality cannot share the wrong runtime type,
   and equivalent Agents of one Host still share their runtime type.
+- **Runtime type cache does not own declaration names:** its identifier
+  seats and the runtime gates built from them use plain string text. A
+  `str` subclass used as a Contribution name can no longer keep its Agent
+  and Tag alive through that cache.
 
 - **Tagging preparation cost:** ordinary Action/Record declarations reuse
   the existing collision and Underlay checks without constructing a
@@ -41,17 +75,19 @@
   lookup after Gate, and the ordered Gainings/admission boundary remain.
   The existing performance budgets are unchanged (#175).
 
-- Actions, Records, conditions and deletions now take effect from top to
-  bottom in each Tag. Record builders see earlier declarations, while
-  successful Constant bindings are protected before later Gainings.
+- Actions, Records, Posts and deletions now take effect from top to bottom in
+  each Tag. Record builders see earlier declarations, while successful
+  Constant bindings are protected before later Gainings. Preconditions are
+  transient Gate Services, not Gains.
 - Gate and candidate-Overlay evaluation now follow the Base-first Tag chain
   without removing completed Bases when a later Tag refuses or collides.
 - **Admission follows completed training (STEP-SPEC-39):** each Tag passes
   its Gate, acquires Gains in declaration order, finishes its Imprints, then
-  enters the Field. Failed Gainings or Imprints retain acquired Gains and
-  Posts without admitting the unfinished Tag. Earlier completed Tags stay;
-  Tagging again starts a fresh attempt. Posts judge the completed Form once
-  and a failed Post preserves membership. Tool gains use the same order:
+  enters the Field. Failed Gainings or Imprints retain actually acquired
+  non-Post Gains without admitting the unfinished Tag and discard that
+  attempt's provisional Posts. Earlier completed Tags stay; Tagging again
+  starts a fresh attempt. Posts judge the completed Form once and a failed
+  Post preserves membership. Tool gains use the same order:
   their proposed kind is checked before replacing the prior binding or rule,
   and an acquired Tool remains guarded on a Rogue.
 

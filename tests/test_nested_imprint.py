@@ -491,7 +491,7 @@ class NestedImprintTests(unittest.TestCase):
             if was_enabled:
                 gc.enable()
 
-    def test_failed_imprint_fitness_follows_the_current_training_result(self):
+    def test_failed_imprint_discards_the_unadmitted_post(self):
         for prepared in (False, True):
             with self.subTest(prepared=prepared):
                 later = []
@@ -521,7 +521,8 @@ class NestedImprintTests(unittest.TestCase):
                 self.assertNotIn(agent, Trained[:])
                 self.assertFalse(isinstance(agent, Trained))
                 self.assertTrue("badge" @ agent)
-                self.assertEqual(bool(agent), prepared)
+                self.assertTrue(bool(agent))
+                self.assertFalse(hasattr(agent, "Equipped"))
                 self.assertNotIn(agent, ~Trained)
                 self.assertNotIn(agent, list(Trained))
                 self.assertEqual(later, [])

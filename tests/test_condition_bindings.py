@@ -3,7 +3,7 @@
 import unittest
 
 from TopKit import (Constant, Contract, Pin, Post, Pre, Record, Secret, Tag,
-                    TagCompositionError, TagResolutionError, Underlay)
+                    TagCompositionError, Underlay)
 
 
 class Host:
@@ -48,7 +48,7 @@ class ConditionBindingTests(unittest.TestCase):
         with self.assertRaises(AttributeError):
             agent.Ready
 
-    def test_contract_delete_preflights_names_and_keeps_contract_truth(self):
+    def test_contract_delete_ignores_absent_names_and_keeps_contract_truth(self):
         class Empty_Host:
             def __len__(agent):
                 return 0
@@ -63,14 +63,13 @@ class ConditionBindingTests(unittest.TestCase):
         guarded_type = type(agent)
         self.assertTrue(agent)
 
-        with self.assertRaises(TagResolutionError):
-            Contract.Delete(agent, "Ready", "Missing")
+        Contract.Delete(agent, "Missing")
 
         self.assertEqual(Contract.Status(agent), {"Ready": True})
         self.assertIs(type(agent), guarded_type)
         self.assertTrue(agent)
 
-        Contract.Delete(agent, "Ready")
+        Contract.Delete(agent, "Ready", "Missing")
         self.assertEqual(Contract.Status(agent), {})
         self.assertIsNot(type(agent), guarded_type)
         self.assertEqual(len(agent), 0)
@@ -184,7 +183,7 @@ class ConditionBindingTests(unittest.TestCase):
         del agent.ordinary
         self.assertEqual(writes, [("set", "ordinary"), ("delete", "ordinary")])
 
-    def test_a_precondition_added_to_an_existing_agent_gets_the_same_gate(self):
+    def test_a_precondition_on_an_existing_agent_is_only_a_tagging_service(self):
         class Marked(Tag):
             pass
 
@@ -198,11 +197,11 @@ class ConditionBindingTests(unittest.TestCase):
         Marked(agent)
         Admitted(agent)
 
-        self.assertIs(agent.Ready, True)
-        with self.assertRaises(TagCompositionError):
-            agent.Ready = False
-        with self.assertRaises(TagCompositionError):
-            del agent.Ready
+        self.assertNotIn("Ready", Contract.Status(agent))
+        self.assertFalse(hasattr(agent, "Ready"))
+        agent.Ready = False
+        self.assertIs(agent.Ready, False)
+        del agent.Ready
 
     def test_runtime_types_are_keyed_by_their_condition_names(self):
         class With_Ready(Tag):

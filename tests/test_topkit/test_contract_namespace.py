@@ -41,21 +41,21 @@ class ContractNamespaceTests(unittest.TestCase):
         Contract.Delete(agent, "Ready")
         self.assertTrue(agent)
 
-    def test_contract_namespace_checks_pre_post_and_both(self) -> None:
+    def test_contract_namespace_checks_the_live_posts_only(self) -> None:
         ari = Agent()
         ari.level = 1
 
         Scholar(ari)
 
-        self.assertTrue(Contract.Preconditions(ari))
         self.assertTrue(Contract.Postconditions(ari))
-        self.assertTrue(Contract.Conditions(ari))
+        self.assertFalse(hasattr(Contract, "Preconditions"))
+        self.assertFalse(hasattr(Contract, "Conditions"))
         self.assertTrue(bool(ari))
 
         del ari.spellbook
 
         with self.assertRaises(TagPostconditionError):
-            Contract.Conditions(ari)
+            Contract.Postconditions(ari)
 
     def test_contract_status_and_display(self) -> None:
         ari = Agent()
@@ -63,11 +63,11 @@ class ContractNamespaceTests(unittest.TestCase):
 
         Scholar(ari)
 
-        self.assertEqual(Contract.Status(ari), {"Level_Over_Zero": True, "Has_Book": True})
+        self.assertEqual(Contract.Status(ari), {"Has_Book": True})
 
         del ari.spellbook
         text = Contract.Display(ari)
 
         self.assertTrue(text.startswith("Agent[Scholar] contract:"))
-        self.assertIn("Pre:", text)
+        self.assertNotIn("Pre:", text)
         self.assertIn("XX  Has_Book", text)
