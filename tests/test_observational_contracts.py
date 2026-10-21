@@ -7,8 +7,8 @@ import unittest
 import weakref
 
 from TopKit import (Action, At_Exit, Constant, Contract, Flag, Imprint,
-                    Pin, Post, Pre, Precondition, Public, Report, Tag,
-                    TagCompositionError, TagPostconditionError)
+                    Link, Pin, Post, Pre, Precondition, Public, Report, Tag,
+                    TagCompositionError, TagPostconditionError, agent, contact)
 from TopKit.observations import _observing, _refuse_observed_act
 from TopKit import lifecycle
 
@@ -355,6 +355,19 @@ class ObservationalContractTests(unittest.TestCase):
                 except TagCompositionError:
                     pass
                 raise KeyboardInterrupt()
+
+    def test_link_header_creation_is_refused_during_a_condition(self):
+        class Refused(Tag):
+            @Pre
+            def Ready(target):
+                @Link(agent, contact)
+                class Temporary(agent.Knows):
+                    pass
+
+        with self.assertRaises(Precondition.Ready):
+            Refused(Host())
+
+
 
 
 if __name__ == "__main__":
