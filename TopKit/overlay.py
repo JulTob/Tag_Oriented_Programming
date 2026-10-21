@@ -44,7 +44,6 @@ from .errors import TagOverwriteWarning
 from .errors import TagPostconditionError
 from .errors import TagRogueAccessError
 from .errors import TagContractWarning
-from .errors import TagResolutionError
 from .declarations import STATE
 from .declarations import Report
 from .declarations import _declarations_of
@@ -85,8 +84,7 @@ def _nothing_beneath(
         *args: Any,
         **kwargs: Any,
         ) -> None:
-    """The Layer beneath a ``__del__`` after a Tag deleted it: calling it
-    does nothing (STEP-SPEC-18)."""
+    """The callable floor beneath an Action with no earlier Layer."""
 
 
 def _independent(
@@ -169,9 +167,7 @@ def _compose(
         return function
 
     if underlay is None:
-        raise TagResolutionError(
-                f"{str.__str__(name)!r} requires a visible Underlay"
-                )
+        underlay = _nothing_beneath
 
     chain = _action_chain(underlay)
 

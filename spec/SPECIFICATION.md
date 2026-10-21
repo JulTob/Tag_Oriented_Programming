@@ -84,7 +84,7 @@ Imprints.
 | **Geometry** | The whole relationship structure of Tags, Bases and Shapes. |
 | **Layer** | One Tag's position in an Agent's composition. |
 | **Overlay** | The currently visible result of all active Layers. |
-| **Underlay** | The prior visible contribution of a name, captured for a later Layer to extend. |
+| **Underlay** | The prior visible contribution of a name, captured for a later Layer to extend. An Action with no prior Action receives a callable null Action. |
 | **Pin** | A Tag marked `@Pin`, whose Targets are Tags (§1.9). |
 | **Pinning** | Applying a Pin to a Tag: `Rare(Wizard)`. The pinned Tag is the Pin's Agent. |
 | **Tool** | A Record whose value is an object of a declared kind, a specific Tag or a Python class (§1.3). Something you *have* (*tener*): what it is stays its own. |
@@ -491,8 +491,12 @@ The Underlay is **captured when the Tag applies**: it is the complete Action
 visible immediately before this Layer. It forms a backward chain of
 callables and never resolves again later. Calling it with no arguments
 forwards the current call's arguments; calling it with arguments passes
-those instead. If no prior Action exists, a Tag asking for an Underlay
-cannot apply (Tag Resolution Failure).
+those instead. If no prior Action exists, the Action receives a callable
+null Underlay: calling it with any arguments does nothing and returns
+`None`. This applies to ordinary, Pin, Rip and special-method Actions.
+The author handles `None` if the extending Action needs a result. The
+null Action is captured like any other Underlay; it does not change the
+rules for Record stored values or condition Underlays.
 
 An Action that calls another Action **through the Agent** uses the current
 Overlay at play time:
@@ -894,7 +898,9 @@ state, direct namespace tampering or arbitrary Python execution.
 
 `@Delete` on a name removes the visible contribution, or the host member,
 of that name. It frees the slot: the next contribution may occupy it with
-either Agent kind, and an Underlay-seeking contribution finds nothing.
+either Agent kind. A later Action with `@Underlay` sees the callable null
+Action; a later Record builder's stored seat receives `None`. Condition
+Underlays keep their own requirement for an existing condition.
 Deleting a Constant Contribution is refused and leaves its binding intact.
 
 ```python
@@ -1704,7 +1710,7 @@ types but must keep these distinct.
 | --- | --- | --- |
 | **Tag Declaration Failure** | A Tag is written wrong: illegal mark combination, `@Underlay` without a parameter to receive it. | at class use |
 | **Tag Composition Failure** | Contributions cannot form the Overlay: cross-kind collision, Record over a host descriptor, a Record builder or teardown that failed, a Target that cannot carry state. | before FieldAdding: current Tag absent, acquired Gains and earlier turns stay; after admission: membership stays; a teardown failure is reported after its Rip ends membership |
-| **Tag Resolution Failure** | A required Underlay, view, or membership is unavailable. | use refused; during Tagging, follows the current phase boundary |
+| **Tag Resolution Failure** | A condition's required Underlay, view, or membership is unavailable. An Action's absent Underlay instead uses the null Action (§1.2). | use refused; during Tagging, follows the current phase boundary |
 | **Tag Rogue Access Failure** | A Rogue Agent reached a published member of a Tag it has left or never entered. A Resolution Failure, and a TOP failure only: never dressed as a host-language attribute failure. | use refused |
 | **Tag Precondition Failure** | A Gate refused the incoming Agent. | that Tag does not apply; earlier turns stay |
 | **Tag Imprint Failure** | An Imprint failed before FieldAdding. | acquired Gains and completed Tags stay; unfinished Tag absent |

@@ -8,9 +8,11 @@ import unittest
 import weakref
 from TopKit import Action
 from TopKit import Apply
+from TopKit import Pin
+from TopKit import Rip
 from TopKit import Tag
 from TopKit import TagOverwriteWarning
-from TopKit import TagResolutionError
+from TopKit import Underlay
 
 from ._fixtures import Agent
 from ._fixtures import Berserker
@@ -135,13 +137,69 @@ class OverlayTests(unittest.TestCase):
         with self.assertRaises(ReferenceError):
             attack()
 
-    def test_missing_underlay_raises_a_resolution_error(self) -> None:
+    def test_missing_underlay_is_a_callable_null_action(self) -> None:
         ari = Agent()
 
-        with self.assertRaises(TagResolutionError):
-            Missing_Action(ari)
+        Missing_Action(ari)
 
-        self.assertNotIn(ari, Missing_Action)
+        self.assertIn(ari, Missing_Action)
+        self.assertIsNone(ari.Missing())
+
+    def test_null_underlay_accepts_forwarded_and_explicit_arguments(self) -> None:
+        class Host:
+            def __getattr__(self, name):
+                raise AssertionError(f"host fallback invoked for {name}")
+
+        class Arriving(Tag):
+            @Action
+            @Underlay
+            def Work(agent, prior, value):
+                return (prior(), prior("other", detail=True), value)
+
+        agent = Host()
+        Arriving(agent)
+        self.assertEqual(agent.Work("task"), (None, None, "task"))
+
+    def test_pin_action_on_a_shape_without_a_prior_action_uses_null(self) -> None:
+        class Base(Tag):
+            pass
+
+        class Shape(Base):
+            pass
+
+        @Pin
+        class Patch(Tag):
+            @Action
+            @Underlay
+            def Work(tag, prior, value):
+                return (prior(value, detail=True), value)
+
+        Patch(Shape)
+        self.assertEqual(Shape.Work("task"), (None, "task"))
+
+    def test_special_method_action_uses_null_underlay(self) -> None:
+        class Product(Tag):
+            @Underlay
+            def __matmul__(agent, prior, other):
+                return (prior("unused", detail=True), other)
+
+        agent = Agent()
+        Product(agent)
+        self.assertEqual(agent @ 7, (None, 7))
+
+    def test_first_rip_action_can_call_null_underlay(self) -> None:
+        calls = []
+
+        class Departing(Tag):
+            @Rip
+            @Underlay
+            def Close(agent, prior):
+                calls.append(prior())
+
+        agent = Agent()
+        Departing(agent)
+        del Departing[agent]
+        self.assertEqual(calls, [None])
 
     def test_deletion_removes_oop_members_and_resets_the_underlay(self) -> None:
         ari = Agent()
@@ -151,10 +209,12 @@ class OverlayTests(unittest.TestCase):
         self.assertFalse(hasattr(ari, "Attack"))
         self.assertFalse(hasattr(ari, "weapon"))
 
-        with self.assertRaises(TagResolutionError):
-            Needs_Action_Underlay(ari)
+        Needs_Action_Underlay(ari)
+        self.assertIn(ari, Needs_Action_Underlay)
+        self.assertIsNone(ari.Attack())
 
-        Repaired_Pacifist(ari)
+        with self.assertWarns(TagOverwriteWarning):
+            Repaired_Pacifist(ari)
 
         self.assertEqual(ari.Attack(), "Defensive action!")
         self.assertEqual(ari.weapon, "shield")

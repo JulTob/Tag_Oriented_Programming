@@ -4,6 +4,11 @@
 
 ### Specification
 
+- **Null Action Underlay (STEP-SPEC-44):** an `@Underlay` Action with no
+  earlier Action now receives a callable no-op returning `None`. The rule
+  also covers Pin, Rip and special-method Actions; conditions retain their
+  existing Underlay requirement.
+
 - **Condition lifetimes (STEP-SPEC-61):** a Precondition is a
   transient Tagging Service and never Agent state; an ordinary Post is an
   Agent Gain bound to the Tag application that admitted it into the Field;
