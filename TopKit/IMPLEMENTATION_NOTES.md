@@ -56,7 +56,11 @@ Actions; Agents are built once and play for a long time. So:
   its Host through its bases, so that identity cannot be reused while the
   entry is live. The cache cannot root a cycle from a transient Host's
   methods or metaclass back to an Agent; Hosts with custom equality or
-  hashing still have independent identity-based entries. An Action body
+  hashing still have independent identity-based entries. Identifier seats
+  hold built-in string text, copied from accepted `str` subclasses with
+  `str.__str__` so their custom conversion hooks do not run. Runtime gates
+  and special-method seats use that same plain text; the cache cannot own
+  an identifier's references after its Tag and Agent are gone. An Action body
   that deliberately captures its Agent remains a strong owner: the weak
   receiver binding does not undo references inside the function.
 - **Actualization is verified before Field entry.** The Target must retain

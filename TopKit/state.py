@@ -17,12 +17,14 @@ from dataclasses import dataclass
 from dataclasses import field
 from dataclasses import FrozenInstanceError
 from inspect import signature
+from itertools import chain
 from types import FunctionType
 from types import GetSetDescriptorType
 from types import MemberDescriptorType
 from types import MethodType
 from typing import Any
 from typing import Callable
+from typing import Iterable
 from typing import Iterator
 from weakref import WeakValueDictionary
 import weakref
@@ -1246,6 +1248,18 @@ _type_cache: "WeakValueDictionary[tuple, type]" = WeakValueDictionary()
 _EMPTY_NAMES: frozenset[str] = frozenset()
 
 
+def _identifier_texts(
+        names: Iterable[str],
+        ) -> frozenset[str]:
+    """Copy identifier text without retaining a user-owned ``str`` subclass.
+
+    Calling the built-in method directly avoids a subclass's ``__str__``.
+    Ordinary strings already own only their text and need no copy.
+    """
+
+    return frozenset(map(str.__str__, names))
+
+
 def _dunder_actions(
         state: _State,
         ) -> dict[str, Function]:
@@ -1254,9 +1268,9 @@ def _dunder_actions(
     its teardowns (STEP-SPEC-18)."""
 
     return {
-            name: function
+            text: function
             for name, function in state.actions.items()
-            if _is_dunder(name) and name != "__del__"
+            if _is_dunder(text := str.__str__(name)) and text != "__del__"
             }
 
 
@@ -1365,11 +1379,11 @@ def _type_key_of(
             # A live cached runtime type owns its Host through its bases,
             # preventing id reuse. The key must not root a Host/Agent cycle.
             id(state.host_type),
-            (frozenset((state.deleted | state.restored) - {"__del__"})
+            (_identifier_texts(chain(state.deleted, state.restored)) - {"__del__"}
              if state.deleted or state.restored else _EMPTY_NAMES),   # a restored name keeps its gate; __del__ has none
-            frozenset(state.secrets) if state.secrets else _EMPTY_NAMES,
-            frozenset(state.published) if state.published else _EMPTY_NAMES,
-            (frozenset(state.postconditions)
+            _identifier_texts(state.secrets) if state.secrets else _EMPTY_NAMES,
+            _identifier_texts(state.published) if state.published else _EMPTY_NAMES,
+            (_identifier_texts(state.postconditions)
              if state.postconditions else _EMPTY_NAMES),
             any(_is_flag(tag) for tag in (*state.active, *state.training)),
             tuple(
@@ -1378,8 +1392,8 @@ def _type_key_of(
                             for name, function in _dunder_actions(state).items()
                             )
                     ) if state.actions else (),
-            frozenset(state.constants) if state.constants else _EMPTY_NAMES,
-            frozenset(state.tools) if state.tools else _EMPTY_NAMES,
+            _identifier_texts(state.constants) if state.constants else _EMPTY_NAMES,
+            _identifier_texts(state.tools) if state.tools else _EMPTY_NAMES,
             )
 
 
@@ -1445,18 +1459,18 @@ def _runtime_type_for(
     _presence_hook(namespace, host_type)
 
     if not issubclass(host_type, type):
-        for name in state.constants:
+        for name in key[7]:
             namespace[name] = _Constant_Gate(name, namespace.get(name, _MISSING))
 
         from .tools import _Tool_Gate   # tools imports this module
 
-        for name in state.tools:
+        for name in key[8]:
             if _is_dunder(name):
                 continue   # a protocol name keeps the language's own hook; the write hook guards it
 
             namespace[name] = _Tool_Gate(name, namespace.get(name, _MISSING))   # over a Constant or Secret gate, when both
 
-    ungated_tools = any(_is_dunder(name) for name in state.tools)
+    ungated_tools = any(_is_dunder(name) for name in key[8])
 
     if conditions or state.constants or state.tools or issubclass(host_type, type):
         _binding_write_hooks(namespace, host_type, force=ungated_tools)
