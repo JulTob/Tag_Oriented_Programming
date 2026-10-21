@@ -32,6 +32,15 @@
 
 ### TopKit
 
+- **Pin publication preserves ordinary Tag and Tool use:** a late Pin mark
+  cannot change a Tag with members, Shapes, live Tool-kind declarations or
+  an ordinary Tagging underway. Tool-kind ownership is tracked weakly by
+  identity, and a departed Field alone does not bar a later Pin mark.
+  Repeating a Pin mark, including on an existing Pin Shape, is a no-op.
+  Tool declarations and late bindings are checked together with Pin marks;
+  callable metadata and retired bindings are handled outside shared locks.
+  Interrupted Taggings release only their own temporary reservations.
+
 - **Named failures release declaration-name objects:** the process-wide
   Precondition, Imprint and Postcondition failure registries keep plain
   identifier text, so a `str` subclass name cannot hold an Agent or Tag
