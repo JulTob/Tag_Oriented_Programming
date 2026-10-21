@@ -24,10 +24,13 @@ interruptions keep their original type and follow the same boundary.
 from __future__ import annotations
 
 from typing import Any
+import weakref
+
 from .arrest import _require_available
 from .arrest import _safehouse
 from .contracts import _bind_condition
 from .contracts import _evaluate
+from .declarations import _is_link
 from .declarations import _Declarations
 from .declarations import _discard_lazy_result
 from .declarations import _declarations_of
@@ -85,11 +88,31 @@ def _apply(
     if form is None:
         form = _form_of(tag)
 
+    # The reserved Form is the applied Form: a recomputed one could
+    # admit a Base marked a Pin after the reservation was taken.
+    return _apply_form(agent, form, inputs)
+
+
+def _apply_form(
+        agent: object,
+        form: tuple[type, ...] | list[type],
+        inputs: dict[str, Any],
+        *,
+        inspect: bool = True,
+        admitted: list[type] | None = None,
+        ) -> object:
+    """Complete independent Tag turns and optionally report direct admissions.
+
+    A Link uses ``admitted`` for its internal Pair memberships. Completed
+    nested Taggings belong to their own calls and are never reported here.
+    """
+
+    entry_state = _state_of(agent)
     if entry_state is not None:
         for member in form:
             if member in entry_state.training:
                 raise TagCompositionError(
-                        f"{tag.__name__} needs {member.__name__}, whose"
+                        f"{form[-1].__name__} needs {member.__name__}, whose"
                         " Tagging has not finished"
                         )
 
@@ -114,9 +137,19 @@ def _apply(
                 continue
 
             _gate(agent, state, member, inputs)
-            _apply_one(agent, state, member, inputs)
+            if member in state.active:
+                continue   # a nested call made by the Gate completed this turn
+            if admitted is None:
+                _apply_one(agent, state, member, inputs)
+            else:
+                try:
+                    _apply_one(agent, state, member, inputs)
+                finally:
+                    if member in state.active and member not in admitted:
+                        admitted.append(member)
 
-        _inspect(agent)   # Posts judge the completed Form, once.
+        if inspect:
+            _inspect(agent)   # Posts judge the completed Form, once.
     except BaseException:
         if (
                 entry_state is None
@@ -127,6 +160,7 @@ def _apply(
                 and not state.records
                 and not state.postconditions
                 and not state.deleted
+                and not state.links
                 ):
             # A state-free runtime clone may have been normalized before
             # its Gate. Restore its original representation when no
@@ -175,6 +209,8 @@ def _gate(
                 tag,
                 declarations,
                 )
+    if declarations.links:
+        _refuse_links_shadowed_by_the_agent(agent, state, tag, declarations)
     quiet = _quiet.set(_quiet.get() + 1)   # the real pass warns; catch_warnings() would reset every registry
 
     try:
@@ -214,6 +250,17 @@ def _apply_one(
     declarations = _declarations_of(tag)
     deleted_before = set(state.deleted)
     application = object()
+    # A nested Tagging in this Tag's Imprint may publish a later Link before
+    # this Tag's view is captured. Its view starts at this turn's Overlay and
+    # adds only the Links this Tag itself grants.
+    visible_links = (
+            {
+                name: link
+                for name, (link, _layers) in state.links.items()
+                if link is not None
+                }
+            if state.links else None
+            )
     state.training.add(tag)
     state.composing += 1
     primary_failure: BaseException | None = None
@@ -336,6 +383,8 @@ def _apply_one(
                     state.snapshots[tag] = _snapshot(
                             agent,
                             state,
+                            tag,
+                            visible_links,
                             )
                 except BaseException as closing_error:
                     if primary_failure is None:
@@ -408,6 +457,40 @@ def _refuse_posts_shadowed_by_the_agent(
                     f" {name!r}; a Post is read by its name and cannot"
                     " share it"
                     )
+
+
+def _refuse_links_shadowed_by_the_agent(
+        agent: object,
+        state: _State,
+        tag: type,
+        declarations: Any,
+        ) -> None:
+    """A Link never arrives where something is (STEP-SPEC-22 rule 4.4):
+    a value the Agent itself already holds under the Link's name would be
+    lost under a read-only slot, so the tagging is refused."""
+
+    if not declarations.links:
+        return
+
+    namespace = _namespace_of(agent) or {}
+
+    for name, _relation in declarations.links:
+        if name not in namespace:
+            continue
+
+        held = state.links.get(name)
+
+        if held is not None and namespace[name] is held[0]:
+            continue   # the Agent's own Link: reapplied, or extended
+
+        if name in state.records or name in state.actions:
+            continue   # a Contribution: the closed slot names it (overlay._install_link)
+
+        raise TagCompositionError(
+                f"{tag.__name__}.{name} is a Link, but"
+                f" {_name_of(agent)} already holds a value called {name!r};"
+                " a Link never arrives where something is"
+                )
 
 
 def _inspect(
@@ -537,7 +620,12 @@ def _enter_field(
     if post_names:
         state.post_applications[tag] = (application, post_names)
     state.words = None
-    state.ever.add(tag)
+    if _is_link(tag):
+        if state.ever_links is None:
+            state.ever_links = weakref.WeakSet()
+        state.ever_links.add(tag)
+    else:
+        state.ever.add(tag)
 
     if state.pinned is not None:
         state.published.update(declarations.published)
@@ -634,10 +722,11 @@ def _publish_into(
         names: frozenset[str],
         adapter: Any,
         ) -> None:
-    from .overlay import _install_action
+    from .overlay import _install_action, _refuse_member_over_link
     from .constants import _refuse_constant
 
     for name in names:
+        _refuse_member_over_link(agent_state, pinned, name, "a published member")
         if name in agent_state.constants:
             if agent_state.constants[name][0] is pinned and name in state.constants:
                 continue
@@ -692,6 +781,8 @@ _NONE: frozenset[str] = frozenset()   # one empty set for every snapshot that ne
 def _snapshot(
         agent: object,
         state: _State,
+        tag: type,
+        visible_links: dict[str, type] | None,
         ) -> _Snapshot:
     namespace = _namespace_of(agent)
     records = {
@@ -707,13 +798,27 @@ def _snapshot(
     reports = {
             name: (origin, getattr(origin, name))
             for name, (origin, _report) in state.reports.items()
+            if not _is_link(origin)   # never built here, inside her door, nor shown in her views (STEP-SPEC-22 rule 3.6)
             }
+    operations = {
+            name: entry
+            for name, entry in state.operations.items()
+            if not _is_link(entry[0])
+            }
+
+    links = {} if visible_links is None else visible_links.copy()
+    links.update(
+            (name, link)
+            for name, (link, _layers) in state.owned_links.get(tag, {}).items()
+            if link is not None
+            )   # this Tag's own Link outranks a nested later Tag's same-name Overlay
 
     return _Snapshot(
             actions=dict(state.actions),
             records=records,
             reports=reports,
-            operations=dict(state.operations),
+            operations=operations,
+            links=links,
             deleted=frozenset(state.deleted) if state.deleted else _NONE,
             secrets=frozenset(state.secrets) if state.secrets else _NONE,
             )

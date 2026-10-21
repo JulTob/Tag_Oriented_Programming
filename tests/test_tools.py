@@ -102,6 +102,23 @@ class Tag_Kind_Tests(unittest.TestCase):
         self.assertTrue("weapon" @ charlie)
         self.assertIsInstance(charlie.weapon, Sword)
 
+    def test_ripped_base_kind_is_not_implied_by_an_active_shape(self):
+        charlie = Character("Charlie")
+        Fighter(charlie)
+        sword = Sword("longsword")
+        Longsword(sword)
+        charlie.weapon = sword
+
+        del Weapon[sword]
+        self.assertIn(sword, Longsword[:])
+        self.assertIs(charlie.weapon, sword)  # reading does not revalidate
+        with self.assertRaises(TagCompositionError):
+            charlie.weapon = sword            # a new write checks current kind
+
+        Weapon(sword)
+        charlie.weapon = sword
+        self.assertIs(charlie.weapon, sword)
+
     def test_a_non_member_is_refused_at_the_write_and_nothing_changes(self):
         charlie = Character("Charlie")
         Equip(Fighter, charlie)

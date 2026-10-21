@@ -28,6 +28,8 @@ from typing import Any
 from typing import Callable
 from typing import Iterable
 from typing import Iterator
+from typing import Generic
+from typing import TypeVar
 from weakref import WeakValueDictionary
 import weakref
 
@@ -47,6 +49,8 @@ from .lazy_guard import _guard_lazy_result
 
 Function = Callable[..., Any]
 Check = Callable[..., Any]
+_Value = TypeVar("_Value")
+_Link_Slot = tuple[type | None, tuple[type, ...]]
 
 
 # ------------------------------------------------------------------
@@ -62,6 +66,7 @@ class _Snapshot:
     operations: dict[str, tuple[type, Function]]
     deleted: frozenset[str]
     secrets: frozenset[str]
+    links: dict[str, type] = field(default_factory=dict)   # the Agent's own Links, by name (STEP-SPEC-22)
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,6 +86,82 @@ class _Post_Layer:
     constant: bool
 
 
+class _Tag_Identity_Map(Generic[_Value]):
+    """A Tag-keyed state map that never calls a Tag metaclass's protocols.
+
+    Two distinct Tags whose metaclass makes them compare equal must keep
+    separate entries, or their Links would merge (STEP-SPEC-51). Each entry
+    is indexed by identity and retains its Tag, as an ordinary key would.
+    """
+
+    __slots__ = ("_entries",)
+
+    def __init__(self) -> None:
+        self._entries: dict[int, tuple[type, _Value]] = {}
+
+    def __len__(self) -> int:
+        return len(self._entries)
+
+    def __contains__(self, tag: type) -> bool:
+        entry = self._entries.get(id(tag))
+        return entry is not None and entry[0] is tag
+
+    def __iter__(self) -> Iterator[type]:
+        return (tag for tag, _value in self._entries.values())
+
+    def __eq__(self, other: object) -> bool:
+        if type(other) is not _Tag_Identity_Map:
+            return NotImplemented
+
+        if self._entries.keys() != other._entries.keys():
+            return False
+
+        return all(
+                tag is other._entries[key][0]
+                and value == other._entries[key][1]
+                for key, (tag, value) in self._entries.items()
+                )
+
+    def __getitem__(self, tag: type) -> _Value:
+        entry = self._entries.get(id(tag))
+
+        if entry is None or entry[0] is not tag:
+            raise KeyError(tag)
+
+        return entry[1]
+
+    def __setitem__(self, tag: type, value: _Value) -> None:
+        self._entries[id(tag)] = (tag, value)
+
+    def get(self, tag: type, default: Any = None) -> Any:
+        entry = self._entries.get(id(tag))
+        return entry[1] if entry is not None and entry[0] is tag else default
+
+    def pop(self, tag: type, default: Any = _MISSING) -> Any:
+        key = id(tag)
+        entry = self._entries.get(key)
+
+        if entry is None or entry[0] is not tag:
+            if default is _MISSING:
+                raise KeyError(tag)
+
+            return default
+
+        del self._entries[key]
+        return entry[1]
+
+    def items(self) -> Iterator[tuple[type, _Value]]:
+        return iter(self._entries.values())
+
+    def clear(self) -> None:
+        self._entries.clear()
+
+    def copy(self) -> "_Tag_Identity_Map[_Value]":
+        copied = _Tag_Identity_Map()
+        copied._entries = self._entries.copy()
+        return copied
+
+
 @dataclass(slots=True)
 class _State:
     host_type: type
@@ -88,6 +169,7 @@ class _State:
     active: list[type] = field(default_factory=list)
     training: set[type] = field(default_factory=set)   # not yet admitted
     ever: set[type] = field(default_factory=set)
+    ever_links: "weakref.WeakSet[type] | None" = None   # the Links it was ever a Contact of, held weakly; None until the first
     actions: dict[str, Function] = field(default_factory=dict)
     action_origins: dict[str, type] = field(default_factory=dict)
     records: dict[str, type] = field(default_factory=dict)
@@ -114,9 +196,23 @@ class _State:
     arrestable: bool = False   # gained Rip keeps the Host gate after later Taggings
     contexts: list[str] = field(default_factory=list)
     view_identity: object | None = None
+    links: dict[str, _Link_Slot] = field(default_factory=dict)   # visible Link Overlay by Agent name
+    owned_links: _Tag_Identity_Map[dict[str, _Link_Slot]] = field(default_factory=_Tag_Identity_Map)   # each declaring Tag's own Links
+    links_ending: bool = False
     composing: int = 0
     checking: bool = False
     words: _Words | None = None   # what its Flags answer to; None after its Tags change
+
+    def Own_Link(
+            state,
+            tag: type,
+            name: str,
+            slot: _Link_Slot,
+            ) -> None:
+        """Replace one owned slot without mutating a preflight copy's map."""
+
+        owned = state.owned_links.get(tag, {})
+        state.owned_links[tag] = {**owned, name: slot}
 
     def Restore(
             state,
@@ -127,7 +223,7 @@ class _State:
         that is rolled back closes them on this same object."""
 
         for name in state.__slots__:
-            if name not in ("composing", "checking", "training", "contexts", "view_identity"):
+            if name not in ("composing", "checking", "training", "contexts", "view_identity", "links_ending"):
                 setattr(
                         state,
                         name,
@@ -145,6 +241,7 @@ class _State:
         copied.active = state.active.copy()
         copied.training = state.training.copy()
         copied.ever = state.ever.copy()
+        copied.ever_links = None if state.ever_links is None else weakref.WeakSet(state.ever_links)
         copied.actions = state.actions.copy()
         copied.action_origins = state.action_origins.copy()
         copied.records = state.records.copy()
@@ -166,6 +263,11 @@ class _State:
         copied.arrestable = state.arrestable
         copied.contexts = state.contexts.copy()
         copied.view_identity = state.view_identity
+        copied.links = state.links.copy()
+        copied.owned_links = _Tag_Identity_Map()
+        for tag, slots in state.owned_links.items():
+            copied.owned_links[tag] = slots.copy()
+        copied.links_ending = state.links_ending
         copied.composing = state.composing
         copied.checking = state.checking
         copied.words = state.words
@@ -177,6 +279,7 @@ class _Async_Door:
 
     __slots__ = (
             "active",
+            "shut",
             "state",
             )
 
@@ -185,6 +288,7 @@ class _Async_Door:
             state: _State,
             ) -> None:
         door.active = True
+        door.shut = False   # shut for the length of one step of someone else's code
         door.state = state
 
     def Close(
@@ -193,11 +297,49 @@ class _Async_Door:
         door.active = False
         door.state = None
 
+    def Shut(
+            door,
+            ) -> None:
+        """Shut for one step of someone else's code. The door is still the
+        hook's: it stays in the context, and ``Reopen`` gives it back."""
+
+        door.shut = True
+
+    def Reopen(
+            door,
+            ) -> None:
+        door.shut = False
+
 
 _async_doors: ContextVar[tuple[_Async_Door, ...]] = ContextVar(
         "TopKit_async_composition_doors",
         default=(),
         )
+
+
+def _shut_async_doors(
+        states: list[_State],
+        held: tuple[_Async_Door, ...],
+        ) -> list[_Async_Door]:
+    """Shut, for one step of someone's code, every async door this
+    execution holds on these Agents, and return them for ``_reopen_async_doors``.
+    A step is synchronous, so no other execution runs while they are shut."""
+
+    shut: list[_Async_Door] = []
+
+    for door in held:
+        if door.active and not door.shut and any(door.state is state for state in states):
+            door.Shut()
+            shut.append(door)
+
+    return shut
+
+
+def _reopen_async_doors(
+        shut: list[_Async_Door],
+        ) -> None:
+    for door in shut:
+        door.Reopen()
 
 
 def _is_composing(
@@ -215,6 +357,7 @@ def _is_composing(
 
     return any(
             door.active
+            and not door.shut
             and door.state is state
             for door in reversed(doors)
             )
@@ -1283,6 +1426,79 @@ class _Secret_Gate:
                 )
 
 
+class _Line:
+    """A published read that needs the Agent it is read on: a Link's
+    @Public Pair Record, read on a Contact (STEP-SPEC-22 rule 2.7)."""
+
+    def Read(
+            line,
+            agent: object,
+            ) -> Any:
+        raise NotImplementedError
+
+
+class _Link_Gate:
+    """A held Link's name (STEP-SPEC-22 rule 4.3): read like a Record,
+    never reassigned or deleted. A Link ends Contact by Contact."""
+
+    __slots__ = ("name",)
+
+    def __init__(
+            gate,
+            name: str,
+            ) -> None:
+        gate.name = name
+
+    def __get__(
+            gate,
+            agent: object,
+            owner: type | None = None,
+            ) -> Any:
+        if agent is None:
+            return gate
+
+        value = _namespace_of(agent).get(
+                gate.name,
+                _MISSING,
+                )
+
+        if value is _MISSING:
+            raise AttributeError(gate.name)
+
+        return value
+
+    def __set__(
+            gate,
+            agent: object,
+            value: Any,
+            ) -> None:
+        _refuse_link_binding(
+                _namespace_of(agent).get(STATE),
+                gate.name,
+                )
+
+    def __delete__(
+            gate,
+            agent: object,
+            ) -> None:
+        _refuse_link_binding(
+                _namespace_of(agent).get(STATE),
+                gate.name,
+                )
+
+
+def _refuse_link_binding(
+        state: "_State | None",
+        name: str,
+        ) -> None:
+    if state is not None and name in state.links:
+        raise TagCompositionError(
+                f"{name} is a Link: a held Link is read-only. It ends Contact"
+                f" by Contact, del agent.{name}[contact], or all at once,"
+                f" del agent.{name}[:]"
+                )
+
+
 _require_membership: Callable[..., None] | None = None
 # overlay's membership check for published members. overlay imports this
 # module, so it hands the check over when it loads (see overlay.py).
@@ -1308,13 +1524,16 @@ class _Published:
             return gate
 
         state = _namespace_of(agent)[STATE]
-        origin, _declared = state.reports[gate.name]
+        origin, declared = state.reports[gate.name]
         _require_membership(
                 agent,
                 origin,
                 gate.name,
                 "Report",
                 )
+
+        if isinstance(declared, _Line):
+            return declared.Read(agent)   # a Pair Record, read through its line
 
         value = getattr(
                 origin,
@@ -1489,6 +1708,7 @@ def _type_key_of(
                     ) if state.actions else (),
             _identifier_texts(state.constants) if state.constants else _EMPTY_NAMES,
             _identifier_texts(state.tools) if state.tools else _EMPTY_NAMES,
+            _identifier_texts(state.links) if state.links else _EMPTY_NAMES,
             state.arrestable,
             )
 
@@ -1570,9 +1790,18 @@ def _runtime_type_for(
 
             namespace[name] = _Tool_Gate(name, namespace.get(name, _MISSING))   # over a Constant or Secret gate, when both
 
+        for name in key[9]:
+            namespace[name] = _Link_Gate(name)   # a held Link is read-only
+
     ungated_tools = any(_is_dunder(name) for name in key[8])
 
-    if conditions or state.constants or state.tools or issubclass(host_type, type):
+    if (
+            conditions
+            or state.constants
+            or state.tools
+            or state.links
+            or issubclass(host_type, type)
+            ):
         _binding_write_hooks(namespace, host_type, force=ungated_tools)
 
     if state.arrestable:

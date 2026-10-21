@@ -148,7 +148,9 @@ class _Binding_Write:
     def __call__(self, agent, name, *values):
         _refuse_constant(_state_of(agent), name)
         from .contracts import _refuse_condition_binding
+        from .state import _refuse_link_binding
         _refuse_condition_binding(agent, name)
+        _refuse_link_binding(_state_of(agent), name)
         if values:
             _refuse_misfit(_state_of(agent), name, values[0], agent)   # a Tool slot admits only its kind
         if issubclass(type(agent), type) and _constant_owner(agent, name) is not None:

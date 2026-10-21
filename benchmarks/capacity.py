@@ -54,7 +54,7 @@ def _rip_form(
         agent: Agent,
         tag: type[Tag],
         ) -> None:
-    """Deform one active Form from Shape to Bases, as Rip requires."""
+    """Rip one active Form from Shape to Bases, as this probe chooses."""
 
     for member in reversed(Form(tag)):
         if agent in member:

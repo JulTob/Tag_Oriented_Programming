@@ -26,6 +26,17 @@ class OracleTests(unittest.TestCase):
 
         self.assertEqual(transitions, 1000)
 
+    def test_links_agree_with_the_model(self) -> None:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+
+            transitions = sum(
+                    oracle_topkit.Run_Links(seed, steps=250, population=7)
+                    for seed in range(1701, 1705)
+                    )
+
+        self.assertGreater(transitions, 500)
+
     def test_fields_never_keep_an_agent_alive(self) -> None:
         oracle_topkit.Weak_Field_Probe(200)
 

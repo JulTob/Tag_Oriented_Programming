@@ -31,6 +31,7 @@ from .errors import TagPreconditionError
 from .errors import TagResolutionError
 from .errors import TagRogueAccessError
 from .lifecycle import At_Exit
+from .links import Link
 from .queries import Apply
 from .queries import Form
 from .queries import Keyword
@@ -51,6 +52,7 @@ __all__ = [
         "Flag",
         "Form",
         "Keyword",
+        "Link",
         "Imprint",
         "Operation",
         "Outline",

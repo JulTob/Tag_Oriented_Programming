@@ -32,6 +32,8 @@ from .errors import TagResolutionError
 from .declarations import STATE
 from .declarations import _MISSING
 from .declarations import _is_flag
+from .declarations import _is_link
+from .declarations import _is_pair_tag
 from .declarations import _words_of
 from .lifecycle import _teardown_all
 from .state import _Composing_Bound
@@ -310,7 +312,7 @@ def _agent_getattr(
                     )
 
         for tag in reversed(state.active):
-            if tag.__name__ == name:
+            if tag.__name__ == name and not _is_link(tag) and not _is_pair_tag(tag):   # never another Agent's Link, nor a Pair's Tag
                 return _view_of(
                         agent,
                         tag,
@@ -793,6 +795,8 @@ class _Tag_View:
             result = getattr(origin, name)
         elif name in snapshot.operations:
             result = _View_Call(view, name, name in snapshot.secrets)
+        elif name in snapshot.links:
+            result = snapshot.links[name]   # the Agent's own Link: one identity, read-only
         else:
             raise AttributeError(f"{view._tag.__name__} view has no member {name!r}")
         view._current()
@@ -820,7 +824,11 @@ class _Tag_View:
             origin = snapshot.operations[name][0]
             result = getattr_static(origin, name, _MISSING) is not _MISSING
         else:
-            result = name in snapshot.actions or name in snapshot.records
+            result = (
+                    name in snapshot.actions
+                    or name in snapshot.records
+                    or name in snapshot.links
+                    )
         view._current()
         return result
 
