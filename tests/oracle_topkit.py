@@ -87,8 +87,6 @@ class Model:
     active: list[type] = field(default_factory=list)
     ever: set[type] = field(default_factory=set)
     joined: dict[type, int] = field(default_factory=dict)   # when each active Tag was joined
-    marked_ever: bool = False               # Marked's promise is sticky: once acquired, always read
-    gated_ever: bool = False                # Gated's acquired gate is sticky too
     ok: bool = True                         # the value every promise reads
     gained: set[type] = field(default_factory=set)   # independent of Field entry and history
     slipping_round: int = 0                 # sticky Record rebuilt on each training attempt
@@ -101,8 +99,6 @@ class Model:
                 list(model.active),
                 set(model.ever),
                 dict(model.joined),
-                model.marked_ever,
-                model.gated_ever,
                 model.ok,
                 set(model.gained),
                 model.slipping_round,
@@ -112,8 +108,10 @@ class Model:
     def Has_Promise(
             model,
             ) -> bool:
-        return (model.marked_ever or Promised in model.active
-                or Slipping in model.gained)
+        return any(
+                tag in model.active
+                for tag in (Promised, Marked, Slipping)
+                )
 
     def Sound(
             model,
@@ -172,10 +170,6 @@ def Model_Gain(
     """The actual Gains persist even if the following training fails."""
 
     model.gained.add(tag)
-    if tag is Marked:
-        model.marked_ever = True
-    if tag is Gated:
-        model.gated_ever = True
     if tag is Slipping:
         model.slipping_round += 1
 
@@ -305,7 +299,7 @@ class Promised(Tag):
 
 
 class Marked(Tag):
-    """A promise that outlives the role: sticky, as the law says."""
+    """An ordinary promise: it lives exactly while this membership does."""
 
     @Post
     def Still_Ok(agent) -> bool:
@@ -481,7 +475,10 @@ def Assert_Target(
     for tag in family + OBSERVED_TAGS:
         active = tag in model.active
 
-        assert (target in tag) is active, (context, "membership", tag.__name__, active)
+        assert (target in tag[:]) is active, (context, "membership", tag.__name__, active)
+        assert (target in tag) is (active and model.Sound()), (
+                context, "sound membership", tag.__name__, active, model.Sound()
+                )
         assert isinstance(target, tag) is (tag in model.ever), (context, "history", tag.__name__)
 
         if active:
@@ -545,15 +542,13 @@ def Assert_Contract(
     if Promised in model.active:
         expected["Is_Ok"] = model.ok
 
-    if model.marked_ever:
+    if Marked in model.active:
         expected["Still_Ok"] = model.ok
 
-    if model.gated_ever:
-        expected["Ready"] = model.ok                                  # sticky: Rip leaves the gate on the record
+    if Slipping in model.active:
+        expected["Slip_Ready"] = model.ok
 
     if Slipping in model.gained:
-        expected["Can_Slip"] = model.slipping_allowed
-        expected["Slip_Ready"] = model.ok
         assert "slipping_round" @ target, (context, "missing acquired Record")
         assert "Read_Slip" @ target, (context, "missing acquired Action")
         assert target.slipping_round == model.slipping_round, (context, "retry Record")
@@ -817,8 +812,6 @@ def Exercise_Block(
     model.active = final.active
     model.ever = final.ever
     model.joined = final.joined
-    model.marked_ever = final.marked_ever
-    model.gated_ever = final.gated_ever
     model.gained = final.gained
     model.slipping_round = final.slipping_round
     model.slipping_allowed = final.slipping_allowed
@@ -875,7 +868,7 @@ def Exercise_Transactions(
             assert target not in Gated, (context, "Gate refusal: membership")
             assert target.events == events_before, (context, "gate ran the Imprint")
 
-            if not model.gated_ever:
+            if Gated not in model.gained:
                 assert not hasattr(target, "token"), (context, "Gate refusal: Record")      # sticky once ever applied
             target.ok = True
             model.ok = True
@@ -928,8 +921,8 @@ def Exercise_Transactions(
         model.slipping_allowed = True
         target.slipping_fails = False
         Tag_It(target, Slipping, model, context + " retry")
-        assert target in Slipping, (context, "successful retry did not enter")
-        assert target in Slipping[:], (context, "completed training did not enter the raw Field")
+        assert target in Slipping[:], (context, "successful retry did not enter")
+        assert (target in Slipping) is model.Sound(), (context, "retry sound membership")
         assert (target in list(Slipping)) is model.Sound(), (context, "retry sound Field")
         assert (target in ~Slipping) is (not model.Sound()), (context, "retry deficient Field")
         assert Slipping[target].Read_Slip() == model.slipping_round, (context, "retry view")

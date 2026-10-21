@@ -62,6 +62,9 @@ class _Named(type):
         Made once per name, when the check is declared.
         """
 
+        # The registry is process-global. Keep identifier text, never a
+        # caller-owned str subclass which may hold an Agent or Tag.
+        name = str.__str__(name)
         names = cls.__dict__["_names"]
 
         if name not in names:
@@ -106,7 +109,9 @@ class TagRogueAccessError(TagResolutionError):
 
 
 class TagPreconditionError(TagError, metaclass=_Named):
-    """A Precondition refused the Tagging. Nothing committed.
+    """A Precondition refused this Tag before its Gains began.
+
+    Refusal does not undo Tags completed earlier in the same chain.
 
     ``TagPreconditionError.Name`` is the subclass raised for the
     Precondition declared as ``Name``; ``error.name`` is that name.
@@ -118,7 +123,9 @@ class TagPreconditionError(TagError, metaclass=_Named):
 
 
 class TagImprintError(TagError, metaclass=_Named):
-    """An Imprint failed after the Tag applied. The Tag stays.
+    """An Imprint failed before this Tag's Field admission.
+
+    Gains already acquired during this application remain on the Agent.
 
     ``TagImprintError.Name`` is the subclass raised for the Imprint
     declared as ``Name``; ``error.name`` is that name.

@@ -61,7 +61,6 @@ def _constant_overlay(state, tag: type, declarations):
     kept = {}
     locks = {}
     for group, kind in (
-            ("preconditions", "precondition"),
             ("postconditions", "postcondition"),
             ("actions", "action"),
             ("records", "record"),
@@ -78,9 +77,7 @@ def _constant_overlay(state, tag: type, declarations):
             # origin in the registry used by its existing descriptor.
             affects = visible or (old is not None and kind == old[1] == "report")
             if old is not None and affects:
-                same_kind = old[1] == kind or (
-                        kind == "precondition" and old[1] == "postcondition"
-                        )
+                same_kind = old[1] == kind
                 if (old[0] is tag and same_kind and old[2] is original
                         and name in declarations.constants):
                     continue
@@ -97,7 +94,7 @@ def _constant_overlay(state, tag: type, declarations):
                     _check_pin_lock(state.pinned, name)
 
             entries.append(entry)
-            if visible and name in declarations.constants and kind != "precondition":
+            if visible and name in declarations.constants:
                 locks[name] = (tag, kind, original)
         kept[group] = tuple(entries)
     return replace(declarations, **kept), locks

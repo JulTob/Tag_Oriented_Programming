@@ -54,6 +54,13 @@ class Evolving(Equal):
         return stored
 
 
+def _parameter_cache_owns(function):
+    """An id-keyed slot belongs to a callable only when its weakref does."""
+
+    entry = declarations._parameter_cache.get(id(function))
+    return entry is not None and entry[0]() is function
+
+
 class ParameterCacheTests(unittest.TestCase):
     def test_nonweak_markable_protocols_work_on_objects_and_pinned_tags(self):
         for pinned in (False, True):
@@ -254,14 +261,15 @@ class ParameterCacheTests(unittest.TestCase):
             role = type("Ephemeral", (Tag,), {"Calculate": Action(Protocol)})
             agent.protocol = Protocol
             spec = declarations._parameters_of(Protocol)
+            key = id(Protocol)
             return ((weakref.ref(Protocol), weakref.ref(agent), weakref.ref(role)),
-                    spec, id(Protocol))
+                    spec, key, declarations._parameter_cache[key])
 
-        references, spec, key = create()
+        references, spec, key, entry = create()
         gc.collect()
         gc.collect()
         self.assertTrue(all(reference() is None for reference in references))
-        self.assertNotIn(key, declarations._parameter_cache)
+        self.assertIsNot(declarations._parameter_cache.get(key), entry)
         self.assertEqual(spec.named, (("receiver", False), ("amount", True)))
 
     def test_parameter_identifier_backreferences_are_not_globally_memoized(self):
@@ -289,16 +297,15 @@ class ParameterCacheTests(unittest.TestCase):
             self.assertIs(second.named[index][0], name)
             self.assertIsNot(first, second)
             self.assertEqual(inspect_each.call_count, 2)
-            self.assertNotIn(id(Protocol), declarations._parameter_cache)
-            return weakref.ref(Protocol), id(Protocol)
+            self.assertFalse(_parameter_cache_owns(Protocol))
+            return weakref.ref(Protocol)
 
         for index in (0, 1):
             with self.subTest(index=index):
-                reference, key = create(index)
+                reference = create(index)
                 gc.collect()
                 gc.collect()
                 self.assertIsNone(reference())
-                self.assertNotIn(key, declarations._parameter_cache)
 
     def test_native_parameter_name_objects_keep_keyword_binding_and_defaults(self):
         class Name(str):
@@ -383,18 +390,17 @@ class ParameterCacheTests(unittest.TestCase):
             agent.protocol = Protocol
             spec = declarations._parameters_of(Protocol)
             return ((weakref.ref(Protocol), weakref.ref(agent), weakref.ref(role)),
-                    spec, id(Protocol))
+                    spec)
 
-        references, spec, key = create()
+        references, spec = create()
         gc.collect()
         self.assertTrue(all(reference() is not None for reference in references))
         self.assertIs(spec.named[1][0].owner, references[0]())
-        self.assertNotIn(key, declarations._parameter_cache)
+        self.assertFalse(_parameter_cache_owns(references[0]()))
         del spec
         gc.collect()
         gc.collect()
         self.assertTrue(all(reference() is None for reference in references))
-        self.assertNotIn(key, declarations._parameter_cache)
 
 
 if __name__ == "__main__":
