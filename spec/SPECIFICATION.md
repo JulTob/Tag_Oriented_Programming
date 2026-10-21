@@ -1614,9 +1614,10 @@ successful behaviour; express those requirements separately.
 ## 3.1 Rip protocols
 
 An Imprint trains before admission; a `@Rip` Action runs when the Agent
-leaves the Tag's Field. It is also an ordinary, callable Action. Unfinished
-training never entered the Field and therefore does not run Rip
-automatically (§0.6).
+leaves the Tag's Field. It is also an ordinary, callable Action. A structural
+failure that prevented Field admission leaves no membership to Rip (§0.6).
+Ordinary initializer or Imprint failures instead continue through admission;
+those admitted Agents leave through the ordinary Rip protocol.
 
 ```python
 class MI6(Tag):
