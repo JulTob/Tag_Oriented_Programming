@@ -1,5 +1,4 @@
-"""Contracts: Preconditions gate the incoming Agent, Postconditions
-promise about the finished one.
+"""Contracts: Pre Services gate Tagging; Post Gains bind the Agent.
 
 A condition is strictly boolean: True or a fall-through (None) holds,
 False fails, anything else is rejected. An assert-style body fails by
@@ -8,9 +7,13 @@ raising.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+from contextlib import nullcontext
+from contextvars import ContextVar
 from typing import Any
 from typing import Callable
 from typing import Iterable
+from typing import Iterator
 
 from .declarations import _MISSING
 from .declarations import _protocol_inputs
@@ -23,7 +26,6 @@ from .errors import TagCompositionError
 from .errors import TagContractError
 from .errors import TagError
 from .errors import TagPostconditionError
-from .errors import TagPreconditionError
 from .geometry import _leaves
 from .state import _namespace_of
 from .state import _State
@@ -34,28 +36,86 @@ from .state import _state_of
 Check = Callable[[object, dict[str, Any]], Any]
 
 
+class _Recursive_Soundness(TagContractError):
+    """A Post asked the sound population to judge its own Agent."""
+
+
+class _Post_Check:
+    __slots__ = ("identity", "active")
+
+    def __init__(self, agent: object) -> None:
+        self.identity = id(agent)
+        self.active = True
+
+
+_post_checks: ContextVar[tuple[_Post_Check, ...]] = ContextVar(
+        "topkit_post_checks", default=(),
+        )
+
+
+@contextmanager
+def _checking_post(agent: object) -> Iterator[None]:
+    """Mark a Post's actual execution, independently of Pre reads.
+
+    The marker is execution-local, holds only the Agent's identity, and is
+    revoked on exit. A copied context cannot keep an Agent alive or inherit
+    an *active* check after the Post finishes.
+    """
+
+    check = _Post_Check(agent)
+    token = _post_checks.set((*_post_checks.get(), check))
+
+    try:
+        yield
+    finally:
+        check.active = False
+        _post_checks.reset(token)
+
+
+def _is_checking_post(agent: object) -> bool:
+    for check in _post_checks.get():
+        if check.active and check.identity == id(agent):
+            return True
+
+    return False
+
+
+def _holds_for_population(agent: object) -> bool:
+    """Soundness may not depend on a Post that is still judging this Agent."""
+
+    state = _state_of(agent)
+
+    if state is None or not state.postconditions:
+        return True
+
+    if _is_checking_post(agent):
+        raise _Recursive_Soundness(
+                "a Post cannot ask whether its own Agent is sound in a"
+                " Tag population; use Tag[:] to ask about Field membership"
+                )
+
+    return _holds(agent, state)
+
+
 def _refuse_condition_binding(
         agent: object,
         name: str,
         ) -> None:
-    """A visible condition is computed on read and has no stored binding."""
+    """A visible Post is computed on read and has no stored binding."""
 
     state = _state_of(agent)
 
-    if state is not None and (
-            name in state.preconditions
-            or name in state.postconditions
-            ):
+    if state is not None and name in state.postconditions:
         raise TagCompositionError(
-                f"{name!r} is a computed condition on {_name_of(agent)};"
+                f"{name!r} is a computed Post on {_name_of(agent)};"
                 " it cannot be assigned or deleted"
                 )
 
 
-class _Condition_Gate:
-    """Compute a condition on read and refuse writes while it is visible.
+class _Post_Gate:
+    """Compute a Post on read and refuse writes while it is visible.
 
-    If the Agent's state no longer carries the condition, expose the binding
+    If the Agent's state no longer carries the Post, expose the binding
     gate this descriptor replaced, or ordinary instance storage when there was
     none.
     """
@@ -197,6 +257,9 @@ def _bind_condition(
         prior: Check | None,
         with_inputs: bool,
         name: str,
+        *,
+        uses_underlay: bool | None = None,
+        neutral_underlay: bool = False,
         ) -> Check:
     """Bind one condition, giving it its Underlay when marked.
 
@@ -205,9 +268,10 @@ def _bind_condition(
     ``return base() and ...`` both compose.
     """
 
-    uses_underlay = _takes_underlay(function, name)
+    if uses_underlay is None:
+        uses_underlay = _takes_underlay(function, name)
 
-    if uses_underlay and prior is None:
+    if uses_underlay and prior is None and not neutral_underlay:
         from .errors import TagResolutionError
 
         raise TagResolutionError(
@@ -246,6 +310,9 @@ def _bind_condition(
                     )
 
         def base() -> bool:
+            if prior is None:
+                return True
+
             try:
                 result = prior(agent, inputs)
             except TagContractError:
@@ -270,50 +337,56 @@ def _evaluate(
         inputs: dict[str, Any],
         failure: _Named,
         phase: str,
+        *,
+        post: bool = False,
         ) -> None:
     """Run conditions; raise ``failure`` naming the first that does not hold."""
 
     for name, check in checks:
-        try:
-            result = check(agent, inputs)
-        except TagContractError as error:
-            raise TagContractError(
-                    f"{phase} {name!r} failed: {_exception_text(error)}"
-                    ) from error
-        except Exception as error:
-            raise failure.Named(name)(
-                    f"{phase} {name!r} raised {_type_name(error)}: {_exception_text(error)}"
-                    ) from error
+        with _checking_post(agent) if post else nullcontext():
+            try:
+                result = check(agent, inputs)
+            except _Recursive_Soundness as error:
+                raise _Recursive_Soundness(
+                        f"{phase} {name!r} failed: {_exception_text(error)}"
+                        ) from error
+            except TagContractError as error:
+                raise TagContractError(
+                        f"{phase} {name!r} failed: {_exception_text(error)}"
+                        ) from error
+            except Exception as error:
+                raise failure.Named(name)(
+                        f"{phase} {name!r} raised {_type_name(error)}: {_exception_text(error)}"
+                        ) from error
 
-        if not _verdict(result, f"{phase} {name!r}"):
-            raise failure.Named(name)(
-                    f"{phase} {name!r} failed"
-                    )
+            if not _verdict(result, f"{phase} {name!r}"):
+                raise failure.Named(name)(
+                        f"{phase} {name!r} failed"
+                        )
 
 
 def _guarded(
         agent: object,
-        scope: str,
         detailed: bool,
         failure: _Named,
         phase: str,
         ) -> bool:
-    """Run one scope of the Agent's visible conditions on demand.
+    """Run the Agent's visible Posts on demand.
 
-    Re-entrancy guarded: a nested ``bool(agent)`` inside a condition
-    answers True instead of recursing.
+    Re-entering this named diagnostic remains a shortcut. The Post marker
+    used by sound population queries is separate from that shortcut.
     """
 
     state = _state_of(agent)
 
-    if state is None or state.checking:
+    if state is None or state.checking or _is_checking_post(agent):
         return True
 
-    state.checking = True
+    reentrant = state.checking
     state.composing += 1
 
     try:
-        checks = getattr(state, scope).items()
+        checks = tuple(state.postconditions.items())
 
         if detailed:
             _evaluate(
@@ -322,48 +395,55 @@ def _guarded(
                     {},
                     failure,
                     phase,
+                    post=True,
                     )
 
             return True
 
         for name, check in checks:
-            try:
-                if not _verdict(check(agent, {}), name):
+            with _checking_post(agent):
+                try:
+                    if not _verdict(check(agent, {}), name):
+                        return False
+                except _Recursive_Soundness:
+                    raise
+                except Exception:
                     return False
-            except Exception:
-                return False
 
         return True
     finally:
         state.composing -= 1
-        state.checking = False
+        state.checking = reentrant
 
 
 def _holds(
         agent: object,
+        state: _State | None = None,
         ) -> bool:
     """True exactly when every visible Postcondition holds."""
 
-    state = _state_of(agent)
+    if state is None:
+        state = _state_of(agent)
 
-    if state is None or state.checking or not state.postconditions:
-        return True   # nothing promised, or asked from inside a check
+    if state is None or not state.postconditions or _is_checking_post(agent):
+        return True   # nothing promised, or asked from inside its own Post
 
-    state.checking = True
     state.composing += 1
 
     try:
-        for name, check in state.postconditions.items():
-            try:
-                if not _verdict(check(agent, {}), name):
+        for name, check in tuple(state.postconditions.items()):
+            with _checking_post(agent):
+                try:
+                    if not _verdict(check(agent, {}), name):
+                        return False
+                except _Recursive_Soundness:
+                    raise
+                except Exception:
                     return False
-            except Exception:
-                return False
 
         return True
     finally:
         state.composing -= 1
-        state.checking = False
 
 
 def _condition_member(
@@ -371,40 +451,36 @@ def _condition_member(
         state: _State,
         name: str,
         ) -> bool | None:
-    """The condition called ``name`` on the Agent, read as a plain bool
-    (STEP-SPEC-14): a Postcondition first, then a Precondition. None when
-    the Agent has no condition of that name."""
+    """The Post called ``name`` on the Agent, read as a plain bool.
+
+    A Pre is a transient Tagging Service and never becomes an Agent member.
+    ``None`` means the Agent carries no Post of this name.
+    """
 
     check = state.postconditions.get(name)
 
     if check is None:
-        check = state.preconditions.get(name)
-
-    if check is None:
         return None
 
-    reentrant = state.checking
-    state.checking = True
     state.composing += 1
 
     try:
-        try:
-            return _verdict(
-                    check(agent, {}),
-                    name,
-                    )
-        except TagContractError:
-            raise
-        except Exception:
-            return False
+        with _checking_post(agent):
+            try:
+                return _verdict(
+                        check(agent, {}),
+                        name,
+                        )
+            except TagContractError:
+                raise
+            except Exception:
+                return False
     finally:
         state.composing -= 1
-        state.checking = reentrant
 
 
 def _status_of(
         agent: object,
-        scope: str,
         ) -> dict[str, bool]:
     state = _state_of(agent)
 
@@ -412,19 +488,21 @@ def _status_of(
         return {}
 
     reentrant = state.checking
-    state.checking = True
     state.composing += 1
     status: dict[str, bool] = {}
 
     try:
-        for name, check in getattr(state, scope).items():
-            try:
-                status[name] = _verdict(
-                        check(agent, {}),
-                        name,
-                        )
-            except Exception:
-                status[name] = False
+        for name, check in tuple(state.postconditions.items()):
+            with _checking_post(agent):
+                try:
+                    status[name] = _verdict(
+                            check(agent, {}),
+                            name,
+                            )
+                except _Recursive_Soundness:
+                    raise
+                except Exception:
+                    status[name] = False
     finally:
         state.composing -= 1
         state.checking = reentrant
@@ -461,77 +539,35 @@ class Contract:
             ) -> bool:
         return _guarded(
                 agent,
-                "postconditions",
                 True,
                 TagPostconditionError,
                 "Postcondition",
                 )
 
     @staticmethod
-    def Preconditions(
-            agent: object,
-            ) -> bool:
-        return _guarded(
-                agent,
-                "preconditions",
-                True,
-                TagPreconditionError,
-                "Precondition",
-                )
-
-    @staticmethod
-    def Conditions(
-            agent: object,
-            ) -> bool:
-        Contract.Preconditions(agent)
-        Contract.Postconditions(agent)
-
-        return True
-
-    @staticmethod
     def Delete(
             agent: object,
             *names: str,
             ) -> None:
-        """End the named conditions on the Agent, explicitly.
+        """Explicitly end the named removable Post towers.
 
-        Conditions are sticky: Rip does not remove them. A Tag whose gate
-        or promise should end with its membership deletes it here, from
-        its own ``@Rip`` protocol, one deliberate name at a time. A name
-        that is not a condition on the Agent is a Resolution Failure: an
-        author who ends a promise must be ending a real one. Every requested
-        name is validated before any condition ends.
+        An absent name is already at the neutral state and is therefore a
+        no-op.  This also keeps older Rip protocols safe when they explicitly
+        end a Post that Field removal has just ended automatically.
         """
-
-        from .errors import TagResolutionError
 
         state = _state_of(agent)
 
         from .constants import _refuse_constant
 
-        available = set()
+        for name in names:
+            _refuse_constant(state, name)
 
         if state is not None:
-            available.update(state.preconditions)
-            available.update(state.postconditions)
+            from .overlay import _clear_post_name
 
-        for name in names:
-            if name not in available:
-                raise TagResolutionError(
-                        f"{name!r} is not a condition on {_name_of(agent)};"
-                        " Contract.Delete ends a gate or a promise that is"
-                        " there"
-                        )
-
-            _refuse_constant(state, name)
-            available.remove(name)
-
-        for name in names:
-            for scope in (
-                    state.preconditions if state is not None else {},
-                    state.postconditions if state is not None else {},
-                    ):
-                scope.pop(name, None)
+            for name in names:
+                _clear_post_name(state, name)
 
         if state is not None and names:
             from .state import _runtime_type_for
@@ -546,11 +582,11 @@ class Contract:
     def Status(
             agent: object,
             ) -> dict[str, bool]:
-        """``{condition: holds?}`` for every visible condition, never raising."""
+        """Verdicts for visible conditions. Ordinary check errors become
+        False; a self-referential soundness query raises Contract Failure."""
 
         return {
-                **_status_of(agent, "preconditions"),
-                **_status_of(agent, "postconditions"),
+                **_status_of(agent),
                 }
 
     @staticmethod
@@ -558,26 +594,18 @@ class Contract:
             agent: object,
             ) -> str:
         title = _title_of(agent)
-        pre = _status_of(agent, "preconditions")
-        post = _status_of(agent, "postconditions")
+        post = _status_of(agent)
 
-        if not pre and not post:
+        if not post:
             return f"{title}: no conditions"
 
         lines = [f"{title} contract:"]
 
-        for heading, scope in (
-                ("Pre", pre),
-                ("Post", post),
-                ):
-            if not scope:
-                continue
+        lines.append("  Post:")
 
-            lines.append(f"  {heading}:")
-
-            for name, holds in scope.items():
-                lines.append(
-                        f"    {'OK' if holds else 'XX'}  {name}"
-                        )
+        for name, holds in post.items():
+            lines.append(
+                    f"    {'OK' if holds else 'XX'}  {name}"
+                    )
 
         return "\n".join(lines)

@@ -19,7 +19,7 @@ tracks splitting them by idea without changing semantics.
 | `fields.py` | the Field and its sound / defective partitions |
 | `state.py` | the per-Agent state, bound Actions, the runtime type and its descriptors |
 | `overlay.py` | laying one Tag's declarations over a state; materializing Records |
-| `contracts.py` | strict verdicts, binding conditions, `Contract` |
+| `contracts.py` | strict verdicts, transient Pre Services, bound Post Gains, `Contract` |
 | `constants.py` | protecting Constant bindings without freezing their values |
 | `tools.py` | Tool slots: a Record's kind, a Tag or a class, admission at the gaining and at every write |
 | `presence.py` | Contribution presence without evaluating values or conditions |
@@ -51,7 +51,14 @@ Actions; Agents are built once and play for a long time. So:
   `isinstance` is answered by the metaclass from the Agent's ever-set.
 - **Runtime types are shared** across every Agent whose host and
   type-level facts match, whatever Tags they carry. Ten thousand Agents of
-  one host normally share one type.
+  one host normally share one type. The cache has weak values and keys use
+  the Host's identity number, not the Host itself. A live runtime type owns
+  its Host through its bases, so that identity cannot be reused while the
+  entry is live. The cache cannot root a cycle from a transient Host's
+  methods or metaclass back to an Agent; Hosts with custom equality or
+  hashing still have independent identity-based entries. An Action body
+  that deliberately captures its Agent remains a strong owner: the weak
+  receiver binding does not undo references inside the function.
 - **Actualization is verified before Field entry.** The Target must retain
   its state and accept the exact runtime type the kit requested. Host
   `__setattr__` and `__init_subclass__` refusals, and metaclasses that
@@ -157,9 +164,10 @@ Python's priority for a right operand whose type is a subtype. A
 pinned Tag supports the query as an Agent; an unpinned Tag gains no TOP
 operator from this feature.
 
-Measured on Python 3.11 (`benchmarks/bench.py`), nanoseconds per
-operation: plain attribute read 42, Agent host-attribute read 65, Record
-read 64, plain method call 86, Action call 295, `agent in Tag` 291,
+Historical raw-membership measurements on Python 3.11
+(`benchmarks/bench.py`), nanoseconds per operation: plain attribute read 42,
+Agent host-attribute read 65, Record read 64, plain method call 86,
+Action call 295, `agent in Tag` 291 (before sound membership),
 `bool(agent)` with one Post about 1900. Tagging a Record-plus-Post Shape
 over a Base costs about 60 µs per Agent; an empty Tag about 22 µs. Peak
 memory about 6 KB per Agent with two Tags.
@@ -223,14 +231,16 @@ its ordinary Action and Record names against the live State one by one,
 without copying it. An internal Report or Operation does not by itself
 require a scratch copy; a public one does. Tags needing full composition
 are laid over a scratch copy of the current Overlay. Their composed
-Preconditions judge the live Agent. A refusal does not remove Tags whose
-turns already finished.
-Gainings apply Actions, Records, condition definitions and deletions
-incrementally in declaration order, top to bottom,
-establishing each before the next declaration runs. The Gate has already
-evaluated this Tag's own Preconditions. Imprints run after Gainings and
-before FieldAdding. The Tag's published members remain guarded by membership
-during this training interval.
+Posts and other Gains are validated there. `_precondition_services` binds the
+current Tag's Preconditions separately over its Base-first Form. Those checks
+judge the live Agent and are then discarded: a Pre is a transient Tagging
+Service, never `_State` and never an Agent name. A refusal does not remove
+Tags whose turns already finished.
+Gainings apply Actions, Records, Post definitions and deletions incrementally
+in declaration order, top to bottom, establishing each before the next
+declaration runs. The Gate has already evaluated this Tag's own Pre Services.
+Imprints run after Gainings and before FieldAdding. The Tag's published
+members remain guarded by membership during this training interval.
 
 `overlay._gainings` walks the scan's ordered declarations. `_record_value`
 calculates a Record's returned value before installing its declaration or
@@ -251,15 +261,20 @@ Python slot bindings. It does not undo mutable value contents, external
 effects or later training. Acquired Gains follow STEP-SPEC-39.
 
 FieldAdding establishes active membership, history and the Field together,
-then captures the admitted Tag's view. `_inspect` runs visible Posts once
-after the completed Form. A Gainings or Imprint failure leaves actually
-acquired Gains and completed Tags in place without admitting the unfinished
-Tag. A Post failure preserves membership; current Posts determine soundness,
-not a permanent failure marker. Retry passes a fresh Gate, overlays ordinary
-Gains and restarts Imprints, retaining established Constants. Acquired
-conditions, including Posts and Constant Posts, remain even after unfinished
-training. They participate in contract queries and published-member guards;
-ordinary Actions are not automatically wrapped in Post checks.
+then captures the admitted Tag's view. Each `_apply_one` creates a private
+application token. `_gainings` records every provisional Post in
+`state.post_layers` with that token; `_enter_field` records the token and its
+Post-name index in `state.post_applications` only at admission. `_inspect` runs visible Posts
+once after the completed Form.
+
+A Gainings or Imprint failure leaves actually acquired non-Post Gains and
+completed Tags in place without admitting the unfinished Tag.
+`_remove_post_application(..., keep_constants=False)` discards all Posts from
+that unadmitted attempt, including Constant Posts. A Post failure after
+admission preserves membership; current Posts determine soundness, not a
+permanent failure marker. Retry passes a fresh Gate, overlays ordinary Gains
+and restarts Imprints, retaining established non-Post Constants. Ordinary
+Actions are not automatically wrapped in Post checks.
 
 `_enter_field` admits only after training. For a Pin, `_publication_plans`
 preflights every current Field recipient before admission; `_publish_to_field`
@@ -302,7 +317,8 @@ Tagging sequence or expand its rollback boundary.
 
 ## Judgment calls
 
-- **`in` vs `isinstance`.** `agent in Tag` is the is-now check; `isinstance`
+- **`in` vs `isinstance`.** `agent in Tag` is the sound is-now check;
+  `agent in Tag[:]` checks raw Field admission. `isinstance`
   is the has-been check and stays true after Rip. History is established at
   FieldAdding. A failed never-member may retain Gains while both checks are
   false; a Rogue who previously entered the Tag retains its has-been history.
@@ -323,7 +339,7 @@ Tagging sequence or expand its rollback boundary.
   refused before Tagging; Agent-scope truth Contributions are refused at
   declaration or late assignment. Synthesized runtime hooks are recognized
   without evaluating host truth. A host's `__len__` keeps `len`. A new
-  condition name still rebuilds the type for its protective data
+  Post name still rebuilds the type for its protective data
   descriptor. Format specs are the display door: `f"{Tag:form}"`,
   `f"{agent:tags}"`,
   `f"{agent:outline}"`, `f"{agent:contract}"`.
@@ -469,13 +485,21 @@ Tagging sequence or expand its rollback boundary.
   otherwise runs the Agent's Postconditions through `_guarded` with
   `detailed=True`, which raises the named promise and is re-entrancy
   safe. An Agent without Postconditions pays one dictionary lookup.
-- **Conditions are sticky** (STEP-SPEC-12): `_rip` removes membership
-  and runs the teardown, nothing else. Every bound check carries its
-  origin Tag (`_stamp`) only so that a Tag re-applied after a Rip
-  replaces its own promise silently. `Contract.Delete(agent, *names)`
-  pops the named conditions from the Agent's state and raises a
-  Resolution Failure for a name that is not there; it is written to be
-  called from a `@Rip` protocol, and works for a pinned Tag as well.
+- **Contract lifetimes are explicit.** A Pre never enters `_State`. An
+  admitted ordinary Post is keyed to its application token. `_rip` removes
+  Field membership, then calls
+  `_remove_post_application(..., keep_constants=True)` before teardown:
+  ordinary layers from that application end, admitted Constant layers stay as
+  lifetime Contract terms. `_rebuild_post_name` reconnects surviving layers,
+  with `True` as the neutral missing Underlay. The token prevents an old Rip
+  that reTags the Agent from removing the fresh application's Posts.
+  `state.postconditions` remains the compiled hot visible-check mapping;
+  `state.post_layers` is the authoritative tower and
+  `state.post_applications` owns admitted application identities.
+  `Contract.Delete(agent, *names)` clears each removable Post tower and treats
+  an absent name as an idempotent neutral result. The existing Constant name
+  lock still refuses its deletion; broader same-name Constant composition is
+  separate future work.
 - **Field algebra** (STEP-SPEC-13): `_Population` in `fields.py` gives
   every population the three operators; `_Combined` holds two sides and
   an operator and walks them lazily (`|` by identity, each once; `&` and
@@ -489,19 +513,20 @@ Tagging sequence or expand its rollback boundary.
   ends, so Python cannot reuse one identity key for a distinct Agent on a
   later side. Partitions—including their fast truth question—and
   combinations all route through that walk. No kernel state changes.
-- **Condition members** (STEP-SPEC-14): an ordinary Agent answers a
-  condition by name through `_Condition_Gate`; a pinned Tag keeps the
-  metaclass miss path. Both call `contracts._condition_member`, which
+- **Post members** (STEP-SPEC-14): an ordinary Agent answers a visible Post
+  by name through `_Post_Gate`; a pinned Tag keeps the metaclass miss path.
+  Both call `contracts._condition_member`, which
   evaluates under the re-entrancy guard and returns a plain bool. The
   data gate and `_Binding_Write` refuse assignment
   or deletion before a host hook runs; `Contract.Delete` rebuilds the
   runtime type without the ended name, returning it to ordinary
-  attribute behavior. Nothing is written to the Agent's namespace. The
-  collision rule lives in three places: `_refuse_condition_collision`
+  attribute behavior. Nothing is written to the Agent's namespace. A Pre
+  never installs this gate or reserves its name. The Post collision rule
+  lives in three places: `_refuse_condition_collision`
   at install (Actions, Records, host class members),
   `_refuse_member_over_condition` when an Action or Record is installed
-  over a condition's name, and
-  `_refuse_conditions_shadowed_by_the_agent` in `_apply_one` for a value
+  over a Post's name, and
+  `_refuse_posts_shadowed_by_the_agent` in `_gate` for a value
   the Agent's own namespace already holds.
 - **The guaranteed tier** (§3.2) is the program's own: it tags before
   `try` and Rips in `finally`. The kit has no built-in membership context
@@ -539,8 +564,11 @@ Tagging sequence or expand its rollback boundary.
   walk under the suite. Run it at size with `--seeds 50 --steps 1200
   --population 18` (about 60,000 transitions, under twenty seconds).
 - **Stacked `@Pre @Post`** marks the function's kind `"condition"`, in
-  either order; the scan appends it to both lists and `_name_checks`
-  registers both named failures. It is the only spelling: `@Requirement`,
+  either order; the scan appends it to the Pre and Post declaration lists,
+  but only its Post half enters `gain_order`. `_name_checks` registers both
+  named failures. The two roles share a body, not a lifetime: the Pre is
+  Gate-local and the Post becomes membership-bound on admission. It is the
+  only spelling: `@Requirement`,
   which set the same kind in one word, was removed (STEP-SPEC-30), so
   `_Check_Mark` is back to one failure class per mark.
 - **Assigning a Tag's name on an Agent** (`ari.Elf = 1`) shadows the view by

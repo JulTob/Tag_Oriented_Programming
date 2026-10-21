@@ -116,7 +116,7 @@ class PublicOperationMetadataTests(unittest.TestCase):
         agent.ready = False
 
         self.assertIn(agent, Agency[:])
-        self.assertIn(agent, Agency)
+        self.assertNotIn(agent, Agency)
         for call in (agent.Work, view.Work, captured, captured_view):
             with self.assertRaises(Postcondition.Ready):
                 call()

@@ -4,7 +4,8 @@ Everything a program can observe must agree between the two kits. Each
 seed makes one deterministic Python program that uses TOP broadly:
 Tag families with Bases, Shapes and diamonds; Records with a stored seat
 and inputs; Actions with and without @Underlay, special methods among
-them; gates, promises and stacked gate-and-promise conditions; Imprints,
+them; transient Pre services, membership-bound Posts, admitted Constant Posts,
+and stacked Pre-and-Post declarations; Imprints,
 Rips, Deletes, Secrets, published Reports and Operations, Flags with words,
 Pins; blocks that hold Tags with try and finally, Apply, applying,
 re-applying and Ripping; Flags declared and Tags renamed while
@@ -90,6 +91,7 @@ gc.disable()   # a cycle is collected only where the program says, alike on ever
 from TopKit import Action
 from TopKit import Apply
 from TopKit import At_Exit
+from TopKit import Constant
 from TopKit import Contract
 from TopKit import Delete
 from TopKit import Flag
@@ -613,58 +615,64 @@ AGENT_MEMBERS = (
             def __del__(agent):
                 pass
             """),
-        Member("condition", "Ok", 4, """
+        Member("post", "Ok", 4, """
             @Post
             def Ok(agent):
                 return agent.ok
             """),
-        Member("condition", "Ok", 1, """
+        Member("post", "Ok", 1, """
             @Post
             def Ok(agent):
                 assert agent.ok, "{tag} finds it not ok"
             """),
-        Member("condition", "Ok", 2, """
+        Member("post", "Ok", 2, """
             @Post
             @Underlay
             def Ok(agent, base):
                 return base() and agent.level > 0
             """),
-        Member("condition", "Ok", 1, """
+        Member("post", "Ok", 1, """
             @Post
             def Ok(agent):
                 return 1 if agent.ok else 0
             """),
-        Member("condition", "Ready", 2, """
+        Member("pre", "Ready", 2, """
             @Pre
             def Ready(agent):
                 return agent.level >= {k}
             """),
-        Member("condition", "Ready", 1, """
+        Member("pre", "Ready", 1, """
             @Pre
             def Ready(agent, code):
                 return code != "bad"
             """),
-        Member("condition", "Ready", 1, """
+        Member("pre", "Ready", 1, """
             @Pre
             def Ready(agent):
                 return agent in {other}
             """),
-        Member("condition", "Alive", 2, """
+        Member("pre/post", "Alive", 2, """
             @Post
             @Pre
             def Alive(agent):
                 return agent.ok
             """),
-        Member("condition", "Alive", 1, """
+        Member("pre/post", "Alive", 1, """
             @Pre
             @Post
             def Alive(agent):
                 return agent.level > 0
             """),
-        Member("condition", "Leveled", 1, """
+        Member("post", "Leveled", 1, """
             @Post
             def Leveled(agent):
                 return agent not in {other} or agent.level > {k}
+            """),
+        Member("constant post", "{tag}_Oath", 1, """
+            @Constant
+            @Post
+            def {tag}_Oath(agent):
+                return agent.ok
             """),
         Member("imprint", "Enter", 2, """
             @Imprint
@@ -793,12 +801,12 @@ PIN_MEMBERS = (
                 if "Hail" in original:
                     tag.Hail = original.Hail
             """),
-        Member("condition", "Has_Members", 1, """
+        Member("pre", "Has_Members", 1, """
             @Pre
             def Has_Members(tag):
                 return len(tag[:]) > 0
             """),
-        Member("condition", "Approved", 2, """
+        Member("post", "Approved", 2, """
             @Post
             def Approved(tag):
                 return vars(tag).get("approved", True) is not False
@@ -982,7 +990,10 @@ def Declare(
     tag = Tag_Plan(
             name=name,
             title=name,
-            members={member.name: member.kind for member in chosen},
+            members={
+                    member.name.format(tag=name): member.kind
+                    for member in chosen
+                    },
             )
     others = [known.name for known in plan.tags] or [name]
     decorators = []
@@ -1384,7 +1395,17 @@ def Member_Read(
     """A member of the Agent, read or called: what any Tag gives, what
     the host has, and names no one gives."""
 
-    reads = Names_Of(plan.tags, "record", "secret record", "condition", "public report") + Names_Of(
+    # Preconditions are Gate services, not readable Agent members. A combined
+    # Pre/Post declaration is readable only through its admitted Post role.
+    reads = Names_Of(
+            plan.tags,
+            "record",
+            "secret record",
+            "post",
+            "constant post",
+            "pre/post",
+            "public report",
+            ) + Names_Of(
             plan.pins,
             "public record",
             )
@@ -1487,8 +1508,6 @@ def Querying(
                 f'f"{{{tag}:form}}"',
                 f"Contract.Status({agent})",
                 f"Contract.Postconditions({agent})",
-                f"Contract.Preconditions({agent})",
-                f"Contract.Conditions({agent})",
                 f"Contract.Display({agent})",
                 f"bool({agent})",
                 f"isinstance({agent}, {tag})",
@@ -1742,7 +1761,10 @@ def Ending_A_Promise(
         step: str,
         ) -> list[str]:
     agent = Any_Agent(plan)
-    name = plan.randomizer.choice(Names_Of(plan.tags, "condition") + ["Nothing"])
+    name = plan.randomizer.choice(
+            Names_Of(plan.tags, "post", "constant post", "pre/post")
+            + ["Nothing"]
+            )
 
     return Then_Look(
             plan,
