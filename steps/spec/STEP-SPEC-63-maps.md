@@ -14,7 +14,9 @@
 - **Related Briefs:** [STEP-SPEC-51](STEP-SPEC-51-independent-link-fields.md)
   and [STEP-SPEC-52](STEP-SPEC-52-ordered-link-underlays.md), the latter as
   corrected by [PR #406](https://github.com/JulTob/Tag_Oriented_Programming/pull/406)
-- **Related runtime draft:** [Links core on main / PR #435](https://github.com/JulTob/Tag_Oriented_Programming/pull/435) (Draft)
+- **Related runtime drafts:** two candidate Links cores, both Draft:
+  [PR #423](https://github.com/JulTob/Tag_Oriented_Programming/pull/423), which a 2026-10-21 comparison recommends, and
+  [PR #435](https://github.com/JulTob/Tag_Oriented_Programming/pull/435). The Director chooses one.
 - **Pin spelling:** `class Social(Pin)`, on `main` since [PR #426](https://github.com/JulTob/Tag_Oriented_Programming/pull/426)
   (merged 2026-10-21).
 
@@ -593,13 +595,13 @@ This STEP **cannot be Deployed before Links are**.
    corrected by PR #406, which is open. Laws 2, 4, 5 and 9–24 and the Python
    profile boundary lift their laws. If either STEP changes in review, the
    lifted laws here change with it.
-2. **The Link core is not on `main`.** PR #435 is a Draft port of
-   STEP-SPEC-51 laws 1–4 and is not green yet. Lazy saved Pair views
-   (STEP-SPEC-51 law 5) and the STEP-SPEC-52 header runtime are later,
-   separate PRs. Maps have no runtime, and no part of this STEP is claimed
-   as runtime behaviour.
+2. **The Link core is not on `main`.** Two Draft cores compete. PR #435
+   ports STEP-SPEC-51 laws 1–4 and is not green. PR #423 implements laws
+   1–5 and the STEP-SPEC-52 header (on #412), is green on its own base,
+   and waits on a prerequisite chain. Maps have no runtime, and no part of
+   this STEP is claimed as runtime behaviour.
 3. **Order of work.** First Clear STEP-SPEC-51 and STEP-SPEC-52 (with
-   PR #406). Then merge the Link core (PR #435), the saved Pair views and the
+   PR #406). Then merge the chosen Link core, with its saved Pair views and
    header runtime. Only then build Maps, as that core applied where holder
    and Contacts are Tags.
 4. **STEP-SPEC-64 is independent of this STEP.** Maps neither need nor imply
