@@ -7,15 +7,13 @@ machinery remains responsible for Gains, contracts and Rip.
 
 from __future__ import annotations
 
+from asyncio import CancelledError
 from collections.abc import Coroutine
 from contextlib import contextmanager
 from contextlib import ExitStack
 from contextvars import ContextVar
 from inspect import Parameter
 from inspect import getattr_static
-from types import AsyncGeneratorType
-from types import CoroutineType
-from types import GeneratorType
 from typing import Any
 from weakref import ref
 
@@ -41,6 +39,7 @@ from .declarations import _invalidate_declarations
 from .declarations import _is_private
 from .declarations import _kind_of
 from .declarations import _signature_of
+from .errors import TagArrestedAccessError
 from .errors import TagCompositionError
 from .errors import TagDeclarationError
 from .errors import TagResolutionError
@@ -50,6 +49,8 @@ from .errors import TaggingFailure
 from .fields import FIELD_SEAT
 from .fields import _Field
 from .fields import _field_of
+from .lazy_guard import _lazy_kind_of
+from .lazy_guard import _register_lazy_proxy_types
 from .lifecycle import _rip
 from .lifecycle import _rip_field
 from .overlay import _remove_post_application
@@ -579,12 +580,12 @@ def _during_seats(ends: _Ends, owner: object, contact: object):
 
 
 def _stepped(result: Any, ends: _Ends) -> Any:
-    kind = type(result)
-    if kind is GeneratorType or kind is _Generator:
+    kind = _lazy_kind_of(result)
+    if kind == 0:
         return _Generator(result, ends)
-    if kind is CoroutineType or kind is _Coroutine:
+    if kind == 1:
         return _Coroutine(result, ends)
-    if kind is AsyncGeneratorType or kind is _Async_Generator:
+    if kind == 2:
         return _Async_Generator(result, ends)
     return result
 
@@ -609,10 +610,12 @@ def _park_result(ends: _Ends, source: Any, hold = _hold_lazy_result) -> None:
 
 
 class _Generator:
-    __slots__ = ("native", "ends")
+    __slots__ = ("native", "ends", "__name__", "__qualname__")
 
     def __init__(result, native: Any, ends: _Ends) -> None:
         result.native, result.ends = native, ends
+        result.__name__ = getattr(native, "__name__", "<Link continuation>")
+        result.__qualname__ = getattr(native, "__qualname__", result.__name__)
 
     def __iter__(result):
         return result
@@ -620,9 +623,11 @@ class _Generator:
     def __next__(result):
         return result.send(None)
 
-    def _resume(result, method, *args):
+    def _resume(result, method, *args, _cancellation=None):
+        entered = False
         try:
             with _during(result.ends):
+                entered = True
                 try:
                     return _seat_value(method(*args))
                 except StopIteration as stopped:
@@ -630,6 +635,11 @@ class _Generator:
                     if value is not stopped.value:
                         raise StopIteration(value) from None
                     raise
+        except TagArrestedAccessError:
+            _park_result(result.ends, result.native)
+            if not entered and _cancellation is not None:
+                raise _cancellation from None
+            raise
         except BaseException:
             # Park before returning control to the caller: cyclic GC may
             # already schedule the native finalizer before a proxy's own
@@ -654,12 +664,22 @@ class _Coroutine(_Generator, Coroutine):
     def __await__(result):
         return result
 
+    def throw(result, *args):
+        cancellation = args[0] if args else None
+        if cancellation is CancelledError:
+            cancellation = CancelledError()
+        elif not issubclass(type(cancellation), CancelledError):
+            cancellation = None
+        return result._resume(result.native.throw, *args, _cancellation=cancellation)
+
 
 class _Async_Generator:
-    __slots__ = ("native", "ends")
+    __slots__ = ("native", "ends", "__name__", "__qualname__")
 
     def __init__(result, native: Any, ends: _Ends) -> None:
         result.native, result.ends = native, ends
+        result.__name__ = getattr(native, "__name__", "<Link continuation>")
+        result.__qualname__ = getattr(native, "__qualname__", result.__name__)
 
     def __aiter__(result):
         return result
@@ -682,6 +702,9 @@ class _Async_Generator:
 
     def __del__(result, park = _park_result):
         park(result.ends, result.native)
+
+
+_register_lazy_proxy_types(_Generator, _Coroutine, _Async_Generator)
 
 
 def _link(link: type, contact: object, inputs: dict[str, Any]) -> object:

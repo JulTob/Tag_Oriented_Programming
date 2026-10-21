@@ -43,6 +43,19 @@ from .errors import TagArrestedAccessError
 
 _Check = Callable[[object, str], None]
 
+# Only private framework adapters opt in here. Dispatch always compares class
+# identity, so opaque host values never run metaclass equality or hashing.
+_framework_lazy_types: tuple[tuple[type, int], ...] = ()
+
+
+def _register_lazy_proxy_types(
+        generator: type, coroutine: type, async_generator: type,
+        ) -> None:
+    global _framework_lazy_types
+    for kind, category in ((generator, 0), (coroutine, 1), (async_generator, 2)):
+        if not any(kind is known for known, _ in _framework_lazy_types):
+            _framework_lazy_types += ((kind, category),)
+
 
 class _Guard:
     __slots__ = ("receiver", "act", "authorize", "hold")
@@ -226,6 +239,21 @@ class _Guarded_AsyncGenerator:
         self._guard.park(self._source)
 
 
+def _lazy_kind_of(result: Any) -> int | None:
+    """Recognize native continuations and exact trusted framework proxies."""
+    kind = type(result)
+    if kind is GeneratorType or kind is _Guarded_Generator:
+        return 0
+    if kind is CoroutineType or kind is _Guarded_Coroutine:
+        return 1
+    if kind is AsyncGeneratorType or kind is _Guarded_AsyncGenerator:
+        return 2
+    for proxy, category in _framework_lazy_types:
+        if kind is proxy:
+            return category
+    return None
+
+
 def _guard_lazy_result(
         result: Any,
         receiver: object,
@@ -240,11 +268,8 @@ def _guard_lazy_result(
     return: dropping it otherwise runs its finalizer outside the Rip door.
     """
 
-    kind = type(result)
-    generator = kind is GeneratorType or kind is _Guarded_Generator
-    coroutine = kind is CoroutineType or kind is _Guarded_Coroutine
-    async_generator = kind is AsyncGeneratorType or kind is _Guarded_AsyncGenerator
-    lazy = generator or coroutine or async_generator
+    category = _lazy_kind_of(result)
+    lazy = category is not None
     if _safehouse:
         try:
             authorize(receiver, act)
@@ -257,8 +282,8 @@ def _guard_lazy_result(
         return result
 
     guard = _Guard(receiver, act, authorize)
-    if generator:
+    if category == 0:
         return _Guarded_Generator(result, guard)
-    if async_generator:
+    if category == 2:
         return _Guarded_AsyncGenerator(result, guard)
     return _Guarded_Coroutine(result, guard)
