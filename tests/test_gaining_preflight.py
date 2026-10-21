@@ -502,7 +502,9 @@ class GainingPreflightFallbackTests(unittest.TestCase):
         class Flagged(Tag):
             pass
 
-        for tag in (WithSecret, WithDelete, WithPre, WithPost, WithConstant,
+        self.assertEqual(copies_made_by_the_gate(WithPre, Host()), 0)
+
+        for tag in (WithSecret, WithDelete, WithPost, WithConstant,
                     WithPublicReport, WithPublicOperation, WithSpecialMethod,
                     Flagged):
             with self.subTest(tag=tag.__name__):

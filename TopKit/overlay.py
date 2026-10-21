@@ -54,6 +54,7 @@ from .declarations import _MISSING
 from .presence import _Presence
 from .state import _Bound
 from .state import _Pinned_Operation
+from .state import _Post_Layer
 from .state import _Published
 from .state import _State
 from .state import _name_of
@@ -306,7 +307,6 @@ def _require_membership(
     if state.postconditions:
         _guarded(
                 agent,
-                "postconditions",
                 True,
                 TagPostconditionError,
                 "Postcondition",
@@ -371,6 +371,8 @@ def _install(
         state: _State,
         tag: type,
         declarations: _Declarations,
+        *,
+        application: object | None = None,
         ) -> None:
     """Lay ``tag`` over ``state`` (a candidate copy). Order matters: deletions
     free names first; conditions, Tag members, Actions, Records follow."""
@@ -386,36 +388,27 @@ def _install(
     for name in declarations.deletions:
         _delete(state, name)
 
-    for name, _function in (
-            *declarations.preconditions,
-            *declarations.postconditions,
-            ):
+    for name, _function in declarations.postconditions:
         _refuse_condition_collision(
                 state,
                 tag,
                 name,
                 )
 
-    for name, function in declarations.preconditions:
-        prior = state.preconditions.get(name)
-        state.preconditions[name] = _stamp(
-                _bind_condition(
-                        function,
-                        prior,
-                        True,
-                        name,
-                        ),
-                tag,
-                )
+    if application is None and declarations.postconditions:
+        # A Gate composes on a candidate copy.  Its provisional identity
+        # must never be confused with an admitted application.
+        application = object()
 
     for name, function in declarations.postconditions:
         prior = state.postconditions.get(name)
         origin = _origin_of(prior)
+        underlay = _takes_underlay(function, name)
 
         if (
                 origin is not None
                 and origin is not tag
-                and not _takes_underlay(function, name)
+                and not underlay
                 and not _quiet.get()
                 ):
             warnings.warn(
@@ -434,8 +427,19 @@ def _install(
                         prior,
                         False,
                         name,
+                        uses_underlay=underlay,
                         ),
                 tag,
+                )
+        state.post_layers[name] = (
+                *state.post_layers.get(name, ()),
+                _Post_Layer(
+                        application=application,
+                        tag=tag,
+                        function=function,
+                        underlay=underlay,
+                        constant=name in declarations.constants,
+                        ),
                 )
 
     for name, report, public in declarations.reports:
@@ -457,7 +461,7 @@ def _install(
 
     for kind, name, function in _gains_of(declarations):
         if kind not in ("action", "record"):
-            continue   # scratch conditions and deletions were installed above
+            continue   # scratch Posts and deletions were installed above
         install = _install_action if kind == "action" else _install_record
         install(
                 state,
@@ -537,6 +541,7 @@ def _gainings(
         deleted_before: set[str],
         inputs: dict[str, Any],
         prepare: Callable[[_Declarations, bool], None],
+        application: object,
         ) -> None:
     """Attach each actual Gain before proceeding to the next declaration.
 
@@ -598,7 +603,12 @@ def _gainings(
                 _install_record(state, tag, name, function)
                 _store_record(agent, name, value, one.secrets)
             else:
-                _install(state, tag, one)
+                _install(
+                        state,
+                        tag,
+                        one,
+                        application=application,
+                        )
 
             if one.secrets:
                 state.secrets.update(one.secrets)
@@ -757,13 +767,104 @@ def _stamp(
         check: Function,
         tag: type,
         ) -> Function:
-    """Remember which Tag bound a condition, so a Tag re-applied after a
-    Rip replaces its own promise silently (§0.7). Conditions are sticky:
-    Rip never touches them; the author ends them (STEP-SPEC-12)."""
+    """Remember which Tag authored a visible Post for diagnostics."""
 
     check.__topkit_origin__ = tag   # type: ignore[attr-defined]
 
     return check
+
+
+def _rebuild_post_name(
+        state: _State,
+        name: str,
+        ) -> None:
+    """Compile one Post layer tower into the hot visible-check mapping."""
+
+    layers = state.post_layers.get(name, ())
+
+    if not layers:
+        state.post_layers.pop(name, None)
+        state.postconditions.pop(name, None)
+        return
+
+    prior = None
+
+    for layer in layers:
+        prior = _stamp(
+                _bind_condition(
+                        layer.function,
+                        prior,
+                        False,
+                        name,
+                        uses_underlay=layer.underlay,
+                        # Removing a lower membership must not make a live
+                        # upper Post uncallable.  True is the neutral promise.
+                        neutral_underlay=True,
+                        ),
+                layer.tag,
+                )
+
+    state.postconditions[name] = prior
+
+
+def _remove_post_application(
+        state: _State,
+        application: object,
+        *,
+        keep_constants: bool,
+        names: tuple[str, ...],
+        ) -> bool:
+    """Remove Posts belonging to one application and rebuild survivors.
+
+    Before admission every Post is provisional, including a Constant Post:
+    no Agent--Agency Contract was formed.  At Field removal an admitted
+    Constant Post stays for the Agent's lifetime while ordinary Posts end.
+    """
+
+    changed = False
+
+    for name in names:
+        layers = state.post_layers.get(name, ())
+
+        def removes(layer: _Post_Layer) -> bool:
+            return (
+                    layer.application is application
+                    and not (keep_constants and layer.constant)
+                    )
+
+        removed = tuple(layer for layer in layers if removes(layer))
+
+        if not removed:
+            continue
+
+        changed = True
+        # Filter by the opaque application identity, rather than comparing
+        # dataclass values: a callable declaration is allowed to define a
+        # hostile or expensive ``__eq__`` and cleanup must never invoke it.
+        state.post_layers[name] = tuple(
+                layer for layer in layers if not removes(layer)
+                )
+
+        if any(layer.constant for layer in removed) and not any(
+                layer.constant for layer in state.post_layers[name]
+                ):
+            locked = state.constants.get(name)
+            if locked is not None and locked[1] == "postcondition":
+                state.constants.pop(name, None)
+
+        _rebuild_post_name(state, name)
+
+    return changed
+
+
+def _clear_post_name(
+        state: _State,
+        name: str,
+        ) -> None:
+    """Physically end every removable Post layer under ``name``."""
+
+    state.post_layers.pop(name, None)
+    state.postconditions.pop(name, None)
 
 
 def _origin_of(
@@ -784,7 +885,7 @@ def _replaced_promise(
     """The Contract Warning's text: how ``tag`` stands to ``origin``, the
     Tag stamped on the visible Postcondition it replaces without
     @Underlay. Only a Shape over its Base weakens a promise in the sense
-    of §2.4. A Base laid over its Shape's sticky promise, or a Tag laid
+    of §2.4. A Base laid over its Shape's visible promise, or a Tag laid
     over an independent Tag's, replaces a promise it never made, and the
     text says whose promise no longer binds. The replacement policy is a
     separate design question; this helper reports current behavior."""
@@ -996,8 +1097,7 @@ def _delete(
     state.actions.pop(name, None)
     state.action_origins.pop(name, None)
     state.records.pop(name, None)
-    state.preconditions.pop(name, None)
-    state.postconditions.pop(name, None)
+    _clear_post_name(state, name)
     state.reports.pop(name, None)
     state.operations.pop(name, None)
     state.published.discard(name)
@@ -1011,7 +1111,7 @@ def _refuse_condition_collision(
         tag: type,
         name: str,
         ) -> None:
-    """A condition is read on the Agent by its name (STEP-SPEC-14), so the
+    """A Post is read on the Agent by its name, so the
     name may not also be an Action, a Record, or a member the host
     defines: the real member would shadow the condition in silence."""
 
@@ -1029,8 +1129,8 @@ def _refuse_condition_collision(
 
     if taken is not None:
         raise TagCompositionError(
-                f"{tag.__name__}.{name} is a condition, but {name!r} is"
-                f" already {taken} on this Agent; a condition is read by its"
+                f"{tag.__name__}.{name} is a Post, but {name!r} is"
+                f" already {taken} on this Agent; a Post is read by its"
                 " name and cannot share it"
                 )
 
@@ -1041,10 +1141,10 @@ def _refuse_member_over_condition(
         name: str,
         kind: str,
         ) -> None:
-    if name in state.preconditions or name in state.postconditions:
+    if name in state.postconditions:
         raise TagCompositionError(
                 f"{tag.__name__}.{name} is {kind}, but {name!r} is already a"
-                " condition on this Agent; a condition is read by its name"
+                " Post on this Agent; a Post is read by its name"
                 " and cannot share it"
                 )
 
