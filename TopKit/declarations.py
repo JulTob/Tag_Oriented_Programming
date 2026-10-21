@@ -621,6 +621,13 @@ def Pin(
                 " (STEP-SPEC-63)"
                 )
 
+    if _holds_contacts(tag):
+        raise TagDeclarationError(
+                f"@Pin over {_type_name.__get__(tag)}: one Agent's Link and a"
+                " Pair hold objects, so neither is ever a Pin; a Pin's Field"
+                " holds Tags, never objects (§1.9)"
+                )
+
     with _pin_publication():
         if _is_pin_physical(tag):
             return tag   # Shapes of Pins already have this category too
@@ -1046,6 +1053,18 @@ def _invalidate_declarations(
         tag: type,
         ) -> None:
     _forget_memo(tag, _declaration_key(tag))
+
+
+def _holds_contacts(
+        tag: type,
+        ) -> bool:
+    """One Agent's Link or a Pair: the kit made it for objects, at birth.
+    Read from the class's own slot, so no program hook can answer."""
+
+    return _physical_namespace_get(
+            _class_namespace(tag),
+            KIND,
+            ) in ("link", "pair")
 
 
 def _is_relation(
