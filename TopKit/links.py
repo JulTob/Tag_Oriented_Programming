@@ -514,6 +514,8 @@ def _during(ends: _Ends, *, ripping: bool = False):
     pair = ends.pair() if isinstance(ends, _Ends) else None
     subjects = tuple(subject for subject in (owner, contact, pair) if subject is not None)
     with ExitStack() as custody:
+        if isinstance(ends, _Operation_Ends):
+            custody.enter_context(ends.Credential())
         if ripping:
             for subject in subjects:
                 custody.enter_context(_rip_door(subject))
@@ -577,11 +579,12 @@ def _during_seats(ends: _Ends, owner: object, contact: object):
 
 
 def _stepped(result: Any, ends: _Ends) -> Any:
-    if type(result) is GeneratorType:
+    kind = type(result)
+    if kind is GeneratorType or kind is _Generator:
         return _Generator(result, ends)
-    if type(result) is CoroutineType:
+    if kind is CoroutineType or kind is _Coroutine:
         return _Coroutine(result, ends)
-    if type(result) is AsyncGeneratorType:
+    if kind is AsyncGeneratorType or kind is _Async_Generator:
         return _Async_Generator(result, ends)
     return result
 
@@ -597,6 +600,10 @@ def _park_result(ends: _Ends, source: Any, hold = _hold_lazy_result) -> None:
             hold(subject, source)
     if isinstance(ends, _Ends):
         pair = ends.pair()
+        if pair is not None:
+            hold(pair, source)
+    elif isinstance(ends, _Operation_Ends):
+        pair = ends.data.Pair(contact)
         if pair is not None:
             hold(pair, source)
 
@@ -660,14 +667,18 @@ class _Async_Generator:
     def __anext__(result):
         return result.asend(None)
 
+    def _start(result, method, *args):
+        with _during(result.ends):
+            return _Coroutine(method(*args), result.ends)
+
     def asend(result, value):
-        return _Coroutine(result.native.asend(value), result.ends)
+        return result._start(result.native.asend, value)
 
     def athrow(result, *args):
-        return _Coroutine(result.native.athrow(*args), result.ends)
+        return result._start(result.native.athrow, *args)
 
     def aclose(result):
-        return _Coroutine(result.native.aclose(), result.ends)
+        return result._start(result.native.aclose)
 
     def __del__(result, park = _park_result):
         park(result.ends, result.native)
@@ -923,7 +934,16 @@ class _Pair_View:
                 or name in _namespace_of(pair)):
             with _pair_access(pair, name):
                 return getattr(pair, name)
-        # A Report belongs to the Link, never to its Pair.
+        # Reports stay values of the Link. An Operation read through this
+        # live view keeps the same Pair credential when called later.
+        declaration = getattr_static(link, name, _MISSING)
+        if type(declaration) is _Pair_Record_Line:
+            return declaration.Read(object.__getattribute__(view, "_contact")())
+        if _kind_of(declaration) == "operation":
+            secret = _has_flag(declaration, _SECRET)
+            if secret:
+                _require_owner_door(_data_of(link), name)
+            return _Pair_Operation(view, name, secret)
         return getattr(link, name)
 
     def __setattr__(view, name: str, value: Any) -> None:
@@ -949,7 +969,11 @@ class _Pair_View:
                 present = name @ pair
         except AttributeError:
             return False
-        return present or getattr_static(link, name, _MISSING) is not _MISSING
+        declaration = getattr_static(link, name, _MISSING)
+        return present or (
+                declaration is not _MISSING
+                and type(declaration) is not _Pair_Record_Line
+                )
 
     def __repr__(view) -> str:
         return "<live Link Pair view>"
@@ -990,7 +1014,7 @@ class _Pair_Call:
         return signature.replace(parameters=tuple(signature.parameters.values())[1:])
 
     def __eq__(call, other: object) -> Any:
-        if type(other) is not _Pair_Call:
+        if type(other) is not type(call):
             return NotImplemented
         return (
                 call._key[0] is other._key[0]
@@ -1003,6 +1027,84 @@ class _Pair_Call:
 
     def __repr__(call) -> str:
         return f"<live Pair Action {call.name}>"
+
+
+class _Operation_Ends(_Tag_Ends):
+    """A Tag Operation reached through one live Pair view."""
+
+    __slots__ = ("view", "name", "secret")
+
+    def __init__(ends, view: _Pair_View, name: str, secret: bool) -> None:
+        view._current()
+        link = object.__getattribute__(view, "_link")()
+        super().__init__(_data_of(link))
+        ends.view, ends.name, ends.secret = view, name, secret
+
+    def Resolve(ends) -> tuple[object, object]:
+        owner, _ = super().Resolve()
+        contact = object.__getattribute__(ends.view, "_contact")()
+        if contact is None:
+            raise TagResolutionError("the Contact of this Pair view has ended")
+        return owner, contact
+
+    def Check(ends) -> None:
+        ends.view._current()
+        link = ends.data.link()
+        _require_available(link, "Link-view Operation")
+        declaration = getattr_static(link, ends.name, _MISSING)
+        if _kind_of(declaration) != "operation":
+            raise AttributeError(f"{ends.name!r} is no longer an Operation")
+        if ends.secret or _has_flag(declaration, _SECRET):
+            _require_owner_door(ends.data, ends.name)
+        _owner, contact = ends.Resolve()
+        if ends.name in _state_of(contact).snapshots[link].actions:
+            _require_membership(contact, link, ends.name, "Operation")
+        ends.view._current()
+
+    @contextmanager
+    def Credential(ends):
+        ends.Check()
+        try:
+            yield
+        except (StopIteration, StopAsyncIteration):
+            ends.Check()
+            raise
+        else:
+            ends.Check()
+
+
+class _Pair_Operation(_Pair_Call):
+    __slots__ = ()
+
+    def __call__(call, *args: Any, **kwargs: Any) -> Any:
+        ends = _Operation_Ends(call.view, call.name, call.secret)
+        with _during(ends):
+            _owner, contact = ends.Resolve()
+            link = ends.data.link()
+            operation = getattr(link, call.name)
+            public = call.name in _state_of(contact).snapshots[link].actions
+            result = operation(*((contact,) if public else ()), *args, **kwargs)
+        return _stepped(result, ends)
+
+    @property
+    def __func__(call) -> Any:
+        ends = _Operation_Ends(call.view, call.name, call.secret)
+        ends.Check()
+        return getattr(ends.data.link(), call.name).__func__
+
+    @property
+    def __signature__(call) -> Any:
+        ends = _Operation_Ends(call.view, call.name, call.secret)
+        ends.Check()
+        _owner, contact = ends.Resolve()
+        link = ends.data.link()
+        signature = _signature_of(getattr(link, call.name))
+        if call.name in _state_of(contact).snapshots[link].actions:
+            signature = signature.replace(parameters=tuple(signature.parameters.values())[1:])
+        return signature
+
+    def __repr__(call) -> str:
+        return f"<live Pair-view Operation {call.name}>"
 
 
 def _require_owner_door(data: _Link_Data, name: str) -> None:
@@ -1058,6 +1160,11 @@ class _Pair_Record_Line(Report, _Line):
         if link is None:
             raise TagResolutionError("this published Link no longer exists")
         return getattr(_current_pair(link, contact), line.name)
+
+    def Present(line, contact: object) -> bool:
+        link = line.link()
+        return (link is not None and contact in _field_of(link)
+                and line.name @ _current_pair(link, contact))
 
 
 def _end_links(agent: object) -> None:

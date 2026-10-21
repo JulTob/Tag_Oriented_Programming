@@ -1302,6 +1302,9 @@ class _Line:
     def Read(line, agent: object) -> Any:
         raise NotImplementedError
 
+    def Present(line, agent: object) -> bool:
+        return True
+
 
 class _Published:
     """A published Report: reads the Tag-scope value, read-only on the Agent."""

@@ -10,6 +10,7 @@ from typing import Any
 from .declarations import STATE
 from .declarations import _MISSING
 from .state import _Deleted
+from .state import _Line
 from .state import _Published
 from .state import _Secret_Gate
 from .state import _real_namespace_of
@@ -108,10 +109,12 @@ def _present(
             return False
 
         origin, _report = state.reports[name]
-        return (
-                origin in state.active
-                and getattr_static(origin, name, _MISSING) is not _MISSING
-                )
+        if origin not in state.active:
+            return False
+        declaration = getattr_static(origin, name, _MISSING)
+        if issubclass(type(declaration), _Line):
+            return declaration.Present(agent)
+        return declaration is not _MISSING
 
     if issubclass(type(member), MemberDescriptorType):
         # A slot declaration alone does not mean its storage is filled.

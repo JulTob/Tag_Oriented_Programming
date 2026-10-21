@@ -2,8 +2,9 @@
 
 import unittest
 
-from TopKit import (Action, Constant, Link, Public, Record, Report, Tag,
-                    TagCompositionError, TagResolutionError, TagRogueAccessError, agent, contact)
+from TopKit import (Action, Constant, Link, Post, Public, Record, Report, Tag,
+                    TagCompositionError, TagPostconditionError, TagResolutionError,
+                    TagRogueAccessError, TrainingWarning, agent, contact)
 
 
 class Host:
@@ -91,6 +92,52 @@ class LinkModifierPublicationTests(unittest.TestCase):
         Inspected(target)
         self.assertIs(target.payload, opaque)
         self.assertIs(Inspected[target].payload, opaque)
+
+    def test_pair_projection_presence_requires_its_actual_record_binding(self):
+        class Inventory(Tag):
+            @Link(agent, contact)
+            class Carries(Tag):
+                @Public
+                @Record
+                def slot(owner, target):
+                    raise ValueError("could not initialize slot")
+
+                @Report
+                def limit(link):
+                    return None
+
+                @Post
+                def Has_Slot(owner, target):
+                    return "slot" @ owner.Carries[target]
+
+        owner, item = Host(), Host()
+        Inventory(owner)
+        with self.assertWarns(TrainingWarning.slot):
+            with self.assertRaises(TagPostconditionError):
+                owner.Carries(item)
+        view = owner.Carries[item]
+        self.assertFalse("slot" @ view)
+        self.assertFalse("slot" @ item)
+        self.assertTrue("limit" @ view)  # an ordinary Link Report remains present
+        with self.assertRaises(AttributeError):
+            _ = view.slot
+        class Inspected(Tag):
+            pass
+        view.slot = None
+        Inspected(item)
+        later = Inspected[item]
+        for value in (None, False):
+            view.slot = value
+            self.assertTrue("slot" @ view)
+            self.assertTrue("slot" @ item)
+            self.assertTrue("slot" @ later)
+            self.assertIs(view.slot, value)
+        del view.slot
+        self.assertFalse("slot" @ view)
+        self.assertFalse("slot" @ item)
+        self.assertFalse("slot" @ later)
+        with self.assertRaises(AttributeError):
+            _ = view.slot
 
     def test_constant_public_action_binding_is_protected_on_contact(self):
         class Inventory(Tag):

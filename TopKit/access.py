@@ -814,7 +814,10 @@ class _Tag_View:
             result = False
         elif name in snapshot.reports:
             origin = snapshot.reports[name][0]
-            result = getattr_static(origin, name, _MISSING) is not _MISSING
+            declaration = getattr_static(origin, name, _MISSING)
+            result = (declaration.Present(agent)
+                      if issubclass(type(declaration), _Line)
+                      else declaration is not _MISSING)
         elif name in snapshot.operations:
             origin = snapshot.operations[name][0]
             result = getattr_static(origin, name, _MISSING) is not _MISSING
