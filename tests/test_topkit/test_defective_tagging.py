@@ -15,6 +15,8 @@ from TopKit import TagContractError
 from TopKit import TagContractWarning
 from TopKit import TagImprintError
 from TopKit import TagPostconditionError
+from TopKit import TagCompositionError
+from TopKit import TrainingWarning
 
 from ._fixtures import Advanced
 from ._fixtures import Agent
@@ -93,25 +95,25 @@ class DefectiveTaggingTests(unittest.TestCase):
         Validated(bea)
         bea.ready = False
 
-        with self.assertRaises(TagPostconditionError):
+        with self.assertRaises(TagCompositionError):
             Advanced(bea)
 
         self.assertNotIn(bea, Advanced)
-        self.assertIn(bea, Advanced[:])                # admitted, but defective
-        self.assertIn(bea, ~Advanced)
+        self.assertNotIn(bea, Advanced[:])             # refused before its Gate
+        self.assertNotIn(bea, ~Advanced)
 
-    def test_imprint_failure_keeps_raw_effects_without_admitting_the_tag(self) -> None:
+    def test_imprint_failure_warns_and_admits_with_its_raw_effects(self) -> None:
         ari = Agent()
 
         Ordered_Imprints(ari)
         self.assertEqual(ari.events, ["First", "Second"])
 
-        with self.assertRaises(TagImprintError):
+        with self.assertWarns(TrainingWarning):
             Broken_Imprint(ari)
 
-        self.assertNotIn(ari, Broken_Imprint)
-        self.assertNotIn(ari, Broken_Imprint[:])
-        self.assertFalse(isinstance(ari, Broken_Imprint))
+        self.assertIn(ari, Broken_Imprint)
+        self.assertIn(ari, Broken_Imprint[:])
+        self.assertTrue(isinstance(ari, Broken_Imprint))
         self.assertEqual(ari.events, ["First", "Second", "before failure"])
 
     def test_bool_agent_runs_postconditions(self) -> None:

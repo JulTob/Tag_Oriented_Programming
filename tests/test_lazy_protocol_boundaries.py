@@ -95,6 +95,10 @@ class LazyProtocolBoundaryTests(unittest.TestCase):
             with self.assertRaises(type(interruption)) as raised:
                 shape(target)
             self.assertIs(raised.exception, interruption)
+            # Base finished before Shape composition reached hostile metadata.
+            # Disarm the fixture before finalization retries its saved teardown.
+            interruption = None
+            del base[target]
         else:
             shape(target)
             self.assertEqual(target.Complete(), 18)
@@ -144,6 +148,9 @@ class LazyProtocolBoundaryTests(unittest.TestCase):
                             del role[target]
                         self.assertIs(raised.exception, interruption)
                         self.assertEqual(calls, [])
+                        interruption = None
+                        del role[target]  # complete the explicitly saved Rip
+                        self.assertEqual(calls, ["complete"])
                     self.assertNotIn(target, role)
 
     def check_rip_underlay(self, prior, pinned):
@@ -283,12 +290,12 @@ class LazyProtocolBoundaryTests(unittest.TestCase):
                 role = type("Role", (Tag,), {"Complete": mark(Complete)})
                 target = Host()
                 if mark is Imprint:
-                    from TopKit import TagImprintError
-                    with self.assertRaises(TagImprintError.Complete):
+                    from TopKit import TagTrainingWarning
+                    with self.assertWarns(TagTrainingWarning.Complete):
                         role(target)
-                    self.assertNotIn(target, role)
-                    self.assertNotIn(target, role[:])
-                    self.assertFalse(isinstance(target, role))
+                    self.assertIn(target, role)
+                    self.assertIn(target, role[:])
+                    self.assertTrue(isinstance(target, role))
                 else:
                     role(target)
                     with self.assertRaises(TagCompositionError):

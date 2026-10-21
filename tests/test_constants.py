@@ -918,8 +918,10 @@ class ConstantTests(unittest.TestCase):
         agent.ready = True
         Sworn(agent)
         agent.ready = False
-        with self.assertRaises(TagPostconditionError.Ready):
+        with self.assertRaises(TagCompositionError):
             More(agent)
+        self.assertNotIn(agent, More[:])
+        self.assertFalse("count" @ agent)
         self.assertEqual(Contract.Status(agent), {"Ready": False})
         with self.assertRaises(TagCompositionError):
             Contract.Delete(agent, "Ready")

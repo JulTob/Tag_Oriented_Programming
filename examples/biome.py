@@ -37,7 +37,9 @@ class Element(Tag):
 
     @Record
     def attacks(agent, stored) -> list[str]:
-        return stored or []
+        # Element must satisfy its own Post before any Shape begins.
+        # Each elemental Shape then adds its specialized attack.
+        return stored or ["Struggle"]
 
     @Post
     def Has_An_Attack(agent):

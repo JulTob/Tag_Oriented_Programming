@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from inspect import Parameter, Signature
+import gc
 import unittest
+import warnings
+import weakref
 
-from TopKit import Pin, Record, Tag, TagCompositionError, TagResolutionError
+from TopKit import Pin, Record, Tag, TagCompositionError, TagResolutionError, TagTrainingWarning
 
 
 class Host:
@@ -44,6 +47,20 @@ def _target(pinned):
 
 
 class RecordDiagnosticTests(unittest.TestCase):
+    def assert_cause_metadata(self, warning, original):
+        self.assertEqual(
+                warning.cause_type, type.__dict__["__name__"].__get__(type(original)))
+        self.assertTrue(warning.traceback_summary)
+        self.assertIsInstance(warning.failure, TagCompositionError)
+        self.assertIsNone(warning.failure.__cause__)
+        self.assertIsNone(warning.failure.__traceback__)
+
+    def assert_admitted_without_balance(self, tag, target):
+        self.assertIn(target, tag[:])
+        self.assertIn(target, tag)
+        self.assertTrue(isinstance(target, tag))
+        self.assertFalse("balance" @ target)
+
     def test_callable_builders_can_store_native_lazy_objects_as_data(self):
         events = []
 
@@ -82,7 +99,7 @@ class RecordDiagnosticTests(unittest.TestCase):
                         if factory is not async_stream:
                             value.close()
 
-    def test_failing_callable_names_record_and_preserves_original_cause(self):
+    def test_failing_callable_warns_by_record_name_and_continues_training(self):
         for pinned in (False, True):
             for hostile in (False, True):
                 with self.subTest(pinned=pinned, hostile=hostile):
@@ -107,16 +124,20 @@ class RecordDiagnosticTests(unittest.TestCase):
                     if pinned:
                         Prepared = Pin(Prepared)
 
-                    with self.assertRaises(TagCompositionError) as caught:
-                        Prepared(_target(pinned), seed=23)
+                    target = _target(pinned)
+                    with self.assertWarns(TagTrainingWarning.balance) as caught:
+                        self.assertIs(Prepared(target, seed=23), target)
+                    self.assert_admitted_without_balance(Prepared, target)
+                    self.assertTrue("later" @ target)
+                    self.assertIsNone(target.later)
 
-                    self.assertIs(caught.exception.__cause__, original)
+                    self.assert_cause_metadata(caught.warning, original)
                     self.assertEqual(
-                            str(caught.exception),
+                            str(caught.warning.failure),
                             "Record Prepared.balance could not be materialized:"
                             " ValueError: value cannot be calculated",
                             )
-                    self.assertEqual(events, [23])
+                    self.assertEqual(events, [23, "later"])
                     self.assertEqual(vars(builder), original_namespace)
 
     def test_aliased_function_reports_declaration_without_renaming_it(self):
@@ -130,15 +151,17 @@ class RecordDiagnosticTests(unittest.TestCase):
         class Prepared(Tag):
             balance = Record(Implementation)
 
-        with self.assertRaises(TagCompositionError) as caught:
-            Prepared(Host())
+        target = Host()
+        with self.assertWarns(TagTrainingWarning.balance) as caught:
+            self.assertIs(Prepared(target), target)
+        self.assert_admitted_without_balance(Prepared, target)
 
         self.assertEqual(
-                str(caught.exception),
+                str(caught.warning.failure),
                 "Record Prepared.balance could not be materialized:"
                 " RuntimeError: builder failed",
                 )
-        self.assertIs(caught.exception.__cause__, original)
+        self.assert_cause_metadata(caught.warning, original)
         self.assertEqual(
                 (Implementation.__name__, Implementation.__qualname__),
                 metadata,
@@ -165,7 +188,7 @@ class RecordDiagnosticTests(unittest.TestCase):
                     self.assertTrue("balance" @ target)
                     self.assertEqual(events, [19])
 
-    def test_top_failures_remain_the_same_exception(self):
+    def test_top_failures_are_named_training_warnings(self):
         for pinned in (False, True):
             with self.subTest(pinned=pinned):
                 original = TagResolutionError("query failed")
@@ -178,10 +201,11 @@ class RecordDiagnosticTests(unittest.TestCase):
 
                 if pinned:
                     Prepared = Pin(Prepared)
-                with self.assertRaises(TagResolutionError) as caught:
-                    Prepared(_target(pinned))
-                self.assertIs(caught.exception, original)
-                self.assertIsNone(caught.exception.__cause__)
+                target = _target(pinned)
+                with self.assertWarns(TagTrainingWarning.balance) as caught:
+                    self.assertIs(Prepared(target), target)
+                self.assert_admitted_without_balance(Prepared, target)
+                self.assert_cause_metadata(caught.warning, original)
 
     def test_python_interruptions_remain_the_same_exception(self):
         for pinned in (False, True):
@@ -196,8 +220,10 @@ class RecordDiagnosticTests(unittest.TestCase):
 
                 if pinned:
                     Prepared = Pin(Prepared)
+                target = _target(pinned)
                 with self.assertRaises(Stop) as caught:
-                    Prepared(_target(pinned))
+                    Prepared(target)
+                self.assert_admitted_without_balance(Prepared, target)
                 self.assertIs(caught.exception, original)
 
     def test_declaration_name_text_never_runs_subclass_diagnostic_hooks(self):
@@ -220,16 +246,18 @@ class RecordDiagnosticTests(unittest.TestCase):
                         })
                 if pinned:
                     prepared = Pin(prepared)
-                with self.assertRaises(TagCompositionError) as caught:
-                    prepared(_target(pinned))
-                self.assertIs(caught.exception.__cause__, original)
+                target = _target(pinned)
+                with self.assertWarns(TagTrainingWarning.balance) as caught:
+                    self.assertIs(prepared(target), target)
+                self.assert_admitted_without_balance(prepared, target)
+                self.assert_cause_metadata(caught.warning, original)
                 self.assertEqual(
-                        str(caught.exception),
+                        str(caught.warning.failure),
                         "Record Prepared.balance could not be materialized:"
                         " ValueError: builder failed",
                         )
 
-    def test_unprintable_exception_still_has_the_original_cause(self):
+    def test_unprintable_exception_keeps_safe_cause_metadata(self):
         class Unprintable(ValueError):
             def __str__(self):
                 raise RuntimeError("exception text cannot be calculated")
@@ -246,14 +274,46 @@ class RecordDiagnosticTests(unittest.TestCase):
 
                 if pinned:
                     Prepared = Pin(Prepared)
-                with self.assertRaises(TagCompositionError) as caught:
-                    Prepared(_target(pinned))
-                self.assertIs(caught.exception.__cause__, original)
+                target = _target(pinned)
+                with self.assertWarns(TagTrainingWarning.balance) as caught:
+                    self.assertIs(Prepared(target), target)
+                self.assert_admitted_without_balance(Prepared, target)
+                self.assert_cause_metadata(caught.warning, original)
                 self.assertEqual(
-                        str(caught.exception),
+                        str(caught.warning.failure),
                         "Record Prepared.balance could not be materialized:"
                         " Unprintable: <exception text unavailable>",
                         )
+
+    def test_retained_record_warning_does_not_retain_the_admitted_agent(self):
+        class Prepared(Tag):
+            @Record
+            def balance(agent):
+                raise RuntimeError("calculation failed")
+
+        diagnostics = []
+
+        def attempt():
+            target = Host()
+            reference = weakref.ref(target)
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                Prepared(target)
+            self.assert_admitted_without_balance(Prepared, target)
+            self.assertEqual(len(caught), 1)
+            diagnostics.extend(caught)
+            return reference
+
+        was_enabled = gc.isenabled()
+        gc.disable()
+        try:
+            reference = attempt()
+            self.assertIsNone(reference())
+            self.assertEqual(list(Prepared[:]), [])
+            self.assertIsInstance(diagnostics[0].message, TagTrainingWarning.balance)
+        finally:
+            if was_enabled:
+                gc.enable()
 
 
 if __name__ == "__main__":

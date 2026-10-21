@@ -41,8 +41,8 @@ def Run() -> None:
     assert ari in Territory and ari not in Citadel and ari.banner == "raised"
     assert not hasattr(ari, "Has_Charter") and Contract.Status(ari) == {}
 
-    # 0.6 unfinished production leaves Action/Record Gains, but no Contract;
-    # a completed broken product belongs to its Tag and is judged by its Posts.
+    # 0.6 ordinary training failures warn and continue through admission;
+    # current Posts judge the product before the next Tag's turn.
     class Assembled(Territory):
         @Record
         def attempt(agent, stored): return (stored or 0) + 1
@@ -52,17 +52,20 @@ def Run() -> None:
         def Assemble(agent):
             if not agent.complete: raise ValueError("unfinished")
     car = Character(); car.complete = False; car.wheels = False
-    try: Assembled(car); raise SystemExit("expected unfinished training")
-    except TagImprintError.Assemble: pass
-    assert car in Territory[:] and car not in Assembled and car.attempt == 1
-    assert not isinstance(car, Assembled) and list(Assembled[:]) == []
-    assert not hasattr(car, "Has_Wheels") and Contract.Status(car) == {}
-    assert bool(car)   # Base membership has no Post; Car never reached its Field
-    car.complete = True
-    try: Assembled(car); raise SystemExit("expected deficient product")
-    except TagPostconditionError.Has_Wheels: pass
-    assert car in Assembled[:] and car in ~Assembled and car.attempt == 2
+    with warnings.catch_warnings(record=True) as training:
+        warnings.simplefilter("always", TrainingWarning)
+        try: Assembled(car); raise SystemExit("expected deficient product")
+        except TagPostconditionError.Has_Wheels: pass
+    assert len(training) == 1
+    assert isinstance(training[0].message, TrainingWarning.Assemble)
+    assert car in Territory[:] and car in Assembled[:] and car.attempt == 1
+    assert isinstance(car, Assembled) and car in ~Assembled and not car
+    assert Contract.Status(car) == {"Has_Wheels": False}
     car.wheels = True; assert car in list(Assembled)
+    del Assembled[car]
+    car.complete = True
+    Assembled(car)
+    assert car in Assembled and car.attempt == 2
 
     # 0.7 / 3.1 MI6
     class MI6(Tag):

@@ -90,8 +90,9 @@ class TagDeclarationError(TagError):
 
 
 class TagCompositionError(TagError):
-    """Contributions cannot form a coherent Overlay, or a Record cannot
-    be materialized, or a teardown failed."""
+    """Contributions cannot form a coherent Overlay, structural Target
+    preparation failed, or a teardown failed. Record training failures are
+    reported through named TagTrainingWarning diagnostics."""
 
 
 class TagResolutionError(TagError):
@@ -127,12 +128,13 @@ class TagPreconditionError(TagError, metaclass=_Named):
 
 
 class TagImprintError(TagError, metaclass=_Named):
-    """An Imprint failed before this Tag's Field admission.
+    """A named Imprint failure carried by a training warning.
 
-    Gains already acquired during this application remain on the Agent.
+    Ordinary Imprint failures do not prevent later training or Field entry.
+    Current Posts judge the admitted Agent after training finishes.
 
-    ``TagImprintError.Name`` is the subclass raised for the Imprint
-    declared as ``Name``; ``error.name`` is that name.
+    ``TagImprintError.Name`` identifies the Imprint declared as ``Name``;
+    ``error.name`` is that name.
     """
 
     _kind = "Imprint"
@@ -164,3 +166,103 @@ class TagContractWarning(UserWarning):
     """A Tag replaced a visible Postcondition without @Underlay: a Shape
     weakening its Base's promise (§2.4), or a Tag laid over the promise of
     its own Shape or of an independent Tag. The text names which."""
+
+
+class TagTrainingWarning(UserWarning, metaclass=_Named):
+    """One declared training step failed, but Tagging continued.
+
+    ``failure`` keeps the named TOP failure. The original exception is
+    represented by type, text and source coordinates so an ignored warning
+    cannot retain its Agent through traceback frames.
+    """
+
+    _kind = "training step"
+    _names: dict[str, type] = {}
+    name: str | None = None
+
+    def __init__(
+            self,
+            kind: str,
+            tag: type,
+            name: str,
+            failure: TagError,
+            *,
+            cause_type: str | None = None,
+            cause_text: str | None = None,
+            traceback_summary: tuple[tuple[str, int, str], ...] = (),
+            ) -> None:
+        tag_name = str.__str__(type.__dict__["__name__"].__get__(tag))
+        declared_name = str.__str__(name)
+        self.kind = kind
+        self.tag_name = tag_name
+        self.name = declared_name
+        self.failure = failure
+        self.cause_type = cause_type
+        self.cause_text = cause_text
+        self.traceback_summary = traceback_summary
+        self.origin = (
+                traceback_summary[-1][:2]
+                if traceback_summary else None
+                )
+        super().__init__(f"{tag_name}.{declared_name}: {failure}")
+
+def _traceback_summary(
+        error: BaseException,
+        ) -> tuple[tuple[str, int, str], ...]:
+    """Copy source coordinates without retaining traceback frames or Agents."""
+
+    frames: list[tuple[str, int, str]] = []
+    # A user exception may override __getattribute__; read the interpreter's
+    # traceback seat without calling that override.
+    traceback = BaseException.__dict__["__traceback__"].__get__(error)
+    while traceback is not None:
+        code = traceback.tb_frame.f_code
+        frames.append((code.co_filename, traceback.tb_lineno, code.co_name))
+        traceback = traceback.tb_next
+    return tuple(frames)
+
+def _training_warning(
+        kind: str,
+        tag: type,
+        name: str,
+        failure: TagError,
+        error: Exception,
+        *,
+        cause_type: str,
+        cause_text: str,
+        ) -> TagTrainingWarning:
+    """Describe one failed training step without keeping its traceback."""
+
+    return TagTrainingWarning.Named(name)(
+            kind,
+            tag,
+            name,
+            failure,
+            cause_type=cause_type,
+            cause_text=cause_text,
+            traceback_summary=_traceback_summary(error),
+            )
+
+class TaggingFailure(TagPostconditionError):
+    """Several visible Posts failed at one Tagging boundary.
+
+    ``failed_posts`` names every failed Post in evaluation order.
+    ``failure_texts`` gives each TOP diagnostic without retaining the
+    caught exceptions and their Agent-bearing traceback frames.
+    A single failed Post still raises ``TagPostconditionError.Name``.
+    """
+
+    def __init__(
+            self,
+            failed_posts: tuple[str, ...],
+            failure_texts: tuple[str, ...],
+            ) -> None:
+        self.failed_posts = failed_posts
+        self.failure_texts = failure_texts
+        spelled = ", ".join(repr(str.__str__(name)) for name in failed_posts)
+        super().__init__(f"Postconditions {spelled} failed after Tagging")
+
+TrainingWarning = TagTrainingWarning
+
+class TagTargetError(TagCompositionError):
+    """The Target cannot structurally hold this Tag's requested representation."""

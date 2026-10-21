@@ -5,9 +5,10 @@ The model knows the laws of the Specification and nothing of the kernel:
 Base-first Forms, independent membership after admission, Rip of one Tag
 without cascading into its Shapes, a block that holds Tags (tag before
 try, Rip in finally), the call boundary (each Tag gates at its own turn, acquired
-Gains precede admission, a broken promise keeps membership, and a failed
-Imprint leaves Gains without admission), sticky conditions ended by
-the author, published members answering sound members only, condition
+Gains precede admission, ordinary training failures warn and continue,
+completed training enters the Field, and Posts judge each Tag before the
+next turn), membership-bound ordinary Posts, published members answering
+sound members only, condition
 members read as booleans, Field algebra, Pins with a Tag in the
 Agent's seat, and keywords: a Flag answers to its name and its words,
 through the Form, and a word is never membership.
@@ -34,6 +35,7 @@ import gc
 import random
 import time
 import weakref
+import warnings
 
 from TopKit import Apply
 from TopKit import Contract
@@ -50,11 +52,11 @@ from TopKit import Report
 from TopKit import Rip
 from TopKit import Tag
 from TopKit import TagCompositionError
-from TopKit import TagImprintError
 from TopKit import TagPostconditionError
 from TopKit import TagPreconditionError
 from TopKit import TagResolutionError
 from TopKit import TagRogueAccessError
+from TopKit import TagTrainingWarning
 from TopKit import Tags
 from TopKit import Tool
 
@@ -91,6 +93,8 @@ class Model:
     gained: set[type] = field(default_factory=set)   # independent of Field entry and history
     slipping_round: int = 0                 # sticky Record rebuilt on each training attempt
     slipping_allowed: bool = True          # the retryable Tag's Gate
+    slipping_fails: bool = True            # Record and Imprint calculations fail together
+    slipping_optional: bool = False        # successfully initialized value remains sticky
 
     def Copy(
             model,
@@ -103,6 +107,8 @@ class Model:
                 set(model.gained),
                 model.slipping_round,
                 model.slipping_allowed,
+                model.slipping_fails,
+                model.slipping_optional,
                 )
 
     def Has_Promise(
@@ -172,6 +178,8 @@ def Model_Gain(
     model.gained.add(tag)
     if tag is Slipping:
         model.slipping_round += 1
+        if not model.slipping_fails:
+            model.slipping_optional = True
 
 
 def Model_Apply(
@@ -193,19 +201,31 @@ def Model_Apply(
 def Model_Tagging(
         model: Model,
         tag: type,
-        ) -> bool:
-    """Apply ``tag`` to the model. True when completed training reports a
-    failed Post before the surrounding try begins: something joined, and
-    the Agent is deficient. Active reapplication joins nothing and
-    rechecks nothing (§0.7)."""
+        ) -> type[Exception] | None:
+    """Each missing Tag needs a sound source, its own Gate and its own
+    Post inspection. A failed ordinary training step still admits that
+    Tag; a failed Post stops the Form there. Active reapplication is a no-op.
+    """
 
     if tag in model.active:
-        return False
+        return None
 
-    pending = [member for member in Form(tag) if member not in model.active]
-    Model_Apply(model, tag)
-
-    return bool(pending) and not model.Sound()
+    for current in Form(tag):
+        if current in model.active:
+            continue
+        if not model.Sound():
+            return TagCompositionError
+        if (current is Gated and not model.ok) or (
+                current is Slipping and not model.slipping_allowed):
+            return TagPreconditionError
+        Model_Gain(model, current)
+        model.active.append(current)
+        model.ever.add(current)
+        CLOCK[0] += 1
+        model.joined[current] = CLOCK[0]
+        if not model.Sound():
+            return TagPostconditionError
+    return None
 
 
 def Rip_Failure(
@@ -362,11 +382,17 @@ class Carrying(Tag):
 
 
 class Slipping(Guild):
-    """Retryable training: failed production keeps Gains, not membership."""
+    """Best-effort training: failed steps warn, later steps still run."""
 
     @Pre
     def Can_Slip(agent) -> bool:
         return agent.slipping_allowed
+
+    @Record
+    def slipping_optional(agent) -> str:
+        if agent.slipping_fails:
+            raise RuntimeError("deliberate Record failure")
+        return "prepared"
 
     @Record
     def slipping_round(agent, stored) -> int:
@@ -385,6 +411,41 @@ class Slipping(Guild):
         if agent.slipping_fails:
             raise RuntimeError("deliberate")
 
+    @Imprint
+    def Continue(agent) -> None:
+        agent.events.append("continued")
+
+
+SOURCE_GATES: list[int] = []
+SHAPE_GATES: list[int] = []
+
+
+class Promised_Shape(Promised):
+    """The Base's completed Post inspection precedes this Shape's Gate."""
+
+    @Pre
+    def Inspect(agent) -> bool:
+        SHAPE_GATES.append(id(agent))
+        return True
+
+
+class Source_Probe(Tag):
+    """Instrumentation: a broken source must never reach this Gate."""
+
+    @Pre
+    def Enter(agent) -> bool:
+        SOURCE_GATES.append(id(agent))
+        return True
+
+    @Record
+    def source_payload(agent) -> str:
+        agent.events.append("source Record")
+        return "prepared"
+
+    @Imprint
+    def Train(agent) -> None:
+        agent.events.append("source Imprint")
+
 
 class Refused_Guild(Guild):
     """Its Base completes, then this Shape refuses at its own Gate."""
@@ -400,7 +461,7 @@ class Refused_Guild(Guild):
 
 CONDITION_TAGS = (Promised, Marked)
 FEATURE_TAGS = (Promised, Marked, Guild, Gated)
-OBSERVED_TAGS = FEATURE_TAGS + (Slipping,)
+OBSERVED_TAGS = FEATURE_TAGS + (Slipping, Source_Probe, Promised_Shape)
 
 
 # ------------------------------------------------------------------
@@ -418,24 +479,16 @@ def Tag_It(
     """Apply ``tag`` as the law predicts: refused at the gate, applied
     and reported defective, or applied clean."""
 
-    if tag is Gated and not model.ok and Gated not in model.active:
-        try:
-            tag(target, **inputs)
-        except TagPreconditionError:
-            return
-
-        raise AssertionError((context, "gate did not refuse", tag.__name__))
-
-    reports = Model_Tagging(model, tag)
+    failure = Model_Tagging(model, tag)
 
     try:
         tag(target, **inputs)
-    except TagPostconditionError:
-        if not reports:
-            raise AssertionError((context, "promise reported where none should", tag.__name__))
+    except (TagCompositionError, TagPreconditionError, TagPostconditionError) as error:
+        if failure is None or not isinstance(error, failure):
+            raise AssertionError((context, "unexpected Tagging failure", tag.__name__, type(error).__name__, failure)) from error
     else:
-        if reports:
-            raise AssertionError((context, "defective tagging did not report", tag.__name__))
+        if failure is not None:
+            raise AssertionError((context, "Tagging did not refuse or report", tag.__name__, failure))
 
 
 def Rip_It(
@@ -553,6 +606,9 @@ def Assert_Contract(
         assert "Read_Slip" @ target, (context, "missing acquired Action")
         assert target.slipping_round == model.slipping_round, (context, "retry Record")
         assert target.Read_Slip() == model.slipping_round, (context, "Rogue Action")
+        assert ("slipping_optional" @ target) is model.slipping_optional, (context, "failed Record initialization")
+        if model.slipping_optional:
+            assert target.slipping_optional == "prepared", (context, "initialized Record")
 
     assert status == expected, (context, "contract", status, expected)
     assert bool(target) is model.Sound(), (context, "truth", model.Sound())
@@ -688,7 +744,7 @@ def Run_Seed(
         target = randomizer.choice(targets)
         model = models[id(target)]
         context = f"seed={seed} step={step} target={getattr(target, '__name__', None) or target.name}"
-        choice = randomizer.randrange(12)
+        choice = randomizer.randrange(13)
 
         if choice <= 2:
             Tag_It(target, randomizer.choice(family), model, context)
@@ -713,18 +769,20 @@ def Run_Seed(
             tag = randomizer.choice(family)
             Tag_It(target, tag, model, context)
             Tag_It(target, tag, model, context)                       # active re-application: a no-op
+        elif choice == 12 and not use_pins:
+            Exercise_Refused_Source(target, model, context)
         else:
             first = randomizer.choice(family)
-            before = model.Copy()
+            expected = Model_Tagging(model, first)
 
             try:
                 Apply(target, first, object())
-            except (TypeError, TagPostconditionError):
-                pass
+            except (TypeError, TagPostconditionError, TagCompositionError) as error:
+                assert (isinstance(error, TypeError) if expected is None else isinstance(error, expected)), (
+                        context, "Apply failed at the wrong turn", type(error).__name__, expected,
+                        )
             else:
                 raise AssertionError((context, "invalid Apply succeeded"))
-
-            Model_Apply(model, first)                                 # Apply is a plain loop: the first landed
 
         Assert_Target(target, model, family, context)
 
@@ -760,9 +818,11 @@ def Exercise_Block(
     held = tuple(randomizer.choice(family) for _ in range(1 + randomizer.randrange(3)))
     inside = model.Copy()
     door: type | None = None
+    door_failure: type[Exception] | None = None
 
     for tag in held:
-        if Model_Tagging(inside, tag):
+        door_failure = Model_Tagging(inside, tag)
+        if door_failure is not None:
             door = tag                                                # reports at the door: the try never starts
             break
 
@@ -797,12 +857,16 @@ def Exercise_Block(
     try:
         Hold()
     except TagPostconditionError:
-        assert door is not None, (context, "a door failure the model does not predict")
+        assert door is not None and door_failure is TagPostconditionError, (context, "a door failure the model does not predict")
         assert not ran, (context, "the block ran after a door failure")
     except (TagResolutionError, TagCompositionError) as error:
-        assert type(error) is refusal, (context, "a Rip the model does not refuse failed", type(error).__name__)
-        assert Is_Block_Error(error.__context__) is fail, (context, "the Rip's context is not the block's error")
-        assert fail or error.__context__ is None, (context, "a Rip's failure carries a context of its own")
+        if door is not None:
+            assert isinstance(error, door_failure), (context, "wrong Tagging refusal before block", type(error).__name__)
+            assert not ran, (context, "the block ran after a source refusal")
+        else:
+            assert type(error) is refusal, (context, "a Rip the model does not refuse failed", type(error).__name__)
+            assert Is_Block_Error(error.__context__) is fail, (context, "the Rip's context is not the block's error")
+            assert fail or error.__context__ is None, (context, "a Rip's failure carries a context of its own")
     except LookupError as error:
         assert Is_Block_Error(error) and refusal is None, (context, "the block's error reached the caller past a failed Rip")
     else:
@@ -815,6 +879,8 @@ def Exercise_Block(
     model.gained = final.gained
     model.slipping_round = final.slipping_round
     model.slipping_allowed = final.slipping_allowed
+    model.slipping_fails = final.slipping_fails
+    model.slipping_optional = final.slipping_optional
 
 
 def Is_Block_Error(
@@ -825,12 +891,42 @@ def Is_Block_Error(
     return type(error) is LookupError and error.args == ("deliberate",)
 
 
+def Exercise_Refused_Source(target: object, model: Model, context: str) -> None:
+    """A fresh orthogonal Tag cannot inspect or train a broken source."""
+
+    if model.Sound() and not model.ok and Promised not in model.active:
+        # A valid Agent without this obligation can start the Base. Its
+        # failed Post then stops the Form before the later Shape's Gate.
+        shapes = len(SHAPE_GATES)
+        Tag_It(target, Promised_Shape, model, context + " Base Post boundary")
+        assert target in Promised[:], (context, "failed Base Post lost membership")
+        assert target not in Promised_Shape[:], (context, "Shape entered after failed Base Post")
+        assert len(SHAPE_GATES) == shapes, (context, "later Shape Gate preceded Base Posts")
+    if model.Sound():
+        return
+    events = list(target.events)
+    gates = len(SOURCE_GATES)
+    active = Tags(target)
+    try:
+        Source_Probe(target)
+    except TagCompositionError:
+        pass
+    else:
+        raise AssertionError((context, "a broken source accepted fresh Tagging"))
+    assert Tags(target) == active, (context, "source refusal changed existing Tags")
+    assert len(SOURCE_GATES) == gates, (context, "broken source reached Gate")
+    assert target.events == events, (context, "broken source began training")
+    assert not ("source_payload" @ target), (context, "source refusal acquired a Record")
+    assert target not in Source_Probe[:], (context, "source refusal entered Field")
+    assert not isinstance(target, Source_Probe), (context, "source refusal acquired history")
+
+
 def Exercise_Transactions(
         target: object,
         model: Model,
         context: str,
         ) -> None:
-    """Failed admission, refused retry and fresh training keep actual Gains."""
+    """Failed training admits, active reTag is a no-op, Rip permits retraining."""
 
     if not model.Sound():
         return
@@ -875,37 +971,38 @@ def Exercise_Transactions(
 
     if Slipping not in model.active:
         target.slipping_fails = True
+        model.slipping_fails = True
         target.slipping_allowed = True
         model.slipping_allowed = True
         clock_before = CLOCK[0]
         had_guild = Guild in model.active
-        try:
-            Slipping(target)
-        except TagImprintError:
-            pass
-        else:
-            raise AssertionError((context, "failed Imprint did not report"))
-
-        Model_Apply(model, Guild)   # the Base completes independently
-        Model_Gain(model, Slipping)
-        assert target not in Slipping, (context, "failed training entered the Agency")
-        assert target not in Slipping[:], (context, "failed training entered the Field")
-        assert isinstance(target, Slipping) is (Slipping in model.ever), (context, "failed training changed history")
-        try:
-            Slipping[target]
-        except TagResolutionError:
-            pass
-        else:
-            raise AssertionError((context, "unfinished training obtained a view"))
-        assert target.events[-1] == "slipped", (context, "Imprint did not run")
-        assert CLOCK[0] == clock_before + (not had_guild), (context, "failed training advanced join order")
+        with warnings.catch_warnings(record=True) as notices:
+            warnings.simplefilter("always", TagTrainingWarning)
+            Tag_It(target, Slipping, model, context + " failed training")
+        training = [notice.message for notice in notices if isinstance(notice.message, TagTrainingWarning)]
+        assert [notice.name for notice in training] == ["slipping_optional", "Slip"], (
+                context, "failed steps must each warn", [str(notice) for notice in training],
+                )
+        assert target in Slipping[:], (context, "completed best-effort training did not enter Field")
+        assert (target in Slipping) is model.Sound(), (context, "Posts did not judge failed training")
+        assert isinstance(target, Slipping), (context, "admission did not record history")
+        assert Slipping[target].Read_Slip() == model.slipping_round, (context, "admitted training has no view")
+        assert target.events[-2:] == ["slipped", "continued"], (context, "a failed Imprint stopped later Imprints")
+        assert CLOCK[0] == clock_before + (not had_guild) + 1, (context, "training admission join order")
         Assert_Contract(target, model, context + " failed training")
 
-        # A new refusal must not remove the Gains from the prior attempt.
+        # An active Tagging does not restart training or recheck its Gate.
         target.slipping_allowed = False
         model.slipping_allowed = False
         round_before = model.slipping_round
         events_before_retry = list(target.events)
+        Slipping(target)
+        assert target.slipping_round == round_before, (context, "active retag rebuilt Gains")
+        assert target.events == events_before_retry, (context, "active retag retrained")
+        del Slipping[target]
+        Model_Rip(model, Slipping)
+
+        # After Rip, a refused Gate preserves the completed earlier training.
         try:
             Slipping(target)
         except TagPreconditionError.Can_Slip:
@@ -920,6 +1017,7 @@ def Exercise_Transactions(
         target.slipping_allowed = True
         model.slipping_allowed = True
         target.slipping_fails = False
+        model.slipping_fails = False
         Tag_It(target, Slipping, model, context + " retry")
         assert target in Slipping[:], (context, "successful retry did not enter")
         assert (target in Slipping) is model.Sound(), (context, "retry sound membership")

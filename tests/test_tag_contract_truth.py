@@ -138,8 +138,10 @@ class TagContractTruthTests(unittest.TestCase):
         Original(Agency)
         Agency.ready = False
         self.assertFalse(Agency)
+        Agency.ready = True   # a fresh Pin requires the current contract to hold
         with self.assertWarns(TagContractWarning):
             Replacement(Agency)
+        Agency.ready = False
         self.assertTrue(Agency)
         self.assertEqual(Contract.Status(Agency), {"Ready": True})
 

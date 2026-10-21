@@ -13,6 +13,7 @@ from TopKit import Tag
 from TopKit import TagImprintError
 from TopKit import TagPostconditionError
 from TopKit import TagPreconditionError
+from TopKit import TrainingWarning
 
 from ._fixtures import Agent
 
@@ -68,11 +69,11 @@ class NamedFailureTests(unittest.TestCase):
             def Has_Shield(agent):
                 return False
 
-        with self.assertRaises(Imprint.Arm) as caught:
+        with self.assertWarns(TrainingWarning.Arm) as caught:
             Armed(Agent())
 
-        self.assertEqual(caught.exception.name, "Arm")
-        self.assertIsInstance(caught.exception, TagImprintError)
+        self.assertEqual(caught.warning.name, "Arm")
+        self.assertIsInstance(caught.warning.failure, TagImprintError.Arm)
 
         with self.assertRaises(Postcondition.Has_Shield) as caught:
             Shielded(Agent())

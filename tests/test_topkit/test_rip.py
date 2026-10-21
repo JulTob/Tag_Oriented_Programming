@@ -150,7 +150,12 @@ class RipTests(unittest.TestCase):
         self.assertEqual(list(Operative), [])
         self.assertEqual(list(~Operative), [ari])
 
+        # An unrelated Tagging cannot repair a currently broken contract.
+        with self.assertRaises(TagCompositionError):
+            Agency(ari)
+        del Operative[ari]
         Agency(ari)
+        Operative(ari)
         self.assertTrue(bool(ari))
         self.assertEqual(list(Operative), [ari])
 

@@ -7,6 +7,7 @@ from weakref import ref
 
 from TopKit import Contract, Post, Pre, Tag
 from TopKit import TagContractError, TagPostconditionError, TagPreconditionError
+from TopKit import TagCompositionError
 
 
 class Host:
@@ -121,7 +122,7 @@ class PostPopulationRecursionTests(unittest.TestCase):
         refused.ready = False
         with self.assertRaises(TagPostconditionError.Ready):
             Existing(refused)
-        with self.assertRaises(TagPreconditionError.Standing):
+        with self.assertRaises(TagCompositionError):
             Checking(refused)
 
     def test_a_continuing_responsibility_must_be_written_as_a_post(self):

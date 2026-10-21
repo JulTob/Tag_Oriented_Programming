@@ -25,6 +25,10 @@ from .errors import TagContractWarning
 from .errors import TagDeclarationError
 from .errors import TagError
 from .errors import TagImprintError
+from .errors import TagTrainingWarning
+from .errors import TrainingWarning
+from .errors import TaggingFailure
+from .errors import TagTargetError
 from .errors import TagOverwriteWarning
 from .errors import TagPostconditionError
 from .errors import TagPreconditionError
@@ -72,6 +76,10 @@ __all__ = [
         "TagDeclarationError",
         "TagError",
         "TagImprintError",
+        "TagTrainingWarning",
+        "TrainingWarning",
+        "TaggingFailure",
+        "TagTargetError",
         "TagOverwriteWarning",
         "TagPostconditionError",
         "TagPreconditionError",

@@ -38,6 +38,17 @@
   without waiting for cyclic GC. Sound membership retains its admission
   and custody checks around Post evaluation and state-lookup callbacks.
 
+- **Tagging training and admission (STEP-SPEC-39 amendment):** a fresh Tag
+  needs a valid Agent and preflights every Record space before Gains;
+  structural refusal uses `TagTargetError`. Ordinary initializer and Imprint
+  failures each produce a named `TrainingWarning` while later training
+  continues. Field entry follows the attempt, and all current Posts are
+  inspected before the next Tag starts. One failed Post keeps its named
+  error; several produce `TaggingFailure` naming them all. Interruptions stop
+  later training, still attempt admission and Post inspection, and propagate
+  unchanged. An active same-Tag call remains a no-op; Rip permits a fresh
+  training attempt when the remaining Contract is valid.
+
 - **Read-only calculations:** Preconditions, Posts and Record initializers
   refuse explicit TOP mutations, including a refusal caught inside the check.
   Query Actions remain available. Python writes and finalization are outside

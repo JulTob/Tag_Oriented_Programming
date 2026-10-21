@@ -27,6 +27,7 @@ from TopKit import TagDeclarationError
 from TopKit import TagResolutionError
 from TopKit import Tags
 from TopKit import Underlay
+from TopKit import TrainingWarning
 
 from ._fixtures import Agent
 
@@ -306,7 +307,7 @@ class PinTests(unittest.TestCase):
         del Patch[Wizard]
         self.assertEqual(Wizard.Greet("x"), "WIZARD:X")               # sticky, like a Rogue Agent
 
-    def test_a_failed_patch_keeps_acquired_gain_without_pin_membership(self) -> None:
+    def test_a_failed_record_keeps_acquired_pin_gains_and_admits(self) -> None:
         Wizard = self.Wizard
         existing = Agent()
         Wizard(existing)
@@ -321,14 +322,14 @@ class PinTests(unittest.TestCase):
             def boom(tag):
                 raise ValueError("no")
 
-        with self.assertRaises(TagCompositionError):
+        with self.assertWarns(TrainingWarning.boom):
             Broken(Wizard)
 
         self.assertEqual(Wizard.Greet("x"), "patched")
         self.assertTrue("Greet" @ Wizard)
         self.assertFalse("boom" @ Wizard)
-        self.assertNotIn(Wizard, Broken[:])
-        self.assertFalse(isinstance(Wizard, Broken))
+        self.assertIn(Wizard, Broken[:])
+        self.assertTrue(isinstance(Wizard, Broken))
         self.assertFalse("Greet" @ existing)
         future = Agent()
         Wizard(future)

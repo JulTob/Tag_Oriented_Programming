@@ -9,24 +9,24 @@ For each Tag in the Form (Bases first), in order:
     3. Its Imprints run, with acquired Gains but no membership yet.
     4. Field entry establishes membership and published services.
 
-Once for the whole call:
+    5. Every current Postcondition is checked before the next Tag starts.
 
-    5. Every visible Postcondition is checked.
-
-A refusal in 1 leaves completed Tags and existing Gains in place. A
-failure in 2 or 3 retains acquired Actions and Records, but provisional
-Posts end because the unfinished Tag never formed a membership. A failure
-after 4 retains membership. Current Posts
-determine soundness; failures are not permanent defects. Python
-interruptions keep their original type and follow the same boundary.
+A fresh Tag requires a sound Agent and a successful structural preflight.
+Ordinary Record and Imprint failures warn by declaration name and allow
+later training to continue. The Agent then enters the Field; its current
+Posts decide soundness. Python interruptions stop later training, retain
+admission after structural preparation, and keep their original type.
 """
 
 from __future__ import annotations
 
+import warnings
+
 from typing import Any
+
 from .arrest import _require_available
-from .observations import _refuse_observed_act
 from .arrest import _safehouse
+from .contracts import _holds_for_population
 from .contracts import _bind_condition
 from .contracts import _evaluate
 from .declarations import _Declarations
@@ -35,6 +35,10 @@ from .declarations import _declarations_of
 from .declarations import _is_flag
 from .declarations import _protocol_inputs
 from .errors import _exception_text
+from .errors import _training_warning
+from .errors import TagTrainingWarning
+from .errors import TaggingFailure
+from .errors import TagTargetError
 from .errors import _type_name
 from .errors import TagCompositionError
 from .errors import TagImprintError
@@ -45,7 +49,9 @@ from .geometry import _form_of
 from .overlay import _install
 from .overlay import _gainings
 from .overlay import _remove_post_application
+from .overlay import _WARNING_SKIP_PREFIXES
 from .overlay import _quiet
+from .overlay import _preflight_record_spaces
 from .overlay import _preflight_ordinary_gains
 from .state import STATE
 from .state import _Published
@@ -72,7 +78,8 @@ def _apply(
         ) -> object:
     """Apply ``tag`` and its missing Bases to ``agent`` as one call."""
 
-    _refuse_observed_act("apply a Tag or Pin")
+    from .observations import _refuse_observed_act
+    _refuse_observed_act("Tagging")
 
     if _safehouse:
         _require_available(agent, "Tagging")
@@ -102,11 +109,14 @@ def _apply(
             )
     try:
         state = _state_for(agent)
+    except TagCompositionError as error:
+        if entry_host is not None:
+            _restore_host_bindings(agent, entry_host)
+        raise _target_failure(agent, tag, error) from error.__cause__
     except BaseException:
         if entry_host is not None:
             _restore_host_bindings(agent, entry_host)
         raise
-    entry_host = None   # later training keeps its own acquired Gains
 
     try:
         for member in form:
@@ -114,10 +124,54 @@ def _apply(
             if member in state.active:
                 continue
 
+            _require_sound_source(agent, member)
             _gate(agent, state, member, inputs)
-            _apply_one(agent, state, member, inputs)
+            failures: list[TagTrainingWarning] = []
+            interruptions: list[BaseException] | None = None
+            try:
+                interruptions, closing_errors = _apply_one(
+                        agent, state, member, inputs, failures,
+                        )
+            except BaseException as error:
+                primary = interruptions[0] if interruptions else error
+                _report_training(failures, primary)
+                if interruptions:
+                    _note_secondary(interruptions[0], [error], "Admission also failed")
+                    raise interruptions.pop()
+                raise
 
-        _inspect(agent)   # Posts judge the completed Form, once.
+            if not failures and not interruptions and not closing_errors:
+                # Successful training needs no warning or failure containers.
+                # Keep the same admission and per-Tag Post boundary.
+                if state.postconditions:
+                    _inspect(agent)
+                continue
+
+            post_errors: list[BaseException] = []
+            try:
+                _inspect(agent)
+            except BaseException as error:
+                post_errors.append(error)
+            primary = (interruptions[0] if interruptions else (
+                    post_errors[0] if post_errors else (
+                        closing_errors[0][1] if closing_errors else None)))
+            _report_training(failures, primary)
+            primary = None
+            if interruptions:
+                _note_secondary(interruptions[0], post_errors,
+                                "Post inspection after interruption also failed")
+                _note_closing(interruptions[0], closing_errors)
+                post_errors.clear()
+                closing_errors.clear()
+                raise interruptions.pop()
+            if post_errors:
+                _note_closing(post_errors[0], closing_errors)
+                closing_errors.clear()
+                raise post_errors.pop()
+            if closing_errors:
+                _note_closing(closing_errors[0][1], closing_errors[1:])
+                del closing_errors[1:]
+                raise closing_errors.pop()[1]
     except BaseException:
         if (
                 entry_state is None
@@ -132,9 +186,12 @@ def _apply(
             # A state-free runtime clone may have been normalized before
             # its Gate. Restore its original representation when no
             # preparation or Gaining succeeded.
-            if type(agent) is not entry_class:
-                _set_runtime_type(agent, entry_class)
-            _namespace_of(agent).pop(STATE, None)
+            if entry_host is not None:
+                _restore_host_bindings(agent, entry_host)
+            else:
+                if type(agent) is not entry_class:
+                    _set_runtime_type(agent, entry_class)
+                _namespace_of(agent).pop(STATE, None)
         raise
 
     return agent
@@ -160,6 +217,7 @@ def _gate(
     """
 
     declarations = _declarations_of(tag)
+    _preflight_record_spaces(state, tag, declarations)
     if (
             not declarations.gain_order
             and not declarations.reports
@@ -211,13 +269,16 @@ def _apply_one(
         state: _State,
         tag: type,
         inputs: dict[str, Any],
-        ) -> None:
+        failures: list[TagTrainingWarning],
+        ) -> tuple[list[BaseException] | None, list[tuple[str, BaseException]]]:
     declarations = _declarations_of(tag)
     deleted_before = set(state.deleted)
     application = object()
     state.training.add(tag)
     state.composing += 1
     primary_failure: BaseException | None = None
+    interruption: BaseException | None = None
+    closing_errors: list[tuple[str, BaseException]] = []
 
     try:
         # Mechanical actualization precedes every builder and Imprint.
@@ -237,7 +298,7 @@ def _apply_one(
             state.arrestable = True
         try:
             _actualize(agent, state, tag, declarations.header, entering=_is_flag(tag))
-        except BaseException:
+        except BaseException as error:
             state.arrestable = previous_arrestable
             if entry_host is not None:
                 _restore_host_bindings(agent, entry_host)
@@ -245,6 +306,8 @@ def _apply_one(
                 if type(agent) is not entry_class:
                     _set_runtime_type(agent, entry_class)
                 _restore_namespace(agent, entry_namespace)
+            if first and isinstance(error, TagCompositionError):
+                raise _target_failure(agent, tag, error) from error.__cause__
             raise
 
         def prepare(gaining: _Declarations, needs_runtime: bool) -> None:
@@ -253,7 +316,8 @@ def _apply_one(
                     refresh=needs_runtime,
                     )
 
-        _gainings(
+        acquired_rips: list[tuple[str, Any]] | None = [] if declarations.rips else None
+        interruption = _gainings(
                 agent,
                 state,
                 tag,
@@ -262,16 +326,16 @@ def _apply_one(
                 inputs,
                 prepare,
                 application,
+                failures,
+                acquired_rips,
                 )
 
         # A nested Imprint may lay another Action over a Rip name. Remember
         # this Tag's acquired layer before training can change the Overlay.
-        rip_actions = (
-                tuple((name, state.actions[name]) for name in declarations.rips)
-                if declarations.rips else ()
-                )
+        rip_actions = tuple(acquired_rips) if acquired_rips else ()
 
-        _imprint(agent, declarations, inputs)
+        if interruption is None:
+            interruption = _imprint(agent, tag, declarations, inputs, failures)
 
         # Tag-scope services arrive with admission. A failed representation
         # must not replace the services of an already active Agency.
@@ -329,7 +393,11 @@ def _apply_one(
                 next_type = _runtime_type_for(state)
                 if type(agent) is not next_type:
                     _set_runtime_type(agent, next_type)
-        raise
+            if interruption is not None:
+                _note_secondary(interruption, [error], "Admission also failed")
+                raise interruption
+            raise
+        closing_errors.append(("Post-entry setup also failed", error))
     finally:
         try:
             if tag in state.active:
@@ -339,21 +407,17 @@ def _apply_one(
                             state,
                             )
                 except BaseException as closing_error:
-                    if primary_failure is None:
-                        raise
-                    try:
-                        BaseException.add_note(
-                                primary_failure,
-                                f"The {tag.__name__} view could not be captured after Write:"
-                                f" {type(closing_error).__name__}",
-                                )
-                    except BaseException:
-                        pass
+                    closing_errors.append((
+                            f"The {tag.__name__} view could not be captured after Write",
+                            closing_error,
+                            ))
         finally:
             primary_failure = None
             state.training.discard(tag)
             state.composing -= 1
 
+
+    return (None if interruption is None else [interruption]), closing_errors
 
 def _precondition_services(
         tag: type,
@@ -414,7 +478,7 @@ def _refuse_posts_shadowed_by_the_agent(
 def _inspect(
         agent: object,
         ) -> None:
-    """Quality check of the finished product: every visible Postcondition."""
+    """Judge every visible Post after admission, reporting one final error."""
 
     state = _state_of(agent)
 
@@ -423,17 +487,51 @@ def _inspect(
 
     state.composing += 1
 
+    from .post_queries import _post_evaluation
     try:
-        _evaluate(
-                tuple(state.postconditions.items()),
-                agent,
-                {},
-                TagPostconditionError,
-                "Postcondition",
-                post=True,
-                )
+        failures: list[TagPostconditionError] = []
+        with _post_evaluation():
+            _inspect_posts(agent, state, failures)
+
+        if len(failures) == 1:
+            failures[0].failed_posts = (failures[0].name,)
+            # Pop before raising: a raised error must not own an _inspect
+            # frame whose locals still contain that same error and Agent.
+            raise failures.pop()
+
+        if failures:
+            names = tuple(error.name for error in failures)
+            details = tuple(str(failure) for failure in failures)
+            provenance = tuple((error.name, error.layer_provenance) for error in failures)
+            failures.clear()
+            failures.append(TaggingFailure(names, details))
+            failures[0].layer_provenance = provenance
+            for name, context in provenance:
+                BaseException.add_note(failures[0], _post_context_note(name, context))
+            raise failures.pop()
     finally:
         state.composing -= 1
+
+
+
+def _inspect_posts(agent: object, state: _State,
+                   failures: list[TagPostconditionError]) -> None:
+    for name, check in tuple(state.postconditions.items()):
+        try:
+            _evaluate(
+                    ((name, check),),
+                    agent,
+                    {},
+                    TagPostconditionError,
+                    "Postcondition",
+                    post=True,
+                    )
+        except TagPostconditionError as error:
+            context = _post_provenance(state, name, check)
+            error.layer_provenance = context
+            BaseException.add_note(error, _post_context_note(name, context))
+            failures.append(error)
+
 
 
 def _prepare_gains(
@@ -661,9 +759,11 @@ def _publish_into(
 
 def _imprint(
         agent: object,
+        tag: type,
         declarations: _Declarations,
         inputs: dict[str, Any],
-        ) -> None:
+        failures: list[TagTrainingWarning],
+        ) -> BaseException | None:
     for name, imprint in declarations.imprints:
         try:
             result = imprint(
@@ -672,19 +772,42 @@ def _imprint(
                     )
             lazy = _discard_lazy_result(result)
         except Exception as error:
-            raise TagImprintError.Named(name)(
-                    f"Imprint {str.__str__(name)!r} failed:"
-                    f" {_type_name(error)}: {_exception_text(error)}"
-                    ) from error
+            try:
+                cause_type = _type_name(error)
+                cause_text = _exception_text(error)
+                failure = TagImprintError.Named(name)(
+                        f"Imprint {str.__str__(name)!r} failed:"
+                        f" {cause_type}: {cause_text}"
+                        )
+                failures.append(
+                        _training_warning(
+                            "Imprint", tag, name, failure, error,
+                            cause_type=cause_type,
+                            cause_text=cause_text,
+                            )
+                        )
+            except BaseException as interruption:
+                return interruption
+            continue
+        except BaseException as interruption:
+            return interruption
 
         if lazy is not None:
             article = "an" if lazy == "async generator" else "a"
 
-            raise TagImprintError.Named(name)(
+            failure = TagImprintError.Named(name)(
                     f"Imprint {str.__str__(name)!r} returned {article}"
                     f" {lazy}; an Imprint must complete synchronously."
                     " TOP does not await or iterate application protocols."
                     )
+            failures.append(
+                    TagTrainingWarning.Named(name)(
+                        "Imprint", tag, name, failure,
+                        )
+                    )
+
+    return None
+
 
 
 _NONE: frozenset[str] = frozenset()   # one empty set for every snapshot that needs none
@@ -717,4 +840,115 @@ def _snapshot(
             operations=dict(state.operations),
             deleted=frozenset(state.deleted) if state.deleted else _NONE,
             secrets=frozenset(state.secrets) if state.secrets else _NONE,
+            )
+
+
+def _report_training(
+        failures: list[TagTrainingWarning],
+        primary: BaseException | None,
+        ) -> None:
+    """Report each failed step after admission, without masking Posts or interrupts."""
+
+    warning_errors: list[Exception] = []
+    for failure in failures:
+        try:
+            warnings.warn(
+                    failure,
+                    skip_file_prefixes=_WARNING_SKIP_PREFIXES,
+                    )
+        except BaseException as error:
+            # Warning filters and custom reporting hooks run after Field
+            # entry. Neither may mask a failed Post or an interruption.
+            if primary is not None:
+                try:
+                    BaseException.add_note(primary, str(error))
+                except BaseException:
+                    pass
+            elif not isinstance(error, Exception):
+                # A new Python interruption remains an interruption when
+                # training and Posts themselves completed normally.
+                raise
+            elif warning_errors:
+                try:
+                    BaseException.add_note(warning_errors[0], str(error))
+                except BaseException:
+                    pass
+            else:
+                warning_errors.append(error)
+
+    if failures:
+        del failure
+    failures.clear()
+    if warning_errors:
+        raise warning_errors.pop()
+
+
+
+def _note_secondary(
+        primary: BaseException,
+        others: list[BaseException],
+        label: str,
+        ) -> None:
+    """Keep secondary failures visible without retaining their tracebacks."""
+
+    for error in others:
+        try:
+            BaseException.add_note(
+                    primary,
+                    f"{label}: {_type_name(error)}: {_exception_text(error)}",
+                    )
+        except BaseException:
+            pass   # a diagnostic must not replace the primary failure
+
+
+
+def _note_closing(
+        primary: BaseException,
+        others: list[tuple[str, BaseException]],
+        ) -> None:
+    """Record each later post-entry error without keeping its traceback."""
+
+    for label, error in others:
+        _note_secondary(primary, [error], label)
+
+
+
+def _require_sound_source(agent: object, tag: type) -> None:
+    """A missing Tag starts only from an Agent whose current Posts hold."""
+    state = _state_of(agent)
+    if state is not None and state.postconditions and not _holds_for_population(agent):
+        raise TagCompositionError(
+                f"{tag.__name__} cannot start Tagging while the"
+                " Agent's current Posts fail"
+                )
+
+
+def _post_provenance(state: _State, name: str, check: Any) -> tuple[Any, ...]:
+    """Diagnostic context only: no claim that every recorded layer failed."""
+    return tuple(
+            (str.__str__(type.__dict__["__name__"].__get__(layer.tag)),
+             layer.constant,
+             any(active is layer.tag for active in state.active),
+             layer.underlay)
+            for layer in state.post_layers.get(name, ())
+            )
+
+
+def _post_context_note(name: str, provenance: tuple[Any, ...]) -> str:
+    if not provenance:
+        return f"Post {str.__str__(name)!r} has no recorded Tag layer"
+    visible = provenance[-1][0]
+    retained = tuple(tag for tag, constant, admitted, _ in provenance
+                     if constant and not admitted)
+    note = f"Post {str.__str__(name)!r} is visible from Tag {visible}"
+    if retained:
+        note += "; Constant Post underlay retained after Rip: " + ", ".join(retained)
+    return note
+
+
+def _target_failure(agent: object, tag: type, error: TagCompositionError) -> TagTargetError:
+    """Classify a failed first mechanical preparation without hiding its cause."""
+    return TagTargetError(
+            f"{tag.__name__} cannot tag {type(agent).__name__}: object is not a valid"
+            f" Target for Tagging; {_exception_text(error)}"
             )

@@ -694,8 +694,9 @@ class PostNeutralCycleTests(unittest.TestCase):
                     pass
                 return True
 
-        with self.assertRaises(TagPostconditionError.Observer):
+        with self.assertRaises(TagPostconditionError) as caught:
             Checked(Host())
+        self.assertEqual(caught.exception.failed_posts, ("Observer", "Guard"))
 
         self.assertEqual(seen, [(False, False)])
         self.assertEqual(calls[0], 1)

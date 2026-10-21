@@ -4,7 +4,7 @@ import unittest
 
 from TopKit import (Action, Constant, Contract, Imprint, Operation, Post, Public,
                     Record, Report, Secret, Tag,
-                    TagCompositionError, TagResolutionError)
+                    TagCompositionError, TagResolutionError, TrainingWarning)
 
 
 class GainingActualizationTests(unittest.TestCase):
@@ -59,22 +59,28 @@ class GainingActualizationTests(unittest.TestCase):
                         return agent.guarded() if kind is Action else agent.guarded
 
                 agent = Host()
-                with self.assertRaises(TagCompositionError):
-                    Trained(agent)
-
-                self.assert_not_admitted(Trained, agent)
+                if kind is Record:
+                    with self.assertWarns(TrainingWarning.guarded):
+                        Trained(agent)
+                    self.assertIn(agent, Trained[:])
+                else:
+                    with self.assertRaises(TagCompositionError):
+                        Trained(agent)
+                    self.assert_not_admitted(Trained, agent)
                 self.assertTrue("earlier" @ agent)
                 self.assertTrue("Read" @ agent)
                 self.assertIs(agent.Read(), False)
                 self.assertFalse("guarded" @ agent)
                 with self.assertRaises(AttributeError):
                     agent.guarded
-                self.assertFalse("later" @ agent)
-                expected = ["earlier", "guarded"] if kind is Record else ["earlier"]
+                self.assertEqual("later" @ agent, kind is Record)
+                expected = ["earlier", "guarded", "later"] if kind is Record else ["earlier"]
                 self.assertEqual(events, expected)
 
                 # A failed guard must not leave an acquired Constant or a
                 # hidden binding that prevents this fresh Tagging attempt.
+                if kind is Record:
+                    del Trained[agent]
                 RejectingHostType.reject = False
                 Trained(agent)
                 self.assertIn(agent, Trained[:])
@@ -125,10 +131,10 @@ class GainingActualizationTests(unittest.TestCase):
                     Existing(agent)
                 else:
                     agent.value = original
-                with self.assertRaises(TagCompositionError):
+                with self.assertWarns(TrainingWarning.value):
                     Trained(agent)
 
-                self.assert_not_admitted(Trained, agent)
+                self.assertIn(agent, Trained[:])
                 self.assertEqual(agent.earlier, "acquired")
                 self.assertTrue("value" @ agent)
                 self.assertIs(agent.value, original)
@@ -210,10 +216,10 @@ class GainingActualizationTests(unittest.TestCase):
         agent = Host()
         Existing(agent)
         RejectingHostType.reject = True
-        with self.assertRaises(TagCompositionError):
+        with self.assertWarns(TrainingWarning.title):
             Trained(agent)
 
-        self.assert_not_admitted(Trained, agent)
+        self.assertIn(agent, Trained[:])
         self.assertIn(agent, Existing[:])
         self.assertTrue("__len__" @ agent)
         self.assertEqual(len(agent), 7)
@@ -221,6 +227,7 @@ class GainingActualizationTests(unittest.TestCase):
         self.assertEqual(Existing[agent].title, "published")
         self.assertEqual(stored_values, [None])
 
+        del Trained[agent]
         RejectingHostType.reject = False
         Trained(agent)
         self.assertIn(agent, Trained[:])
@@ -264,10 +271,10 @@ class GainingActualizationTests(unittest.TestCase):
 
         agent = Host()
         Base(agent)
-        with self.assertRaises(TagCompositionError):
+        with self.assertWarns(TrainingWarning.rejected):
             Shape(agent)
 
-        self.assert_not_admitted(Shape, agent)
+        self.assertIn(agent, Shape[:])
         self.assertIn(agent, Base[:])
         self.assertIsNone(agent.Read())
         self.assertIs(Base[agent].fixed, False)

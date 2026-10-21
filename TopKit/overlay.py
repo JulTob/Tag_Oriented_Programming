@@ -15,12 +15,10 @@ from typing import Callable
 from typing import Iterator
 import warnings
 
-from .observations import _observing
-
-from . import state as state_module
 from .arrest import _require_available
 from .arrest import _safehouse
 from .lazy_guard import _guard_lazy_result
+from . import state as state_module
 from .access import IN_SEAT
 from .access import _host_finalizer
 from .access import _host_in_seat
@@ -41,6 +39,9 @@ from .declarations import _tool_kind_of
 from .declarations import _takes_underlay
 from .declarations import _wraps_callable
 from .errors import _exception_text
+from .errors import _training_warning
+from .errors import TagTrainingWarning
+from .errors import TagTargetError
 from .errors import _type_name
 from .errors import TagCompositionError
 from .errors import TagDeclarationError
@@ -326,6 +327,7 @@ def _require_membership(
                 )
 
 
+
 state_module._require_membership = _require_membership   # a published Report's read needs it; state cannot import this module
 
 
@@ -555,7 +557,9 @@ def _gainings(
         inputs: dict[str, Any],
         prepare: Callable[[_Declarations, bool], None],
         application: object,
-        ) -> None:
+        failures: list[TagTrainingWarning],
+        acquired_rips: list[tuple[str, Function]] | None,
+        ) -> BaseException | None:
     """Attach each actual Gain before proceeding to the next declaration.
 
     Record builders read the previous binding until they return a value.
@@ -565,7 +569,7 @@ def _gainings(
     """
 
     if not declarations.gain_order:
-        return
+        return None
 
     for kind, planned in declarations.gaining_steps:
         if not state.constants and not planned.constants and state.pinned is None:
@@ -582,9 +586,31 @@ def _gainings(
             if not one.records:
                 continue
             function = one.records[0][1]
-            value = _record_value(
+            value, warning, interruption = _record_value(
                     agent, tag, name, function, deleted_before, inputs,
                     )
+            if warning is not None:
+                failures.append(warning)
+                continue
+            if interruption is not None:
+                return interruption
+            tool_kind = _tool_kind_of(function)
+            if tool_kind is not None:
+                from .tools import _refuse_tool_value
+                from .observations import _observing
+                try:
+                    with _observing("Record value validation"):
+                        _refuse_tool_value(tag, tool_kind, name, value, agent, built=True)
+                except Exception as error:
+                    try:
+                        failures.append(_record_training_warning(
+                                tag, name, error, "applied",
+                                ))
+                    except BaseException as diagnostic_interruption:
+                        return diagnostic_interruption
+                    continue
+                except BaseException as interruption:
+                    return interruption
         elif kind == "condition" and not (one.preconditions or one.postconditions):
             continue
 
@@ -600,24 +626,38 @@ def _gainings(
                 or (bool(state.published)
                     and type(type(agent).__dict__.get(name)) is _Published)
                 )
-        previous = state.Copy() if needs_runtime else None
+        # Runtime protection needs a complete rollback if its representation
+        # is refused. An ordinary Record needs only its name restored if
+        # writing the calculated value fails; avoid copying the whole State
+        # on the common Record path.
+        previous = (
+                state.Copy()
+                if needs_runtime or (kind == "record" and state.pinned is not None)
+                else None
+                )
         if previous is not None:
             previous_type = type(agent)
             previous_namespace = dict(_namespace_of(agent))
+        record_entry = (
+                _record_entry(agent, state, name)
+                if kind == "record" and previous is None
+                else None
+                )
 
+        applying_record = False
+        warning_in_progress = False
+        replaced_record = None
         try:
             if kind == "action":
                 _install_action(state, tag, name, function)
             elif kind == "record":
-                _install_record(state, tag, name, function)
+                applying_record = True
+                replaced_record = _install_record(
+                        state, tag, name, function, defer_warning=True,
+                        )
                 _store_record(agent, name, value, one.secrets)
             else:
-                _install(
-                        state,
-                        tag,
-                        one,
-                        application=application,
-                        )
+                _install(state, tag, one, application=application)
 
             if one.secrets:
                 state.secrets.update(one.secrets)
@@ -625,17 +665,42 @@ def _gainings(
                 state.constants[name] = locks[name]
             if kind != "record" or needs_runtime:
                 prepare(one, needs_runtime)
-        except BaseException:
+
+            if state.pinned is not None:
+                from .declarations import _invalidate_declarations
+                _invalidate_declarations(state.pinned)
+
+            applying_record = False
+            if replaced_record is not None and not _quiet.get():
+                warning_in_progress = True
+                _warn_record_replacement(tag, name, replaced_record)
+                warning_in_progress = False
+        except BaseException as error:
             if previous is not None:
                 if type(agent) is not previous_type:
                     _set_runtime_type(agent, previous_type)
                 _restore_namespace(agent, previous_namespace)
                 state.Restore(previous)
+            elif record_entry is not None and (
+                    applying_record or warning_in_progress
+                    ):
+                _restore_record_entry(state, name, record_entry)
+            if applying_record:
+                if isinstance(error, Exception):
+                    try:
+                        failures.append(_record_training_warning(
+                                tag, name, error, "applied",
+                                ))
+                    except BaseException as diagnostic_interruption:
+                        return diagnostic_interruption
+                    continue
+                return error
             raise
 
-        if state.pinned is not None:
-            from .declarations import _invalidate_declarations
-            _invalidate_declarations(state.pinned)
+        if acquired_rips is not None and kind == "action" and name in declarations.rips:
+            acquired_rips.append((name, state.actions[name]))
+
+    return None
 
 
 def _refuse_stored_input_collision(
@@ -1294,12 +1359,7 @@ def _refuse_record(
                 name,
                 )
 
-    if _host_data_descriptor(state.host_type, name):
-        raise TagCompositionError(
-                f"{tag.__name__}.{name} is a Record but the host"
-                f" {state.host_type.__name__} defines {name!r} as a property"
-                " or slot; Records need an ordinary attribute"
-                )
+    _refuse_record_space(state, tag, name)
 
     action_origin = state.action_origins.get(name)
 
@@ -1335,7 +1395,9 @@ def _install_record(
         tag: type,
         name: str,
         builder: Function,
-        ) -> None:
+        *,
+        defer_warning: bool = False,
+        ) -> type | None:
     _refuse_record(state, tag, name)
     if name in state.action_origins:
         state.actions.pop(name)
@@ -1343,13 +1405,8 @@ def _install_record(
 
     kind, prior = _record_overlay(state, tag, name, builder)
 
-    if prior is not None and not _quiet.get():
-        warnings.warn(
-                f"{tag.__name__}.{name} replaces the Record of independent"
-                f" Tag {prior.__name__}",
-                TagOverwriteWarning,
-                skip_file_prefixes=_WARNING_SKIP_PREFIXES,
-                )
+    if prior is not None and not defer_warning and not _quiet.get():
+        _warn_record_replacement(tag, name, prior)
 
     if kind is not None:
         state.tools[name] = (tag, kind)   # the latest Tool declaration's kind is the slot's
@@ -1359,6 +1416,8 @@ def _install_record(
     state.records[name] = tag
     _restore(state, name)
     state.published.discard(name)
+    return prior
+
 
 
 def _restore(
@@ -1387,61 +1446,56 @@ def _record_value(
         builder: Function,
         deleted_before: set[str],
         inputs: dict[str, Any],
-        ) -> Any:
+        ) -> tuple[Any, TagTrainingWarning | None, BaseException | None]:
     """Calculate a Record's initial value without changing its binding."""
 
-    tag_name = type.__dict__["__name__"].__get__(tag)
-    record_name = str.__str__(name)
-    with _observing(f"Record {tag_name}.{record_name} builder"):
-        if isinstance(agent, type):
-            stored = _state_of(agent).secret_values.get(name, _MISSING)
+    if isinstance(agent, type):
+        stored = _state_of(agent).secret_values.get(name, _MISSING)
 
-            if stored is _MISSING:
-                stored = _pinned_stored(agent, name)
-        else:
-            stored = _namespace_of(agent).get(name)
+        if stored is _MISSING:
+            stored = _pinned_stored(agent, name)
+    else:
+        stored = _namespace_of(agent).get(name)
 
-        if name in deleted_before or isinstance(
-                stored,
-                (
-                    _Bound,
-                    _Pinned_Operation,
-                ),
-                ):
-            stored = None
+    if name in deleted_before or isinstance(
+            stored,
+            (
+                _Bound,
+                _Pinned_Operation,
+            ),
+            ):
+        stored = None
 
-        takes_stored = _takes_stored(builder)
+    takes_stored = _takes_stored(builder)
 
-        if takes_stored:
-            _refuse_stored_input_collision(builder, inputs, name)
+    if takes_stored:
+        _refuse_stored_input_collision(builder, inputs, name)
 
-        named = _protocol_inputs(
-                builder,
-                inputs,
-                2 if takes_stored else 1,
-                )
+    named = _protocol_inputs(
+            builder,
+            inputs,
+            2 if takes_stored else 1,
+            )
 
-        try:
+    try:
+        from .observations import _observing
+        with _observing("Record"):
             if takes_stored:
                 value = builder(agent, stored, **named)
             else:
                 value = builder(agent, **named)
-        except TagError:
-            raise
-        except Exception as error:
-            tag_name = str.__str__(type.__dict__["__name__"].__get__(tag))
-            record_name = str.__str__(name)
-            raise TagCompositionError(
-                    f"Record {tag_name}.{record_name} could not be"
-                    f" materialized: {_type_name(error)}: {_exception_text(error)}"
-                    ) from error
+    except Exception as error:
+        try:
+            return None, _record_training_warning(
+                    tag, name, error, "materialized",
+                    ), None
+        except BaseException as diagnostic_interruption:
+            return None, None, diagnostic_interruption
+    except BaseException as interruption:
+        return None, None, interruption
 
-        tool_kind = _tool_kind_of(builder)
-        if tool_kind is not None:
-            from .tools import _refuse_tool_value
-            _refuse_tool_value(tag, tool_kind, name, value, agent, built=True)
+    return value, None, None
 
-        return value
 
 
 def _store_record(
@@ -1457,3 +1511,124 @@ def _store_record(
         _state_of(agent).secret_values[name] = value
     else:
         namespace[name] = value
+
+
+def _record_entry(
+        agent: object,
+        state: _State,
+        name: str,
+        ) -> tuple[Any, ...]:
+    """Capture only the ordinary Record's binding and Overlay seats."""
+
+    namespace = _namespace_of(agent)
+    return (
+            namespace,
+            dict.get(namespace, name, _MISSING),
+            state.actions.get(name, _MISSING),
+            state.action_origins.get(name, _MISSING),
+            state.records.get(name, _MISSING),
+            state.tools.get(name, _MISSING),
+            name in state.deleted,
+            state.restored,
+            name in state.published,
+            )
+
+
+
+def _restore_record_entry(
+        state: _State,
+        name: str,
+        entry: tuple[Any, ...],
+        ) -> None:
+    """Undo one failed ordinary Record write without undoing earlier Gains."""
+
+    (namespace, value, action, origin, record, tool,
+     deleted, restored, published) = entry
+    if value is _MISSING:
+        dict.pop(namespace, name, None)
+    else:
+        dict.__setitem__(namespace, name, value)
+
+    for mapping, prior in (
+            (state.actions, action),
+            (state.action_origins, origin),
+            (state.records, record),
+            (state.tools, tool),
+            ):
+        if prior is _MISSING:
+            mapping.pop(name, None)
+        else:
+            mapping[name] = prior
+
+    if deleted:
+        state.deleted.add(name)
+    else:
+        state.deleted.discard(name)
+    state.restored = restored
+    if published:
+        state.published.add(name)
+    else:
+        state.published.discard(name)
+
+
+
+def _record_training_warning(
+        tag: type,
+        name: str,
+        error: Exception,
+        phase: str,
+        ) -> TagTrainingWarning:
+    """Name a failed calculation or value application without its traceback."""
+
+    tag_name = str.__str__(type.__dict__["__name__"].__get__(tag))
+    record_name = str.__str__(name)
+    from .observations import _observing, _ObservationViolation
+    try:
+        with _observing("Record diagnostic"):
+            cause_type = _type_name(error)
+            cause_text = _exception_text(error)
+            failure = TagCompositionError(
+                    f"Record {tag_name}.{record_name} could not be {phase}:"
+                    f" {cause_type}: {cause_text}"
+                    )
+            return _training_warning(
+                    "Record", tag, name, failure, error,
+                    cause_type=cause_type,
+                    cause_text=cause_text,
+                    )
+    except _ObservationViolation as violation:
+        cause_type = _type_name(violation)
+        cause_text = BaseException.__str__(violation)
+        failure = TagCompositionError(
+                f"Record {tag_name}.{record_name} diagnostic violated"
+                f" its read-only boundary: {cause_text}"
+                )
+        return _training_warning(
+                "Record", tag, name, failure, violation,
+                cause_type=cause_type, cause_text=cause_text,
+                )
+
+
+
+def _warn_record_replacement(tag: type, name: str, prior: type) -> None:
+    warnings.warn(
+            f"{tag.__name__}.{name} replaces the Record of independent"
+            f" Tag {prior.__name__}",
+            TagOverwriteWarning,
+            skip_file_prefixes=_WARNING_SKIP_PREFIXES,
+            )
+
+
+
+def _preflight_record_spaces(state: _State, tag: type, declarations: _Declarations) -> None:
+    for name, _builder in declarations.records:
+        _refuse_record_space(state, tag, name)
+
+
+def _refuse_record_space(state: _State, tag: type, name: str) -> None:
+    if _host_data_descriptor(state.host_type, name):
+        raise TagTargetError(
+                f"{tag.__name__}.{name} cannot prepare a Record space on"
+                f" Target {state.host_type.__name__}: {name!r} is a host"
+                " property or slot, not an ordinary attribute"
+                )

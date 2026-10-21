@@ -19,6 +19,7 @@ class CallableConditionUnderlayTests(unittest.TestCase):
     def build(self, mark, prior, pinned=False, ignore=False, ordinary=False,
               hostile=False):
         calls = []
+        ready = False
 
         class Added:
             def __getattribute__(self, name):
@@ -31,17 +32,19 @@ class CallableConditionUnderlayTests(unittest.TestCase):
                 raise RuntimeError("callable repr must not run")
 
             def __call__(self, agent, base, minimum=9, *, offset=4):
+                nonlocal ready
+                ready = True
                 calls.append((minimum, offset))
                 result = base()
                 return True if ignore else result
 
         if ordinary:
             def Added(agent, base, minimum=9, *, offset=4):
+                nonlocal ready
+                ready = True
                 calls.append((minimum, offset))
                 result = base()
                 return True if ignore else result
-
-        ready = False
 
         def Deferred_Prior(agent):
             return prior(agent) if ready else True
@@ -55,7 +58,8 @@ class CallableConditionUnderlayTests(unittest.TestCase):
         # Do not depend on a pending Shape overriding the Base's Gate, or
         # dispose of a lazy prior before the Underlay under test can see it.
         base(target)
-        ready = True
+        # Keep the source valid until this Shape's own check invokes the
+        # Underlay. New Tagging must not begin on a broken source Agent.
         return shape, target, calls
 
     def test_boolean_and_fallthrough_underlays_match_function_controls(self):

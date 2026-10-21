@@ -17,7 +17,7 @@ is a contract.
 from TopKit import (
         Action, Constant, Contract, Flag, Operation, Pin, Post, Postcondition,
         Pre, Precondition, Public, Record, Report, Rip, Tag,
-        TagRogueAccessError, Underlay,
+        TagCompositionError, TagRogueAccessError, Underlay,
         )
 
 
@@ -48,7 +48,7 @@ at its own time.
 | Claim | Mark | Checked | When it fails |
 | --- | --- | --- | --- |
 | "You may enter" | `@Pre` | at that Tag's door, once | current Tag never starts; earlier turns stay |
-| "You will stay like this" | `@Post` | after admission, once after the completed Form, then at later tagging and published-member use | the Tag stays; the Agent is **defective** |
+| "You will stay like this" | `@Post` | after each Tag's admission, before the next Tag's Gate, then at later tagging and published-member use | the Tag stays; the Agent is **defective** |
 | "You may use what we share" | `@Public` | at every use | refused until membership and soundness return |
 
 The first two are conditions the Tag declares, but STEP-SPEC-61 gives them different
@@ -102,43 +102,61 @@ Each missing Tag passes its own Gate when its turn arrives. A Shape cannot
 override away a missing Base's Gate: the Base must pass first. An already
 active Base is not asked again when the Shape arrives.
 
-Preconditions judge by reading and querying. Record builders read and query
-to calculate their initial returned values. Applying or Ripping Tags and
-performing world effects belong to Imprints. These rules do not provide a
-sandbox for arbitrary Python effects.
+Before a new Tag's Gate, an existing Agent's current Posts must hold. A Form
+is a sequence of independent Taggings, so a later Shape cannot rescue a Base
+that already failed its Posts. Repair the Agent through its current Gains
+before applying an unrelated new Tag.
 
-After the Gate, Actions, Records, Post definitions and deletions take effect
-in declaration order, top to bottom, with each provisional or acquired Gain
-visible to subsequent declarations. Then Imprints train the Agent; only after
-they finish does it enter the Field. If Gainings or Imprints fail, actually
-acquired non-Post Gains and earlier completed Tags remain, but this Tag is
-absent: the Agent is Rogue with respect to it. Provisional Posts, including
-Constant Posts, are discarded because no Contract bond with that application
-was admitted. Calling `Tag(agent)` again passes a fresh Gate, overlays ordinary
-Gains and restarts Imprints. Established non-Post Constants remain protected;
-retry does not resume an instruction.
+Preconditions, Posts and Record calculations read and query. TOP refuses
+explicit acts such as Tagging, Rip, contract deletion and Tag creation while
+they run. Calling an Action to retrieve a value is allowed under that same
+restriction. Ordinary Python assignments, in-place mutations and external
+side effects remain the author's responsibility; this is no sandbox.
 
-Once Field admission succeeds, an ordinary Post is a membership-bound Agent
-Gain. A Constant Post becomes a lifetime term only then. Put a safety Post
-before the Action that needs to see it during Gainings. An ordinary Action can
-read the named Post before effects, such as
-`if not agent.Insulated: raise PermissionError(...)`; a Post definition does
-not automatically wrap ordinary Action calls.
+Structural preparation checks every Record space before installing any Gain
+or running an initializer. A Target whose property or slot blocks a Record
+is refused with `TagTargetError`, a `TagCompositionError` subtype. Failed first
+host preparation restores the original representation; earlier Tags stay.
 
-During training, the Tag's published Reports and Operations and its
-Agent-bound view are unavailable through the Agent. Unfinished training
-does not trigger Rip and lies outside `Tag[:]`; the program owns cleanup of
-resources acquired in that attempt.
+After the Gate, Gainings become visible top to bottom. A Record initializer
+that raises an ordinary exception leaves its previous binding, or absence,
+and produces `TrainingWarning.<record_name>`; subsequent Gainings continue.
+Imprints follow the same best-effort rule, one warning per failed protocol,
+while later Imprints still run. The Agent then enters the Field and **all
+current visible Posts** judge it. Passing Posts return a sound member despite
+the training warnings; failed Posts raise one final Postcondition Failure while
+membership stays. One failed Post keeps its named error; several are reported
+by `TaggingFailure.failed_posts` in evaluation order. A Post can require a Gain
+explicitly with a presence guard such as `"engine" @ agent`.
+
+A Python interruption stops later training. TOP still attempts Field entry
+and checks current Posts, then preserves the original interruption. A
+structural failure that prevents admission instead discards that attempt's
+provisional Posts, including Constants, without undoing acquired non-Post
+Gains or external effects.
+
+An ordinary Post joins the Contract at admission and lasts with that Tag's
+membership; a Constant Post becomes a lifetime term. Put a safety Post before
+the Action that needs to see it during Gainings. An ordinary Action may read
+it explicitly before effects, such as
+`if not agent.Insulated: raise PermissionError(...)`; Posts do not wrap
+ordinary Action calls automatically.
+
+The Tag's published Reports, Operations and bound view become available
+through the Agent after Field entry. Calling an already active Tag is a no-op,
+not implicit repair. Repair its current Gains, then Rip and reTag if fresh
+training is wanted. Unadmitted structural attempts have no membership to Rip;
+admitted training failures use ordinary cleanup (§7).
 
 ---
 
 ## 3. The promise: the Tag stays, the Agent is defective
 
-A Postcondition is a promise about the finished Agent. It is checked once
-after every missing Tag in the Form has completed training and entered its
-Field, and again at later completed Taggings and published-member uses.
-A Base may therefore promise what a later Shape supplies. When a Post
-breaks, the Agent remains in the Field. It is absent from the sound
+A Postcondition is a promise about the admitted Agent. Every current visible
+Post is checked after each Tag's own Field entry, before another Tag's Gate,
+and again at later Taggings and published-member uses. A Form layers Tags;
+it does not defer a Base's promises to a later Shape. When a Post breaks,
+the Agent remains in the Field. It is absent from the sound
 population (`agent in Tag` is False) and appears in `~Tag`; the product
 left the line and is flagged.
 
@@ -386,11 +404,12 @@ failure names, one calculation.
 
 ---
 
-## 7. Quarantine: a gate that reads another Tag's defect
+## 7. Repair through existing Gains
 
-Conditions can ask about other Tags, including whether an Agent is
-defective under them. Sickbay quarantines exactly the crew who are
-infected, which is a broken promise of `Healthy`.
+A broken Agent cannot begin an unrelated new Tagging. Give crew the existing
+Actions they need for treatment while they are valid; an Action can then
+repair their current state without pretending that a new Agency's Gate
+repairs the old Agency's contract.
 
 ```python
 class Healthy(Tag):
@@ -400,49 +419,57 @@ class Healthy(Tag):
         return not agent.infected
 
 
-class Quarantined(Tag):
-
-    @Pre
-    def Is_A_Case(agent):
-        return agent in ~Healthy         # defective under Healthy
+class Medical_Care(Tag):
 
     @Record
     def bay(agent):
-        return "isolation ward 2"
+        return None
+
+    @Action
+    def Isolate(agent):
+        agent.bay = "isolation ward 2"
+
+    @Action
+    def Treat(agent):
+        agent.infected = False
 
     @Rip
     def Discharge(agent):
         agent.bay = None
 
 
+class New_Duty(Tag):
+    pass
+
+
+Medical_Care(worf)
 Healthy(worf)
-
-try:
-    Quarantined(worf)
-except Precondition.Is_A_Case:
-    pass                                # healthy crew are not quarantined
-
 worf.infected = True                    # exposure, during play
 assert worf in ~Healthy
 
 try:
-    Quarantined(worf)                   # the gate opens exactly now
-except Postcondition.Not_Infected:
-    pass                                # applied; and the tagging reports the standing defect
+    New_Duty(worf)
+except TagCompositionError:
+    pass                                # broken source: New_Duty never begins
+else:
+    raise AssertionError("a broken source began a new Tagging")
+assert worf not in New_Duty[:]
 
-assert worf in Quarantined[:]             # admitted, though Healthy is still defective
+worf.Isolate()                          # an existing Action can repair
 assert worf.bay == "isolation ward 2"
+worf.Treat()
+assert worf in Healthy
+New_Duty(worf)                          # the valid source may join now
 
-worf.infected = False                   # treated
-assert worf in list(Healthy)
-del Quarantined[worf]                   # discharged: the Rip protocol runs
+del Medical_Care[worf]
 assert worf.bay is None
 ```
 
-Notice the `except` around the quarantine. Every tagging re-checks every
-promise on the Agent, so tagging a defective Agent applies the Tag and
-then reports the defect that is still standing. Quarantine went through;
-the ship's medical record still says infected. That is the point.
+`~Healthy` remains useful for finding free defective members and planning
+repairs. It does not waive the source-validity check for another Tag.
+An ordinary Action does not automatically check every Post; put an explicit
+named guard inside an Action that needs one. A future `@Fix` protocol is a
+separate design, not an implicit effect of repeating `Healthy(worf)`.
 
 ---
 
@@ -695,8 +722,8 @@ Field is empty. Fleet command can explicitly require a protocol Tag
 to have at least one sound crew member while it is *Certified*.
 
 ```python
-assert len(Quarantined[:]) == 0
-assert Quarantined                     # no Pin Posts: true even when empty
+assert len(Medical_Care[:]) == 0
+assert Medical_Care                    # no Pin Posts: true even when empty
 
 
 @Pin
@@ -709,9 +736,9 @@ class Certified(Tag):
 
 
 try:
-    Certified(Quarantined)
+    Certified(Medical_Care)
 except Precondition.Has_Trained_Crew:
-    pass                                # nobody is quarantined right now
+    pass                                # Medical_Care has no members right now
 
 Certified(Bridge)                       # Worf is on the bridge
 assert Bridge in Certified
