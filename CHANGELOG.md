@@ -265,6 +265,17 @@
   wiki page "Tools: what an Agent has" runs as one program under the
   suite.
 
+- **Unsafe late Pin marks are refused:** `Pin(Tag)` applied later is
+  refused, with nothing changed, when the Tag already has a Shape (the Shape
+  would become a Pin unchecked, its Tools landing on Tags), an Agent (its
+  Field would mix objects and Tags), or a place as a Tool's kind (the
+  slot would admit Tags). A refused mark no longer stays on the class,
+  and a Tag scanned before its mark is validated as a Pin at the mark.
+  Tool kinds and their declaring Tags are tracked weakly by identity; a
+  kind is free if every Tag that named it has gone. Restating the mark is
+  a no-op. An empty Tag may be marked even if it previously trained Agents
+  that have since left its Field.
+
 - **Presence by name:** `"name" @ agent` checks current contributions,
   including host bindings; `"name" @ Tag[agent]` checks the captured view.
   False values and `None` count as present. The query respects Secret and
