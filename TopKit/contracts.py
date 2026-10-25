@@ -7,19 +7,20 @@ raising.
 
 from __future__ import annotations
 
-from contextlib import contextmanager
 from contextlib import nullcontext
-from contextvars import ContextVar
 from typing import Any
 from typing import Callable
 from typing import Iterable
-from typing import Iterator
 
 from .observations import _refuse_observed_act
 from .observations import _observing
 from .observations import _ObservationViolation
+from .post_queries import _post_evaluation
+from .post_queries import _post_verdict
+from .post_queries import _Session
 
 from .arrest import _arrest_of
+from .arrest import _safehouse
 from .declarations import _MISSING
 from .declarations import _protocol_inputs
 from .declarations import _discard_lazy_result
@@ -29,7 +30,6 @@ from .errors import _exception_text
 from .errors import _type_name
 from .errors import TagCompositionError
 from .errors import TagContractError
-from .errors import TagError
 from .errors import TagPostconditionError
 from .geometry import _leaves
 from .state import _namespace_of
@@ -41,68 +41,12 @@ from .state import _state_of
 Check = Callable[[object, dict[str, Any]], Any]
 
 
-class _Recursive_Soundness(TagContractError):
-    """A Post asked the sound population to judge its own Agent."""
-
-
-class _Post_Check:
-    __slots__ = ("identity", "active")
-
-    def __init__(self, agent: object) -> None:
-        self.identity = id(agent)
-        self.active = True
-
-
-_post_checks: ContextVar[tuple[_Post_Check, ...]] = ContextVar(
-        "topkit_post_checks", default=(),
-        )
-
-
-@contextmanager
-def _checking_post(agent: object) -> Iterator[None]:
-    """Mark a Post's actual execution, independently of Pre reads.
-
-    The marker is execution-local, holds only the Agent's identity, and is
-    revoked on exit. A copied context cannot keep an Agent alive or inherit
-    an *active* check after the Post finishes.
-    """
-
-    check = _Post_Check(agent)
-    token = _post_checks.set((*_post_checks.get(), check))
-
-    try:
-        yield
-    finally:
-        check.active = False
-        _post_checks.reset(token)
-
-
-def _is_checking_post(agent: object) -> bool:
-    for check in _post_checks.get():
-        if check.active and check.identity == id(agent):
-            return True
-
-    return False
-
-
 def _holds_for_population(agent: object) -> bool:
-    """Soundness may not depend on a Post that is still judging this Agent."""
+    """Judge every Post; an exact recursive edge contributes neutral True."""
 
-    if _arrest_of(agent) is not None:
+    if _safehouse and _arrest_of(agent) is not None:
         return False
-
-    state = _state_of(agent)
-
-    if state is None or not state.postconditions:
-        return True
-
-    if _is_checking_post(agent):
-        raise _Recursive_Soundness(
-                "a Post cannot ask whether its own Agent is sound in a"
-                " Tag population; use Tag[:] to ask about Field membership"
-                )
-
-    return _holds(agent, state)
+    return _holds(agent)
 
 
 def _refuse_condition_binding(
@@ -322,6 +266,11 @@ def _bind_condition(
                 return True
 
             try:
+                if not with_inputs:
+                    return _post_verdict(
+                            agent, prior, inputs,
+                            lambda: _verdict(prior(agent, inputs), "condition Underlay"),
+                            )
                 result = prior(agent, inputs)
             except TagContractError:
                 raise
@@ -348,47 +297,85 @@ def _evaluate(
         *,
         post: bool = False,
         ) -> None:
-    """Run conditions; raise ``failure`` naming the first that does not hold."""
+    """Run conditions; name the first failure without hiding other Posts in cycles."""
 
-    for name, check in checks:
-        name = str.__str__(name)
-        try:
-            with (_checking_post(agent) if post else nullcontext()), _observing(
-                    f"{phase} {name!r}",
-                    ):
-                try:
-                    result = check(agent, inputs)
-                except _Recursive_Soundness as error:
-                    raise _Recursive_Soundness(
-                            f"{phase} {name!r} failed: {_exception_text(error)}"
-                            ) from error
-                except TagContractError as error:
-                    raise TagContractError(
-                            f"{phase} {name!r} failed: {_exception_text(error)}"
-                            ) from error
-                except Exception as error:
-                    raise failure.Named(name)(
-                            f"{phase} {name!r} raised {_type_name(error)}: {_exception_text(error)}"
-                            ) from error
+    with _post_evaluation() if post else nullcontext() as query:
+        for name, check in checks:
+            plain_name = str.__str__(name)
+            label = f"{phase} {plain_name!r}"
+            try:
+                # Error rendering is observed too, including on memo hits.
+                with _observing(label):
+                    def Evaluate() -> bool:
+                        return _checked_result(
+                                agent, plain_name, check, inputs,
+                                label, failure,
+                                )
 
-                if not _verdict(result, f"{phase} {name!r}"):
-                    raise failure.Named(name)(
-                            f"{phase} {name!r} failed"
+                    verdict = (
+                            _post_verdict(agent, check, inputs, Evaluate, _query=query)
+                            if post else Evaluate()
                             )
-        except _ObservationViolation as error:
-            # Refusal remains visible even if the check, verdict renderer or
-            # exception renderer caught the attempted mutation itself.
-            raise failure.Named(name)(
-                    f"{phase} {name!r} raised {_type_name(error)}: {_exception_text(error)}"
-                    ) from error
+
+                    if not verdict:
+                        raise failure.Named(plain_name)(f"{label} failed")
+            except _ObservationViolation as error:
+                raise failure.Named(plain_name)(
+                        f"{label} raised {_type_name(error)}: {_exception_text(error)}"
+                        ) from error
 
 
-def _read_post(agent: object, name: str, check: Check) -> bool:
-    """Read and validate a Post without permitting explicit TOP mutations."""
+def _checked_result(
+        agent: object,
+        name: str,
+        check: Check,
+        inputs: dict[str, Any],
+        label: str,
+        failure: _Named,
+        ) -> bool:
+    """Distinguish a body failure from rejecting its returned verdict.
 
-    name = str.__str__(name)
-    with _observing(f"Postcondition {name!r}"):
-        return _verdict(check(agent, {}), name)
+    Disposing an invalid lazy result may itself fail. Its original cause
+    belongs directly to that Contract Failure, rather than another wrapper.
+    """
+
+    try:
+        result = check(agent, inputs)
+    except TagContractError as error:
+        raise TagContractError(
+                f"{label} failed: {_exception_text(error)}"
+                ) from error
+    except Exception as error:
+        raise failure.Named(name)(
+                f"{label} raised {_type_name(error)}: {_exception_text(error)}"
+                ) from error
+
+    return _verdict(result, label)
+
+
+def _read_post(
+        agent: object,
+        name: str,
+        check: Check,
+        *,
+        check_custody: bool = True,
+        query: _Session | None = None,
+        ) -> bool:
+    """Read one Post, observing its calculation only when it actually runs."""
+
+    plain_name = str.__str__(name)
+    label = f"Postcondition {plain_name!r}"
+
+    def Evaluate() -> bool:
+        with _observing(label):
+            return _checked_result(
+                    agent, plain_name, check, {}, label, TagPostconditionError,
+                    )
+
+    return _post_verdict(
+            agent, check, {}, Evaluate,
+            check_custody=check_custody, _query=query,
+            )
 
 
 def _guarded(
@@ -397,80 +384,54 @@ def _guarded(
         failure: _Named,
         phase: str,
         ) -> bool:
-    """Run the Agent's visible Posts on demand.
-
-    Re-entering this named diagnostic remains a shortcut. The Post marker
-    used by sound population queries is separate from that shortcut.
-    """
+    """Check the visible Contract, sharing completed Post results in one query."""
 
     state = _state_of(agent)
-
-    if state is None or state.checking or _is_checking_post(agent):
+    if state is None:
         return True
 
-    reentrant = state.checking
     state.composing += 1
-
     try:
-        checks = tuple(state.postconditions.items())
+        with _post_evaluation() as query:
+            checks = tuple(state.postconditions.items())
+            if detailed:
+                _evaluate(checks, agent, {}, failure, phase, post=True)
+                return True
 
-        if detailed:
-            _evaluate(
-                    checks,
-                    agent,
-                    {},
-                    failure,
-                    phase,
-                    post=True,
-                    )
-
-            return True
-
-        for name, check in checks:
-            with _checking_post(agent):
+            for name, check in checks:
                 try:
-                    if not _read_post(agent, name, check):
+                    if not _read_post(agent, name, check, query=query):
                         return False
-                except _Recursive_Soundness:
-                    raise
                 except Exception:
                     return False
-
-        return True
+            return True
     finally:
         state.composing -= 1
-        state.checking = reentrant
 
 
 def _holds(
         agent: object,
         state: _State | None = None,
         ) -> bool:
-    """True exactly when every visible Postcondition holds."""
+    """True exactly when the Agent is free and every visible Post holds."""
 
-    if _arrest_of(agent) is not None:
+    if _safehouse and _arrest_of(agent) is not None:
         return False
-
     if state is None:
         state = _state_of(agent)
-
-    if state is None or not state.postconditions or _is_checking_post(agent):
-        return True   # nothing promised, or asked from inside its own Post
+    if state is None or not state.postconditions:
+        return True
 
     state.composing += 1
-
     try:
-        for name, check in tuple(state.postconditions.items()):
-            with _checking_post(agent):
+        with _post_evaluation() as query:
+            for name, check in tuple(state.postconditions.items()):
                 try:
-                    if not _read_post(agent, name, check):
+                    if not _read_post(agent, name, check, query=query):
                         return False
-                except _Recursive_Soundness:
-                    raise
                 except Exception:
                     return False
-
-        return _arrest_of(agent) is None
+            return not _safehouse or _arrest_of(agent) is None
     finally:
         state.composing -= 1
 
@@ -480,56 +441,43 @@ def _condition_member(
         state: _State,
         name: str,
         ) -> bool | None:
-    """The Post called ``name`` on the Agent, read as a plain bool.
-
-    A Pre is a transient Tagging Service and never becomes an Agent member.
-    ``None`` means the Agent carries no Post of this name.
-    """
+    """Read a named Post; exact recursive references contribute True."""
 
     check = state.postconditions.get(name)
-
     if check is None:
         return None
 
     state.composing += 1
-
     try:
-        with _checking_post(agent):
-            try:
-                return _read_post(agent, name, check)
-            except TagContractError:
-                raise
-            except Exception:
-                return False
+        try:
+            return _read_post(agent, name, check)
+        except TagContractError:
+            raise
+        except Exception:
+            return False
     finally:
         state.composing -= 1
 
 
-def _status_of(
-        agent: object,
-        ) -> dict[str, bool]:
+def _status_of(agent: object) -> dict[str, bool]:
     state = _state_of(agent)
-
     if state is None:
         return {}
 
-    reentrant = state.checking
     state.composing += 1
     status: dict[str, bool] = {}
-
     try:
-        for name, check in tuple(state.postconditions.items()):
-            with _checking_post(agent):
+        with _post_evaluation() as query:
+            for name, check in tuple(state.postconditions.items()):
+                result_name = str.__str__(name)
                 try:
-                    status[name] = _read_post(agent, name, check)
-                except _Recursive_Soundness:
-                    raise
+                    status[result_name] = _read_post(
+                            agent, name, check, check_custody=False, query=query,
+                            )
                 except Exception:
-                    status[name] = False
+                    status[result_name] = False
     finally:
         state.composing -= 1
-        state.checking = reentrant
-
     return status
 
 
@@ -579,7 +527,7 @@ class Contract:
         end a Post that Field removal has just ended automatically.
         """
 
-        _refuse_observed_act("delete a Post")
+        _refuse_observed_act('delete a Post')
 
         state = _state_of(agent)
 
@@ -608,7 +556,7 @@ class Contract:
             agent: object,
             ) -> dict[str, bool]:
         """Verdicts for visible conditions. Ordinary check errors become
-        False; a self-referential soundness query raises Contract Failure."""
+        False; an exact recursive Post edge contributes neutral True."""
 
         return {
                 **_status_of(agent),
