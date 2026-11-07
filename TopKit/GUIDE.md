@@ -1303,6 +1303,53 @@ objects held in Records keep their own truth.
 Nothing TOP-level lives at `Wizard.something`. That namespace is yours: put
 your Reports and Operations there.
 
+## Drawing an Agent
+
+`TopKit.diagram` draws what the tables above answer one at a time: the
+Geometry, and what each Tag declares. `Diagram(agent)` returns Mermaid
+text with no dependency; paste it in any Mermaid viewer. Each box is a
+Tag with its own Pre, Post, Imprint, Record, Action, Rip, Delete, Report
+and Operation names; an arrow runs from a Base to its Shape. A broken Post
+is marked on the Layer that declares it, and a Ripped Tag stays as a dashed
+box. `Diagram(Wizard)` draws a Tag's Form and the Pins it carries.
+
+```python
+from TopKit.diagram import Diagram
+
+class Being(Tag): pass
+
+class Mage(Being):
+
+    @Post
+    def Has_Focus(agent):
+        return agent.focus > 0
+
+    def Cast(agent):
+        return "spark"
+
+sol = Character("Sol", level=1)
+sol.focus = 1
+Mage(sol)
+sol.focus = 0                                   # the promise breaks
+
+chart = Diagram(sol)["Character"]               # charts by name
+assert 'Mage<br>Post: Has_Focus BROKEN<br>Action: Cast' in chart
+```
+
+A Geometry with more Tags than `limit` (40 by default) is divided the way
+the code is: each family of Tags joined through Bases goes to the module
+that declares its top Base, and each module is one chart, named for it,
+such as `"game.species"`. The limit is soft. A family is never split, so
+no arrow is ever cut; only a module still above the limit is divided,
+between families, into `"game.species (2)"` and so on.
+
+`Save(sol, "sol")` writes the charts as Mermaid files: `sol.mmd`, or one
+`sol-<name>.mmd` per part, with `-2`, `-3` added when two names make the
+same file name. Pictures are optional: `Save(sol, "sol", image="svg")` or
+`image="png"` also draws each chart beside its `.mmd` with
+mermaid-rs-renderer, through the `mmdr` package
+(`pip install topkit[diagram]`).
+
 ---
 
 ## Do and don't

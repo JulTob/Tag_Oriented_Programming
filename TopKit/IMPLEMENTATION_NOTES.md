@@ -34,6 +34,7 @@ tracks splitting them by idea without changing semantics.
 | `access.py` | the hooks on the runtime type, Agent-bound views |
 | `tags.py` | `Tag` and its metaclass |
 | `queries.py` | `Apply`, `Form`, `Keyword`, `Tags`, `Outline` |
+| `diagram.py` | `Diagram`, `Save`: Mermaid drawings of an Agent's Geometry, saved as `.mmd`; SVG or PNG through the optional `mmdr` package |
 | `memo.py` | owner-local Tag memos and snapshots of changing Tag namespaces |
 
 ## The access design

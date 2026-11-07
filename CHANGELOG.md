@@ -32,6 +32,16 @@
 
 ### TopKit
 
+- **Diagrams:** `TopKit.diagram.Diagram(agent)` returns Mermaid flowcharts
+  of an Agent's Geometry, or of a Tag's Form and Pins, by name: each Tag
+  lists its own declarations, broken Posts and Ripped Tags are marked, and
+  a Geometry with more than `limit` Tags (40 by default, a soft limit) is
+  divided by the module that declares each family's top Base, one chart
+  per module, named for it; a family of Tags is never split.
+  `Save(agent, path)` writes each chart as a Mermaid `.mmd` file;
+  `image="svg"` or `"png"` also draws it with mermaid-rs-renderer through
+  the optional `mmdr` package (`pip install topkit[diagram]`).
+
 - **Pin declarations and native Targets:** `class Rare(Pin)` declares a
   concrete Pin. Ordinary Tags apply to object instances; named Pins apply
   to actual TOP Tag classes, including other Pins and concrete Link Tags.
