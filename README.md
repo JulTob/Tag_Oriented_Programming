@@ -101,7 +101,8 @@ PYTHONPATH=. python3 -m unittest discover -s tests -t .
 PYTHONPATH=. python3 benchmarks/bench.py
 ```
 
-Python 3.12 or later, no dependencies. Records retain ordinary Python
+Python 3.12 or later, no dependencies. `TopKit.diagram` saves an Agent's
+Geometry as Mermaid or Graphviz text. Records retain ordinary Python
 bindings; Agents that gain Rip also receive read/write custody checks.
 TOP Action and Operation handles check saved cleanup at use, including lazy
 continuations. Tagging remains the slower, rarer act; the

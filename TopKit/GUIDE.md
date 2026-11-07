@@ -1303,6 +1303,64 @@ objects held in Records keep their own truth.
 Nothing TOP-level lives at `Wizard.something`. That namespace is yours: put
 your Reports and Operations there.
 
+## Drawing an Agent
+
+`TopKit.diagram` draws what the tables above answer one at a time: the
+Geometry, and what each Tag declares. `Diagram(agent)` returns Mermaid
+charts by name, with no dependency; paste a chart in any Mermaid viewer.
+Each box is a Tag with its own Pre, Post, Imprint, Record, Action, Rip,
+Delete, Report and Operation names; an arrow runs from a Base to its Shape.
+The box's shape says what the Tag is: rounded for a Tag, a hexagon for a
+Pin, a flag for a Flag. When a chart holds Tags of several modules, each
+module is a dashed box. A broken Post is marked on the Layer that declares
+it, also a Constant Post on a Tag already Ripped, and a Ripped Tag stays
+as a dashed box. `Diagram(Wizard)` draws a Tag's Form and the Pins it
+carries.
+
+```python
+from TopKit.diagram import Diagram
+
+class Being(Tag): pass
+
+class Mage(Being):
+
+    @Post
+    def Has_Focus(agent):
+        return agent.focus > 0
+
+    def Cast(agent):
+        return "spark"
+
+sol = Character("Sol", level=1)
+sol.focus = 1
+Mage(sol)
+sol.focus = 0                                   # the promise breaks
+
+chart = Diagram(sol)["Character"]               # charts by name
+assert 'Mage<br>Post: Has_Focus BROKEN<br>Action: Cast' in chart
+```
+
+A Geometry with more Tags than `limit` (40 by default) is divided the way
+the code is: each family of Tags joined through Bases goes to the module
+that declares its top Base, and each module is one chart, named for it,
+such as `"game.species"`. The limit is soft. A family is never split, so
+no arrow is ever cut; only a module still above the limit is divided,
+between families, into `"game.species (2)"` and so on. When the division
+leaves a single chart, one big family, it keeps the Agent's name.
+
+`Save(sol, "sol")` writes the charts as Mermaid files: `sol.mmd`, or one
+`sol-<name>.mmd` per chart, where each character of the name other than a
+letter, digit, `_` or `-` becomes `_` (`"game.species (2)"` goes to
+`sol-game_species_2.mmd`), and `-2`, `-3` are added when two names make
+the same file name. A `.mmd` needs no picture: GitHub, VS Code and
+mermaid.live draw it.
+
+`format="graphviz"` gives the same charts as Graphviz DOT instead, in
+`Diagram` and `Save` (`sol.dot`); there each member kind is colored by
+what it does. With it, `image="svg"` or `image="png"` also draws each chart
+beside its `.dot` with Graphviz's own `dot` command, which must be
+installed.
+
 ---
 
 ## Do and don't

@@ -32,6 +32,19 @@
 
 ### TopKit
 
+- **Diagrams:** `TopKit.diagram.Diagram(agent)` returns Mermaid flowcharts
+  of an Agent's Geometry, or of a Tag's Form and Pins, by name: each Tag
+  lists its own declarations, its box's shape says whether it is a Tag, a
+  Pin or a Flag, each module of a chart is a dashed box, and broken Posts
+  and Ripped Tags are marked. A Geometry with more than `limit` Tags (40 by
+  default, a soft limit) is divided by the module that declares each
+  family's top Base, one chart per module, named for it; a family of Tags
+  is never split, and a module still above the limit is split between
+  families into `module (2)` and so on. `format="graphviz"` gives the same
+  charts as Graphviz DOT. `Save(agent, path)` writes each chart as a `.mmd`
+  (or `.dot`) file, with no dependency; with Graphviz, `image="svg"` or
+  `"png"` also draws it with the `dot` command.
+
 - **Pin declarations and native Targets:** `class Rare(Pin)` declares a
   concrete Pin. Ordinary Tags apply to object instances; named Pins apply
   to actual TOP Tag classes, including other Pins and concrete Link Tags.
