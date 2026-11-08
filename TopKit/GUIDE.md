@@ -1310,9 +1310,12 @@ Geometry, and what each Tag declares. `Diagram(agent)` returns Mermaid
 charts by name, with no dependency; paste a chart in any Mermaid viewer.
 Each box is a Tag with its own Pre, Post, Imprint, Record, Action, Rip,
 Delete, Report and Operation names; an arrow runs from a Base to its Shape.
-A broken Post is marked on the Layer that declares it, also a Constant Post
-on a Tag already Ripped, and a Ripped Tag stays as a dashed box.
-`Diagram(Wizard)` draws a Tag's Form and the Pins it carries.
+The box's shape says what the Tag is: rounded for a Tag, a hexagon for a
+Pin, a flag for a Flag. When a chart holds Tags of several modules, each
+module is a dashed box. A broken Post is marked on the Layer that declares
+it, also a Constant Post on a Tag already Ripped, and a Ripped Tag stays
+as a dashed box. `Diagram(Wizard)` draws a Tag's Form and the Pins it
+carries.
 
 ```python
 from TopKit.diagram import Diagram
@@ -1351,8 +1354,12 @@ letter, digit, `_` or `-` becomes `_` (`"game.species (2)"` goes to
 `sol-game_species_2.mmd`), and `-2`, `-3` are added when two names make
 the same file name. Pictures are optional: `Save(sol, "sol",
 image="svg")` or `image="png"` also draws each chart beside its `.mmd`
-with mermaid-rs-renderer, through the `mmdr` package
-(`pip install "topkit[diagram]"`).
+with merman, through the `mmdr` package (`pip install "topkit[diagram]"`).
+
+`format="graphviz"` gives the same charts as Graphviz DOT instead, in
+`Diagram` and `Save` (`sol.dot`); there each member kind is colored by
+what it does, and `image=` draws with Graphviz's own `dot` command, which
+must be installed.
 
 ---
 
