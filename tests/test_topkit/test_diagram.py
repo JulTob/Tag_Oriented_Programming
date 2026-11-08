@@ -11,7 +11,9 @@ import unittest
 import warnings
 from unittest import mock
 
+from TopKit import Constant
 from TopKit import Pin
+from TopKit import Post
 from TopKit import Record
 from TopKit import Tag
 from TopKit.diagram import Diagram
@@ -23,7 +25,7 @@ from ._fixtures import Bruiser
 from ._fixtures import Elf
 
 
-HERE = __name__                     # the module that declares this file's Tags
+LINKS = "game.links"               # a module name that does not depend on how tests run
 
 
 def _nodes(text: str) -> dict[str, str]:
@@ -35,8 +37,13 @@ def _nodes(text: str) -> dict[str, str]:
             }
 
 
-def _arrows(text: str) -> list[tuple[str, str]]:
-    return re.findall(r"^  (\w+) -[-.]+>(?:\|\w+\|)? (\w+)$", text, re.M)
+def _arrows(text: str) -> list[tuple[str, str, str]]:
+    """(source, label, shape) for each arrow, in order; a solid arrow's label is ""."""
+
+    return [
+            (a, label, b)
+            for a, label, b in re.findall(r"^  (\w+) (?:-->|-\.->\|(\w+)\|) (\w+)$", text, re.M)
+            ]
 
 
 class DiagramTests(unittest.TestCase):
@@ -48,26 +55,34 @@ class DiagramTests(unittest.TestCase):
         (text,) = Diagram(ari).values()
         names = _nodes(text)
 
-        self.assertEqual(
-                {(names[a], names[b]) for a, b in _arrows(text)},
-                {
-                    ("Agent", "Root"),
-                    ("Root", "Left"),
-                    ("Root", "Right"),
-                    ("Left", "Bridge"),
-                    ("Right", "Bridge"),
-                    ("Agent", "Person"),
-                    ("Person", "Elf"),
-                    },
+        self.assertCountEqual(
+                [(names[a], label, names[b]) for a, label, b in _arrows(text)],
+                [
+                    ("Agent", "", "Root"),
+                    ("Root", "", "Left"),
+                    ("Root", "", "Right"),
+                    ("Left", "", "Bridge"),
+                    ("Right", "", "Bridge"),
+                    ("Agent", "", "Person"),
+                    ("Person", "", "Elf"),
+                    ],
                 )
+
+    def test_direction_heads_the_flowchart(self) -> None:
+        ari = Agent()
+        Elf(ari)
+
+        (text,) = Diagram(ari, direction="LR").values()
+
+        self.assertTrue(text.startswith("flowchart LR\n"))
 
     def test_the_limit_is_soft_a_family_is_never_split(self) -> None:
         chain = []
         base = Tag
         for i in range(7):
-            base = type(f"Link_{i}", (base,), {"__module__": HERE})
+            base = type(f"Link_{i}", (base,), {"__module__": LINKS})
             chain.append(base)
-        loose = [type(f"Loose_{i}", (Tag,), {"__module__": HERE}) for i in range(5)]
+        loose = [type(f"Loose_{i}", (Tag,), {"__module__": LINKS}) for i in range(5)]
         ari = Agent()
         chain[-1](ari)
         for tag in loose:
@@ -79,7 +94,7 @@ class DiagramTests(unittest.TestCase):
                 for part in parts.values()
                 ]
 
-        self.assertEqual(list(parts), [HERE, f"{HERE} (2)", f"{HERE} (3)"])
+        self.assertEqual(list(parts), [LINKS, f"{LINKS} (2)", f"{LINKS} (3)"])
         self.assertEqual(
                 drawn,
                 [
@@ -137,6 +152,26 @@ class DiagramTests(unittest.TestCase):
         self.assertIn(f"  host -.->|ripped| {ids['Elf']}", text)
         self.assertIn(f"  class {ids['Elf']} ripped", text)
 
+    def test_a_constant_post_broken_after_its_rip_is_still_marked(self) -> None:
+        class Intelligence(Tag):
+            @Constant
+            @Post
+            def NDA(agent) -> bool:
+                return agent.keeps_secret
+
+        lance = Agent()
+        lance.keeps_secret = True
+        Intelligence(lance)
+        del Intelligence[lance]
+        lance.keeps_secret = False                                    # the lifetime term breaks
+
+        (text,) = Diagram(lance).values()
+        ids = {name: n for n, name in _nodes(text).items()}
+
+        self.assertIn('["Intelligence<br>Post: NDA (constant) BROKEN"]', text)
+        self.assertIn(f"  host -.->|ripped| {ids['Intelligence']}", text)
+        self.assertIn(f"  class {ids['Intelligence']} broken", text)
+
     def test_a_tag_draws_its_form_and_its_pins(self) -> None:
         class Rare(Pin):
             @Record
@@ -151,10 +186,12 @@ class DiagramTests(unittest.TestCase):
         names = _nodes(text)
 
         self.assertNotIn("host", names)
-        self.assertEqual(
-                {(names[a], names[b]) for a, b in _arrows(text)},
-                {("Person", "Elf"), ("Elf", "Hero"), ("Hero", "Rare")},
+        self.assertCountEqual(
+                [(names[a], label, names[b]) for a, label, b in _arrows(text)],
+                [("Person", "", "Elf"), ("Elf", "", "Hero"), ("Hero", "pins", "Rare")],
                 )
+        self.assertIn('Rare<br>Record: rarity"]', text)
+        self.assertIn(f"  class {[n for n, v in names.items() if v == 'Rare'][0]} pin", text)
 
     def test_a_tag_and_its_pins_are_one_family_never_divided(self) -> None:
         class Rare(Pin):
@@ -172,9 +209,9 @@ class DiagramTests(unittest.TestCase):
 
         self.assertEqual(name, "Solo")
         self.assertEqual(list(names.values()), ["Solo", "Rare", "Rarer"])  # not the root Tag
-        self.assertEqual(
-                {(names[a], names[b]) for a, b in _arrows(text)},
-                {("Rare", "Rarer"), ("Solo", "Rare")},
+        self.assertCountEqual(
+                [(names[a], label, names[b]) for a, label, b in _arrows(text)],
+                [("Rare", "", "Rarer"), ("Solo", "pins", "Rare")],
                 )
 
     def test_labels_cannot_break_out_of_their_box(self) -> None:
@@ -211,23 +248,36 @@ class DiagramTests(unittest.TestCase):
     def test_save_draws_an_image_beside_each_mermaid_file(self) -> None:
         ari = Agent()
         Elf(ari)
-        drawn = types.SimpleNamespace(
-                render=lambda text, backend: types.SimpleNamespace(svg=lambda: "<svg/>"),
-                )
+        calls = []
 
-        with (
-                mock.patch.dict(sys.modules, {"mmdr": drawn}),
-                tempfile.TemporaryDirectory() as folder,
-                ):
-            paths = Save(ari, pathlib.Path(folder) / "ari.svg", image="svg")
-            written = {p.name: p.read_text() for p in paths}
+        def render(text: str, backend: str) -> types.SimpleNamespace:
+            calls.append((text, backend))
+            return types.SimpleNamespace(svg=lambda: "<svg/>", png=lambda: b"PNG")
 
-        self.assertEqual(written, {"ari.mmd": Diagram(ari)["Agent"], "ari.svg": "<svg/>"})
+        for image, picture in (("svg", b"<svg/>"), ("png", b"PNG")):
+            calls.clear()
+            with (
+                    mock.patch.dict(sys.modules, {"mmdr": types.SimpleNamespace(render=render)}),
+                    tempfile.TemporaryDirectory() as folder,
+                    ):
+                paths = Save(ari, pathlib.Path(folder) / "ari", image=image)
+                written = {p.name: p.read_bytes() for p in paths}
+
+            chart = Diagram(ari)["Agent"]
+            self.assertEqual(written, {"ari.mmd": chart.encode(), f"ari.{image}": picture})
+            self.assertEqual(calls, [(chart, "mermaid-rs-renderer")])
+
+    def test_an_unknown_image_is_refused_before_anything_is_written(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaises(ValueError):
+                Save(Agent(), pathlib.Path(folder) / "ari", image="jpg")
+
+            self.assertEqual(list(pathlib.Path(folder).iterdir()), [])
 
     def test_an_image_without_mmdr_names_the_install(self) -> None:
         with (
                 mock.patch.dict(sys.modules, {"mmdr": None}),
-                self.assertRaisesRegex(ImportError, r"pip install topkit\[diagram\]"),
+                self.assertRaisesRegex(ImportError, r'pip install "topkit\[diagram\]"'),
                 ):
             Save(Agent(), "unused", image="png")
 

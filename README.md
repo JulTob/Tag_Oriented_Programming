@@ -102,7 +102,7 @@ PYTHONPATH=. python3 benchmarks/bench.py
 ```
 
 Python 3.12 or later, no dependencies. `TopKit.diagram` saves an Agent's
-Geometry as Mermaid; `pip install topkit[diagram]` adds optional SVG and
+Geometry as Mermaid; `pip install "topkit[diagram]"` adds optional SVG and
 PNG drawing. Records retain ordinary Python
 bindings; Agents that gain Rip also receive read/write custody checks.
 TOP Action and Operation handles check saved cleanup at use, including lazy

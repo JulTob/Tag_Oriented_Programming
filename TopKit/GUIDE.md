@@ -1307,11 +1307,12 @@ your Reports and Operations there.
 
 `TopKit.diagram` draws what the tables above answer one at a time: the
 Geometry, and what each Tag declares. `Diagram(agent)` returns Mermaid
-text with no dependency; paste it in any Mermaid viewer. Each box is a
-Tag with its own Pre, Post, Imprint, Record, Action, Rip, Delete, Report
-and Operation names; an arrow runs from a Base to its Shape. A broken Post
-is marked on the Layer that declares it, and a Ripped Tag stays as a dashed
-box. `Diagram(Wizard)` draws a Tag's Form and the Pins it carries.
+charts by name, with no dependency; paste a chart in any Mermaid viewer.
+Each box is a Tag with its own Pre, Post, Imprint, Record, Action, Rip,
+Delete, Report and Operation names; an arrow runs from a Base to its Shape.
+A broken Post is marked on the Layer that declares it, also a Constant Post
+on a Tag already Ripped, and a Ripped Tag stays as a dashed box.
+`Diagram(Wizard)` draws a Tag's Form and the Pins it carries.
 
 ```python
 from TopKit.diagram import Diagram
@@ -1341,14 +1342,17 @@ the code is: each family of Tags joined through Bases goes to the module
 that declares its top Base, and each module is one chart, named for it,
 such as `"game.species"`. The limit is soft. A family is never split, so
 no arrow is ever cut; only a module still above the limit is divided,
-between families, into `"game.species (2)"` and so on.
+between families, into `"game.species (2)"` and so on. When the division
+leaves a single chart, one big family, it keeps the Agent's name.
 
 `Save(sol, "sol")` writes the charts as Mermaid files: `sol.mmd`, or one
-`sol-<name>.mmd` per part, with `-2`, `-3` added when two names make the
-same file name. Pictures are optional: `Save(sol, "sol", image="svg")` or
-`image="png"` also draws each chart beside its `.mmd` with
-mermaid-rs-renderer, through the `mmdr` package
-(`pip install topkit[diagram]`).
+`sol-<name>.mmd` per chart, where each character of the name other than a
+letter, digit, `_` or `-` becomes `_` (`"game.species (2)"` goes to
+`sol-game_species_2.mmd`), and `-2`, `-3` are added when two names make
+the same file name. Pictures are optional: `Save(sol, "sol",
+image="svg")` or `image="png"` also draws each chart beside its `.mmd`
+with mermaid-rs-renderer, through the `mmdr` package
+(`pip install "topkit[diagram]"`).
 
 ---
 

@@ -4,7 +4,7 @@
 files; both need nothing outside the standard library. ``Save(...,
 image="svg")`` or ``image="png"`` also draws each file with
 mermaid-rs-renderer, through the optional ``mmdr`` package:
-``pip install topkit[diagram]``.
+``pip install "topkit[diagram]"``.
 
 Each Tag box lists the Contributions and conditions the Tag declares itself.
 An arrow runs from a Base to its Shape, in Forming order. On an Agent, the
@@ -136,12 +136,17 @@ class _Graph:
 
         state = _state_of(subject)
         active = list(state.active) if state is not None else []
+        ripped = (
+                sorted(state.ever - set(active), key=lambda t: t.__name__)
+                if state is not None else []
+                )
         # A Post name is checked once, on the latest Layer that declares it.
+        # A Ripped Tag can still hold one: a Constant Post outlives its Rip.
         self.broken: dict[type, set[str]] = {}
-        verdicts = Contract.Status(subject) if active else {}
+        verdicts = Contract.Status(subject) if state is not None else {}
 
         for name, holds in verdicts.items():
-            for tag in reversed(active):
+            for tag in [*reversed(active), *ripped]:
                 if not holds and any(n == name for n, _ in _declarations_of(tag).postconditions):
                     self.broken.setdefault(tag, set()).add(name)
                     break
@@ -158,11 +163,10 @@ class _Graph:
             if not bases:
                 self.arrows.append((source, tag, carry))
 
-        if state is not None:
-            for tag in sorted(state.ever - set(active), key=lambda t: t.__name__):
-                self._add(tag)
-                self.ripped.add(tag)
-                self.arrows.append((source, tag, "ripped"))
+        for tag in ripped:
+            self._add(tag)
+            self.ripped.add(tag)
+            self.arrows.append((source, tag, "ripped"))
 
     def _add(
             self,
@@ -274,10 +278,10 @@ def _draw(
         label = "<br>".join(_text(line) for line in [tag.__name__, *members])
         lines.append(f'  {ids[tag]}["{label}"]')
 
-        if tag in graph.ripped:
-            classes.append(f"  class {ids[tag]} ripped")
-        elif tag in graph.broken:
+        if tag in graph.broken:                # a broken promise outranks a Rip
             classes.append(f"  class {ids[tag]} broken")
+        elif tag in graph.ripped:
+            classes.append(f"  class {ids[tag]} ripped")
         elif _is_pin(tag):
             classes.append(f"  class {ids[tag]} pin")
 
@@ -334,10 +338,11 @@ def Save(
     """Write ``Diagram(subject)`` as Mermaid files, ``<stem>.mmd``.
 
     One part is written to ``path`` with the suffix ``.mmd``; several parts
-    beside it, each named ``<stem>-<part name>.mmd``. ``image="svg"`` or
+    beside it, each named ``<stem>-<part name>.mmd``, with characters other
+    than letters, digits, ``_`` and ``-`` made ``_``. ``image="svg"`` or
     ``image="png"`` also draws each part beside its Mermaid file with
     mermaid-rs-renderer, through the optional ``mmdr`` package
-    (``pip install topkit[diagram]``). Returns the written paths."""
+    (``pip install "topkit[diagram]"``). Returns the written paths."""
 
     if image is not None and image not in _IMAGES:
         raise ValueError(f"image is one of {', '.join(_IMAGES)}, or None")
@@ -350,7 +355,7 @@ def Save(
         except ImportError as error:
             raise ImportError(
                     f"image={image!r} draws with mermaid-rs-renderer through the"
-                    " optional mmdr package: pip install topkit[diagram]."
+                    ' optional mmdr package: pip install "topkit[diagram]".'
                     " Without image=, Save writes the Mermaid files alone."
                     ) from error
 
