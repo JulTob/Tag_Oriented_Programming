@@ -152,15 +152,13 @@ class DiagramTests(unittest.TestCase):
         self.assertIn(f"  host -.->|ripped| {ids['Elf']}", text)
         self.assertIn(f"  class {ids['Elf']} ripped", text)
 
-    def test_a_base_applied_again_after_its_rip_still_feeds_its_shape(self) -> None:
-        class Base_Again(Tag):
-            pass
-
-        class Shape_Kept(Base_Again):
-            pass
-
+    def test_a_base_applied_again_after_its_rip_still_heads_its_family(self) -> None:
+        Base_Again = type("Base_Again", (Tag,), {"__module__": "game.bases"})
+        Shape_Kept = type("Shape_Kept", (Base_Again,), {"__module__": "game.shapes"})
+        Other = type("Other", (Tag,), {"__module__": "game.other"})
         ari = Agent()
         Shape_Kept(ari)
+        Other(ari)
         del Base_Again[ari]                                           # the Shape stays
         Base_Again(ari)                                               # now after its Shape
 
@@ -169,8 +167,13 @@ class DiagramTests(unittest.TestCase):
 
         self.assertCountEqual(
                 [(names[a], label, names[b]) for a, label, b in _arrows(text)],
-                [("Agent", "", "Base_Again"), ("Base_Again", "", "Shape_Kept")],
+                [
+                    ("Agent", "", "Base_Again"),
+                    ("Base_Again", "", "Shape_Kept"),
+                    ("Agent", "", "Other"),
+                    ],
                 )
+        self.assertEqual(list(Diagram(ari, limit=1)), ["game.bases", "game.other"])
 
     def test_a_constant_post_broken_after_its_rip_is_still_marked(self) -> None:
         class Intelligence(Tag):

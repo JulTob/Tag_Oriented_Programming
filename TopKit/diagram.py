@@ -139,29 +139,34 @@ class _Graph:
         state = _state_of(subject)
         active = list(state.active) if state is not None else []
         ripped = (
-                sorted(state.ever - set(active), key=lambda t: t.__name__)
+                sorted(
+                        state.ever - set(active),
+                        key=lambda t: (t.__name__, t.__module__, t.__qualname__),
+                        )
                 if state is not None else []
                 )
-        # A Post name is checked once, on the latest Layer that declares it.
-        # A Ripped Tag can still hold one: a Constant Post outlives its Rip.
+        # A Post name is checked once, on its latest Layer. A Constant Post
+        # outlives its Tag's Rip, so that Layer's Tag may be a Ripped one.
         self.broken: dict[type, set[str]] = {}
         verdicts = Contract.Status(subject) if state is not None else {}
 
         for name, holds in verdicts.items():
-            for tag in [*reversed(active), *ripped]:
-                if not holds and any(n == name for n, _ in _declarations_of(tag).postconditions):
-                    self.broken.setdefault(tag, set()).add(name)
-                    break
+            layers = state.post_layers.get(name, ())
+
+            if not holds and layers:
+                self.broken.setdefault(layers[-1].tag, set()).add(name)
 
         source = _HOST if self.has_host else subject
         carry = None if self.has_host else "pins"
+        live = set(active)
+        # Base-first, even after a Base was Ripped and Tagged again: then it
+        # comes after its Shape in `active`. A family then starts at its top
+        # Base, whose module it goes to.
+        forming = dict.fromkeys(t for tag in active for t in _form_of(tag) if t in live)
 
-        # A Base Ripped and applied again comes after its Shape in `active`,
-        # so Bases are looked up in the whole active set, not in the order.
-        self.carried.update(active)
-
-        for tag in active:
+        for tag in forming:
             self._add(tag)
+            self.carried.add(tag)
             bases = [base for base in _direct_bases(tag) if base in self.carried]
             self.arrows.extend((base, tag, None) for base in bases)
 
