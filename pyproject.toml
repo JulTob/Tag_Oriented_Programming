@@ -30,11 +30,6 @@ classifiers = [
         "Programming Language :: Python :: 3.14",
         ]
 
-[project.optional-dependencies]
-diagram = [
-        "mmdr>=0.4",
-        ]
-
 [project.urls]
 Homepage = "https://github.com/JulTob/Tag_Oriented_Programming"
 Specification = "https://github.com/JulTob/Tag_Oriented_Programming/blob/main/spec/SPECIFICATION.md"

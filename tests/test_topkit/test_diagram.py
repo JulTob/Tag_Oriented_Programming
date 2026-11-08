@@ -6,9 +6,7 @@ import pathlib
 import re
 import shutil
 import subprocess
-import sys
 import tempfile
-import types
 import unittest
 import warnings
 from unittest import mock
@@ -353,15 +351,12 @@ class DiagramTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             Diagram(Agent(), format="plantuml")
 
-    def test_save_writes_mermaid_files_without_mmdr(self) -> None:
+    def test_save_writes_mermaid_files(self) -> None:
         ari = Agent()
         for module in ("game.feats", "game_feats"):                   # both "game_feats"
             type("Feat", (Tag,), {"__module__": module})(ari)
 
-        with (
-                mock.patch.dict(sys.modules, {"mmdr": None}),
-                tempfile.TemporaryDirectory() as folder,
-                ):
+        with tempfile.TemporaryDirectory() as folder:
             paths = Save(ari, pathlib.Path(folder) / "ari", limit=1)
             written = {p.name: p.read_text() for p in paths}
 
@@ -384,27 +379,12 @@ class DiagramTests(unittest.TestCase):
 
         self.assertEqual(written, {"ari.dot": Diagram(ari, format="graphviz")["Agent"]})
 
-    def test_save_draws_a_mermaid_image_with_merman(self) -> None:
-        ari = Agent()
-        Elf(ari)
-        calls = []
+    def test_a_mermaid_chart_has_no_image(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaisesRegex(ValueError, "format='graphviz'"):
+                Save(Agent(), pathlib.Path(folder) / "ari", image="svg")
 
-        def render(text: str, backend: str) -> types.SimpleNamespace:
-            calls.append((text, backend))
-            return types.SimpleNamespace(svg=lambda: "<svg/>", png=lambda: b"PNG")
-
-        for image, picture in (("svg", b"<svg/>"), ("png", b"PNG")):
-            calls.clear()
-            with (
-                    mock.patch.dict(sys.modules, {"mmdr": types.SimpleNamespace(render=render)}),
-                    tempfile.TemporaryDirectory() as folder,
-                    ):
-                paths = Save(ari, pathlib.Path(folder) / "ari", image=image)
-                written = {p.name: p.read_bytes() for p in paths}
-
-            chart = Diagram(ari)["Agent"]
-            self.assertEqual(written, {"ari.mmd": chart.encode(), f"ari.{image}": picture})
-            self.assertEqual(calls, [(chart, "merman")])
+            self.assertEqual(list(pathlib.Path(folder).iterdir()), [])
 
     @unittest.skipUnless(shutil.which("dot"), "Graphviz is not installed")
     def test_save_draws_a_graphviz_image_with_dot(self) -> None:
@@ -423,16 +403,9 @@ class DiagramTests(unittest.TestCase):
     def test_an_unknown_image_is_refused_before_anything_is_written(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             with self.assertRaises(ValueError):
-                Save(Agent(), pathlib.Path(folder) / "ari", image="jpg")
+                Save(Agent(), pathlib.Path(folder) / "ari", format="graphviz", image="jpg")
 
             self.assertEqual(list(pathlib.Path(folder).iterdir()), [])
-
-    def test_an_image_without_mmdr_names_the_install(self) -> None:
-        with (
-                mock.patch.dict(sys.modules, {"mmdr": None}),
-                self.assertRaisesRegex(ImportError, r'pip install "topkit\[diagram\]"'),
-                ):
-            Save(Agent(), "unused", image="png")
 
     def test_a_graphviz_image_without_dot_names_the_install(self) -> None:
         with tempfile.TemporaryDirectory() as folder:

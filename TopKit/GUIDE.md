@@ -1352,14 +1352,14 @@ leaves a single chart, one big family, it keeps the Agent's name.
 `sol-<name>.mmd` per chart, where each character of the name other than a
 letter, digit, `_` or `-` becomes `_` (`"game.species (2)"` goes to
 `sol-game_species_2.mmd`), and `-2`, `-3` are added when two names make
-the same file name. Pictures are optional: `Save(sol, "sol",
-image="svg")` or `image="png"` also draws each chart beside its `.mmd`
-with merman, through the `mmdr` package (`pip install "topkit[diagram]"`).
+the same file name. A `.mmd` needs no picture: GitHub, VS Code and
+mermaid.live draw it.
 
 `format="graphviz"` gives the same charts as Graphviz DOT instead, in
 `Diagram` and `Save` (`sol.dot`); there each member kind is colored by
-what it does, and `image=` draws with Graphviz's own `dot` command, which
-must be installed.
+what it does. With it, `image="svg"` or `image="png"` also draws each chart
+beside its `.dot` with Graphviz's own `dot` command, which must be
+installed.
 
 ---
 

@@ -42,9 +42,8 @@
   is never split, and a module still above the limit is split between
   families into `module (2)` and so on. `format="graphviz"` gives the same
   charts as Graphviz DOT. `Save(agent, path)` writes each chart as a `.mmd`
-  (or `.dot`) file; `image="svg"` or `"png"` also draws it, with merman
-  through the optional `mmdr` package (`pip install "topkit[diagram]"`), or
-  with Graphviz's `dot` command.
+  (or `.dot`) file, with no dependency; with Graphviz, `image="svg"` or
+  `"png"` also draws it with the `dot` command.
 
 - **Pin declarations and native Targets:** `class Rare(Pin)` declares a
   concrete Pin. Ordinary Tags apply to object instances; named Pins apply

@@ -2,11 +2,10 @@
 Graphviz.
 
 ``Diagram`` returns chart text and ``Save`` writes it to files: Mermaid
-``.mmd`` by default, or Graphviz ``.dot`` with ``format="graphviz"``; both
-need nothing outside the standard library. ``Save(..., image="svg")`` or
-``image="png"`` also draws each file: Mermaid with merman, through the
-optional ``mmdr`` package (``pip install "topkit[diagram]"``), Graphviz with
-its ``dot`` command.
+``.mmd`` by default, which GitHub, VS Code and mermaid.live draw, or
+Graphviz ``.dot`` with ``format="graphviz"``; both need nothing outside the
+standard library. With ``format="graphviz"``, ``Save(..., image="svg")`` or
+``image="png"`` also draws each file with Graphviz's ``dot`` command.
 
 Each Tag box lists the Contributions and conditions the Tag declares itself.
 An arrow runs from a Base to its Shape, in Forming order. On an Agent, the
@@ -533,48 +532,31 @@ def Diagram(
 
 
 def _painter(
-        format: str,
         image: str,
         ):
-    """A function that draws one chart's text to ``image`` bytes."""
+    """A function that draws one DOT chart to ``image`` bytes with ``dot``."""
 
-    if format == "graphviz":
-        dot = shutil.which("dot")
+    dot = shutil.which("dot")
 
-        if dot is None:
-            raise FileNotFoundError(
-                    f"image={image!r} with format='graphviz' draws with Graphviz's"
-                    " dot command; install Graphviz (https://graphviz.org/download/)."
-                    " Without image=, Save writes the .dot files alone."
-                    )
-
-        def paint(text: str) -> bytes:
-            done = subprocess.run(
-                    [dot, f"-T{image}"],
-                    input=text.encode("utf-8"),
-                    capture_output=True,
-                    check=False,
-                    )
-
-            if done.returncode != 0:
-                raise RuntimeError(f"dot could not draw the chart: {done.stderr.decode().strip()}")
-
-            return done.stdout
-
-        return paint
-
-    try:
-        import mmdr
-    except ImportError as error:
-        raise ImportError(
-                f"image={image!r} draws with merman through the optional mmdr"
-                ' package: pip install "topkit[diagram]". Without image=, Save'
-                " writes the Mermaid files alone."
-                ) from error
+    if dot is None:
+        raise FileNotFoundError(
+                f"image={image!r} draws with Graphviz's dot command; install"
+                " Graphviz (https://graphviz.org/download/). Without image=,"
+                " Save writes the .dot files alone."
+                )
 
     def paint(text: str) -> bytes:
-        drawn = mmdr.render(text, backend="merman")
-        return drawn.svg().encode("utf-8") if image == "svg" else drawn.png()
+        done = subprocess.run(
+                [dot, f"-T{image}"],
+                input=text.encode("utf-8"),
+                capture_output=True,
+                check=False,
+                )
+
+        if done.returncode != 0:
+            raise RuntimeError(f"dot could not draw the chart: {done.stderr.decode().strip()}")
+
+        return done.stdout
 
     return paint
 
@@ -593,11 +575,10 @@ def Save(
 
     One part is written to ``path`` with that suffix; several parts beside
     it, each named ``<stem>-<part name>``, with characters other than
-    letters, digits, ``_`` and ``-`` made ``_``. ``image="svg"`` or
-    ``image="png"`` also draws each part beside its text file: Mermaid with
-    merman, through the optional ``mmdr`` package
-    (``pip install "topkit[diagram]"``); Graphviz with its ``dot`` command.
-    Returns the written paths."""
+    letters, digits, ``_`` and ``-`` made ``_``. With ``format="graphviz"``,
+    ``image="svg"`` or ``image="png"`` also draws each part beside its
+    ``.dot`` with Graphviz's ``dot`` command. A ``.mmd`` needs no picture:
+    GitHub, VS Code and mermaid.live draw it. Returns the written paths."""
 
     if format not in _FORMATS:
         raise ValueError(f"format is one of {', '.join(_FORMATS)}")
@@ -605,7 +586,13 @@ def Save(
     if image is not None and image not in _IMAGES:
         raise ValueError(f"image is one of {', '.join(_IMAGES)}, or None")
 
-    paint = _painter(format, image) if image is not None else None
+    if image is not None and format != "graphviz":
+        raise ValueError(
+                "image= draws Graphviz charts: pass format='graphviz'. A .mmd"
+                " is drawn by its viewer, such as GitHub, VS Code or mermaid.live."
+                )
+
+    paint = _painter(image) if image is not None else None
     diagrams = Diagram(
             subject,
             limit=limit,
