@@ -46,11 +46,13 @@ _ESCAPES = {
         ">": "#gt;",
         "\n": " ",
         }
+# Strokes and text only, no fills: a fill fixed for a light page leaves the
+# theme's text unreadable on a dark one, and the reverse.
 _STYLES = {
-        "host": "fill:#e8e8e8,stroke:#555,stroke-width:2px",
-        "pin": "fill:#fff3d6,stroke:#b08000",
-        "broken": "fill:#ffecee,stroke:#e72e3b,stroke-width:2px",
-        "ripped": "fill:none,stroke:#999,stroke-dasharray:6 3,color:#888",
+        "host": "stroke-width:3px",
+        "pin": "stroke:#d4a017,stroke-width:2px",
+        "broken": "stroke:#e5484d,stroke-width:3px,color:#e5484d",
+        "ripped": "stroke:#8b8b8b,stroke-dasharray:6 3,color:#8b8b8b",
         }
 
 
@@ -154,9 +156,12 @@ class _Graph:
         source = _HOST if self.has_host else subject
         carry = None if self.has_host else "pins"
 
+        # A Base Ripped and applied again comes after its Shape in `active`,
+        # so Bases are looked up in the whole active set, not in the order.
+        self.carried.update(active)
+
         for tag in active:
             self._add(tag)
-            self.carried.add(tag)
             bases = [base for base in _direct_bases(tag) if base in self.carried]
             self.arrows.extend((base, tag, None) for base in bases)
 
